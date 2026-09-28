@@ -4383,89 +4383,76 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   and settlement. Reject duplicate/foreign/stale tickets, lost custody and early
   close/reclaim. Witness isolated hung-worker recovery separately.
 
-- **QUOTIENT-THEOREM-LIFT.** Complete checked operation correspondence and
-  publication under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations).
-  Managed direct `Quotient::define` and transport-backed `Quotient::lift`
-  already have checked-only source canaries. Reuse their post-termination
-  admission and proof-only request handling; mathematical admission is not
-  executable realization.
+- **QUOTIENT-RUNTIME-REALIZATION.** Execute admitted quotient value/call
+  operations under the [representative realization contract](wiki/spec/proofs/quotients.md#representative-layer-and-executable-realization).
+  Start with the existing bounded correspondence forms; broader
+  **QUOTIENT-THEOREM-LIFT** generalization is not a prerequisite.
 
-  The local relation/result-flow checks are broader than their canonical
-  publisher. In validation's `proof_contracts/quotients/relation_plan/`,
-  argument adaptation and immutable result aliases have checked forms.
-  Reuse transport-backed `lift` argument maps (selection, permutation,
-  repetition, omission), immutable result aliases, and finite-state forwarding
-  through the `quotient-result-flow` codec and independent correspondence.
-  `terminal_bridge.rs` still admits monomorphic,
-  single-state, direct position-preserving rows elsewhere. Complete missing
-  correspondence judgments and extend publication and independent
-  reconstruction for result computation, preconditioned `define`, and
-  generic/private applications; reuse the local judgments already implemented.
-  Retain complete application, relation, precondition and theorem-role evidence.
-  Do not multiply source-shape recognizers to publish each arrangement.
+  - Admit representable, custody-free carriers under an exact realization
+    judgment. Validation's `proof_contracts/quotients/formation_collection.rs`
+    currently requires a proof-only carrier: replacing the managed canaries'
+    recursive `Representative` with `data Representative [copy] { value: i32; }`
+    rejects with "has a runtime layout; quotient carriers must be proof-only".
+    Preserve the separate `carrier_fence.rs` rejection of affine/linear content
+    and routed custody; relaxing that would identify distinct authorities.
+  - Carry the licensed representative ABI through construction, arguments,
+    results, ordinary calls, Terminal operations and native realization.
+    The generic `quotient_operation` exclusions concern sealed proof requests;
+    do not turn those requests into ordinary runtime calls by deleting guards.
+    Stage 05 retains proof-only correspondence, and the verifier's
+    `validation/quotient_correspondence.rs` rejects every nonempty table with
+    `NonExecutableQuotientCorrespondence`. Replace that execution restriction
+    only with complete checked representation/operation evidence.
+  - Add separate invoking customers with observable results. The managed
+    `proofs/quotient_{define,lift}_managed_compile` fixtures use recursive
+    proof-only data and empty entries; their declaration-only path reaches the
+    Terminal fence. Calling them from runtime correctly rejects proof-only
+    values. Keep those admission fixtures and fact-only use free of calls,
+    dictionaries and fuel charges. Axiomatic operations supply no algorithm.
 
-  Representative/theorem eligibility still requires checked termination,
-  purity, crash freedom and exact hermetic identities; theorem closures must
-  be bodyful and free of admitted assumptions. Check helper types/statements
-  transitively, not only visible bodies. General assumption-closure machinery
-  and the congruence-only `lift<F, Congruence>` canonical payload belong to
-  **PROOF-CONTRACT-MIGRATION**; coordinate that payload's codec, verifier and
-  package-review consumers rather than inventing a second wire form.
+  Acceptance: direct `define` and transport-backed `lift` execute from verified
+  source-free artifacts on matching native hosts. Preserve representative ABI
+  and allowed uncanonicalized constant materialization without structural
+  observers or illicit representative extraction. Independently reject substituted
+  arguments/results/relations, missing correspondence and unsupported realization.
+  Pair a quotient operation with its representative theorem under a
+  quotient-refusing policy; **PROOF-CONTRACT-MIGRATION**'s transitive helper
+  type/statement assumption closure gates that control, not initial execution.
 
-  Acceptance: package-backed direct `define` and transport-backed `lift`
-  admit through ordinary `omega --check`, not only an isolated lowering
-  helper. Their [published correspondence](wiki/spec/proofs/quotients.md#published-quotient-correspondence)
-  rederives on decode and supports the broader admitted applications above.
-  Preserve rejection of implicit lifts, missing/surplus/reversed roles,
-  invalid laws, unproved termination, non-hermetic identities, admitted or
-  boundary theorem closures, and custody-bearing quotients.
-  **QUOTIENT-RUNTIME-REALIZATION** owns execution separately.
+- **QUOTIENT-THEOREM-LIFT.** Complete quotient correspondence publication
+  under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations)
+  and [published correspondence](wiki/spec/proofs/quotients.md#published-quotient-correspondence).
+  Validation's `proof_contracts/quotients/relation_plan/terminal_bridge.rs`
+  already retains transport-lift parameter selection/permutation/repetition/
+  omission, immutable result aliases and finite state forwarding. The codec and
+  independent replay support those rows; package review also projects forwarded
+  results. Reuse these mechanisms rather than reassigning them as missing.
 
-- **QUOTIENT-RUNTIME-REALIZATION.** Give admitted quotient operations a
-  checked executable value/call path under the
-  [representative realization contract](wiki/spec/proofs/quotients.md#representative-layer-and-executable-realization).
-  The bounded direct correspondence forms already provide a starting point;
-  this work need not wait for every generalization in QUOTIENT-THEOREM-LIFT.
+  - Extend canonical evidence for closed literal arguments, preconditioned
+    `define`, result computation and generic applications. Local correspondence
+    already judges bounded literals, but `canonical_lift_runtime_positions`
+    has only public-parameter positions. The bridge requires empty static
+    applications and representative/theorem single states, and refuses `define`
+    preconditions. Preserve complete applications, relations, contract implications,
+    normal-result coverage and ordered theorem roles through decode/reconstruction.
+    Replace incidental source-shape gates with the normalized judgments.
+  - Complete package projection for the broader applications and private
+    dependencies under visibility rules. Private source operations already check;
+    `package-evidence/src/capture/quotients.rs` rejects private operation rows.
+    Extractor/codec tests with supplied termination facts are not ordinary
+    package-check acceptance.
+  - Preserve checked termination, purity, crash freedom and hermetic identities;
+    selected theorems remain bodyful and assumption-free through helper
+    types/statements. **PROOF-CONTRACT-MIGRATION** owns general transitive
+    assumption closure and the congruence-only `lift<F, Congruence>` payload;
+    coordinate codec, verifier and package review without a second wire form.
 
-  Checked contracts, ranges and termination, and subsequent nested/mixed-call
-  lowering still exclude `quotient_operation` calls. Terminal validation
-  rejects nonempty retained correspondence tables with
-  `NonExecutableQuotientCorrespondence`.
-
-  Measured: both named customers,
-  `pass/proofs/quotient_define_managed_compile` and
-  `quotient_lift_managed_compile`, pass checking, produce a Terminal module,
-  and stop there at exactly that refusal. Nothing in checked contracts,
-  ranges or termination refuses them first. But neither demonstrates an
-  executable route, and that is deliberate: each ends in `machine
-  Main::main(&mut self) {}`, and `quotient_define_managed_compile` says in
-  its own header that "the retained correspondence is never an executable
-  callee". They are honest compile canaries for the admission shape, not
-  executable customers to be repaired by giving them entries. What the corpus
-  lacks is a separate invoking customer -- there are 17
-  `data X = Carrier % relation` declarations in all, 14 of them in `fail`,
-  and none calls a quotient operation from a program entry. Author that
-  customer before deciding which exclusion to license, and leave these two
-  canaries proof-only. Replace those exclusions only
-  where a checked representation/operation judgment licenses the ordinary
-  representative call. Retaining a mathematical correspondence row alone
-  does not establish all executable custody.
-
-  Preserve the representative ABI and permitted uncanonicalized constant
-  materialization without exposing representative-sensitive structural
-  observers. Axiomatic operations supply no algorithm; executable use needs
-  checked computation or a realization with correspondence. Keep custody-
-  bearing quotients fenced and fact-only admission free of runtime calls,
-  dictionaries or fuel charges.
-
-  Acceptance: direct `define` and transport-backed `lift` customers reach
-  source-free Terminal checking and matching-host native execution, with
-  result/argument/relationship substitution and missing correspondence
-  rejected independently. Preserve refusal of illicit representative
-  extraction and unsupported realization. The quotient-refusing policy
-  control additionally depends on PROOF-CONTRACT-MIGRATION's transitive
-  assumption closure through helper types/statements; do not confuse that
-  integration dependency with the initial executable route.
+  Acceptance: package-backed `define` and transport-backed `lift` pass ordinary
+  `omega --check` and publish the broader independently reconstructible rows.
+  Reject implicit lifts, missing/surplus/reversed roles, invalid laws, unproved
+  termination, non-hermetic identities, admitted/boundary theorem closures and
+  custody-bearing quotients. **QUOTIENT-RUNTIME-REALIZATION** owns execution;
+  the existing managed canaries still stop at Terminal's execution fence.
 
 - **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Connect checked adapter port I/O
   to native production under [consumer-owned settlement](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
