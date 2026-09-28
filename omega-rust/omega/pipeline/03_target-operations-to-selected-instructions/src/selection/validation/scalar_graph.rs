@@ -23,6 +23,7 @@ use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 mod aggregate_argument;
 mod aggregate_memory;
 mod aggregate_return;
+mod atomic_access;
 mod boolean_value;
 mod byte_input;
 mod byte_output;
@@ -166,6 +167,9 @@ pub(in crate::selection) fn validate_with_environment(
                 .is_some())
                 && control::branch_suffix(source, source_block, operation_index + 1)
             {
+                continue;
+            }
+            if atomic_access::validate(source, operation, &mut replay)? {
                 continue;
             }
             if structural::operation(source, operation, environment, &mut replay)? {
