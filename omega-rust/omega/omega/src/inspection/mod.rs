@@ -87,9 +87,9 @@ pub fn inspect_terminal(
         machine: request.machine.clone(),
         error,
     })?;
-    compiler::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
+    compilation_products::validate_lowered_ieee_float_comparison_custody(&checked, &lowered)
         .map_err(InspectTerminalError::Diagnostics)?;
-    compiler::validate_lowered_integer_comparison_custody(&checked, &lowered)
+    compilation_products::validate_lowered_integer_comparison_custody(&checked, &lowered)
         .map_err(InspectTerminalError::Diagnostics)?;
     let fixed_fuel =
         evidence::inspect(&lowered.semantic_module, &lowered.proof_bundle).map_err(|error| {

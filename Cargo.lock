@@ -418,6 +418,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "image-emission",
+ "lowered-psi",
  "native-artifact",
  "optimization-core",
  "package-compilation",

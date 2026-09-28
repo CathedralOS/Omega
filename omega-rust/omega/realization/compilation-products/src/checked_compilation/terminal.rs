@@ -1,0 +1,118 @@
+//! Project checked product custody into Terminal inspection and native handoff.
+//!
+//! These projections supply existing stage inputs and assemble reports; they do
+//! not lower code, produce callback bodies, or execute native proposal production.
+//! Omega stage 00 independently reconstructs occurrence and provider joins.
+
+use super::CheckedCompilation;
+use crate::{CompileReport, RetainedTerminalArtifact, TerminalCallbackThunkArtifact};
+use diagnostics::Diagnostic;
+use lowered_psi::{
+    LoweredPsi, LoweredSelectedIeeeFloatComparisonOccurrence,
+    LoweredSelectedIntegerComparisonOccurrence, LoweredSourceCallOccurrence,
+};
+use terminal_psi_to_abstract_operations::{
+    BoundaryApplicationSettlement, TerminalNativeProposalRequest,
+};
+
+impl CheckedCompilation {
+    /// Borrow the exact checked selections for a produced Terminal occurrence
+    /// roster. Supplied callbacks remain candidates, not admitted native code;
+    /// stage 00 must check their cardinality, identities and source associations.
+    pub fn terminal_native_proposal_request<'input>(
+        &'input self,
+        callback_placements: &'input [backend_plan::BoundNominalCallbackPlacement],
+        callback_thunks: Vec<TerminalCallbackThunkArtifact>,
+        source_call_occurrences: &'input [LoweredSourceCallOccurrence],
+        selected_ieee_float_comparison_occurrences: &'input [LoweredSelectedIeeeFloatComparisonOccurrence],
+        selected_integer_comparison_occurrences: &'input [LoweredSelectedIntegerComparisonOccurrence],
+        selections: &optimization_core::OptimizationSelections,
+    ) -> TerminalNativeProposalRequest<'input> {
+        TerminalNativeProposalRequest {
+            boundaries: BoundaryApplicationSettlement {
+                checked: self,
+                selected_provider_plans: &self.execution().selected_provider_plan_facts,
+                selected_provider_provenance: self
+                    .execution()
+                    .selected_provider_provenance
+                    .as_slice(),
+                exact_toolchain_sources: self.exact_toolchain_sources(),
+                target_profile: self.selected_target_profile(),
+                console_exit_binding: self.resolved_semantic_binding(
+                    package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+                ),
+                process_exit_binding: self.resolved_semantic_binding(
+                    package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+                ),
+                calling_plan_realizations: self.boundary_calling_plan_realizations(),
+            },
+            native_target: self.selected_native_target(),
+            program_entry: self.selected_program_entry(),
+            application: self.project_native_application_metadata(),
+            optimizations: selections.project_post_terminal(),
+            external_bindings: self.external_binding_rows(),
+            behavior_exclusions: self.build().config.behavior_exclusions.as_slice(),
+            package_terminal_authority_permissions: self.package_terminal_authority_permissions(),
+            callback_placements,
+            callback_thunks,
+            source_call_occurrences,
+            selected_ieee_float_comparison_occurrences,
+            selected_integer_comparison_occurrences,
+        }
+    }
+
+    /// Assemble a completed Terminal product with the source subject captured
+    /// before lowering and the exact effective rollback receipt. Report custody
+    /// and proof-product eligibility are checked by their existing constructors.
+    pub fn terminal_report(
+        &self,
+        root_path: std::path::PathBuf,
+        artifact: RetainedTerminalArtifact,
+        production_subject: Option<crate::ProductionCompilationSubject>,
+        rollback: Option<optimization_core::OptimizationRollbackReceipt>,
+        profile: proof_admission::AdmissionProfile,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        CompileReport::from_retained_terminal_artifact(
+            root_path,
+            self.source_file_count(),
+            artifact,
+            production_subject,
+        )
+        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
+        .and_then(|report| report.with_pcc_context(self.build().config.settings.pcc, profile))
+        .map_err(|message| vec![Diagnostic::error(message)])
+    }
+}
+
+/// Rejoin an inspection product to its exact selected IEEE comparison meanings.
+/// Portable verification cannot establish this source/provider association;
+/// successful reconstruction grants no native execution authority.
+pub fn validate_lowered_ieee_float_comparison_custody(
+    checked: &CheckedCompilation,
+    lowered: &LoweredPsi,
+) -> Result<(), Vec<Diagnostic>> {
+    terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
+        checked,
+        &lowered.semantic_module,
+        &checked.execution().selected_provider_plan_facts,
+        checked.execution().selected_provider_provenance.as_slice(),
+        &lowered.selected_ieee_float_comparison_occurrences,
+    )
+    .map(|_| ())
+}
+
+/// Rejoin integer comparison occurrences to the admitted authored emission
+/// triple. Swapped or negated recorded comparisons cannot substitute meanings.
+pub fn validate_lowered_integer_comparison_custody(
+    checked: &CheckedCompilation,
+    lowered: &LoweredPsi,
+) -> Result<(), Vec<Diagnostic>> {
+    terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
+        checked,
+        &lowered.semantic_module,
+        &checked.execution().selected_provider_plan_facts,
+        checked.execution().selected_provider_provenance.as_slice(),
+        &lowered.selected_integer_comparison_occurrences,
+    )
+    .map(|_| ())
+}

@@ -26,38 +26,14 @@ pub(crate) fn project_terminal_native_realization_proposal(
         artifact,
         checked_program_entry,
         checked_boundary_operator_scope,
-        terminal_psi_to_abstract_operations::TerminalNativeProposalRequest {
-            boundaries: terminal_psi_to_abstract_operations::BoundaryApplicationSettlement {
-                checked,
-                selected_provider_plans: &checked.execution().selected_provider_plan_facts,
-                selected_provider_provenance: checked
-                    .execution()
-                    .selected_provider_provenance
-                    .as_slice(),
-                exact_toolchain_sources: checked.exact_toolchain_sources(),
-                target_profile: checked.selected_target_profile(),
-                console_exit_binding: checked.resolved_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-                ),
-                process_exit_binding: checked.resolved_semantic_binding(
-                    package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-                ),
-                calling_plan_realizations: checked.boundary_calling_plan_realizations(),
-            },
-            native_target: checked.selected_native_target(),
-            program_entry: checked.selected_program_entry(),
-            application: checked.project_native_application_metadata(),
-            optimizations: selections.project_post_terminal(),
-            external_bindings: checked.external_binding_rows(),
-            behavior_exclusions: checked.build().config.behavior_exclusions.as_slice(),
-            package_terminal_authority_permissions: checked
-                .package_terminal_authority_permissions(),
+        checked.terminal_native_proposal_request(
             callback_placements,
             callback_thunks,
             source_call_occurrences,
             selected_ieee_float_comparison_occurrences,
             selected_integer_comparison_occurrences,
-        },
+            selections,
+        ),
     )
 }
 

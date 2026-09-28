@@ -39,13 +39,11 @@ pub use crate::report::{
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
-pub use crate::terminal::{
-    validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
-};
 pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::{
     CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
-    TargetCompileConfiguration,
+    TargetCompileConfiguration, validate_lowered_ieee_float_comparison_custody,
+    validate_lowered_integer_comparison_custody,
 };
 pub use compiler::compile;
 pub use compiler::package::retained_terminal_artifact_from_checked_package;

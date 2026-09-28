@@ -66,55 +66,15 @@ pub fn produce_terminal_report(
         rollback,
     )?;
     let production_subject = checked.production_subject()?;
-    let source_file_count = checked.source_file_count();
     let rollback = rollback.settle(&checked.build().config.settings.optimizations);
     let artifact = produce_retained_terminal_artifact(&mut checked, profile, rollback.effective())?;
-    crate::report::CompileReport::from_retained_terminal_artifact(
+    checked.terminal_report(
         root_path,
-        source_file_count,
         artifact,
         production_subject,
+        rollback.into_receipt(),
+        profile.clone(),
     )
-    .and_then(|report| report.with_terminal_optimization_rollback(rollback.into_receipt()))
-    .and_then(|report| report.with_pcc_context(pcc_requests, profile.clone()))
-    .map_err(|message| vec![Diagnostic::error(message)])
-}
-
-/// Rejoin a checked-source inspection product to its exact selected IEEE
-/// comparison meanings. Portable verification alone cannot establish this
-/// source/provider association, and this check grants no native execution.
-pub fn validate_lowered_ieee_float_comparison_custody(
-    checked: &CheckedCompilation,
-    lowered: &lowered_psi::LoweredPsi,
-) -> Result<(), Vec<Diagnostic>> {
-    terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
-        checked,
-        &lowered.semantic_module,
-        &checked.execution().selected_provider_plan_facts,
-        checked.execution().selected_provider_provenance.as_slice(),
-        &lowered.selected_ieee_float_comparison_occurrences,
-    )
-    .map(|_| ())
-}
-
-/// Rejoin a checked-source inspection product to its exact selected integer
-/// comparison meanings — the integer counterpart of
-/// [`validate_lowered_ieee_float_comparison_custody`]. The recorded emission
-/// triple must be the admitted emission of the authored spelling, so a
-/// swapped or negated comparison cannot substitute a different selected
-/// semantic. This check grants no native execution.
-pub fn validate_lowered_integer_comparison_custody(
-    checked: &CheckedCompilation,
-    lowered: &lowered_psi::LoweredPsi,
-) -> Result<(), Vec<Diagnostic>> {
-    terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
-        checked,
-        &lowered.semantic_module,
-        &checked.execution().selected_provider_plan_facts,
-        checked.execution().selected_provider_provenance.as_slice(),
-        &lowered.selected_integer_comparison_occurrences,
-    )
-    .map(|_| ())
 }
 
 /// Produce one verified retained Terminal product from the complete checked
