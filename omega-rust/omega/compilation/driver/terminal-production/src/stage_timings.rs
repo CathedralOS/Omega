@@ -1,11 +1,9 @@
 //! Per-stage timing carrier owned by Terminal production.
 //!
-//! `terminal-production` cannot depend on Omega's `artifacts` accumulator
-//! (`psi_does_not_depend_on_omega`), so the Psi side of the coarse
-//! `terminal-production` boundary row records `(stage, microseconds)` rows
-//! here; the owning Omega caller merges them into `CompileTimings` after
-//! production returns. A disabled carrier runs the work unmeasured, so every
-//! production path shares one instrumented body.
+//! The product driver's narrow production sequence records its completed
+//! `(stage, microseconds)` rows here. The request-level caller merges them
+//! into `CompileTimings`; Psi stages need no reporting dependency. A disabled
+//! carrier runs the same work unmeasured.
 
 use std::time::Instant;
 
@@ -16,8 +14,6 @@ pub enum TerminalProductionStage {
     Lowering,
     Optimization,
     EntryReceipt,
-    TerminalIdentity,
-    ReceiverEligibility,
     Publication,
     BoundaryOperatorScope,
 }
@@ -42,16 +38,6 @@ impl TerminalProductionStage {
                 "terminal-production/entry-receipt",
                 "OptimizedLoweredPsi",
                 "ProgramEntryReceipt",
-            ),
-            Self::TerminalIdentity => (
-                "terminal-production/terminal-identity",
-                "SemanticModule",
-                "TerminalPsiIdentity",
-            ),
-            Self::ReceiverEligibility => (
-                "terminal-production/receiver-eligibility",
-                "CheckedTrees+SemanticModule",
-                "ReceiverEligibility",
             ),
             Self::Publication => (
                 "terminal-production/publication",

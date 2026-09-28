@@ -1,5 +1,12 @@
 # Psi stage timing carrier — design note
 
+Historical design context: Terminal production now belongs to the
+[product driver](../../../omega-rust/omega/compilation/driver/terminal-production/README.md),
+not Psi. The sequence owns its observation labels. Ledger validation is included
+in Lowering; identity and receiver eligibility are included in EntryReceipt.
+The original topology, nine-row roster and outstanding-route claims below are
+not a current architecture or task inventory.
+
 Board: COMPILER-PASS-PROFILE-TIMINGS (TASKS.md "Remaining leg: decompose the
 coarse boundary rows into per-stage rows — finer in-Psi rows need a Psi-owned
 timing carrier because `terminal-production` cannot depend on `artifacts`

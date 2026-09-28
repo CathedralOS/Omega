@@ -3,7 +3,7 @@
 Contract: [task activation and lifecycle](../../../../../../wiki/spec/build/task_runtime.md).
 [lib.rs](src/lib.rs) owns activation plans, selected-runtime facts, exact
 preservation/invocation joins, and provider-instance lifecycle accounting.
-[stack_composition.rs](src/stack_composition/mod.rs) owns provider-independent same-stack composition.
+[stack_composition](src/task_plans/stack_composition/mod.rs) owns provider-independent same-stack composition.
 
 Activation planning is Omega-owned post-check state. The compiler reports
 `05_task_activations.json`; target calling/layout, stack, and runtime selection
@@ -70,7 +70,7 @@ a frontier that disagrees with the demand it declares, and a live place
 whose policy forbids suspension fails closed rather than licensing or
 dropping the loan.
 
-[provider_admission.rs](src/provider_admission.rs) is the provider-side
+[provider_admission.rs](src/task_plans/provider_admission.rs) is the provider-side
 gate consuming those carriers: one admitted runtime instance owns its
 ledger plus its fixed stack provisioning, mints fresh lease eras, and
 commits the slot spend and the claim inside one admission, so capacity is
@@ -103,4 +103,4 @@ scalar suspension carrier likewise does not license receiver/structural/claim
 frontiers without their exact joins; the plan frontier records the claims
 the checked producer already established but cannot yet authorize forms
 the producer never emits; see the
-[Terminal producer](../../../../../psi/compilation/pipeline/terminal-production/README.md#structural-results-and-suspension).
+[Terminal producer](../../../driver/terminal-production/README.md#structural-results-and-suspension).

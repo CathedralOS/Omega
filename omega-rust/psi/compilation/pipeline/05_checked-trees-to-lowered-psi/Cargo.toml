@@ -34,7 +34,7 @@ diagnostics = { path = "../../../foundation/diagnostics" }
 optimization = { path = "../../../foundation/optimization-selections" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../07_lowered-psi-to-terminal-psi" }
-terminal-production = { path = "../terminal-production" }
+terminal-production = { path = "../../../../omega/compilation/driver/terminal-production" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 source-files-to-tokens = { path = "../00_source-files-to-tokens" }
 symbol-resolved-trees-to-typed-trees = { path = "../03_symbol-resolved-trees-to-typed-trees" }
