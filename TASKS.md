@@ -1744,110 +1744,6 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
   and compare the spec's separate-tool route. No new executor, live-host grant
   extension or persistent writable cache.
 
-## Embedding and interpreted components
-
-Implement the [embedding contract](wiki/spec/build/embedding.md) as an ordinary
-library, not a CLI wrapper or scripting dialect. Work from one source-to-host
-customer through real lifetime and component behavior. Existing `Service` names
-in implementation evidence elsewhere on this board describe the current code;
-the accepted carrier name is `Binding`. Do not rewrite observed diagnostics until
-the implementation migration actually lands.
-
-- **EMBEDDING-SOURCE-TO-HOST.** (new-scope) Deliver compile -> load -> bind ->
-  invoke -> host result -> guest result -> close from an ordinary source-authored
-  interface package, host implementation, and script entry. Owners: product
-  compilation/entry descriptions, `psi/semantics/terminal-interpreter`, and
-  selected host adapter realization; expose the library, not command dispatch.
-  Use the ratified carrier name `Binding<R>`. The existing
-  `terminal-interpreter/tests/unit/embedding_lifetimes.rs` probes are scalar,
-  source-free mechanics, not this acceptance. Share immutable admitted programs
-  across independently reclaimable instances. Two same-trait slots must address
-  different host objects; absent/wrong/unauthorized bindings reject before effects.
-  Include host-supplied invalid input/precondition rejection and native result
-  schema rejection, not only console output. Then connect public descriptions and
-  checked dynamic invocation through the same adapters; requested type metadata
-  reuses [Semantic reflection](#semantic-reflection), not a second registry.
-  Dynamic lookup selects retained checked entries, never new generic instantiations
-  or private access. Inspect/update live objects only through exposed operations
-  at valid access points; detached documents require ordinary validated
-  construction/application and grant no authority over live storage.
-  No mandatory source compiler, filesystem, global runtime, or thread is needed
-  to load an already produced Psi artifact. Keep compilation authority separate.
-
-- **EMBEDDING-RESOURCE-LIFETIMES.** (new-scope) Extend that customer through a
-  borrowed view, an owned host resource, asynchronous host completion, and an
-  explicitly contracted callback. Owners: embedding runtime/adapters and existing
-  Terminal loan/custody/execution semantics; depends on **EMBEDDING-SOURCE-TO-HOST**.
-  Acceptance: pause inside an invariant window and reject conflicting inspection
-  and mutation, then resume without repeated effects; also reject an edit that
-  preserves the type invariant but invalidates retained stronger facts. Retained
-  results/callbacks prevent premature close, dropping the invocation handle
-  does not release debt, stale/wrong-runtime handles reject, and completion is
-  exact-once with duplicate/late response controls. Exercise failure after a host
-  effect and unsupported abandonment without retry or fabricated cleanup.
-  Close one instance while another remains usable. Admission must reject resource
-  modes whose abandonment cannot be contained. A whole-runtime busy wrapper may
-  be an initial floor, not the long-term concurrency/replacement architecture.
-
-- **PSI-COMPONENT-REPLACEMENT.** (new-scope) Supply the interpreter-backed
-  execution/install/publication provider for a guest that replaces its own
-  independent subcomponent without returning from its main machine. Reuse
-  **COMPONENT-SUBSTRATE**'s closed import/export and replacement evidence plus
-  **EMBEDDING-RESOURCE-LIFETIMES**; do not create a second module manager.
-  Owners: component execution/publication library and interpreter instance/entry
-  custody; application code owns acquisition, migration, and update policy.
-  Acceptance: ordinary root/nested build composition produces a replacement Psi
-  component; the running guest stages it and publishes under delegated authority.
-  New entries use v2, a paused old call/session continues v1, and v1 retires only
-  after all pins/dispositions settle. Missing update authority, incompatible
-  schema, widened authority, premature retirement, and handler substitution on
-  resume reject. Exercise both shared external state and an explicit state
-  disposition, preserving unaffected components. Loading alone never publishes;
-  the outer host must not implement the guest's update coordinator for the test.
-
-- **INTERPRETED-ASSEMBLY.** (split-of:ASM-INSTRUCTION-CATALOG-EXPANSION)
-  Deliver [checked instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution)
-  through source -> Terminal Psi -> verification -> the ordinary interpreter and
-  supplied target environment. Owners: catalog semantics, existing Terminal
-  operations, interpreter execution/custody, and environment provider packages.
-  Reuse value/place/transition operations and **PRIVILEGED-PORT-EFFECT-SETTLEMENTS**'s
-  port adapter work; no separate asm pipeline, whole-host emulator, or required
-  source wrapper per block. Native encoding alone is not interpreted support.
-  Acceptance: separate blocks exchange explicit values and authorized memory but
-  cannot read hidden scratch from each other; a device sequence and interrupt-
-  state/idle/external-entry sequence retain their effects across helpers and fuel
-  pauses. Resume never repeats a completed I/O operation. Check target ordering,
-  delayed effects, legal event points, control exits and resource custody against
-  the instruction model, not interpreter-step counts. Missing operation semantics,
-  wrong/missing environment, widened host authority and numeric-ID-as-physical-
-  pointer attempts reject before effects, including on component installation.
-  Preserve existing hermetic/build-test admission and runtime-assumption bans.
-  Validate model behavior separately from native byte/hardware correspondence;
-  host providers supply mechanisms, not Cathedral's drivers or scheduling policy.
-
-- **INTERPRETED-CATHEDRAL.** (new-scope) Drive actual Cathedral startup,
-  memory establishment and visible device work, then event delivery while it
-  remains live, then guest-owned component replacement. Depends on the connected
-  embedding/component tasks and the necessary existing boot/entry/resource
-  capabilities; Cathedral owns OS code, the host supplies contracted mechanisms.
-  Use the same shared algorithms/state machines in native and interpreted routes;
-  select providers/build composition rather than add execution-mode conditionals.
-  A host routine replacing Cathedral's boot, scheduler, or update policy does not
-  count. Report each delivered slice and its real remaining dependencies rather
-  than claim a boot banner demonstrates the full system. Assembly-bearing boot
-  depends on **INTERPRETED-ASSEMBLY**'s demanded instruction/environment coverage,
-  not an owner ruling. Preserve the actual OS sequence; do not require assembly
-  removal or replace boot/idle/device work with host policy. Simulation is evidence
-  under the selected environment model, not native timing/hardware correctness.
-
-  Cathedral's `tools/*-canary/run.sh` harnesses still assert over retired
-  `04_typed_trees.json` / `05_machine_contracts.json` dumps. Replace those
-  assumptions with checks of the intended behavior or supported artifact
-  contracts before citing the canaries as evidence. Source/build migration
-  alone cannot repair these assertions; compile-report output is not their
-  semantic oracle. Preserve Omega's no-default-debug-dumps contract rather
-  than restoring mandatory dumps to satisfy a downstream script.
-
 ## Requirement-based tests
 
 Implement [the settled testing contract](wiki/spec/build/testing.md) through
@@ -2617,6 +2513,110 @@ syntax and other terminal services are not prerequisites.
   Assumptions cannot discharge either body's checking or non-assumable compatibility.
   Ordinary refutable grants, invalid `satisfies`, stale approval and build-time
   reliance still reject. No unchecked body, override flag or parallel approval.
+
+## Embedding and interpreted components
+
+Implement the [embedding contract](wiki/spec/build/embedding.md) as an ordinary
+library, starting with one source-to-host customer. These additional execution
+customers follow the existing compiler customers above; generic embedding need
+not wait for Cathedral's instruction coverage. Interpreter paths below are under
+`omega-rust/psi/interpreter/terminal-interpreter/`.
+
+- **EMBEDDING-SOURCE-TO-HOST.** (new-scope) Deliver compile -> load -> bind ->
+  invoke -> host result -> guest result -> close from an authored interface
+  package, host implementation and script. Connect product compilation/public entry
+  descriptions, the interpreter and checked host adapters using `Binding<R>`.
+  `src/lib.rs` exposes artifact execution; `tests/unit/embedding_lifetimes.rs`
+  exercises source-free scalar code retention, fuel resumption and result rejection.
+  Public reusable programs, reclaimable instances, import-slot bindings and close
+  remain. Share immutable admitted programs across independent instances; two
+  same-trait slots address different host objects. Missing/wrong/unauthorized
+  bindings and invalid host input/preconditions reject before effects; reject native
+  result schema mismatch.
+  Public descriptions and checked dynamic calls must use the same adapters and
+  retained entries, without new generic instantiations or private access; reuse
+  [Semantic reflection](#semantic-reflection) for requested type metadata.
+  Inspect/update live objects only through exposed operations at valid access
+  points; edited detached documents require validated construction/application
+  and grant no live-storage authority. Loading existing Psi requires no source
+  compiler, filesystem, global runtime or thread; keep compilation authority separate.
+
+- **EMBEDDING-RESOURCE-LIFETIMES.** (new-scope) Extend **EMBEDDING-SOURCE-TO-HOST**
+  through borrowed views, owned host resources, asynchronous completion and
+  contracted callbacks. Owners: runtime/adapters and Terminal execution/loan/custody.
+  `src/results.rs` has no waiting/completion protocol; the
+  `raw_effect_sinks_do_not_pin_host_provider_identity` lifetime test permits handler
+  substitution on resume. Pin admitted bindings and retain custody across pauses.
+  Reuse the [source-driven registration control](omega-rust/omega/backend/runtime/component-publication/src/tests.rs):
+  `interpreted_register_and_unregister_drive_the_registration_ledger` already
+  exercises component ledger entry/teardown; runtime lifecycle integration remains.
+  Pause within an invariant window: reject conflicting inspection/mutation,
+  including edits preserving the type invariant but invalidating retained stronger
+  facts; resume without repeated effects. Retained results/callbacks prevent close;
+  dropping an invocation does not release debt. Reject stale/wrong-runtime handles
+  and duplicate/late completions; match each completion exactly once to its pending
+  request. Cover failure after host effects and unsupported abandonment without
+  retry or fabricated cleanup; reject uncontainable resource
+  modes before admission. Close one instance while another remains usable.
+  A whole-runtime busy wrapper is only an initial floor.
+
+- **PSI-COMPONENT-REPLACEMENT.** (new-scope) Provide interpreter-backed component
+  installation/publication so a running guest replaces an independent subcomponent
+  without returning from main. Depends on **COMPONENT-SUBSTRATE** and
+  **EMBEDDING-RESOURCE-LIFETIMES**. Current
+  `omega-rust/omega/compiler/src/terminal/terminal_artifact/composition_modes.rs`
+  rejects independent products; checked descriptions alone do not unblock this.
+  Reuse the closed import/export and era/custody contracts in
+  `omega-rust/omega/backend/runtime/component-publication/`; its
+  `RunnableComponentEraLedger` retains native installed artifacts. Connect Psi
+  instances/entries to that publication contract, without a second module manager.
+  Root/nested build composition must produce replacement Psi; the guest stages
+  and publishes it under delegated authority. New entries use v2, paused old
+  calls/sessions remain on v1, and retirement waits for every pin/disposition.
+  Reject missing update authority, incompatible schema, widened authority,
+  premature retirement and handler substitution on resume. Exercise shared
+  external state and explicit state disposition while unaffected components remain
+  usable. Loading never publishes. The application owns acquisition, migration
+  and update policy; the outer host cannot implement its update coordinator.
+
+- **INTERPRETED-ASSEMBLY.** (split-of:ASM-INSTRUCTION-CATALOG-EXPANSION)
+  Deliver [checked instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution)
+  through source -> verified Terminal Psi -> ordinary interpreter and supplied
+  target environment. Owners: catalog semantics, Terminal operations,
+  interpreter custody and environment providers. The source catalog and
+  `src/calls.rs`'s `PortWrite` effect dispatch cover slices, not the demanded
+  instruction/environment closure, including admitted providers.
+  Reuse value/place/transition operations and **PRIVILEGED-PORT-EFFECT-SETTLEMENTS**;
+  no separate asm pipeline, whole-host emulator or required per-block source wrapper.
+  Separate blocks may share explicit values/authorized memory, never hidden
+  scratch. Run device and interrupt-state/idle/external-entry sequences across
+  helpers and fuel pauses without repeating completed I/O. Check ordering, delayed
+  effects, legal event points, control exits and custody against target semantics,
+  not step counts. Missing semantics, missing/wrong environments, widened host
+  authority and numeric-ID-as-physical-pointer attempts reject before effects,
+  including component installation. Preserve hermetic/build-test admission and
+  runtime-assumption bans. Validate modeled behavior separately from native
+  encoding/hardware correspondence; providers supply mechanisms, Cathedral owns
+  drivers and scheduling policy.
+
+- **INTERPRETED-CATHEDRAL.** (new-scope) Run actual Cathedral startup, memory
+  establishment and visible device work, then event delivery while live, then
+  guest-owned component replacement. Depends on the embedding/component tasks,
+  existing boot/entry/resource capabilities and **INTERPRETED-ASSEMBLY**'s demanded
+  instruction/environment coverage; no new owner ruling is needed.
+  Preserve the OS sequence and shared native/interpreted algorithms/state machines:
+  select providers/build composition, without mode conditionals or assembly removal.
+  Host mechanisms cannot replace Cathedral's boot, idle, device, scheduler or update
+  policy. Report partial slices and remaining dependencies; a banner is insufficient,
+  and simulation establishes modeled behavior, not native timing/hardware correctness.
+
+  Cathedral's `tools/x86-legacy-bootstrap-composition-canary/main.omg` is explicitly
+  compile-only with an empty entry. `tools/extent-root-canary/run.sh` and
+  `tools/timer-root-work-canary/run.sh` still require retired
+  `04_typed_trees.json` / `05_machine_contracts.json` dumps. Migrate those and
+  equivalent canary oracles to intended behavior or supported artifact contracts
+  before citing acceptance. Source/build migration or compile-report output alone
+  cannot repair these assertions; preserve Omega's no-default-debug-dumps contract.
 
 ## P3 - Terminal Psi, PCC, and observation
 
