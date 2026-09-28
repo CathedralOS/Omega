@@ -9,6 +9,9 @@ use crate::proof_contracts::arithmetic_domains::place_paths::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 
+#[cfg(test)]
+mod tests;
+
 /// S4 flow-sensitive value environment: the proven interval of each place
 /// (`self.field`, local) along the straight-line prefix of a state body. Lets the
 /// overflow proof discharge `self.v = 10; self.v += 5` (v is known to be 10, so
@@ -158,14 +161,18 @@ impl ValueEnvironment {
         Self::default()
     }
 
-    /// Drop all tracked values (after an opaque effect like a call that may
-    /// mutate fields through `&mut`, or when leaving the linear prefix).
+    /// Drop all tracked values when no incoming environment can be retained.
+    /// Unknown mutation instead preserves existing immutable scalar snapshots.
     pub(crate) fn clear(&mut self) {
-        self.ordered_values.clear();
         self.intervals.clear();
         self.known_u64_values.clear();
         self.float_intervals.clear();
         self.non_nan.clear();
+        self.clear_relations();
+    }
+
+    fn clear_relations(&mut self) {
+        self.ordered_values.clear();
         self.joint_add_upper_bounds.clear();
         self.joint_add_lower_bounds.clear();
         self.joint_subtract_bounds.clear();
@@ -175,6 +182,51 @@ impl ValueEnvironment {
         self.signed_joint_multiply_lower_bounds.clear();
         self.signed_joint_multiply_upper_bounds.clear();
         self.signed_joint_multiply_negation_bounds.clear();
+    }
+
+    /// An unknown write can change aliased storage, but cannot change a copied
+    /// immutable scalar binding. Keep only its already established unary facts;
+    /// never reread an initializer whose source may since have changed. References
+    /// (including immutable bindings of mutable references) and aggregate paths
+    /// are excluded. Control-flow joins must still use their ordinary merge or
+    /// `clear`, since immutability alone does not establish an incoming fact.
+    pub(crate) fn invalidate_unknown_writes(
+        &mut self,
+        program: &TypedTrees,
+        state: Option<&State>,
+    ) {
+        let Some(state) = state else {
+            self.clear();
+            return;
+        };
+        // This environment uses display paths. A bare name must identify one
+        // declaration in this exact state; ambiguous names retain no evidence.
+        let mut frozen = BTreeMap::new();
+        let mut declaration = |name, immutable, reference| {
+            let copied_scalar = immutable && program.primitive_type_reference(reference).is_some();
+            frozen
+                .entry(name)
+                .and_modify(|unique| *unique = false)
+                .or_insert(copied_scalar);
+        };
+        for parameter in program.state_parameters(state) {
+            declaration(
+                parameter.name.as_str(),
+                !parameter.is_mutable && !parameter.is_self,
+                parameter.type_reference,
+            );
+        }
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            if let typed_trees::statement::StatementNode::LocalData(local) = statement {
+                declaration(local.name.as_str(), !local.is_mutable, local.type_reference);
+            }
+        }
+        let retained = |path: &str| frozen.get(path) == Some(&true);
+        self.intervals.retain(|path, _| retained(path));
+        self.known_u64_values.retain(|path, _| retained(path));
+        self.float_intervals.retain(|path, _| retained(path));
+        self.non_nan.retain(|path| retained(path));
+        self.clear_relations();
     }
 
     /// Invalidate only facts overlapping a callee's known may-write paths.

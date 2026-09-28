@@ -489,7 +489,8 @@ fn validate(
                 // uses give up evaluation-order precision within one expression
                 // rather than carry pre-call facts across a mutating call. A
                 // call-free expression reports an empty frame; any unresolved
-                // call fails closed and clears the environment.
+                // call retires mutable-storage facts; copied immutable scalars
+                // retain their already established value snapshots.
                 let value_written = call_frames.as_ref().and_then(|frames| {
                     frames.statement_value_may_write_paths_with_symbols(
                         machine,
@@ -501,7 +502,7 @@ fn validate(
                 // resolver at all. That does not give a call-free statement
                 // unknown effects: preserve its incoming facts, as the
                 // resolver's empty value-call frame would. An unresolved
-                // value call still clears facts; direct writes and calls
+                // value call still clears mutable-storage facts; direct writes and calls
                 // remain the statement validator's responsibility below.
                 if let Some(written) = value_written {
                     value_environment.invalidate_written_paths(&written);
@@ -510,7 +511,7 @@ fn validate(
                         .iter()
                         .any(|expression| calls::expression_has_calls(program, *expression))
                 {
-                    value_environment.clear();
+                    value_environment.invalidate_unknown_writes(program, Some(state));
                 }
                 // VALUE-position calls inside this statement's expression trees
                 // (LocalData initializers, transition arguments, guard subjects,

@@ -101,7 +101,7 @@ pub(super) fn validate(
     if let Some(written) = direct_written {
         value_environment.invalidate_written_paths(&written);
     } else {
-        value_environment.clear();
+        value_environment.invalidate_unknown_writes(program, current_state);
     }
     // R4 witness mint: a BOUNDARY callee's `ensures` re-seeds the
     // `&mut` out-arguments' places (the boundary model's citable

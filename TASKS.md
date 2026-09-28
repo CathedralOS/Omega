@@ -1561,6 +1561,10 @@ the complete product bar; focused successes below do not establish that baseline
 
   Re-drive `omega --check --target linux_x86_64 samples/cli/games/dungeon_crawler_cli/main.omg`
   without bypassing `RoomLookup`, `MazeBuilder` or game-state field validity.
+  The current macOS ARM64 check reaches `Game::run_game_loop`'s structural
+  argument at state 0, statement 1 (`call operation: structural arguments:
+  parameter path`). Repair that ordinary call transport and rerun the unchanged
+  sample; checking alone does not establish native execution.
   Coordinate canonical range migration with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**,
   explicit policy casts with **IMPLICIT-STORE-CONVERSION**, and any `&mut Room`
   output migration with **WRITE-ONLY-BORROW**. Constrained nested `&write`

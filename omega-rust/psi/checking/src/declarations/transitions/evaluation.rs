@@ -60,13 +60,20 @@ impl TransitionValueEnvironments {
             if let TransitionGuardNode::When(guard) = transition.guard {
                 // Guard effects reach both siblings. Its result cannot establish
                 // an old bound on storage changed by a later guard child.
-                cross_expression_effects(&mut current, program, machine, guard, frames);
+                cross_expression_effects(&mut current, program, machine, state, guard, frames);
             }
             let mut environments = Vec::new();
             for expression in expressions {
                 // Within one value we remain conservative about nested calls;
                 // later arguments never invalidate an already evaluated value.
-                cross_expression_effects(&mut current, program, machine, *expression, frames);
+                cross_expression_effects(
+                    &mut current,
+                    program,
+                    machine,
+                    state,
+                    *expression,
+                    frames,
+                );
                 environments.push(current.clone());
             }
             result.targets.push((target, environments));
@@ -86,6 +93,7 @@ fn cross_expression_effects<'program>(
     environment: &mut ValueEnvironment,
     program: &'program TypedTrees,
     machine: &'program Machine,
+    state: &State,
     expression: ExpressionHandle,
     frames: Option<&CallFrameResolver<'program>>,
 ) {
@@ -107,5 +115,5 @@ fn cross_expression_effects<'program>(
     if frames.is_none() && !expression_has_calls(program, expression) {
         return;
     }
-    environment.clear();
+    environment.invalidate_unknown_writes(program, Some(state));
 }
