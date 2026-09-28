@@ -8,9 +8,6 @@ version.workspace = true
 name = "build_evaluation"
 path = "src/lib.rs"
 
-[features]
-test-support = []
-
 [dependencies]
 arena = { path = "../../../psi/foundation/arena" }
 artifacts = { path = "../artifacts" }
