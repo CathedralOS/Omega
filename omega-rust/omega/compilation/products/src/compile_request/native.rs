@@ -12,8 +12,9 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 ///
 /// The terminal-authority policy is the receiving authority's explicit
 /// mechanism table: the closed compiler-intrinsic inventory classifies itself,
-/// while every demanded normalized-foreign, syscall, or checked-physical leaf
-/// needs exactly one exact explicit row. It is an independent authority axis --
+/// while normalized-foreign, syscall, and checked-physical leaves may need
+/// explicit rows. Ordinary production retains unclassified mechanisms; receiver
+/// admission and physical exclusions require complete classification. This is an independent axis --
 /// trust admissions, service permissions, and provider execution custody
 /// never substitute for or widen its rows.
 ///

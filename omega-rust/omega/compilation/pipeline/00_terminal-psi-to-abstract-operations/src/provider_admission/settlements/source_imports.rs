@@ -1,4 +1,5 @@
-//! Source-selected import and syscall demand to exact mechanism admission.
+//! Source-selected import and syscall demand to exact mechanism custody.
+//! Classification and optional receiver admission belong to closure review.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,7 +25,6 @@ struct ImportCoverageRows<'input> {
 pub(super) fn validate_source_evaluated_import_coverage(
     plan: &abstract_operations::AbstractOperationPlan,
     selected_plans: &effects::SelectedProviderPlanFacts,
-    policy: &crate::provider_admission::TerminalAuthorityPolicy,
     target: target::NativeTarget,
     external_binding_rows: &[calling_conventions::ExternalBindingRow],
     settlements: &[NativeProviderSettlement<'_>],
@@ -115,21 +115,6 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     ))]
                 })?;
                 let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
-                let mechanism = match classify_terminal_mechanism(policy, mechanism) {
-                    Ok(mechanism) => mechanism,
-                    Err(unclassified) if cohort_row.is_some() => {
-                        // The toolchain-settled cohort classifies this leaf:
-                        // the receiving policy need not spell the row.
-                        unclassified.mechanism()
-                    }
-                    Err(unclassified) => {
-                        return Err(vec![Diagnostic::error(format!(
-                            "receiving terminal-authority policy version {} does not classify syscall mechanism {:?} required by `{requirement}`",
-                            policy.identity().version(),
-                            unclassified.mechanism(),
-                        ))]);
-                    }
-                };
                 if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
                     cohort_rows.push(row);
                 }
@@ -197,17 +182,6 @@ pub(super) fn validate_source_evaluated_import_coverage(
                     ))]
                 })?;
                 let cohort_row = settled_host_cohort_row(provider_plan, row, mechanism);
-                let mechanism = match classify_terminal_mechanism(policy, mechanism) {
-                    Ok(mechanism) => mechanism,
-                    Err(unclassified) if cohort_row.is_some() => unclassified.mechanism(),
-                    Err(unclassified) => {
-                        return Err(vec![Diagnostic::error(format!(
-                            "receiving terminal-authority policy version {} does not classify normalized foreign mechanism {:?} required by `{requirement}`",
-                            policy.identity().version(),
-                            unclassified.mechanism(),
-                        ))]);
-                    }
-                };
                 if let Some(row) = cohort_row.filter(|row| !cohort_rows.contains(row)) {
                     cohort_rows.push(row);
                 }
@@ -307,21 +281,6 @@ fn settled_host_cohort_row(
         )
         .ok()
     })
-}
-
-/// Classify one demanded mechanism under the receiving policy's own keys.
-///
-/// Build execution establishes no runtime occurrence. Release narrowing requires
-/// the program's own checked-flow derivation, rejoined per call site; until it
-/// exists the conservative key classifies or the demand fails closed.
-fn classify_terminal_mechanism(
-    policy: &crate::provider_admission::TerminalAuthorityPolicy,
-    mechanism: effects::TerminalMechanismIdentity,
-) -> Result<
-    effects::TerminalMechanismIdentity,
-    crate::provider_admission::terminal_authority_policy::UnclassifiedTerminalMechanism,
-> {
-    policy.classify(mechanism).map(|_| mechanism)
 }
 
 /// Join only demanded requirements; counts retain malformed duplicate evidence

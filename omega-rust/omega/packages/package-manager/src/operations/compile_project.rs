@@ -101,10 +101,10 @@ impl PreparedLocalProjectNativeRequest {
         self
     }
 
-    /// Supply the receiving mechanism-classification policy. Accepted package
-    /// evidence never manufactures these rows; every demanded
-    /// normalized-foreign, syscall, or checked-physical leaf still needs one
-    /// exact explicit row from the receiving authority.
+    /// Supply the mechanism-classification policy. Accepted package evidence
+    /// never manufactures these rows. Receiver admission and requested physical
+    /// exclusions require complete classification; ordinary production retains
+    /// unclassified mechanisms without claiming either guarantee.
     pub fn with_terminal_authority_policy(mut self, policy: TerminalAuthorityPolicy) -> Self {
         self.terminal_authority_policy = policy;
         self

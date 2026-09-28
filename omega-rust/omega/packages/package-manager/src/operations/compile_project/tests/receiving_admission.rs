@@ -52,6 +52,126 @@ fn compile_with_receiving_policy(
 }
 
 #[test]
+fn unclassified_foreign_call_produces_but_cannot_claim_receiver_admission() {
+    use terminal_psi_to_abstract_operations::provider_admission::{
+        TerminalAuthorityPolicyRow, terminal_authority_policy_with_rows,
+    };
+
+    let project = TemporaryProject::new();
+    let target = target::TargetProfile::WindowsX64;
+    std::fs::write(
+        project.source.join("build.omg"),
+        r#"
+machine build(builder: &mut Build) {
+    builder.application("unclassified_foreign");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        project.entry(),
+        r#"
+use omega::language::core::external_binding;
+boundary trait ProcessControl {}
+data NativeExit {}
+boundary requirement NativeExit::finish(code: u32)
+requires code == 42
+reaches ProcessControl;
+windows_x86_64 machine exit_binding() -> ForeignBinding<12, 11, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "kernel32.dll", export: "ExitProcess" },
+    }
+}
+windows_x86_64 machine NativeExit::finish_leaf(code: u32)
+satisfies NativeExit::finish via exit_binding();
+data Main {}
+machine Main::main(&mut self) reaches ProcessControl {
+    NativeExit::finish(42);
+}
+"#,
+    )
+    .unwrap();
+    accept_project(&project, target);
+    let compile = |physical_policy, permissions| {
+        let prepared = prepare_local_project(
+            &project.entry(),
+            LocalProjectPreparationOptions {
+                target,
+                offline: false,
+            },
+        )
+        .unwrap()
+        .unwrap();
+        let mut request = PreparedLocalProjectNativeRequest::new(
+            prepared,
+            project.workspace.join("foreign-native"),
+            target,
+        )
+        .with_terminal_authority_policy(physical_policy);
+        if let Some(permissions) = permissions {
+            request = request.with_receiving_terminal_authority_permission_policy(permissions);
+        }
+        compile_prepared_local_project_for_native(request, |_| ()).map(|(report, ())| report)
+    };
+    let unclaimed = compile(current_terminal_authority_policy(), None)
+        .expect("accepted import produces without a receiver's classification");
+    let artifact = unclaimed.retained_native_artifact().unwrap();
+    artifact.validate().unwrap();
+    let receipt = artifact.terminal_authority_closure_review();
+    let [leaf] = receipt.leaves() else {
+        panic!("one demanded import")
+    };
+    assert!(matches!(
+        leaf.mechanism(),
+        effects::TerminalMechanismIdentity::NormalizedForeign(_)
+    ));
+    assert_eq!(leaf.exercised(), None);
+    assert_eq!(leaf.permitted(), None);
+    assert_eq!(receipt.permission_policy(), None);
+
+    let disposition = effects::TerminalAuthorityDisposition::from_classes([
+        effects::TerminalAuthorityClass::ProcessTermination,
+    ]);
+    let permissions = terminal_authority_permission_policy_with_rows(vec![
+        TerminalAuthorityPermissionPolicyRow::new(
+            leaf.service_schema(),
+            leaf.requirement_identity(),
+            disposition.clone(),
+        ),
+    ])
+    .unwrap();
+    let rejected = compile(
+        current_terminal_authority_policy(),
+        Some(permissions.clone()),
+    )
+    .expect_err("permission cannot substitute for classification");
+    assert!(
+        format!("{rejected:?}").contains("does not classify"),
+        "{rejected:?}"
+    );
+
+    let physical_policy =
+        terminal_authority_policy_with_rows(vec![TerminalAuthorityPolicyRow::new(
+            leaf.mechanism(),
+            disposition.clone(),
+        )])
+        .unwrap();
+    let admitted = compile(physical_policy.clone(), Some(permissions.clone()))
+        .expect("independent complete receiver policies admit the same import");
+    let artifact = admitted.retained_native_artifact().unwrap();
+    let receipt = artifact.terminal_authority_closure_review();
+    assert_eq!(receipt.leaves()[0].exercised(), Some(&disposition));
+    artifact
+        .validate_for_terminal_authority_policies(
+            physical_policy.identity(),
+            permissions.identity(),
+            receipt.identity(),
+        )
+        .unwrap();
+}
+
+#[test]
 fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy() {
     let project = TemporaryProject::console_project();
     let target = target::TargetProfile::LinuxX64;
@@ -107,7 +227,7 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
             TerminalAuthorityPermissionPolicyRow::new(
                 leaf.service_schema(),
                 leaf.requirement_identity().to_owned(),
-                leaf.exercised().clone(),
+                leaf.exercised().expect("known console mechanism").clone(),
             )
         })
         .collect::<Vec<_>>();
@@ -220,7 +340,11 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
             ))
         })
         .map(|leaf| {
-            let mut classes = leaf.exercised().classes().to_vec();
+            let mut classes = leaf
+                .exercised()
+                .expect("known console mechanism")
+                .classes()
+                .to_vec();
             classes.push(effects::TerminalAuthorityClass::ProcessInput);
             TerminalAuthorityPermissionPolicyRow::new(
                 leaf.service_schema(),

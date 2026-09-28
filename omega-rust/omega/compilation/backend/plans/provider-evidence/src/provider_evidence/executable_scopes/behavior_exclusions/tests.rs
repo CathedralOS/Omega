@@ -1299,7 +1299,7 @@ fn physical_exclusions_use_exercised_authority_not_receiver_permission() {
             "test::Console::exit()".to_owned(),
             crate::provider_plan::ProviderPlanDigest::from_digest([43; 32]),
             crate::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32.into(),
-            disposition.clone(),
+            Some(disposition.clone()),
             permission_policy.map(|_| disposition.clone()),
         )
         .unwrap();
@@ -1340,4 +1340,38 @@ fn physical_exclusions_use_exercised_authority_not_receiver_permission() {
         rejected_messages.push(messages);
     }
     assert_eq!(rejected_messages[0], rejected_messages[1]);
+}
+
+#[test]
+fn unclassified_mechanisms_cannot_establish_physical_exclusions() {
+    let leaf = crate::TerminalAuthorityClosureLeaf::new(
+        crate::provider_plan::ServiceSchemaDigest::from_digest([41; 32]),
+        "test::NativeExit::finish".to_owned(),
+        crate::provider_plan::ProviderPlanDigest::from_digest([43; 32]),
+        crate::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32.into(),
+        None,
+        None,
+    )
+    .unwrap();
+    let receipt = crate::TerminalAuthorityClosureReviewReceipt::from_reviewed_leaves(
+        [7; 32],
+        target::NativeTarget::linux_x64(),
+        empty_plans().identity_digest(),
+        crate::TerminalAuthorityPolicyIdentity::from_parts(1, [11; 32]),
+        None,
+        vec![leaf],
+    )
+    .unwrap();
+    receipt.validate().unwrap();
+    trap_exclusions()
+        .validate_physical_authority_closure(&receipt)
+        .unwrap();
+    let errors = physical_exclusions(&[TerminalAuthorityClass::ProcessOutput])
+        .validate_physical_authority_closure(&receipt)
+        .expect_err("unknown authority is not proof of an absent class");
+    assert!(errors.iter().any(|error| {
+        error
+            .message
+            .contains("no physical authority classification")
+    }));
 }
