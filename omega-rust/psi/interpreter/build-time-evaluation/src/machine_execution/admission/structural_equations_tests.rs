@@ -1,7 +1,7 @@
 use super::BuildTimeAdmissionPlan;
 use crate::machine_execution::build_machines::{
-    BuildMachineExecutionMode, BuildMachineInvocation, PreparedBuildMachine,
-    PreparedBuildMachineProgram, evaluate_build_machine_measured,
+    BuildMachineExecutionMode, BuildMachineInvocation, PreparedBuildMachineProgram,
+    evaluate_build_machine_measured,
 };
 
 #[test]
@@ -42,29 +42,24 @@ fn provisional_wrapper_cannot_execute_a_specialized_pending_equation() {
         rejection.contains("undischarged structural type equation"),
         "{rejection}"
     );
-    let rejection = evaluate_build_machine_measured(
-        &prepared,
-        BuildMachineInvocation {
-            product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("wrapper"),
-            arguments: Vec::new(),
-            mode: BuildMachineExecutionMode::Pure,
-            sponsor: None,
-        },
-    )
-    .unwrap_err();
+    let rejection = prepared
+        .entry(wrapper.symbol)
+        .err()
+        .expect("no executable entry");
     assert!(
-        rejection
-            .to_string()
-            .contains("undischarged structural type equation"),
+        rejection.contains("undischarged structural type equation"),
         "{rejection}"
     );
+    let independent = prepared
+        .typed()
+        .realized_machine_named("independent")
+        .unwrap();
     assert!(
         evaluate_build_machine_measured(
             &prepared,
             BuildMachineInvocation {
                 product_entry_compatibility: None,
-                machine: PreparedBuildMachine::Name("independent"),
+                entry: &prepared.entry(independent.symbol).unwrap(),
                 arguments: Vec::new(),
                 mode: BuildMachineExecutionMode::Pure,
                 sponsor: None,

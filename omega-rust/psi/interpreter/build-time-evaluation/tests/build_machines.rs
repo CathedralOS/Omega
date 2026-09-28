@@ -10,7 +10,15 @@ use build_time_evaluation::{
     PreparedBuildMachineProgram, evaluate_build_machine_measured, evaluate_const_array_lengths,
     evaluate_zero_argument_machine,
 };
-use build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachine};
+use build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachineEntry};
+
+fn entry_named(program: &PreparedBuildMachineProgram, name: &str) -> PreparedBuildMachineEntry {
+    let machine = program
+        .typed()
+        .realized_machine_named(name)
+        .expect("fixture entry");
+    program.entry(machine.symbol).expect("bind fixture entry")
+}
 
 const SOURCE: &str = r#"
     boundary trait FilesystemHost {
@@ -97,25 +105,52 @@ fn prepared_entry_from_another_program_rejects_even_a_colliding_raw_symbol() {
         "the canary must exercise arena-local handle collision"
     );
     let foreign_entry = first.entry(first_symbol).expect("bind first entry");
-
-    let error = evaluate_build_machine_measured(
-        &second,
-        BuildMachineInvocation {
-            product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Entry(&foreign_entry),
-            arguments: vec![empty_build_selection()],
-            mode: BuildMachineExecutionMode::Pure,
-            sponsor: None,
+    assert!(first.entry(symbols::SymbolHandle::invalid()).is_err());
+    let cloned_entry = foreign_entry.clone();
+    for mode in [
+        BuildMachineExecutionMode::Pure,
+        BuildMachineExecutionMode::Granted {
+            filesystem: BuildMachineFilesystemAccess::Virtual,
+            filesystem_metadata_layout: Default::default(),
         },
-    )
-    .expect_err("a numerically colliding symbol must not cross prepared-program custody");
-
-    assert!(
-        error
-            .to_string()
-            .contains("belongs to a different prepared program"),
-        "{error}"
-    );
+    ] {
+        let evaluated = evaluate_build_machine_measured(
+            &first,
+            BuildMachineInvocation {
+                product_entry_compatibility: None,
+                entry: &cloned_entry,
+                arguments: vec![empty_build_selection()],
+                mode: mode.clone(),
+                sponsor: None,
+            },
+        )
+        .expect("the cloned entry retains its own immutable program's admission");
+        assert_eq!(
+            evaluated.value(),
+            &[BuildTimeValue::Struct {
+                type_name: "Build".to_owned(),
+                fields: vec![("selected".to_owned(), BuildTimeValue::Int(7))],
+            }]
+        );
+        let error = evaluate_build_machine_measured(
+            &second,
+            BuildMachineInvocation {
+                product_entry_compatibility: None,
+                entry: &cloned_entry,
+                arguments: vec![empty_build_selection()],
+                mode,
+                sponsor: None,
+            },
+        )
+        .expect_err("a numerically colliding symbol must not cross prepared-program custody");
+        assert!(matches!(&error, BuildMachineEvaluationError::Entry(_)));
+        assert!(
+            error
+                .to_string()
+                .contains("belongs to a different prepared program"),
+            "{error}"
+        );
+    }
 }
 
 #[test]
@@ -317,7 +352,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![argument.clone()],
             mode: BuildMachineExecutionMode::Pure,
             sponsor: None,
@@ -329,7 +364,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("Stager::build"),
+            entry: &entry_named(&prepared, "Stager::build"),
             arguments: vec![argument.clone()],
             mode: BuildMachineExecutionMode::Pure,
             sponsor: None,
@@ -347,7 +382,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("Stager::build"),
+            entry: &entry_named(&prepared, "Stager::build"),
             arguments: vec![argument],
             mode: BuildMachineExecutionMode::Granted {
                 filesystem: BuildMachineFilesystemAccess::Virtual,
@@ -369,7 +404,7 @@ fn granted_mode_does_not_authorize_a_package_authored_filesystem_lookalike() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("StatementStager::build"),
+            entry: &entry_named(&prepared, "StatementStager::build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
                 fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
@@ -410,7 +445,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
             sponsor: None,
@@ -447,7 +482,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
             sponsor: Some(&sponsor),
@@ -458,7 +493,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
             sponsor: Some(&sponsor_clone),
@@ -491,7 +526,7 @@ fn sponsored_pure_builds_share_and_exactly_exhaust_one_fuel_account() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![argument()],
             mode: BuildMachineExecutionMode::Pure,
             sponsor: Some(&sponsor),
@@ -519,7 +554,7 @@ fn sponsored_build_rejects_cell_allocation_before_exceeding_the_live_ceiling() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
                 fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
@@ -549,7 +584,7 @@ fn sponsored_build_rejects_text_materialization_above_the_live_byte_ceiling() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
                 fields: vec![("freestanding".to_owned(), BuildTimeValue::Text(vec![1, 2]))],
@@ -588,7 +623,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![argument()],
             mode: mode(),
             sponsor: Some(&sponsor),
@@ -609,7 +644,7 @@ fn sponsored_granted_build_uses_the_compiler_ceiling_and_classifies_exhaustion()
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![argument()],
             mode: mode(),
             sponsor: Some(&exhausted),
@@ -643,7 +678,7 @@ fn sponsored_build_rejects_result_custody_above_the_shared_ceiling() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("pure_build"),
+            entry: &entry_named(&prepared, "pure_build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
                 fields: vec![("freestanding".to_owned(), BuildTimeValue::Bool(false))],
@@ -687,7 +722,7 @@ fn prepared_build_program_specializes_static_machine_helpers() {
         &prepared,
         BuildMachineInvocation {
             product_entry_compatibility: None,
-            machine: PreparedBuildMachine::Name("build"),
+            entry: &entry_named(&prepared, "build"),
             arguments: vec![BuildTimeValue::Struct {
                 type_name: "Build".to_owned(),
                 fields: vec![("selected".to_owned(), BuildTimeValue::Int(0))],

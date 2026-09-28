@@ -87,8 +87,7 @@ pub use machine_execution::build_machines::{
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
     BuildMachineFilesystemMetadataLayout, BuildMachineFilesystemSponsor, BuildMachineInvocation,
-    PreparedBuildMachine, PreparedBuildMachineEntry, PreparedBuildMachineProgram,
-    evaluate_build_machine_measured,
+    PreparedBuildMachineEntry, PreparedBuildMachineProgram, evaluate_build_machine_measured,
 };
 pub use machine_execution::selected_operators::{
     SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,

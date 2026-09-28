@@ -52,35 +52,14 @@ fn pending_type_bound_blocks_transitive_invocation_before_interpretation() {
     admission
         .require_common_floor(execution, wrapper)
         .expect_err("a concrete wrapper cannot execute a still-open generic callee");
-    for mode in [
-        crate::BuildMachineExecutionMode::Pure,
-        crate::BuildMachineExecutionMode::Granted {
-            filesystem: crate::BuildMachineFilesystemAccess::Virtual,
-            filesystem_metadata_layout: Default::default(),
-        },
-    ] {
-        let error = crate::evaluate_build_machine_measured(
-            &prepared,
-            crate::BuildMachineInvocation {
-                product_entry_compatibility: None,
-                machine: crate::PreparedBuildMachine::Name("wrapper"),
-                arguments: Vec::new(),
-                mode,
-                sponsor: None,
-            },
-        )
-        .unwrap_err();
-        assert!(matches!(
-            error,
-            crate::BuildMachineEvaluationError::Entry(_)
-        ));
-        assert!(
-            error
-                .to_string()
-                .contains("unspecialized static application"),
-            "{error}"
-        );
-    }
+    let error = prepared
+        .entry(wrapper.symbol)
+        .err()
+        .expect("an unfinished static application cannot issue an entry for either execution mode");
+    assert!(
+        error.contains("unspecialized static application"),
+        "{error}"
+    );
 }
 
 #[test]

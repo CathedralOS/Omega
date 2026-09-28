@@ -1,10 +1,10 @@
 //! Runs the admitted machine once and reports its measured result or failure.
 
+use build_time_evaluation::BuildMachineInvocation;
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildTimeValue, PreparedBuildMachineEntry,
     PreparedBuildMachineProgram,
 };
-use build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachine};
 use checked_interpreter::MeasuredBuildMachineEvaluation;
 use diagnostics::Diagnostic;
 
@@ -26,7 +26,7 @@ pub(super) fn evaluate_admitted_machine(
     build_time_evaluation::evaluate_build_machine_measured(
         prepared,
         BuildMachineInvocation {
-            machine: PreparedBuildMachine::Entry(machine_entry),
+            entry: machine_entry,
             arguments,
             mode,
             sponsor,
