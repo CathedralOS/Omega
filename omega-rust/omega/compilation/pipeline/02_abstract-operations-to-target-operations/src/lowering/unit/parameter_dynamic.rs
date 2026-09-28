@@ -83,7 +83,10 @@ fn lower_parameter_dynamic_call(
     let dispatch_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![ValueShape::integer(pointer_size, pointer_alignment)],
+            parameters: vec![ValueShape::integer(
+                u32::from(pointer_size),
+                pointer_alignment,
+            )],
             result: result_shape,
         },
     )

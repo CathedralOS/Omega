@@ -44,7 +44,7 @@ use object_file::{
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGOER\0\0";
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGOEM\0\0";
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 mod codec;
 mod reconstruction;
@@ -177,7 +177,7 @@ impl OptimizedOrdinaryCallableEntryRecord {
         &self,
     ) -> Result<OptimizedTerminalOrdinaryCallableEntryIdentity, OptimizedOrdinaryCallableEntryError>
     {
-        let mut canonical = b"omega.optimized-terminal-ordinary-callable-entry.v3\0".to_vec();
+        let mut canonical = b"omega.optimized-terminal-ordinary-callable-entry.v4\0".to_vec();
         encode_record_content(&mut canonical, self)?;
         Ok(OptimizedTerminalOrdinaryCallableEntryIdentity::from_canonical_bytes(&canonical))
     }

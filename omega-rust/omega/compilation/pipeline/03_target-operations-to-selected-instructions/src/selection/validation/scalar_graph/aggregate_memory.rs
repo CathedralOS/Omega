@@ -14,7 +14,7 @@ pub(super) fn load(
     pointer: VirtualRegisterId,
     output: VirtualRegisterId,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Result<(), SelectedInstructionError> {
     let mut operands = vec![pointer, output];
     let (kind, key) = match byte_size {
@@ -61,7 +61,7 @@ pub(super) fn store(
     pointer: VirtualRegisterId,
     value: VirtualRegisterId,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Result<(), SelectedInstructionError> {
     let byte_size = u8::try_from(byte_size).map_err(|_| SelectedInstructionError::custody())?;
     let mut operands = vec![pointer, value];

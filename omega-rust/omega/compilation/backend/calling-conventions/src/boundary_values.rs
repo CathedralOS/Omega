@@ -81,7 +81,7 @@ impl BoundaryValueGraph<'_> {
         };
         Ok(ValueShape {
             class,
-            byte_size: shape.byte_size,
+            byte_size: u32::from(shape.byte_size),
             alignment: shape.alignment,
         })
     }
@@ -99,7 +99,7 @@ impl BoundaryValueGraph<'_> {
             .shapes
             .get(usize::from(root))
             .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
-        if abi.byte_size != shape.byte_size || abi.alignment != shape.alignment {
+        if abi.byte_size != u32::from(shape.byte_size) || abi.alignment != shape.alignment {
             return Err(format!(
                 "ABI shape {}/{} does not preserve semantic size/alignment {}/{}",
                 abi.byte_size, abi.alignment, shape.byte_size, shape.alignment

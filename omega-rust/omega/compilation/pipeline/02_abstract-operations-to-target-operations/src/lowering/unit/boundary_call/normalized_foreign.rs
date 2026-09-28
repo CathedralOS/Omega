@@ -244,9 +244,10 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 || parameter.multiplicity != expected_multiplicity
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
-                || u32::from(projected_shape.byte_size)
+                || projected_shape
+                    .byte_size
                     .checked_add(source_byte_offset)
-                    .is_none_or(|end| end > u32::from(source_shape.byte_size))
+                    .is_none_or(|end| end > source_shape.byte_size)
             {
                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
             }
@@ -302,8 +303,9 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                                 return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                             }
                         };
-                        if destination.shape != ValueShape::integer(pointer_size, pointer_alignment)
-                            || placed_pointer_word != pointer_size
+                        if destination.shape
+                            != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
+                            || placed_pointer_word != u32::from(pointer_size)
                         {
                             return Err(LoweringError::BoundaryRealizationMismatch(boundary));
                         }

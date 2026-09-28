@@ -515,7 +515,7 @@ fn fragment_immediate_argument_span_rejoin(
                 return false;
             };
             if outgoing.abi_stack_byte_offset != *stack_byte_offset
-                || outgoing.byte_size != u32::from(*byte_size)
+                || outgoing.byte_size != (*byte_size)
                 || outgoing.alignment != *alignment
             {
                 return false;
@@ -794,7 +794,7 @@ fn fragment_durable_home_offsets(
         };
         cursor = aligned;
         offsets.push((operation, cursor));
-        let Some(next) = cursor.checked_add(u32::from(byte_size)) else {
+        let Some(next) = cursor.checked_add(byte_size) else {
             return Vec::new();
         };
         cursor = next;

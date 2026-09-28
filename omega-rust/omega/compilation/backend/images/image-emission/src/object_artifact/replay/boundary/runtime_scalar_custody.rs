@@ -336,7 +336,7 @@ fn structural_payload_source_is_exact(
     };
     let tag_offset = result
         .home_byte_offset
-        .checked_add(u32::from(result.layout.tag_byte_offset));
+        .checked_add(result.layout.tag_byte_offset);
     let Some(tag_offset) = tag_offset else {
         return false;
     };

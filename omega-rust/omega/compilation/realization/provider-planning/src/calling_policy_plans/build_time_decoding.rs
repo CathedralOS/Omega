@@ -216,7 +216,7 @@ fn decode_value_shape(value: &BuildTimeValue) -> Result<ValueShape, String> {
     };
     Ok(ValueShape {
         class,
-        byte_size: u16_value(field(fields, "byte_size", "AbiValueShape")?, "byte_size")?,
+        byte_size: u32_value(field(fields, "byte_size", "AbiValueShape")?, "byte_size")?,
         alignment: u16_value(field(fields, "alignment", "AbiValueShape")?, "alignment")?,
     })
 }
@@ -236,11 +236,11 @@ fn decode_value_location(value: &BuildTimeValue) -> Result<ValueLocation, String
     match variant {
         "Register" => Ok(ValueLocation::Register {
             register: decode_register(field(payload, "register", "Register location")?)?,
-            value_byte_offset: u16_value(
+            value_byte_offset: u32_value(
                 field(payload, "value_byte_offset", "Register location")?,
                 "value_byte_offset",
             )?,
-            byte_size: u16_value(
+            byte_size: u32_value(
                 field(payload, "byte_size", "Register location")?,
                 "byte_size",
             )?,
@@ -250,11 +250,11 @@ fn decode_value_location(value: &BuildTimeValue) -> Result<ValueLocation, String
                 field(payload, "stack_byte_offset", "Stack location")?,
                 "stack_byte_offset",
             )?,
-            value_byte_offset: u16_value(
+            value_byte_offset: u32_value(
                 field(payload, "value_byte_offset", "Stack location")?,
                 "value_byte_offset",
             )?,
-            byte_size: u16_value(field(payload, "byte_size", "Stack location")?, "byte_size")?,
+            byte_size: u32_value(field(payload, "byte_size", "Stack location")?, "byte_size")?,
             alignment: u16_value(field(payload, "alignment", "Stack location")?, "alignment")?,
         }),
         "Indirect" => {
@@ -270,7 +270,7 @@ fn decode_value_location(value: &BuildTimeValue) -> Result<ValueLocation, String
                         )
                     })
                     .transpose()?,
-                byte_size: u16_value(
+                byte_size: u32_value(
                     field(payload, "byte_size", "Indirect location")?,
                     "byte_size",
                 )?,

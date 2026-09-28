@@ -305,7 +305,7 @@ pub(crate) fn validate_callback_plan_custody(
             != Some(callback.target.placement_index)
         || callback.target.registrar_application_commitment == [0; 32]
         || application.shape
-            != calling_conventions::ValueShape::integer(pointer_size, pointer_alignment)
+            != calling_conventions::ValueShape::integer(u32::from(pointer_size), pointer_alignment)
         || application.placement != expected_placement
         || call.call_plan.parameters.get(ordinal) != Some(&application.placement)
         || callback.target.registrar_boundary_entry_plan.call != call.call_plan
@@ -541,7 +541,8 @@ pub(crate) fn validate_foreign_scalar_arguments(
             }
             let byte_size = bits / 8;
             Ok(calling_conventions::ValueShape::integer(
-                byte_size, byte_size,
+                u32::from(byte_size),
+                byte_size,
             ))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -875,7 +876,7 @@ pub(crate) fn expected_foreign_scalar_outbound_bytes(
                 ..
             } = location
             {
-                let slot_bytes = u32::from(*byte_size).max(8);
+                let slot_bytes = (*byte_size).max(8);
                 extent = extent.max(stack_byte_offset.checked_add(slot_bytes)?);
             }
         }

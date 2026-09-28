@@ -175,8 +175,8 @@ impl InternalUnitCallCustody<'_> {
                 .is_none_or(|argument_end| argument_end > end)
             || argument
                 .source_byte_offset
-                .checked_add(u32::from(argument.shape.byte_size))
-                .is_none_or(|end| end > u32::from(source_placement.shape.byte_size))
+                .checked_add(argument.shape.byte_size)
+                .is_none_or(|end| end > source_placement.shape.byte_size)
             || self.argument_path_is_malformed(argument_index, argument, source_placement, sources)
     }
 
@@ -357,7 +357,7 @@ impl InternalUnitCallCustody<'_> {
                 })
         }
         [terminal_psi::StructuralPathSegment::FixedIndex(index)] => {
-            let expected_stride = u32::from(argument.shape.byte_size)
+            let expected_stride = argument.shape.byte_size
                 .next_multiple_of(u32::from(argument.shape.alignment));
             let Some(length) = argument.fixed_array_length else {
                 return true;
@@ -380,7 +380,7 @@ impl InternalUnitCallCustody<'_> {
                 inner @ (0..=15),
             ),
         ] => {
-            let leaf_stride = u32::from(argument.shape.byte_size)
+            let leaf_stride = argument.shape.byte_size
                 .next_multiple_of(u32::from(argument.shape.alignment));
             let Some(outer_stride) = argument.element_stride else {
                 return true;
@@ -409,7 +409,7 @@ impl InternalUnitCallCustody<'_> {
                 || *inner >= u64::from(inner_length)
                 || Some(argument.source_byte_offset) != expected_offset
                 || outer_stride.checked_mul(2)
-                    != Some(u32::from(source_placement.shape.byte_size))
+                    != Some(source_placement.shape.byte_size)
                 || source_placement.shape.alignment != argument.shape.alignment
         }
         path @ [terminal_psi::StructuralPathSegment::Field(_), ..]

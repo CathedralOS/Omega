@@ -255,7 +255,7 @@ fn malformed_type_graphs_do_not_authorize_empty_cleanup() {
 // These records exercise the local metadata replay helpers. Executable bytes,
 // ABI locations and relocation joins are validated by the surrounding consumers.
 fn home(root: u64, bytes: u16) -> UnitParameterHomeRecord {
-    let shape = ValueShape::integer(bytes, 1);
+    let shape = ValueShape::integer(u32::from(bytes), 1);
     UnitParameterHomeRecord {
         place: PlaceId::new(1).unwrap(),
         structural_type: type_id(root),
@@ -535,7 +535,7 @@ fn owned_subtree_stack_fragments_have_independent_exact_copy_bytes() {
         (0..3)
             .map(|fragment| ValueLocation::Stack {
                 stack_byte_offset: fragment * 8,
-                value_byte_offset: u16::try_from(fragment * 8).unwrap(),
+                value_byte_offset: fragment * 8,
                 byte_size: 8,
                 alignment: 8,
             })

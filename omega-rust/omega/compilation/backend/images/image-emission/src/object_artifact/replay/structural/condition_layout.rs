@@ -49,7 +49,7 @@ fn replay_structural_shape(
         }
         terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) => {
             let size = integer.bits().div_ceil(8);
-            ValueShape::integer(size, size.next_power_of_two().min(8))
+            ValueShape::integer(u32::from(size), size.next_power_of_two().min(8))
         }
         terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
             semantic_vocabulary::IeeeFloatFormat::Binary32,
@@ -69,23 +69,22 @@ fn replay_structural_shape(
                     replay_structural_field_shape(&field.field_type, declarations, cache, active)?;
                 alignment = alignment.max(field_shape.alignment);
                 byte_size = checked_align_up(byte_size, u32::from(field_shape.alignment))?
-                    .checked_add(u32::from(field_shape.byte_size))?;
+                    .checked_add(field_shape.byte_size)?;
             }
             byte_size = checked_align_up(byte_size, u32::from(alignment))?;
             // A record whose layout-visible children are all reference
             // carriers has the canonical empty aggregate shape.
-            ValueShape::integer(u16::try_from(byte_size).ok()?, alignment)
+            ValueShape::integer(byte_size, alignment)
         }
         terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
             if *length == 0 {
                 return None;
             }
             let element = replay_structural_shape(*element, declarations, cache, active)?;
-            let stride =
-                checked_align_up(u32::from(element.byte_size), u32::from(element.alignment))?;
+            let stride = checked_align_up(element.byte_size, u32::from(element.alignment))?;
             let byte_size = u64::from(stride)
                 .checked_mul(*length)
-                .and_then(|size| u16::try_from(size).ok())?;
+                .and_then(|size| u32::try_from(size).ok())?;
             ValueShape::integer(byte_size, element.alignment)
         }
         terminal_psi::StructuralTypeShape::Sum { .. }
@@ -162,7 +161,7 @@ pub(crate) fn replay_structural_projection(
                         selected = Some((nested, shape, field_offset));
                         break;
                     }
-                    field_offset = field_offset.checked_add(u32::from(shape.byte_size))?;
+                    field_offset = field_offset.checked_add(shape.byte_size)?;
                 }
                 selected?
             }
@@ -178,8 +177,7 @@ pub(crate) fn replay_structural_projection(
                 }
                 let shape =
                     replay_structural_shape(element, &declarations, &mut cache, &mut active)?;
-                let stride =
-                    checked_align_up(u32::from(shape.byte_size), u32::from(shape.alignment))?;
+                let stride = checked_align_up(shape.byte_size, u32::from(shape.alignment))?;
                 let offset = u64::from(stride)
                     .checked_mul(*index)
                     .and_then(|offset| u32::try_from(offset).ok())?;
@@ -218,7 +216,7 @@ pub(crate) fn replay_runtime_projection(
                 return None;
             };
             let shape = replay_structural_value_shape(element, declarations)?;
-            let stride = checked_align_up(u32::from(shape.byte_size), u32::from(shape.alignment))?;
+            let stride = checked_align_up(shape.byte_size, u32::from(shape.alignment))?;
             elements.push((length, stride));
             structural_type = element;
             selected_shape = Some(shape);
@@ -287,7 +285,7 @@ pub(crate) fn replay_bounded_byte_field(
                         selected = Some((nested, field_offset));
                         break;
                     }
-                    field_offset = field_offset.checked_add(u32::from(shape.byte_size))?;
+                    field_offset = field_offset.checked_add(shape.byte_size)?;
                 }
                 selected?
             }
@@ -297,8 +295,7 @@ pub(crate) fn replay_bounded_byte_field(
             ) if index < length => {
                 let shape =
                     replay_structural_shape(*element, &declarations, &mut cache, &mut active)?;
-                let stride =
-                    checked_align_up(u32::from(shape.byte_size), u32::from(shape.alignment))?;
+                let stride = checked_align_up(shape.byte_size, u32::from(shape.alignment))?;
                 let offset = u64::from(stride)
                     .checked_mul(*index)
                     .and_then(|offset| u32::try_from(offset).ok())?;
@@ -332,7 +329,7 @@ pub(crate) fn replay_bounded_byte_field(
                 .checked_add(field_offset)
                 .map(|offset| (offset, capacity));
         }
-        field_offset = field_offset.checked_add(u32::from(shape.byte_size))?;
+        field_offset = field_offset.checked_add(shape.byte_size)?;
     }
     None
 }
@@ -352,12 +349,18 @@ fn replay_structural_field_shape(
         }
         terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
             let size = integer.bits().div_ceil(8);
-            Some(ValueShape::integer(size, size.next_power_of_two().min(16)))
+            Some(ValueShape::integer(
+                u32::from(size),
+                size.next_power_of_two().min(16),
+            ))
         }
         terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
             let integer = bounds.integer_type();
             let size = integer.bits().div_ceil(8);
-            Some(ValueShape::integer(size, size.next_power_of_two().min(16)))
+            Some(ValueShape::integer(
+                u32::from(size),
+                size.next_power_of_two().min(16),
+            ))
         }
         terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
             semantic_vocabulary::IeeeFloatFormat::Binary32,
@@ -373,7 +376,7 @@ fn replay_structural_field_shape(
         ) => Some(ValueShape::float(8)),
         terminal_psi::StructuralFieldType::ByteSequence(carrier)
         | terminal_psi::StructuralFieldType::PredicateByteSequence { carrier, .. } => {
-            let byte_size = match carrier {
+            let byte_size: u32 = match carrier {
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
                 // A bounded view's extent lives in the declaration; the stored
                 // descriptor is the bare referent pointer.
@@ -424,7 +427,7 @@ pub(crate) fn replay_boolean_field_offset(
                 replay_structural_shape(structural_type, declarations, &mut cache, &mut active)?,
             ));
         }
-        offset = offset.checked_add(u32::from(shape.byte_size))?;
+        offset = offset.checked_add(shape.byte_size)?;
     }
     None
 }

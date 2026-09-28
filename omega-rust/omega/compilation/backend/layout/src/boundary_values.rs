@@ -111,7 +111,8 @@ impl<'input> BoundaryValueLayout<'input> {
                 &mut self.shapes,
                 BoundaryValueShape {
                     class,
-                    byte_size: abi.byte_size,
+                    byte_size: u16::try_from(abi.byte_size)
+                        .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                     alignment: abi.alignment,
                 },
             )?;
@@ -149,12 +150,13 @@ impl<'input> BoundaryValueLayout<'input> {
                 } else {
                     pointer_size
                 };
-                let abi = ValueShape::integer(byte_size, pointer_alignment);
+                let abi = ValueShape::integer(u32::from(byte_size), pointer_alignment);
                 let root = append_boundary_value_shape(
                     &mut self.shapes,
                     BoundaryValueShape {
                         class: BoundaryValueClass::Reference,
-                        byte_size: abi.byte_size,
+                        byte_size: u16::try_from(abi.byte_size)
+                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                         alignment: abi.alignment,
                     },
                 )?;
@@ -170,12 +172,13 @@ impl<'input> BoundaryValueLayout<'input> {
                 let alignment = u16::try_from(native_target.pointer_alignment).map_err(|_| {
                     "target pointer alignment exceeds boundary shape range".to_owned()
                 })?;
-                let abi = ValueShape::integer(byte_size, alignment);
+                let abi = ValueShape::integer(u32::from(byte_size), alignment);
                 let root = append_boundary_value_shape(
                     &mut self.shapes,
                     BoundaryValueShape {
                         class: BoundaryValueClass::Reference,
-                        byte_size: abi.byte_size,
+                        byte_size: u16::try_from(abi.byte_size)
+                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                         alignment: abi.alignment,
                     },
                 )?;
@@ -186,11 +189,11 @@ impl<'input> BoundaryValueLayout<'input> {
                 length: typed_trees::types::FixedArrayLength::Literal(length),
             } => {
                 let (element, element_root) = self.value_type(*element_type)?;
-                let size = usize::from(element.byte_size)
+                let size = (element.byte_size as usize)
                     .checked_mul(*length)
                     .ok_or_else(|| "fixed-array boundary shape overflows".to_owned())?;
                 let abi = ValueShape::integer(
-                    u16::try_from(size)
+                    u32::try_from(size)
                         .map_err(|_| "fixed-array boundary shape exceeds 65535 bytes".to_owned())?,
                     element.alignment,
                 );
@@ -203,7 +206,8 @@ impl<'input> BoundaryValueLayout<'input> {
                                 "fixed-array boundary length exceeds 65535 elements".to_owned()
                             })?,
                         },
-                        byte_size: abi.byte_size,
+                        byte_size: u16::try_from(abi.byte_size)
+                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                         alignment: abi.alignment,
                     },
                 )?;
@@ -221,12 +225,13 @@ impl<'input> BoundaryValueLayout<'input> {
                 let alignment = u16::try_from(native_target.pointer_alignment).map_err(|_| {
                     "target pointer alignment exceeds boundary shape range".to_owned()
                 })?;
-                let abi = ValueShape::integer(byte_size, alignment);
+                let abi = ValueShape::integer(u32::from(byte_size), alignment);
                 let root = append_boundary_value_shape(
                     &mut self.shapes,
                     BoundaryValueShape {
                         class: BoundaryValueClass::Reference,
-                        byte_size: abi.byte_size,
+                        byte_size: u16::try_from(abi.byte_size)
+                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                         alignment: abi.alignment,
                     },
                 )?;
@@ -399,12 +404,13 @@ impl<'input> BoundaryValueLayout<'input> {
                         field.name, stored_integer.stored_width_bits
                     ));
                 }
-                let shape = ValueShape::integer(stored_byte_size, stored_byte_size);
+                let shape = ValueShape::integer(u32::from(stored_byte_size), stored_byte_size);
                 let root = append_boundary_value_shape(
                     &mut self.shapes,
                     BoundaryValueShape {
                         class: BoundaryValueClass::Integer,
-                        byte_size: shape.byte_size,
+                        byte_size: u16::try_from(shape.byte_size)
+                            .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                         alignment: shape.alignment,
                     },
                 )?;
@@ -419,7 +425,7 @@ impl<'input> BoundaryValueLayout<'input> {
             );
             size = size.max(
                 field_offset
-                    .checked_add(usize::from(shape.byte_size))
+                    .checked_add(shape.byte_size as usize)
                     .ok_or_else(|| format!("data `{name}` boundary layout overflows"))?,
             );
             record_fields.push(BoundaryValueField {
@@ -457,18 +463,19 @@ impl<'input> BoundaryValueLayout<'input> {
             .map_err(|_| format!("data `{name}` boundary alignment exceeds 65535 bytes"))?;
         let abi = if (1..=4).contains(&float_members)
             && float_member_size.is_some_and(|member_size| {
-                usize::from(size) == usize::from(member_size) * float_members
-                    && alignment == member_size
+                usize::from(size) == (member_size as usize) * float_members
+                    && u32::from(alignment) == member_size
                     && record_fields.iter().enumerate().all(|(index, field)| {
-                        usize::from(field.byte_offset) == index * usize::from(member_size)
+                        usize::from(field.byte_offset) == index * (member_size as usize)
                     })
             }) {
             ValueShape::homogeneous_float_aggregate(
-                float_member_size.expect("float member count has size"),
+                u16::try_from(float_member_size.expect("float member count has size"))
+                    .map_err(|_| "float member size exceeds boundary shape range".to_owned())?,
                 u8::try_from(float_members).expect("HFA member count fits u8"),
             )
         } else {
-            ValueShape::integer(size, alignment)
+            ValueShape::integer(u32::from(size), alignment)
         };
         if self.fields.len().saturating_add(record_fields.len()) > VALUE_FIELD_CAPACITY {
             return Err(format!(
@@ -541,7 +548,7 @@ fn primitive_value_shape(primitive: PrimitiveType) -> Result<ValueShape, String>
     let byte_size = u16::try_from(byte_size).expect("primitive size fits u16");
     Ok(match primitive {
         PrimitiveType::F32 | PrimitiveType::F64 => ValueShape::float(byte_size),
-        _ => ValueShape::integer(byte_size, byte_size.clamp(1, 8)),
+        _ => ValueShape::integer(u32::from(byte_size), byte_size.clamp(1, 8)),
     })
 }
 

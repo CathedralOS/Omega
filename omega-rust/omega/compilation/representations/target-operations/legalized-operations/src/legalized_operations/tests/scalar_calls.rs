@@ -154,7 +154,7 @@ fn fixed_scalar_argument_widths_require_exact_register_geometry() {
             call.call_plan = evaluate_call_plan(
                 policy,
                 &CallSignature {
-                    parameters: vec![ValueShape::integer(width, width)],
+                    parameters: vec![ValueShape::integer(width, width as u16)],
                     result: None,
                 },
             )
@@ -220,7 +220,7 @@ fn narrow_scalar_stack_arguments_require_exact_payload_geometry() {
             call.call_plan = evaluate_call_plan(
                 policy,
                 &CallSignature {
-                    parameters: vec![ValueShape::integer(width, width); 9],
+                    parameters: vec![ValueShape::integer(width, width as u16); 9],
                     result: None,
                 },
             )
@@ -263,13 +263,13 @@ fn narrow_scalar_stack_arguments_require_exact_payload_geometry() {
                     3 => *value_byte_offset = 1,
                     4 => *alignment = 0,
                     5 => *alignment = 3,
-                    6 => *alignment = width - 1,
+                    6 => *alignment = (width - 1) as u16,
                     7 => {
                         *alignment = 2;
                         *stack_byte_offset = 1;
                     }
-                    8 => placement.shape = ValueShape::float(width),
-                    9 => placement.shape.alignment = width * 2,
+                    8 => placement.shape = ValueShape::float(width as u16),
+                    9 => placement.shape.alignment = (width * 2) as u16,
                     10 => placement.locations.clear(),
                     _ => placement.locations.push(placement.locations[0]),
                 }
@@ -336,7 +336,7 @@ fn fixed_integer_result_widths_reject_coherent_fragment_corruption() {
             CallingPolicy::SystemVAMD64,
             &CallSignature {
                 parameters: Vec::new(),
-                result: Some(ValueShape::integer(width, width)),
+                result: Some(ValueShape::integer(width, width as u16)),
             },
         )
         .unwrap();

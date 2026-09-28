@@ -65,19 +65,19 @@ pub enum PackageReviewIndirectPointerLocation {
 pub enum PackageReviewBoundaryValueLocation {
     Register {
         register: PackageReviewMachineRegister,
-        value_byte_offset: u16,
-        byte_size: u16,
+        value_byte_offset: u32,
+        byte_size: u32,
     },
     Stack {
         stack_byte_offset: u32,
-        value_byte_offset: u16,
-        byte_size: u16,
+        value_byte_offset: u32,
+        byte_size: u32,
         alignment: u16,
     },
     Indirect {
         pointer: PackageReviewIndirectPointerLocation,
         copy_stack_byte_offset: Option<u32>,
-        byte_size: u16,
+        byte_size: u32,
         alignment: u16,
     },
 }
@@ -85,7 +85,7 @@ pub enum PackageReviewBoundaryValueLocation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewBoundaryValueShape {
     pub(crate) class: PackageReviewBoundaryValueClass,
-    pub(crate) byte_size: u16,
+    pub(crate) byte_size: u32,
     pub(crate) alignment: u16,
 }
 
@@ -94,7 +94,7 @@ impl PackageReviewBoundaryValueShape {
         self.class
     }
 
-    pub const fn byte_size(self) -> u16 {
+    pub const fn byte_size(self) -> u32 {
         self.byte_size
     }
 

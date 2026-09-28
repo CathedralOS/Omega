@@ -40,7 +40,7 @@ pub(crate) fn encode_value_placement(
         Ok(())
     })?;
     encoder.field("byte_size", |encoder| {
-        encoder.u16(shape.byte_size());
+        encoder.u32(shape.byte_size());
         Ok(())
     })?;
     encoder.field("alignment", |encoder| {
@@ -69,11 +69,11 @@ fn encode_value_location(
                     Ok(())
                 })?;
                 encoder.field("value_byte_offset", |encoder| {
-                    encoder.u16(value_byte_offset);
+                    encoder.u32(value_byte_offset);
                     Ok(())
                 })?;
                 encoder.field("byte_size", |encoder| {
-                    encoder.u16(byte_size);
+                    encoder.u32(byte_size);
                     Ok(())
                 })?;
             }
@@ -89,11 +89,11 @@ fn encode_value_location(
                     Ok(())
                 })?;
                 encoder.field("value_byte_offset", |encoder| {
-                    encoder.u16(value_byte_offset);
+                    encoder.u32(value_byte_offset);
                     Ok(())
                 })?;
                 encoder.field("byte_size", |encoder| {
-                    encoder.u16(byte_size);
+                    encoder.u32(byte_size);
                     Ok(())
                 })?;
                 encoder.field("alignment", |encoder| {
@@ -144,7 +144,7 @@ fn encode_value_location(
                     })
                 })?;
                 encoder.field("byte_size", |encoder| {
-                    encoder.u16(byte_size);
+                    encoder.u32(byte_size);
                     Ok(())
                 })?;
                 encoder.field("alignment", |encoder| {

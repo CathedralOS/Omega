@@ -254,7 +254,7 @@ fn narrow_integer_entry_snapshot_normalizes_bits_and_replay_rejects_substitution
             source.call_plan = evaluate_call_plan(
                 CallingPolicy::native_for_target(target),
                 &CallSignature {
-                    parameters: vec![ValueShape::integer(bits / 8, bits / 8)],
+                    parameters: vec![ValueShape::integer(u32::from(bits / 8), bits / 8)],
                     result: None,
                 },
             )

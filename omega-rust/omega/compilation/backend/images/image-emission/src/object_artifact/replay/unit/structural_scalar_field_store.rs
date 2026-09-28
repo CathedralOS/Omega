@@ -135,7 +135,7 @@ fn validate_store(
                     && scalar_parameter.value == source_value
                     && scalar_parameter.scalar_type == scalar_type
                     && scalar_parameter.placement.shape == scalar_shape
-                    && placed_byte_size == byte_size
+                    && placed_byte_size == u32::from(byte_size)
                     && location == expected_location
                     && abi.call_plan == expected_plan
                     && abi.call_plan.parameters.get(scalar_parameter_index)
@@ -245,7 +245,7 @@ fn validate_store(
         || store
             .field_byte_offset
             .checked_add(u32::from(byte_size))
-            .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
+            .is_none_or(|end| end > parameter.shape.byte_size)
     {
         return None;
     }
@@ -459,7 +459,7 @@ pub(crate) fn expected_incoming_parameter_store_bytes(
                 .checked_add(8)?
                 .checked_add(source_stack_byte_offset)?;
             let mut bytes = Vec::new();
-            expected_x86_stack_load(&mut bytes, 11, incoming, byte_size)?;
+            expected_x86_stack_load(&mut bytes, 11, incoming, u32::from(byte_size))?;
             bytes.extend(expected_parameter_store_bytes(
                 target,
                 home,
@@ -471,7 +471,7 @@ pub(crate) fn expected_incoming_parameter_store_bytes(
         }
         Architecture::Aarch64 => {
             let incoming = frame_bytes.checked_add(source_stack_byte_offset)?;
-            let mut bytes = expected_aarch64_stack_load(16, incoming, byte_size)?
+            let mut bytes = expected_aarch64_stack_load(16, incoming, u32::from(byte_size))?
                 .to_le_bytes()
                 .to_vec();
             bytes.extend(expected_parameter_store_bytes(

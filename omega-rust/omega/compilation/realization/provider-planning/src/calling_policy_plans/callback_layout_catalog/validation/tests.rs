@@ -23,7 +23,7 @@ pub(in crate::calling_policy_plans) fn signature_fixture() -> MaterializedBounda
     let target = NativeTarget::host();
     let pointer = target.pointer_size;
     let alignment = target.pointer_alignment;
-    let shape = ValueShape::integer(pointer as u16, alignment as u16);
+    let shape = ValueShape::integer(pointer as u32, alignment as u16);
     let mut signature = materialized_boundary_signature_from_abi(&CallSignature {
         parameters: vec![shape],
         result: None,
@@ -125,7 +125,7 @@ fn named_catalog_preserves_existing_boundary_application_bytes() {
         let target = signature.native_target;
         let abi = CallSignature {
             parameters: vec![ValueShape::integer(
-                u16::try_from(target.pointer_size).unwrap(),
+                u32::try_from(target.pointer_size).unwrap(),
                 u16::try_from(target.pointer_alignment).unwrap(),
             )],
             result: None,

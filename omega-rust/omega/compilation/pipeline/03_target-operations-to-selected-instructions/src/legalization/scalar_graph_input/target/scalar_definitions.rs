@@ -49,7 +49,8 @@ pub(super) fn validate(
         || result_home.defining_operation != *expected_operation
         || result_home.source_value != *result
         || result_home.scalar_type != ScalarType::Integer(*target_type)
-        || result_home.shape != ValueShape::integer(target_type.bits() / 8, target_type.bits() / 8)
+        || result_home.shape
+            != ValueShape::integer(u32::from(target_type.bits() / 8), target_type.bits() / 8)
     {
         return Err(LegalizationError::custody());
     }

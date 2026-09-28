@@ -727,8 +727,8 @@ fn encode_sum_layout(
     layout: &ConventionalSumLayout,
 ) -> Result<(), InstallationError> {
     encode_shape(bytes, layout.shape)?;
-    push_u16(bytes, layout.tag_byte_offset);
-    push_u16(bytes, layout.payload_byte_offset);
+    push_u32(bytes, layout.tag_byte_offset);
+    push_u32(bytes, layout.payload_byte_offset);
     encode_shape(bytes, layout.tag_shape)?;
     encode_packed_fields(bytes, &layout.common_fields)?;
     push_u32(
@@ -743,8 +743,8 @@ fn encode_sum_layout(
 
 fn decode_sum_layout(reader: &mut Reader<'_>) -> Result<ConventionalSumLayout, InstallationError> {
     let shape = decode_shape(reader)?;
-    let tag_byte_offset = reader.u16()?;
-    let payload_byte_offset = reader.u16()?;
+    let tag_byte_offset = reader.u32()?;
+    let payload_byte_offset = reader.u32()?;
     let tag_shape = decode_shape(reader)?;
     let common_fields = decode_packed_fields(reader)?;
     let count =
@@ -777,7 +777,7 @@ fn encode_packed_fields(
         u32::try_from(fields.len()).map_err(|_| InstallationError::TooManyStructuralFields)?,
     );
     for field in fields {
-        push_u16(bytes, field.byte_offset);
+        push_u32(bytes, field.byte_offset);
         push_u16(bytes, 0);
         encode_shape(bytes, field.shape)?;
     }
@@ -794,7 +794,7 @@ fn decode_packed_fields(
     }
     let mut fields = Vec::with_capacity(count);
     for _ in 0..count {
-        let byte_offset = reader.u16()?;
+        let byte_offset = reader.u32()?;
         if reader.u16()? != 0 {
             return Err(InstallationError::NonzeroReservedField);
         }

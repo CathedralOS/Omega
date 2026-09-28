@@ -183,8 +183,8 @@ impl Fnv1a {
                 } => {
                     self.u8(0);
                     self.register(register);
-                    self.u16(value_byte_offset);
-                    self.u16(byte_size);
+                    self.u32(value_byte_offset);
+                    self.u32(byte_size);
                 }
                 ValueLocation::Stack {
                     stack_byte_offset,
@@ -194,8 +194,8 @@ impl Fnv1a {
                 } => {
                     self.u8(1);
                     self.u32(stack_byte_offset);
-                    self.u16(value_byte_offset);
-                    self.u16(byte_size);
+                    self.u32(value_byte_offset);
+                    self.u32(byte_size);
                     self.u16(alignment);
                 }
                 ValueLocation::Indirect {
@@ -226,7 +226,7 @@ impl Fnv1a {
                         }
                         None => self.u8(0),
                     }
-                    self.u16(byte_size);
+                    self.u32(byte_size);
                     self.u16(alignment);
                 }
             }
@@ -248,7 +248,7 @@ impl Fnv1a {
                 self.u8(system_v_eightbyte_class_code(second));
             }
         }
-        self.u16(shape.byte_size);
+        self.u32(shape.byte_size);
         self.u16(shape.alignment);
     }
 

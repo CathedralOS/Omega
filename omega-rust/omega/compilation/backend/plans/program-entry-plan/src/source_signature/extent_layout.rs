@@ -95,7 +95,10 @@ pub fn selected_program_storage_source_extent_value_layout(
         if !matches!(child.class, BoundaryValueClass::Integer) {
             return Err("selected program-storage Extent field is not an integer scalar".into());
         }
-        Ok(ValueShape::integer(child.byte_size, child.alignment))
+        Ok(ValueShape::integer(
+            u32::from(child.byte_size),
+            child.alignment,
+        ))
     };
     crate::ProgramEntrySourceExtentValueLayout::from_checked_record(
         *data_symbol,

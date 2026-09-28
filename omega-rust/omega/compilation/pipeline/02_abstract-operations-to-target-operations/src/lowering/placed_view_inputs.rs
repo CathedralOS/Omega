@@ -104,7 +104,7 @@ fn derive_placed_entry_abi(
         .map_err(|_| PlacedViewInputTranslationError::TargetPointerShapeUnsupported)?;
     let pointer_alignment = u16::try_from(target.pointer_alignment)
         .map_err(|_| PlacedViewInputTranslationError::TargetPointerShapeUnsupported)?;
-    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
     let entry_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {

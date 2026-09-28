@@ -79,7 +79,7 @@ pub(super) fn array_fixture(target: target::NativeTarget, length: u16) -> Legali
         elements: (0..length)
             .map(|ordinal| ValueId::new(u64::from(ordinal % 2) + 1).unwrap())
             .collect(),
-        shape: ValueShape::integer(length, 1),
+        shape: ValueShape::integer(u32::from(length), 1),
     };
     let LegalizedScalarTerminator::Return(returned) = &mut source.blocks[0].terminator else {
         panic!("return");
@@ -94,7 +94,7 @@ pub(super) fn array_fixture(target: target::NativeTarget, length: u16) -> Legali
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: Vec::new(),
-            result: Some(ValueShape::integer(length, 1)),
+            result: Some(ValueShape::integer(u32::from(length), 1)),
         },
     )
     .unwrap();

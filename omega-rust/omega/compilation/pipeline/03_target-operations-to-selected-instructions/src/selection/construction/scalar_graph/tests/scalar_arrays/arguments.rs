@@ -160,7 +160,7 @@ fn owned_array_arguments_replay_exact_home_type_and_fragments() {
             ] {
                 let mut supported = narrow.clone();
                 let integer = IntegerType::new(sign, bits).unwrap();
-                let result_shape = ValueShape::integer(bits / 8, bits / 8);
+                let result_shape = ValueShape::integer(u32::from(bits / 8), bits / 8);
                 supported.call_plan = evaluate_call_plan(
                     supported.call_plan.policy,
                     &CallSignature {

@@ -86,7 +86,7 @@ pub(super) fn validate(
                 return Err(SelectedInstructionError::custody());
             };
             if place != declaration.place
-                || byte_size != u32::from(layout.shape.byte_size)
+                || byte_size != layout.shape.byte_size
                 || !matches!(
                     replay
                         .selected
@@ -130,7 +130,7 @@ pub(super) fn validate(
                 .iter()
                 .filter(|row| {
                     row.id == slot
-                        && row.byte_size == u32::from(layout.shape.byte_size)
+                        && row.byte_size == layout.shape.byte_size
                         && row.alignment == layout.shape.alignment
                 })
                 .count()
@@ -144,7 +144,7 @@ pub(super) fn validate(
                 block.id,
                 subject.place(),
                 0,
-                u32::from(layout.shape.byte_size),
+                layout.shape.byte_size,
                 SelectedMemoryAccessRole::AddressLocal { slot },
             )?;
             replay.check_instruction(

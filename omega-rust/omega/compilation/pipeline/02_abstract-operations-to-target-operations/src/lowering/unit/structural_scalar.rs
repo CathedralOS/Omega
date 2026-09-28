@@ -207,8 +207,8 @@ pub(in crate::lowering) fn lower_field_store(
         .checked_add(scalar_byte_offset)
         .filter(|offset| {
             offset
-                .checked_add(u32::from(field_byte_size))
-                .is_some_and(|end| end <= u32::from(destination_shape.byte_size))
+                .checked_add(field_byte_size)
+                .is_some_and(|end| end <= destination_shape.byte_size)
         })
         .ok_or(LoweringError::StructuralTypeTooLarge(
             destination.structural_type(),

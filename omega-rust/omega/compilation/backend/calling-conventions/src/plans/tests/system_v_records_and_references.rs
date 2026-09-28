@@ -403,6 +403,50 @@ fn borrowed_reference_stack_pointer_is_not_a_referent_copy() {
 }
 
 #[test]
+fn large_borrowed_referents_retain_exact_extent_without_a_copy() {
+    for policy in [
+        CallingPolicy::SystemVAMD64,
+        CallingPolicy::MicrosoftX64,
+        CallingPolicy::Aapcs64,
+    ] {
+        let signature = CallSignature {
+            parameters: vec![ValueShape::borrowed_reference(u32::MAX, 8); 10],
+            result: None,
+        };
+        let plan = evaluate_call_plan(policy, &signature).expect("one pointer per large referent");
+        for placement in &plan.parameters {
+            assert!(matches!(
+                placement.locations.as_slice(),
+                [ValueLocation::Indirect {
+                    copy_stack_byte_offset: None,
+                    byte_size: u32::MAX,
+                    alignment: 8,
+                    ..
+                }]
+            ));
+        }
+        let mut truncated = plan.clone();
+        let ValueLocation::Indirect { byte_size, .. } = &mut truncated.parameters[0].locations[0]
+        else {
+            unreachable!()
+        };
+        *byte_size = u32::from(u16::MAX);
+        assert!(validate_call_plan(&truncated, &signature).is_err());
+
+        let mut staged = plan;
+        let ValueLocation::Indirect {
+            copy_stack_byte_offset,
+            ..
+        } = &mut staged.parameters[0].locations[0]
+        else {
+            unreachable!()
+        };
+        *copy_stack_byte_offset = Some(0);
+        assert!(validate_call_plan(&staged, &signature).is_err());
+    }
+}
+
+#[test]
 fn borrowed_references_are_not_results() {
     let error = evaluate_call_plan(
         CallingPolicy::SystemVAMD64,
@@ -413,4 +457,57 @@ fn borrowed_references_are_not_results() {
     )
     .expect_err("borrowed-reference result must be rejected");
     assert!(error.0.contains("parameter-only"));
+}
+
+#[test]
+fn overflowing_owned_stack_extents_reject_without_fragment_expansion() {
+    for policy in [
+        CallingPolicy::SystemVAMD64,
+        CallingPolicy::MicrosoftX64,
+        CallingPolicy::Aapcs64,
+    ] {
+        let error = evaluate_call_plan(
+            policy,
+            &CallSignature {
+                parameters: vec![ValueShape::integer(u32::MAX, 8)],
+                result: None,
+            },
+        )
+        .expect_err("owned storage must fit the outgoing stack");
+        assert!(error.0.contains("32-bit storage"), "{policy:?}: {error:?}");
+    }
+}
+
+#[test]
+fn placement_intervals_accept_reordering_but_reject_gaps_overlap_and_overflow() {
+    let signature = CallSignature {
+        parameters: vec![ValueShape::integer(24, 8)],
+        result: None,
+    };
+    let mut plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).unwrap();
+    plan.parameters[0].locations.reverse();
+    validate_call_plan(&plan, &signature).expect("fragment order does not change exact coverage");
+    for offset in [1, 7, u32::MAX] {
+        let mut invalid = plan.clone();
+        let ValueLocation::Stack {
+            value_byte_offset, ..
+        } = &mut invalid.parameters[0].locations[1]
+        else {
+            panic!("stack fragment");
+        };
+        *value_byte_offset = offset;
+        assert!(validate_call_plan(&invalid, &signature).is_err());
+    }
+    plan.parameters[0].locations.pop();
+    assert!(validate_call_plan(&plan, &signature).is_err());
+
+    let mut plan = evaluate_call_plan(CallingPolicy::SystemVAMD64, &signature).unwrap();
+    let ValueLocation::Stack {
+        stack_byte_offset, ..
+    } = &mut plan.parameters[0].locations[0]
+    else {
+        panic!("stack fragment");
+    };
+    *stack_byte_offset = u32::MAX - 7;
+    assert!(validate_call_plan(&plan, &signature).is_err());
 }

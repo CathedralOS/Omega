@@ -46,7 +46,7 @@ fn whole_values_snapshot_before_parallel_replacement_and_replay_exact_extents() 
                 binding.transport = SelectedStructuralTransport::WholeValue {
                     argument,
                     destination,
-                    byte_size: width,
+                    byte_size: u32::from(width),
                     alignment,
                 };
             }

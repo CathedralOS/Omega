@@ -46,7 +46,7 @@ pub(crate) fn replay_x86_boolean_structural_read(
     field_byte_offset: u32,
     stack_depth: u32,
 ) -> Option<Vec<u8>> {
-    if field_byte_offset >= u32::from(placement.shape.byte_size) {
+    if field_byte_offset >= placement.shape.byte_size {
         return None;
     }
     let mut bytes = Vec::new();
@@ -77,8 +77,8 @@ pub(crate) fn replay_x86_boolean_structural_read(
                 byte_size,
                 ..
             } => {
-                let start = u32::from(*value_byte_offset);
-                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+                let start = *value_byte_offset;
+                field_byte_offset >= start && field_byte_offset < start + (*byte_size)
             }
             ValueLocation::Indirect { .. } => false,
         })?;
@@ -97,7 +97,7 @@ pub(crate) fn replay_x86_boolean_structural_read(
                     0x89,
                     0xc0 | ((register & 7) << 3),
                 ]);
-                let shift = (field_byte_offset - u32::from(value_byte_offset)) * 8;
+                let shift = (field_byte_offset - value_byte_offset) * 8;
                 if shift != 0 {
                     bytes.extend_from_slice(&[0x48, 0xc1, 0xe8, shift as u8]);
                 }
@@ -108,7 +108,7 @@ pub(crate) fn replay_x86_boolean_structural_read(
                 ..
             } => {
                 let incoming = stack_byte_offset
-                    .checked_add(field_byte_offset - u32::from(value_byte_offset))?
+                    .checked_add(field_byte_offset - value_byte_offset)?
                     .checked_add(8)?
                     .checked_add(stack_depth)?;
                 x86_replay_rsp_load(&mut bytes, 0, incoming, 1)?;
@@ -125,7 +125,7 @@ pub(crate) fn replay_aarch64_boolean_structural_read(
     field_byte_offset: u32,
     stack_depth: u32,
 ) -> Option<Vec<u8>> {
-    if field_byte_offset >= u32::from(placement.shape.byte_size) {
+    if field_byte_offset >= placement.shape.byte_size {
         return None;
     }
     let mut instructions = Vec::new();
@@ -156,8 +156,8 @@ pub(crate) fn replay_aarch64_boolean_structural_read(
                 byte_size,
                 ..
             } => {
-                let start = u32::from(*value_byte_offset);
-                field_byte_offset >= start && field_byte_offset < start + u32::from(*byte_size)
+                let start = *value_byte_offset;
+                field_byte_offset >= start && field_byte_offset < start + (*byte_size)
             }
             ValueLocation::Indirect { .. } => false,
         })?;
@@ -171,7 +171,7 @@ pub(crate) fn replay_aarch64_boolean_structural_read(
                 if register == 0 {
                     return None;
                 }
-                let shift = (field_byte_offset - u32::from(value_byte_offset)) * 8;
+                let shift = (field_byte_offset - value_byte_offset) * 8;
                 instructions.push(0xd340_fc00 | (shift << 16) | (u32::from(register) << 5));
             }
             ValueLocation::Stack {
@@ -181,7 +181,7 @@ pub(crate) fn replay_aarch64_boolean_structural_read(
             } => {
                 let incoming = stack_depth
                     .checked_add(stack_byte_offset)?
-                    .checked_add(field_byte_offset - u32::from(value_byte_offset))?;
+                    .checked_add(field_byte_offset - value_byte_offset)?;
                 instructions.push(aarch64_replay_stack_load(0, incoming, 1)?);
             }
             ValueLocation::Indirect { .. } => return None,

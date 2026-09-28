@@ -162,12 +162,8 @@ pub(super) fn validate(
             else {
                 return Err(replay.invalid());
             };
-            let register = super::structural_case::temporary(
-                replay,
-                result.place,
-                u32::from(*value_byte_offset),
-                false,
-            )?;
+            let register =
+                super::structural_case::temporary(replay, result.place, *value_byte_offset, false)?;
             operands.push(register);
             result_registers.push(register);
         }
@@ -234,7 +230,7 @@ pub(super) fn validate(
         };
         replay.transport.local_slots.push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: u32::from(placement.shape.byte_size),
+            byte_size: placement.shape.byte_size,
             alignment: placement.shape.alignment,
         });
         let block = source
@@ -254,7 +250,7 @@ pub(super) fn validate(
             block,
             result.place,
             0,
-            u32::from(placement.shape.byte_size),
+            placement.shape.byte_size,
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         replay.check_instruction(
@@ -283,17 +279,11 @@ pub(super) fn validate(
                 replay,
                 block,
                 result.place,
-                u32::from(*value_byte_offset),
-                u32::from(*byte_size),
+                *value_byte_offset,
+                *byte_size,
                 SelectedMemoryAccessRole::WritePlace,
             )?;
-            super::aggregate_memory::store(
-                replay,
-                pointer,
-                value,
-                u32::from(*value_byte_offset),
-                *byte_size,
-            )?;
+            super::aggregate_memory::store(replay, pointer, value, *value_byte_offset, *byte_size)?;
         }
         replay.transport.pointers.push((result.place, pointer));
     }

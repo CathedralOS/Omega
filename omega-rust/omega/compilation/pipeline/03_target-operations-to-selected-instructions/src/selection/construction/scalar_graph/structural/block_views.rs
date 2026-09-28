@@ -42,7 +42,7 @@ pub(in crate::selection::construction) fn block_entry(
             .local_slots
             .push(SelectedLocalStorageSlot {
                 id: slot,
-                byte_size: u32::from(shape.byte_size),
+                byte_size: shape.byte_size,
                 alignment: shape.alignment,
             });
         let pointer = transport_register(builder, parameter.place, 0)?;
@@ -57,7 +57,7 @@ pub(in crate::selection::construction) fn block_entry(
             origin: SelectedMemoryAccessOrigin::Block(block.id),
             place: parameter.place,
             byte_offset: 0,
-            byte_count: u32::from(shape.byte_size),
+            byte_count: shape.byte_size,
             role: SelectedMemoryAccessRole::AddressLocal { slot },
         });
         builder.emit(
@@ -86,7 +86,7 @@ pub(in crate::selection::construction) fn block_entry(
                 origin: SelectedMemoryAccessOrigin::Block(block.id),
                 place: parameter.place,
                 byte_offset: 0,
-                byte_count: u32::from(shape.byte_size),
+                byte_count: shape.byte_size,
                 role: SelectedMemoryAccessRole::ReadPlace,
             });
             builder.emit(

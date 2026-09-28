@@ -102,8 +102,14 @@ pub(super) fn function_abi(
         .map(|parameter| scalar_shape(parameter.scalar_type).ok_or(LegalizationError::custody()))
         .collect::<Result<Vec<_>, _>>()?;
     for _ in &declared_dynamic_parameters {
-        expected_parameters.push(ValueShape::integer(pointer_size, pointer_alignment));
-        expected_parameters.push(ValueShape::integer(pointer_size, pointer_alignment));
+        expected_parameters.push(ValueShape::integer(
+            u32::from(pointer_size),
+            pointer_alignment,
+        ));
+        expected_parameters.push(ValueShape::integer(
+            u32::from(pointer_size),
+            pointer_alignment,
+        ));
     }
     let expected = evaluate_call_plan(
         CallingPolicy::native_for_target(native),

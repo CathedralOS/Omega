@@ -117,7 +117,7 @@ pub(crate) fn derive_normalized_foreign_child(
         }
     }
     let pointer_shape = calling_conventions::ValueShape::integer(
-        u16::try_from(target.pointer_size)
+        u32::try_from(target.pointer_size)
             .map_err(|_| "normalized foreign D41 pointer size does not fit its ABI")?,
         u16::try_from(target.pointer_alignment)
             .map_err(|_| "normalized foreign D41 pointer alignment does not fit its ABI")?,
@@ -1068,7 +1068,10 @@ fn fixed_integer_shape(scalar_type: ScalarType) -> Option<calling_conventions::V
         return None;
     }
     let bytes = bits / 8;
-    Some(calling_conventions::ValueShape::integer(bytes, bytes))
+    Some(calling_conventions::ValueShape::integer(
+        u32::from(bytes),
+        bytes,
+    ))
 }
 
 /// Rejoin the expected structural-argument custody of one normalized foreign

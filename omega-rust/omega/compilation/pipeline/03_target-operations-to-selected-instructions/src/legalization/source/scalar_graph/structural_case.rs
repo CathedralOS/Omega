@@ -61,9 +61,7 @@ pub(super) fn project(
                 .ok_or(Error::custody())?;
             payloads.push(LegalizedStructuralCasePayload {
                 field: payload.field,
-                field_byte_offset: u32::from(
-                    layout.cases[case_position].fields[field_position].byte_offset,
-                ),
+                field_byte_offset: layout.cases[case_position].fields[field_position].byte_offset,
                 parameter: LegalizedValueDefinition {
                     value: parameter.value,
                     scalar_type: parameter.scalar_type,

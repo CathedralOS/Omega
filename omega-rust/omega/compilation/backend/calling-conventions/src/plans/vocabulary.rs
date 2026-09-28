@@ -130,12 +130,15 @@ pub enum ValueClass {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ValueShape {
     pub class: ValueClass,
-    pub byte_size: u16,
+    /// Complete value or borrowed referent extent, not a register fragment.
+    /// Keep the same range as native storage coordinates so a small pointer
+    /// can borrow a record whose arrays exceed 64 KiB.
+    pub byte_size: u32,
     pub alignment: u16,
 }
 
 impl ValueShape {
-    pub const fn integer(byte_size: u16, alignment: u16) -> Self {
+    pub const fn integer(byte_size: u32, alignment: u16) -> Self {
         Self {
             class: ValueClass::Integer,
             byte_size,
@@ -146,12 +149,12 @@ impl ValueShape {
     pub const fn float(byte_size: u16) -> Self {
         Self {
             class: ValueClass::Float,
-            byte_size,
+            byte_size: byte_size as u32,
             alignment: byte_size,
         }
     }
 
-    pub const fn borrowed_reference(byte_size: u16, alignment: u16) -> Self {
+    pub const fn borrowed_reference(byte_size: u32, alignment: u16) -> Self {
         Self {
             class: ValueClass::BorrowedReference,
             byte_size,
@@ -162,13 +165,13 @@ impl ValueShape {
     pub const fn homogeneous_float_aggregate(member_size: u16, members: u8) -> Self {
         Self {
             class: ValueClass::HomogeneousFloatAggregate { members },
-            byte_size: member_size * members as u16,
+            byte_size: member_size as u32 * members as u32,
             alignment: member_size,
         }
     }
 
     pub const fn system_v_aggregate(
-        byte_size: u16,
+        byte_size: u32,
         alignment: u16,
         first: SystemVEightbyteClass,
         second: SystemVEightbyteClass,
@@ -215,16 +218,16 @@ impl ConcreteVariadicCallSignature {
 pub enum ValueLocation {
     Register {
         register: MachineRegister,
-        value_byte_offset: u16,
-        byte_size: u16,
+        value_byte_offset: u32,
+        byte_size: u32,
     },
     /// Fragment resident in the ABI's incoming stack-argument area. This
     /// offset deliberately excludes return addresses and callee prologue
     /// storage; the inbound target encoder adds those target-specific biases.
     Stack {
         stack_byte_offset: u32,
-        value_byte_offset: u16,
-        byte_size: u16,
+        value_byte_offset: u32,
+        byte_size: u32,
         alignment: u16,
     },
     /// A value passed indirectly through a pointer. Parameters larger than the
@@ -234,7 +237,7 @@ pub enum ValueLocation {
     Indirect {
         pointer: IndirectPointerLocation,
         copy_stack_byte_offset: Option<u32>,
-        byte_size: u16,
+        byte_size: u32,
         alignment: u16,
     },
 }

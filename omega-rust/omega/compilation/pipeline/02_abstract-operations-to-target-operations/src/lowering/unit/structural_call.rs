@@ -472,13 +472,11 @@ pub(in crate::lowering) fn lower_structural_argument(
             });
         };
         let element_shape = structural_shape(*element, structural_types, shape_cache, active)?;
-        let stride = checked_align_up_u32(
-            u32::from(element_shape.byte_size),
-            u32::from(element_shape.alignment),
-        )
-        .ok_or(LoweringError::StructuralTypeTooLarge(
-            source_structural_type,
-        ))?;
+        let stride =
+            checked_align_up_u32(element_shape.byte_size, u32::from(element_shape.alignment))
+                .ok_or(LoweringError::StructuralTypeTooLarge(
+                    source_structural_type,
+                ))?;
         if shape != ValueShape::borrowed_reference(16, 8)
             || u64::from(backing_offset)
                 .checked_add(u64::from(stride).saturating_mul(length))
@@ -611,7 +609,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                 let element_shape =
                     structural_shape(element, structural_types, shape_cache, active)?;
                 let stride = checked_align_up_u32(
-                    u32::from(element_shape.byte_size),
+                    element_shape.byte_size,
                     u32::from(element_shape.alignment),
                 )
                 .ok_or(LoweringError::StructuralTypeTooLarge(
@@ -771,9 +769,10 @@ pub(in crate::lowering) fn lower_structural_argument(
     if projected_type != callee_parameter.structural_type
         || argument.access != callee_parameter.access
         || projected_parameter_shape != shape
-        || u32::from(shape.byte_size)
+        || shape
+            .byte_size
             .checked_add(source_byte_offset)
-            .is_none_or(|end| end > u32::from(source_shape.byte_size))
+            .is_none_or(|end| end > source_shape.byte_size)
     {
         return Err(LoweringError::StructuralCallArgumentTypeMismatch {
             callee,

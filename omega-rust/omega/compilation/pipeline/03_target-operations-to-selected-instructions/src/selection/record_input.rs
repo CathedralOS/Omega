@@ -55,9 +55,9 @@ pub(super) fn fields(
         let alignment = u32::from(field_shape.alignment);
         offset = offset.checked_add(alignment.checked_sub(1)?)? / alignment * alignment;
         placed.push((offset, field_shape, expected.field_type.scalar_type()));
-        offset = offset.checked_add(u32::from(field_shape.byte_size))?;
+        offset = offset.checked_add(field_shape.byte_size)?;
     }
-    (offset <= u32::from(shape.byte_size)).then_some(placed)
+    (offset <= shape.byte_size).then_some(placed)
 }
 
 /// Rejoin one field's scalar contract or complete owned child independently of

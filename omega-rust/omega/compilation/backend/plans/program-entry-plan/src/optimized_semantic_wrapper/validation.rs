@@ -187,16 +187,17 @@ fn validate_root_placement(
 ) -> Result<(), ProgramStorageEntryDiagnostic> {
     if actual_role != expected_role
         || actual_index != expected_index
-        || placement.shape.byte_size != EXTENT_BYTE_COUNT
+        || placement.shape.byte_size != u32::from(EXTENT_BYTE_COUNT)
         || placement.shape.alignment != EXTENT_ALIGNMENT
         || !matches!(
             placement.locations.as_slice(),
             [ValueLocation::Indirect {
                 pointer: IndirectPointerLocation::Register(register),
                 copy_stack_byte_offset: Some(copy_offset),
-                byte_size: EXTENT_BYTE_COUNT,
+                byte_size,
                 alignment: EXTENT_ALIGNMENT,
             }] if *register == expected_register && *copy_offset == expected_copy_offset
+                && *byte_size == u32::from(EXTENT_BYTE_COUNT)
         )
     {
         return Err(ProgramStorageEntryDiagnostic(format!(

@@ -42,11 +42,8 @@ pub(super) fn element_stride(
         *element,
         signature.structural_types.as_slice(),
     )?;
-    crate::structural_inputs::structural_reference_input::align(
-        u32::from(shape.byte_size),
-        shape.alignment,
-    )
-    .filter(|stride| *stride != 0)
+    crate::structural_inputs::structural_reference_input::align(shape.byte_size, shape.alignment)
+        .filter(|stride| *stride != 0)
 }
 
 pub(in crate::selection) fn element_observation(

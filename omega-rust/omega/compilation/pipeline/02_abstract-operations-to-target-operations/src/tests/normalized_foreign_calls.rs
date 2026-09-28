@@ -770,7 +770,7 @@ fn registrar_callback_slot_replays_from_the_retained_roster() {
         let operation = OperationId::new(7).unwrap();
         let scalar = ValueShape::integer(4, 4);
         let pointer = ValueShape::integer(
-            u16::try_from(native.pointer_size).unwrap(),
+            u32::try_from(native.pointer_size).unwrap(),
             u16::try_from(native.pointer_alignment).unwrap(),
         );
         let (binding, context, parameter) = materialized_binding(native, scalar, pointer);

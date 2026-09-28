@@ -87,7 +87,7 @@ pub(super) fn scalar_stack_placement(
             && alignment.is_power_of_two()
             && stack_byte_offset.is_multiple_of(u32::from(*alignment)) =>
         {
-            Some((*stack_byte_offset, *byte_size, *alignment))
+            Some((*stack_byte_offset, *byte_size as u16, *alignment))
         }
         _ => None,
     }
@@ -526,7 +526,10 @@ pub(super) fn scalar_shape(scalar_type: ScalarType) -> Option<ValueShape> {
             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                 && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
         {
-            Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
+            Some(ValueShape::integer(
+                u32::from(integer.bits() / 8),
+                integer.bits() / 8,
+            ))
         }
         _ => None,
     }

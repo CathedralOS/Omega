@@ -36,7 +36,7 @@ pub(in crate::lowering) fn shape(
                 let count = if empty { 0 } else { count.ok_or_else(invalid)? };
                 let size = count
                     .checked_mul(u64::from(leaf.byte_size))
-                    .and_then(|size| u16::try_from(size).ok())
+                    .and_then(|size| u32::try_from(size).ok())
                     .ok_or_else(invalid)?;
                 return Ok((
                     scalar_type,

@@ -35,10 +35,10 @@ pub(super) fn establish(
     };
     replay.transport.local_slots.push(SelectedLocalStorageSlot {
         id: slot,
-        byte_size: u32::from(shape.byte_size),
+        byte_size: shape.byte_size,
         alignment: shape.alignment,
     });
-    let pointer = local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), true)?;
+    let pointer = local_storage::address(replay, row, slot, 0, shape.byte_size, true)?;
     // Every scalar zero spelling is the all-zero bit pattern: construction
     // emits exactly one materialization shared by every leaf store.
     let zero = result(replay, established.place, 0)?;

@@ -30,7 +30,7 @@ pub(super) fn validate_structural_returns(
                     return None;
                 }
                 let bytes = integer.bits() / 8;
-                Some(ValueShape::integer(bytes, bytes))
+                Some(ValueShape::integer(u32::from(bytes), bytes))
             })
             .collect::<Option<Vec<_>>>()
             .ok_or(InstallationError::InvalidStructuralReturn(

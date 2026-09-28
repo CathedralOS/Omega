@@ -274,7 +274,7 @@ fn inline_array_arguments_do_not_admit_stack_or_indirect_results() {
         (CallingPolicy::Aapcs64, 8),
         (CallingPolicy::MicrosoftX64, 4),
     ] {
-        for bytes in 1..=24 {
+        for bytes in 1_u32..=24 {
             let shape = ValueShape::integer(bytes, 1);
             let call = evaluate_call_plan(
                 policy,

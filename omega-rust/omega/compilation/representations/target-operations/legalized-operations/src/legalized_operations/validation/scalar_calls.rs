@@ -91,8 +91,8 @@ fn direct_aggregate_registers(placement: &ValuePlacement) -> bool {
 fn direct_scalar_placement(placement: &ValuePlacement) -> bool {
     let width = placement.shape.byte_size;
     matches!(width, 1 | 2 | 4 | 8)
-        && (placement.shape == ValueShape::integer(width, width)
-            || matches!(width, 4 | 8) && placement.shape == ValueShape::float(width))
+        && (placement.shape == ValueShape::integer(width, width as u16)
+            || matches!(width, 4 | 8) && placement.shape == ValueShape::float(width as u16))
         && (matches!(
             placement.locations.as_slice(),
             [ValueLocation::Register {
@@ -109,8 +109,8 @@ fn direct_scalar_placement(placement: &ValuePlacement) -> bool {
 fn direct_scalar_register(placement: &ValuePlacement) -> bool {
     let width = placement.shape.byte_size;
     matches!(width, 1 | 2 | 4 | 8)
-        && (placement.shape == ValueShape::integer(width, width)
-            || matches!(width, 4 | 8) && placement.shape == ValueShape::float(width))
+        && (placement.shape == ValueShape::integer(width, width as u16)
+            || matches!(width, 4 | 8) && placement.shape == ValueShape::float(width as u16))
         && matches!(
             placement.locations.as_slice(),
             [ValueLocation::Register {
@@ -184,7 +184,7 @@ impl LegalizedDynamicParameterCall {
         if self.table_slot_byte_offset
             != dispatch
                 .requirement_slot
-                .checked_mul(u32::from(instance.shape.byte_size))
+                .checked_mul(instance.shape.byte_size)
                 .ok_or(Error::TableOffset)?
         {
             return Err(Error::TableOffset);
@@ -210,7 +210,7 @@ mod tests {
                     calling_conventions::CallingPolicy::native_for_target(target),
                     &calling_conventions::CallSignature {
                         parameters: Vec::new(),
-                        result: Some(ValueShape::float(width)),
+                        result: Some(ValueShape::float(width as u16)),
                     },
                 )
                 .unwrap();

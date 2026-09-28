@@ -114,7 +114,7 @@ pub(in crate::selection) fn entry(
                     else {
                         return Err(invalid());
                     };
-                    let offset = u32::from(*value_byte_offset);
+                    let offset = *value_byte_offset;
                     if stack_byte_offset.checked_sub(*base) != Some(offset) {
                         return Err(invalid());
                     }
@@ -149,7 +149,7 @@ pub(in crate::selection) fn entry(
                     definition_site: None,
                     entry_fixed_view: Some(fixed),
                 });
-                let offset = u32::from(*value_byte_offset);
+                let offset = *value_byte_offset;
                 let output = transport_register(builder, place, offset)?;
                 builder.emit(
                     SelectedInstructionKind::CopyI64,
@@ -286,7 +286,7 @@ fn retain_owned_home(
         .local_slots
         .push(selected_instructions::SelectedLocalStorageSlot {
             id: slot,
-            byte_size: u32::from(shape.byte_size),
+            byte_size: shape.byte_size,
             alignment: shape.alignment,
         });
     let pointer = transport_register(builder, place, 0)?;
@@ -295,7 +295,7 @@ fn retain_owned_home(
         source.entry_block,
         place,
         0,
-        u32::from(shape.byte_size),
+        shape.byte_size,
         selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
     builder.emit(
@@ -322,7 +322,7 @@ fn retain_owned_home(
                 value_byte_offset,
                 byte_size,
                 ..
-            } => (u32::from(*value_byte_offset), *byte_size),
+            } => ((*value_byte_offset), *byte_size),
             _ => return Err(invalid()),
         };
         let value = builder
@@ -337,7 +337,7 @@ fn retain_owned_home(
             source.entry_block,
             place,
             offset,
-            u32::from(width),
+            width,
             selected_instructions::SelectedMemoryAccessRole::WritePlace,
         )?;
         super::super::aggregate_memory::store(builder, pointer, value, offset, width)?;

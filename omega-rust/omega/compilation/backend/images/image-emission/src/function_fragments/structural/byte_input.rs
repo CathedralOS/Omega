@@ -141,7 +141,7 @@ pub(super) fn settlement(
     // cannot carry hosted storage at all.
     if frame.red_zone_resident_bytes != 0
         || home.frame_offset_bytes != u64::from(offset)
-        || home.size_bytes != u32::from(layout.shape.byte_size)
+        || home.size_bytes != layout.shape.byte_size
         || home.alignment_bytes != layout.shape.alignment
         || home
             .frame_offset_bytes
@@ -274,7 +274,7 @@ pub(super) fn validate(
         || produced.layout != *layout
         || frame.red_zone_resident_bytes != 0
         || u64::from(produced.home_byte_offset) != home.frame_offset_bytes
-        || home.size_bytes != u32::from(layout.shape.byte_size)
+        || home.size_bytes != layout.shape.byte_size
         || home.alignment_bytes != layout.shape.alignment
         || home
             .frame_offset_bytes

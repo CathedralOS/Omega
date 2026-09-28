@@ -96,7 +96,7 @@ pub(crate) fn transport(
             let home = homes.next()?;
             if homes.next().is_some()
                 || byte_offset
-                    .checked_add(u32::from(lent.byte_size))
+                    .checked_add(lent.byte_size)
                     .is_none_or(|end| end > home.byte_size)
             {
                 return None;
@@ -106,7 +106,7 @@ pub(crate) fn transport(
     Some(SelectedStructuralTransport::Address {
         base,
         byte_offset,
-        byte_count: u32::from(lent.byte_size),
+        byte_count: lent.byte_size,
         destination: LocalStorageSlotId::StructuralBlockParameter {
             block: target,
             place: parameter.place,

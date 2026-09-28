@@ -55,7 +55,7 @@ fn borrowed_scalar_store_replay_rejects_changed_footprint_source_and_fuel() {
                     CallingPolicy::native_for_target(target),
                     &CallSignature {
                         parameters: vec![ValueShape::borrowed_reference(
-                            u16::from(bytes),
+                            u32::from(bytes),
                             u16::from(bytes),
                         )],
                         result: None,

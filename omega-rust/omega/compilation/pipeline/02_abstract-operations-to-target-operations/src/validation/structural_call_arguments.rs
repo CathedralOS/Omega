@@ -1158,7 +1158,7 @@ impl Replay<'_> {
             u16::try_from(self.native_target.pointer_size).map_err(|_| psi_operation)?;
         let pointer_alignment =
             u16::try_from(self.native_target.pointer_alignment).map_err(|_| psi_operation)?;
-        let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+        let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
         // A retained callback joins the plan's `callback_materializations` row
         // it names by `placement_index`; the roster entry joins by Terminal
         // operation and exact registrar plan. A parameter destination occupies
@@ -1739,9 +1739,10 @@ impl Replay<'_> {
                 }
             };
             if projected_type != declaration_parameter.structural_type
-                || u32::from(projected_shape.byte_size)
+                || projected_shape
+                    .byte_size
                     .checked_add(byte_offset)
-                    .is_none_or(|end| end > u32::from(source_byte_size))
+                    .is_none_or(|end| end > source_byte_size)
             {
                 return Err(psi_operation);
             }
@@ -1781,7 +1782,8 @@ impl Replay<'_> {
                         ] => *byte_size,
                         _ => return Err(psi_operation),
                     };
-                    destination.shape == pointer_shape && placed_pointer_word == pointer_size
+                    destination.shape == pointer_shape
+                        && placed_pointer_word == u32::from(pointer_size)
                 }
             };
             if !destination_ok {
@@ -2415,7 +2417,7 @@ impl Replay<'_> {
             u16::try_from(self.native_target.pointer_size).map_err(|_| psi_operation)?;
         let pointer_alignment =
             u16::try_from(self.native_target.pointer_alignment).map_err(|_| psi_operation)?;
-        let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+        let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
         let result_shape =
             expected_result.map(|result| structural_shapes::scalar_shape(result.scalar_type));
         let descriptor_parameter_count =
@@ -2536,8 +2538,8 @@ impl Replay<'_> {
         )
         .map_err(|_| psi_operation)?;
         if byte_offset
-            .checked_add(u32::from(projected_shape.byte_size))
-            .is_none_or(|end| end > u32::from(root.shape.byte_size))
+            .checked_add(projected_shape.byte_size)
+            .is_none_or(|end| end > root.shape.byte_size)
         {
             return Err(psi_operation);
         }
@@ -2951,7 +2953,10 @@ impl Replay<'_> {
         let expected_plan = evaluate_call_plan(
             CallingPolicy::native_for_target(self.native_target),
             &CallSignature {
-                parameters: vec![ValueShape::integer(pointer_size, pointer_alignment)],
+                parameters: vec![ValueShape::integer(
+                    u32::from(pointer_size),
+                    pointer_alignment,
+                )],
                 result: result_shape,
             },
         )
@@ -3022,9 +3027,10 @@ impl Replay<'_> {
         if projected_type != callee_parameter.structural_type
             || source.access != callee_parameter.access
             || shape != destination.shape
-            || u32::from(projected_shape.byte_size)
+            || projected_shape
+                .byte_size
                 .checked_add(byte_offset)
-                .is_none_or(|end| end > u32::from(root.shape.byte_size))
+                .is_none_or(|end| end > root.shape.byte_size)
         {
             return Err(psi_operation);
         }
@@ -3425,7 +3431,7 @@ fn register_fragment_stores(placement: &ValuePlacement) -> bool {
         && placement
             .locations
             .iter()
-            .try_fold(0_u16, |cursor, location| {
+            .try_fold(0_u32, |cursor, location| {
                 let ValueLocation::Register {
                     value_byte_offset,
                     byte_size,

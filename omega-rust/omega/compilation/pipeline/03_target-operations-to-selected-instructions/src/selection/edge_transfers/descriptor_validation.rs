@@ -62,7 +62,7 @@ pub(super) fn check(
                 .iter()
                 .filter(|slot| {
                     slot.id == destination
-                        && slot.byte_size == u32::from(byte_size)
+                        && slot.byte_size == byte_size
                         && slot.alignment == alignment
                 })
                 .count()

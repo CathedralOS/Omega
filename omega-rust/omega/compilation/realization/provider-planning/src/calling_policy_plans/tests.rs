@@ -867,7 +867,7 @@ fn nominal_callback_consumer_replays_exact_materialization_context() {
     let target = realization.materialized_signature.native_target;
     let signature = CallSignature {
         parameters: vec![ValueShape::integer(
-            u16::try_from(target.pointer_size).unwrap(),
+            u32::try_from(target.pointer_size).unwrap(),
             u16::try_from(target.pointer_alignment).unwrap(),
         )],
         result: None,

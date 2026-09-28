@@ -95,7 +95,7 @@ fn native_callback_application_is_exact(
     let expected_shape = u16::try_from(target.pointer_size)
         .ok()
         .zip(u16::try_from(target.pointer_alignment).ok())
-        .map(|(size, alignment)| ValueShape::integer(size, alignment));
+        .map(|(size, alignment)| ValueShape::integer(u32::from(size), alignment));
     let signature = CallSignature {
         parameters: admitted
             .registrar_boundary_entry_plan

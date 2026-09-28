@@ -57,7 +57,7 @@ pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
         ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
             let bytes = integer.bits() / 8;
-            Some(ValueShape::integer(bytes, bytes))
+            Some(ValueShape::integer(u32::from(bytes), bytes))
         }
         _ => None,
     }
@@ -410,7 +410,7 @@ pub(crate) fn primitive_array_shape(
                     return None;
                 }
                 let leaf = scalar_shape(scalar)?;
-                let size = u16::try_from(
+                let size = u32::try_from(
                     (if empty { 0 } else { count? }).checked_mul(u64::from(leaf.byte_size))?,
                 )
                 .ok()?;
@@ -510,7 +510,7 @@ pub(crate) fn fixed_element_array_view(
         return None;
     }
     let element_stride = align(
-        u32::from(shape(*element, declarations)?.byte_size),
+        shape(*element, declarations)?.byte_size,
         shape(*element, declarations)?.alignment,
     )?;
     let end = u64::from(offset).checked_add(length.checked_mul(u64::from(element_stride))?)?;
@@ -635,7 +635,7 @@ fn bounded_byte_field_borrow(
                 <= u64::from(shape(source.structural_type, declarations)?.byte_size))
             .then_some((field_offset, capacity));
         }
-        local_offset = local_offset.checked_add(u32::from(layout.byte_size))?;
+        local_offset = local_offset.checked_add(layout.byte_size)?;
     }
     None
 }
@@ -718,19 +718,15 @@ fn shape_inner(
             }) {
                 let field_shape = field_shape(&field.field_type, declarations, active)?;
                 alignment = alignment.max(field_shape.alignment);
-                bytes = align(bytes, field_shape.alignment)?
-                    .checked_add(u32::from(field_shape.byte_size))?;
+                bytes = align(bytes, field_shape.alignment)?.checked_add(field_shape.byte_size)?;
             }
-            Some(ValueShape::integer(
-                u16::try_from(align(bytes, alignment)?).ok()?,
-                alignment,
-            ))
+            Some(ValueShape::integer(align(bytes, alignment)?, alignment))
         }
         StructuralTypeShape::FixedArray { element, length } if *length > 0 => {
             let element = shape_inner(*element, declarations, active)?;
-            let stride = align(u32::from(element.byte_size), element.alignment)?;
+            let stride = align(element.byte_size, element.alignment)?;
             Some(ValueShape::integer(
-                u16::try_from(u64::from(stride).checked_mul(*length)?).ok()?,
+                u32::try_from(u64::from(stride).checked_mul(*length)?).ok()?,
                 element.alignment,
             ))
         }
@@ -767,7 +763,7 @@ pub(crate) fn field_shape(
                 terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8,
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
             };
-            Some(ValueShape::integer(u16::try_from(bytes).ok()?, 8))
+            Some(ValueShape::integer(u32::try_from(bytes).ok()?, 8))
         }
         StructuralFieldType::Structural(nested) => shape_inner(*nested, declarations, active),
         _ => None,
@@ -813,14 +809,12 @@ pub(crate) fn case_projection(
                 let layout = case_layout(current, declarations)?;
                 (
                     next,
-                    u32::from(
-                        layout
-                            .cases
-                            .get(case_position)?
-                            .fields
-                            .get(field_position)?
-                            .byte_offset,
-                    ),
+                    layout
+                        .cases
+                        .get(case_position)?
+                        .fields
+                        .get(field_position)?
+                        .byte_offset,
                 )
             }
             Segment::Field(identity) => {
@@ -839,12 +833,10 @@ pub(crate) fn case_projection(
                 };
                 let displacement = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. })
                 {
-                    u32::from(
-                        case_layout(current, declarations)?
-                            .common_fields
-                            .get(field_position)?
-                            .byte_offset,
-                    )
+                    case_layout(current, declarations)?
+                        .common_fields
+                        .get(field_position)?
+                        .byte_offset
                 } else {
                     project(
                         current,
@@ -938,7 +930,7 @@ fn project_inner<'a>(
                 StructuralTypeShape::FixedArray { element, length },
             ) if position < *length => {
                 let element_shape = shape(*element, declarations)?;
-                let stride = align(u32::from(element_shape.byte_size), element_shape.alignment)?;
+                let stride = align(element_shape.byte_size, element_shape.alignment)?;
                 offset = offset
                     .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
                 carrier = *element;
@@ -966,7 +958,7 @@ fn project_inner<'a>(
                         found = Some((nested, field_offset));
                         break;
                     }
-                    field_offset = field_offset.checked_add(u32::from(layout.byte_size))?;
+                    field_offset = field_offset.checked_add(layout.byte_size)?;
                 }
                 let (nested, field_offset) = found?;
                 carrier = nested;
@@ -1013,7 +1005,7 @@ pub(crate) fn runtime_projection(
             return None;
         };
         let element_shape = shape(*element, declarations)?;
-        let stride = align(u32::from(element_shape.byte_size), element_shape.alignment)?;
+        let stride = align(element_shape.byte_size, element_shape.alignment)?;
         elements.push(RuntimeElement {
             index: *index,
             obligation: *obligation,
@@ -1138,7 +1130,7 @@ fn scalar_field_geometry(
             }
             return Some((offset, bytes, elements));
         }
-        offset = offset.checked_add(u32::from(layout.byte_size))?;
+        offset = offset.checked_add(layout.byte_size)?;
     }
     None
 }

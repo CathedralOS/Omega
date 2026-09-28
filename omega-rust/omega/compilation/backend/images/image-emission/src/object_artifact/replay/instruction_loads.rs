@@ -37,7 +37,7 @@ pub(crate) fn expected_x86_stack_load(
     bytes: &mut Vec<u8>,
     register: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<()> {
     x86_replay_rsp_load(bytes, register, offset, width)
 }
@@ -47,7 +47,7 @@ pub(crate) fn expected_x86_memory_load(
     destination: u8,
     base: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<()> {
     if width != 8 {
         return None;
@@ -66,7 +66,7 @@ pub(crate) fn expected_x86_memory_load(
     Some(())
 }
 
-pub(crate) fn expected_aarch64_stack_load(register: u8, offset: u32, width: u16) -> Option<u32> {
+pub(crate) fn expected_aarch64_stack_load(register: u8, offset: u32, width: u32) -> Option<u32> {
     aarch64_replay_stack_load(register, offset, width)
 }
 
@@ -74,7 +74,7 @@ pub(crate) fn expected_aarch64_memory_load(
     register: u8,
     base: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<u32> {
     if width != 8 || !offset.is_multiple_of(8) || offset / 8 > 0xfff {
         return None;
@@ -86,7 +86,7 @@ pub(crate) fn x86_replay_rsp_load(
     bytes: &mut Vec<u8>,
     register: u8,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<()> {
     match byte_size {
         1 => {
@@ -141,9 +141,9 @@ pub(crate) fn x86_replay_memory_load(
 pub(crate) fn aarch64_replay_stack_load(
     register: u8,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<u32> {
-    let scale = u32::from(byte_size);
+    let scale = byte_size;
     let base = match byte_size {
         1 => 0x3940_0000,
         2 => 0x7940_0000,

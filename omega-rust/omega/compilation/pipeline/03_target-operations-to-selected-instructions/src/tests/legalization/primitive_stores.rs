@@ -282,10 +282,10 @@ fn indexed_primitive_storage_retains_root_path_footprint_and_access() {
                     crate::structural_inputs::structural_reference_input::scalar_shape(scalar)
                         .unwrap()
                         .byte_size;
-                let expected_offset = u32::from(width) * 6;
+                let expected_offset = width * 6;
                 let mut inspect = legalized.plan().clone();
                 assert!(
-                    matches!(legalized_store(&mut inspect).kind, LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { byte_offset, byte_size, .. } if byte_offset == expected_offset && u16::from(byte_size) == width)
+                    matches!(legalized_store(&mut inspect).kind, LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { byte_offset, byte_size, .. } if byte_offset == expected_offset && u32::from(byte_size) == width)
                 );
                 assert_eq!(
                     legalized.plan().scalar_functions[0].call_plan.parameters[0]

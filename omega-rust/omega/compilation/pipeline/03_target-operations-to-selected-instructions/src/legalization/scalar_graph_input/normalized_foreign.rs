@@ -152,7 +152,8 @@ pub(in crate::legalization) fn native_callbacks_at<'a>(
             || callback.callback_function.callback_thunk_placement_index()
                 != Some(callback.placement_index)
             || callback.application.shape != callback.application.placement.shape
-            || callback.application.shape != ValueShape::integer(pointer_size, pointer_alignment)
+            || callback.application.shape
+                != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
             || !destination_admitted
             || !materializations
                 .iter()
@@ -279,11 +280,12 @@ pub(in crate::legalization) fn structural_argument_at(
                 declarations,
             )
             .ok_or(LegalizationError::custody())?
-        || u32::from(projected_shape.byte_size)
+        || projected_shape
+            .byte_size
             .checked_add(source_byte_offset)
-            .is_none_or(|end| end > u32::from(root_shape.byte_size))
-        || destination.shape != ValueShape::integer(pointer_size, pointer_alignment)
-        || placed_pointer_word != pointer_size
+            .is_none_or(|end| end > root_shape.byte_size)
+        || destination.shape != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
+        || placed_pointer_word != u32::from(pointer_size)
     {
         return Err(LegalizationError::custody());
     }

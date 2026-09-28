@@ -91,7 +91,8 @@ pub(crate) fn accepts_borrowed_parameters(
     let result_shape = call_plan.result.as_ref().map(|placement| placement.shape);
     if result_shape.is_some_and(|shape| {
         ![1, 2, 4, 8].contains(&shape.byte_size)
-            || shape != calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+            || shape
+                != calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size as u16)
     }) {
         return false;
     }
@@ -101,7 +102,11 @@ pub(crate) fn accepts_borrowed_parameters(
         .collect::<Vec<_>>();
     if shapes.iter().any(|shape| {
         !([1, 2, 4, 8].contains(&shape.byte_size)
-            && *shape == calling_conventions::ValueShape::integer(shape.byte_size, shape.byte_size)
+            && *shape
+                == calling_conventions::ValueShape::integer(
+                    shape.byte_size,
+                    shape.byte_size as u16,
+                )
             || [
                 calling_conventions::ValueShape::float(4),
                 calling_conventions::ValueShape::float(8),

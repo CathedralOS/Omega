@@ -57,10 +57,10 @@ pub(super) fn copy(
     };
     replay.transport.local_slots.push(SelectedLocalStorageSlot {
         id: slot,
-        byte_size: u32::from(shape.byte_size),
+        byte_size: shape.byte_size,
         alignment: shape.alignment,
     });
-    let pointer = local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), true)?;
+    let pointer = local_storage::address(replay, row, slot, 0, shape.byte_size, true)?;
     let Some(input) = input else {
         check_fragments(
             _source,
@@ -96,7 +96,7 @@ pub(super) fn copy(
             byte_offset: 0,
             elements: &[],
         },
-        u32::from(shape.byte_size),
+        shape.byte_size,
     )?;
     replay.transport.pointers.push((result.place, pointer));
     Ok(())
@@ -189,7 +189,7 @@ pub(super) fn reseat(
             elements: &[],
         },
         destination,
-        u32::from(shape.byte_size),
+        shape.byte_size,
     )
 }
 
@@ -339,7 +339,7 @@ fn check_fragments(
         return Err(invalid());
     }
     let leaf_end = byte_offset
-        .checked_add(u32::from(shape.byte_size))
+        .checked_add(shape.byte_size)
         .ok_or_else(|| invalid())?;
     for location in &parameter.target.placement.locations {
         let (fragment_offset, width) = match location {
@@ -352,11 +352,11 @@ fn check_fragments(
                 value_byte_offset,
                 byte_size,
                 ..
-            } => (u32::from(*value_byte_offset), *byte_size),
+            } => ((*value_byte_offset), *byte_size),
             _ => return Err(invalid()),
         };
         let fragment_end = fragment_offset
-            .checked_add(u32::from(width))
+            .checked_add(width)
             .ok_or_else(|| invalid())?;
         if fragment_end <= byte_offset || fragment_offset >= leaf_end {
             continue;
@@ -381,14 +381,14 @@ fn check_fragments(
             destination.place,
             destination.pointer,
             offset,
-            u32::from(width),
+            width,
         )?;
         super::runtime_address::footprint(
             replay,
             row,
             destination.place,
             offset,
-            u32::from(width),
+            width,
             destination.elements,
             super::runtime_address::Written::Structural,
         )?;

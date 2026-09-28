@@ -280,7 +280,7 @@ pub(crate) fn validate(
                     && matches!(
                         callback.application.placement.locations.as_slice(),
                         [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]
-                            if *byte_size == pointer_size
+                            if *byte_size == u32::from(pointer_size)
                     )
             }
         };
@@ -291,7 +291,8 @@ pub(crate) fn validate(
             || callback.callback_function.callback_thunk_placement_index()
                 != Some(callback.placement_index)
             || callback.application.shape != callback.application.placement.shape
-            || callback.application.shape != ValueShape::integer(pointer_size, pointer_alignment)
+            || callback.application.shape
+                != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
             || !destination_admitted
             || !plan
                 .call
@@ -385,7 +386,8 @@ pub(crate) fn validate(
             || argument.source
                 != TargetStructuralArgumentSource::Placement(parameter.target.placement.clone())
             || plan.call.parameters.get(index) != Some(&argument.destination)
-            || argument.destination.shape != ValueShape::integer(pointer_size, pointer_alignment)
+            || argument.destination.shape
+                != ValueShape::integer(u32::from(pointer_size), pointer_alignment)
         {
             return Err(invalid());
         }
@@ -403,7 +405,7 @@ pub(crate) fn validate(
                     byte_size,
                     ..
                 },
-            ] if *byte_size == pointer_size => {}
+            ] if *byte_size == u32::from(pointer_size) => {}
             _ => return Err(invalid()),
         }
     }
@@ -442,8 +444,10 @@ pub(crate) fn validate(
     }
     // Re-validate the retained plan against the independently re-derived
     // signature; the canonical evaluation must equal the carried plan exactly.
-    let mut parameters =
-        vec![ValueShape::integer(pointer_size, pointer_alignment); plan.call.parameters.len()];
+    let mut parameters = vec![
+        ValueShape::integer(u32::from(pointer_size), pointer_alignment);
+        plan.call.parameters.len()
+    ];
     for argument in &call.scalar_arguments {
         *parameters
             .get_mut(argument.parameter_index as usize)

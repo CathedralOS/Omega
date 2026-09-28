@@ -34,17 +34,10 @@ pub(super) fn establish(
     };
     replay.transport.local_slots.push(SelectedLocalStorageSlot {
         id: slot,
-        byte_size: u32::from(layout.shape.byte_size),
+        byte_size: layout.shape.byte_size,
         alignment: layout.shape.alignment,
     });
-    let pointer = local_storage::address(
-        replay,
-        row,
-        slot,
-        0,
-        u32::from(layout.shape.byte_size),
-        true,
-    )?;
+    let pointer = local_storage::address(replay, row, slot, 0, layout.shape.byte_size, true)?;
     let zero = result(replay, established.place, 0)?;
     replay.check_instruction(
         SelectedInstructionKind::MaterializeI64 {
@@ -55,8 +48,8 @@ pub(super) fn establish(
         &provenance(row),
     )?;
     let mut offset = 0;
-    while offset < u32::from(layout.shape.byte_size) {
-        let remaining = u32::from(layout.shape.byte_size) - offset;
+    while offset < layout.shape.byte_size {
+        let remaining = layout.shape.byte_size - offset;
         let width = [8, 4, 2, 1]
             .into_iter()
             .find(|width| *width <= remaining)

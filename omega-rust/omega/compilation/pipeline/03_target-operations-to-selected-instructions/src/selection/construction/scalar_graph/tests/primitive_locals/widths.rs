@@ -126,7 +126,7 @@ fn primitive_read_width_and_definition_substitutions_reject_on_every_target() {
                 .iter()
                 .find(|access| access.role == SelectedMemoryAccessRole::ReadPlace)
                 .unwrap();
-            assert_eq!(access.byte_count, u32::from(width));
+            assert_eq!(access.byte_count, width);
             if matches!(scalar, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() < 64)
             {
                 let normalization = selected

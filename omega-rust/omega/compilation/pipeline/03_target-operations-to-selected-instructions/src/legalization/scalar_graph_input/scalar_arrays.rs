@@ -44,7 +44,7 @@ pub(in crate::legalization) fn shape(
                 };
                 let size = count
                     .checked_mul(u64::from(leaf.byte_size))
-                    .and_then(|size| u16::try_from(size).ok())
+                    .and_then(|size| u32::try_from(size).ok())
                     .ok_or(LegalizationError::custody())?;
                 return Ok((
                     scalar_type,

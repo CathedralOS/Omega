@@ -33,12 +33,12 @@ pub(super) fn establish(
     };
     replay.transport.local_slots.push(SelectedLocalStorageSlot {
         id: slot,
-        byte_size: u32::from(shape.byte_size),
+        byte_size: shape.byte_size,
         alignment: shape.alignment,
     });
     // The address instruction charges construction once; payload stores carry
     // exact operand provenance without introducing additional semantic work.
-    let pointer = local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), true)?;
+    let pointer = local_storage::address(replay, row, slot, 0, shape.byte_size, true)?;
     for (element, scalar, offset, width) in stores {
         let (_, value, _, actual) = replay
             .resolve(element)

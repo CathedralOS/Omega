@@ -63,7 +63,7 @@ pub(super) fn shape(
             terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) if depth != 0 => {
                 let leaf = super::scalar_call_abi::scalar_shape(scalar)?;
                 let count = if empty { 0 } else { count? };
-                let bytes = u16::try_from(count.checked_mul(u64::from(leaf.byte_size))?).ok()?;
+                let bytes = u32::try_from(count.checked_mul(u64::from(leaf.byte_size))?).ok()?;
                 return Some((
                     scalar,
                     count,

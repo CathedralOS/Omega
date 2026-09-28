@@ -25,7 +25,7 @@ pub(in crate::encoding::recovery::policy) fn value_placement(
     Ok(PackageReviewBoundaryValuePlacement {
         shape: PackageReviewBoundaryValueShape {
             class,
-            byte_size: reader.u16()?,
+            byte_size: reader.u32()?,
             alignment: reader.u16()?,
         },
         locations: reader.sequence(6, location)?,
@@ -44,13 +44,13 @@ fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {
     Ok(match reader.byte()? {
         0 => Location::Register {
             register: register(reader)?,
-            value_byte_offset: reader.u16()?,
-            byte_size: reader.u16()?,
+            value_byte_offset: reader.u32()?,
+            byte_size: reader.u32()?,
         },
         1 => Location::Stack {
             stack_byte_offset: reader.u32()?,
-            value_byte_offset: reader.u16()?,
-            byte_size: reader.u16()?,
+            value_byte_offset: reader.u32()?,
+            byte_size: reader.u32()?,
             alignment: reader.u16()?,
         },
         2 => Location::Indirect {
@@ -63,7 +63,7 @@ fn location(reader: &mut Reader<'_>) -> Result<Location, Error> {
                 _ => return Err(Error::InvalidTag),
             },
             copy_stack_byte_offset: reader.option(Reader::u32)?,
-            byte_size: reader.u16()?,
+            byte_size: reader.u32()?,
             alignment: reader.u16()?,
         },
         _ => return Err(Error::InvalidTag),

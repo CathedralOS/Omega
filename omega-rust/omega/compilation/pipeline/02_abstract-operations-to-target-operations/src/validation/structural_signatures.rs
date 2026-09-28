@@ -130,7 +130,7 @@ pub(super) fn signature(
     let dynamic_parameters = declared_dynamic_parameters(source)?;
     let pointer_size = u16::try_from(native_target.pointer_size).ok()?;
     let pointer_alignment = u16::try_from(native_target.pointer_alignment).ok()?;
-    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
     Some(CallSignature {
         parameters: source
             .parameters
@@ -364,5 +364,8 @@ pub(super) fn fixed_native_integer_shape(integer: IntegerType) -> Option<ValueSh
         return None;
     }
     let bytes = integer.bits().div_ceil(8);
-    Some(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+    Some(ValueShape::integer(
+        u32::from(bytes),
+        bytes.next_power_of_two().min(8),
+    ))
 }

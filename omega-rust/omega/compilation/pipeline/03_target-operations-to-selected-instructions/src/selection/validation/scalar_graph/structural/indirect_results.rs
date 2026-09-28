@@ -104,18 +104,11 @@ pub(in crate::selection) fn prepare_call(
     }
     replay.transport.local_slots.push(SelectedLocalStorageSlot {
         id: slot,
-        byte_size: u32::from(placement.shape.byte_size),
+        byte_size: placement.shape.byte_size,
         alignment: placement.shape.alignment,
     });
     // Reserve the destination before the call, but publish no initialized value yet.
-    let pointer = local_storage::address(
-        replay,
-        row,
-        slot,
-        0,
-        u32::from(placement.shape.byte_size),
-        false,
-    )?;
+    let pointer = local_storage::address(replay, row, slot, 0, placement.shape.byte_size, false)?;
     Ok(Some(pointer))
 }
 
@@ -133,14 +126,7 @@ pub(in crate::selection) fn finish_call(
         operation: row.operation,
         place: result.place,
     };
-    let pointer = local_storage::address(
-        replay,
-        row,
-        slot,
-        0,
-        u32::from(placement.shape.byte_size),
-        false,
-    )?;
+    let pointer = local_storage::address(replay, row, slot, 0, placement.shape.byte_size, false)?;
     replay.transport.pointers.push((result.place, pointer));
     Ok(())
 }
@@ -162,15 +148,15 @@ pub(in crate::selection) fn returned(
         .place;
     let pointer = replay.transport.result_pointer.ok_or_else(|| invalid())?;
     let mut offset = 0u32;
-    while offset < u32::from(placement.shape.byte_size) {
-        let width = (u32::from(placement.shape.byte_size) - offset).min(8) as u16;
+    while offset < placement.shape.byte_size {
+        let width = (placement.shape.byte_size - offset).min(8);
         let value = super::result(replay, place, offset)?;
         super::super::structural_case::memory(
             replay,
             block.id,
             place,
             offset,
-            u32::from(width),
+            width,
             SelectedMemoryAccessRole::ReadPlace,
         )?;
         super::super::aggregate_memory::load(replay, input, value, offset, width)?;
@@ -179,11 +165,11 @@ pub(in crate::selection) fn returned(
             block.id,
             destination,
             offset,
-            u32::from(width),
+            width,
             SelectedMemoryAccessRole::WritePlace,
         )?;
         super::super::aggregate_memory::store(replay, pointer, value, offset, width)?;
-        offset += u32::from(width);
+        offset += width;
     }
     let returned_pointer = matches!(
         source.call_plan.policy,

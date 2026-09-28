@@ -4,7 +4,7 @@ use crate::ValueShape;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackedFieldLayout {
     pub shape: ValueShape,
-    pub byte_offset: u16,
+    pub byte_offset: u32,
 }
 
 /// One case payload overlaid at a conventional sum's shared payload base.
@@ -22,10 +22,10 @@ pub struct ConventionalSumCaseLayout {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConventionalSumLayout {
     pub shape: ValueShape,
-    pub tag_byte_offset: u16,
+    pub tag_byte_offset: u32,
     pub tag_shape: ValueShape,
     pub common_fields: Vec<PackedFieldLayout>,
-    pub payload_byte_offset: u16,
+    pub payload_byte_offset: u32,
     pub cases: Vec<ConventionalSumCaseLayout>,
 }
 
@@ -49,8 +49,8 @@ pub fn evaluate_conventional_sum_layout(
 
     let tag_shape = ValueShape::integer(4, 4);
     let (common_fields, common_end, common_alignment) =
-        pack_fields_at(common_field_shapes, u32::from(tag_shape.byte_size))?;
-    let common_end = common_end.max(u32::from(tag_shape.byte_size));
+        pack_fields_at(common_field_shapes, tag_shape.byte_size)?;
+    let common_end = common_end.max(tag_shape.byte_size);
 
     let payload_alignment = case_field_shapes
         .iter()
@@ -77,11 +77,11 @@ pub fn evaluate_conventional_sum_layout(
     let byte_size = align_up(end, u32::from(alignment))?;
 
     Ok(ConventionalSumLayout {
-        shape: ValueShape::integer(narrow(byte_size)?, alignment),
+        shape: ValueShape::integer(byte_size, alignment),
         tag_byte_offset: 0,
         tag_shape,
         common_fields,
-        payload_byte_offset: narrow(payload_byte_offset)?,
+        payload_byte_offset,
         cases,
     })
 }
@@ -97,9 +97,9 @@ fn pack_fields_at(
         .map(|shape| {
             valid_alignment(shape.alignment)?;
             offset = align_up(offset, u32::from(shape.alignment))?;
-            let byte_offset = narrow(offset)?;
+            let byte_offset = offset;
             offset = offset
-                .checked_add(u32::from(shape.byte_size))
+                .checked_add(shape.byte_size)
                 .ok_or(AggregateLayoutError::SizeOverflow)?;
             alignment = alignment.max(shape.alignment);
             Ok(PackedFieldLayout {
@@ -129,10 +129,6 @@ fn align_up(value: u32, alignment: u32) -> Result<u32, AggregateLayoutError> {
             .checked_add(alignment - remainder)
             .ok_or(AggregateLayoutError::SizeOverflow)
     }
-}
-
-fn narrow(value: u32) -> Result<u16, AggregateLayoutError> {
-    u16::try_from(value).map_err(|_| AggregateLayoutError::SizeOverflow)
 }
 
 #[cfg(test)]
@@ -189,6 +185,22 @@ mod tests {
     }
 
     #[test]
+    fn large_common_fields_keep_full_payload_offsets() {
+        let layout = evaluate_conventional_sum_layout(
+            &[
+                ValueShape::integer(32_768, 8),
+                ValueShape::integer(32_768, 8),
+            ],
+            &[vec![ValueShape::integer(8, 8)]],
+        )
+        .expect("large fields are ordinary storage, not register fragments");
+        assert_eq!(layout.common_fields[1].byte_offset, 32_776);
+        assert_eq!(layout.payload_byte_offset, 65_544);
+        assert_eq!(layout.cases[0].fields[0].byte_offset, 65_544);
+        assert_eq!(layout.shape.byte_size, 65_552);
+    }
+
+    #[test]
     fn empty_case_set_and_oversized_payload_fail_closed() {
         assert_eq!(
             evaluate_conventional_sum_layout(&[], &[]),
@@ -198,7 +210,7 @@ mod tests {
             evaluate_conventional_sum_layout(
                 &[],
                 &[vec![
-                    ValueShape::integer(u16::MAX, 1),
+                    ValueShape::integer(u32::MAX, 1),
                     ValueShape::integer(1, 1)
                 ]],
             ),

@@ -75,7 +75,7 @@ fn stored_transport(
             destination,
             byte_size,
             ..
-        } => Some((argument, destination, u32::from(byte_size), true)),
+        } => Some((argument, destination, byte_size, true)),
     }
 }
 
