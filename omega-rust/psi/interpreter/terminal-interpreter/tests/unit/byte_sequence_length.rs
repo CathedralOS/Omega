@@ -204,15 +204,10 @@ fn parameter_length_requires_whole_readable_borrowed_view_and_real_contents() {
         assert!(terminal_verifier::validate_module_representation(&module).is_err());
         assert!(encode_module(&module).is_err());
     }
-    for shape in [
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
-        StructuralTypeShape::Record { fields: Vec::new() },
-    ] {
-        let mut module = base.clone();
-        module.structural_types[0].shape = shape;
-        assert!(terminal_verifier::validate_module_representation(&module).is_err());
-        assert!(encode_module(&module).is_err());
-    }
+    let mut record = base.clone();
+    record.structural_types[0].shape = StructuralTypeShape::Record { fields: Vec::new() };
+    assert!(terminal_verifier::validate_module_representation(&record).is_err());
+    assert!(encode_module(&record).is_err());
     // Mutable access admits metadata, not immutable read/subslice semantics or
     // an opaque host identity standing in for an initialized mutable binding.
     let mut mutable = base.clone();
@@ -220,8 +215,37 @@ fn parameter_length_requires_whole_readable_borrowed_view_and_real_contents() {
     terminal_verifier::validate_module_representation(&mutable).unwrap();
     let mutable_bytes = encode_module(&mutable).unwrap();
     assert_eq!(decode_module(&mutable_bytes).unwrap(), mutable);
-    let semantic = encode_module(&base).unwrap();
-    let proof = encode_proof_section(&base, &ProofBundle::default()).unwrap();
+    assert_length_requires_initialized_contents(&base);
+    assert_length_requires_initialized_contents(&mutable);
+}
+
+#[test]
+fn bounded_owner_length_admits_borrowed_metadata_but_not_fabricated_contents() {
+    let mut module = parameter_module();
+    module.structural_types[0].shape =
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 });
+    // The structural-access contract allows live-length metadata even through
+    // write-only loans. Capacity is not that length, and admission supplies no
+    // initialized backing for an opaque host argument.
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+        StructuralAccess::WriteOnlyBorrow,
+    ] {
+        module.machines[0].structural_parameters[0].access = access;
+        terminal_verifier::validate_module_representation(&module).unwrap();
+        let semantic = encode_module(&module).unwrap();
+        assert_eq!(decode_module(&semantic).unwrap(), module);
+        assert_length_requires_initialized_contents(&module);
+    }
+    module.machines[0].structural_parameters[0].access = StructuralAccess::Owned;
+    assert!(terminal_verifier::validate_module_representation(&module).is_err());
+    assert!(encode_module(&module).is_err());
+}
+
+fn assert_length_requires_initialized_contents(module: &TerminalModule) {
+    let semantic = encode_module(module).unwrap();
+    let proof = encode_proof_section(module, &ProofBundle::default()).unwrap();
     let mut execution = TerminalExecution::start_artifact(
         &semantic,
         &proof,
