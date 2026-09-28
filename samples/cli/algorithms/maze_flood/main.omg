@@ -176,13 +176,16 @@ machine Main::main(&mut self) reaches Console {
         self.oc = narrow_i32_to_u8_trapping((self.ones + 48) as i32);
         transition self.tens > 0 { true -> num_tens() _ -> num_space() }
     }
+    // Both carrier bytes are computed, so they arrive as plain `u8` with no range
+    // facts and cannot re-establish the carrier's `valid_utf8` domain on their own.
+    // Each path into the write proves they are ASCII first.
     state num_tens(&mut self) {
         self.tc = narrow_i32_to_u8_trapping((self.tens + 48) as i32);
-        transition { _ -> num_write() }
+        transition self.tc < 128 && self.oc < 128 { true -> num_write() _ -> bad() }
     }
     state num_space(&mut self) {
         self.tc = 32;
-        transition { _ -> num_write() }
+        transition self.tc < 128 && self.oc < 128 { true -> num_write() _ -> bad() }
     }
     state num_write(&mut self) {
         self.line[self.o0] = self.tc;
