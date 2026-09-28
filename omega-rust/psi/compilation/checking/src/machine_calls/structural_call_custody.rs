@@ -22,6 +22,9 @@ use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
+#[cfg(test)]
+mod tests;
+
 /// One scalar row a state's `requires` contracts leave for a proof lane.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateScalarContractRow {
@@ -84,57 +87,64 @@ pub fn structural_state_contract_scalar_predicates(
         if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
             return None;
         }
-        let [fact] = program.proof_facts.span_or_empty(contract.facts) else {
+        let facts = program.proof_facts.span(contract.facts)?;
+        if facts.is_empty() {
             return None;
-        };
-        match fact {
-            typed_trees::domain::ProofFact::Membership(membership) => {
-                let ExpressionNode::Name(path) =
-                    program.expression_table.expression(membership.value)
-                else {
-                    return None;
-                };
-                if path.head_symbol != path.symbol
-                    || program
-                        .expression_table
-                        .name_path_members(path.members)
-                        .len()
-                        != 1
-                {
-                    return None;
+        }
+        // A requires clause is a conjunction, not necessarily one fact.
+        // Keep every row in authored order so each reaches the state's
+        // entry obligations; an unsupported later row rejects the whole
+        // contract rather than silently retaining just its first conjunct.
+        for fact in facts {
+            match fact {
+                typed_trees::domain::ProofFact::Membership(membership) => {
+                    let ExpressionNode::Name(path) =
+                        program.expression_table.expression(membership.value)
+                    else {
+                        return None;
+                    };
+                    if path.head_symbol != path.symbol
+                        || program
+                            .expression_table
+                            .name_path_members(path.members)
+                            .len()
+                            != 1
+                    {
+                        return None;
+                    }
+                    let domain = program
+                        .domain_definitions()
+                        .iter()
+                        .find(|domain| domain.symbol == membership.domain_symbol)?;
+                    actual.push((path.symbol, domain.semantic_id.0));
+                    // A scalar parameter's interval membership is carried as its
+                    // closed interval; the qualification comparison below still
+                    // requires it to restate the declared type exactly.
+                    if let Some(parameter) = program
+                        .state_parameters(state)
+                        .iter()
+                        .find(|parameter| parameter.symbol == path.symbol)
+                        && let Some(primitive) =
+                            program.primitive_type_reference(parameter.type_reference)
+                    {
+                        let (minimum, maximum) = scalar_interval_bounds(
+                            program,
+                            parameter.type_reference,
+                            membership,
+                            primitive,
+                        )?;
+                        predicates.push(StateScalarContractRow::Interval {
+                            parameter: parameter.symbol,
+                            minimum,
+                            maximum,
+                        });
+                    }
                 }
-                let domain = program
-                    .domain_definitions()
-                    .iter()
-                    .find(|domain| domain.symbol == membership.domain_symbol)?;
-                actual.push((path.symbol, domain.semantic_id.0));
-                // A scalar parameter's interval membership is carried as its
-                // closed interval; the qualification comparison below still
-                // requires it to restate the declared type exactly.
-                if let Some(parameter) = program
-                    .state_parameters(state)
-                    .iter()
-                    .find(|parameter| parameter.symbol == path.symbol)
-                    && let Some(primitive) =
-                        program.primitive_type_reference(parameter.type_reference)
-                {
-                    let (minimum, maximum) = scalar_interval_bounds(
-                        program,
-                        parameter.type_reference,
-                        membership,
-                        primitive,
-                    )?;
-                    predicates.push(StateScalarContractRow::Interval {
-                        parameter: parameter.symbol,
-                        minimum,
-                        maximum,
-                    });
+                typed_trees::domain::ProofFact::Expression(expression) => {
+                    predicates.push(StateScalarContractRow::Expression(*expression));
                 }
+                typed_trees::domain::ProofFact::Proposition(_) => return None,
             }
-            typed_trees::domain::ProofFact::Expression(expression) => {
-                predicates.push(StateScalarContractRow::Expression(*expression));
-            }
-            typed_trees::domain::ProofFact::Proposition(_) => return None,
         }
     }
     expected.sort_by_key(|(symbol, domain)| (symbol.arena_index(), symbol.generation(), *domain));
