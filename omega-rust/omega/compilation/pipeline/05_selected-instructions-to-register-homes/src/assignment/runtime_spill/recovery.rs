@@ -2,8 +2,9 @@
 //! Allocation chooses the values; the selected rewrite owner validates semantics.
 
 use super::{
-    RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts, RuntimeSpillSource,
-    RuntimeSpillStep, RuntimeSpillStepRewrite, replay,
+    RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillFacts,
+    RuntimeSpillManifestBase, RuntimeSpillSource, RuntimeSpillStep, RuntimeSpillStepRewrite,
+    replay,
 };
 use register_homes::PostAllocationSelectedTransformation;
 use selected_instructions::{
@@ -13,6 +14,7 @@ use selected_instructions::{
 use selected_instructions_to_selected_instructions::{
     FixedPrecoloredSegmentHomeDecline, FixedViewCopyPolicy, RuntimeSpillSpanPolicy,
     SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
     ValidatedLiveness, ValidatedSelectedAnalysis, analyze_allocation_legality,
     analyze_live_ranges_reusing, analyze_liveness_reusing, rematerialize_selected_runtime_value,
@@ -352,10 +354,55 @@ pub(crate) fn recover_after_active_resident_rematerialization(
     ))
 }
 
+/// A completed selected-lowering run whose final facts still report
+/// `NoCompatibleHome` hands custody here: recovery runs over the run's
+/// current program and rebuilt analyses, the committed fold ledger and the
+/// suite completion stay recorded ahead of every spill step, and retained
+/// replay re-proves the whole run before trusting any step.
+pub(crate) fn recover_after_selected_lowering(
+    run: StagedSelectedLoweringOptimizationRun,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::SelectedLowering(run))
+}
+
+/// A completed pre-allocation run whose final facts still report
+/// `NoCompatibleHome` hands custody here the same way: recovery runs over
+/// the run's current program and rebuilt analyses, the committed
+/// transformation ledger and the suite completion stay recorded ahead of
+/// every spill step, and retained replay re-proves the whole run before
+/// trusting any step.
+pub(crate) fn recover_after_pre_allocation(
+    run: StagedPreAllocationOptimizationRun,
+) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
+    recover_over(RuntimeSpillSource::PreAllocation(run))
+}
+
+/// Both exit points publish the manifest over the same independently
+/// replayed base, so producer and retained replay bind identical prefix
+/// custody.
+fn project_recovery_manifest(
+    base: &RuntimeSpillManifestBase,
+    steps: &[RuntimeSpillStep],
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+    homes: &crate::ValidatedRegisterHomes,
+) -> Result<crate::ValidatedPostAllocationOptimizationManifest, RuntimeSpillAllocationError> {
+    crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest_with_suite_completions(
+        base.pre_physical,
+        base.selected_lowering_completion,
+        base.pre_allocation_completion,
+        &transformations(&base.prefix, steps),
+        ranges,
+        legality,
+        homes,
+    )
+    .map_err(RuntimeSpillAllocationError::Manifest)
+}
+
 fn recover_over(
     source: RuntimeSpillSource,
 ) -> Result<RuntimeSpillAllocation, RuntimeSpillAllocationError> {
-    let (upstream_manifest, prefix) = source.upstream_manifest()?;
+    let base = source.upstream_manifest()?;
     let environment = source.register_environment();
     let mut failure = match assign(environment, source.ranges(), source.legality()) {
         Err(error @ crate::RegisterHomeError::NoCompatibleHome { .. }) => error,
@@ -424,14 +471,13 @@ fn recover_over(
                                 register,
                                 rewrite: RuntimeSpillStepRewrite::Spill(crossing),
                             });
-                            let manifest = crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
-                                upstream_manifest,
-                                &transformations(&prefix, &steps),
+                            let manifest = project_recovery_manifest(
+                                &base,
+                                &steps,
                                 &probe.ranges,
                                 &probe.legality,
                                 &homes,
-                            )
-                            .map_err(RuntimeSpillAllocationError::Manifest)?;
+                            )?;
                             let result = RuntimeSpillAllocation {
                                 source,
                                 steps,
@@ -477,14 +523,13 @@ fn recover_over(
         });
         match homes {
             Ok(homes) => {
-                let manifest = crate::assignment::post_allocation_manifest::project_post_allocation_optimization_manifest(
-                    upstream_manifest,
-                    &transformations(&prefix, &steps),
+                let manifest = project_recovery_manifest(
+                    &base,
+                    &steps,
                     &facts.ranges,
                     &facts.legality,
                     &homes,
-                )
-                .map_err(RuntimeSpillAllocationError::Manifest)?;
+                )?;
                 let result = RuntimeSpillAllocation {
                     source,
                     steps,

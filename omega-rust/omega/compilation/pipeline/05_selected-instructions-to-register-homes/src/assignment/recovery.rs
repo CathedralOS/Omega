@@ -6,6 +6,7 @@ use register_homes::{RecoveryClassificationPolicy, SpillChoicePolicy};
 use selected_instructions_to_selected_instructions::{
     FixedViewCopyPolicy, PressureRematerializationPolicy, StagedOptimizedAllocationLegality,
     StagedOptimizedLiveRanges, StagedOptimizedSelectedReanalysis,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
     probe_optimized_fixed_precolored_segment_homes,
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
@@ -196,6 +197,61 @@ pub fn stage_active_resident_register_allocation(
         // produced: the homes error wrapped under the rematerialization arm.
         Err(error) => Err(RegisterAllocationError::Rematerialization(
             crate::OptimizedActiveResidentRematerializationError::Homes(error),
+        )),
+    }
+}
+
+/// A completed selected-lowering run in its composing form: the suite stays
+/// the proven prefix — its fold ledger and completion identity record ahead
+/// of every recovery step — while residual `NoCompatibleHome` pressure over
+/// the run's final facts hands custody to runtime spill instead of failing
+/// the route. Any other assignment failure keeps the post-lowering homes
+/// error surface.
+pub fn stage_selected_lowering_register_allocation(
+    run: StagedSelectedLoweringOptimizationRun,
+) -> Result<RetainedAllocation, RegisterAllocationError> {
+    match crate::assignment::transformed::assign_optimized_register_homes_after_selected_lowering(
+        &run,
+    ) {
+        Ok(homes) => RetainedAllocation::try_from(
+            crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering_with_assignment(run, homes)
+                .map_err(RegisterAllocationError::TransformedHomes)?,
+        )
+        .map_err(RegisterAllocationError::Replay),
+        Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => RetainedAllocation::try_from(
+            crate::assignment::runtime_spill::recover_after_selected_lowering(run)
+                .map_err(RegisterAllocationError::RuntimeSpill)?,
+        )
+        .map_err(RegisterAllocationError::Replay),
+        Err(error) => Err(RegisterAllocationError::TransformedHomes(
+            crate::OptimizedPostSelectedLoweringHomeCustodyError::Assignment(error),
+        )),
+    }
+}
+
+/// A completed pre-allocation run in its composing form: the suite stays
+/// the proven prefix — its committed transformation ledger and completion
+/// identity record ahead of every recovery step — while residual
+/// `NoCompatibleHome` pressure over the run's final facts hands custody to
+/// runtime spill instead of failing the route. Any other assignment
+/// failure keeps the post-run homes error surface.
+pub fn stage_pre_allocation_register_allocation(
+    run: StagedPreAllocationOptimizationRun,
+) -> Result<RetainedAllocation, RegisterAllocationError> {
+    match crate::assignment::transformed::assign_optimized_register_homes_after_pre_allocation(&run)
+    {
+        Ok(homes) => RetainedAllocation::try_from(
+            crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation_with_assignment(run, homes)
+                .map_err(RegisterAllocationError::PreAllocationHomes)?,
+        )
+        .map_err(RegisterAllocationError::Replay),
+        Err(crate::RegisterHomeError::NoCompatibleHome { .. }) => RetainedAllocation::try_from(
+            crate::assignment::runtime_spill::recover_after_pre_allocation(run)
+                .map_err(RegisterAllocationError::RuntimeSpill)?,
+        )
+        .map_err(RegisterAllocationError::Replay),
+        Err(error) => Err(RegisterAllocationError::PreAllocationHomes(
+            crate::OptimizedPostPreAllocationHomeCustodyError::Assignment(error),
         )),
     }
 }

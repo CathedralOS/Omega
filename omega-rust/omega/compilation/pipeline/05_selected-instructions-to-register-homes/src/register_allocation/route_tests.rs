@@ -104,6 +104,114 @@ fn shared_entry_route_probes_segment_homes_before_committing_the_sequence() {
 }
 
 #[test]
+fn completed_run_evidence_routes_through_the_composing_sequences() {
+    let source = include_str!("../register_allocation.rs");
+    let entrance = source
+        .split("fn stage_register_allocation")
+        .nth(1)
+        .expect("the stage entrance body");
+    let folds_arm = entrance
+        .find("SelectedInstructionOptimizationEvidence::LiteralFolds(run)")
+        .expect("the literal-folds evidence arm");
+    let lowering_composition = entrance
+        .find("stage_selected_lowering_register_allocation(run)")
+        .expect("the selected-lowering composing route");
+    let pre_allocation_arm = entrance
+        .find("SelectedInstructionOptimizationEvidence::PreAllocation(run)")
+        .expect("the pre-allocation evidence arm");
+    let pre_allocation_composition = entrance
+        .find("stage_pre_allocation_register_allocation(run)")
+        .expect("the pre-allocation composing route");
+    // Completed runs no longer take transformed homes unconditionally: each
+    // evidence arm enters the composing route that can hand residual pressure
+    // to runtime spill.
+    assert!(folds_arm < lowering_composition && lowering_composition < pre_allocation_arm);
+    assert!(pre_allocation_arm < pre_allocation_composition);
+}
+
+#[test]
+fn selected_lowering_route_composes_residual_pressure_into_runtime_spill() {
+    let source = include_str!("../assignment/recovery.rs");
+    let entrance = source
+        .split("fn stage_selected_lowering_register_allocation")
+        .nth(1)
+        .expect("the selected-lowering route body");
+    let probe = entrance
+        .find("assign_optimized_register_homes_after_selected_lowering")
+        .expect("the borrow-only assignment probe");
+    let homes = entrance
+        .find("stage_optimized_register_homes_after_selected_lowering_with_assignment")
+        .expect("the post-probe homes arm");
+    let spill = entrance
+        .find("recover_after_selected_lowering")
+        .expect("the residual-pressure spill arm");
+    let typed = entrance
+        .rfind("OptimizedPostSelectedLoweringHomeCustodyError::Assignment(error)")
+        .expect("the unrecovered assignment error surface");
+    // The probe runs while the route still owns the run; a residual
+    // `NoCompatibleHome` hands the proven run to runtime spill; every other
+    // failure keeps the post-lowering homes surface.
+    assert!(probe < homes && homes < spill && spill < typed);
+}
+
+#[test]
+fn pre_allocation_route_composes_residual_pressure_into_runtime_spill() {
+    let source = include_str!("../assignment/recovery.rs");
+    let entrance = source
+        .split("fn stage_pre_allocation_register_allocation")
+        .nth(1)
+        .expect("the pre-allocation route body");
+    let probe = entrance
+        .find("assign_optimized_register_homes_after_pre_allocation")
+        .expect("the borrow-only assignment probe");
+    let homes = entrance
+        .find("stage_optimized_register_homes_after_pre_allocation_with_assignment")
+        .expect("the post-probe homes arm");
+    let spill = entrance
+        .find("recover_after_pre_allocation")
+        .expect("the residual-pressure spill arm");
+    let typed = entrance
+        .rfind("OptimizedPostPreAllocationHomeCustodyError::Assignment(error)")
+        .expect("the unrecovered assignment error surface");
+    assert!(probe < homes && homes < spill && spill < typed);
+}
+
+#[test]
+fn completed_run_recovery_replays_the_run_custody_as_its_prefix() {
+    let source = include_str!("../assignment/runtime_spill/mod.rs");
+    let manifest = source
+        .split("fn upstream_manifest")
+        .nth(1)
+        .expect("the source-manifest revalidation");
+    let lowering_arm = manifest
+        .find("Self::SelectedLowering")
+        .expect("the selected-lowering source arm");
+    let lowering_replay = manifest
+        .find("validate_selected_lowering_optimization_custody")
+        .expect("the replayed lowering custody");
+    let lowering_completion = manifest
+        .find("selected_lowering_completion: Some(upstream.identity())")
+        .expect("the bound suite completion");
+    let pre_allocation_arm = manifest
+        .find("Self::PreAllocation")
+        .expect("the pre-allocation source arm");
+    let pre_allocation_replay = manifest
+        .find("validate_pre_allocation_optimization_custody")
+        .expect("the replayed pre-allocation custody");
+    let pre_allocation_completion = manifest
+        .find("pre_allocation_completion: Some(upstream.identity())")
+        .expect("the bound suite completion");
+    // Each completed-suite arm re-proves the run's custody and binds its
+    // completion identity before the prefix is trusted.
+    assert!(lowering_arm < lowering_replay && lowering_replay < lowering_completion);
+    assert!(lowering_completion < pre_allocation_arm);
+    assert!(
+        pre_allocation_arm < pre_allocation_replay
+            && pre_allocation_replay < pre_allocation_completion
+    );
+}
+
+#[test]
 fn declined_fixed_view_recovery_reproves_the_segment_home_probe() {
     let source = include_str!("../assignment/runtime_spill/mod.rs");
     let manifest = source
