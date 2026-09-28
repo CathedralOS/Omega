@@ -306,6 +306,11 @@ and field. Any intervening overlapping length-changing replacement or mutable
 call, including one on a backedge, invalidates that observation. Disjoint sibling
 writes and length-preserving byte stores do not.
 
+A bounded-owned field-length observation also establishes `length <= capacity`
+from the exact field declaration. This upper bound describes the observed scalar
+snapshot; it neither makes capacity the live length nor gives an unbounded
+borrowed view a declaration-owned limit.
+
 A field-length observation may derive its extent from a still-current earlier
 whole-field replacement. An established literal gives its exact octet count;
 other replacements retain their source-length scalar only while that scalar

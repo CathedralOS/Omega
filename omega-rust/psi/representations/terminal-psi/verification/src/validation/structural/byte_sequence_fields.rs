@@ -106,6 +106,68 @@ pub(in crate::validation) fn validate(
     Ok(())
 }
 
+/// A length observation snapshots a bounded owner's live extent. Its declared
+/// capacity is an upper bound, never an equation for the current length. The
+/// bound belongs to the scalar snapshot and remains true after later writes.
+pub(crate) fn length_capacity_bound(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Result<Option<semantic_vocabulary::Proposition>, ModuleError> {
+    let OperationKind::StructuralByteSequenceFieldLength {
+        source,
+        path,
+        field,
+    } = &operation.kind
+    else {
+        return Ok(None);
+    };
+    validate(module, machine, operation)?;
+    let invalid = || ModuleError::InvalidStructuralByteSequenceFieldAccess(operation.id);
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == *source)
+        .ok_or_else(invalid)?;
+    let carrier =
+        resolve_structural_path(module, parameter.structural_type, path).ok_or_else(invalid)?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == carrier)
+        .ok_or_else(invalid)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return Err(invalid());
+    };
+    let declaration = fields
+        .iter()
+        .find(|candidate| candidate.id == *field)
+        .ok_or_else(invalid)?;
+    let StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+        capacity,
+    }) = declaration.field_type
+    else {
+        return Ok(None);
+    };
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
+    let bound = semantic_vocabulary::ScalarTerm::integer(
+        integer_type,
+        semantic_vocabulary::IntegerValue::Unsigned(u128::from(capacity)),
+    )
+    .map_err(|error| {
+        ModuleError::OperationSemanticSchema(
+            terminal_semantics::OperationSemanticError::InvalidProposition(error),
+        )
+    })?;
+    Ok(Some(semantic_vocabulary::Proposition::LessOrEqual(
+        semantic_vocabulary::ScalarTerm::value(
+            operation.result.expect_scalar().id,
+            byte_count_type(),
+        ),
+        bound,
+    )))
+}
+
 fn byte_count_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"))
 }

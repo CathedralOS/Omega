@@ -375,6 +375,11 @@ pub(super) fn append_operation(
             return Ok(());
         }
     }
+    if let Some(bound) = crate::validation::structural_byte_sequence_field_length_capacity_bound(
+        module, machine, operation,
+    )? {
+        axioms.push(bound);
+    }
     if let Some(equation) = crate::validation::structural_byte_sequence_field_length_equation(
         module, machine, operation,
     )? {

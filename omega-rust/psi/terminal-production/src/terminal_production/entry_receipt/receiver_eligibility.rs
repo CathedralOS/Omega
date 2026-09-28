@@ -636,10 +636,9 @@ fn source_record(
     checked.data_definitions().iter().find(|definition| {
         definition.symbol == *symbol
             && checked.data_type_parameters(definition).is_empty()
-            && checked
-                .proof_facts
-                .span_or_empty(definition.where_facts)
-                .is_empty()
+            // Checked zero membership, not absence of authored predicates,
+            // decides whether this nominal source can describe initial storage.
+            && !validation::data_requires_establishment(&checked.typed, definition)
     })
 }
 
@@ -781,6 +780,42 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn nested_byte_receiver_rejoins_zero_valid_where_constraints() {
+        let source = |minimum| {
+            format!(
+                "domain [u8; 5]::Text requires valid_utf8(self);
+             data Entry where {minimum} <= score, score <= 100 {{
+                 name: [u8; 5] in Text; score: i32;
+             }}
+             data Entries {{ first: Entry; second: Entry; }}
+             data Main {{ value: i32; entries: Entries; }}
+             machine Main::run(&mut self) {{ self.value = 7; }}"
+            )
+        };
+        let checked = check_source(&source(0));
+        let produced =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .unwrap();
+        assert!(produced.receipt().unwrap().receiver_eligibility().is_some());
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        // The same nominal layout cannot manufacture membership when zero no
+        // longer satisfies the source's nested default-domain constraint.
+        let gated = check_source(&source(1));
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &gated,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
+        assert!(derive(&gated, selection, &module).is_none());
     }
 
     #[test]
