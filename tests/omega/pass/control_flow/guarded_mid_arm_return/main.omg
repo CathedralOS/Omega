@@ -1,0 +1,52 @@
+// PASS canary: a guarded transition roster whose MID-CHAIN arm returns a
+// value — `transition ready { true -> bounds, false -> (0), _ -> (0) }`.
+// The checked plan carries each arm's outcome (Successor or Return), and
+// emission mints the return arm's private block on its own guard decision.
+// This is the ScanResultsSetPropertyRequest::field_namespace_is shape:
+// `transition len_matches { true -> each; false -> (false); _ -> (false) }`.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Probe {
+    enabled: bool;
+    limit: u64;
+}
+
+machine Probe::classify(&self, value: u64) -> u64 {
+    let ready: bool = self.enabled;
+    transition ready {
+        true -> bounds(value)
+        false -> (0)
+        _ -> (0)
+    }
+
+    state bounds(&self, value: u64) -> u64 {
+        transition value < self.limit {
+            true -> (1)
+            _ -> (0)
+        }
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let probe: Probe = Probe { enabled: true, limit: 10 };
+    let class: u64 = probe.classify(5);
+
+    transition class == 1 {
+        true -> done()
+        _ -> missed()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}
