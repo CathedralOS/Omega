@@ -403,12 +403,13 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-byte-sequence-field-byte-store",
-    "a validated single-byte store into a byte-sequence field",
-    "propositions observing the write are invalidated; no scalar equation is published",
+    "a validated single-byte store into a byte-sequence field with a current same-field length; a UTF-8 destination not declared ASCII-only is all-ASCII on every path into the store",
+    "propositions observing the write are invalidated; no scalar equation is published; the goal is index < length plus the stored byte's class legs its destination's declared predicates require (value <= 127 for ASCII-only or UTF-8, 1 <= value for no-NUL), so every declared predicate still holds after the store",
     &[
         "fact:structural-effect-observation",
         "invalidation:structural-field-store",
         "formation:operation-validation",
+        "formation:structural-byte-sequence-fields",
     ],
     &[
         VOCAB,
@@ -416,7 +417,8 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE: TrustedSurfaceEntry = entry
         TS_SE,
         OP_FACTS,
         VAL_OPS,
-        VAL_STRUCTURAL_BYTES_STORE,
+        VAL_STRUCTURAL_BYTES,
+        "omega-rust/psi/representations/terminal-psi/semantics/src/byte_sequence_predicates.rs",
     ],
 );
 static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_READ: TrustedSurfaceEntry = entry(

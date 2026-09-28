@@ -181,12 +181,22 @@ pub(crate) fn emit(
         structural_types,
         crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
     )?;
+    // A domain-carrying bounded field (`[u8; N] in Utf8`) keeps the plain
+    // carrier's layout and store route. Its byte restrictions are not this
+    // producer's to discharge: the verifier reconstructs the store's goal
+    // from the destination declaration, adding the stored byte's class legs
+    // (ASCII, nonzero) to the index bound, and independently rechecks that a
+    // UTF-8 field's contents are all-ASCII on every path into the store. The
+    // checker's own preservation proof is not carried as authority.
     if !matches!(
         field.field_type,
         StructuralFieldType::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                 | terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-        )
+        ) | StructuralFieldType::PredicateByteSequence {
+            carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            ..
+        }
     ) || !matches!(
         index.scalar_type(),
         semantic_vocabulary::ScalarType::Integer(_)

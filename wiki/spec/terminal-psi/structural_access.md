@@ -333,9 +333,31 @@ view fields remain unsupported. The supported predicates are
 valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
 invariants independently of source checking and repeats the check after
 optimization. Zero-initialized attachment storage requires every contained byte
-field predicate to hold for the empty sequence. Bounds-only indexed writes to
-predicate-bearing fields reject: a bound alone cannot preserve their contents'
-invariants. General predicate-preserving indexed mutation remains unsupported.
+field predicate to hold for the empty sequence. Every write keeps every declared
+predicate true: Terminal Psi opens no invariant window on a field, so reads and
+calls may rely on the declaration at any point.
+
+An indexed store into a bounded-owned predicate-bearing field owes more than
+its bound; a bound alone cannot preserve the contents' invariants. The verifier
+reconstructs the store's goal from the exact destination declaration:
+`index < length`, then `value <= 127` when the field declares ASCII-only or
+valid UTF-8, then `1 <= value` when it declares no NUL. Nonempty adds no leg
+because the store keeps the extent. A producer supplies the certificate; it
+cannot weaken the goal, and checked-source preservation facts are not carried
+as authority.
+
+Valid UTF-8 is not a per-byte class: an ASCII byte written over part of a
+multi-byte scalar breaks it. Unless the field also declares ASCII-only, every
+path into the store must reach a whole replacement of the identical root, path,
+and field whose source predicates, replayed from literal octets, qualified
+formals, or concatenation inputs, include ASCII-only. Between that replacement
+and the store, only stores into the identical field, each proving its own byte
+ASCII, and operations disjoint from the field may intervene. A replacement
+from a source not proved ASCII, a projected move, an overlapping mutable or
+write-only call argument, and dynamic dispatch each reject. The machine entry
+supplies only the declaration, never ASCII contents. The Omega consumer
+requires the accepted obligation to be exactly this goal and replays the
+carrier rule on its current graph after every rewrite.
 
 `ByteSequenceLength` on a whole bounded owner observes current live-length
 metadata through shared, mutable, or write-only access. Metadata access grants

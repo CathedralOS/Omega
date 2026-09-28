@@ -237,3 +237,116 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
         );
     }
 }
+
+/// The serialized artifact carries the domain-bearing store's evidence: the
+/// receiver reconstructs the ASCII leg from the field declaration and
+/// verifies the certificate the producer attached. Tampering with the
+/// serialized module -- a non-ASCII stored byte, a UTF-8 carrier that is not
+/// all-ASCII, or a stripped certificate -- rejects on the receiving side.
+#[test]
+fn utf8_field_store_verifies_from_its_serialized_artifact_and_rejects_tampering() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; }
+        machine Record::replace(&mut self) {
+            self.out = "XXX"; self.out[1] = 65;
+        }
+    "#,
+    );
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("an ASCII byte over an ASCII literal publishes")
+    .into_artifact();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_codec::verify_terminal_artifact_proof(&artifact, &profile)
+        .expect("the receiver replays the serialized store evidence");
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_section_for(&module, artifact.proof_bytes()).unwrap();
+    let store = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| match &operation.kind {
+            OperationKind::StructuralByteSequenceFieldByteStore {
+                value, obligation, ..
+            } => Some((*value, *obligation)),
+            _ => None,
+        })
+        .expect("retained byte store");
+    let byte_type =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+            .unwrap();
+    let ascii_leg = semantic_vocabulary::Proposition::LessOrEqual(
+        semantic_vocabulary::ScalarTerm::value(store.0, ScalarType::Integer(byte_type)),
+        semantic_vocabulary::ScalarTerm::integer(byte_type, IntegerValue::Unsigned(0x7f)).unwrap(),
+    );
+    let goal = terminal_verifier::reconstruct_operation_obligations(&module)
+        .unwrap()
+        .into_iter()
+        .find(|question| question.obligation.id == store.1)
+        .expect("store goal")
+        .obligation
+        .proposition;
+    assert!(
+        matches!(&goal, semantic_vocabulary::Proposition::Conjunction(legs)
+            if legs.len() == 2 && legs[1] == ascii_leg),
+        "{goal:?}"
+    );
+    for tampering in 0..3 {
+        let mut changed = module.clone();
+        let mut evidence = proof.clone();
+        let operations = changed
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations);
+        match tampering {
+            0 => {
+                for operation in operations {
+                    if operation.result.scalar().map(|result| result.id) == Some(store.0)
+                        && let OperationKind::IntegerConstant { value } = &mut operation.kind
+                    {
+                        *value = IntegerValue::Unsigned(200);
+                    }
+                }
+            }
+            1 => {
+                for operation in operations {
+                    if let OperationKind::EstablishByteSequenceLiteral { bytes, .. } =
+                        &mut operation.kind
+                    {
+                        *bytes = "\u{e9}X".as_bytes().to_vec();
+                    }
+                }
+            }
+            _ => evidence
+                .evidence
+                .retain(|candidate| candidate.obligation != store.1),
+        }
+        // Module validation guards both encoding and decoding: a carrier that
+        // is not all-ASCII is already an invalid module. The other
+        // tamperings serialize and then fail proof replay.
+        match terminal_codec::encode_module(&changed)
+            .and_then(|bytes| terminal_codec::decode_module(&bytes))
+        {
+            Ok(decoded) => {
+                assert_ne!(tampering, 1, "a non-ASCII UTF-8 carrier decoded");
+                assert!(
+                    terminal_verifier::verify_module(&decoded, &evidence, &profile).is_err(),
+                    "tampering {tampering}"
+                );
+            }
+            Err(error) => {
+                assert_eq!(tampering, 1, "{error:?}");
+                assert!(format!("{error:?}").contains("InvalidStructuralByteSequenceFieldAccess"));
+            }
+        }
+    }
+}

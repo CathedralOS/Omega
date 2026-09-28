@@ -628,7 +628,7 @@ rows! {
     FORM_STRUCTURAL_BYTES => (
         "formation:structural-byte-sequence-fields",
         SharedFormation,
-        "structural byte-sequence fields, exact current extents and unchanged-length observations; replacement requires a bounded-owned carrier and immutable completed source whose independently replayed predicates imply the field restrictions",
+        "structural byte-sequence fields, exact current extents and unchanged-length observations; replacement requires a bounded-owned carrier and immutable completed source whose independently replayed predicates imply the field restrictions; an indexed store into a UTF-8 field not declared ASCII-only needs every path to reach an ASCII-proved replacement of the identical field with only same-field stores or disjoint operations after it",
         "byte-sequence fields validate before extent equations and capacity obligations are reconstructed",
         &["formation:operation-validation"],
         &[tv!( "validation/structural/byte_sequence_fields.rs"), tv!( "validation/structural/byte_sequence_fields/freshness.rs"), tv!( "validation/structural/byte_sequence_store.rs"), ts!( "byte_sequence_predicates.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs", "omega-rust/psi/representations/terminal-psi/src/terminal_module/types/structural.rs"]

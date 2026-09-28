@@ -174,6 +174,48 @@ pub fn byte_sequence_source_predicates(
     )
 }
 
+/// The complete goal of an indexed byte store into a field declaring
+/// `predicates`: the operand-only `bound` (`index < length`) followed by the
+/// stored byte's class legs. `ascii_only` and `valid_utf8` require
+/// `value <= 127`; `no_nul` requires `1 <= value`; `non_empty` requires
+/// nothing, because a store keeps the extent. A plain carrier's goal is the
+/// bound alone. The Terminal verifier reconstructs this goal and the Omega
+/// unit validator requires the accepted obligation to be exactly it, so the
+/// two cannot disagree about what a qualified store proved.
+///
+/// The byte legs are necessary, not sufficient, for `valid_utf8`: an ASCII
+/// byte can still split a multi-byte scalar. That half is a custody rule on
+/// the carrier's prior contents, which each consumer checks on its own graph.
+pub fn indexed_byte_store_goal(
+    bound: semantic_vocabulary::Proposition,
+    value: semantic_vocabulary::ValueId,
+    predicates: ByteSequencePredicateSet,
+) -> Result<semantic_vocabulary::Proposition, semantic_vocabulary::PropositionError> {
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, Proposition, ScalarTerm, ScalarType,
+    };
+    let byte_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid");
+    let literal =
+        |byte: u8| ScalarTerm::integer(byte_type, IntegerValue::Unsigned(u128::from(byte)));
+    let stored = ScalarTerm::value(value, ScalarType::Integer(byte_type));
+    let declares = |predicate| {
+        predicates
+            .predicates()
+            .any(|declared| declared == predicate)
+    };
+    let mut legs = vec![bound];
+    if declares(ByteSequencePredicate::AsciiOnly) || declares(ByteSequencePredicate::ValidUtf8) {
+        legs.push(Proposition::LessOrEqual(stored.clone(), literal(0x7f)?));
+    }
+    if declares(ByteSequencePredicate::NoNul) {
+        legs.push(Proposition::LessOrEqual(literal(1)?, stored));
+    }
+    Ok(match legs.len() {
+        1 => legs.pop().expect("one leg"),
+        _ => Proposition::Conjunction(legs),
+    })
+}
+
 /// Literal qualification rosters are claims about these exact octets, never
 /// trusted annotations. Unsupported nominal qualifications cannot be minted.
 pub fn byte_literal_qualifications_hold(

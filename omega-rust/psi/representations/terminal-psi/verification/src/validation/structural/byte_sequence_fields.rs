@@ -82,6 +82,7 @@ pub(in crate::validation) fn validate(
     if writing {
         if operation.result != OperationResult::Unit
             || !freshness::exact_length_is_current(module, machine, operation)
+            || !store_preserves_field_predicates(module, machine, operation)
         {
             return Err(invalid());
         }
@@ -167,6 +168,100 @@ pub(crate) fn length_capacity_bound(
     )))
 }
 
+/// The declared byte predicates of an indexed store's exact destination field.
+/// A plain carrier declares none. `None` means the declaration does not resolve.
+fn stored_field_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<terminal_psi::ByteSequencePredicateSet> {
+    let OperationKind::StructuralByteSequenceFieldByteStore {
+        destination,
+        path,
+        field,
+        ..
+    } = &operation.kind
+    else {
+        return None;
+    };
+    let parameter = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == *destination)?;
+    let carrier = resolve_structural_path(module, parameter.structural_type, path)?;
+    let declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == carrier)?;
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return None;
+    };
+    let field = fields
+        .iter()
+        .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+    field.field_type.byte_sequence_carrier()?;
+    Some(field.field_type.byte_predicates())
+}
+
+/// Replacing one byte of a predicate-bearing field must leave every declared
+/// predicate true, because Terminal Psi keeps a field's declared predicates
+/// true after every write: calls and reads trust the declaration, and there
+/// is no invariant window to reopen here.
+///
+/// The store keeps the extent, so `non_empty` survives it. The per-byte
+/// classes `ascii_only` and `no_nul` survive when the carrier already held
+/// them -- the declaration guarantees that -- and the stored byte is in the
+/// class, which the store's goal proves ([`byte_store_goal`]). `valid_utf8`
+/// is not per-byte: an ASCII byte written over part of a multi-byte scalar
+/// breaks it. It survives only when the carrier is all-ASCII before the
+/// store, so it holds no multi-byte scalar to split. A field that also
+/// declares `ascii_only` guarantees that; otherwise every path into the store
+/// must reestablish it ([`freshness::field_content_is_ascii`]).
+fn store_preserves_field_predicates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> bool {
+    use terminal_psi::ByteSequencePredicate;
+    let Some(predicates) = stored_field_predicates(module, machine, operation) else {
+        return false;
+    };
+    let mut ascii = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    ascii.insert(ByteSequencePredicate::AsciiOnly);
+    predicates.predicates().all(|predicate| match predicate {
+        ByteSequencePredicate::NonEmpty
+        | ByteSequencePredicate::NoNul
+        | ByteSequencePredicate::AsciiOnly => true,
+        ByteSequencePredicate::ValidUtf8 => {
+            predicates.implies(ascii)
+                || freshness::field_content_is_ascii(module, machine, operation)
+        }
+    })
+}
+
+/// The indexed store's complete goal: the operand-only `index < length`
+/// bound plus the stored byte's class legs, which the exact destination
+/// declaration requires ([`terminal_semantics::indexed_byte_store_goal`]).
+/// Reconstructing them here means a producer cannot weaken them.
+pub(crate) fn byte_store_goal(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    bound: semantic_vocabulary::Proposition,
+) -> Result<semantic_vocabulary::Proposition, ModuleError> {
+    let OperationKind::StructuralByteSequenceFieldByteStore { value, .. } = &operation.kind else {
+        return Ok(bound);
+    };
+    let predicates = stored_field_predicates(module, machine, operation).ok_or(
+        ModuleError::InvalidStructuralByteSequenceFieldAccess(operation.id),
+    )?;
+    terminal_semantics::indexed_byte_store_goal(bound, *value, predicates).map_err(|error| {
+        ModuleError::OperationSemanticSchema(
+            terminal_semantics::OperationSemanticError::InvalidProposition(error),
+        )
+    })
+}
+
 fn byte_count_type() -> ScalarType {
     ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid"))
 }
@@ -208,9 +303,9 @@ fn field_path(
     // and the carrier now states it: the exclusive accesses admit one, a
     // shared view does not. This is read from the field declaration rather
     // than taken from a producer's mint gate, which is not verifier authority.
-    if writing && !field.field_type.byte_predicates().is_empty() {
-        return None;
-    }
+    // A predicate-bearing field resolves like its carrier: the path is the
+    // same storage. Whether a write into it preserves the declared
+    // predicates is the writing operation's own rule, never this lookup's.
     let carrier_admitted = match field.field_type {
         StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             ..
