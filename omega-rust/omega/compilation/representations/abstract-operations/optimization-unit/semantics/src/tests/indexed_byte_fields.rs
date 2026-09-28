@@ -149,3 +149,67 @@ fn indexed_byte_field_rejects_recomputed_subject_and_bound_corruption() {
         Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)
     ));
 }
+
+/// A store into a UTF-8 field was admitted with its stored byte's ASCII leg
+/// beside the bound. An accepted fact that proves only the bound -- the goal a
+/// plain carrier owes -- is not authority for the qualified store, even with a
+/// canonical identity.
+#[test]
+fn indexed_utf8_field_store_requires_its_accepted_ascii_goal() {
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, ValueId,
+    };
+    let baseline = indexed_field_unit();
+    validate_psi_optimization_unit(&baseline).unwrap();
+    let (operation, obligation, index, length) = baseline
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match node.operation {
+            AbstractOperation::StructuralByteSequenceFieldByteStore {
+                psi_operation,
+                obligation,
+                index,
+                length,
+                ..
+            } => Some((psi_operation, obligation, index, length)),
+            _ => None,
+        })
+        .unwrap();
+    let count = |value: ValueId| {
+        ScalarTerm::value(
+            value,
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        )
+    };
+    let bound_only = terminal_codec::canonical_proposition_order_key(&Proposition::LessThan(
+        count(index),
+        count(length),
+    ))
+    .unwrap();
+    let rebuilt = |proposition: Option<Vec<u8>>| {
+        let mut changed = baseline.clone();
+        let fact = changed
+            .accepted_obligation_facts
+            .iter_mut()
+            .find(|fact| fact.operation == operation && fact.obligation == obligation)
+            .expect("the store's accepted goal");
+        *fact = optimization_unit::AcceptedObligationFact::new(
+            fact.psi,
+            fact.proof_bundle_fingerprint,
+            fact.machine,
+            fact.operation,
+            fact.obligation,
+            proposition.unwrap_or_else(|| fact.proposition.clone()),
+        );
+        crate::tests::support::refresh_identity(&mut changed);
+        changed
+    };
+    // Rebuilding the admitted row unchanged is a no-op control.
+    validate_psi_optimization_unit(&rebuilt(None)).unwrap();
+    assert!(matches!(
+        validate_psi_optimization_unit(&rebuilt(Some(bound_only))),
+        Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)
+    ));
+}
