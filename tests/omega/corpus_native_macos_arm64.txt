@@ -10,6 +10,7 @@ pass/arithmetic/const_fold_unsigned_landed_ops_exit built 1124ms exit:70
 pass/arithmetic/constant_trapping_shift_value_overflow_traps built 1115ms exit:signal signal:5
 pass/arithmetic/exact_integer_cast_proven checked 176ms
 pass/arithmetic/narrowing_flow_and_widen_permitted built 1132ms exit:5
+pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit built 2060ms exit:70
 pass/arithmetic/runtime_bitwise_high_ops_exit built 1132ms exit:70
 pass/arithmetic/runtime_comparison_signedness_exit built 1120ms exit:70
 pass/arithmetic/runtime_domain_boundaries_exit built 1107ms exit:70
