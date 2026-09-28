@@ -84,9 +84,7 @@ fn prepare_typed_frontier(
     let frontier = build_continuation::lower_typed_frontier(
         source_file_count,
         syntax,
-        child
-            .build_execution_profile
-            .map(target::TargetProfile::target_name),
+        child.build_execution_profile,
         child.package_inputs,
         &mut timings,
     )?;

@@ -19,7 +19,7 @@ use diagnostics::Diagnostic;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{Item, ItemHandle};
-use target::NativeTarget;
+use target::{NativeTarget, TargetProfile};
 use typed_trees::TypedTrees;
 use typed_trees::typed_trees::inspection::callees::ExplicitStateCallees;
 
@@ -66,7 +66,7 @@ struct TargetNamespace {
 /// Sources executed by the build, paired with their admitted execution target.
 /// Product-only source preparation has no such scope and needs no target.
 pub struct BuildTargetScope<'a> {
-    pub execution: NativeTarget,
+    pub execution: TargetProfile,
     pub sources: &'a HashSet<source::SourceId>,
 }
 
@@ -232,7 +232,7 @@ impl SelectedTargetMachineDeclarations {
     pub fn select_product_target(
         &mut self,
         typed: &mut TypedTrees,
-        target: NativeTarget,
+        target: TargetProfile,
     ) -> Result<(), Vec<Diagnostic>> {
         let machine_index = |symbol| {
             typed
@@ -256,7 +256,9 @@ impl SelectedTargetMachineDeclarations {
                     "target family `{name}` has no canonical member"
                 ))]);
             };
-            if NativeTarget::from_omega_target_name(Some(canonical.target.as_str()))
+            // A native shape is not deployment identity: Windows and UEFI
+            // share x86-64/COFF but must never select each other's bodies.
+            if TargetProfile::from_canonical_target_name(canonical.target.as_str())
                 .is_ok_and(|resolved| resolved == target)
             {
                 continue;
@@ -268,7 +270,7 @@ impl SelectedTargetMachineDeclarations {
             };
             let canonical_origin = self.origin_index(typed, canonical)?;
             let wanted = family.members.iter().find(|member| {
-                NativeTarget::from_omega_target_name(Some(member.target.as_str()))
+                TargetProfile::from_canonical_target_name(member.target.as_str())
                     .is_ok_and(|resolved| resolved == target)
             });
             let Some(wanted) = wanted else {
@@ -575,7 +577,7 @@ fn target_machine_origins(
     for family in origins.chunk_by_mut(|left, right| left.1.same_family(&right.1)) {
         if family[0].1.scope == source::DependencyScope::Build {
             for (_, origin) in family {
-                origin.selected = NativeTarget::from_omega_target_name(Some(&origin.target))
+                origin.selected = TargetProfile::from_canonical_target_name(&origin.target)
                     .is_ok_and(|target| build.is_some_and(|build| build.execution == target));
             }
             continue;
@@ -693,7 +695,7 @@ fn select_target_machines(
 /// target goes inert with it and is not reported.
 fn reject_inert_sibling_callers(
     typed: &TypedTrees,
-    target: NativeTarget,
+    target: TargetProfile,
 ) -> Result<(), Vec<Diagnostic>> {
     // Symbol handles are arena handles, not ordered keys; the sibling set is
     // small and scanned linearly like the rest of this pass.
@@ -704,10 +706,7 @@ fn reject_inert_sibling_callers(
         let Some(machine_target) = machine.target.as_ref().map(|target| target.as_str()) else {
             continue;
         };
-        // `NativeTarget` carries no canonical name and several spellings can
-        // share one profile, so the comparison is structural -- the same
-        // conversion the rest of this pass uses.
-        if NativeTarget::from_omega_target_name(Some(machine_target))
+        if TargetProfile::from_canonical_target_name(machine_target)
             .is_ok_and(|declared| declared == target)
         {
             continue;
@@ -720,25 +719,7 @@ fn reject_inert_sibling_callers(
     if inert.is_empty() {
         return Ok(());
     }
-    // `NativeTarget` is a profile, not a name, and more than one spelling can
-    // share it; name every spelling this build realizes rather than guess one.
-    // The conversion is the fallible one: `alpha_bootstrap` has no native
-    // target at all and panics if asked for one directly.
-    let realized = target::TargetProfile::ALL
-        .into_iter()
-        .filter(|profile| {
-            // `cross_platform_cli` and `local_unchecked` resolve to whatever
-            // the host is rather than naming a target of their own, so they
-            // would list the host profile twice more under other names.
-            !matches!(
-                profile,
-                target::TargetProfile::CrossPlatformCli | target::TargetProfile::LocalUnchecked
-            ) && NativeTarget::from_omega_target_name(Some(profile.target_name()))
-                .is_ok_and(|profile| profile == target)
-        })
-        .map(|profile| format!("`{}`", profile.target_name()))
-        .collect::<Vec<_>>()
-        .join(" or ");
+    let realized = target.target_name();
     let mut diagnostics = Vec::new();
     let mut callees = ExplicitStateCallees::default();
     for machine in typed.machines() {
@@ -761,7 +742,7 @@ fn reject_inert_sibling_callers(
                 }
                 diagnostics.push(Diagnostic::error(format!(
                     "machine `{}` state `{}` calls `{callee}`, which is declared only for \
-                     target `{callee_target}`. This build realizes {realized}, so that body \
+                     target `{callee_target}`. This build realizes `{realized}`, so that body \
                      is an inert sibling and the call has no implementation; scope the \
                      caller to `{callee_target}` as well, or declare `{callee}` for the \
                      target being built.",
@@ -794,8 +775,8 @@ mod tests {
     fn build_target_changes_only_build_scope_not_product_or_generated_families() {
         let build_sources = std::collections::HashSet::from([source::SourceId(1)]);
         for execution in [
-            target::NativeTarget::linux_x64(),
-            target::NativeTarget::windows_x64(),
+            target::TargetProfile::LinuxX64,
+            target::TargetProfile::WindowsX64,
         ] {
             let mut authored = syntax(
                 0,
@@ -823,7 +804,7 @@ mod tests {
                 .expect("generated product families have no execution target");
             for origin in &retained.all_machine_origins {
                 let expected = if origin.scope == source::DependencyScope::Build {
-                    target::NativeTarget::from_omega_target_name(Some(&origin.target))
+                    target::TargetProfile::from_canonical_target_name(&origin.target)
                         .expect("known authored target")
                         == execution
                 } else {
@@ -848,26 +829,23 @@ mod tests {
     }
 
     #[test]
-    fn build_target_aliases_do_not_select_two_bodies() {
+    fn build_profiles_with_equal_native_shapes_remain_distinct() {
         let mut program = syntax(
             0,
-            "local_unchecked machine helper() {}\ncross_platform_cli machine helper() {}",
+            "uefi_x86_64 machine helper() {}\nwindows_x86_64 machine helper() {}",
         );
         let sources = std::collections::HashSet::from([source::SourceId(0)]);
-        let errors = prepare_target_machines(
+        let declarations = prepare_target_machines(
             &mut program,
             None,
             Some(BuildTargetScope {
-                execution: target::NativeTarget::host(),
+                execution: target::TargetProfile::WindowsX64,
                 sources: &sources,
             }),
         )
-        .expect_err("two spellings of the build target cannot supply two bodies");
-        assert!(
-            errors[0]
-                .message
-                .contains("implemented twice for the selected target")
-        );
+        .expect("equal native shapes do not merge distinct Build profiles");
+        assert_eq!(declarations.selected_machine_origins.len(), 1);
+        assert_eq!(declarations.selected_machine_origins[0].1, "windows_x86_64");
     }
 
     #[test]
@@ -1058,6 +1036,82 @@ mod tests {
     }
 
     #[test]
+    fn equal_native_shapes_do_not_select_the_same_target_body() {
+        let text = "data Helper { seed: u64; }\nuefi_x86_64 machine Helper::value(&self) -> u64 { 63 }\nwindows_x86_64 machine Helper::value(&self) -> u64 { 127 }";
+        let mut sources = source::SourceMap::default();
+        let source_id = sources.add("helper.omg".into(), text.into()).source_id;
+        let mut program = syntax(source_id.0, text);
+        let mut declarations = prepare_target_machines(&mut program, Some(&sources), None)
+            .expect("distinct target bodies");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &program,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve attached target bodies");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type attached target bodies");
+        let windows = typed.target_machine_families[0]
+            .members
+            .iter()
+            .find(|member| member.target.as_str() == "windows_x86_64")
+            .expect("Windows member")
+            .machine;
+        declarations
+            .select_product_target(&mut typed, target::TargetProfile::WindowsX64)
+            .expect("select Windows");
+        assert!(
+            typed
+                .machine_by_symbol(windows)
+                .expect("Windows body")
+                .target
+                .is_none(),
+            "native shape equality must not retain the UEFI canonical body"
+        );
+    }
+
+    #[test]
+    fn missing_profile_body_is_not_supplied_by_equal_native_shape() {
+        for profile in ["uefi_x86_64", "local_unchecked", "cross_platform_cli"] {
+            let text = format!(
+                "data Helper {{ seed: u64; }}\n{profile} machine Helper::value(&self) -> u64 {{ 63 }}\nmachine use_helper(helper: &Helper) -> u64 {{ helper.value() }}"
+            );
+            let mut sources = source::SourceMap::default();
+            let source_id = sources.add("helper.omg".into(), text.clone()).source_id;
+            let mut program = syntax(source_id.0, &text);
+            let mut declarations = prepare_target_machines(&mut program, Some(&sources), None)
+                .expect("retain one foreign family");
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax: &program,
+                    sources: Some(std::sync::Arc::new(sources)),
+                    top_level_bindings: Vec::new(),
+                },
+            )
+            .expect("resolve foreign family call");
+            let mut typed =
+                symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                    .expect("type foreign family call");
+            let errors = declarations
+                .select_product_target(&mut typed, target::TargetProfile::WindowsX64)
+                .expect_err("another profile does not supply a Windows implementation");
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("call has no implementation"))
+            );
+            assert!(
+                errors
+                    .iter()
+                    .all(|error| !error.message.contains("or `uefi_x86_64`"))
+            );
+        }
+    }
+
+    #[test]
     fn same_named_target_families_remain_independent_across_packages() {
         assert_independent_target_families([("first/helper.omg", ""), ("second/helper.omg", "")]);
     }
@@ -1099,7 +1153,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
         declarations
-            .select_product_target(&mut typed, target::NativeTarget::windows_x64())
+            .select_product_target(&mut typed, target::TargetProfile::WindowsX64)
             .expect("realization consumes each exact family");
         for symbol in selected {
             assert!(
@@ -1179,11 +1233,7 @@ mod tests {
         assert_eq!(family.members[0].machine, canonical);
 
         declarations
-            .select_product_target(
-                &mut typed,
-                target::NativeTarget::from_omega_target_name(Some("windows_x86_64"))
-                    .expect("windows_x86_64 is a real target"),
-            )
+            .select_product_target(&mut typed, target::TargetProfile::WindowsX64)
             .expect("the swap consumes the roster");
 
         assert_eq!(

@@ -1,27 +1,24 @@
-// RUN CANARY (exit 70, differential): TARGET-SCOPED MACHINES (fs
-// portable-contract settle 2026-07-18). `<target> machine Path(..) {..}`
-// participates in the program only when its target is SELECTED: the
-// pre-resolution filter clears the selected machine's marker and every other
-// target's same-name machine stays inert (resolution skips it), exactly like
-// a non-selected external leaf.
-//
-// Host-portable discrimination: `pick` is implemented ONLY by
-// `local_unchecked` (which resolves to the HOST target on every machine),
-// and `delta` by all FOUR real targets with identical bodies -- exactly one
-// of the four is selected on any host, and the three inert same-name
-// machines beside it prove the collision-avoidance (four ORDINARY machines
-// sharing a name would be a duplicate-machine error). Exit 70 needs BOTH
-// selected implementations to resolve and deliver (63 then 7, chained
-// guards -- no arithmetic, so no decision-17 obligation on the opaque call
-// results). Loud-edge siblings:
-// fail/targets/target_machine_missing_rejected and
-// fail/targets/target_machine_duplicate_rejected.
+// RUN CANARY (exit 70): two target-scoped families select one body each.
+// Both families name the exact profiles bound by build.omg. A compatibility
+// profile such as local_unchecked has its own identity; mapping to the same
+// native shape does not supply another profile's implementation.
+// Exit 70 still requires both results (63 and 7), while the unselected
+// same-name siblings must neither collide nor supply the selected calls.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Helper { seed: i32; }
 
-local_unchecked machine Helper::pick(&self) -> i32 {
+windows_x86_64 machine Helper::pick(&self) -> i32 {
+    transition { _ -> 63 }
+}
+macos_arm64 machine Helper::pick(&self) -> i32 {
+    transition { _ -> 63 }
+}
+linux_x86_64 machine Helper::pick(&self) -> i32 {
+    transition { _ -> 63 }
+}
+linux_arm64 machine Helper::pick(&self) -> i32 {
     transition { _ -> 63 }
 }
 
