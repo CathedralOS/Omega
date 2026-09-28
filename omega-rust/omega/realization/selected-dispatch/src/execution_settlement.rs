@@ -18,13 +18,20 @@ pub struct SelectedExecution {
     pub selected_target_profile: Option<target::TargetProfile>,
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
+    /// Exact admitted deployment provider; absence retains the SSE2 baseline.
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
+    /// Exact source demands joined to that provider, never fabricated by admission.
     pub x86_scalar_fma_plan_associations:
         Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
+    /// Authored Build grants resolved to the exact selected plans.
     pub selected_provider_grants: Vec<trust_model::ResolvedAuthoredSelectedProviderGrant>,
+    /// Target-owned recipes joined to checked nominal uses. Engines consume
+    /// these plans rather than reconstructing placement from source semantics.
     pub callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
     pub accepted_template_classifications: trust_model::AcceptedTemplateClassifications,
+    /// Claims deliberately left unjudged by ordinary validation. Package review
+    /// rejects them until independent later-discharge evidence exists.
     pub contract_entailment_stand_downs: Vec<validation::ContractEntailmentStandDown>,
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
     pub resolved_semantic_bindings: Vec<crate::ResolvedAcceptedSemanticBinding>,

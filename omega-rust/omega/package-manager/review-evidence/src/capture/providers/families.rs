@@ -81,7 +81,7 @@ fn specialized_operator_applications<'a>(
             let derived =
                 selected_dispatch::derive_checked_specialized_operator_application_realizations(
                     compilation,
-                    compilation.custody.selected_provider_plans(),
+                    &compilation.custody.execution().selected_provider_plan_facts,
                 )?;
             Ok(cache.insert(derived).as_slice())
         }
@@ -117,8 +117,9 @@ pub(crate) fn project_selected_provider_families(
     target: target::TargetProfile,
     selected_providers: &[CheckedPackageProviderReview],
 ) -> Result<Vec<CheckedPackageProviderFamilyReview>, Vec<Diagnostic>> {
-    let selected_plans = compilation.custody.selected_provider_plans().plans();
-    let provenance = compilation.custody.selected_provider_provenance();
+    let selected_execution = compilation.custody.execution();
+    let selected_plans = selected_execution.selected_provider_plan_facts.plans();
+    let provenance = selected_execution.selected_provider_provenance.as_slice();
     if selected_plans.len() != selected_providers.len() || selected_plans.len() != provenance.len()
     {
         return Err(vec![Diagnostic::error(

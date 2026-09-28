@@ -6,7 +6,7 @@ use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::CheckedSourceCustody;
 use package_compilation::PackageCompilationInputs;
-use selected_dispatch::{SelectedConstantEvaluation, SelectedExecution};
+use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
 
 mod production_subject;
@@ -20,7 +20,6 @@ pub use report::{CheckedProductReport, CompileReportSettlement};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
     pub settled: SelectedExecution,
-    pub const_evaluation: SelectedConstantEvaluation,
     /// One immutable evaluated Build shared by target products and review clones.
     /// Authored choices stay distinct from the realized settlements below.
     pub build: std::sync::Arc<crate::ComputedBuildConfig>,
@@ -31,7 +30,6 @@ pub struct CheckedCompilationInputs {
     pub selected_build_machine_identity: Option<String>,
     pub boundary_calling_plan_realizations:
         Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
-    pub optimization_selection_identity: optimization_core::OptimizationSelectionIdentity,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
     pub product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
@@ -106,6 +104,20 @@ impl CheckedCompilation {
 }
 
 impl CheckedCompilation {
+    /// The complete immutable result of selected execution. Consumers read the
+    /// producing owner's fields instead of a parallel compiler-facing vocabulary.
+    /// Borrowing this unit grants no installation or publication authority.
+    pub const fn execution(&self) -> &SelectedExecution {
+        &self.execution.settled
+    }
+
+    /// The one evaluated Build retained by this compilation. Authored choices
+    /// remain distinct from the selected execution and its independently
+    /// reconstructed provider evidence.
+    pub fn build(&self) -> &crate::ComputedBuildConfig {
+        &self.execution.build
+    }
+
     /// Reconstruct this product's trust obligations against explicit owner
     /// admissions, independently of report output. This grants neither package
     /// review authority nor native publication authority.
@@ -117,8 +129,8 @@ impl CheckedCompilation {
             self,
             self.root_grants(),
             self.provider_plans(),
-            self.selected_provider_plans(),
-            self.accepted_template_classifications(),
+            &self.execution().selected_provider_plan_facts,
+            &self.execution().accepted_template_classifications,
             self.package_identity().is_some(),
             accepted,
         )
@@ -165,26 +177,6 @@ impl CheckedCompilation {
             Some(application) => application.artifact_only,
             None => false,
         }
-    }
-
-    /// Exact image subsystem selected by the owning build configuration.
-    pub fn subsystem(&self) -> u16 {
-        self.execution.build.config.settings.subsystem
-    }
-
-    /// The two independent optional proof-product requests retained from the
-    /// authoritative build machine. Off by default; they never change checking.
-    pub fn pcc_requests(&self) -> package_compilation::build_execution::build_value::PccRequests {
-        self.execution.build.config.settings.pcc
-    }
-
-    /// Behavior exclusions authored by the authoritative build machine
-    /// (wiki/spec/build/behavior_exclusions.md): product-admission
-    /// requirements over the exact selected executable composition. Each row
-    /// retains the exact toolchain `CrashCause` case symbol it named, the
-    /// typed machine that spelled it, and its authored source span.
-    pub fn behavior_exclusions(&self) -> &[effects::AuthoredBehaviorExclusion] {
-        &self.execution.build.config.behavior_exclusions
     }
 
     /// Reconciled root package identity for package-aware compilation.
@@ -403,23 +395,6 @@ impl CheckedCompilation {
         self.execution.settled.selected_target_profile
     }
 
-    /// Exact build-selected x86 scalar FMA admission for this compilation.
-    /// Absence preserves the generic SSE2 baseline. The retained provider
-    /// carries the canonical semantic cancellation-vector admission but does
-    /// not claim native differential execution.
-    pub const fn x86_scalar_fma_provider(&self) -> Option<target::AdmittedX86ScalarFmaProvider> {
-        self.execution.settled.x86_scalar_fma_provider
-    }
-
-    /// Exact source-selected nearest-FMA plans joined to this compilation's
-    /// admitted x86 provider. Empty means the source demanded no x86 FMA;
-    /// admission alone never fabricates source demand or execution evidence.
-    pub fn x86_scalar_fma_plan_associations(
-        &self,
-    ) -> &[provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation] {
-        &self.execution.settled.x86_scalar_fma_plan_associations
-    }
-
     /// Exact target-owned `ProgramEntry` choice retained by Omega, if this
     /// checked-only compilation had one. Pure semantic checking is entry-
     /// agnostic; an execution caller must not infer a machine from its name.
@@ -460,27 +435,11 @@ impl CheckedCompilation {
         .any(|requirement| program.fused_service_erasure(*requirement).is_none())
     }
 
-    /// Exact symbol of the uniquely selected build machine. No build machine
-    /// is represented by `None`; callers must not rediscover one by name.
-    pub fn selected_build_machine_symbol(&self) -> Option<symbols::SymbolHandle> {
-        self.execution.build.selected_build_machine_symbol
-    }
-
     /// Canonical semantic identity of the build machine actually evaluated.
     /// This is derived while the final typed declarations remain available;
     /// downstream custody must not rediscover it by short name.
     pub fn selected_build_machine_identity(&self) -> Option<&str> {
         self.execution.selected_build_machine_identity.as_deref()
-    }
-
-    /// Complete compiler-validated opaque-representation selections harvested
-    /// from the authoritative build machine. Unused selections remain here as
-    /// activation policy; this custody does not imply a by-value demand or a
-    /// physical ABI commitment.
-    pub fn opaque_representation_selections(
-        &self,
-    ) -> &[representation_planning::OpaqueRepresentationSelection] {
-        &self.execution.build.config.opaque_representation_selections
     }
 
     /// Exact validated boundary calling-plan realizations retained while the
@@ -493,28 +452,6 @@ impl CheckedCompilation {
         &self.execution.boundary_calling_plan_realizations
     }
 
-    /// Exact named optimizations selected by the authoritative root build.
-    /// Empty executes each applicable optimization phase as a validated
-    /// identity transformation; it does not select an optimizer-free path.
-    pub fn optimization_selections(&self) -> &optimization_core::OptimizationSelections {
-        &self.execution.build.config.settings.optimizations
-    }
-
-    /// Domain-separated identity of the exact canonical selected set. This is
-    /// retained independently so later cache, replay, and artifact boundaries
-    /// never have to rediscover an optimization input from build syntax.
-    pub const fn optimization_selection_identity(
-        &self,
-    ) -> optimization_core::OptimizationSelectionIdentity {
-        self.execution.optimization_selection_identity
-    }
-
-    /// Auxiliary report projection requested by the authoritative root build.
-    /// This remains independent of the exact transformation selection.
-    pub fn optimization_report_request(&self) -> optimization_core::OptimizationReportRequest {
-        self.execution.build.optimization_report_request
-    }
-
     /// Identity-bearing evidence of the checked-tree product selection this
     /// compilation executed, present only when the effective build selection
     /// named `CheckedTreeProductPruning`. `None` means the checked-tree phase
@@ -525,17 +462,6 @@ impl CheckedCompilation {
         &self,
     ) -> Option<&typed_trees_to_checked_trees::CheckedTreeProductSelection> {
         self.execution.product_selection.as_ref()
-    }
-
-    pub const fn selected_provider_plans(&self) -> &effects::SelectedProviderPlanFacts {
-        &self.execution.settled.selected_provider_plan_facts
-    }
-
-    /// Exact `build.omg` grants resolved to retained selected provider plans.
-    pub fn selected_provider_grants(
-        &self,
-    ) -> &[trust_model::ResolvedAuthoredSelectedProviderGrant] {
-        &self.execution.settled.selected_provider_grants
     }
 
     #[doc(hidden)]
@@ -567,52 +493,12 @@ impl CheckedCompilation {
         &self.execution.root_grants
     }
 
-    #[doc(hidden)]
-    pub const fn accepted_template_classifications(
-        &self,
-    ) -> &trust_model::AcceptedTemplateClassifications {
-        &self.execution.settled.accepted_template_classifications
-    }
-
-    #[doc(hidden)]
-    pub fn selected_provider_provenance(
-        &self,
-    ) -> &[provider_planning::SelectedProviderReviewProvenance] {
-        &self.execution.settled.selected_provider_provenance
-    }
-
-    pub const fn component_progress(&self) -> Option<&effects::ComponentProgressManifest> {
-        self.execution.settled.component_progress.as_ref()
-    }
-
-    pub const fn task_activations(&self) -> &task_plans::TaskActivationPlanSet {
-        &self.execution.settled.task_activations
-    }
-
-    /// Exact target-owned callback recipes joined to their checked nominal
-    /// use sites. An execution engine must consume these plans rather than
-    /// derive placement from the semantic tree.
-    pub fn callback_placements(&self) -> &[backend_plan::BoundNominalCallbackPlacement] {
-        &self.execution.settled.callback_placements
-    }
-
-    pub fn build_evaluation_usage(&self) -> Option<package_compilation::BuildEvaluationUsage> {
-        self.execution.build.evaluation_usage
-    }
-
-    /// Exact selected build-machine observation ceiling and realized class.
-    /// This execution evidence remains separate from package capability/API
-    /// comparison bytes.
-    pub fn build_observation_summary(
-        &self,
-    ) -> Option<&package_compilation::BuildObservationSummary> {
-        self.execution.build.observation_summary.as_ref()
-    }
-
     pub fn build_observation_identity(
         &self,
     ) -> Option<package_compilation::BuildObservationIdentity> {
-        self.build_observation_summary()
+        self.build()
+            .observation_summary
+            .as_ref()
             .map(package_compilation::BuildObservationSummary::identity)
     }
 
@@ -622,7 +508,9 @@ impl CheckedCompilation {
     pub fn completed_build_outputs(
         &self,
     ) -> Result<Option<crate::RetainedBuildOutputs>, Vec<Diagnostic>> {
-        self.build_observation_summary()
+        self.build()
+            .observation_summary
+            .as_ref()
             .map(crate::RetainedBuildOutputs::from_observation)
             .transpose()
             .map(Option::flatten)
@@ -659,13 +547,6 @@ impl CheckedCompilation {
     /// reads the same set the original settlement applied.
     pub fn accepted_component_assumptions(&self) -> &std::collections::BTreeSet<[u8; 32]> {
         &self.execution.accepted_component_assumptions
-    }
-
-    /// Exact compiler-owned coordinates of checked implementation claims that
-    /// ordinary validation deliberately left unjudged. Package review rejects
-    /// any row until a later-discharge ledger exists.
-    pub fn contract_entailment_stand_downs(&self) -> &[validation::ContractEntailmentStandDown] {
-        &self.execution.settled.contract_entailment_stand_downs
     }
 
     pub const fn timings(&self) -> &CompileTimings {

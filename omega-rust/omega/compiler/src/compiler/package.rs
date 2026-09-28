@@ -20,7 +20,7 @@ pub fn retained_terminal_artifact_from_checked_package(
                 "reviewed package Terminal production requires package-aware checked custody",
             )]);
         }
-        let selections = rollback.settle(checked.optimization_selections());
+        let selections = rollback.settle(&checked.build().config.settings.optimizations);
         crate::terminal::produce_retained_terminal_artifact(
             &mut checked,
             &profile,

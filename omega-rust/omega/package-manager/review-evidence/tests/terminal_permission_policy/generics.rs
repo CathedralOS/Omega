@@ -14,7 +14,14 @@ pub boundary trait FilesystemHost<'scope, Element, const Count: u64> {
 fn unused_generic_service_retains_type_const_lifetime_and_machine_contracts() {
     let fixture = fixtures::Fixture::filesystem(GENERIC, false, "FilesystemHost", "read");
     let checked = fixture.check(Some(read_permission()));
-    assert!(checked.custody.selected_provider_plans().plans().is_empty());
+    assert!(
+        checked
+            .custody
+            .execution()
+            .selected_provider_plan_facts
+            .plans()
+            .is_empty()
+    );
     let policy = project(&checked, fixture.target);
     let service = &policy.services()[0];
     assert_eq!(service.lifetime_parameter_count(), 1);

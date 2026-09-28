@@ -34,8 +34,9 @@ pub(crate) fn selected_provider_row_source(
     compilation: &PackageReviewInput<'_>,
     selected_providers: &[CheckedPackageProviderReview],
 ) -> Result<PackageReviewCanonicalRowSource, Vec<Diagnostic>> {
-    let selected_plans = compilation.custody.selected_provider_plans().plans();
-    let provenance = compilation.custody.selected_provider_provenance();
+    let selected_execution = compilation.custody.execution();
+    let selected_plans = selected_execution.selected_provider_plan_facts.plans();
+    let provenance = selected_execution.selected_provider_provenance.as_slice();
     if selected_plans.len() != selected_providers.len() || selected_plans.len() != provenance.len()
     {
         return Err(vec![Diagnostic::error(
@@ -104,9 +105,8 @@ pub(crate) fn selected_provider_row_source(
         // settlement table, not authored machines: the provenance retains
         // `invalid` realization symbols, so there are no authored locations
         // to project.
-        if !compilation
-            .custody
-            .selected_provider_plans()
+        if !selected_execution
+            .selected_provider_plan_facts
             .is_toolchain_settled(plan)
         {
             for realization in &retained.provider.row_realizations {
@@ -118,7 +118,7 @@ pub(crate) fn selected_provider_row_source(
             }
         }
     }
-    for grant in compilation.custody.selected_provider_grants() {
+    for grant in selected_execution.selected_provider_grants.as_slice() {
         locations.push(canonical_source_span_location(
             compilation,
             grant.source_span,

@@ -61,13 +61,21 @@ pub(crate) fn project_representation_tcb(
 
     let selections = if let Some(first_selection) = compilation
         .custody
-        .opaque_representation_selections()
+        .build()
+        .config
+        .opaque_representation_selections
+        .as_slice()
         .first()
     {
         representation_planning::rederive_opaque_representation_selections(
             &compilation.typed,
             Some(first_selection.selecting_machine()),
-            compilation.custody.opaque_representation_selections(),
+            compilation
+                .custody
+                .build()
+                .config
+                .opaque_representation_selections
+                .as_slice(),
         )?
     } else {
         Vec::new()

@@ -167,7 +167,16 @@ fn project(checked: &ReviewFixture) -> PackagePolicyCallingPlan {
 #[test]
 fn opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selections() {
     let (_package, _dependency, checked) = fixture(false);
-    assert_eq!(checked.custody.opaque_representation_selections().len(), 2);
+    assert_eq!(
+        checked
+            .custody
+            .build()
+            .config
+            .opaque_representation_selections
+            .as_slice()
+            .len(),
+        2
+    );
     let policy = project(&checked);
     let [use_] = policy.opaque_uses() else {
         panic!("only the used selection contributes a calling row")
@@ -229,13 +238,19 @@ fn opaque_calling_policy_retains_exact_occurrences_and_excludes_unused_selection
     let mut changed = checked.clone();
     let selected = checked
         .custody
-        .opaque_representation_selections()
+        .build()
+        .config
+        .opaque_representation_selections
+        .as_slice()
         .iter()
         .find(|selection| checked.symbols.name(selection.opaque()) == "TransferToken")
         .unwrap();
     let foreign_carrier = checked
         .custody
-        .opaque_representation_selections()
+        .build()
+        .config
+        .opaque_representation_selections
+        .as_slice()
         .iter()
         .find(|selection| checked.symbols.name(selection.opaque()) == "UnusedToken")
         .unwrap()

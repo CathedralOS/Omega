@@ -50,7 +50,9 @@ impl Fixture {
         let build = changed
             .machines()
             .iter()
-            .find(|machine| Some(machine.symbol) == changed.custody.selected_build_machine_symbol())
+            .find(|machine| {
+                Some(machine.symbol) == changed.custody.build().selected_build_machine_symbol
+            })
             .unwrap();
         let statements = changed
             .machine_states(build)

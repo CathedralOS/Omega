@@ -30,16 +30,17 @@ pub(super) fn project_selected_providers(
     target: TargetProfile,
     package: semantic_vocabulary::PackageKeyIdentity,
 ) -> Result<ProjectedProviders, Vec<Diagnostic>> {
-    let selected_plans = compilation.custody.selected_provider_plans().plans();
-    let selected_provider_provenance = compilation.custody.selected_provider_provenance();
+    let selected_execution = compilation.custody.execution();
+    let selected_plans = selected_execution.selected_provider_plan_facts.plans();
+    let selected_provider_provenance = selected_execution.selected_provider_provenance.as_slice();
     if selected_plans.len() != selected_provider_provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected-provider review provenance is not aligned with the canonical selected plan set",
         )]);
     }
-    let selected_provider_grants = compilation.custody.selected_provider_grants();
+    let selected_provider_grants = selected_execution.selected_provider_grants.as_slice();
     if !selected_provider_grants.is_empty() {
-        let Some(build_machine) = compilation.custody.selected_build_machine_symbol() else {
+        let Some(build_machine) = compilation.custody.build().selected_build_machine_symbol else {
             return Err(vec![Diagnostic::error(
                 "selected-provider grants have no exact selected build machine",
             )]);
@@ -83,9 +84,8 @@ pub(super) fn project_selected_providers(
         // toolchain settlement table, so each row's realization symbol is
         // `invalid` by construction. The lifetime-partition replay and
         // realization nominal join have no authored declarations to resolve.
-        let toolchain_settled = compilation
-            .custody
-            .selected_provider_plans()
+        let toolchain_settled = selected_execution
+            .selected_provider_plan_facts
             .is_toolchain_settled(plan);
         let row_declarations = retained
             .provider
@@ -259,9 +259,8 @@ pub(super) fn project_selected_providers(
     }
 
     if projected_installation_reaches
-        != compilation
-            .custody
-            .selected_provider_plans()
+        != selected_execution
+            .selected_provider_plan_facts
             .installation_reach_resolutions()
             .len()
     {

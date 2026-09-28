@@ -46,7 +46,7 @@ pub(super) fn project(
                 machine.supply_mode,
                 language_semantics::MachineSupplyMode::ExternalRealization { .. }
             )
-            || compilation.custody.selected_build_machine_symbol() == Some(machine.symbol)
+            || compilation.custody.build().selected_build_machine_symbol == Some(machine.symbol)
         {
             let identity = policy_callable_identity(compilation, machine.symbol)?;
             if !callables

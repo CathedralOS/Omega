@@ -59,7 +59,7 @@ pub fn produce_terminal_report(
     profile: &proof_admission::AdmissionProfile,
     rollback: &OptimizationRollback,
 ) -> Result<crate::report::CompileReport, Vec<Diagnostic>> {
-    let pcc_requests = checked.pcc_requests();
+    let pcc_requests = checked.build().config.settings.pcc;
     compilation_products::RequestedCompileProduct::TerminalArtifact.admit_build_requirements(
         checked.application_artifact_only(),
         pcc_requests,
@@ -67,7 +67,7 @@ pub fn produce_terminal_report(
     )?;
     let production_subject = checked.production_subject()?;
     let source_file_count = checked.source_file_count();
-    let rollback = rollback.settle(checked.optimization_selections());
+    let rollback = rollback.settle(&checked.build().config.settings.optimizations);
     let artifact = produce_retained_terminal_artifact(&mut checked, profile, rollback.effective())?;
     crate::report::CompileReport::from_retained_terminal_artifact(
         root_path,
@@ -90,8 +90,8 @@ pub fn validate_lowered_ieee_float_comparison_custody(
     terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
         checked,
         &lowered.semantic_module,
-        checked.selected_provider_plans(),
-        checked.selected_provider_provenance(),
+        &checked.execution().selected_provider_plan_facts,
+        checked.execution().selected_provider_provenance.as_slice(),
         &lowered.selected_ieee_float_comparison_occurrences,
     )
     .map(|_| ())
@@ -110,8 +110,8 @@ pub fn validate_lowered_integer_comparison_custody(
     terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
         checked,
         &lowered.semantic_module,
-        checked.selected_provider_plans(),
-        checked.selected_provider_provenance(),
+        &checked.execution().selected_provider_plan_facts,
+        checked.execution().selected_provider_provenance.as_slice(),
         &lowered.selected_integer_comparison_occurrences,
     )
     .map(|_| ())
@@ -132,9 +132,9 @@ pub(crate) fn produce_retained_terminal_artifact(
     // A settled `Independent` edge has no product carrier: the composition
     // fence rejects before any fused artifact can be produced or admitted.
     provider_planning::verify_selected_compositions_are_realized(
-        checked.selected_provider_provenance(),
+        checked.execution().selected_provider_provenance.as_slice(),
     )?;
-    let callback_placements = checked.callback_placements().to_vec();
+    let callback_placements = checked.execution().callback_placements.as_slice().to_vec();
     // The selected entry rejoins Terminal production by its exact checked
     // machine symbol: the build product operand's lexical package choice must
     // survive a same-named declaration in another package. The retained
@@ -150,7 +150,7 @@ pub(crate) fn produce_retained_terminal_artifact(
     selected_dispatch::validate_selected_operator_terminal_custody(checked)?;
     selected_dispatch::validate_fused_service_terminal_custody(
         checked,
-        checked.selected_provider_provenance(),
+        checked.execution().selected_provider_provenance.as_slice(),
     )?;
     // The accumulator steps out of the checked record across the measured
     // legs below so each closure may borrow the record while it is timed; it
@@ -172,7 +172,12 @@ pub(crate) fn produce_retained_terminal_artifact(
                 callback_custody: (),
                 // The authored behavior exclusions are judged against the
                 // unoptimized composition the artifact was published from.
-                retain_unoptimized: !checked.behavior_exclusions().is_empty(),
+                retain_unoptimized: !checked
+                    .build()
+                    .config
+                    .behavior_exclusions
+                    .as_slice()
+                    .is_empty(),
                 timings: &mut production_timings,
             })
         })
@@ -185,8 +190,8 @@ pub(crate) fn produce_retained_terminal_artifact(
     })?;
     trust_model::verify_entry_behavior_exclusions(
         checked,
-        checked.behavior_exclusions(),
-        checked.selected_provider_plans(),
+        checked.build().config.behavior_exclusions.as_slice(),
+        &checked.execution().selected_provider_plan_facts,
         produced.unoptimized(),
         entry_machine_symbol,
     )?;

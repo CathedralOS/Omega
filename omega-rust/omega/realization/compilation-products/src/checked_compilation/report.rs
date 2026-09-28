@@ -55,7 +55,7 @@ impl CheckedCompilation {
             rollback,
             production_subject,
         )
-        .and_then(|report| report.with_pcc_context(self.pcc_requests(), profile))
+        .and_then(|report| report.with_pcc_context(self.build().config.settings.pcc, profile))
         .and_then(|report| report.with_application_metadata(application.clone()))
         .map_err(diagnostics)?;
         report
@@ -82,7 +82,7 @@ impl CheckedCompilation {
             .map_err(|error| vec![error])?;
         RequestedCompileProduct::Check.admit_build_requirements(
             self.application_artifact_only(),
-            self.pcc_requests(),
+            self.build().config.settings.pcc,
             rollback,
         )?;
         CompileReport::check_only(root_path, self.source_file_count())
@@ -117,7 +117,7 @@ impl CheckedCompilation {
         let build_outputs = self.completed_build_outputs()?;
         requested.admit_build_requirements(
             self.application_artifact_only(),
-            self.pcc_requests(),
+            self.build().config.settings.pcc,
             rollback,
         )?;
         let timings = self.timings().phases().to_vec();

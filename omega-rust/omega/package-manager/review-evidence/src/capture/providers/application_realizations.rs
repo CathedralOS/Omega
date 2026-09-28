@@ -36,7 +36,7 @@ pub(crate) fn project_boundary_application_realizations(
 ) -> Result<ProjectedBoundaryApplicationRealizations, Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_nongeneric_operator_application_realizations(
         compilation,
-        compilation.custody.selected_provider_plans(),
+        &compilation.custody.execution().selected_provider_plan_facts,
     )?;
     let mut staged: Vec<StagedRealization> = Vec::new();
 
@@ -127,7 +127,7 @@ fn project_specialized_checked_body_applications(
 ) -> Result<(), Vec<Diagnostic>> {
     let derived = selected_dispatch::derive_checked_specialized_operator_application_realizations(
         compilation,
-        compilation.custody.selected_provider_plans(),
+        &compilation.custody.execution().selected_provider_plan_facts,
     )?;
     for realization in derived {
         let checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {

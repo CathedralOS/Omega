@@ -511,7 +511,7 @@ fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
         ..CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"))
     })
     .expect("callback program should reach checked compilation");
-    assert_eq!(checked.callback_placements().len(), 2);
+    assert_eq!(checked.execution().callback_placements.as_slice().len(), 2);
     compile(fixture.request(RequestedCompileProduct::Check, "check"))
         .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("check-only compilation retains callback placements without executing them");
@@ -579,7 +579,7 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
         ..CheckedCompileRequest::new(&fixture.main, Some("windows_x86_64"))
     })
     .expect("reachable callback program should reach checked compilation");
-    assert_eq!(checked.callback_placements().len(), 2);
+    assert_eq!(checked.execution().callback_placements.as_slice().len(), 2);
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
         .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("the admitted registrar must close its thunk custody at Terminal");

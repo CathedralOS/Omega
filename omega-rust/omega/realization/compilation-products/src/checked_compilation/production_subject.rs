@@ -18,12 +18,12 @@ impl CheckedCompilation {
                 "package production requires one exact selected build-machine identity",
             )]
         })?;
-        let usage = self.build_evaluation_usage().ok_or_else(|| {
+        let usage = self.build().evaluation_usage.ok_or_else(|| {
             vec![Diagnostic::error(
                 "package production requires exact build-evaluation accounting",
             )]
         })?;
-        let observation = self.build_observation_summary().ok_or_else(|| {
+        let observation = self.build().observation_summary.as_ref().ok_or_else(|| {
             vec![Diagnostic::error(
                 "package production requires exact build-observation custody",
             )]

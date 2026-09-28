@@ -34,7 +34,13 @@ pub CopyTokenRepresentation:
         ..CheckedCompileRequest::new(&package.0.join("main.omg"), Some(target))
     })
     .expect("selected copyable opaque fixture should check");
-    let [selection] = checked.custody.opaque_representation_selections() else {
+    let [selection] = checked
+        .custody
+        .build()
+        .config
+        .opaque_representation_selections
+        .as_slice()
+    else {
         panic!("one selected copyable opaque representation")
     };
     assert_eq!(

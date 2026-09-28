@@ -82,7 +82,8 @@ pub(crate) fn project_selected_installation_reach(
 
     let retained = compilation
         .custody
-        .selected_provider_plans()
+        .execution()
+        .selected_provider_plan_facts
         .installation_reach_resolutions()
         .iter()
         .filter(|resolution| resolution.requirement_identity == requirement_identity.path())

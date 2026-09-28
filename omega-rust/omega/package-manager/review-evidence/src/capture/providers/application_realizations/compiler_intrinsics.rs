@@ -18,8 +18,9 @@ pub(super) fn project(
     package: PackageKeyIdentity,
     staged: &mut Vec<StagedRealization>,
 ) -> Result<(), Vec<Diagnostic>> {
-    let selected_plans = compilation.custody.selected_provider_plans().plans();
-    let provenance = compilation.custody.selected_provider_provenance();
+    let selected_execution = compilation.custody.execution();
+    let selected_plans = selected_execution.selected_provider_plan_facts.plans();
+    let provenance = selected_execution.selected_provider_provenance.as_slice();
     if selected_plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
             "selected-provider plans and intrinsic review provenance are not aligned",

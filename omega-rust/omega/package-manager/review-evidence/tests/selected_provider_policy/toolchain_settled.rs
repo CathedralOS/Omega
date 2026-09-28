@@ -295,7 +295,9 @@ fn assert_authored_unique_covering_candidate_substitution_rejects_at_replay(
     // kind the toolchain-settled plan records.
     let echo = changed
         .custody
-        .selected_provider_provenance()
+        .execution()
+        .selected_provider_provenance
+        .as_slice()
         .iter()
         .find(|retained| retained.plan.schema.trait_name == "Echo")
         .expect("the conformance-selected Echo plan is retained");

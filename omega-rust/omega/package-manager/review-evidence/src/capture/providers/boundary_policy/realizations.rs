@@ -28,7 +28,9 @@ pub(super) fn project(
     for checked in checked.rows {
         let matches = compilation
             .custody
-            .selected_provider_provenance()
+            .execution()
+            .selected_provider_provenance
+            .as_slice()
             .iter()
             .enumerate()
             .filter(|(_, provenance)| {

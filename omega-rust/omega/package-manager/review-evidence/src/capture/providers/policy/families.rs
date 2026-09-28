@@ -23,7 +23,11 @@ pub(super) fn project(
     target: TargetProfile,
     plans: &[(usize, PackagePolicyProviderPlan)],
 ) -> Result<Vec<PackagePolicyProviderFamily>, Vec<Diagnostic>> {
-    let provenance = compilation.custody.selected_provider_provenance();
+    let provenance = compilation
+        .custody
+        .execution()
+        .selected_provider_provenance
+        .as_slice();
     let mut seeds: Vec<(PackageReviewProviderSelectionAuthority, &ProviderSelection)> = Vec::new();
     for retained in provenance {
         let Some((authority, declarations)) = authored(&retained.selected_by) else {

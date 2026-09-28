@@ -48,8 +48,8 @@ fn trust_report(checked: &CheckedCompilation) -> trust_model::TrustReport {
         checked.terminal_production_trees(),
         checked.root_grants(),
         checked.provider_plans(),
-        checked.selected_provider_plans(),
-        checked.accepted_template_classifications(),
+        &checked.execution().selected_provider_plan_facts,
+        &checked.execution().accepted_template_classifications,
     )
     .expect("the trust report reconstructs from the checked program")
 }
@@ -197,7 +197,10 @@ machine Main::exercise(&mut self) {}
 
     let checked = compile_to_checked(CheckedCompileRequest::new(&project.join("main.omg"), None))
         .expect("calling-policy provider should check");
-    let expected_selected_closure = checked.selected_provider_plans().report_fingerprint();
+    let expected_selected_closure = checked
+        .execution()
+        .selected_provider_plan_facts
+        .report_fingerprint();
     let tick = checked
         .typed
         .traits()

@@ -114,7 +114,8 @@ pub machine expose() reaches Console + FilesystemHost {}
         .expect("derive exact filesystem binding");
     let plan = candidate
         .custody
-        .selected_provider_plans()
+        .execution()
+        .selected_provider_plan_facts
         .plans()
         .iter()
         .find(|plan| plan.schema.trait_name == "Console")

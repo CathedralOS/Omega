@@ -29,8 +29,11 @@ pub(crate) fn project_terminal_native_realization_proposal(
         terminal_psi_to_abstract_operations::TerminalNativeProposalRequest {
             boundaries: terminal_psi_to_abstract_operations::BoundaryApplicationSettlement {
                 checked,
-                selected_provider_plans: checked.selected_provider_plans(),
-                selected_provider_provenance: checked.selected_provider_provenance(),
+                selected_provider_plans: &checked.execution().selected_provider_plan_facts,
+                selected_provider_provenance: checked
+                    .execution()
+                    .selected_provider_provenance
+                    .as_slice(),
                 exact_toolchain_sources: checked.exact_toolchain_sources(),
                 target_profile: checked.selected_target_profile(),
                 console_exit_binding: checked.resolved_semantic_binding(
@@ -46,7 +49,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
             application: checked.project_native_application_metadata(),
             optimizations: selections.project_post_terminal(),
             external_bindings: checked.external_binding_rows(),
-            behavior_exclusions: checked.behavior_exclusions(),
+            behavior_exclusions: checked.build().config.behavior_exclusions.as_slice(),
             package_terminal_authority_permissions: checked
                 .package_terminal_authority_permissions(),
             callback_placements,
@@ -94,8 +97,8 @@ fn produce_callback_thunk_artifact(
     // entry's.
     trust_model::verify_entry_behavior_exclusions(
         checked,
-        checked.behavior_exclusions(),
-        checked.selected_provider_plans(),
+        checked.build().config.behavior_exclusions.as_slice(),
+        &checked.execution().selected_provider_plan_facts,
         produced.unoptimized(),
         placement.selected_machine,
     )?;

@@ -50,7 +50,6 @@ pub(crate) fn check_selected_execution(
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let optimization_selection_identity = build_config.settings.optimizations.identity();
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
@@ -175,8 +174,6 @@ pub(crate) fn check_selected_execution(
     Ok(CheckedCompilationInputs {
         settled: selected_execution_settlement,
         build: computed_build_config,
-        optimization_selection_identity,
-        const_evaluation,
         application,
         selected_build_machine_identity,
         boundary_calling_plan_realizations,
