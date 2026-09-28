@@ -120,7 +120,7 @@ pub use flow::{
     CheckedScalarSuccessor, CheckedSemanticDependencies, CheckedSemanticDependency,
     CheckedSemanticDependencyExposure, CheckedSemanticDependencyKind, CheckedStateNaturalRank,
     CheckedStructuralAccess, CheckedStructuralBooleanConvergencePlan,
-    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralByteSequenceFieldStorePlan,
+    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan,
     CheckedStructuralCallCustodyPlan, CheckedStructuralCallReturnPlans,
     CheckedStructuralCaseFieldStorePlan, CheckedStructuralCaseReturnPlan,
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,

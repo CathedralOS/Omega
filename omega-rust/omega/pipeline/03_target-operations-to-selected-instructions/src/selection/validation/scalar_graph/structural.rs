@@ -213,7 +213,8 @@ pub(super) fn operation(
     }
     if matches!(
         node.kind,
-        LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
+        LegalizedScalarInstructionKind::ByteSequenceStore { .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
     ) {
         byte_field_store::replace(source, replay, node)?;
         return Ok(true);

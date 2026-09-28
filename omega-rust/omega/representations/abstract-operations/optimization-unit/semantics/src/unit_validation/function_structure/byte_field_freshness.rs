@@ -117,6 +117,7 @@ pub(super) fn changes_length(
     operation: &O,
 ) -> bool {
     match operation {
+        O::ByteSequenceStore { destination, .. } => *destination == root,
         O::StructuralByteSequenceFieldStore {
             destination,
             path: written,

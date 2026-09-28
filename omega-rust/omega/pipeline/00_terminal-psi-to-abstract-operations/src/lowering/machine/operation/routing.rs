@@ -167,6 +167,25 @@ pub(super) fn lower(
                 obligation: *obligation,
             })
         }
+        OperationKind::ByteSequenceStore {
+            destination,
+            source,
+            length,
+            obligation,
+        } => {
+            if operation.result != terminal_psi::OperationResult::Unit {
+                return Err(LoweringError::InvalidStructuralByteSequenceFieldStore(
+                    operation.id,
+                ));
+            }
+            Ok(AbstractOperation::ByteSequenceStore {
+                psi_operation: operation.id,
+                destination: *destination,
+                source: *source,
+                length: *length,
+                obligation: *obligation,
+            })
+        }
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path,

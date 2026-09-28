@@ -34,6 +34,38 @@ pub(super) fn register_structural_types(
             .filter_map(|machine| machine.attachment),
     );
     for declaration in &module.structural_types {
+        let fields: Vec<_> = match &declaration.shape {
+            StructuralTypeShape::Record { fields } => fields.iter().collect(),
+            StructuralTypeShape::Sum { cases } => {
+                cases.iter().flat_map(|case| &case.fields).collect()
+            }
+            StructuralTypeShape::Mixed { fields, cases } => fields
+                .iter()
+                .chain(cases.iter().flat_map(|case| &case.fields))
+                .collect(),
+            _ => Vec::new(),
+        };
+        for field in fields {
+            if let StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            } = field.field_type
+            {
+                if field.relevance.is_erased()
+                    || predicates.is_empty()
+                    || !matches!(
+                        carrier,
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                    || (attachment_storage.contains(&declaration.id) && !predicates.holds_for(&[]))
+                {
+                    return Err(ModuleError::InvalidStructuralFieldIdentity {
+                        structural_type: declaration.id,
+                        field: field.id,
+                    });
+                }
+            }
+        }
         // A bounded sequence may be a completed owned concatenation result.
         // The establishing operation and every reader still validate custody;
         // admitting its type does not turn it into a borrowed view.

@@ -239,6 +239,7 @@ fn structural_domain_owner_content_projection_round_trips_and_enters_identity() 
     let projection_report_fingerprint =
         language_semantics::content::terminal_projection_report_fingerprint(&algebra, &expression);
     module.structural_domains.push(StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: structural_domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
@@ -959,6 +960,7 @@ fn nominal_affine_unit_return_rejects_malformed_source_carriers() {
     qualified
         .structural_domains
         .push(StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: structural_domain_id(1),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),

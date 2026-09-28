@@ -154,6 +154,7 @@ pub(super) fn identity_reshuffle_module() -> (TerminalModule, Proposition, Oblig
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             }],
             structural_domains: vec![StructuralDomainDeclaration {
+                byte_predicate: None,
                 establishment_routes: Vec::new(),
                 id: semantic_vocabulary::StructuralDomainId::new(90).expect("structural domain"),
                 semantic_domain: semantic_vocabulary::DomainSemanticId::new(90)
@@ -739,6 +740,7 @@ pub(super) fn partition_composition_module() -> (TerminalModule, Proposition, Ob
                 shape: StructuralTypeShape::Record { fields: Vec::new() },
             }],
             structural_domains: vec![StructuralDomainDeclaration {
+                byte_predicate: None,
                 id: semantic_vocabulary::StructuralDomainId::new(90).expect("structural domain"),
                 semantic_domain: semantic_vocabulary::DomainSemanticId::new(90)
                     .expect("semantic domain"),

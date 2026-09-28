@@ -304,7 +304,10 @@ fn structural_field_shape(
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(ValueShape::float(8)),
-        StructuralFieldType::ByteSequence(carrier) => byte_sequence_shape(*carrier, owner),
+        StructuralFieldType::ByteSequence(carrier)
+        | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
+            byte_sequence_shape(*carrier, owner)
+        }
         StructuralFieldType::Structural(nested) => {
             structural_shape(*nested, declarations, cache, active)
         }
@@ -358,7 +361,8 @@ pub(super) fn resolve_structural_field_path(
                 }
                 StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
                 StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
-                StructuralFieldType::ByteSequence(carrier) => {
+                StructuralFieldType::ByteSequence(carrier)
+                | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
                     byte_sequence_shape(carrier, structural_type)?
                 }
                 StructuralFieldType::Structural(nested) => {
@@ -451,7 +455,8 @@ fn byte_sequence_field_geometry(
             .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
         if field.identity == *identity {
             return match field.field_type {
-                StructuralFieldType::ByteSequence(carrier) => Ok(Some((
+                StructuralFieldType::ByteSequence(carrier)
+                | StructuralFieldType::PredicateByteSequence { carrier, .. } => Ok(Some((
                     parent_offset
                         .checked_add(local_offset)
                         .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?,

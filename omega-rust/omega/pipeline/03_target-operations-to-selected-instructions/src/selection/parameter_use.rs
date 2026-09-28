@@ -28,6 +28,7 @@ pub(super) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) ->
             .flat_map(|block| &block.instructions)
             .any(|row| match &row.kind {
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation { left, right, .. } => left.source() == place || right.source() == place,
+                LegalizedScalarInstructionKind::ByteSequenceStore { destination, source, .. } => *destination == place || *source == place,
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
                     destination,
                     source,

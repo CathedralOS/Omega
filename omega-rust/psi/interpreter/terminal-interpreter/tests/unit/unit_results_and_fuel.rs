@@ -765,6 +765,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)

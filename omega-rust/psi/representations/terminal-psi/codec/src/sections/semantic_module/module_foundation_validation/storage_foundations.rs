@@ -123,10 +123,8 @@ pub(super) fn validate_structural_byte_sequence_field_store(
                 candidate.id == *field
                     && !candidate.relevance.is_erased()
                     && matches!(
-                        candidate.field_type,
-                        StructuralFieldType::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                        )
+                        candidate.field_type.byte_sequence_carrier(),
+                        Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
                     )
             }),
             _ => false,

@@ -89,7 +89,7 @@ pub(in crate::validation) fn validate(
         match operand {
             ByteSequenceOperand::Whole { source, length } => {
                 super::length::validate_source(module, machine, operation, *source, invalid)?;
-                if !super::read::is_exact_length(machine, *source, *length) {
+                if !super::read::is_current_length(module, machine, operation, *source, *length) {
                     return Err(invalid());
                 }
             }
@@ -135,7 +135,7 @@ pub(in crate::validation) fn validate(
                     .iter()
                     .find(|row| row.id == *field && !row.relevance.is_erased())
                     .ok_or_else(invalid)?;
-                if !matches!(field.field_type, StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))
+                if !matches!(field.field_type.byte_sequence_carrier(), Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))
                     || !crate::validation::structural::byte_sequence_fields::field_content_length_is_current(
                         module, machine, operation.id, source.place, &source.path, field.id, *length,
                     )

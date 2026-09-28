@@ -77,6 +77,7 @@ fn typed_debug_map_accepts_an_entry_only_claim_subject() {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     }];
     module.structural_domains = vec![StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: semantic_vocabulary::StructuralDomainId::new(1).expect("structural domain"),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).expect("semantic domain"),

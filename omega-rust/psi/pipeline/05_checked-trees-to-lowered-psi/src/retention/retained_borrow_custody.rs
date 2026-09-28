@@ -374,6 +374,7 @@ mod tests {
             ],
             structural_domains: vec![
                 StructuralDomainDeclaration {
+                    byte_predicate: None,
                     id: owned,
                     semantic_domain: custody.source_projection.semantic_domain,
                     identity: "Buffer::Owned".into(),
@@ -382,6 +383,7 @@ mod tests {
                     establishment_routes: Vec::new(),
                 },
                 StructuralDomainDeclaration {
+                    byte_predicate: None,
                     id: retained,
                     semantic_domain: custody.retained_semantic_domain,
                     identity: "PendingRead::Retained".into(),

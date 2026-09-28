@@ -254,6 +254,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
     .expect("partial-path qualified boundary unit");
     unit.structural_domains = vec![
         terminal_psi::StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: id(4_725, semantic_vocabulary::DomainSemanticId::new),
@@ -262,6 +263,7 @@ pub(crate) fn partial_path_qualified_boundary_unit() -> PsiOptimizationUnit {
             content_projection: None,
         },
         terminal_psi::StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: foreign_domain,
             semantic_domain: id(4_726, semantic_vocabulary::DomainSemanticId::new),

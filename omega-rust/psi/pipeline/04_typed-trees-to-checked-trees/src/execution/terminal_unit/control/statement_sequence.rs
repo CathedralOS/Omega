@@ -860,7 +860,7 @@ fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> 
         CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
             Some(store.statement_index)
         }
-        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
             Some(store.statement_index)
         }
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {

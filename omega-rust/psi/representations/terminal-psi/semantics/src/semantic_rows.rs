@@ -183,6 +183,7 @@ operation_semantic_rows! {
     EstablishByteSequenceConcatenation => ("schema:operation:establish-byte-sequence-concatenation", LeafDenotation, None),
     EstablishByteSequenceLiteral => ("schema:operation:establish-byte-sequence-literal", LeafDenotation, None),
     ByteSequenceLength => ("schema:operation:byte-sequence-length", LeafDenotation, None),
+    ByteSequenceStore => ("schema:operation:byte-sequence-store", LeafDenotation, None),
     ByteSequenceWrite => ("schema:operation:byte-sequence-write", LeafDenotation, None),
     ByteSequenceRead => ("schema:operation:byte-sequence-read", LeafDenotation, None),
     ByteSequenceSubslice => ("schema:operation:byte-sequence-subslice", LeafDenotation, None),

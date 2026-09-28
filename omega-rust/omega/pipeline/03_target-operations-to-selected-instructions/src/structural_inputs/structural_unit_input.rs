@@ -124,6 +124,15 @@ pub(crate) fn accepts_borrowed_parameters(
         // access permits each field observation or mutation.
         let record = matches!(declaration.shape, StructuralTypeShape::Record { .. });
         let byte_view = declaration.shape.is_borrowed_byte_carrier();
+        // A borrowed owned carrier retains its original inline backing; its
+        // domain roster remains in the semantic signature and every write is
+        // checked before native lowering. Domains do not alter pointer ABI.
+        let byte_owner = matches!(
+            declaration.shape,
+            StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+            )
+        );
         let element_view = matches!(declaration.shape, StructuralTypeShape::ElementView { .. });
         // A fixed array borrows as one pointer to its dense leaf storage;
         // elements keep the referent's layout, so no descriptor rides along.
@@ -138,6 +147,7 @@ pub(crate) fn accepts_borrowed_parameters(
             && !record
             && !sum
             && !byte_view
+            && !byte_owner
             && !element_view
             && !fixed_array
             && declaration.shape != StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)
@@ -166,14 +176,20 @@ pub(crate) fn accepts_borrowed_parameters(
                 semantic.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || semantic.access == StructuralAccess::SharedBorrow
-                && (primitive || record || sum || byte_view || element_view || fixed_array))
+                && (primitive
+                    || record
+                    || sum
+                    || byte_view
+                    || byte_owner
+                    || element_view
+                    || fixed_array))
             || semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || (semantic.multiplicity == terminal_psi::StructuralMultiplicity::Affine
                 && !matches!(
                     declaration.shape,
                     StructuralTypeShape::Record { .. } | StructuralTypeShape::FixedArray { .. }
                 ))
-            || !semantic.qualifications.is_empty()
+            || (!byte_owner && !semantic.qualifications.is_empty())
             || !semantic.projected_qualifications.is_empty()
             || parameter.target.place != semantic.place
             || parameter.target.structural_type != semantic.structural_type

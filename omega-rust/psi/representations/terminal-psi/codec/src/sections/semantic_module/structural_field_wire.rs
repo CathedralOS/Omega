@@ -227,6 +227,11 @@ pub(crate) fn encode_structural_field(
             writer.u8(4);
             encode_ieee_float_format(writer, *format);
         }
+        StructuralFieldType::PredicateByteSequence { carrier, predicates } => {
+            writer.u8(7);
+            encode_byte_sequence_carrier(writer, *carrier);
+            writer.u8(predicates.bits());
+        }
         StructuralFieldType::ByteSequence(carrier) => {
             writer.u8(5);
             encode_byte_sequence_carrier(writer, *carrier);
@@ -269,6 +274,14 @@ pub(crate) fn decode_structural_field(
             )
             .map_err(CodecError::MalformedProposition)?,
         ),
+        7 => {
+            let carrier = decode_byte_sequence_carrier(reader)?;
+            let bits = reader.u8()?;
+            let predicates = terminal_psi::ByteSequencePredicateSet::from_bits(bits)
+                .filter(|predicates| !predicates.is_empty())
+                .ok_or(CodecError::InvalidTag("ByteSequencePredicateSet", bits))?;
+            StructuralFieldType::PredicateByteSequence { carrier, predicates }
+        }
         tag => return Err(CodecError::InvalidTag("StructuralFieldType", tag)),
     };
     Ok(StructuralFieldDeclaration {

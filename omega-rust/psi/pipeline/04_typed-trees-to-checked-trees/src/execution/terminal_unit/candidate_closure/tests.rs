@@ -256,7 +256,7 @@ fn retain_available_reference(
                         | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                         | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                         | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                        | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                        | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                         | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                         | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
@@ -300,7 +300,7 @@ fn retain_available_reference(
                             target_machine,
                             ..
                         } => boundary_symbols.contains(target_machine),
-                        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                        CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                         | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                         | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                         | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)

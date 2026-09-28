@@ -40,7 +40,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
             | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)

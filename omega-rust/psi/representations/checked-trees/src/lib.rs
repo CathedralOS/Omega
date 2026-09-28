@@ -106,7 +106,7 @@ pub use checked_trees::{
     CheckedSemanticDependency, CheckedSemanticDependencyExposure, CheckedSemanticDependencyKind,
     CheckedServiceParameterCarrier, CheckedServiceParameterError, CheckedStateNaturalRank,
     CheckedStorageRoot, CheckedStructuralAccess, CheckedStructuralBooleanConvergencePlan,
-    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralByteSequenceFieldStorePlan,
+    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan,
     CheckedStructuralCallCustodyPlan, CheckedStructuralCallReturnPlans,
     CheckedStructuralCaseFieldStorePlan, CheckedStructuralCaseReturnPlan,
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,

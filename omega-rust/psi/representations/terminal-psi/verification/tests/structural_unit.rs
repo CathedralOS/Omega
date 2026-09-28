@@ -146,6 +146,7 @@ fn projected_boundary_qualification_module() -> TerminalModule {
         },
     };
     let domain = StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
@@ -337,6 +338,7 @@ fn hard_root_module() -> TerminalModule {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     };
     let pending = StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: domain_id(1),
         semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),

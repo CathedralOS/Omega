@@ -45,6 +45,7 @@ pub(crate) fn install_content_owner(unit: &mut PsiOptimizationUnit) {
         semantic_vocabulary::ContentProjectionScalar::Natural("1".into()),
     );
     unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: id(1, StructuralDomainId::new),
         semantic_domain,
@@ -74,7 +75,9 @@ pub(crate) fn structural_domain(
     semantic_raw: u64,
     carrier: StructuralTypeId,
 ) -> terminal_psi::StructuralDomainDeclaration {
+    byte_predicate: None,
     terminal_psi::StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: id(raw, StructuralDomainId::new),
         semantic_domain: id(semantic_raw, semantic_vocabulary::DomainSemanticId::new),

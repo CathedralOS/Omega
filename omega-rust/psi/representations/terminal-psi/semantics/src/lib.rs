@@ -14,6 +14,7 @@
 //! primitive places, scalar arrays and structural effects.
 
 mod byte_sequence_concatenation;
+mod byte_sequence_predicates;
 mod call_composition;
 mod placed_view_referent;
 mod primitive_place;
@@ -32,11 +33,15 @@ mod zeroed_structural;
 pub use byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
+pub use byte_sequence_predicates::{
+    byte_literal_qualifications_hold, byte_parameter_predicates, byte_parameter_predicates_from_domains,
+    byte_sequence_source_predicates,
+};
 pub use call_composition::{
     CallArgumentRule, CallCompositionSchema, CallCompositionSemanticRow, CallCrashRule,
     CallEvidenceRule, CallFrontierRule, CallFuelPolicy, CallOutcomeRule, CallRequirementRule,
     CallResultRule, CallTargetRule, CallTransferRule, FixedByteArrayWindow,
-    boundary_buffer_capacity, call_composition_semantic_row,
+    boundary_buffer_capacity, bounded_byte_owner_capacity, call_composition_semantic_row,
     exact_call_composition_semantic_row_in, fixed_byte_array_extent, fixed_byte_array_window,
     fixed_element_array_extent, shared_boundary_buffer_capacity,
     validate_call_composition_semantic_rows,

@@ -111,6 +111,11 @@ pub enum StructuralFieldType {
     /// Relevant IEEE leaf retained for structural identity and predicates.
     IeeeFloat(IeeeFloatFormat),
     ByteSequence(ByteSequenceCarrier),
+    /// Declaration-local byte restrictions; layout remains the carrier layout.
+    PredicateByteSequence {
+        carrier: ByteSequenceCarrier,
+        predicates: crate::ByteSequencePredicateSet,
+    },
     Structural(StructuralTypeId),
     /// Exact semantic type identity for an erased field whose carrier need not
     /// belong to the executable structural/layout vocabulary.
@@ -120,6 +125,20 @@ pub enum StructuralFieldType {
 }
 
 impl StructuralFieldType {
+    pub const fn byte_sequence_carrier(&self) -> Option<ByteSequenceCarrier> {
+        match self {
+            Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => Some(*carrier),
+            _ => None,
+        }
+    }
+
+    pub const fn byte_predicates(&self) -> crate::ByteSequencePredicateSet {
+        match self {
+            Self::PredicateByteSequence { predicates, .. } => *predicates,
+            _ => crate::ByteSequencePredicateSet::EMPTY,
+        }
+    }
+
     /// The scalar carrier used for observation and representation. This does
     /// not discharge restricted-field construction or mutation requirements.
     pub fn scalar_type(&self) -> Option<ScalarType> {
@@ -127,7 +146,7 @@ impl StructuralFieldType {
             Self::Scalar(scalar_type) => Some(*scalar_type),
             Self::BoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
             Self::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
-            Self::ByteSequence(_) | Self::Structural(_) | Self::Erased { .. } => None,
+            Self::ByteSequence(_) | Self::PredicateByteSequence { .. } | Self::Structural(_) | Self::Erased { .. } => None,
         }
     }
 
@@ -151,6 +170,7 @@ impl StructuralFieldType {
                 ScalarType::IeeeFloat(*format),
             )),
             Self::ByteSequence(_)
+            | Self::PredicateByteSequence { .. }
             | Self::BoundedInteger(_)
             | Self::Structural(_)
             | Self::Erased { .. } => None,

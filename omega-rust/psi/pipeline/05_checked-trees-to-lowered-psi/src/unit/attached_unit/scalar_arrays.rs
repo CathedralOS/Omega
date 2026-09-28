@@ -242,7 +242,7 @@ pub(super) fn source_statement(operation: &CheckedUnitEffectOperationPlan) -> Op
         CheckedUnitEffectOperationPlan::StoreStructuralField {
             statement_index, ..
         } => Some(*statement_index),
-        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
             Some(store.statement_index)
         }
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {

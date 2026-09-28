@@ -103,7 +103,7 @@ impl ByteSequenceBinding {
         if value != referent
             || field.parent.opaque_identity != referent.opaque_identity
             || field.parent.path != prefix
-            || !referent.qualifications.is_empty()
+            || (!referent.qualifications.is_empty() && !structural_types.get(&referent.structural_type).is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))))
         {
             return Err(invalid());
         }
@@ -118,8 +118,8 @@ impl ByteSequenceBinding {
             declaration.id == field.field
                 && declaration.identity == *identity
                 && !declaration.relevance.is_erased()
-                && declaration.field_type
-                    == terminal_psi::StructuralFieldType::ByteSequence(
+                && declaration.field_type.byte_sequence_carrier()
+                    == Some(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned {
                             capacity: *capacity,
                         },
@@ -227,7 +227,7 @@ impl TerminalExecution {
                     && self
                         .structural_types
                         .get(&parameter.structural_type)
-                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier())
+                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier() || matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })))
             })
         {
             // Share only exact referent preparation. External buffer staging and

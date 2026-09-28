@@ -91,6 +91,9 @@ pub(crate) fn validate_unit_operation_static(
         OperationKind::StoreStructuralField { .. } => {
             crate::validation::borrowed_windows::validate_store_static(module, machine, operation)?;
         }
+        OperationKind::ByteSequenceStore { .. } => {
+            crate::validation::byte_sequence::store::capacity(module, machine, operation)?;
+        }
         OperationKind::ByteSequenceWrite { .. } => {
             crate::validation::byte_sequence::write::validate(module, machine, operation)?;
         }

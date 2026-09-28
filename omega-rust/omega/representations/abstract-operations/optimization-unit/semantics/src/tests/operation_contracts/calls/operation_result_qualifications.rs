@@ -43,6 +43,7 @@ fn structural_call_and_return_retain_the_exact_projected_result_roster() {
     ]
     .into();
     unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: id(4_693, semantic_vocabulary::DomainSemanticId::new),
@@ -126,6 +127,7 @@ fn qualified_boundary_consumer() -> (PsiOptimizationUnit, StructuralDomainId, St
         .into_iter()
         .enumerate()
         .map(|(index, id)| terminal_psi::StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(4_710 + index as u64)

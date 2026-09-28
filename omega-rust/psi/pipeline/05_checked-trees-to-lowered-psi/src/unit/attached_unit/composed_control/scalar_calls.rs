@@ -172,7 +172,7 @@ fn selected_roots(
                 | CheckedUnitEffectOperationPlan::CallUnit {
                     scalar_arguments, ..
                 } => scalar_arguments,
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 // Whole structural moves and stores evaluate no scalar.

@@ -287,6 +287,7 @@ fn unrestricted_record_parameter_return_preserves_exact_owned_custody() {
     changed
         .structural_domains
         .push(StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: domain_id(1),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),

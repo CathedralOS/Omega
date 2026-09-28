@@ -151,6 +151,13 @@ pub enum TargetUnitOperation {
     },
     /// Replace bounded inline bytes from an immutable live view. The exact
     /// destination field and source-length proof survive physical projection.
+    ByteSequenceStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        source: PlaceId,
+        length: TargetUnitScalarArgumentSource,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     StructuralByteSequenceFieldStore {
         psi_operation: OperationId,
         destination: StructuralArgument,

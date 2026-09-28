@@ -313,6 +313,32 @@ pub(super) fn replacement_retained(
     operation: &AbstractOperation,
     target: &TargetFunction,
 ) -> bool {
+    if let AbstractOperation::ByteSequenceStore {
+        psi_operation,
+        destination,
+        source,
+        length,
+        obligation,
+    } = operation
+    {
+        let Some((access, _)) = read_access(function, target, *destination, true) else {
+            return false;
+        };
+        if destination == source
+            || !matches!(
+                access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
+        {
+            return false;
+        }
+        let mut matching = target.graph.blocks.iter().flat_map(|block| &block.operations).filter(|operation| matches!(operation,
+            TargetUnitOperation::ByteSequenceStore { psi_operation: retained, .. } if retained == psi_operation));
+        return matches!(matching.next(), Some(TargetUnitOperation::ByteSequenceStore { destination: actual_destination, source: actual_source, length: actual_length, obligation: actual_obligation, .. })
+            if actual_destination == destination && actual_source == source && actual_length.source_value() == *length && actual_obligation == obligation)
+            && matching.next().is_none();
+    }
     let AbstractOperation::StructuralByteSequenceFieldStore {
         psi_operation,
         destination,
@@ -378,14 +404,21 @@ pub(super) fn replacement_footprints_retained(
     use selected_instructions::{
         SelectedMemoryAccessOrigin as Origin, SelectedMemoryAccessRole as Role,
     };
-    let AbstractOperation::StructuralByteSequenceFieldStore {
+    let (AbstractOperation::ByteSequenceStore {
+        psi_operation,
+        destination,
+        source,
+        length,
+        obligation,
+    }
+    | AbstractOperation::StructuralByteSequenceFieldStore {
         psi_operation,
         destination,
         source,
         length,
         obligation,
         ..
-    } = operation
+    }) = operation
     else {
         return false;
     };

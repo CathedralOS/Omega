@@ -313,6 +313,7 @@ pub(super) fn append_operation(
     if matches!(
         operation.kind,
         OperationKind::StructuralScalarFieldStore { .. }
+            | OperationKind::ByteSequenceStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::MoveStructuralField { .. }
@@ -354,6 +355,7 @@ pub(super) fn append_operation(
             None => {
                 let root = match &operation.kind {
                     OperationKind::StructuralScalarFieldStore { destination, .. }
+                    | OperationKind::ByteSequenceStore { destination, .. }
                     | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
                     | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
                     | OperationKind::StoreStructuralField { destination, .. } => *destination,
@@ -385,12 +387,14 @@ pub(super) fn append_operation(
     )? {
         axioms.push(equation);
     }
-    if let OperationKind::StructuralByteSequenceFieldStore {
-        length, obligation, ..
-    } = &operation.kind
+    if let OperationKind::StructuralByteSequenceFieldStore { length, obligation, .. }
+        | OperationKind::ByteSequenceStore { length, obligation, .. } = &operation.kind
     {
-        let capacity =
-            crate::validation::structural_byte_sequence_store_capacity(module, machine, operation)?;
+        let capacity = if matches!(operation.kind, OperationKind::ByteSequenceStore { .. }) {
+            crate::validation::byte_sequence_store_capacity(module, machine, operation)?
+        } else {
+            crate::validation::structural_byte_sequence_store_capacity(module, machine, operation)?
+        };
         let integer_type =
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid");
@@ -608,7 +612,8 @@ pub(super) fn append_operation(
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
-        | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::ByteSequenceStore { .. }
+            | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. }

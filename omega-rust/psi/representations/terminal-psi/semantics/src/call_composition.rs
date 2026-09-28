@@ -1,6 +1,10 @@
 //! Exact call-composition policy rows.
 
+mod bounded_byte_owner;
 mod fixed_byte_view;
+pub use bounded_byte_owner::{
+    bounded_byte_owner_capacity, bounded_byte_owner_capacity_from_catalogs,
+};
 pub use fixed_byte_view::{
     FixedByteArrayWindow, fixed_byte_array_extent, fixed_byte_array_window,
     fixed_element_array_extent,
@@ -86,10 +90,11 @@ fn inline_byte_field_capacity<'types>(
     let field = fields
         .iter()
         .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
-    match field.field_type {
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
-            Some(capacity)
-        }
+    if access != StructuralAccess::SharedBorrow && !field.field_type.byte_predicates().is_empty() {
+        return None;
+    }
+    match field.field_type.byte_sequence_carrier()? {
+        ByteSequenceCarrier::BoundedOwned { capacity } => Some(capacity),
         _ => None,
     }
 }

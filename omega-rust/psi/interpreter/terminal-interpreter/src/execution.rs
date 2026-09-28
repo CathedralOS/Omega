@@ -640,6 +640,10 @@ impl TerminalExecution {
                         self.execute_store_structural_field(operation)?;
                         OperationFlow::Advance
                     }
+                    OperationKind::ByteSequenceStore { .. } => {
+                        self.execute_byte_sequence_store(operation)?;
+                        OperationFlow::Advance
+                    }
                     OperationKind::StructuralByteSequenceFieldStore { .. } => {
                         self.execute_structural_byte_sequence_field_store(operation)?;
                         OperationFlow::Advance

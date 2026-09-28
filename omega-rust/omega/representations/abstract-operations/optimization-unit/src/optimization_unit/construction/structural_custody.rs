@@ -106,7 +106,12 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             places.insert(destination.place());
             places.insert(value.place);
         }
-        O::StructuralByteSequenceFieldStore {
+        O::ByteSequenceStore {
+            destination,
+            source,
+            ..
+        }
+        | O::StructuralByteSequenceFieldStore {
             destination,
             source,
             ..

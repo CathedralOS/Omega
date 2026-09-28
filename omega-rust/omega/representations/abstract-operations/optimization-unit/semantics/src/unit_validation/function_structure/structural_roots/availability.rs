@@ -178,7 +178,11 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             dynamic_dispatch.initial.source.place,
             dynamic_dispatch.rebound.source.place,
         ],
-        O::StructuralByteSequenceFieldStore {
+        O::ByteSequenceStore {
+            destination,
+            source,
+            ..
+        } | O::StructuralByteSequenceFieldStore {
             destination,
             source,
             ..

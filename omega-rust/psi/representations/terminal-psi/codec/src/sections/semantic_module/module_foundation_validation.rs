@@ -341,6 +341,13 @@ fn validate_operation_foundation(
         OperationKind::ReleaseReference { .. } => {
             storage_foundations::validate_release_reference(module, machine, operation)?
         }
+        OperationKind::ByteSequenceStore { .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("whole byte store requires Unit");
+            }
+            // Independent module validation replays exact borrowed owner,
+            // immutable source, live extent, predicates and capacity evidence.
+        }
         OperationKind::StructuralByteSequenceFieldStore { .. } => {
             storage_foundations::validate_structural_byte_sequence_field_store(
                 module, machine, operation,

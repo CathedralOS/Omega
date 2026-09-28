@@ -477,7 +477,7 @@ pub(super) fn validate(
                 )?;
             }
             (
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store),
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store),
                 StatementNode::Assignment(assignment),
             ) => {
                 if store.statement_index as usize != ordinal {
@@ -886,7 +886,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. } => {
             Some(coordinate.statement_index)
         }
-        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
             Some(store.statement_index)
         }
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {

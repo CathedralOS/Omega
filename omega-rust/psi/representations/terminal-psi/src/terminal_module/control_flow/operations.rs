@@ -253,6 +253,14 @@ pub enum OperationKind {
         path: Vec<StructuralPathSegment>,
         value: ValueId,
     },
+    /// Replace the complete live value through a borrowed bounded owner.
+    /// The referent retains its capacity, length word, and original backing.
+    ByteSequenceStore {
+        destination: PlaceId,
+        source: PlaceId,
+        length: ValueId,
+        obligation: ObligationId,
+    },
     /// Replace a bounded byte field's live prefix and live length from an
     /// immutable view. The exact source's length observation must satisfy
     /// length <= the independently resolved destination field capacity.
@@ -886,7 +894,8 @@ impl OperationKind {
             | Self::IntegerBitwiseNot { operand: value }
             | Self::IntegerWiden { operand: value }
             | Self::IntegerExactCast { operand: value, .. } => *value = map(*value),
-            Self::StructuralByteSequenceFieldStore { length, .. } => {
+            Self::StructuralByteSequenceFieldStore { length, .. }
+            | Self::ByteSequenceStore { length, .. } => {
                 *length = map(*length);
             }
             Self::StructuralByteSequenceFieldByteStore {

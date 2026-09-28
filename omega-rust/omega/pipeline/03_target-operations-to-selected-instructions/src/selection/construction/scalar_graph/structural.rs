@@ -211,7 +211,8 @@ pub(super) fn operation(
     }
     if matches!(
         row.kind,
-        LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
+        LegalizedScalarInstructionKind::ByteSequenceStore { .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
     ) {
         byte_field_store::replace(source, builder, row)?;
         return Ok(true);

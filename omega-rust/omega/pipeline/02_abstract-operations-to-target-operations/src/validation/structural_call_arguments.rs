@@ -3480,6 +3480,9 @@ fn matches_bounded_byte_field(
                 // A bounded view borrows the whole field: the declared
                 // capacity must equal the field's fixed extent.
                 StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                )
+                | StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
                 ) => *capacity == field_capacity,
                 _ => false,

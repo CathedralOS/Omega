@@ -251,11 +251,7 @@ fn operation_leaves_custody(
         | OperationKind::EstablishByteSequenceLiteral { destination, .. }
         | OperationKind::ByteSequenceWrite { destination, .. }
         | OperationKind::EstablishTrivialAffineLocal { destination } => clears(*destination),
-        OperationKind::StructuralByteSequenceFieldStore {
-            destination,
-            source,
-            ..
-        } => clears(*destination) && clears(*source),
+        OperationKind::ByteSequenceStore { destination, source, .. } | OperationKind::StructuralByteSequenceFieldStore { destination, source, .. } => clears(*destination) && clears(*source),
         OperationKind::EstablishRecord { fields }
         | OperationKind::EstablishStructuralCase { fields, .. } => {
             fields.iter().all(|field| match &field.value {
@@ -708,7 +704,7 @@ fn cycle_operation_eligible(
         | OperationKind::BooleanStructuralField { .. } => operation.result.scalar().is_some(),
         OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ByteSequenceWrite { .. }
-        | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::ByteSequenceStore { .. } | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::EstablishByteSequenceLiteral { .. } => {
             operation.result == OperationResult::Unit

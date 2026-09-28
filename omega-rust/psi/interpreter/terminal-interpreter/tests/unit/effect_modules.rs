@@ -393,6 +393,7 @@ pub(super) fn effect_module() -> TerminalModule {
             shape: StructuralTypeShape::Record { fields: Vec::new() },
         }],
         structural_domains: vec![StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)

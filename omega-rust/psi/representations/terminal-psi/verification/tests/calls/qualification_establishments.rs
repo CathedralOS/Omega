@@ -25,6 +25,7 @@ fn routed_module() -> TerminalModule {
         shape: StructuralTypeShape::Record { fields: Vec::new() },
     });
     module.structural_domains.push(StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: vec![StructuralEstablishmentRoute::BoundaryRequirement {
             requirement: "test::observe".to_owned(),
         }],

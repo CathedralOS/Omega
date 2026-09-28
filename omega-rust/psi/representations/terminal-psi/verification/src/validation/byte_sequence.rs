@@ -6,3 +6,5 @@ pub(crate) mod length;
 pub(crate) mod read;
 pub(crate) mod subslice;
 pub(crate) mod write;
+
+pub(crate) mod store;

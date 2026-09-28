@@ -77,7 +77,11 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation,
                 ..
             }
-            | O::StructuralByteSequenceFieldStore {
+            | O::ByteSequenceStore {
+                psi_operation,
+                obligation,
+                ..
+            } | O::StructuralByteSequenceFieldStore {
                 psi_operation,
                 obligation,
                 ..

@@ -306,7 +306,7 @@ pub(crate) fn lower_unit_closure(
     // generated immutable carrier before cloning it into any callee emitter.
     for machine_symbol in &closure {
         for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-            if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) =
+            if let CheckedUnitEffectOperationPlan::ByteSequenceStore(store) =
                 operation
             {
                 crate::emission::structural_byte_sequence_store::prepare_types(

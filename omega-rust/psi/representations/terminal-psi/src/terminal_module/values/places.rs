@@ -250,6 +250,7 @@ impl OperationKind {
             | Self::ByteSequenceLength { .. }
             | Self::ByteSequenceRead { .. }
             | Self::ByteSequenceWrite { .. }
+            | Self::ByteSequenceStore { .. }
             | Self::ByteSequenceSubslice { .. }
             | Self::ElementViewLength { .. }
             | Self::ElementViewRead { .. }

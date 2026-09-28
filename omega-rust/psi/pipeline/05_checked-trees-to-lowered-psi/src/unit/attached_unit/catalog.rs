@@ -573,6 +573,9 @@ pub(crate) fn lower_unit_structural_type_roots(
                     CheckedUnitStructuralFieldType::Scalar(primitive) => {
                         (field.relevance, terminal_structural_field_type(*primitive)?)
                     }
+                    CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => {
+                        (field.relevance, StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates })
+                    }
                     CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
                         (field.relevance, StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier)))
                     }
@@ -653,6 +656,7 @@ pub(crate) fn lower_unit_structural_type_roots(
                                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                                 terminal_structural_field_type(*primitive)?
                                             }
+                                            CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
                                             CheckedUnitStructuralFieldType::ByteSequence(
                                                 carrier,
                                             ) => StructuralFieldType::ByteSequence(
@@ -835,6 +839,7 @@ pub(super) fn lower_unit_structural_domains_including(
             let establishment_routes =
                 lower_establishment_routes(checked, &plan.establishment_routes)?;
             Ok(StructuralDomainDeclaration {
+                byte_predicate: plan.byte_predicate,
                 establishment_routes,
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))
@@ -1098,7 +1103,7 @@ pub(super) fn lower_unit_services_including(
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)

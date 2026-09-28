@@ -186,7 +186,7 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }
-        | O::StructuralByteSequenceFieldStore { .. }
+        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }

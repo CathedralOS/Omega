@@ -445,6 +445,9 @@ pub(super) fn encode_structural_domain(
     bytes.id(declaration.semantic_domain);
     bytes.string(&declaration.identity);
     bytes.id(declaration.carrier);
+    bytes.u8(declaration
+        .byte_predicate
+        .map_or(0, |predicate| predicate.mask_bit()));
     encode_optional(
         bytes,
         declaration.content_projection.as_ref(),
@@ -481,6 +484,14 @@ pub(super) fn encode_structural_field(
         StructuralFieldType::IeeeFloat(value) => {
             bytes.u8(2);
             encode_float_format(bytes, *value);
+        }
+        StructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates,
+        } => {
+            bytes.u8(7);
+            encode_byte_carrier(bytes, *carrier);
+            bytes.u8(predicates.bits());
         }
         StructuralFieldType::ByteSequence(value) => {
             bytes.u8(3);

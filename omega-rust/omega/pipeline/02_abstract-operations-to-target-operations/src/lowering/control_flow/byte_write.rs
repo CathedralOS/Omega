@@ -22,20 +22,65 @@ pub(super) fn replace(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let AbstractOperation::StructuralByteSequenceFieldStore {
-        psi_operation,
-        destination,
-        path,
-        field,
-        source,
-        length,
-        obligation,
-    } = operation
-    else {
-        return Err(LoweringError::unsupported_control_flow(function.machine));
-    };
-    let destination_argument =
-        writable_field(function, structural_types, *destination, path, *field)?;
+    let (psi_operation, destination, source, length, obligation, field_destination) =
+        match operation {
+            AbstractOperation::ByteSequenceStore {
+                psi_operation,
+                destination,
+                source,
+                length,
+                obligation,
+            } => {
+                let parameter = function
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == *destination)
+                    .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+                if !matches!(
+                    parameter.access,
+                    StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.projected_qualifications.is_empty()
+                    || !structural_types
+                        .get(&parameter.structural_type)
+                        .is_some_and(|declaration| {
+                            matches!(
+                                declaration.shape,
+                                StructuralTypeShape::ByteSequence(
+                                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                            )
+                        })
+                    || function
+                        .entry_claims
+                        .iter()
+                        .any(|claim| claim.input == *destination)
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                (psi_operation, destination, source, length, obligation, None)
+            }
+            AbstractOperation::StructuralByteSequenceFieldStore {
+                psi_operation,
+                destination,
+                path,
+                field,
+                source,
+                length,
+                obligation,
+            } => (
+                psi_operation,
+                destination,
+                source,
+                length,
+                obligation,
+                Some((
+                    writable_field(function, structural_types, *destination, path, *field)?,
+                    *field,
+                )),
+            ),
+            _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
+        };
     if source == destination
         || live.lengths.get(length) != Some(source)
         || !(prepared
@@ -57,13 +102,23 @@ pub(super) fn replace(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    operations.push(TargetUnitOperation::StructuralByteSequenceFieldStore {
-        psi_operation: *psi_operation,
-        destination: destination_argument,
-        field: *field,
-        source: *source,
-        length: length_value.into_target_source(*length),
-        obligation: *obligation,
+    operations.push(if let Some((destination, field)) = field_destination {
+        TargetUnitOperation::StructuralByteSequenceFieldStore {
+            psi_operation: *psi_operation,
+            destination,
+            field,
+            source: *source,
+            length: length_value.into_target_source(*length),
+            obligation: *obligation,
+        }
+    } else {
+        TargetUnitOperation::ByteSequenceStore {
+            psi_operation: *psi_operation,
+            destination: *destination,
+            source: *source,
+            length: length_value.into_target_source(*length),
+            obligation: *obligation,
+        }
     });
     provenance.operations.push(*psi_operation);
     Ok(())
@@ -121,10 +176,8 @@ fn writable_field(
     if matching.next().is_some()
         || selected.relevance.is_erased()
         || !matches!(
-            selected.field_type,
-            StructuralFieldType::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-            )
+            selected.field_type.byte_sequence_carrier(),
+            Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
         )
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));

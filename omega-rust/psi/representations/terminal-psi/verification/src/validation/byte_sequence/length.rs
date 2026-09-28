@@ -22,6 +22,40 @@ pub(in crate::validation) fn validate(
             operation.id,
         ));
     }
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == source)
+        && matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        )
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && terminal_semantics::byte_parameter_predicates(module, parameter).is_some()
+        && module.structural_types.iter().any(|row| {
+            row.id == parameter.structural_type
+                && matches!(
+                    row.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+        && !machine
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == source)
+        && !machine
+            .content_entry_claims
+            .iter()
+            .any(|claim| claim.input.root == source)
+    {
+        // Owner length is metadata; observing it does not read any byte
+        // through a write-only loan.
+        return Ok(());
+    }
     if machine
         .structural_parameters
         .iter()
@@ -71,10 +105,19 @@ pub(in crate::validation) fn validate_source(
                         && parameter.is_self == is_self
                 })
                 .ok_or_else(&invalid)?;
-            if parameter.access != StructuralAccess::SharedBorrow
+            let owned = module.structural_types.iter().any(|row| {
+                row.id == parameter.structural_type
+                    && matches!(
+                        row.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+            });
+            if !(parameter.access == StructuralAccess::SharedBorrow
+                || (owned && parameter.access == StructuralAccess::MutableBorrow))
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
-                || !parameter.projected_qualifications.is_empty()
+                || terminal_semantics::byte_parameter_predicates(module, parameter).is_none()
             {
                 return Err(invalid());
             }
@@ -115,7 +158,11 @@ pub(in crate::validation) fn validate_source(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                         | terminal_psi::ByteSequenceCarrier::BoundedView { .. }
                 )
-            ) || (super::concatenation::owned_result(machine, source).is_some()
+            ) || ((super::concatenation::owned_result(machine, source).is_some()
+                || machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == source))
                 && matches!(
                     declaration.shape,
                     StructuralTypeShape::ByteSequence(

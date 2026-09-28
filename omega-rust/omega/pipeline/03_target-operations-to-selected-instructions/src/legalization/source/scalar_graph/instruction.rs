@@ -242,6 +242,9 @@ pub(super) fn project(
         AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
             storage_instructions::project_byte_sequence_concatenation(node, optimized, unit)?
         }
+        AbstractOperation::ByteSequenceStore { .. } => {
+            storage_instructions::project_byte_sequence_store(node, optimized, unit)?
+        }
         AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
             storage_instructions::project_structural_byte_sequence_field_store(
                 node, optimized, unit,

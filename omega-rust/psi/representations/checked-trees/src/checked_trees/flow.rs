@@ -62,7 +62,7 @@ pub use self::terminal::{
     CheckedScalarReturnPlan, CheckedScalarStateGraph, CheckedScalarStateTerminator,
     CheckedScalarSuccessor, CheckedStateNaturalRank, CheckedStructuralAccess,
     CheckedStructuralBooleanConvergencePlan, CheckedStructuralByteSequenceFieldByteStorePlan,
-    CheckedStructuralByteSequenceFieldStorePlan, CheckedStructuralCallCustodyPlan,
+    CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan, CheckedStructuralCallCustodyPlan,
     CheckedStructuralCallReturnPlans, CheckedStructuralCaseReturnPlan,
     CheckedStructuralControlCleanupPlans, CheckedStructuralControlEdgeCleanupPlan,
     CheckedStructuralControlProjectedEdgeCleanupPlan,

@@ -8,7 +8,7 @@ use super::{
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
-use checked_trees::{CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
+use checked_trees::{CheckedByteSequenceStoreDestination as Destination, CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
@@ -34,7 +34,7 @@ pub(crate) fn validate_assignment(
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
     assignment: &checked_trees::statement::TableAssignment,
-    store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+    store: &checked_trees::CheckedByteSequenceStorePlan,
 ) -> Result<(), LoweringError> {
     let (owner, state) =
         crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
@@ -54,10 +54,14 @@ pub(crate) fn validate_assignment(
         .ok_or(LoweringError::Unsupported(
             "byte-field store has no authored parameter",
         ))?;
-    let mut path = store.carrier_path.clone();
-    path.push(CheckedUnitStructuralPathSegment::Field(
-        store.field_identity.clone(),
-    ));
+    let path = match &store.destination {
+        Destination::Whole => Vec::new(),
+        Destination::Field { carrier_path, field_identity } => {
+            let mut path = carrier_path.clone();
+            path.push(CheckedUnitStructuralPathSegment::Field(field_identity.clone()));
+            path
+        }
+    };
     if source.root != parameter.symbol || source.path != path {
         return unsupported("byte-field store destination differs from its authored place");
     }
@@ -165,7 +169,7 @@ fn validate_value(
 
 /// Generated owned carriers are shared by capacity, independently of live extent.
 pub(crate) fn prepare_types(
-    store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+    store: &checked_trees::CheckedByteSequenceStorePlan,
     types: &mut Vec<StructuralTypeDeclaration>,
 ) -> Result<(), LoweringError> {
     literal_view_type(types)?;
@@ -242,7 +246,7 @@ pub(crate) fn literal_view_type(
 }
 
 pub(crate) fn emit(
-    store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+    store: &checked_trees::CheckedByteSequenceStorePlan,
     parameters: &[StructuralParameterDeclaration],
     structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,
@@ -257,23 +261,26 @@ pub(crate) fn emit(
         .ok_or(LoweringError::Unsupported(
             "byte-field store destination is absent",
         ))?;
-    let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_place(
-        store.statement_index,
-        store.statement_index,
-        store.destination_parameter_position,
-        &store.carrier_path,
-        &store.field_identity,
-        parameter,
-        structural_types,
-        crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
-    )?;
-    let StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-        capacity,
-    }) = field.field_type
-    else {
-        return unsupported("byte-field store destination is not bounded owned bytes");
+    let field_destination = match &store.destination {
+        Destination::Whole => {
+            if !matches!(parameter.access, terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
+                || !structural_types.iter().find(|declaration| declaration.id == parameter.structural_type)
+                    .is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })))
+            { return unsupported("whole byte store requires a borrowed bounded owner"); }
+            None
+        }
+        Destination::Field { carrier_path, field_identity } => {
+            let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_place(
+                store.statement_index, store.statement_index, store.destination_parameter_position,
+                carrier_path, field_identity, parameter, structural_types,
+                crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+            )?;
+            if !matches!(field.field_type.byte_sequence_carrier(), Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })) {
+                return unsupported("byte-field store destination is not bounded owned bytes");
+            }
+            Some((path, field.id))
+        }
     };
-    let field = field.id;
     let (operand, _) = ValueEmitter {
         plan: &store.value,
         parameters,
@@ -288,16 +295,21 @@ pub(crate) fn emit(
     let ByteSequenceOperand::Whole { source, length } = operand else {
         return unsupported("whole field replacement requires a materialized byte value");
     };
-    let _ = capacity; // The field replacement's own obligation proves the receiving bound.
-    operations.invalidate_field_lengths_under(parameter.place, &path);
-    Ok(OperationKind::StructuralByteSequenceFieldStore {
-        destination: parameter.place,
-        path,
-        field,
-        source,
-        length,
-        obligation: obligation_id(allocate_dense(next_obligation)?),
-    })
+    let obligation = obligation_id(allocate_dense(next_obligation)?);
+    match field_destination {
+        Some((path, field)) => {
+            operations.invalidate_field_lengths_under(parameter.place, &path);
+            Ok(OperationKind::StructuralByteSequenceFieldStore {
+                destination: parameter.place, path, field, source, length, obligation,
+            })
+        }
+        None => {
+            operations.invalidate_field_lengths_under(parameter.place, &[]);
+            Ok(OperationKind::ByteSequenceStore {
+                destination: parameter.place, source, length, obligation,
+            })
+        }
+    }
 }
 
 struct ValueEmitter<'input> {
@@ -396,8 +408,8 @@ impl ValueEmitter<'_> {
                         field_identity,
                         self.structural_types,
                     )?;
-                if field.field_type
-                    != StructuralFieldType::ByteSequence(
+                if field.field_type.byte_sequence_carrier()
+                    != Some(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned {
                             capacity: *capacity,
                         },

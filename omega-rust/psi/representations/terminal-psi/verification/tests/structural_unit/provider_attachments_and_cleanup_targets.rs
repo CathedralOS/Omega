@@ -358,6 +358,7 @@ fn direct_write_only_primitive_store_rejects_custody_shape_and_value_mutations()
     qualified
         .structural_domains
         .push(StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: domain_id(1),
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1)

@@ -19,21 +19,53 @@ pub(super) fn replace(
     replay: &mut Replay<'_>,
     row: &LegalizedScalarInstruction,
 ) -> Result<(), SelectedInstructionError> {
-    let LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
-        destination,
-        field,
-        source,
-        length,
-        obligation,
-        accepted_fact,
-    } = &row.kind
-    else {
-        return Err(replay.invalid());
-    };
     let signature = function
         .structural
         .as_ref()
         .ok_or_else(|| replay.invalid())?;
+    let (destination, field, source, length, obligation, accepted_fact) = match &row.kind {
+        LegalizedScalarInstructionKind::ByteSequenceStore {
+            destination,
+            source,
+            length,
+            obligation,
+            accepted_fact,
+        } => {
+            let parameter = signature
+                .parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == *destination)
+                .ok_or_else(|| replay.invalid())?;
+            (
+                terminal_psi::StructuralArgument {
+                    place: *destination,
+                    access: parameter.semantic.access,
+                    path: Vec::new(),
+                },
+                None,
+                source,
+                length,
+                obligation,
+                accepted_fact,
+            )
+        }
+        LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
+            destination,
+            field,
+            source,
+            length,
+            obligation,
+            accepted_fact,
+        } => (
+            destination.clone(),
+            Some(*field),
+            source,
+            length,
+            obligation,
+            accepted_fact,
+        ),
+        _ => return Err(replay.invalid()),
+    };
     let parameter = signature
         .parameters
         .iter()
@@ -46,21 +78,36 @@ pub(super) fn replace(
             StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
         )
         || parameter.semantic.multiplicity == terminal_psi::StructuralMultiplicity::Linear
-        || !parameter.semantic.qualifications.is_empty()
+        || (field.is_some() && !parameter.semantic.qualifications.is_empty())
         || !parameter.semantic.projected_qualifications.is_empty()
         || *source == destination.place
         || crate::selection::established_view_input::readable_byte_type(function, *source).is_none()
     {
         return Err(replay.invalid());
     }
-    let (metadata_offset, _) =
+    let metadata_offset = if let Some(field) = field {
         crate::structural_inputs::structural_reference_input::byte_field_storage(
             parameter.semantic.structural_type,
             &destination.path,
-            *field,
+            field,
             &signature.structural_types,
         )
-        .ok_or_else(|| replay.invalid())?;
+        .ok_or_else(|| replay.invalid())?
+        .0
+    } else {
+        if !signature.structural_types.iter().any(|declaration| {
+            declaration.id == parameter.semantic.structural_type
+                && matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        }) {
+            return Err(replay.invalid());
+        }
+        0
+    };
     let byte_offset = metadata_offset
         .checked_add(8)
         .ok_or_else(|| replay.invalid())?;

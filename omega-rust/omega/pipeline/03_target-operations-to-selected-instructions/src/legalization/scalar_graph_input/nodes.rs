@@ -55,6 +55,7 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. }
     | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
+    | AbstractOperation::ByteSequenceStore { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
     | AbstractOperation::WriteOnlyPrimitiveStore { psi_operation, .. }
     | AbstractOperation::StructuralLeafCopy { psi_operation, .. }
@@ -595,7 +596,8 @@ pub(super) fn validate(
             }
             continue;
         }
-        if let AbstractOperation::StructuralByteSequenceFieldStore { length, .. } = &node.operation
+        if let AbstractOperation::ByteSequenceStore { length, .. }
+        | AbstractOperation::StructuralByteSequenceFieldStore { length, .. } = &node.operation
         {
             if result.is_some()
                 || !node.definitions.is_empty()

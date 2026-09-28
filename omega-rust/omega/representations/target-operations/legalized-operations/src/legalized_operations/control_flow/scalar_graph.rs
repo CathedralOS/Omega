@@ -137,7 +137,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::ElementViewSubslice {
                 start, end, length, ..
             } => [*start, *end, *length].into_iter().for_each(visit),
-            LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => {
+            LegalizedScalarInstructionKind::ByteSequenceStore { length, .. }
+            | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { length, .. } => {
                 visit(*length)
             }
             LegalizedScalarInstructionKind::ByteSequenceWrite {
@@ -329,6 +330,13 @@ pub enum LegalizedScalarInstructionKind {
     },
     /// Copy precisely the immutable source's live bytes, then publish its length.
     /// Geometry is reconstructed from the destination, never from source capacity.
+    ByteSequenceStore {
+        destination: semantic_vocabulary::PlaceId,
+        source: semantic_vocabulary::PlaceId,
+        length: ValueId,
+        obligation: ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     StructuralByteSequenceFieldStore {
         destination: terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,

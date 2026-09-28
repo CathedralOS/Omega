@@ -65,6 +65,7 @@ pub(super) fn encode_structural_domain(
     writer.id(declaration.semantic_domain);
     writer.string("structural domain identity", &declaration.identity)?;
     writer.id(declaration.carrier);
+    writer.u8(declaration.byte_predicate.map_or(0, |predicate| predicate.mask_bit()));
     writer.boolean(declaration.content_projection.is_some());
     if let Some(projection) = &declaration.content_projection {
         writer.id(projection.identity.domain);
@@ -115,6 +116,14 @@ pub(super) fn decode_structural_domain(
         semantic_domain: reader.id("DomainSemanticId")?,
         identity: reader.string("structural domain identity")?,
         carrier: reader.id("StructuralTypeId")?,
+        byte_predicate: match reader.u8()? {
+            0 => None,
+            1 => Some(terminal_psi::ByteSequencePredicate::ValidUtf8),
+            2 => Some(terminal_psi::ByteSequencePredicate::NoNul),
+            4 => Some(terminal_psi::ByteSequencePredicate::AsciiOnly),
+            8 => Some(terminal_psi::ByteSequencePredicate::NonEmpty),
+            tag => return Err(CodecError::InvalidTag("ByteSequencePredicate", tag)),
+        },
         content_projection: if reader.boolean()? {
             Some(StructuralContentProjection {
                 identity: ContentProjectionIdentity {

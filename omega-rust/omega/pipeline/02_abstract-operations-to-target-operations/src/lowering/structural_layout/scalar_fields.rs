@@ -68,7 +68,8 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
             }
             StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
             StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
-            StructuralFieldType::ByteSequence(carrier) => {
+            StructuralFieldType::ByteSequence(carrier)
+            | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
                 byte_sequence_shape(carrier, structural_type)?
             }
             StructuralFieldType::Structural(nested) => {

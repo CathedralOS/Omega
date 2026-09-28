@@ -115,6 +115,10 @@ pub enum CheckedUnitStructuralFieldType {
     Scalar(PrimitiveType),
     BoundedInteger(semantic_vocabulary::BoundedIntegerType),
     ByteSequence(CheckedByteSequenceCarrier),
+    PredicateByteSequence {
+        carrier: CheckedByteSequenceCarrier,
+        predicates: language_semantics::byte_predicates::ByteSequencePredicateSet,
+    },
     Structural {
         type_identity: String,
     },
@@ -139,6 +143,15 @@ pub enum CheckedUnitStructuralFieldType {
     Erased {
         type_identity: String,
     },
+}
+
+impl CheckedUnitStructuralFieldType {
+    pub fn byte_sequence_carrier(&self) -> Option<CheckedByteSequenceCarrier> {
+        match self {
+            Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => Some(*carrier),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -237,6 +250,7 @@ impl CheckedByteSequenceCarrier {
 /// One normalized structural qualification required by a retained parameter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedUnitStructuralDomainPlan {
+    pub byte_predicate: Option<language_semantics::byte_predicates::ByteSequencePredicate>,
     pub domain: SemanticDomainId,
     pub identity: String,
     pub carrier_type_identity: String,

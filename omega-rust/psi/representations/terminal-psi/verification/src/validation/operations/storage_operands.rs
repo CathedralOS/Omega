@@ -67,7 +67,7 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     value_types: &BTreeMap<ValueId, ScalarType>,
     defined: &BTreeSet<ValueId>,
 ) -> Result<(), ModuleError> {
-    let OperationKind::StructuralByteSequenceFieldStore { length, .. } = operation.kind else {
+    let (OperationKind::ByteSequenceStore { length, .. } | OperationKind::StructuralByteSequenceFieldStore { length, .. }) = operation.kind else {
         unreachable!("dispatched validate_structural_byte_sequence_field_store")
     };
     require_defined(length, value_types, defined)?;
