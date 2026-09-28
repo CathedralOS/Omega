@@ -121,12 +121,15 @@ fn concrete_invocation_discharges_arithmetic_guards_from_checked_evidence() {
     // retains that expression over entry values, and the checked scalar
     // channel decides it once the outer concrete call supplies the binding;
     // interpretation success alone cannot establish this safety.
+    // Each Exact operation also needs a bound for all admitted arguments.
     let evaluated = evaluate(
         "machine divide(value: u64) -> u64
         crashes Trap value == 0
         { transition { value != 0 -> 10 / value } crash Trap; }
-        machine forward(value: u64) -> u64 { divide(value - 1) }
-        machine product(value: u64) -> u64 { divide(value * 2) }
+        machine forward(value: u64) -> u64
+        requires value > 0 { divide(value - 1) }
+        machine product(value: u64) -> u64
+        requires value <= 9223372036854775807 { divide(value * 2) }
         const DIVIDED: u64 = forward(3);
         const PRODUCT: u64 = product(1);",
     )
@@ -136,20 +139,41 @@ fn concrete_invocation_discharges_arithmetic_guards_from_checked_evidence() {
 }
 
 #[test]
+fn concrete_arguments_do_not_waive_exact_arithmetic_proof_obligations() {
+    for expression in ["value - 1", "value * 2"] {
+        let source = format!(
+            "machine calculate(value: u64) -> u64 {{ {expression} }}
+             const VALUE: u64 = calculate(3);"
+        );
+        let diagnostics = evaluate(&source)
+            .expect_err("a safe concrete call does not make an unconstrained Exact body valid");
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                diagnostic.message.contains("exact arithmetic")
+                    && diagnostic.message.contains("may overflow `u64`")
+            }),
+            "must retain the per-operation Exact proof obligation: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn concrete_invocation_rejects_arithmetic_guards_that_hold_or_trap() {
     for source in [
         // `1 - 1` lands on the guarded divisor: the Trap route is confirmed.
         "machine divide(value: u64) -> u64
         crashes Trap value == 0
         { transition { value != 0 -> 10 / value } crash Trap; }
-        machine forward(value: u64) -> u64 { divide(value - 1) }
+        machine forward(value: u64) -> u64
+        requires value > 0 { divide(value - 1) }
         const UNUSED: u64 = forward(1);",
-        // The exact subtraction itself traps before the callee is reached;
+        // Explicit Trapping subtraction traps before the callee is reached;
         // the caller's own recorded cause keeps the invocation refused.
         "machine divide(value: u64) -> u64
         crashes Trap value == 0
         { transition { value != 0 -> 10 / value } crash Trap; }
-        machine forward(value: u64) -> u64 { divide(value - 1) }
+        machine forward(value: u64) -> u64
+        { divide(((value as u64 in Trapping) - 1) as u64) }
         const UNUSED: u64 = forward(0);",
         // An operand with no entry-value custody keeps no provable origin.
         // `hidden(0)` would interpret to a safe `divide(1)`, but a call
