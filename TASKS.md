@@ -4454,38 +4454,37 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   custody-bearing quotients. **QUOTIENT-RUNTIME-REALIZATION** owns execution;
   the existing managed canaries still stop at Terminal's execution fence.
 
-- **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Connect checked adapter port I/O
-  to native production under [consumer-owned settlement](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
-  PE/ELF/Mach-O evaluated locator custody is a separate, implemented route;
-  privileged instructions belong to checked `asm`, not a foreign-binding
-  instruction language.
+- **PRIVILEGED-PORT-EFFECT-SETTLEMENTS.** Produce checked adapter port I/O
+  through ordinary native lowering and
+  [consumer-owned settlement](wiki/spec/terminal-psi/boundary_calls.md#consumer-owned-settlement).
+  Use checked `asm`; evaluated PE/ELF/Mach-O locator custody is separate.
 
-  `TargetUnitOperation::PortWrite`, x86 encodings and independent
-  port-effect custody readers exist. Ordinary selection, register-home/
-  post-allocation transport and machine-fragment emission still do not
-  produce the port effects: image-emission's
-  `function_fragments/production.rs` publishes an empty roster.
-  Carry an installed selected adapter's exact `PortIo` requirement,
-  service/port/value, operation ordinal and byte span through that route.
-  Preserve the effect-before-settlement join through object rebasing, final
-  image and installation evidence; reuse the existing readers in
-  native-artifact's `physical/derivation/provider_custody.rs`.
+  Start with an installed adapter owning the exact selected `PortIo` requirement
+  and closed `out`. Checked planning retains only exact `u16`/`u8` operands;
+  runtime operands need their own checked carrier. `TargetUnitOperation::PortWrite`
+  and x86 encodings exist, but stage 02's `lowering/control_flow/operations.rs`
+  has no production arm; stage 03 scalar-graph admission also refuses the
+  family. Carry service/port/value and operation identity through selection,
+  register homes and post-allocation emission. Image-emission's
+  `function_fragments/production.rs` emits an empty port roster and its
+  `validation.rs` rejects nonempty rosters; implement both production and replay.
 
-  Use a positive fixture whose checked adapter owns the selected requirement.
-  Direct-root privileged operations must continue to reject without provider
-  custody; do not turn their negative fixtures into a bypass. The
-  `asm_runtime_port_msr_final_validation` customer also needs its actual
-  selected bindings; unrelated machine-control/root-binding gaps do not
-  belong to this port transport repair. Port read (`in`) additionally needs
-  its Terminal operation and producer route; `DirectPortReadU8` settlement
-  metadata alone does not supply them.
+  Reuse native-artifact's `physical/derivation/provider_custody.rs` readers
+  for the preceding effect/zero-byte settlement join, ordinal and byte
+  span across machine, object, final image and installation evidence.
+  `asm_port_out_final_validation` is a direct root rejected for missing
+  provider custody, not a positive selected-adapter witness. Preserve that
+  refusal. `asm_runtime_port_msr_final_validation` also needs checked runtime
+  operands and actual selected bindings; its machine-control gaps remain
+  separate. Port read (`in`) still needs its checked/Terminal operation and
+  producer route; `DirectPortReadU8` metadata is insufficient.
 
-  Acceptance: an authored selected adapter produces and independently
-  validates its exact native effects. Missing, duplicate, substituted,
-  role-swapped or unconsumed records, changed service/port/value/target,
-  detached spans and altered bytes reject. Keep unsupported-target refusal.
-  Separate emitted-byte verification from execution, which requires an
-  appropriately admitted privileged environment, not raw I/O in a hosted test.
+  Acceptance: an authored selected adapter emits independently validated native
+  effects. Reject missing, duplicate, substituted, role-swapped or unconsumed
+  records, changed service/port/value/target, detached spans and altered bytes;
+  preserve unsupported-target refusal. Verify emitted bytes separately from
+  execution in an admitted privileged environment. Hosted tests must not execute
+  raw port I/O.
 
 - **FLOAT-PROVIDERS.** Complete checked source and independently replayed
   `FloatSemantics` obligations used by the actual `Float::*` slot contracts,
