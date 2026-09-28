@@ -101,6 +101,46 @@ fn selected_fixed_token_checked_adapter_joins_its_plan_under_shared_custody() {
     assert!(selected.installation_reach_resolutions().is_empty());
 }
 
+#[test]
+fn selected_requirement_adapter_requires_the_complete_schema_and_one_exact_row() {
+    let (checked, plan) = fixed_token_checked_adapter_fixture();
+    let requirement = checked
+        .facts
+        .operators
+        .uses
+        .iter()
+        .next()
+        .expect("one spelled boundary-operator use")
+        .1
+        .selected_operator_symbol;
+    let adapter = crate::selected_requirement_checked_adapter(&checked.typed, &plan, requirement)
+        .expect("exact selected authority")
+        .expect("selected checked body");
+    assert_eq!(adapter.name.as_str(), "CheckedMathProvider::add");
+
+    let mut changed_schema = plan.clone();
+    changed_schema.schema.methods[0].parameter_count += 1;
+    assert!(
+        crate::selected_requirement_checked_adapter(&checked.typed, &changed_schema, requirement)
+            .is_err(),
+        "matching overload identity alone cannot authorize a different schema"
+    );
+    let mut duplicate_row = plan.clone();
+    duplicate_row.rows.push(plan.rows[0].clone());
+    assert!(
+        crate::selected_requirement_checked_adapter(&checked.typed, &duplicate_row, requirement)
+            .is_err(),
+        "a selected requirement must retain exactly one realization row"
+    );
+    let mut wrong_row = plan.clone();
+    wrong_row.rows[0].requirement_identity.clear();
+    assert!(
+        crate::selected_requirement_checked_adapter(&checked.typed, &wrong_row, requirement)
+            .is_err(),
+        "the realization row must bind the exact schema method"
+    );
+}
+
 /// The provider realizes `+` and spells `+` inside its own body; the caller
 /// invokes the realization machine directly. Only the provider-internal
 /// spelling is a boundary-operator use.

@@ -14,6 +14,13 @@ resolves the selected realization's reach. Both return planned results without
 mutating the checked program. [selection_provenance.rs](src/provider_planning/selection_provenance.rs) owns authored
 selection inputs and target defaults.
 
+For selected compile-time execution,
+[adapter conformance](src/provider_planning/provenance_replay/adapter_conformance.rs)
+joins the exact requirement schema and realization row to its checked adapter.
+The compiler forwards that adapter to Psi's build-time evaluator, which owns
+execution admissibility, operands and replay; it does not reconstruct provider
+authority.
+
 Target defaults preserve their exact producer roster through target-marker
 erasure and typed construction, then rejoin those typed machines before plan
 selection. Do not replace the consuming carrier with a raw machine-name channel.

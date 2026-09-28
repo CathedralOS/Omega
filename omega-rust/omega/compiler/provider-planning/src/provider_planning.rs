@@ -68,8 +68,8 @@ pub(crate) use provenance_replay::exact_checked_adapter_invocations;
 pub use provenance_replay::{
     DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance, ProviderSchemaDeclaration,
     SelectedTargetMachineOrigin, derive_satisfies_plans, exact_checked_adapter,
-    satisfied_requirement_identity, satisfies_plan_name, validate_derived_provider_plan_candidates,
-    validate_provider_plan_candidates,
+    satisfied_requirement_identity, satisfies_plan_name, selected_requirement_checked_adapter,
+    validate_derived_provider_plan_candidates, validate_provider_plan_candidates,
 };
 pub use selected_plan_bindings::SelectedProviderPlanBinding;
 pub use selection_provenance::{

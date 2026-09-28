@@ -65,11 +65,24 @@ impl SelectedConstEvaluation {
                         .map_err(|reason| vec![Diagnostic::error(reason)])?,
                     );
                 }
-            } else if let Some(row) =
-                selected_provider_body_row(typed, plan, requirement, expression, origin)
-                    .map_err(|diagnostic| vec![diagnostic])?
+            } else if let Some(provider) =
+                provider_planning::selected_requirement_checked_adapter(typed, plan, requirement)
+                    .map_err(|error| vec![error])?
             {
-                selected.provider_bodies.push(row);
+                selected.provider_bodies.push(
+                    SelectedBuildTimeProviderBody::prepare(
+                        typed,
+                        expression,
+                        origin,
+                        requirement,
+                        provider,
+                        plan.provider_type.clone(),
+                        CheckedProviderPlanCommitment::from_digest(
+                            *plan.identity_digest().as_bytes(),
+                        ),
+                    )
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?,
+                );
             }
         }
         build_time_evaluation::validate_selected_operators(typed, &selected.operators)
@@ -82,93 +95,6 @@ impl SelectedConstEvaluation {
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         Ok(selected)
     }
-}
-
-/// Actual machines own top-level requirement schemas, whether or not they
-/// also declare a token spelling. Legacy operators retain their own schema.
-fn provider_body_requirement_schema(
-    typed: &TypedTrees,
-    requirement: symbols::SymbolHandle,
-) -> Option<effects::provider_plan::ServiceSchema> {
-    if let Some(machine) = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.symbol == requirement)
-    {
-        provider_planning::service_schema::from_typed_boundary_requirement(typed, machine)
-    } else {
-        let operator = typed
-            .operators()
-            .iter()
-            .find(|operator| operator.symbol == requirement)?;
-        provider_planning::service_schema::from_typed_operator(typed, operator)
-    }
-}
-
-/// Resolve the selected plan's canonical overload to its exact checked
-/// adapter. Interpretation owns the source shape and executable entry, not
-/// this join between the requirement schema and provider authority.
-fn selected_provider_body_row(
-    typed: &TypedTrees,
-    plan: &effects::provider_plan::ProviderPlan,
-    requirement: symbols::SymbolHandle,
-    expression: typed_trees::expression::ExpressionHandle,
-    origin: checked_trees::CheckedValueOrigin,
-) -> Result<Option<SelectedBuildTimeProviderBody>, Diagnostic> {
-    let Some(schema) = provider_body_requirement_schema(typed, requirement) else {
-        return Ok(None);
-    };
-    let [required_method] = schema.methods.as_slice() else {
-        return Err(Diagnostic::error(
-            "selected build-time requirement must retain exactly one schema method",
-        ));
-    };
-    let overload_identity = &required_method.requirement_identity;
-    if overload_identity.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator at expression {:?} has an empty canonical overload identity",
-            expression,
-        )));
-    }
-    let [method] = plan.schema.methods.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator ProviderPlan `{}` must retain exactly one schema method",
-            plan.name,
-        )));
-    };
-    let [row] = plan.rows.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator ProviderPlan `{}` must retain exactly one realization row",
-            plan.name,
-        )));
-    };
-    if plan.schema != schema || !plan.schema.row_binds_method(row, method) {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator ProviderPlan `{}` does not bind exact overload `{overload_identity}`",
-            plan.name,
-        )));
-    }
-    let effects::provider_plan::ProviderBinding::CheckedAdapter { .. } = &row.binding else {
-        return Ok(None);
-    };
-    if plan.provider_type.is_empty() {
-        return Err(Diagnostic::error(format!(
-            "selected build-time operator ProviderPlan `{}` has no nominal provider type",
-            plan.name,
-        )));
-    }
-    let provider = provider_planning::exact_checked_adapter(typed, plan, row)?;
-    SelectedBuildTimeProviderBody::prepare(
-        typed,
-        expression,
-        origin,
-        requirement,
-        provider,
-        plan.provider_type.clone(),
-        CheckedProviderPlanCommitment::from_digest(*plan.identity_digest().as_bytes()),
-    )
-    .map(Some)
-    .map_err(Diagnostic::error)
 }
 
 impl SelectedConstEvaluation {
