@@ -21,7 +21,7 @@
       "item": "CHECK-CLOSURE-ONCE",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/compiler/src/checked",
+        "omega-rust/omega/compilation/driver/src/checked",
         "omega-rust/psi/terminal-production"
       ],
       "suggested_first_slice": "reproduce the 41.2 s double-check on samples/cli/basics/print_squares, then carry the checked library under its exact identity instead of rechecking",
@@ -35,7 +35,7 @@
       "host": "local",
       "owning_paths": [
         "omega-rust/psi/foundation/layout-plans",
-        "omega-rust/omega/backend/plans/post-handoff-writer-plan"
+        "omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan"
       ],
       "suggested_first_slice": "separate the portable materialization description in layout-plans from the consumer-side writer derivation per the ownership rule",
       "host_gates": ["which mbx || which cargo"],
@@ -74,8 +74,8 @@
       "item": "NATIVE-WRAPPER-ENCODING-AARCH64",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/backend/plans/program-entry-plan",
-        "omega-rust/omega/backend/runtime/executable-installation"
+        "omega-rust/omega/compilation/backend/plans/program-entry-plan",
+        "omega-rust/omega/compilation/backend/runtime/executable-installation"
       ],
       "suggested_first_slice": "verify the shipped Linux and macOS AArch64 profiles through their hosted bridges; pin recipe/plan rejection only if no authored profile needs a separate wrapper",
       "host_gates": ["which mbx || which cargo"],
@@ -103,7 +103,7 @@
       "host": "local",
       "owning_paths": [
         "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi",
-        "omega-rust/omega/backend/artifacts/native-artifact/src/physical"
+        "omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical"
       ],
       "suggested_first_slice": "extend derive_operator_physical_span past its Ok(None) arm for the intrinsic families that can actually be produced from source; the linw4 leg parked probes on swarm/linw4-translation-validation",
       "host_gates": ["which mbx || which cargo"],
@@ -116,8 +116,8 @@
       "host": "local",
       "owning_paths": [
         "omega-rust/psi/foundation/mutation-matrix",
-        "omega-rust/omega/backend/artifacts/component-description",
-        "omega-rust/omega/compiler/build-output"
+        "omega-rust/omega/compilation/backend/artifacts/component-description",
+        "omega-rust/omega/compilation/driver/build-output"
       ],
       "suggested_first_slice": "migrate one remaining hand-written one-field-substitution family onto custody_field_inventory! and run_one_field_substitution_matrix; image-emission and native-artifact/physical are claimed by other lanes this wave",
       "host_gates": ["which mbx || which cargo"],
@@ -129,7 +129,7 @@
       "item": "PER-RULE-COVERAGE",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations",
+        "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations",
         "omega-rust/omega/foundation/optimization-core"
       ],
       "suggested_first_slice": "close exact-selection and disabled/empty-identity coverage for rules already wired to the public stage entrance",
@@ -162,7 +162,7 @@
       "host": "local",
       "owning_paths": [
         "omega-rust/psi/interpreter/checked-interpreter/src/interpreter/evaluator",
-        "omega-rust/omega/compiler/build-evaluation/src/admission"
+        "omega-rust/omega/compilation/driver/build-evaluation/src/admission"
       ],
       "suggested_first_slice": "correct the probe-only gap classifications from Derived to honest compiler-admitted trust in wire_protocol.rs; finite probes cannot license Derived",
       "host_gates": ["which mbx || which cargo"],
@@ -189,7 +189,7 @@
       "owning_paths": [
         "omega-rust/psi/representations/terminal-psi/codec/src",
         "omega-rust/psi/interpreter/terminal-interpreter/src",
-        "omega-rust/omega/package-manager/src"
+        "omega-rust/omega/packages/package-manager/src"
       ],
       "suggested_first_slice": "attribute the measured block's remaining reds (the killed proof-search case belongs to the C2L lane — skip it); repair attributed failures in verification/interpreter/package-manager paths",
       "host_gates": ["which mbx || which cargo"],
@@ -202,10 +202,10 @@
       "host": "local",
       "layer": 1,
       "owning_paths": [
-        "omega-rust/omega/compiler/build-evaluation",
-        "omega-rust/omega/package-manager/src",
-        "omega-rust/omega/package-manager/resolver-execution",
-        "omega-rust/omega/package-manager/tests"
+        "omega-rust/omega/compilation/driver/build-evaluation",
+        "omega-rust/omega/packages/package-manager/src",
+        "omega-rust/omega/packages/resolver-execution",
+        "omega-rust/omega/packages/package-manager/tests"
       ],
       "suggested_first_slice": "reproduce a named remaining package-evidence failure on the selected base before repairing — 18 review-projection fails measured on this host; review-evidence/tests is claimed by another lane",
       "host_gates": ["which mbx || which cargo"],
@@ -217,8 +217,8 @@
       "item": "CALLBACK-PRIVATE-MATERIALIZATION",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/compiler/src/terminal/native_proposal",
-        "omega-rust/omega/compiler/src/terminal/terminal_artifact"
+        "omega-rust/omega/compilation/driver/src/terminal/native_proposal",
+        "omega-rust/omega/compilation/driver/src/terminal/terminal_artifact"
       ],
       "suggested_first_slice": "reproduce `direct_callback_relocation_resolves_to_its_private_function`'s `fragment import lacks selected call custody` failure; native_realization and image crates are claimed by other lanes — repair the proposal-side custody first",
       "host_gates": ["which mbx || which cargo"],

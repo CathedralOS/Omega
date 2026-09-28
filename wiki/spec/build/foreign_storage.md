@@ -123,7 +123,7 @@ a status annotation, not a contract amendment. Surveyed at `500878c473`
 Enforced today:
 
 - Outbound custody dispositions are explicit in
-  `omega-rust/omega/backend/runtime/external-roots/src/program_local/
+  `omega-rust/omega/compilation/backend/runtime/external-roots/src/program_local/
   program_local_extents/retained_foreign_arguments.rs`: call-scoped arguments
   stay borrows minted through `loan_under_activation`/
   `loan_mut_under_activation` under the establishing activation, and

@@ -78,7 +78,7 @@ sibling board items, or when a later sweep supersedes it.
   coordinator — precisely the "artifact formatting" the rule excludes. This
   overlaps the mined `WRAPPER-OBJECT-OWNERSHIP` item and the
   `DURABLE-CODEC-RELOCATION` remaining-work bullet (move durable codecs to
-  their representation owner in `omega/representations/`).
+  their representation owner in `omega/compilation/representations/`).
 
 ## Cataloged, not flagged
 

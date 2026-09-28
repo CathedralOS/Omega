@@ -31,7 +31,7 @@
       "item": "FILTERED-CALLEE-CALL-SITES",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/compiler/build-evaluation",
+        "omega-rust/omega/compilation/driver/build-evaluation",
         "tests/omega/fail/calls"
       ],
       "suggested_first_slice": "re-measure the UefiOsHandoffCycle::acquire witness in dependency scope before assuming the no-call-row shape still exists",
@@ -64,8 +64,8 @@
       "item": "NATIVE-WRAPPER-ENCODING-AARCH64",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/backend/plans/program-entry-plan",
-        "omega-rust/omega/backend/runtime/executable-installation"
+        "omega-rust/omega/compilation/backend/plans/program-entry-plan",
+        "omega-rust/omega/compilation/backend/runtime/executable-installation"
       ],
       "suggested_first_slice": "verify the shipped Linux and macOS AArch64 profiles through their hosted bridges; pin recipe/plan rejection only if no authored profile needs a separate wrapper",
       "host_gates": ["which cargo || which mbx"],

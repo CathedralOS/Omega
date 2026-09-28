@@ -8,7 +8,7 @@ Objective: transfer the Squalr Rust skill into Omega and improve it through inde
 
 Worker `/root/skill_trial` (Luna) reviewed `run_bounded_canary_jobs` and callers for storage/threading improvements. Its initial report disclosed a global skill path rather than the assigned repository skill, so the initial report is not evidence of the copied skill's effectiveness. On follow-up the worker confirmed the wrong-file read, then read the assigned local skill and Squalr reference.
 
-The review identified nested compilation threads with a configured 256 MiB stack in `omega-rust/omega/compiler/compiler/src/compiler/execution.rs`. Coordinator source inspection confirmed that checked and native compiler entrypoints use that helper. This is a reason to measure concurrency and memory behavior, not a measured resident-memory result or permission to change the worker override.
+The review identified nested compilation threads with a configured 256 MiB stack in `omega-rust/omega/compilation/driver/compiler/src/compiler/execution.rs`. Coordinator source inspection confirmed that checked and native compiler entrypoints use that helper. This is a reason to measure concurrency and memory behavior, not a measured resident-memory result or permission to change the worker override.
 
 The worker initially claimed one channel allocation per result. It retracted that claim after inspecting standard-library implementation evidence. The evaluation does not retain a fixed allocation claim for `mpsc`. It also corrected its treatment of a positive `OMEGA_CANARY_JOBS` override: bypassing a named default cap is not itself a defect.
 
@@ -23,7 +23,7 @@ Changes motivated by the trial:
 
 Worker `/root/skill_retest` (Luna) read the revised repository skill and its Squalr reference. It evaluated two concrete proposals: remove the canary result sort, and use nested vectors as durable compiler child storage.
 
-It rejected blindly removing the sort after finding a positional consumer: `omega-rust/omega/compiler/compiler/tests/canary_suite/abi_runtime_values_and_strings.rs`, `named_integer_conversion_filesystem_cross_targets_reach_checked_trees` (locate the target/result zip near line 3354). Coordinator inspection confirmed the zip. Source-order restoration preserves target/result association as well as deterministic diagnostics. An alternative implementation may avoid sorting if it preserves that contract; the result does not establish that sorting is the only valid implementation.
+It rejected blindly removing the sort after finding a positional consumer: `omega-rust/omega/compilation/driver/compiler/tests/canary_suite/abi_runtime_values_and_strings.rs`, `named_integer_conversion_filesystem_cross_targets_reach_checked_trees` (locate the target/result zip near line 3354). Coordinator inspection confirmed the zip. Source-order restoration preserves target/result association as well as deterministic diagnostics. An alternative implementation may avoid sorting if it preserves that contract; the result does not establish that sorting is the only valid implementation.
 
 It also preserved Omega's arena/handle requirements and treated nested vectors as possible temporary worker storage rather than a universal durable representation. This matches README/AGENTS and the arena APIs inspected by the coordinator.
 

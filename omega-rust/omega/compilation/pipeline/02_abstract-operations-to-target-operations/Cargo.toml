@@ -1,0 +1,40 @@
+[package]
+name = "abstract-operations-to-target-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "abstract_operations_to_target_operations"
+path = "src/lib.rs"
+
+[dependencies]
+optimization-core = { path = "../../../foundation/optimization-core" }
+abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+target = { path = "../../backend/target" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+installation-evidence = { path = "../../backend/runtime/installation-evidence" }
+target-operations = { path = "../../representations/target-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+access-plans = { path = "../../../../psi/foundation/access-plans" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-semantics = { path = "../../../../psi/representations/terminal-psi/semantics" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+
+[dev-dependencies]
+function-identity = { path = "../../../foundation/function-identity" }
+task-plans = { path = "../../backend/runtime/task-plans" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
+proof-admission = { path = "../../../../psi/proof/admission" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+source-files-to-tokens = { path = "../../../../psi/pipeline/00_source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
+terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
+tokens-to-syntax-trees = { path = "../../../../psi/pipeline/01_tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/04_typed-trees-to-checked-trees" }

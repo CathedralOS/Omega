@@ -24,7 +24,7 @@
       "owning_paths": [
         "omega-rust/psi/checking/src/wire",
         "omega-rust/psi/interpreter/build-time-evaluation/src/wire_plans.rs",
-        "omega-rust/omega/compiler/compiler/src/pipeline/reporting/wire.rs"
+        "omega-rust/omega/compilation/driver/compiler/src/pipeline/reporting/wire.rs"
       ],
       "suggested_first_slice": "the old/new ordinary declaration pair with an explicitly selected checked migration, plus its missing-route rejection"
     },
@@ -34,9 +34,9 @@
       "item": "BOUNDARY-QUALIFICATION-PRESERVATION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/validation",
-        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations/src/rules",
-        "omega-rust/omega/representations/abstract-operations/optimization-unit/semantics/src/unit_validation"
+        "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation",
+        "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules",
+        "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation"
       ]
     },
     {
@@ -45,9 +45,9 @@
       "item": "CUSTODY-MUTATION-COVERAGE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/backend/images/image-emission/src/unit_call_custody",
-        "omega-rust/omega/backend/images/image-emission/src/unit_scalar_call_custody",
-        "omega-rust/omega/package-manager/review-evidence"
+        "omega-rust/omega/compilation/backend/images/image-emission/src/unit_call_custody",
+        "omega-rust/omega/compilation/backend/images/image-emission/src/unit_scalar_call_custody",
+        "omega-rust/omega/packages/review-evidence"
       ]
     },
     {

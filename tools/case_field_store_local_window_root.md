@@ -15,7 +15,7 @@ completed home as a window root, and the terminal verifier accepts the pair
 
 ## Wall (declines at `native artifact lowering`)
 
-`omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/borrowed_windows.rs`
+`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering/machine/operation/borrowed_windows.rs`
 re-checks the window's static shape and requires the root via
 `borrowed_window_root` → `exact_parameter` + `StructuralAccess::MutableBorrow`
 — machine parameters only. `Lowering(InvalidBorrowedStorageWindow)` fires on

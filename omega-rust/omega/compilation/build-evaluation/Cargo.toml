@@ -1,0 +1,44 @@
+[package]
+name = "build-evaluation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "build_evaluation"
+path = "src/lib.rs"
+
+[dependencies]
+artifacts = { path = "../../foundation/artifacts" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
+compilation-products = { path = "../products" }
+arena = { path = "../../../psi/foundation/arena" }
+language-core = { path = "../../../psi/foundation/language-core" }
+validation = { path = "../../../psi/checking" }
+build-output = { path = "../../packages/build-output" }
+effects = { path = "../backend/plans/provider-evidence" }
+optimization-core = { path = "../../foundation/optimization-core" }
+package-compilation = { path = "../../packages/compilation-inputs" }
+provider-planning = { path = "../realization/provider-planning" }
+representation-planning = { path = "../../../psi/checking/representation-planning" }
+target = { path = "../backend/target" }
+trust-model = { path = "../realization/trust-model" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
+checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+layout-plans = { path = "../../../psi/foundation/layout-plans" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+build-declarations = { path = "../../packages/build-declarations" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
+component-description = { path = "../backend/artifacts/component-description", features = ["test-support"] }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }

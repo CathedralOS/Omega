@@ -1,0 +1,53 @@
+[package]
+name = "package-manager"
+autotests = false
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "package_manager"
+path = "src/lib.rs"
+
+[dependencies]
+artifacts = { path = "../../foundation/artifacts" }
+provider-planning = { path = "../../compilation/realization/provider-planning" }
+build-declarations = { path = "../build-declarations" }
+build-evaluation = { path = "../../compilation/build-evaluation" }
+boundary-applications = { path = "../../compilation/backend/artifacts/boundary-applications" }
+compiler = { path = "../../compilation/driver" }
+compilation-products = { path = "../../compilation/products" }
+component-description = { path = "../../compilation/backend/artifacts/component-description" }
+effects = { path = "../../compilation/backend/plans/provider-evidence" }
+image-emission = { path = "../../compilation/backend/images/image-emission" }
+native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
+package-evidence = { path = "../review-evidence" }
+package-source = { path = "../source-acquisition" }
+package-compilation = { path = "../compilation-inputs" }
+optimization-core = { path = "../../foundation/optimization-core" }
+platform-custody = { path = "../../foundation/platform-custody" }
+target = { path = "../../compilation/backend/target" }
+terminal-psi-to-abstract-operations = { path = "../../compilation/pipeline/00_terminal-psi-to-abstract-operations" }
+arena = { path = "../../../psi/foundation/arena" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+language-semantics = { path = "../../../psi/foundation/language-semantics" }
+checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+proof-admission = { path = "../../../psi/proof/admission" }
+source = { path = "../../../psi/foundation/source" }
+source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
+syntax-trees = { path = "../../../psi/representations/syntax-trees" }
+tokens = { path = "../../../psi/representations/tokens" }
+tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
+cap-std = "4.0.3"
+cap-fs-ext = "4.0.3"
+sha2 = "0.10.9"
+
+[dev-dependencies]
+build-evaluation = { path = "../../compilation/build-evaluation" }
+mimalloc = { version = "0.1", default-features = false }
+package-source = { path = "../source-acquisition", features = ["test-fixtures"] }
+
+[[test]]
+name = "suite"
+path = "tests/suite.rs"

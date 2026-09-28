@@ -1,27 +1,23 @@
-# Omega subsystems
+# Omega domains
 
-Start with the subsystem that owns the operation:
+Choose the domain that owns the use case:
 
 | Directory | Responsibility |
 | --- | --- |
-| [omega/](omega/README.md) | Application entry, command dispatch and complete command workflows |
-| [compiler/](compiler/README.md) | Compilation coordinator and independent supporting packages |
-| [package-manager/](package-manager/README.md) | Package operations, source acquisition, resolver execution and review |
-| [pipeline/](../pipeline.md) | Transformations from Terminal Psi through native realization |
-| [representations/](representations/README.md) | Native pipeline program families and their independent internal forms |
-| `backend/` | Target, ABI, encoding, image and runtime mechanisms |
-| [foundation/](foundation/README.md) | Shared host primitives, function identities and optimization vocabulary |
+| [application/](application/README.md) | CLI entry, command workflows and application policy files |
+| [compilation/](compilation/README.md) | Compiler coordination, pipeline, representations, realization and backend |
+| [packages/](packages/README.md) | Package operations, acquisition, review and compilation inputs |
+| [foundation/](foundation/README.md) | Primitives shared across these domains |
 
-The application is the Cargo package `omega` in `omega/`; run it from the
-workspace root with `mbx run -p omega -- --check <root.omg>`.
+The application is Cargo package `omega` in `application/cli/`; run it from the
+workspace root with `mbx run -p omega -- run <root.omg>`.
 
-Supporting crates retain their own manifests. Their placement exposes an owner;
-Cargo dependencies enforce the boundaries. No subsystem absorbs IRs or shared
-utilities into its `src/` tree. Shared host infrastructure lives in `foundation/`.
-Source and semantic infrastructure remains in
-[Psi foundation](../psi/foundation), and target-neutral interpretation remains in
-[Psi interpreters](../psi/interpreter/README.md).
+These directories group independent packages by responsibility. Each package
+retains its manifest and API; Cargo dependencies enforce the boundaries.
+Compiler machinery lives within `compilation/`, including its independent IR
+packages. Shared utilities remain in `foundation/`.
 
-The [pipeline contract](../pipeline.md) defines the Psi/Omega firewall and
-placement rules. Ordinary Rust library implementations live separately in
-[`../library/`](../library/README.md).
+Source processing through Terminal Psi remains in [Psi](../psi/README.md),
+including [target-neutral interpretation](../psi/interpreter/README.md).
+The [pipeline contract](../pipeline.md) defines the Psi/Omega firewall.
+Ordinary Rust library implementations live in [../library/](../library/README.md).

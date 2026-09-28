@@ -1,0 +1,37 @@
+[package]
+name = "selected-instructions-to-selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[features]
+test-support = []
+
+[dependencies]
+abstract-operations-to-target-operations = { path = "../02_abstract-operations-to-target-operations" }
+register-environment = { path = "../../backend/register-environment" }
+isa-aarch64 = { path = "../../backend/instruction-set-architectures/isa-aarch64" }
+isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }
+optimization-core = { path = "../../../foundation/optimization-core" }
+register-model = { path = "../../backend/register-model" }
+register-homes = { path = "../../representations/register-homes" }
+selected-instructions = { path = "../../representations/selected-instructions" }
+target = { path = "../../backend/target" }
+target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
+target-operations = { path = "../../representations/target-operations" }
+task-plans = { path = "../../backend/runtime/task-plans" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+mimalloc = { version = "0.1", default-features = false }
+abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
+terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
+terminal-verifier = { path = "../../../../psi/representations/terminal-psi/verification" }
+proof-admission = { path = "../../../../psi/proof/admission" }

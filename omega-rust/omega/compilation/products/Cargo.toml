@@ -1,0 +1,39 @@
+[package]
+name = "compilation-products"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+build-declarations = { path = "../../packages/build-declarations" }
+build-output = { path = "../../packages/build-output" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
+calling-conventions = { path = "../backend/calling-conventions" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
+effects = { path = "../backend/plans/provider-evidence" }
+provider-planning = { path = "../realization/provider-planning" }
+representation-planning = { path = "../../../psi/checking/representation-planning" }
+selected-dispatch = { path = "../realization/selected-dispatch" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+task-plans = { path = "../backend/runtime/task-plans" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+validation = { path = "../../../psi/checking" }
+artifacts = { path = "../../foundation/artifacts" }
+backend-plan = { path = "../backend/plans/backend-plan" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+image-emission = { path = "../backend/images/image-emission" }
+native-artifact = { path = "../backend/artifacts/native-artifact" }
+optimization-core = { path = "../../foundation/optimization-core" }
+package-compilation = { path = "../../packages/compilation-inputs" }
+platform-custody = { path = "../../foundation/platform-custody" }
+proof-admission = { path = "../../../psi/proof/admission" }
+target = { path = "../backend/target" }
+terminal-codec = { path = "../../../psi/representations/terminal-psi/codec" }
+terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
+trust-model = { path = "../realization/trust-model" }
+sha2 = "0.10.9"

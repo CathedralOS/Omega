@@ -69,7 +69,7 @@ artifacts (`include_str!`/`include_bytes!`).
 ## Findings
 
 - **F1 — x86 opcode detail resident in a pipeline transform.**
-  `omega-rust/omega/pipeline/09_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/branch_inspection.rs`
+  `omega-rust/omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/x86_branch_relaxation/compute/branch_inspection.rs`
   pattern-matches literal x86 encoding bytes (`0x75`, `0x0F 0x85`, `0x72`,
   `0x0F 0x82`, `0x7C`, `0x0F 0x8C`) and hard-codes the rel8 window
   (`-128..=127`). The relaxation transform itself is correctly placed — the
@@ -94,7 +94,7 @@ artifacts (`include_str!`/`include_bytes!`).
   existing `DURABLE-CODEC-RELOCATION` item.
 
 - **F3 — a whole representation surface re-exported through a stage module.**
-  `omega-rust/omega/pipeline/06_register-homes-to-post-allocation-machine/src/plan/mod.rs:9`
+  `omega-rust/omega/compilation/pipeline/06_register-homes-to-post-allocation-machine/src/plan/mod.rs:9`
   carries `pub use ::physical_instructions::*` — a glob re-export that
   republishes the entire `physical-instructions` representation surface
   under the stage's `plan` namespace, against the "not public program

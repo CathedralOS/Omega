@@ -117,7 +117,7 @@ Measurement alone never establishes admission.
 ## Status
 
 The reference compiler implements the linear lifecycle model in
-`omega-rust/omega/backend/runtime/executable-installation/`: admit, materialize,
+`omega-rust/omega/compilation/backend/runtime/executable-installation/`: admit, materialize,
 freeze, validate, install, retire and quarantine, with every failed transition
 returning its inputs. Install and retirement receipts carry the demanded
 provider-canonical fact digests; the replacement join patches declared entries

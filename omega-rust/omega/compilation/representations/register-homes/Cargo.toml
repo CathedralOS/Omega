@@ -1,0 +1,23 @@
+[package]
+name = "register-homes"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+abstract-operations = { path = "../abstract-operations" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+function-identity = { path = "../../../foundation/function-identity" }
+legalized-operations = { path = "../target-operations/legalized-operations" }
+optimization-core = { path = "../../../foundation/optimization-core" }
+optimization-unit = { path = "../abstract-operations/optimization-unit" }
+target = { path = "../../backend/target" }
+register-model = { path = "../../backend/register-model" }
+selected-instructions = { path = "../selected-instructions" }
+target-operations = { path = "../target-operations" }
+task-plans = { path = "../../backend/runtime/task-plans" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
+terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+sha2 = "0.10.9"

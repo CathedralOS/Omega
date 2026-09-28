@@ -185,6 +185,6 @@ project's `omega.lock`. If new compiler behavior or a requested dependency chang
 requires review, inspect it through the normal package workflow.
 
 For problems, include `omega --version`, host OS/architecture, the exact command,
-and its diagnostic. The [CLI reference](../omega-rust/omega/omega/README.md#command-surface)
+and its diagnostic. The [CLI reference](../omega-rust/omega/application/cli/README.md#command-surface)
 documents the implemented command surface; the [language guide](language_guide/language_guide.md)
 describes the language, including features still ahead of the compiler.

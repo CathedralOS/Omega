@@ -35,9 +35,9 @@
       "item": "FRAME-LAYOUT",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/backend/machine-emission/src/frame_protocol",
-        "omega-rust/omega/backend/machine-emission/src/frame_layout",
-        "omega-rust/omega/backend/machine-emission/src/frame_application"
+        "omega-rust/omega/compilation/backend/machine-emission/src/frame_protocol",
+        "omega-rust/omega/compilation/backend/machine-emission/src/frame_layout",
+        "omega-rust/omega/compilation/backend/machine-emission/src/frame_application"
       ],
       "suggested_first_slice": "Once exact claims reach native lowering, compose simultaneously live bounds with alignment and mutually exclusive bounds by maximum, joined to the final frame/probe/unwind plans. RUNTIME-SIZED-ACTIVATION-CONTRACT owns the missing source/Terminal claim route; do not rebuild it.",
       "host_gates": ["which mbx || which cargo"],
@@ -49,7 +49,7 @@
       "item": "GENERAL-LICM",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/01_abstract-operations-to-abstract-operations",
+        "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations",
         "omega-rust/psi/representations/terminal-psi/verification/src/validation/control_flow",
         "omega-rust/psi/representations/terminal-psi/verification/src/trusted_surface",
         "omega-rust/psi/representations/terminal-psi/verification/tests/ranked_scc"
@@ -64,10 +64,10 @@
       "item": "MACOS-APPLICATION-PUBLICATION",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/compiler/build-evaluation",
-        "omega-rust/omega/backend/images/image-macho",
-        "omega-rust/omega/backend/object",
-        "omega-rust/omega/compiler/compilation-report/src/package.rs",
+        "omega-rust/omega/compilation/driver/build-evaluation",
+        "omega-rust/omega/compilation/backend/images/image-macho",
+        "omega-rust/omega/compilation/backend/object",
+        "omega-rust/omega/compilation/driver/compilation-report/src/package.rs",
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/providers.rs",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/providers.rs",
         "samples/gui/window_app",
@@ -106,10 +106,10 @@
       "item": "PLAN-LAID-VIEWS",
       "host": "local",
       "owning_paths": [
-        "omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations",
-        "omega-rust/omega/compiler/native-realization/src/native_realization/optimized_fragment_projection.rs",
-        "omega-rust/omega/backend/images/image-emission/src/hosted_receiver.rs",
-        "omega-rust/omega/compiler/compiler/tests/access_plans/source_access_policies.rs"
+        "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
+        "omega-rust/omega/compilation/driver/native-realization/src/native_realization/optimized_fragment_projection.rs",
+        "omega-rust/omega/compilation/backend/images/image-emission/src/hosted_receiver.rs",
+        "omega-rust/omega/compilation/driver/compiler/tests/access_plans/source_access_policies.rs"
       ],
       "suggested_first_slice": "Bridge emission's rejection of a settlement with bound establishments: carry each loan for the invocation's duration in hosted_receiver.rs and retire it at completion, then extend direct_placed_view_input_survives_codec_and_native_replay toward actual source access (view.status.read()).",
       "host_gates": ["which mbx || which cargo"],
@@ -125,7 +125,7 @@
         "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/cleanup",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup",
         "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs",
-        "omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/lowering"
+        "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering"
       ],
       "suggested_first_slice": "Fix whole/residual scheduling across dying roots: the multi-temporary path in execution/terminal_unit/cleanup/anonymous.rs::append_continuation appends residuals in operand order; make it the required cleanup schedule (independent dying roots clean in reverse declaration order).",
       "host_gates": ["which mbx || which cargo"],

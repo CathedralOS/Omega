@@ -44,7 +44,7 @@
       "item": "CUSTODY-MUTATION-COVERAGE",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/omega/backend/runtime/executable-installation/src/artifacts/container_bytes"
+        "omega-rust/omega/compilation/backend/runtime/executable-installation/src/artifacts/container_bytes"
       ],
       "host_gates": ["git ls-remote --exit-code origin refs/coordination/omega-claims/main"]
     }

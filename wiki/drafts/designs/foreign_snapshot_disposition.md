@@ -11,7 +11,7 @@ loans and from identity-preserving backing transfers. It binds the
 spec's outbound-custody row — "a permitted semantic snapshot uses
 private stable backing" ([foreign storage](../../spec/build/foreign_storage.md))
 — to the epoch/aggregate capacity machinery already landed in
-`omega-rust/omega/backend/runtime/external-roots/src/program_local`.
+`omega-rust/omega/compilation/backend/runtime/external-roots/src/program_local`.
 Delete this draft once issuance attaches a disposition record to an installed
 foreign root and the foreign-storage spec owns the taxonomy.
 

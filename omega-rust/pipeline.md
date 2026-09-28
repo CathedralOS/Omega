@@ -28,18 +28,18 @@ setup are not additional public program stages.
 | Checked trees → lowered Psi | [checked-trees-to-lowered-psi](psi/pipeline/05_checked-trees-to-lowered-psi/README.md) |
 | Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs) |
 | Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/pipeline/07_lowered-psi-to-terminal-psi/src/lib.rs) |
-| Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
-| Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
-| Abstract → target operations | [abstract-operations-to-target-operations](omega/pipeline/02_abstract-operations-to-target-operations/README.md) |
-| Target operations → selected instructions | [target-operations-to-selected-instructions](omega/pipeline/03_target-operations-to-selected-instructions/README.md) |
-| Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/pipeline/04_selected-instructions-to-selected-instructions/src/lib.rs) |
-| Selected instructions → register homes | [selected-instructions-to-register-homes](omega/pipeline/05_selected-instructions-to-register-homes/README.md) |
-| Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) |
-| Post-allocation machine → selected-form encoding | [post-allocation-machine-to-selected-form-encoding](omega/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) |
-| Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) |
-| Resolved → resolved layout | [resolved-layout-to-resolved-layout](omega/pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) |
-| Resolved program → machine bytes | [machine-emission](omega/backend/machine-emission/README.md) |
-| Machine bytes → object/image evidence | [image-emission](omega/backend/images/image-emission/src/lib.rs) |
+| Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
+| Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
+| Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
+| Target operations → selected instructions | [target-operations-to-selected-instructions](omega/compilation/pipeline/03_target-operations-to-selected-instructions/README.md) |
+| Selected → selected instructions | [selected-instructions-to-selected-instructions](omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/lib.rs) |
+| Selected instructions → register homes | [selected-instructions-to-register-homes](omega/compilation/pipeline/05_selected-instructions-to-register-homes/README.md) |
+| Register homes → post-allocation machine | [register-homes-to-post-allocation-machine](omega/compilation/pipeline/06_register-homes-to-post-allocation-machine/src/lib.rs) |
+| Post-allocation machine → selected-form encoding | [post-allocation-machine-to-selected-form-encoding](omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs) |
+| Selected-form encoding → resolved layout | [selected-form-encoding-to-resolved-layout](omega/compilation/pipeline/08_selected-form-encoding-to-resolved-layout/src/lib.rs) |
+| Resolved → resolved layout | [resolved-layout-to-resolved-layout](omega/compilation/pipeline/09_resolved-layout-to-resolved-layout/src/lib.rs) |
+| Resolved program → machine bytes | [machine-emission](omega/compilation/backend/machine-emission/README.md) |
+| Machine bytes → object/image evidence | [image-emission](omega/compilation/backend/images/image-emission/src/lib.rs) |
 
 ## One driver, one pass, per-target realization
 
@@ -63,9 +63,9 @@ settlement), and settles providers on checked trees before Terminal Psi:
 
 | Input → output | Owner |
 | --- | --- |
-| Source files → assembled syntax | [package source preparation](omega/package-manager/compilation-inputs/src/source_assembly.rs) |
-| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compiler/src/checked/checking.rs) |
-| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compiler/src/terminal/terminal_artifact.rs) |
+| Source files → assembled syntax | [package source preparation](omega/packages/compilation-inputs/src/source_assembly.rs) |
+| Assembled syntax → checked compilation | [assembled-syntax-to-checked-compilation](omega/compilation/driver/src/checked/checking.rs) |
+| Checked compilation → Terminal artifact | [checked-compilation-to-terminal-artifact](omega/compilation/driver/src/terminal/terminal_artifact.rs) |
 
 Package-owned source preparation now feeds the ordinary loading and parsing
 stages directly; Build evaluation no longer owns source discovery or assembly.
@@ -84,23 +84,25 @@ Shared foundations and utilities retain independent library ownership. Do not
 absorb them into a producing stage or the application crate to reduce crate
 count or directory depth. Subsystem folders expose their coordinators and
 supporting packages without merging their APIs or dependency boundaries.
-Directory names are not a requirement to retain the former `build/` or
-`packages/` buckets. A draft, cleanup campaign, or rewritten placement table does not
-authorize removing these boundaries.
+Omega groups packages under four domains: `application/`, `compilation/`,
+`packages/` and `foundation/`. Compiler machinery, including `pipeline/`,
+`representations/`, `realization/` and `backend/`, lives within `compilation/`.
+The domains are directory groupings; they do not merge package boundaries.
 
 
 | Responsibility | Owner |
 | --- | --- |
-| Current program forms and their attached records/codecs | `representations/`, grouped by pipeline program family |
+| Current program forms and their attached records/codecs | Psi `representations/` and Omega `compilation/representations/`, grouped by program family |
 | Source-program judgments | Psi `checking/`; source proof planning/search in `proof/`, independent mathematical checking in `proof/admission/` |
 | Terminal encoding, semantic reconstruction, verification and fuel | Independent packages beneath `representations/terminal-psi/` |
-| Transformation, rewrite, private scratch and analyses | Owning `pipeline/X-to-Y` or `X-to-X` |
-| ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `backend/` |
+| Transformation, rewrite, private scratch and analyses | Psi `pipeline/` or Omega `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
+| ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
 | Shared target-neutral source/arena/numeric primitives and optimization selections | Psi `foundation/` |
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
-| Product sequencing | Omega `compiler/` |
-| Requested outputs, configuration admission, retained outcomes and publication | Omega `realization/compilation-products/` |
-| Source acquisition, package operations and review | Omega `package-manager/` and its independent supporting packages |
+| Application commands and policy files | Omega `application/` |
+| Product sequencing | Omega `compilation/driver/` |
+| Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
+| Source acquisition, package operations and review | Omega `packages/` |
 | Checked and Terminal Psi execution | Psi `interpreter/` |
 | Compile-time interpretation and result elaboration | Psi `interpreter/build-time-evaluation/` |
 | Checked program → published Terminal artifact | Psi `terminal-production/` |
@@ -119,7 +121,7 @@ operations, selected instructions, register homes, post-allocation machine and
 machine code. These are not six consecutive passes. Same-form optimization
 passes retain their input form; `machine-code` owns distinct selected-form
 encoding, resolved-layout and final machine-code roots. The
-[native representation map](omega/representations/README.md) names the actual
+[native representation map](omega/compilation/representations/README.md) names the actual
 producer and consumer of each form.
 
 The independent `optimization-unit` package beneath `abstract-operations/`
@@ -139,7 +141,7 @@ an independent package beside their Psi admission owner at
 
 ### Subsystem entrances and supporting packages
 
-[`omega/realization/compilation-products/`](omega/realization/compilation-products/README.md)
+[`omega/compilation/products/`](omega/compilation/products/README.md)
 owns invocation configuration and product eligibility, finished report payloads,
 production/batch manifests and publication of exact artifact/proof pairs.
 It also owns the retained evaluated-Build records and checked compilation product:
@@ -154,37 +156,37 @@ This product owner consumes artifact and custody owners without depending
 on compiler orchestration or build evaluation. It is an output lifecycle, not a
 new program representation or pipeline phase. The CLI publishes through it directly.
 
-`omega/compiler/` owns only compilation orchestration.
-[`omega/realization/build-evaluation/`](omega/realization/build-evaluation/README.md)
+`omega/compilation/driver/` owns only compilation orchestration.
+[`omega/compilation/build-evaluation/`](omega/compilation/build-evaluation/README.md)
 owns Build admission, consent and execution; it is not a new pipeline phase.
 The shared package-input contracts live with the package system, not compiler
 orchestration.
 
-The CLI's independent [`trust-ledger`](omega/omega/trust-ledger/README.md)
+The CLI's independent [`trust-ledger`](omega/application/trust-ledger/README.md)
 package owns reading and explicitly replacing `omega.admissions`. Compile and
 run commands supply its in-memory admissions to the compiler; pipeline execution
 does not load or mutate project policy files.
 
-[`omega/realization/provider-planning/`](omega/realization/provider-planning/README.md)
+[`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
 owns provider choices and calling, component and task planning.
-[`selected-dispatch/`](omega/realization/selected-dispatch/README.md) owns selected
+[`selected-dispatch/`](omega/compilation/realization/selected-dispatch/README.md) owns selected
 execution preparation and settlement. Provider grants resolve through backend
 provider evidence, without depending on compiler trust-report reconstruction.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
 handoff.
 
-[`omega/realization/trust-model/`](omega/realization/trust-model/README.md)
+[`omega/compilation/realization/trust-model/`](omega/compilation/realization/trust-model/README.md)
 owns trust obligation reconstruction and exact report records, consuming source
 judgments and selected-provider evidence. The CLI supplies policy admissions;
 the compiler sequences admission. Its checked-tree input remains a transitional
 boundary. Host file writing and timing have no dependency on these semantics.
 
-`omega/package-manager/` owns package operations, with independent
-`source-acquisition`, `resolver-execution`, and `review-evidence` crates beneath
-it. Its independent [build declarations](omega/package-manager/build-declarations/README.md),
-[build outputs](omega/package-manager/build-output/README.md) and
-[compilation inputs](omega/package-manager/compilation-inputs/README.md) packages
+`omega/packages/package-manager/` owns package operations. Independent
+`source-acquisition`, `resolver-execution`, and `review-evidence` crates are
+siblings in `omega/packages/`. Independent [build declarations](omega/packages/build-declarations/README.md),
+[build outputs](omega/packages/build-output/README.md) and
+[compilation inputs](omega/packages/compilation-inputs/README.md) packages
 own the shared project grammar and source/output custody contract. Compilation
 inputs also own source assembly: one ordered Psi 00/01 loading loop, immutable
 parse checkpoints, and exact generated-source/import joins. That preparation
@@ -217,14 +219,14 @@ direction. Nesting gives these companions a subject; it adds no program stage.
 A general `psi/semantics/` bucket obscures these distinct responsibilities.
 
 The independent `optimization-unit-semantics` checker lives at
-`omega/representations/abstract-operations/optimization-unit/semantics/`, beside the representation
+`omega/compilation/representations/abstract-operations/optimization-unit/semantics/`, beside the representation
 whose meaning and rewrites it checks. Its own manifest depends on representation
 and semantic libraries, not on candidate-producing stages. The representation
 does not acquire a dependency on the checker. Domain-local placement does not
 turn checking into IR data or justify a general `verification/` bucket.
 
 Installed-component custody composition belongs to
-`omega/backend/runtime/component-deployment/`, alongside installation and
+`omega/compilation/backend/runtime/component-deployment/`, alongside installation and
 publication support. It is not a top-level deployment subsystem. The
 package-defined topology implementation lives separately at `library/topology/`:
 its graph policies, plan codec, verifier, and installer are ordinary library
@@ -277,7 +279,7 @@ current crate placement nor target independence alone establishes ownership.
 One named root beside `lib.rs` defines each current representation and leads into
 its actual concepts. Shared vocabulary need not invent an aggregate program.
 Keep producer history in explicit replay evidence, not the path ordinary consumers
-walk to obtain current data. See [native representation ownership](omega/representations/README.md).
+walk to obtain current data. See [native representation ownership](omega/compilation/representations/README.md).
 Arena handles and spans are the default for durable repeated children; source
 text is diagnostic/debug payload after resolution, user literals remain program
 payload, and linker/display names are edge metadata. Scoped symbol-tree lookup
@@ -302,7 +304,7 @@ semantic axes.
 ## Projections and replacement work
 
 Package admission is a checked observation, not a new `Chi` stage. Its
-[projection owner](omega/package-manager/review-evidence/README.md) reads each fact at the
+[projection owner](omega/packages/review-evidence/README.md) reads each fact at the
 earliest representation where it is semantically complete and joins whatever
 later checked evidence it needs. Unresolved syntax and diagnostic strings are
 not admission evidence. The canonical package projection is the boundary, not
@@ -323,7 +325,7 @@ Producer and checker may share small predicates and primitives, not the
 output-producing decision procedure the checker is meant to validate. Remaining
 convergence and behavior work belongs to execution boards; this map is not a
 second migration ledger. [Optimization](optimization.md) owns its implementation
-contracts, while [compiler coordination](omega/compiler/README.md) owns
+contracts, while [compiler coordination](omega/compilation/driver/README.md) owns
 operational reports and product stopping boundaries.
 
 ## Psi implementation and deferred human audit
@@ -409,8 +411,8 @@ high-level flow: input preparation, phase ordering or dispatch, subordinate work
 and result/error handling. `lib.rs` wiring, re-exports, and a prose file map do
 not substitute for that orchestration.
 
-Use [main.rs](omega/omega/src/main.rs) and
-[compiler.rs](omega/compiler/src/compiler.rs) as the gold
+Use [main.rs](omega/application/cli/src/main.rs) and
+[compiler.rs](omega/compilation/driver/src/compiler.rs) as the gold
 standard: the former shows startup and typed invocation dispatch; the latter
 shows shared preparation, product selection, per-target realization, and outcomes.
 Copy their visible orchestration principle, not their filenames or line counts.
