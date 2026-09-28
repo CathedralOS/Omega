@@ -5314,59 +5314,43 @@ Finish the Rust [completion contract](wiki/drafts/reference/rust_compiler_comple
 before starting the product-language migration. Rust can remain a differential
 implementation afterward, but neither Rust agreement nor Rust-specific machinery
 is bootstrap authority. Bootstrap construction stays on `TASKS_BOOTSTRAP.md`.
-- **OMEGA-PRODUCT-COMPILER-SOURCE.** After the Rust release-completion gate,
-  complete the Omega-written production compiler as separate `source/psi/`
-  and `source/omega/` packages, retaining `source/omega/{build.omg,main.omg}`
-  as product roots. Psi owns target-neutral parsing, resolution, typing,
-  checking, proof and Terminal Psi production; Omega consumes Terminal Psi for
-  provider selection, realization, ABI and artifact emission. Package separation
-  and the firewall are settled.
+- **OMEGA-PRODUCT-COMPILER-SOURCE.** After Rust release completion, finish the
+  Omega-written compiler in separate `source/psi/` and `source/omega/` packages,
+  with `source/omega/{build.omg,main.omg}` as product roots. Psi owns parsing,
+  resolution, typing, checking, proof and Terminal Psi; Omega consumes Terminal
+  Psi for provider selection, realization, ABI and emission.
 
-  The current root drives a lexer and partial whole-file parser, then exits;
-  it produces no compiler artifact. Extend the connected product in ordinary,
-  compositional vertical slices through the complete language and requested
-  products. No bootstrap-private dialect, file/AST allowlist, source-shape-only
-  lowering path or parallel source-to-native route. D in `bootstrap/5_omega/`
-  is the separate Epsilon-written implementation; Rust is a nonauthoritative
-  differential comparator.
+  The current product reads source, lexes, parses supported `use`/`data` roots
+  and exits without a compiler artifact. Extend that connected pipeline through
+  the full language and requested products in ordinary compositional slices.
+  Preserve the package/firewall split; no private dialect, file/AST allowlist,
+  source-shape-only lowering or parallel source-to-native route.
 
-  On macOS, both `omega --check source/omega/main.omg` and
-  `omega --check source/psi/gates/parser/main.omg` stop at an unavailable
-  `Parser::parse` callee: local construction reports
-  `structural field store: pure source: scalar expression row`
-  (state 3, statement 1). The reader is
-  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/structural_scalar_store/value.rs`;
-  coordinate with its live claim before editing. Resolve that retained scalar
-  expression through the existing store path, then rerun both product roots.
-  One reported diagnostic does not establish that later stages are complete.
+  Recheck `omega --check source/omega/main.omg` and
+  `omega --check source/psi/gates/parser/main.omg`, then build/run
+  `source/psi/test-parser.sh` with explicit freshly built `OMEGA_CLI` and
+  `OMEGA_TARGET`. At `1ed469454e5`, macOS probes reached a two-minute limit
+  without diagnostics;
+  the former `Parser::parse` scalar-store refusal is not a reproduced frontier.
+  Profile the unfinished checks before assigning a lowering repair.
+  General realization belongs to **STATE-LOCAL-VALUE-FRONTIER**;
+  **BORROWED-STORAGE-RESTORATION** and **CRASH-CONTRACT** retain their gaps.
+  The copied-argument fixture is now
+  `tests/omega/pass/calls/copy_projection_from_borrowed_receiver`: retain its
+  authored entry, nonzero callee observation, unchanged caller value and exit-70
+  oracle. A source check cannot substitute for that native result.
 
-  The copied-argument regression remains in
-  `tests/omega/pending/calls/copy_projection_from_borrowed_receiver` pending
-  fixture promotion and its corpus-golden update; coordinate that shared file
-  with its live owner. Preserve the authored ProgramEntry root and native exit
-  check when moving it to `pass/calls/`. A targetless check alone does not
-  exercise its original omission.
+  Preserve the parser gate's acceptance/rejection, lexical handoff, structural
+  identity, capacity and determinism controls. Python only decodes/compares
+  observations; this is not Rust/Omega differential coverage. Cached artifacts,
+  partial parser acceptance and lowering omissions establish neither native
+  execution nor invalid source. Preserve range-proven narrowing casts.
 
-  Then freshly build/run `source/psi/test-parser.sh` with explicit
-  `OMEGA_CLI` and `OMEGA_TARGET`.
-  This is a parser golden-observation gate, not a two-compiler differential
-  harness. Preserve acceptance/rejection, lexical handoff, structural identity,
-  capacity and determinism controls; Python only decodes/compares observations.
-  Cached artifacts and checked-source success do not establish native execution.
-  Reproduce and attribute the previously reported package-name-shadowing,
-  entry-custody and expensive-checking issues before assigning repairs; their
-  old diagnostics and timings are not a current frontier. Route general
-  value-transport/native gaps to **STATE-LOCAL-VALUE-FRONTIER** and existing
-  borrowed-storage/crash gaps to **BORROWED-STORAGE-RESTORATION** and
-  **CRASH-CONTRACT**. Do not infer invalid source from a lowering omission:
-  the nested-receiver narrowing-cast fixture carries range evidence.
-
-  Acceptance: the exact package-resolved source closure implements the complete
-  language and production pipeline under the
+  Acceptance: the exact package-resolved closure implements the complete
   [compiler product contract](wiki/spec/build/compiler_request.md), passes the
-  shared product suite and Rust/Omega differential behavior checks, and publishes
-  a deterministic manifest of every transitive compiler/build input. Preserve
-  requested-product/target and admission boundaries; partial parser acceptance
-  is not compiler completion. C's ordinary Alpha obligation remains required;
-  Rust Alpha emission is not a prerequisite. Bootstrap construction and
-  `omega0 → omega` closure remain on `TASKS_BOOTSTRAP.md`.
+  shared product suite and Rust/Omega differential checks, and publishes a
+  deterministic manifest of all transitive compiler/build inputs. Preserve
+  requested products, targets and admission boundaries. Rust is a nonauthoritative
+  comparator; C still owes ordinary Alpha output without requiring Rust Alpha
+  emission. Epsilon-written D and `omega0 → omega` construction remain on
+  `TASKS_BOOTSTRAP.md`.
