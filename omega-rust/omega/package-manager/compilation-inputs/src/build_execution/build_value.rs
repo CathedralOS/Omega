@@ -10,7 +10,7 @@ mod vocabulary;
 pub use configuration::{
     EvaluatedBuildSettings, PccRequests, PrivilegedServicesGrants, X86DeploymentClaim,
 };
-pub use vocabulary::{build_reaches_filesystem_facet, is_build_machine};
+pub(super) use vocabulary::{build_reaches_filesystem_facet, is_build_machine};
 
 use super::BuildMachineFilesystemScope;
 use build_time_evaluation::BuildTimeValue;

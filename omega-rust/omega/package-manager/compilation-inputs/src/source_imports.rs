@@ -7,6 +7,7 @@
 
 mod bindings;
 mod build_prelude;
+mod entry_contract_seed;
 mod frontier;
 mod generated;
 mod package_selection;
@@ -15,6 +16,7 @@ mod project;
 
 pub use bindings::{PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings};
 pub use build_prelude::{BuildPrelude, prepare_build_prelude};
+pub use entry_contract_seed::{EntryContractSeed, entry_contract_seeds};
 pub use frontier::{
     SourceFile, SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };

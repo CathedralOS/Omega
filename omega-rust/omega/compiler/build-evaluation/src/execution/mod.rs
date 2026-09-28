@@ -2,11 +2,10 @@
 mod machine_evaluation;
 
 use crate::admission::configuration::BuildConfig;
-use crate::admitted_build_program::{AdmittedBuildMachine, SelectedAdmittedBuildMachine};
 use crate::{AdmittedBuildProgram, ComputedBuildConfig};
 use build_time_evaluation::wire_compatibility::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
-use package_compilation::CapturedBuildObservations;
+use package_compilation::{CapturedBuildObservations, SelectedBuildMachine};
 use provider_planning::program_entry::collect_root_bindings;
 use trust_model::{
     harvest_behavior_exclusions, harvest_component_assumption_acceptances, harvest_root_grants,
@@ -40,7 +39,7 @@ fn execute_admitted_build_occurrence(
         evaluation_sponsor,
         artifact_only,
     } = admitted;
-    let AdmittedBuildMachine::Selected(selected) = machine else {
+    let Some(selected) = machine else {
         if artifact_only {
             return Err(vec![Diagnostic::error(
                 "an artifact-only application requires a build machine that completes at least one required output"
@@ -56,7 +55,7 @@ fn execute_admitted_build_occurrence(
             generated_sources: Vec::new(),
         });
     };
-    let SelectedAdmittedBuildMachine {
+    let SelectedBuildMachine {
         entry: machine_entry,
         symbol: machine_symbol,
         name: machine_name,

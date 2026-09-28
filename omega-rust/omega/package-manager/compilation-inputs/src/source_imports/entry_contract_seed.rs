@@ -5,23 +5,35 @@
 //! contract realizes the program entry remains a per-target selection made
 //! later, from the target catalog's slot.
 
-use package_compilation::PackageCompilationInputs;
-use package_compilation::source_imports::SourceStorage;
+use crate::PackageCompilationInputs;
+use crate::source_imports::SourceStorage;
 use std::path::PathBuf;
 
 pub struct EntryContractSeed {
-    pub source: PathBuf,
-    pub root: PathBuf,
-    pub closed_subtree: bool,
+    source: PathBuf,
+    root: PathBuf,
+    closed_subtree: bool,
+}
+
+impl EntryContractSeed {
+    /// Register only bundled fallback custody, then hand the selected source
+    /// to the loading stage. Ordinary suppliers keep their package identity.
+    pub fn register_custody(self, storage: &mut SourceStorage) -> PathBuf {
+        if self.closed_subtree {
+            storage.register_toolchain_contract_root(self.source.clone(), self.root.clone());
+            storage.register_toolchain_contract_dir(self.root);
+        }
+        self.source
+    }
 }
 
 /// One seed per catalogued profile that owns a physical entry contract
 /// package, skipping any contract source the storage already holds.
-pub(super) fn entry_contract_seeds(
+pub fn entry_contract_seeds(
     package_inputs: Option<&PackageCompilationInputs>,
     source_storage: &SourceStorage,
 ) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {
-    let bundled_root = package_compilation::source_imports::bundled_omega_root()?.join("std");
+    let bundled_root = crate::source_imports::bundled_omega_root()?.join("std");
     let mut seeds = Vec::new();
     for profile in target::TargetProfile::ALL {
         let slot = profile.program_entry_slot();

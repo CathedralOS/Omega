@@ -13,7 +13,6 @@ use syntax_trees::SyntaxTrees;
 use tokens_to_syntax_trees::parse_sources;
 
 mod checkpoint;
-mod entry_contract_seed;
 pub use checkpoint::ImmutableSourceParseCheckpoint;
 
 #[derive(Clone)]

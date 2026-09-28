@@ -9,6 +9,12 @@ Start at [package_compilation.rs](src/package_compilation.rs): it constructs the
 package graph, validates source roots and dependency bindings, and separates the
 shared source projection from target-specific attachments.
 
+[build_execution/build_admission.rs](src/build_execution/build_admission.rs) selects
+the exact source-owned Build machine, rejects runtime-service reach, and admits
+its initial value and filesystem mode from the captured package scope. The compiler
+sequences Psi preparation/reach inference before this decision and retains the
+prepared program with its exact entry token; this owner does not execute it.
+
 [build_execution/build_value.rs](src/build_execution/build_value.rs) owns the
 Build-value protocol: admit the exact vocabulary, initialize the activation's
 facets, and decode normalized settings after interpretation. `initial` owns
@@ -26,6 +32,11 @@ physical/generated collisions; `paths` owns candidate paths and containment;
 ownership. It does not schedule parsing or checking. The compiler asks these
 owners for the next source frontier and passes it through Psi's loading,
 lexing and parsing stages.
+
+[Entry-contract seeds](src/source_imports/entry_contract_seed.rs) select every
+target profile's contract source from exact package suppliers or the bundled
+fallback. The compiler schedules loading and parsing; package provenance and
+accepted supplier selection stay here.
 
 [Build prelude preparation](src/source_imports/build_prelude.rs) selects the
 toolchain Build source and its scoped aliases. An authored Build in the selected
