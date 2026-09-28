@@ -138,12 +138,22 @@ an independent package beside their Psi admission owner at
 
 `omega/compiler/` owns compilation orchestration. Its supporting crates are
 `build-declarations`, `build-evaluation`, `build-output`, `package-compilation`,
-`provider-planning`, `selected-dispatch`,
-`trust-ledger`, and `trust-model`. Each retains its own `Cargo.toml` and domain
+`provider-planning` and `trust-model`.
+Each retains its own `Cargo.toml` and domain
 entrypoint. Nesting makes the compilation responsibilities discoverable; it
 does not make helpers depend on the coordinator. In particular,
 `build-declarations` remains a compiler-neutral syntactic projection used by
 both compilation and package management.
+
+The CLI's independent [`trust-ledger`](omega/omega/trust-ledger/README.md)
+package owns reading and explicitly replacing `omega.admissions`. Compile and
+run commands supply its in-memory admissions to the compiler; pipeline execution
+does not load or mutate project policy files.
+
+[`omega/realization/selected-dispatch/`](omega/realization/selected-dispatch/README.md)
+owns selected execution preparation and settlement. This remains a checked-tree
+realization seam; moving it out of the coordinator does not establish the intended
+Terminal-only handoff.
 
 `omega/package-manager/` owns package operations, with independent
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates beneath
