@@ -95,6 +95,7 @@ mod suspension_call_plan;
 pub(crate) mod trapping_integer;
 
 pub use atomic_access::AtomicAccessRefusal;
+pub(crate) use byte_sequence::store::capacity as byte_sequence_store_capacity;
 use call_graph::validate_call_graph;
 use conformance_applications::validate_closed_conformance_applications;
 pub use error::{
@@ -123,7 +124,6 @@ pub use scalar::block_invariants::scalar_block_invariant_scope;
 pub(crate) use structural::byte_sequence_fields::length_capacity_bound as structural_byte_sequence_field_length_capacity_bound;
 pub(crate) use structural::byte_sequence_fields::replacement_length_equation as structural_byte_sequence_field_length_equation;
 pub(crate) use structural::byte_sequence_store::capacity as structural_byte_sequence_store_capacity;
-pub(crate) use byte_sequence::store::capacity as byte_sequence_store_capacity;
 pub(crate) use structural::operations::{
     canonical_field_path, exact_payloadless_case_return_exits, is_runtime_indexed_borrow_path,
     structural_argument_canonical_prefix, structural_field_store_write_path,

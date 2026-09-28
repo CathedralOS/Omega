@@ -143,9 +143,8 @@ pub(crate) fn length_capacity_bound(
         .iter()
         .find(|candidate| candidate.id == *field)
         .ok_or_else(invalid)?;
-    let StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-        capacity,
-    }) = declaration.field_type
+    let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
+        declaration.field_type.byte_sequence_carrier()
     else {
         return Ok(None);
     };

@@ -364,7 +364,8 @@ fn transferred_claims(operation: &terminal_psi::Operation) -> Vec<ClaimId> {
 fn mutation_destinations(operation: &terminal_psi::Operation) -> Vec<PlaceId> {
     match &operation.kind {
         OperationKind::StructuralScalarFieldStore { destination, .. }
-        | OperationKind::ByteSequenceStore { destination, .. } | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
+        | OperationKind::ByteSequenceStore { destination, .. }
+        | OperationKind::StructuralByteSequenceFieldStore { destination, .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::StoreStructuralField { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }

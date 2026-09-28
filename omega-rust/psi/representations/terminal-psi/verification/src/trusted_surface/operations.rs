@@ -349,6 +349,7 @@ static OP_BYTE_SEQUENCE_STORE: TrustedSurfaceEntry = entry(
         "fact:byte-extent-length",
         "owner:operation",
         "formation:operation-validation",
+        "formation:byte-sequence-operations",
     ],
     &[
         VOCAB,
@@ -371,6 +372,7 @@ static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: TrustedSurfaceEntry = entry(
         "fact:byte-extent-length",
         "owner:operation",
         "formation:operation-validation",
+        "formation:structural-byte-sequence-fields",
     ],
     &[
         VOCAB,
@@ -508,6 +510,7 @@ static OP_ESTABLISH_BYTE_SEQUENCE_LITERAL: TrustedSurfaceEntry = entry(
         "fact:structural-effect-observation",
         "fact:byte-extent-length",
         "formation:operation-validation",
+        "formation:structural-operations",
     ],
     &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS],
 );

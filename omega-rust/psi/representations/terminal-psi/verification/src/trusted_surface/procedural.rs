@@ -254,7 +254,7 @@ rows! {
     INV_FIELD_STORE => (
         "invalidation:structural-field-store",
         WriteInvalidation,
-        "a structural field store whose canonical write path may resolve",
+        "a structural field store whose canonical write path may resolve, or a whole bounded-byte-owner replacement whose write covers the destination root",
         "propositions still observing the exact write after exact scalar capture are removed; an unresolvable path forgets the entire root",
         &["scope:place-substitution", "scope:field-value-snapshots"],
         &[tv!( "verification/reconstruction/operation_facts.rs"), tv!( "validation/structural/operations/structural_paths.rs")]
@@ -282,7 +282,7 @@ rows! {
         CallComposition,
         "a call operation's callee signature, argument substitution, and the callee's verified contract",
         "parameter equalities, instantiated requires obligations, and imported ensures propositions composed into the caller frame",
-        &["scope:call-frame-rewrite", "formation:contract-validation", "scope:field-value-snapshots"],
+        &["scope:call-frame-rewrite", "formation:contract-validation", "scope:field-value-snapshots", "formation:structural-operations"],
         &[tv!( "verification/call_composition.rs"), ts!( "call_composition.rs"), ts!( "static_path.rs")]
     );
     COMP_CALL_ROW_VALIDATION => (
@@ -372,10 +372,10 @@ rows! {
     FORM_MODULE_STRUCTURE => (
         "formation:module-structure",
         SharedFormation,
-        "the terminal module's canonical representation: machines, blocks, structural types, and declared surfaces, including leaf-typed structural fields resolved through their canonical leaf shape and explicit leaf copies through `leaf_copy_shape`",
+        "the terminal module's canonical representation, including leaf-typed structural fields, explicit leaf copies, bounded byte fields with nonempty primitive predicate sets, plain byte-predicate domains without content or establishment routes, and attachment zeroing whose empty bytes satisfy every field predicate",
         "structural validation accepting exactly well-formed modules before any reconstruction; malformed representations reject with a ModuleError",
         &["root:verification-contract"],
-        &[tv!( "validation.rs"), tv!( "validation/byte_sequence.rs"), tv!( "validation/element_view.rs"), tv!( "validation/scalar.rs"), tv!( "validation/structural.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/boundary_machines.rs"), tv!( "validation/foundation/domains.rs"), tv!( "validation/foundation/machine_foundations.rs"), tv!( "validation/foundation/provider_candidates.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "validation/foundation/services.rs"), tv!( "validation/foundation/structural_types.rs"), tv!( "lib.rs"), pa!( "lib.rs")]
+        &[tv!( "validation.rs"), tv!( "validation/byte_sequence.rs"), tv!( "validation/element_view.rs"), tv!( "validation/scalar.rs"), tv!( "validation/structural.rs"), tv!( "validation/error.rs"), tv!( "validation/foundation.rs"), tv!( "validation/foundation/boundary_machines.rs"), tv!( "validation/foundation/domains.rs"), tv!( "validation/foundation/machine_foundations.rs"), tv!( "validation/foundation/provider_candidates.rs"), tv!( "validation/foundation/provider_result.rs"), tv!( "validation/foundation/services.rs"), tv!( "validation/foundation/structural_types.rs"), tv!( "lib.rs"), pa!( "lib.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs", "omega-rust/psi/representations/terminal-psi/src/terminal_module/types/structural.rs"]
     );
     FORM_MACHINE => (
         "formation:machine-validation",
@@ -612,10 +612,10 @@ rows! {
     FORM_STRUCTURAL_OPS => (
         "formation:structural-operations",
         SharedFormation,
-        "structural, boundary, and effect operation custody: structural field stores and their canonical write paths, structural arguments and claim transfers, unit operations, payloadless and primitive structural calls, contract places, crash continuations, and boundary requirements",
-        "these operations validate and resolve their paths and custody before invalidation, leaf equations, or call composition are reconstructed",
+        "structural, boundary, and effect operation custody, including literal qualification rosters checked against their exact bytes and carrier, and whole bounded-owner argument loans with exact capacity and predicate declarations: shared loans may weaken predicates, while exclusive loans preserve them in both directions",
+        "these operations validate paths and custody before reconstruction; literal annotations cannot invent byte predicates and an exclusive whole-owner loan cannot discard the caller field invariant",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural/operations.rs"), tv!( "validation/structural/operations/boundary_requirements.rs"), tv!( "validation/structural/operations/claim_transfers.rs"), tv!( "validation/structural/operations/claim_transfers/argument_claims.rs"), tv!( "validation/structural/operations/claim_transfers/transfer_roster.rs"), tv!( "validation/structural/operations/contract_places.rs"), tv!( "validation/structural/operations/crash_continuations.rs"), tv!( "validation/structural/operations/payloadless_calls.rs"), tv!( "validation/structural/operations/primitive_calls.rs"), tv!( "validation/structural/operations/structural_arguments.rs"), tv!( "validation/structural/operations/structural_arguments/argument_checks.rs"), tv!( "validation/structural/operations/structural_arguments/argument_pairs.rs"), tv!( "validation/structural/operations/structural_paths.rs"), tv!( "validation/structural/operations/unit_operation.rs"), tv!( "validation/structural/operations/unit_operation/boundary_calls.rs"), tv!( "validation/structural/operations/unit_operation/local_establishments.rs"), tv!( "validation/structural/operations/unit_operation/structural_calls.rs"), tv!( "validation/structural/operations/unit_operation/unit_calls.rs")]
+        &[tv!( "validation/structural/operations.rs"), tv!( "validation/structural/operations/boundary_requirements.rs"), tv!( "validation/structural/operations/claim_transfers.rs"), tv!( "validation/structural/operations/claim_transfers/argument_claims.rs"), tv!( "validation/structural/operations/claim_transfers/transfer_roster.rs"), tv!( "validation/structural/operations/contract_places.rs"), tv!( "validation/structural/operations/crash_continuations.rs"), tv!( "validation/structural/operations/payloadless_calls.rs"), tv!( "validation/structural/operations/primitive_calls.rs"), tv!( "validation/structural/operations/structural_arguments.rs"), tv!( "validation/structural/operations/structural_arguments/argument_checks.rs"), tv!( "validation/structural/operations/structural_arguments/argument_pairs.rs"), tv!( "validation/structural/operations/structural_paths.rs"), tv!( "validation/structural/operations/unit_operation.rs"), tv!( "validation/structural/operations/unit_operation/boundary_calls.rs"), tv!( "validation/structural/operations/unit_operation/local_establishments.rs"), tv!( "validation/structural/operations/unit_operation/structural_calls.rs"), tv!( "validation/structural/operations/unit_operation/unit_calls.rs"), ts!( "byte_sequence_predicates.rs"), ts!( "call_composition/bounded_byte_owner.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs"]
     );
     FORM_STRUCTURAL_SCALAR => (
         "formation:structural-scalar-fields",
@@ -628,18 +628,18 @@ rows! {
     FORM_STRUCTURAL_BYTES => (
         "formation:structural-byte-sequence-fields",
         SharedFormation,
-        "structural byte-sequence fields, their extents, and freshness discipline, including the equality of two length observations of one field when no path between them changes its extent; byte stores require a bounded-owned carrier",
+        "structural byte-sequence fields, exact current extents and unchanged-length observations; replacement requires a bounded-owned carrier and immutable completed source whose independently replayed predicates imply the field restrictions",
         "byte-sequence fields validate before extent equations and capacity obligations are reconstructed",
         &["formation:operation-validation"],
-        &[tv!( "validation/structural/byte_sequence_fields.rs"), tv!( "validation/structural/byte_sequence_fields/freshness.rs"), tv!( "validation/structural/byte_sequence_store.rs")]
+        &[tv!( "validation/structural/byte_sequence_fields.rs"), tv!( "validation/structural/byte_sequence_fields/freshness.rs"), tv!( "validation/structural/byte_sequence_store.rs"), ts!( "byte_sequence_predicates.rs"), "omega-rust/psi/foundation/language-semantics/src/byte_predicates/mod.rs", "omega-rust/psi/representations/terminal-psi/src/terminal_module/types/structural.rs"]
     );
     FORM_BYTE_OPS => (
         "formation:byte-sequence-operations",
         SharedFormation,
-        "byte-sequence length, read, write, and subslice operations",
-        "byte-sequence operations validate their extents and bounds before observations are reconstructed",
+        "byte-sequence length, read, write, subslice and whole-owner replacement operations; replacement requires an exclusive bounded-owner parameter, an immutable completed source and its current length, with every declared primitive byte predicate preserved",
+        "byte-sequence operations validate access, extents and bounds before reconstruction; mutable replacement sources reject and the receiving capacity obligation is reconstructed independently of predicate preservation",
         &["formation:operation-validation"],
-        &[tv!( "validation/byte_sequence/length.rs"), tv!( "validation/byte_sequence/read.rs"), tv!( "validation/byte_sequence/write.rs"), tv!( "validation/byte_sequence/subslice.rs")]
+        &[tv!( "validation/byte_sequence/length.rs"), tv!( "validation/byte_sequence/read.rs"), tv!( "validation/byte_sequence/write.rs"), tv!( "validation/byte_sequence/subslice.rs"), tv!( "validation/byte_sequence/store.rs"), ts!( "byte_sequence_predicates.rs")]
     );
     FORM_CALL_GRAPH => (
         "formation:call-graph",

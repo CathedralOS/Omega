@@ -99,7 +99,8 @@ pub(super) fn validate_operation_operands(
         OperationKind::ByteSequenceSubslice { .. } => {
             storage_operands::validate_byte_sequence_subslice(operation, value_types, defined)
         }
-        OperationKind::ByteSequenceStore { .. } | OperationKind::StructuralByteSequenceFieldStore { .. } => {
+        OperationKind::ByteSequenceStore { .. }
+        | OperationKind::StructuralByteSequenceFieldStore { .. } => {
             storage_operands::validate_structural_byte_sequence_field_store(
                 operation,
                 value_types,
