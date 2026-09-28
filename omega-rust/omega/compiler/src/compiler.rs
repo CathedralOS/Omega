@@ -167,15 +167,11 @@ fn compile_target(
 }
 
 /// The assembled, built and typed program of one invocation, keyed by the
-/// build inputs a target carries reduced to their evaluated content: package
-/// purpose, source graph, generated-source bytes per scope, accepted
-/// bindings, and component descriptions. Assembly, resolution, typing and
-/// build evaluation observe no realized target, so targets with equal build
-/// inputs share one result and each continues from its own copy; custody
-/// stamps those inputs carry are re-validated per child and never widen this
-/// key.
+/// package owner's complete build inputs. Captured builds with equal inputs
+/// share one result and each target continues from its own copy; live output
+/// directories remain distinct. Per-child custody admission precedes reuse.
 struct SharedBuilds {
-    builds: Vec<(BuildInputs, SharedBuild)>,
+    builds: Vec<(package_compilation::BuildExecutionInputs, SharedBuild)>,
     /// Targets still to be served after the current one; the last target
     /// keeps nothing for reuse.
     remaining_targets: usize,
@@ -188,51 +184,6 @@ struct SharedBuild {
     built: BuiltCheckedProgram,
     build_sources: BuildSourceCustody,
     timings: CompileTimings,
-}
-
-#[derive(PartialEq, Eq)]
-struct BuildInputs {
-    package_inputs: Option<BuildPackageInputs>,
-}
-
-/// The part of one target's package inputs the assembled, built and typed
-/// program is a function of: the checked activation's purpose, the immutable
-/// source graph, the dependency generated-source handoff reduced to the
-/// scope/package/bytes assembly stores, and the accepted bindings and
-/// component descriptions the pre-settlement verdicts read. Bundle producer
-/// stamps — producing target, execution profile, dependency closure and
-/// source-consumption commitment — are custody evidence `admit_child`
-/// re-validates per target, not build content: two requested targets whose
-/// inputs differ only in those stamps assemble and evaluate once here.
-#[derive(PartialEq, Eq)]
-struct BuildPackageInputs {
-    purpose: build_declarations::DependencyPurpose,
-    source: std::sync::Arc<package_compilation::PackageCompilationSourceInputs>,
-    generated: Vec<GeneratedSources>,
-    accepted_semantic_bindings: Vec<package_compilation::AcceptedSemanticBinding>,
-    independent_component_descriptions: Vec<package_compilation::IndependentComponentDescription>,
-}
-
-impl BuildPackageInputs {
-    fn for_inputs(inputs: &package_compilation::PackageCompilationInputs) -> Self {
-        Self {
-            purpose: inputs.compilation_purpose(),
-            source: inputs.source_inputs(),
-            generated: inputs
-                .dependency_generated_source_instances()
-                .map(|(purpose, bundle)| GeneratedSources {
-                    package: bundle.package(),
-                    purpose,
-                    sources: bundle.sources().to_vec(),
-                })
-                .collect(),
-            accepted_semantic_bindings: inputs.accepted_semantic_bindings().cloned().collect(),
-            independent_component_descriptions: inputs
-                .independent_component_descriptions()
-                .cloned()
-                .collect(),
-        }
-    }
 }
 
 impl SharedBuilds {
@@ -250,9 +201,7 @@ impl SharedBuilds {
         package_inputs: Option<&package_compilation::PackageCompilationInputs>,
         root_path: &std::path::Path,
     ) -> Result<SharedBuild, Vec<Diagnostic>> {
-        let inputs = BuildInputs {
-            package_inputs: package_inputs.map(BuildPackageInputs::for_inputs),
-        };
+        let inputs = child.build_execution_inputs();
         self.remaining_targets = self.remaining_targets.saturating_sub(1);
         if let Some((_, shared)) = self.builds.iter().find(|(existing, _)| *existing == inputs) {
             return Ok(shared.clone());
@@ -276,14 +225,6 @@ impl SharedBuilds {
         }
         Ok(shared)
     }
-}
-
-/// The part of one dependency-generated bundle that assembly reads.
-#[derive(PartialEq, Eq)]
-struct GeneratedSources {
-    package: semantic_vocabulary::PackageKeyIdentity,
-    purpose: build_declarations::DependencyPurpose,
-    sources: Vec<build_output::PackageGeneratedSource>,
 }
 
 /// Run one step and record its duration under `stage` in the target's ladder.

@@ -280,6 +280,18 @@ impl<'a> CheckedChildExecution<'a> {
         self.package_inputs
     }
 
+    /// Ordinary target compilation has no external sponsor or consent guard.
+    /// Compare its complete build inputs through their package owner, including
+    /// the effective automatic/explicit capture and the live output directory.
+    pub(crate) fn build_execution_inputs(&self) -> package_compilation::BuildExecutionInputs {
+        package_compilation::BuildExecutionInputs::for_unsponsored(
+            self.package_inputs,
+            self.build_execution_profile,
+            self.build_snapshot.as_ref(),
+            self.build_dir,
+        )
+    }
+
     pub(crate) fn selected_target_profile(&self) -> Option<target::TargetProfile> {
         self.selected_target_profile
     }
@@ -392,7 +404,10 @@ impl PreparedCheckedSource {
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let root_path = self.root_path.clone();
         self.admit_child(&child)?;
-        let key = build_continuation::TypedFrontierKey::for_child(&child)?;
+        let key = package_compilation::SourceAssemblyInputs::new(
+            child.package_inputs,
+            child.build_execution_profile,
+        );
         let frontier_memo = self.frontier_memo.clone();
         let retained = frontier_memo
             .lock()

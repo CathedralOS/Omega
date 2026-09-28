@@ -20,6 +20,62 @@ use std::sync::atomic::{AtomicU64, Ordering};
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
 #[test]
+fn multi_target_build_reuse_preserves_each_snapshot_output_obligation() {
+    let fixture = SourcePreparationFixture::new();
+    let closure = fixture.closure();
+    let source_root = closure.source_root(closure.graph().root()).unwrap();
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([73; 32]).unwrap();
+    let inputs = package_compilation::PackageCompilationInputs::new_package(
+        package,
+        vec![
+            package_compilation::PackageSourceBinding::new(
+                package,
+                "prepared_package",
+                source_root.to_owned(),
+            )
+            .with_canonical_source_metadata()
+            .unwrap(),
+        ],
+        Vec::new(),
+    )
+    .unwrap();
+    let outcomes = compiler::compile(
+        compiler::CompileRequest::new(compiler::CompileOptions {
+            root_path: source_root.join("main.omg"),
+            target_name: None,
+            build_dir: None,
+        })
+        .with_target_configurations(vec![
+            compiler::TargetCompileConfiguration::new(target::TargetProfile::LinuxX64)
+                .with_build_dir(fixture.0.join("linux"))
+                .with_build_snapshot(build_evaluation::BuildSnapshotRequest::new(Vec::new())),
+            compiler::TargetCompileConfiguration::new(target::TargetProfile::WindowsX64)
+                .with_build_dir(fixture.0.join("windows"))
+                .with_build_snapshot(build_evaluation::BuildSnapshotRequest::new([
+                    b"required-but-never-produced".to_vec(),
+                ])),
+        ])
+        .with_package_inputs(inputs),
+    )
+    .expect("one outcome per target");
+    let outcomes = outcomes.outcomes();
+    assert_eq!(outcomes.len(), 2);
+    assert!(outcomes[0].succeeded(), "{:?}", outcomes[0].diagnostics());
+    let diagnostics = outcomes[1]
+        .diagnostics()
+        .expect("a sibling's successful build cannot discharge this output obligation");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("required-but-never-produced")
+                || diagnostic
+                    .message
+                    .contains("cannot complete its required outputs")
+        }),
+        "{diagnostics:?}",
+    );
+}
+
+#[test]
 fn policy_comparison_rejects_a_review_issued_for_another_purpose() {
     use crate::lock::{
         HistoricalPackagePolicyDecisions, HistoricalPackagePolicyLimits, PackageLockTarget,
