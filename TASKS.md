@@ -4758,28 +4758,29 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   consumes this closure; **WIRE-RUNTIME-AND-INSTALLATION** owns platform
   invocation and **PSI-COMPONENT-REPLACEMENT** the interpreted customer.
 
-- **FFIVAL.** Complete and run the Windows user32 boundary-coherence
-  customer at `tests/omega/pending/host/user32_window_procedure_registration`,
-  through its authored build root and the generic
-  [private-callback protocol](wiki/spec/build/private_callbacks.md).
-  Reproduce its pinned `cannot prove requires contract` diagnostic before
-  assigning a repair; generic result-payload qualification transport exists,
-  while this customer uses a by-reference outcome.
+- **FFIVAL.** Run the Windows user32 customer at
+  `tests/omega/pending/host/user32_window_procedure_registration` through its
+  authored build and the [private-callback protocol](wiki/spec/build/private_callbacks.md).
+  `omega --check <fixture>/main.omg` currently rejects the by-reference
+  outcome: both `Registered` paths lack `Registration::Live`, and both
+  success/rejection payloads remain unestablished linear values. Carry the
+  registrar's actual outcome and capacity through ordinary qualification and
+  custody rules; existing call-result transport does not establish this out-parameter.
 
-  REGISTERED-CALLBACK-LIFETIME owns outcome/capacity lifecycle;
-  CALLBACK-PRIVATE-MATERIALIZATION owns callback/private-layout realization.
-  Supply the package-owned user32 provider/adapter, exact native ABI/layout
-  and explicit per-window context protocol. The fixture currently declares
-  an abstract boundary and a contextual procedure, not completed foreign
-  bindings to Win32's actual callback.
+  **REGISTERED-CALLBACK-LIFETIME** owns that lifecycle;
+  **CALLBACK-PRIVATE-MATERIALIZATION** owns native callback realization.
+  Supply the package-owned user32 adapter, exact ABI/layout and explicit
+  per-window context protocol. The fixture declares an abstract boundary;
+  its retry branch neither forces rejection nor re-registers returned capacity.
+  Complete those observable customer steps.
 
-  Acceptance on Windows: actual registration, `WM_NCCREATE` and dispatched
-  callback entry, deterministic rejection/retry, teardown and reuse of returned
-  capacity, with quiescence before releasing code leases. No raw callable
-  address, implicit closure or Win32-specific compiler escape. Promote the
-  pending canary only when its corresponding acceptance works; checking and
-  diagnostic watchers alone do not establish foreign invocation. Other hosts
-  explicitly report this runtime leg unavailable.
+  Acceptance on Windows: actual registration, synchronous `WM_NCCREATE`,
+  dispatched callback entry, deterministic rejection/retry, teardown and
+  registration with the returned capacity; quiescence precedes code-lease
+  release. No raw callable address, implicit closure or Win32 compiler escape.
+  The corpus excludes `pending`; replace the removed watcher with acceptance
+  at the appropriate tier. Checking or byte emission cannot close foreign
+  invocation; other hosts report that runtime leg unavailable.
 
 - **WIRE-RUNTIME-AND-INSTALLATION.** Execute an authored program through
   an admitted artifact's receiving-provider installation and matching-host
