@@ -219,9 +219,12 @@ pub(crate) fn check_selected_execution(
         package_inputs,
     )?;
     if let Some(package_inputs) = package_inputs {
-        crate::checked::package::declaration_admission::validate_authored_declaration_selections(
+        let sibling_occurrences =
+            typed_trees_to_checked_trees::target_sibling_selection_occurrences(&checked.program);
+        validation::validate_authored_declaration_selections(
             &checked.program,
             package_inputs,
+            &sibling_occurrences,
         )?;
     }
     // The CheckedTrees optimization phase runs only after all authored code

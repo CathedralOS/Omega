@@ -35,21 +35,7 @@ pub(crate) use selection_authority::{
     require_closed_integer_argument,
 };
 
-/// Package-neutral authority consulted before the compiler executes an
-/// authored machine during early semantic evaluation.
-///
-/// Psi owns provenance and call-closure discovery. Omega supplies the exact
-/// reconciled direct-dependency predicate without leaking resolver or lockfile
-/// structures into the language layer.
-pub trait BuildTimeSelectionAuthority: Send + Sync {
-    fn allows_declaration_selection(
-        &self,
-        requester: semantic_vocabulary::PackageKeyIdentity,
-        owner: semantic_vocabulary::PackageKeyIdentity,
-    ) -> bool;
-
-    fn package_label(&self, identity: semantic_vocabulary::PackageKeyIdentity) -> String;
-}
+pub use validation::DeclarationSelectionAuthority as BuildTimeSelectionAuthority;
 
 /// Check the existing declaration-selection gate for a call-free expression probe.
 pub(crate) fn require_const_expression_selection(

@@ -204,9 +204,14 @@ pub(crate) fn typed_trees_to_checked_trees(
         super::record_settled_check(check_started.elapsed());
         let mut program = check_result?;
         if let Some(package_inputs) = settlement.package_inputs {
-            crate::checked::package::declaration_admission::validate_authored_declaration_selections(
+            // Sibling bodies were checked under their own target; their
+            // selections are excluded from this realization's authority gate.
+            let sibling_occurrences =
+                typed_trees_to_checked_trees::target_sibling_selection_occurrences(&program);
+            validation::validate_authored_declaration_selections(
                 &program,
                 package_inputs,
+                &sibling_occurrences,
             )?;
         }
         if let Some(native_target) = settlement.native_target {
