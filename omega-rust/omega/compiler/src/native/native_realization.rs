@@ -43,10 +43,6 @@ pub use terminal_psi_to_abstract_operations::{
 use diagnostics::Diagnostic;
 
 use self::object_emission::emit_realization_object;
-use native_artifact::{
-    NativeArtifactEmissionParts, NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
-};
-use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_native_realization};
 
 /// Product-owned per-pass ceilings shared by program and callback realization.
@@ -78,7 +74,7 @@ fn realize_image(
 ) -> Result<RequestedNativeArtifact, Vec<Diagnostic>> {
     let AdmittedNativeRealization {
         input,
-        providers,
+        mut providers,
         boundary_application_coverage,
     } = admit_native_realization(&artifact, &request.admission)?;
     let receiver_settlement = native_artifact::admit_executable_entry_receiver(
@@ -87,53 +83,22 @@ fn realize_image(
         request.admission.providers.program_entry,
         request.admission.providers.target,
     )?;
-    let AdmittedNativeProviders {
-        settlements,
-        executions,
-        terminal_authority_policy_identity,
-        terminal_authority_permission_policy_identity,
-        terminal_authority_closure_review,
-        installation,
-    } = providers;
-    let executions = executions
-        .into_iter()
-        .map(native_artifact::NativeProviderExecution::from_evidence)
-        .collect();
     let emitted = emit_realization_object(
         input,
-        installation,
-        &settlements,
+        providers.installation.take(),
+        &providers.settlements,
         boundary_application_coverage.as_ref(),
         receiver_settlement.as_ref(),
         &artifact,
         request,
     )?;
-    RequestedNativeArtifact::emit(NativeArtifactEmissionParts {
-        target: request.admission.providers.target,
-        psi_artifact: artifact,
-        object: emitted.object,
-        image: request.image_request.clone(),
-        selected_provider_closure_report_identity: request
-            .admission
-            .providers
-            .selected_provider_plans
-            .compatibility_report_identity(),
-        selected_provider_closure_digest: NativeSelectedProviderClosureDigest::from_digest(
-            *request
-                .admission
-                .providers
-                .selected_provider_plans
-                .identity_digest()
-                .as_bytes(),
-        ),
-        selected_provider_plans: NativeSelectedProviderPlan::project_selection(
-            request.admission.providers.selected_provider_plans,
-        ),
-        provider_executions: executions,
-        terminal_authority_policy_identity,
-        terminal_authority_permission_policy_identity,
-        terminal_authority_closure_review,
+    RequestedNativeArtifact::emit_admitted(
+        request.admission.providers.target,
+        artifact,
+        emitted,
+        request.image_request.clone(),
+        request.admission.providers.selected_provider_plans,
+        providers,
         boundary_application_coverage,
-        physical_evidence_scope: emitted.physical_evidence_scope,
-    })
+    )
 }

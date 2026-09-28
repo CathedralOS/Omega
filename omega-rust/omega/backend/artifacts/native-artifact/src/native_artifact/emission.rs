@@ -18,6 +18,49 @@ pub enum RequestedNativeArtifact {
 }
 
 impl RequestedNativeArtifact {
+    /// Bind the published object to the exact selected plans and admitted
+    /// provider evidence before emitting an image. Installation is consumed
+    /// by target lowering; this captures the resulting execution and authority
+    /// evidence, then independently replays it against the emitted product.
+    /// Compact report identities never replace the full selection digest.
+    pub fn emit_admitted(
+        target: target::NativeTarget,
+        terminal: terminal_codec::CanonicalTerminalArtifact,
+        published: crate::PublishedFragmentObject,
+        image: ExecutableImageEmissionRequest,
+        selected: &effects::SelectedProviderPlanFacts,
+        providers: terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders<
+            '_,
+        >,
+        boundary_application_coverage: Option<
+            boundary_applications::TerminalBoundaryApplicationCoverage,
+        >,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        Self::emit(NativeArtifactEmissionParts {
+            target,
+            psi_artifact: terminal,
+            object: published.object,
+            image,
+            selected_provider_closure_report_identity: selected.compatibility_report_identity(),
+            selected_provider_closure_digest:
+                super::NativeSelectedProviderClosureDigest::from_digest(
+                    *selected.identity_digest().as_bytes(),
+                ),
+            selected_provider_plans: super::NativeSelectedProviderPlan::project_selection(selected),
+            provider_executions: providers
+                .executions
+                .into_iter()
+                .map(super::NativeProviderExecution::from_evidence)
+                .collect(),
+            terminal_authority_policy_identity: providers.terminal_authority_policy_identity,
+            terminal_authority_permission_policy_identity: providers
+                .terminal_authority_permission_policy_identity,
+            terminal_authority_closure_review: providers.terminal_authority_closure_review,
+            boundary_application_coverage,
+            physical_evidence_scope: published.physical_evidence_scope,
+        })
+    }
+
     /// Emit an image from the retained object and construct its complete
     /// Terminal/object/image custody. Every physical-evidence derivation and
     /// replay runs before a product is returned. This writes no files and

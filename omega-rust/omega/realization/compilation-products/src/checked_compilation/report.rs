@@ -32,6 +32,43 @@ pub struct CompileReportSettlement {
 }
 
 impl CheckedCompilation {
+    /// Rejoin a realized direct image with this checked source's product
+    /// metadata. The production subject was sealed before lowering; the
+    /// artifact, manifest and source metadata still undergo their independent
+    /// checks. A dynamic ELF carrier cannot satisfy a direct-image request.
+    pub fn native_report(
+        &self,
+        root_path: PathBuf,
+        artifact: native_artifact::RequestedNativeArtifact,
+        rollback: Option<optimization_core::OptimizationRollbackReceipt>,
+        production_subject: Option<crate::ProductionCompilationSubject>,
+        profile: proof_admission::AdmissionProfile,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        let artifact = artifact.into_direct().map_err(|_| {
+            diagnostics("direct native production returned a different image carrier")
+        })?;
+        let application = self.project_native_application_metadata();
+        let report = CompileReport::from_retained_native_artifact(
+            root_path,
+            self.source_file_count(),
+            artifact,
+            rollback,
+            production_subject,
+        )
+        .and_then(|report| report.with_pcc_context(self.pcc_requests(), profile))
+        .and_then(|report| report.with_application_metadata(application.clone()))
+        .map_err(diagnostics)?;
+        report
+            .verify_native_source_metadata(
+                self.source_file_count(),
+                self.selected_target_profile(),
+                self.selected_native_target(),
+                &application,
+            )
+            .map_err(diagnostics)?;
+        Ok(report)
+    }
+
     /// Construct a check-only report under the same evaluated-Build admission
     /// as ordinary compilation. A check never acquires completed output files.
     pub fn check_report(
