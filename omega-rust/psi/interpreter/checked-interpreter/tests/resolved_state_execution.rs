@@ -5,8 +5,8 @@ use checked_interpreter::interpret_entry;
 #[test]
 fn resolved_calls_keep_exact_states_when_debug_spellings_collide() {
     let mut checked = crate::front_end::checked_program(
-        "machine first() -> i32 { let result: i32 = chosen(); transition true { true -> result false -> 0 } state chosen() -> i32 { 3 } }
-         machine second() -> i32 { let result: i32 = chosen(); transition true { true -> result false -> 0 } state chosen() -> i32 { 4 } }
+        "machine first() -> i32 { transition { _ -> chosen() } state chosen() -> i32 { 3 } }
+         machine second() -> i32 { transition { _ -> chosen() } state chosen() -> i32 { 4 } }
          machine main() -> i32 { transition first() == 3 && second() == 4 { true -> 7 false -> 0 } }",
     );
     // Resolved symbols, not retained debug spelling, identify these calls. Make

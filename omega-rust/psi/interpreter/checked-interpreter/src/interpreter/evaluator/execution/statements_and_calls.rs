@@ -343,12 +343,22 @@ impl<'program> Evaluator<'program> {
                 // Same-machine sibling state on the current `self`, or a FREE
                 // machine's self-recursion (`-> count(...)` inside top-level
                 // `machine count` names the MACHINE, whose body state is the
-                // generated `entry`).
+                // generated `entry`). The check stage resolved the target's
+                // state symbol, so sibling lookup prefers it over the
+                // spelling — renamed/colliding states still hit the exact
+                // resolved target before any name fallback.
                 let (machine, state) = match self
-                    .machine_of_state_named(state_name, frame)
+                    .current_machine(frame)
                     .and_then(|machine| {
-                        self.find_state(machine, state_name)
+                        self.find_state_by_symbol(machine, path.symbol)
                             .map(|state| (machine, state))
+                    })
+                    .or_else(|| {
+                        self.machine_of_state_named(state_name, frame)
+                            .and_then(|machine| {
+                                self.find_state(machine, state_name)
+                                    .map(|state| (machine, state))
+                            })
                     }) {
                     Some(resolved) => resolved,
                     None => self
