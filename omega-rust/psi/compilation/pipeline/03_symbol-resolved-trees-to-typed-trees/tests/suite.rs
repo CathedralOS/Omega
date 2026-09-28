@@ -8,5 +8,6 @@
 mod front_end;
 
 mod indexed_member_identity;
+mod internal_state_calls;
 mod service_reach_source_spans;
 mod transparent_refinement_reaches;
