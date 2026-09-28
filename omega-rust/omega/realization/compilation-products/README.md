@@ -1,0 +1,35 @@
+# Compilation products
+
+Finished product custody and publication, independent of the compiler driver.
+This is not a pipeline phase: it consumes already produced artifacts and never
+parses source, evaluates Build, lowers a program or re-enters compilation.
+
+Start at [compilation_products.rs](src/compilation_products.rs) for
+`CompileReport`: one check, build-only, Terminal, retained-native or published
+native product and the evidence that kind can carry. Construction and custody
+transitions validate artifact, rollback, application-package and build-observation
+joins. Compiler and package-admission routes retain this same type; reports do
+not manufacture lower-level evidence or grant receiving authority.
+
+[publication.rs](src/publication.rs) is the installation entrance. It refuses
+check-only, repeated or inconsistent publication before dispatching to
+`publication/native.rs` or `publication/terminal.rs`, then publishes completed
+build companions. Proof pairs are prepared and verified before installing bytes.
+Platform custody owns file staging; native artifacts own executable/package
+receipts; package compilation owns completed-output installation.
+
+[production_manifest.rs](src/production_manifest.rs) binds a package-owned
+production subject to one artifact. [batch_manifest.rs](src/batch_manifest.rs)
+commits the configured target outcomes, not a target-support claim.
+[pcc.rs](src/pcc.rs) records published pair sizes and routes receiver checking
+to the Psi or native checker according to the decoded envelope.
+
+The package depends on those evidence/product owners, not `compiler`,
+`build-evaluation`, the CLI or the package-manager application. Putting this
+cross-product lifecycle in a backend artifact owner would conflate native
+mechanics with package and portable products; generic file utilities must stay
+free of these semantic dependencies.
+
+Validation uses the compiler corpus for production and the CLI's existing
+publication tests, including completed output replay and tamper rejection.
+`cargo check -p compilation-products` checks this ownership boundary directly.

@@ -1,6 +1,6 @@
 //! The compile report: which product a compilation produced,
 //! the payload each product kind owns, and checked publication receipts.
-//! Filesystem orchestration belongs to `artifact_publication`, not this model.
+//! Filesystem orchestration belongs to `publication`, not this model.
 //!
 //! `CompileReport` is a common shell — root, source count, build-output
 //! companions, trust settlement, proof-product requests and timings — around
@@ -10,7 +10,7 @@
 
 use target::NativeApplicationMetadata;
 
-use crate::report::{
+use crate::{
     FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
     ProductionArtifactIdentity, ProductionCompilationManifest, ProductionCompilationSubject,
     RetainedNativeArtifact, RetainedTerminalArtifact, TerminalNativeRealizationProposal,
@@ -103,7 +103,7 @@ impl CompileProduct {
     fn has_consistent_custody(
         &self,
         wrote_output: bool,
-        build_outputs: Option<&crate::report::RetainedBuildOutputs>,
+        build_outputs: Option<&crate::RetainedBuildOutputs>,
         manifest: Option<&ProductionCompilationManifest>,
     ) -> bool {
         match self {
@@ -211,10 +211,10 @@ pub struct CompileReport {
     product: CompileProduct,
     /// Completed files only, bound to the same build observation as the
     /// primary product. Scratch and generated-source files are not products.
-    build_outputs: Option<crate::report::RetainedBuildOutputs>,
+    build_outputs: Option<crate::RetainedBuildOutputs>,
     /// Expected build identity retained independently of the file attachment,
     /// including standalone compilations without a package manifest.
-    build_observation: Option<build_evaluation::BuildObservationIdentity>,
+    build_observation: Option<package_compilation::BuildObservationIdentity>,
     root_path: PathBuf,
     pub source_file_count: usize,
     wrote_output: bool,
@@ -261,7 +261,7 @@ impl CompileReport {
     pub fn from_build_outputs(
         root_path: PathBuf,
         source_file_count: usize,
-        outputs: crate::report::RetainedBuildOutputs,
+        outputs: crate::RetainedBuildOutputs,
         production_subject: Option<ProductionCompilationSubject>,
     ) -> Result<Self, &'static str> {
         let mut report = Self::check_only(root_path, source_file_count)?;
@@ -280,8 +280,8 @@ impl CompileReport {
     /// Attach companions only after the requested primary product checked.
     pub fn with_build_outputs(
         mut self,
-        outputs: Option<crate::report::RetainedBuildOutputs>,
-        expected_observation: Option<build_evaluation::BuildObservationIdentity>,
+        outputs: Option<crate::RetainedBuildOutputs>,
+        expected_observation: Option<package_compilation::BuildObservationIdentity>,
     ) -> Result<Self, &'static str> {
         if matches!(self.product, CompileProduct::CheckOnly) || self.build_outputs.is_some() {
             return Err("completed outputs require a product with no previous output set");
@@ -294,23 +294,23 @@ impl CompileReport {
         Ok(self)
     }
 
-    pub fn build_outputs(&self) -> Option<&crate::report::RetainedBuildOutputs> {
+    pub fn build_outputs(&self) -> Option<&crate::RetainedBuildOutputs> {
         self.build_outputs.as_ref()
     }
 
-    pub(crate) fn build_outputs_mut(&mut self) -> Option<&mut crate::report::RetainedBuildOutputs> {
+    pub(crate) fn build_outputs_mut(&mut self) -> Option<&mut crate::RetainedBuildOutputs> {
         self.build_outputs.as_mut()
     }
 
     pub const fn build_observation_identity(
         &self,
-    ) -> Option<build_evaluation::BuildObservationIdentity> {
+    ) -> Option<package_compilation::BuildObservationIdentity> {
         self.build_observation
     }
 
     /// Transfer companion custody when consuming a retained primary artifact
     /// into another product. Artifact-only reports cannot lose their payload.
-    pub fn take_build_outputs(&mut self) -> Option<crate::report::RetainedBuildOutputs> {
+    pub fn take_build_outputs(&mut self) -> Option<crate::RetainedBuildOutputs> {
         if matches!(
             self.product,
             CompileProduct::TerminalArtifact(_) | CompileProduct::RetainedNativeArtifact(_)
@@ -599,7 +599,7 @@ impl CompileReport {
     }
 
     /// The retained authored hosted intent.
-    pub const fn application_intent(&self) -> Option<build_evaluation::HostedApplicationIntent> {
+    pub const fn application_intent(&self) -> Option<target::HostedApplicationIntent> {
         match &self.product {
             CompileProduct::RetainedNativeArtifact(product) => product.application.intent,
             CompileProduct::NativeExecutable(product) => product.application.intent,
@@ -608,7 +608,7 @@ impl CompileReport {
     }
 
     /// The retained authored application identifier.
-    pub const fn application_identifier(&self) -> Option<&build_evaluation::ApplicationIdentifier> {
+    pub const fn application_identifier(&self) -> Option<&target::ApplicationIdentifier> {
         match &self.product {
             CompileProduct::RetainedNativeArtifact(product) => {
                 product.application.identifier.as_ref()

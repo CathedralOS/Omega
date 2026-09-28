@@ -136,6 +136,12 @@ an independent package beside their Psi admission owner at
 
 ### Subsystem entrances and supporting packages
 
+[`omega/realization/compilation-products/`](omega/realization/compilation-products/README.md)
+owns finished report payloads, production/batch manifests and publication of exact
+artifact/proof pairs. It consumes artifact and custody owners without depending
+on compiler orchestration or build evaluation. It is an output lifecycle, not a
+new program representation or pipeline phase. The CLI publishes through it directly.
+
 `omega/compiler/` owns compilation orchestration. Its remaining
 `build-evaluation` child is an independent build admission/execution package.
 The shared package-input contracts live with the package system, not compiler

@@ -1,0 +1,20 @@
+[package]
+name = "compilation-products"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+artifacts = { path = "../../foundation/artifacts" }
+backend-plan = { path = "../../backend/plans/backend-plan" }
+diagnostics = { path = "../../../psi/foundation/diagnostics" }
+native-artifact = { path = "../../backend/artifacts/native-artifact" }
+optimization-core = { path = "../../foundation/optimization-core" }
+package-compilation = { path = "../../package-manager/compilation-inputs" }
+platform-custody = { path = "../../foundation/platform-custody" }
+proof-admission = { path = "../../../psi/proof/admission" }
+target = { path = "../../backend/target" }
+terminal-codec = { path = "../../../psi/representations/terminal-psi/codec" }
+terminal-psi-to-abstract-operations = { path = "../../pipeline/00_terminal-psi-to-abstract-operations" }
+trust-model = { path = "../trust-model" }
+sha2 = "0.10.9"

@@ -13,7 +13,7 @@ name = "compiler"
 path = "src/lib.rs"
 
 [dependencies]
-platform-custody = { path = "../foundation/platform-custody" }
+compilation-products = { path = "../realization/compilation-products" }
 lowered-psi = { path = "../../psi/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../psi/pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
@@ -91,7 +91,6 @@ native-artifact = { path = "../backend/artifacts/native-artifact" }
 selected-instructions = { path = "../representations/selected-instructions" }
 legalized-operations = { path = "../representations/target-operations/legalized-operations" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
-sha2 = "0.10.9"
 image = { path = "../backend/images/image" }
 image-macho = { path = "../backend/images/image-macho" }
 
