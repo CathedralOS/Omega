@@ -3,7 +3,7 @@
 //! native artifacts into exact executable bytes with their custody receipts.
 
 use crate::report::publication::{
-    PreparedPsiProofPair, appended_file_name_path, remove_stale_companion,
+    appended_file_name_path, psi_pair_receipt, remove_stale_companion, stage_psi_pair,
 };
 use crate::report::{
     FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
@@ -18,6 +18,7 @@ use native_artifact::{
 };
 use platform_custody::file_publication::{install_staged_files, stage_exact_bytes};
 use std::path::PathBuf;
+use terminal_codec::PreparedPsiProofPair;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompileOutputKind {
@@ -361,13 +362,14 @@ impl CompileReport {
                 let pair = PreparedPsiProofPair::new(
                     artifact.psi_artifact(),
                     &self.terminal_admission_profile,
-                )?;
+                )
+                .map_err(|error| error.to_string())?;
                 companions.push((".psi".to_owned(), pair.artifact_bytes().to_vec()));
                 companions.push((".psi.proof".to_owned(), pair.sidecar_bytes().to_vec()));
                 let package_root = build_dir.join(format!("{application_name}.app"));
                 let macos_dir = std::path::Path::new("Contents").join("MacOS");
                 let psi_path = package_root.join(macos_dir.join(format!("{application_name}.psi")));
-                pcc_publications.push(pair.receipt(&psi_path));
+                pcc_publications.push(psi_pair_receipt(&pair, &psi_path));
             }
             // The native companion sits beside the inner executable as
             // `Contents/MacOS/<name>.proof`; the staged rename makes its
@@ -414,9 +416,10 @@ impl CompileReport {
                 let pair = PreparedPsiProofPair::new(
                     artifact.psi_artifact(),
                     &self.terminal_admission_profile,
-                )?;
+                )
+                .map_err(|error| error.to_string())?;
                 let psi_path = appended_file_name_path(&output_path, ".psi");
-                pcc_publications.push(pair.stage(&psi_path, &mut staged_products)?);
+                pcc_publications.push(stage_psi_pair(&pair, &psi_path, &mut staged_products)?);
             } else {
                 // An earlier Psi-requested publication's companions must not
                 // survive beside an executable they do not commit to; removing
@@ -539,8 +542,9 @@ impl CompileReport {
         let mut staged_products = Vec::new();
         if self.pcc_requests.psi {
             let pair =
-                PreparedPsiProofPair::new(artifact.artifact(), &self.terminal_admission_profile)?;
-            pcc_publications.push(pair.stage(&psi_path, &mut staged_products)?);
+                PreparedPsiProofPair::new(artifact.artifact(), &self.terminal_admission_profile)
+                    .map_err(|error| error.to_string())?;
+            pcc_publications.push(stage_psi_pair(&pair, &psi_path, &mut staged_products)?);
         } else {
             let psi_bytes = artifact.artifact().to_bytes();
             // Without a Psi proof request no `.proof` companion may remain

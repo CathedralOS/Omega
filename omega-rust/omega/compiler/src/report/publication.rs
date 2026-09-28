@@ -3,12 +3,12 @@
 //! Prepare and validate requested pairs before staging. Stage every file before
 //! `platform_custody::file_publication` makes destinations visible and replays
 //! installed bytes. That owner also handles platform replacement and cleanup.
-//! `psi_pair` owns the common Terminal artifact/proof preparation and staging.
+//! `terminal_codec` owns Psi pair preparation; `psi_pair` selects paths and stages it.
 //! Native receipt identities and proof validation belong to `native_artifact`.
 
 mod psi_pair;
 
-pub(crate) use psi_pair::PreparedPsiProofPair;
+pub(crate) use psi_pair::{psi_pair_receipt, stage_psi_pair};
 
 use std::path::PathBuf;
 
