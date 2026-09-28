@@ -6,9 +6,8 @@
 //! this file own what each call does.
 
 use crate::checked::{
-    AssembledSource, BuiltCheckedProgram, CheckedChildExecution, CheckedCompilation,
-    PreparedCheckedSource, check_selected_execution, evaluate_build_and_continue,
-    run_on_compile_thread,
+    BuiltCheckedProgram, CheckedChildExecution, CheckedCompilation, PreparedCheckedSource,
+    check_selected_execution, evaluate_build_and_continue, run_on_compile_thread,
 };
 use crate::compiler::request::{SharedCompileInputs, ValidatedTargetCompilation};
 use crate::native::produce_native_report;
@@ -88,7 +87,7 @@ fn compile_target(
         built,
         build_sources,
         mut timings,
-    } = builds.build(source, child, package_inputs, &root_path)?;
+    } = builds.build(source, child, &root_path)?;
     // Provider selection, const folding, Psi 04 checking and selected dispatch.
     let execution = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
         check_selected_execution(
@@ -199,7 +198,6 @@ impl SharedBuilds {
         &mut self,
         source: PreparedCheckedSource,
         child: CheckedChildExecution<'_>,
-        package_inputs: Option<&package_compilation::PackageCompilationInputs>,
         root_path: &std::path::Path,
     ) -> Result<SharedBuild, Vec<Diagnostic>> {
         let inputs = child.build_execution_inputs();
@@ -207,14 +205,10 @@ impl SharedBuilds {
         if let Some((_, shared)) = self.builds.iter().find(|(existing, _)| *existing == inputs) {
             return Ok(shared.clone());
         }
-        let AssembledSource {
-            source_file_count,
-            syntax,
-            mut timings,
-        } = source.assemble(package_inputs)?;
+        let (frontier, mut timings) = source.prepare_frontier(&child)?;
         let (built, build_sources) =
             timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
-                evaluate_build_and_continue(root_path, child, source_file_count, syntax, timings)
+                evaluate_build_and_continue(root_path, child, frontier, timings)
             })?;
         let shared = SharedBuild {
             built,

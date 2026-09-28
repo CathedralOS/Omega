@@ -211,8 +211,15 @@ pub struct PreparedCheckedSource {
     /// that typed program instead of re-assembling and re-lowering identical
     /// source; per-activation custody admission and every post-frontier gate
     /// still run for the reusing child.
-    frontier_memo: std::sync::Arc<build_continuation::TypedFrontierMemo>,
+    frontier_memo: std::sync::Arc<TypedFrontierMemo>,
 }
+
+type TypedFrontierMemo = std::sync::Mutex<
+    Vec<(
+        package_compilation::SourceAssemblyInputs,
+        build_continuation::TypedFrontier,
+    )>,
+>;
 
 pub(crate) struct CheckedChildExecution<'a> {
     selected_target_profile: Option<target::TargetProfile>,
@@ -404,10 +411,22 @@ impl PreparedCheckedSource {
     ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
         let root_path = self.root_path.clone();
         self.admit_child(&child)?;
+        let (frontier, timings) = self.prepare_frontier(&child)?;
+        compile_frontier_checked_child(&root_path, child, frontier, timings)
+    }
+
+    /// Prepare one admitted child's complete typed input before Build execution.
+    /// Reuse never skips the child's live package-custody validation.
+    pub(crate) fn prepare_frontier(
+        self,
+        child: &CheckedChildExecution<'_>,
+    ) -> Result<(build_continuation::TypedFrontier, CompileTimings), Vec<Diagnostic>> {
         let key = package_compilation::SourceAssemblyInputs::new(
             child.package_inputs,
             child.build_execution_profile,
         );
+        // The sole remaining checkpoint has no future consumer to memoize for.
+        let retain_frontier = std::sync::Arc::strong_count(&self.frontier_memo) > 1;
         let frontier_memo = self.frontier_memo.clone();
         let retained = frontier_memo
             .lock()
@@ -415,49 +434,54 @@ impl PreparedCheckedSource {
             .iter()
             .find(|(stored_key, _)| *stored_key == key)
             .map(|(_, frontier)| frontier.clone());
-        match retained {
-            // A retained frontier is the deterministic product of this same
-            // checkpoint's assembly and typed frontend under identical
-            // frontier inputs; the child still answers its own per-activation
-            // custody admission, and declaration authority, build execution,
-            // and provider settlement all run against its live request.
-            Some(frontier) => {
-                if let Some(inputs) = child.package_inputs {
-                    inputs.validate_for_compilation(
-                        &root_path,
-                        &package_compilation::source_imports::bundled_core_root()?,
-                    )?;
-                }
-                TYPED_FRONTIER_REUSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                compile_frontier_checked_child(
-                    &root_path,
-                    child,
-                    build_continuation::CheckedFrontierInput::Retained(frontier),
-                    self.shared_timings.clone(),
-                    None,
-                )
+        if let Some(frontier) = retained {
+            if let Some(inputs) = child.package_inputs {
+                inputs.validate_for_compilation(
+                    &self.root_path,
+                    &package_compilation::source_imports::bundled_core_root()?,
+                )?;
             }
-            None => {
-                let AssembledSource {
-                    source_file_count,
-                    syntax,
-                    timings,
-                } = self.assemble(child.package_inputs)?;
-                compile_frontier_checked_child(
-                    &root_path,
-                    child,
-                    build_continuation::CheckedFrontierInput::Assembled {
-                        source_file_count,
-                        syntax,
-                    },
-                    timings,
-                    Some(build_continuation::TypedFrontierMemoSlot {
-                        memo: frontier_memo,
-                        key,
-                    }),
-                )
-            }
+            TYPED_FRONTIER_REUSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            return Ok((frontier, self.shared_timings));
         }
+        SOURCE_ASSEMBLY_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let mut timings = self.shared_timings;
+        let assembly_started = std::time::Instant::now();
+        let (source_file_count, syntax) = self
+            .source_checkpoint
+            .assemble(child.package_inputs, &mut timings)?;
+        timings.add_completed(
+            artifacts::compile_timings::SOURCE_ASSEMBLY,
+            assembly_started.elapsed().as_micros(),
+            artifacts::allocations::AllocationDelta::default(),
+        );
+        let frontend_started = std::time::Instant::now();
+        let frontier = build_continuation::lower_typed_frontier(
+            source_file_count,
+            syntax,
+            child
+                .selected_target_profile
+                .map(target::TargetProfile::target_name),
+            child
+                .build_execution_profile
+                .map(target::TargetProfile::target_name),
+            child.package_inputs,
+            &mut timings,
+        )?;
+        // Preserve the report's inclusive Build ladder after separating preparation.
+        timings.add_completed(
+            artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
+            frontend_started.elapsed().as_micros(),
+            artifacts::allocations::AllocationDelta::default(),
+        );
+        if retain_frontier {
+            let mut entries = frontier_memo
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            entries.retain(|(stored_key, _)| *stored_key != key);
+            entries.push((key, frontier.clone()));
+        }
+        Ok((frontier, timings))
     }
 
     /// Admit one child's package inputs against this source frontier. Parsing
@@ -505,31 +529,6 @@ impl PreparedCheckedSource {
                 })?;
         }
         Ok(())
-    }
-
-    /// Assemble the source set for package inputs an admitted child carries:
-    /// the shared parsed sources plus the package imports and
-    /// dependency-generated sources those inputs carry.
-    pub(crate) fn assemble(
-        self,
-        package_inputs: Option<&PackageCompilationInputs>,
-    ) -> Result<AssembledSource, Vec<Diagnostic>> {
-        SOURCE_ASSEMBLY_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let mut timings = self.shared_timings;
-        let assembly_started = std::time::Instant::now();
-        let (source_file_count, syntax) = self
-            .source_checkpoint
-            .assemble(package_inputs, &mut timings)?;
-        timings.add_completed(
-            artifacts::compile_timings::SOURCE_ASSEMBLY,
-            assembly_started.elapsed().as_micros(),
-            artifacts::allocations::AllocationDelta::default(),
-        );
-        Ok(AssembledSource {
-            source_file_count,
-            syntax,
-            timings,
-        })
     }
 }
 
@@ -707,21 +706,11 @@ fn compile_checked_worker(
     Ok((checked, retained_source))
 }
 
-/// One target's assembled syntax, its physical source count and the timing
-/// ladder the rest of its compile extends.
-#[derive(Clone)]
-pub(crate) struct AssembledSource {
-    pub(crate) source_file_count: usize,
-    pub(crate) syntax: build_evaluation::sources::AssembledSyntax,
-    pub(crate) timings: CompileTimings,
-}
-
 fn compile_frontier_checked_child(
     root_path: &Path,
     mut child: CheckedChildExecution<'_>,
-    frontier: build_continuation::CheckedFrontierInput,
+    frontier: build_continuation::TypedFrontier,
     mut timings: CompileTimings,
-    memo_slot: Option<build_continuation::TypedFrontierMemoSlot>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let selected_target_profile = child.selected_target_profile;
     let package_inputs = child.package_inputs;
@@ -729,13 +718,8 @@ fn compile_frontier_checked_child(
     let independent_component_discovery = child.independent_component_discovery.take();
     let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
     let build_started = std::time::Instant::now();
-    let (built, sources) = build_continuation::evaluate_frontier_and_continue(
-        root_path,
-        child,
-        frontier,
-        memo_slot,
-        &mut timings,
-    )?;
+    let (built, sources) =
+        build_continuation::evaluate_build_and_continue(root_path, child, frontier, &mut timings)?;
     timings.add_completed(
         artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
         build_started.elapsed().as_micros(),
