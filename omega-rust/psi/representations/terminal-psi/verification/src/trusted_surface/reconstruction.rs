@@ -443,12 +443,13 @@ static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry 
     id: "fact:integer-structural-field-read-range",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an integer structural field read over a referent whose declared field interval is valid",
+    premises: "an integer structural field read over a referent whose declared field interval is valid, including a bounded payload field of a proved-active case",
     conclusion: "the read's SSA value carries the declared interval as LessOrEqual bounds, surviving later writes",
     dependencies: &["fact:scalar-carrier-bounds"],
     implementation: &[
         OPERATION_FACTS,
         "omega-rust/psi/representations/terminal-psi/verification/src/validation/structural/scalar_fields.rs",
+        "omega-rust/psi/representations/terminal-psi/semantics/src/record_field.rs",
     ],
     soundness: SoundnessStatus::Proved {
         evidence: "the row emits no fact of its own shape: each bound it contributes is produced by `declared_carrier_bounds` — the `fact:scalar-carrier-bounds` certifying procedure — and joins the roster only when that fixed-shape `ConjunctionElimination` certificate (declared interval invariant as assumption zero, bound eliminated at its conjunct index) is accepted by proof-admission's checker; a rejected certificate emits nothing rather than joining trusted",

@@ -1,9 +1,12 @@
 //! Guard case tests that also bind the selected case's payload.
 //!
-//! Terminal has no case-qualified place read. A sum payload is observable only
-//! as a parameter of the block a `StructuralCase` terminator selected for that
-//! case, where the verifier reconstructs `parameter == root.Case.field` (and
-//! the field's declared range) from its own tag dispatch. A guard such as
+//! A whole root's sum payload is observed as a parameter of the block a
+//! `StructuralCase` terminator selected for that case, where the verifier
+//! reconstructs `parameter == root.Case.field` (and the field's declared
+//! range) from its own tag dispatch. A sum below record fields has no
+//! dispatch terminator: its membership test stays an ordinary observation and
+//! its payload is read in place below that test's true edge (see
+//! `structural_fields::resolve_typed`). A guard such as
 //! `Msg::Move { dx as step, .. } if step == 30` is lowered as the ordinary
 //! short-circuit decision `m in Msg::Move && m.Move.dx == 30`; this planner
 //! walks that decision and turns each root case test with an empty path into a

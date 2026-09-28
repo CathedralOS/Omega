@@ -34,6 +34,7 @@ const TS_SCALAR_ARRAY: &str =
 const TS_ZEROED_STRUCTURAL: &str =
     "omega-rust/psi/representations/terminal-psi/semantics/src/zeroed_structural.rs";
 const OP_FACTS: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts.rs";
+const OP_FACTS_CASE_HOPS: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/case_hops.rs";
 const OP_FACTS_POLARITY: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/boolean_polarity.rs";
 const OP_FACTS_BYTE_EXTENT: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/byte_extent.rs";
 const OP_FACTS_ELEMENT_EXTENT: &str = "omega-rust/psi/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs";
@@ -248,7 +249,7 @@ static OP_STRUCTURAL_LEAF_COPY: TrustedSurfaceEntry = entry(
 );
 static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
     "operation:structural-case-leaf-copy",
-    "a readable live whole root and a canonical path entering at least one case; every case hop has exact root/prefix membership in the reconstructed incoming facts before copying an Unrestricted leaf",
+    "a readable live whole root and a canonical path entering at least one case; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false, before copying an Unrestricted leaf",
     "no proposition facts: a fresh owned place holding an exact copy of the projected case-leaf; the source stays fully intact",
     &[
         "formation:operation-validation",
@@ -259,7 +260,14 @@ static OP_STRUCTURAL_CASE_LEAF_COPY: TrustedSurfaceEntry = entry(
         "rule:semantic-axiom",
         "rule:implication-elimination",
     ],
-    &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_LEAF_COPY],
+    &[
+        VOCAB,
+        TS_ROWS,
+        OP_FACTS,
+        OP_FACTS_CASE_HOPS,
+        VAL_OPS,
+        VAL_LEAF_COPY,
+    ],
 );
 static OP_WRITE_ONLY_PRIMITIVE_STORE: TrustedSurfaceEntry = entry(
     "operation:write-only-primitive-store",
@@ -677,35 +685,49 @@ static OP_ESTABLISH_RECORD: TrustedSurfaceEntry = entry(
 );
 static OP_BOOLEAN_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:boolean-structural-field",
-    "a validated Boolean structural field read",
+    "a validated Boolean structural field read whose carrier reaches a record field, or one payload field of the case a final Case step names; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false",
     "the read observation's field-path equation for the result",
     &[
         "fact:structural-effect-observation",
         "formation:operation-validation",
+        "operation:structural-case-membership",
+        "fact:structural-case-arm",
+        "conversion:value-equality-denotation",
+        "rule:semantic-axiom",
+        "rule:implication-elimination",
     ],
     &[
         VOCAB,
         TS_ROWS,
         TS_SE,
+        TS_RECORD,
         OP_FACTS,
+        OP_FACTS_CASE_HOPS,
         VAL_OPS,
         VAL_STRUCTURAL_SCALAR,
     ],
 );
 static OP_INTEGER_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:integer-structural-field",
-    "a validated integer structural field read over a referent with a declared interval",
+    "a validated integer structural field read over a referent with a declared interval, whose carrier reaches a record field or one payload field of the case a final Case step names; every case hop has exact root/prefix membership in the reconstructed incoming facts, or every other declared case of that sum is refuted by a surviving membership observation of the same place whose result is known false",
     "the field-path equation plus the declared interval bounds on the read value",
     &[
         "fact:structural-effect-observation",
         "fact:integer-structural-field-read-range",
         "formation:operation-validation",
+        "operation:structural-case-membership",
+        "fact:structural-case-arm",
+        "conversion:value-equality-denotation",
+        "rule:semantic-axiom",
+        "rule:implication-elimination",
     ],
     &[
         VOCAB,
         TS_ROWS,
         TS_SE,
+        TS_RECORD,
         OP_FACTS,
+        OP_FACTS_CASE_HOPS,
         VAL_OPS,
         VAL_STRUCTURAL_SCALAR,
     ],

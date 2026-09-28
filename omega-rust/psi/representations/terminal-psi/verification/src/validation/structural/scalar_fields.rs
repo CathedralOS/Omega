@@ -44,20 +44,48 @@ fn direct_relevant_scalar_field(
     };
     fields.iter().find_map(|candidate| {
         (candidate.id == field && !candidate.relevance.is_erased())
-            .then_some(&candidate.field_type)
-            .and_then(|field_type| match field_type {
-                StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
-                StructuralFieldType::BoundedInteger(bounded) if permit_bounded_read => {
-                    Some(ScalarType::Integer(bounded.integer_type()))
-                }
-                StructuralFieldType::BoundedInteger(_) => None,
-                StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
-                StructuralFieldType::ByteSequence(_)
-                | StructuralFieldType::PredicateByteSequence { .. }
-                | StructuralFieldType::Structural(_)
-                | StructuralFieldType::Erased { .. } => None,
-            })
+            .then(|| scalar_field_type(&candidate.field_type, permit_bounded_read))
+            .flatten()
     })
+}
+
+fn scalar_field_type(
+    field_type: &StructuralFieldType,
+    permit_bounded_read: bool,
+) -> Option<ScalarType> {
+    match field_type {
+        StructuralFieldType::Scalar(scalar_type) => Some(*scalar_type),
+        StructuralFieldType::BoundedInteger(bounded) if permit_bounded_read => {
+            Some(ScalarType::Integer(bounded.integer_type()))
+        }
+        StructuralFieldType::BoundedInteger(_) => None,
+        StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
+        StructuralFieldType::ByteSequence(_)
+        | StructuralFieldType::PredicateByteSequence { .. }
+        | StructuralFieldType::Structural(_)
+        | StructuralFieldType::Erased { .. } => None,
+    }
+}
+
+/// The scalar type a field observation yields below `root_type`: a relevant
+/// field of the record `path` reaches, or a relevant payload field of the case
+/// a final `Case` step selects. This admission is type-only. A `Case` step
+/// names an overlaid payload that is live only while that case is active, so
+/// operation reconstruction separately requires the case's membership fact
+/// at the read, exactly as it does for `StructuralCaseLeafCopy`.
+fn observed_scalar_field(
+    module: &TerminalModule,
+    root_type: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    field: StructuralFieldId,
+) -> Option<ScalarType> {
+    let declaration = terminal_semantics::observed_field_declaration(
+        module.structural_types.iter(),
+        root_type,
+        path,
+        field,
+    )?;
+    scalar_field_type(&declaration.field_type, true)
 }
 
 pub(in crate::validation) fn has_empty_structural_custody(
@@ -101,21 +129,14 @@ pub(crate) fn integer_structural_field_read_range(
     };
     let signature =
         crate::validation::structural::result_contracts::source_signature(machine, source)?;
-    let carrier = terminal_semantics::record_field_carrier(
+    // A bounded payload field keeps its declared range: construction proves
+    // it for the active case exactly as for a record field.
+    let declaration = terminal_semantics::observed_field_declaration(
         module.structural_types.iter(),
         signature.structural_type,
         path,
+        field,
     )?;
-    let declaration = module
-        .structural_types
-        .iter()
-        .find(|declaration| declaration.id == carrier.structural_type)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
-        return None;
-    };
-    let declaration = fields
-        .iter()
-        .find(|declaration| declaration.id == field && !declaration.relevance.is_erased())?;
     let StructuralFieldType::BoundedInteger(bounds) = declaration.field_type else {
         return None;
     };
@@ -237,14 +258,8 @@ pub(in crate::validation) fn validate_integer_structural_field(
         field,
     };
     if let Some(result) = crate::validation::record::completed_source(module, machine, source) {
-        let carrier = terminal_semantics::record_field_carrier(
-            module.structural_types.iter(),
-            result.structural_type,
-            path,
-        )
-        .ok_or_else(invalid)?;
         if matches!(result_type, ScalarType::Integer(_))
-            && direct_relevant_scalar_field(module, carrier.structural_type, field, true)
+            && observed_scalar_field(module, result.structural_type, path, field)
                 == Some(result_type)
         {
             return Ok(());
@@ -265,15 +280,7 @@ pub(in crate::validation) fn validate_integer_structural_field(
             operation,
         ));
     };
-    let carrier = terminal_semantics::record_field_carrier(
-        module.structural_types.iter(),
-        parameter.structural_type,
-        path,
-    )
-    .ok_or_else(invalid)?;
-    if direct_relevant_scalar_field(module, carrier.structural_type, field, true)
-        != Some(result_type)
-    {
+    if observed_scalar_field(module, parameter.structural_type, path, field) != Some(result_type) {
         return Err(invalid());
     }
     Ok(())
@@ -293,13 +300,7 @@ pub(in crate::validation) fn validate_boolean_structural_field(
         field,
     };
     if let Some(result) = crate::validation::record::completed_source(module, machine, source) {
-        let carrier = terminal_semantics::record_field_carrier(
-            module.structural_types.iter(),
-            result.structural_type,
-            path,
-        )
-        .ok_or_else(invalid)?;
-        return if direct_relevant_scalar_field(module, carrier.structural_type, field, true)
+        return if observed_scalar_field(module, result.structural_type, path, field)
             == Some(ScalarType::Boolean)
         {
             Ok(())
@@ -311,18 +312,12 @@ pub(in crate::validation) fn validate_boolean_structural_field(
     if parameter.access == StructuralAccess::WriteOnlyBorrow {
         return Err(ModuleError::StructuralObservationRequiresReadableAccess { operation, source });
     }
-    let carrier = terminal_semantics::record_field_carrier(
-        module.structural_types.iter(),
-        parameter.structural_type,
-        path,
-    )
-    .ok_or_else(invalid)?;
     if !matches!(
         parameter.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
     ) || !has_readable_structural_access(parameter.access)
         || !has_empty_structural_custody(machine, source)
-        || direct_relevant_scalar_field(module, carrier.structural_type, field, true)
+        || observed_scalar_field(module, parameter.structural_type, path, field)
             != Some(ScalarType::Boolean)
     {
         return Err(invalid());
