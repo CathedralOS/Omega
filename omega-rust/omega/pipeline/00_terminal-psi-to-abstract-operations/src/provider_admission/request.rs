@@ -63,7 +63,7 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
 pub struct ProviderAdmissionRequest<'request> {
     pub target: target::NativeTarget,
     pub profile: &'request proof_admission::AdmissionProfile,
-    pub program_entry: terminal_psi_to_abstract_operations::NativeProgramEntrySettlement<'request>,
+    pub program_entry: crate::NativeProgramEntrySettlement<'request>,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'request>],

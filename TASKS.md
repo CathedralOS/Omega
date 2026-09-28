@@ -1877,7 +1877,7 @@ rejects a nonempty roster. A native nonreturning operation does not fill this ga
   Complete the Console byte leaves through `WriteFile`/`ReadFile`; their current
   `CompilerIntrinsic` declarations have no Windows hosted bundle. Replace the
   fixed 256 KiB foreign-call reserve with per-callee stack evidence in Omega
-  stage 02's [source-evaluated imports](omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/provider_admission/source_evaluated_imports.rs). These native
+  stage 00's [source-evaluated imports](omega-rust/omega/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_imports.rs). These native
   repairs need not wait for portable external-completion representation.
 - Retain exact canonical requirement, domain-bound authority, status and a closed
   terminal invocation without a normal result/successor through checking,
@@ -3956,7 +3956,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   contract, handle/alias identity, preservation by intervening calls, one release
   on applicable returning paths and no subsequent use. Retain Terminal evidence,
   independently validate it and bind the exact native occurrence. Helpers in
-  `02_abstract-operations-to-target-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
+  `00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
   already construct contract commitments and syscall/foreign-import classification
   keys, but have no callers beyond exports. A supplied digest, open flags,
   query-only authority or build execution does not prove the lifecycle.

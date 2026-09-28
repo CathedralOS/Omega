@@ -2,12 +2,12 @@
 //! builtin, and callback-thunk settlements, the request itself, and the
 //! requested or settled artifact results.
 
-pub use abstract_operations_to_target_operations::provider_admission::{
-    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
-};
 pub use native_artifact::RequestedNativeArtifact;
 use terminal_psi_to_abstract_operations::NativeProgramEntrySettlement;
 pub(crate) use terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput as NativeRealizationInput;
+pub use terminal_psi_to_abstract_operations::provider_admission::{
+    NativeBoundaryRealization, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+};
 
 pub use backend_plan::NativeCallbackThunkSettlement;
 
@@ -26,7 +26,8 @@ pub struct NativeRealizationRequest<'request> {
     pub profile: &'request proof_admission::AdmissionProfile,
     /// Receiving target policy used to classify every demanded compiler
     /// intrinsic before native settlement.
-    pub terminal_authority_policy: abstract_operations_to_target_operations::provider_admission::TerminalAuthorityPolicy,
+    pub terminal_authority_policy:
+        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPolicy,
     /// Independently accepted exact service-schema/requirement permissions.
     /// Physical classification cannot manufacture or widen these rows.
     ///
@@ -36,8 +37,9 @@ pub struct NativeRealizationRequest<'request> {
     /// emitted artifact can never satisfy an explicit admission replay. `None`
     /// is not deny-all, allow-all, or a policy fabricated from accepted
     /// package rows; `Some` with zero rows remains an explicit empty policy.
-    pub terminal_authority_permission_policy:
-        Option<abstract_operations_to_target_operations::provider_admission::TerminalAuthorityPermissionPolicy>,
+    pub terminal_authority_permission_policy: Option<
+        terminal_psi_to_abstract_operations::provider_admission::TerminalAuthorityPermissionPolicy,
+    >,
     pub program_entry: NativeProgramEntrySettlement<'request>,
     pub optimization_selections: &'request optimization_core::PostTerminalOptimizationSelections,
     pub selected_provider_plans: &'request effects::SelectedProviderPlanFacts,

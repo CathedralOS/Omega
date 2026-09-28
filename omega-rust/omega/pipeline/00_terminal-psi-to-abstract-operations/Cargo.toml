@@ -10,6 +10,11 @@ name = "terminal_psi_to_abstract_operations"
 path = "src/lib.rs"
 
 [dependencies]
+function-identity = { path = "../../foundation/function-identity" }
+numerics = { path = "../../../psi/foundation/numerics" }
+target-operations = { path = "../../representations/target-operations" }
+task-plans = { path = "../../backend/runtime/task-plans" }
+sha2 = "0.10.9"
 lowered-psi-to-terminal-psi = { path = "../../../psi/pipeline/07_lowered-psi-to-terminal-psi" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }

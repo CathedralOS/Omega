@@ -9,11 +9,8 @@ name = "abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
-backend-plan = { path = "../../backend/plans/backend-plan" }
 abstract-operations-to-abstract-operations = { path = "../01_abstract-operations-to-abstract-operations" }
 calling-conventions = { path = "../../backend/calling-conventions" }
-effects = { path = "../../backend/plans/provider-evidence" }
-function-identity = { path = "../../foundation/function-identity" }
 target = { path = "../../backend/target" }
 abstract-operations = { path = "../../representations/abstract-operations" }
 installation-evidence = { path = "../../backend/runtime/installation-evidence" }
@@ -23,14 +20,11 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 terminal-semantics = { path = "../../../psi/representations/terminal-psi/semantics" }
-task-plans = { path = "../../backend/runtime/task-plans" }
-proof-admission = { path = "../../../psi/proof/admission" }
 symbols = { path = "../../../psi/foundation/symbols" }
-numerics = { path = "../../../psi/foundation/numerics" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-sha2 = "0.10.9"
 
 [dev-dependencies]
+function-identity = { path = "../../foundation/function-identity" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }

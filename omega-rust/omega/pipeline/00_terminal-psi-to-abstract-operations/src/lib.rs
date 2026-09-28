@@ -2,7 +2,10 @@
 
 //! Terminal Psi to abstract operations: the first Omega program stage.
 //!
-//! The stage operation is `lower_artifact` (`artifact_admission`). It replays
+//! Native production enters `admit_native_realization` (`native_admission`):
+//! canonical replay, entry and boundary custody, provider installation and
+//! authority review produce one complete admitted input for stage 01.
+//! Portable consumers use `lower_artifact` (`artifact_admission`). It replays
 //! and verifies a Terminal artifact's semantic and proof sections, then lowers
 //! each machine (`lowering`) into source-independent abstract operations.
 //! Two other entrances serve the same verified input:
@@ -24,8 +27,17 @@ mod callback_settlement;
 mod comparison_settlement;
 mod entry_settlement;
 mod lowering;
+mod native_admission;
 mod optimization;
+pub mod provider_admission;
 mod provider_installation;
+
+pub use native_admission::{
+    AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,
+};
+pub use provider_admission::{
+    AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
+};
 
 pub use artifact_admission::{
     AdmittedNativeArtifact, AdmittedOptimizationArtifact, ArtifactLoweringError, ArtifactSections,

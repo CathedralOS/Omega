@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
+use crate::SelectedProviderAdapter;
 use effects::provider_plan::ProviderBinding;
-use terminal_psi_to_abstract_operations::SelectedProviderAdapter;
 
 /// Project only checked, in-artifact provider adapters from the selected
 /// provider closure. External bindings continue through provider-execution
