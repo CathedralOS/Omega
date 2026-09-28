@@ -597,6 +597,7 @@ pass/layouts/runtime_plan_laid_record_array_mutable_write_exit rejected 968ms
 pass/layouts/runtime_plan_laid_tiled_record_nested_array_view_exit rejected 972ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 2)
 pass/layouts/runtime_plan_laid_value_field_exit checked 1675ms
+pass/layouts/runtime_size_of_align_of_exit checked 1107ms
 pass/memory/address_translation_canary checked 369ms
 pass/memory/bump_allocator_canary checked 1019ms
 pass/memory/interrupt_table_canary checked 558ms
@@ -1599,6 +1600,8 @@ fail/layouts/plan_laid_policy_without_plan_machine rejected 13ms expected
 	data `NotAPolicy` takes no type parameters and has no attached `plan` machine, so `NotAPolicy<...>` is neither a generic instantiation nor a layout-policy application
 fail/layouts/private_callback_slot_wrong_layout rejected 32ms expected
 	plan-laid value type `Spread<ForeignRecord>`: policy `Spread::plan` selected private slot `WrongLayoutSlot` for layout `OtherLayout`, but the active layout producer is attached to `Spread`
+fail/layouts/size_of_uninstantiated_plan_laid rejected 51ms expected
+	`CompactBits` is a layout policy application, but its schema instance has no runtime layout: the type was never instantiated in a value position (CompactBits::plan produced no layout plan for it)
 fail/memory/bump_allocator_cast_minted_vacant rejected 209ms expected
 	declared instance `Vacant` has no establishment: `as` mints an instance of domain family `Vacant` on custody-marked carrier `Extent` -- the family declares no predicate body and no `establishment` route, and a linear carrier that route-manages a domain does not admit a minted member; the instance must come from an establishing call, an `established by` route, or the family's declared qualification-carrier route (at exercise::entry:statement-0)
 fail/memory/bump_allocator_live_allocation_dropped rejected 281ms expected
