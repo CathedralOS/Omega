@@ -30,11 +30,12 @@ descriptions leave `stack_demand`/`realization_identity` absent.
 inventory (`derive_component_inventory` — the shared producer/verifier
 derivation) on its own decode, so no producer row is trusted rather than
 replayed. Consumers: `provider-planning` closes each `Independent` plan via
-`VerifiedComponent::realizes_selected_plan`; `build-evaluation`'s
+`VerifiedComponent::realizes_selected_plan`; `provider-planning`'s
 `provider_settlement/independent_components.rs` re-verifies attached
 descriptions at settlement; the package-evidence replay re-verifies under the
-build's admission profile; `terminal_artifact/composition_modes.rs` fences
-every settled `Independent` edge out of both product routes.
+build's admission profile; `provider-planning`'s
+`provider_settlement/composition_modes.rs` fences every settled `Independent`
+edge out of both product routes before Terminal production.
 
 | Roster | Producer source | Replayer coverage |
 | --- | --- | --- |

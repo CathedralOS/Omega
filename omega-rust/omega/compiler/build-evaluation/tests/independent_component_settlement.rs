@@ -489,3 +489,31 @@ fn package_inputs_reject_descriptions_outside_the_dependency_graph() {
     assert_eq!(rejoined, attached_inputs);
     assert_eq!(rejoined.independent_component_descriptions().count(), 1);
 }
+
+#[test]
+fn settled_component_modes_preserve_product_emission_fence() {
+    let fused = Build::new(CompositionMode::Fused)
+        .settle(Vec::new())
+        .expect("fused selection settles without a component");
+    assert!(!fused.selected_provider_provenance.is_empty());
+    provider_planning::verify_selected_compositions_are_realized(
+        &fused.selected_provider_provenance,
+    )
+    .expect("the product supports fused composition");
+
+    let independent = Build::new(CompositionMode::Independent);
+    let description = attached(LAPIC, &independent.realizing_module());
+    let settled = independent
+        .settle(vec![description])
+        .expect("one verified component closes independent selection");
+    let rejected = provider_planning::verify_selected_compositions_are_realized(
+        &settled.selected_provider_provenance,
+    )
+    .expect_err("verified closure is not an implemented deployment carrier");
+    assert!(rejected.iter().any(|diagnostic| {
+        diagnostic.message.contains("independent composition edge")
+            && diagnostic
+                .message
+                .contains("refusing to emit a fused artifact")
+    }));
+}

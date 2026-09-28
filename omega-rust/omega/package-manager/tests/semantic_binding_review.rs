@@ -112,6 +112,69 @@ fn assert_accepted_native_report_custody(
         compiler::CompileOutputKind::RetainedNativeArtifact
     );
     assert!(!native_report.wrote_output());
+    let source_count = checked.source_file_count();
+    let profile = checked.selected_target_profile();
+    let target = checked.selected_native_target();
+    let application = checked.project_native_application_metadata();
+    native_report
+        .verify_native_source_metadata(source_count, profile, target, &application)
+        .expect("package realization rejoins the same checked source metadata");
+    assert_eq!(
+        native_report.verify_native_source_metadata(
+            source_count + 1,
+            profile,
+            target,
+            &application
+        ),
+        Err("checked native receipt source count disagrees with its report"),
+    );
+    assert_eq!(
+        native_report.verify_native_source_metadata(source_count, None, target, &application),
+        Err("checked native receipt requires one selected target profile"),
+    );
+    assert_eq!(
+        native_report.verify_native_source_metadata(source_count, profile, None, &application),
+        Err("checked native receipt requires one selected native target"),
+    );
+    let foreign = target::TargetProfile::ALL
+        .into_iter()
+        .find(|profile| Some(profile.native_target()) != target)
+        .expect("another native target exists");
+    assert_eq!(
+        native_report.verify_native_source_metadata(
+            source_count,
+            Some(foreign),
+            target,
+            &application
+        ),
+        Err("checked native receipt target profile disagrees with its native target"),
+    );
+    assert_eq!(
+        native_report.verify_native_source_metadata(
+            source_count,
+            Some(foreign),
+            Some(foreign.native_target()),
+            &application
+        ),
+        Err("checked native receipt retained artifact target disagrees with checking"),
+    );
+    let mut substituted_application = application.clone();
+    substituted_application.name = Some("substituted application".to_owned());
+    assert_eq!(
+        native_report.verify_native_source_metadata(
+            source_count,
+            profile,
+            target,
+            &substituted_application
+        ),
+        Err("checked native receipt application metadata disagrees with checking"),
+    );
+    let check_only = compiler::CompileReport::check_only(PathBuf::from("main.omg"), source_count)
+        .expect("check report construction");
+    assert_eq!(
+        check_only.verify_native_source_metadata(source_count, profile, target, &application),
+        Err("checked native receipt requires one retained native artifact report"),
+    );
     let native_manifest = native_report
         .production_manifest()
         .expect("native report keeps package custody")
