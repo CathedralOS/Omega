@@ -13,8 +13,11 @@
 //! or any installation owner.
 //!
 //! Start at `component_description.rs` for the carrier, its producer
-//! `describe_component_facts`, and the canonical codec. The independent
-//! consumer `verify_component` in `component_verification.rs` re-decodes the
+//! `describe_component_facts`, and the canonical codec. The
+//! serialized-publication entrance in `publication.rs` derives the description
+//! and its producer-observed subject from one decoded module. It produces no
+//! verification evidence; consuming policy still selects its expected subject.
+//! Independent consumer `verify_component` in `component_verification.rs` re-decodes the
 //! embedded artifact, verifies the module under the caller's admission
 //! profile, and re-derives every module-evident row, returning the
 //! evidence-only `VerifiedComponent` whose `realizes_selected_plan` joins a
@@ -26,6 +29,7 @@
 
 pub mod component_description;
 pub mod component_verification;
+mod publication;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
@@ -44,3 +48,4 @@ pub use component_verification::{
     AdmissionProfile, ComponentVerificationRejection, ComponentVerificationRequest,
     IndependentRealizationMismatch, VerifiedComponent, verify_component,
 };
+pub use publication::publish_component_description;
