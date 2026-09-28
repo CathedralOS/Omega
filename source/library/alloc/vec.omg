@@ -25,6 +25,8 @@
 // marks the first store held, `grow` clears it on the retired store and
 // sets it on the adopted one after copying the live prefix exactly once,
 // and `drain` clears it when the caller reads the elements back out.
+// Each adopt edge verifies the granted rung names that edge — a grant
+// for the wrong rung behaves as a denial and moves nothing.
 // `releaseN` returns the rung's slot to the strategy so the free count
 // reconciles; a release beyond the declared supply sets `overN`, the
 // conservation violation the contract forbids.
@@ -242,14 +244,23 @@ pub machine Pool::release16(&mut self) {
 pub machine Vec::open4(&mut self, request: Request, store: &mut Backing4) -> u64
 {
     transition request {
-        Request::Granted { rung } -> opened(store, rung)
+        Request::Granted { rung } -> verify(store, rung)
         Request::Denied -> closed()
     }
 
-    state opened(&mut self, store: &mut Backing4, rung: u64) -> u64 {
+    // A grant for a different rung cannot open this edge: the pool's
+    // answer must name rung 4, or the handle stays closed.
+    state verify(&mut self, store: &mut Backing4, rung: u64) -> u64 {
+        transition rung == 4 {
+            true -> opened(store)
+            _ -> closed()
+        }
+    }
+
+    state opened(&mut self, store: &mut Backing4) -> u64 {
         store.held = 1;
         self.live = 1;
-        self.rung = rung;
+        self.rung = 4;
         self.len = 0;
         1
     }
@@ -291,11 +302,20 @@ requires index <= 15
 // unheld. The returned count is the live elements that crossed.
 pub machine Vec::grow4to8(&mut self, old: &mut Backing4, fresh: &mut Backing8, request: Request) -> u64 {
     transition request {
-        Request::Granted { rung } -> adopt(old, fresh, rung)
+        Request::Granted { rung } -> verify(old, fresh, rung)
         Request::Denied -> denied()
     }
 
-    state adopt(&mut self, old: &mut Backing4, fresh: &mut Backing8, rung: u64) -> u64 {
+    // The grant must name rung 8; a mismatched answer leaves the vector
+    // and both stores untouched.
+    state verify(&mut self, old: &mut Backing4, fresh: &mut Backing8, rung: u64) -> u64 {
+        transition rung == 8 {
+            true -> adopt(old, fresh)
+            _ -> denied()
+        }
+    }
+
+    state adopt(&mut self, old: &mut Backing4, fresh: &mut Backing8) -> u64 {
         fresh.e[0] = old.e[0];
         fresh.e[1] = old.e[1];
         fresh.e[2] = old.e[2];
@@ -306,7 +326,7 @@ pub machine Vec::grow4to8(&mut self, old: &mut Backing4, fresh: &mut Backing8, r
         old.e[3] = 0;
         old.held = 0;
         fresh.held = 1;
-        self.rung = rung;
+        self.rung = 8;
         self.len
     }
 
@@ -317,11 +337,20 @@ pub machine Vec::grow4to8(&mut self, old: &mut Backing4, fresh: &mut Backing8, r
 
 pub machine Vec::grow8to16(&mut self, old: &mut Backing8, fresh: &mut Backing16, request: Request) -> u64 {
     transition request {
-        Request::Granted { rung } -> adopt(old, fresh, rung)
+        Request::Granted { rung } -> verify(old, fresh, rung)
         Request::Denied -> denied()
     }
 
-    state adopt(&mut self, old: &mut Backing8, fresh: &mut Backing16, rung: u64) -> u64 {
+    // The grant must name rung 16; a mismatched answer leaves the vector
+    // and both stores untouched.
+    state verify(&mut self, old: &mut Backing8, fresh: &mut Backing16, rung: u64) -> u64 {
+        transition rung == 16 {
+            true -> adopt(old, fresh)
+            _ -> denied()
+        }
+    }
+
+    state adopt(&mut self, old: &mut Backing8, fresh: &mut Backing16) -> u64 {
         fresh.e[0] = old.e[0];
         fresh.e[1] = old.e[1];
         fresh.e[2] = old.e[2];
@@ -340,7 +369,7 @@ pub machine Vec::grow8to16(&mut self, old: &mut Backing8, fresh: &mut Backing16,
         old.e[7] = 0;
         old.held = 0;
         fresh.held = 1;
-        self.rung = rung;
+        self.rung = 16;
         self.len
     }
 
