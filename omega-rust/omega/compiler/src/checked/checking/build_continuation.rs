@@ -17,7 +17,8 @@ pub(crate) struct BuiltCheckedProgram {
     pub(super) computed_build_config: Arc<build_evaluation::ComputedBuildConfig>,
     /// The normalized restricted build-host requests the admitted activation
     /// asked of the host before it executed.
-    pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
+    pub(super) restricted_build_requests:
+        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
     /// The validated `builder.application` declaration retained from source
     /// assembly. Its name supplies the publication `.app` basename and inner
     /// executable leaf; its artifact-only intent narrows the admitted route.

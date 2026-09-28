@@ -54,6 +54,12 @@ report intent and generated outputs are not dismantled into parallel fields.
 Generated-source bundles project the same retained outputs; source custody only
 adds their source-coordinate join. Build consent and the selected-machine check
 run visibly before and after execution, without extra checkpoint couriers.
+Restricted host-request vocabulary and normalization belong to package
+[build-execution custody](../package-manager/compilation-inputs/src/build_execution/restricted_requests.rs),
+beside the filesystem grants, captured inventories and sponsor limits they
+describe. Build admission supplies its exact execution mode; the coordinator
+still checks consent before execution. Review and encoding consume that package
+contract directly, without reconstructing it from compiler-owned records.
 Authored Build policy remains distinct from per-target realized evidence, and
 checked-product equality includes the complete evaluated Build. Clones share program
 storage until mutation; review instantiation borrow-projects table rows rather

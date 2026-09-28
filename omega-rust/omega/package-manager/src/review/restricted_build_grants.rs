@@ -239,7 +239,7 @@ pub struct CheckpointRestrictedBuildGrants {
 impl compiler::RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
     fn admit(
         &mut self,
-        request: &build_evaluation::RestrictedBuildRequest,
+        request: &package_compilation::build_execution::RestrictedBuildRequest,
     ) -> Result<(), Vec<Diagnostic>> {
         // The Build evaluates without a realized target; this checkpoint's
         // checked context names the target whose acceptance rows apply.

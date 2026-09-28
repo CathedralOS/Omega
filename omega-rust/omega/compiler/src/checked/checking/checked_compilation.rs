@@ -583,8 +583,10 @@ impl CheckedCompilation {
     /// (wiki/spec/packages/acceptance.md#restricted-build-acceptance). This
     /// is admission intent, not execution evidence: it names the restricted
     /// operation, logical resource roots, bounds, and activation profiles in
-    /// compiler vocabulary, never host paths or live grants.
-    pub fn restricted_build_requests(&self) -> &[build_evaluation::RestrictedBuildRequest] {
+    /// package vocabulary, never host paths or live grants.
+    pub fn restricted_build_requests(
+        &self,
+    ) -> &[package_compilation::build_execution::RestrictedBuildRequest] {
         &self.execution.restricted_build_requests
     }
 
