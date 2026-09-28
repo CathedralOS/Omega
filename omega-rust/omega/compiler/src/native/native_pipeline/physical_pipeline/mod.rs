@@ -7,13 +7,11 @@
 //! selection uses the same canonical frame realization.
 
 mod error;
-mod phase_selections;
 
 use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 pub use error::OptimizedVerifiedPhysicalPipelineError;
 use machine_emission::StagedOptimizedFunctionFragmentEmissionSource;
-use optimization_core::PostTerminalOptimizationSelections;
-use phase_selections::validate_physical_selections;
+use optimization_core::{OptimizationExecutionPhase, PostTerminalOptimizationSelections};
 use register_environment::baseline_target_register_environment;
 use selected_instructions_to_register_homes::stage_register_allocation;
 use selected_instructions_to_selected_instructions::optimize_selected_instructions;
@@ -31,7 +29,17 @@ pub fn stage_optimized_verified_physical_pipeline(
     if retained_projection.selections() != post_terminal {
         return Err(OptimizedVerifiedPhysicalPipelineError::PostTerminalSelectionMismatch);
     }
-    validate_physical_selections(post_terminal, optimized_target.target().architecture)?;
+    // This sequence cannot consume these phases yet. Rule catalogs for the
+    // stages it does execute are admitted by those stages, not preflighted here.
+    for phase in [
+        OptimizationExecutionPhase::AbstractOperations,
+        OptimizationExecutionPhase::TargetOperations,
+        OptimizationExecutionPhase::PostAllocationMachine,
+    ] {
+        if !post_terminal.selections().for_phase(phase).is_empty() {
+            return Err(OptimizedVerifiedPhysicalPipelineError::UnconsumedPostTerminalPhase(phase));
+        }
+    }
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
     let selected =

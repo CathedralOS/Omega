@@ -15,18 +15,6 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     Selection(OptimizedSelectionPipelineError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
-    AllocationRecoveryRuleCatalog(
-        selected_instructions_to_selected_instructions::AllocationRecoveryRuleCatalogError,
-    ),
-    SelectedLoweringRuleCatalog(
-        selected_instructions_to_selected_instructions::SelectedLoweringRuleCatalogError,
-    ),
-    PreAllocationRuleCatalog(
-        selected_instructions_to_selected_instructions::PreAllocationRuleCatalogError,
-    ),
-    FunctionRelativeLayoutRuleCatalog(
-        resolved_layout_to_resolved_layout::FunctionRelativeLayoutCatalogError,
-    ),
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
