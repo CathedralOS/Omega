@@ -562,12 +562,8 @@ fn validate_owned_reads(
                 && arguments.iter().filter(|argument| argument.place == *place).all(|argument|
                     matches!(argument.access, StructuralAccess::Owned | StructuralAccess::SharedBorrow)
                         && argument.path.is_empty()))
-            && !super::record::result(machine, *place).is_some_and(|result| {
+            && !super::record::completed_source(module, machine, *place).is_some_and(|result| {
                 result.multiplicity == StructuralMultiplicity::Unrestricted
-                    && super::record::plain_return_source(module, machine, *place)
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty()
             })
             && !(super::scalar::array::plain_return_source(module, machine, *place)
                 && super::structural::result_contracts::source_signature(machine, *place)
