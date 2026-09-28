@@ -162,6 +162,14 @@ def verify(repository, base):
     head = coordination.git(repository, "rev-parse", "HEAD").stdout
     if coordination.git(repository, "status", "--porcelain").stdout:
         raise LandingError("Checkpoint tracked and untracked changes before verifying.")
+    # Publish requires base to be an ancestor of the candidate; a
+    # non-ancestor base makes the two-dot diff include other lanes' changes,
+    # so verify would check (and receipt) crates this candidate never
+    # touched. Refuse here with the same rule instead.
+    if coordination.git(repository, "merge-base", "--is-ancestor", base, head,
+                        allow_failure=True).returncode:
+        raise LandingError(f"Base {base[:12]} is not an ancestor of HEAD; "
+                           "rebase onto it before verifying.")
     packages = sorted(affected_packages(repository, base, head))
     command = None
     exit_code = 0
