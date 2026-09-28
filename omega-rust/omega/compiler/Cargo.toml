@@ -21,7 +21,6 @@ terminal-production = { path = "../../psi/terminal-production" }
 build-declarations = { path = "../package-manager/build-declarations" }
 build-evaluation = { path = "build-evaluation" }
 build-output = { path = "../package-manager/build-output" }
-component-description = { path = "../backend/artifacts/component-description" }
 package-compilation = { path = "../package-manager/compilation-inputs" }
 provider-planning = { path = "../realization/provider-planning" }
 representation-planning = { path = "../../psi/checking/representation-planning" }

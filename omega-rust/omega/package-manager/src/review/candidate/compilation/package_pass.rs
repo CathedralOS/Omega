@@ -178,7 +178,7 @@ pub(super) fn compile_dependency_closure(
     // independent consumer.
     let mut component_candidates: BTreeMap<
         (semantic_vocabulary::PackageKeyIdentity, DependencyPurpose),
-        (std::path::PathBuf, compiler::CheckedCompilation),
+        compiler::CheckedCompilation,
     > = BTreeMap::new();
     let mut retained_obligation_ledger_total = 0usize;
     // Sponsored build evaluations that ran inside a compile the
@@ -496,8 +496,7 @@ pub(super) fn compile_dependency_closure(
                         checked_root = Some(Box::new(checked));
                     }
                 } else {
-                    component_candidates
-                        .insert((key.identity(), purpose), (entry.to_path_buf(), checked));
+                    component_candidates.insert((key.identity(), purpose), checked);
                 }
                 occurrences.push(carried);
                 carried_occurrences += 1;
@@ -802,8 +801,7 @@ pub(super) fn compile_dependency_closure(
                     checked_root = Some(Box::new(checked));
                 }
             } else {
-                component_candidates
-                    .insert((key.identity(), purpose), (entry.to_path_buf(), checked));
+                component_candidates.insert((key.identity(), purpose), checked);
             }
         }
     }
@@ -877,7 +875,7 @@ fn publish_independent_component_descriptions(
     independent_component_selections: &[compiler::IndependentComponentSelection],
     component_candidates: &BTreeMap<
         (semantic_vocabulary::PackageKeyIdentity, DependencyPurpose),
-        (std::path::PathBuf, compiler::CheckedCompilation),
+        compiler::CheckedCompilation,
     >,
 ) -> Result<Option<package_compilation::PackageCompilationInputs>, CompileResolvedPackageReviewsError>
 {
@@ -890,9 +888,7 @@ fn publish_independent_component_descriptions(
         if component == key.identity() || !described.insert(component) {
             continue;
         }
-        let Some((component_entry, component_checked)) =
-            component_candidates.get(&(component, purpose))
-        else {
+        let Some(component_checked) = component_candidates.get(&(component, purpose)) else {
             return Err(CompileResolvedPackageReviewsError::Compilation {
                 package: key.clone(),
                 diagnostics: vec![Diagnostic::error(format!(
@@ -902,8 +898,7 @@ fn publish_independent_component_descriptions(
             });
         };
         descriptions.push(
-            compiler::published_independent_component_description(
-                component_entry.clone(),
+            super::component_publication::publish_checked_component(
                 component_checked.clone(),
                 proof_admission::AdmissionProfile::default(),
             )
