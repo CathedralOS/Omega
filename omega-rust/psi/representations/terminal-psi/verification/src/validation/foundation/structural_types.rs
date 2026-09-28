@@ -50,20 +50,18 @@ pub(super) fn register_structural_types(
                 carrier,
                 predicates,
             } = field.field_type
-            {
-                if field.relevance.is_erased()
+                && (field.relevance.is_erased()
                     || predicates.is_empty()
                     || !matches!(
                         carrier,
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
                     )
-                    || (attachment_storage.contains(&declaration.id) && !predicates.holds_for(&[]))
-                {
-                    return Err(ModuleError::InvalidStructuralFieldIdentity {
-                        structural_type: declaration.id,
-                        field: field.id,
-                    });
-                }
+                    || (attachment_storage.contains(&declaration.id) && !predicates.holds_for(&[])))
+            {
+                return Err(ModuleError::InvalidStructuralFieldIdentity {
+                    structural_type: declaration.id,
+                    field: field.id,
+                });
             }
         }
         // A bounded sequence may be a completed owned concatenation result.

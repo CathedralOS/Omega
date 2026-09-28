@@ -669,7 +669,7 @@ impl OperationFrame<'_, '_> {
         }
         let kind = crate::emission::structural_byte_sequence_store::emit(
             store,
-            self.parameters,
+            &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
             self.private_places.literals(),
             self.next_place,

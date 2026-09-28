@@ -1,10 +1,10 @@
 //! Source correspondence and ordered emission for bounded byte-field replacement.
 use super::{
     CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind,
-    OperationResult, PrimitiveType, StructuralParameterDeclaration,
-    StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
-    StructuralTypeShape, ValueDeclaration, allocate_dense, obligation_id, place_id,
-    structural_type_id, terminal_scalar_type, unsupported, value_id,
+    OperationResult, PrimitiveType, StructuralParameterDeclaration, StructuralPlaceDeclaration,
+    StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape,
+    ValueDeclaration, allocate_dense, obligation_id, place_id, structural_type_id,
+    terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
@@ -255,7 +255,7 @@ pub(crate) fn literal_view_type(
 
 pub(crate) fn emit(
     store: &checked_trees::CheckedByteSequenceStorePlan,
-    parameters: &[StructuralParameterDeclaration],
+    parameters: &[(u32, StructuralParameterDeclaration)],
     structural_types: &[StructuralTypeDeclaration],
     literal_places: &mut Vec<StructuralPlaceDeclaration>,
     next_place: &mut u64,
@@ -263,9 +263,11 @@ pub(crate) fn emit(
     next_obligation: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<OperationKind, LoweringError> {
-    let parameter = parameters
+    // Checked stores retain authored source positions. The evaluation binding
+    // carries their exact lowered declarations after scalar/structural partition.
+    let (_, parameter) = parameters
         .iter()
-        .find(|parameter| parameter.position == store.destination_parameter_position)
+        .find(|(authored, _)| *authored == store.destination_parameter_position)
         .ok_or(LoweringError::Unsupported(
             "byte-field store destination is absent",
         ))?;
@@ -299,7 +301,7 @@ pub(crate) fn emit(
                 crate::emission::structural_scalar_store::lower_structural_field_place(
                     store.statement_index,
                     store.statement_index,
-                    store.destination_parameter_position,
+                    parameter.position,
                     carrier_path,
                     field_identity,
                     parameter,
@@ -356,7 +358,7 @@ pub(crate) fn emit(
 
 struct ValueEmitter<'input> {
     plan: &'input CheckedByteSequenceValuePlan,
-    parameters: &'input [StructuralParameterDeclaration],
+    parameters: &'input [(u32, StructuralParameterDeclaration)],
     structural_types: &'input [StructuralTypeDeclaration],
     places: &'input mut Vec<StructuralPlaceDeclaration>,
     next_place: &'input mut u64,
@@ -429,10 +431,10 @@ impl ValueEmitter<'_> {
                 field_identity,
                 capacity,
             } => {
-                let parameter = self
+                let (_, parameter) = self
                     .parameters
                     .iter()
-                    .find(|parameter| parameter.position == *parameter_position)
+                    .find(|(authored, _)| *authored == *parameter_position)
                     .ok_or(LoweringError::Unsupported("byte value parameter is absent"))?;
                 if !matches!(
                     parameter.access,

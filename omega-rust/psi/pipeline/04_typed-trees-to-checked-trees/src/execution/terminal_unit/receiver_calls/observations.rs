@@ -246,21 +246,16 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
     if stores_receiver {
         return true;
     }
-    // A receiver-rooted projection read in expression position — a
-    // `self.field` leaf the body returns or hands to a structural value —
-    // observes the same receiver storage a scalar member read does; the
-    // scalar-read side above only watches the scalar computation namespaces.
+    // Non-scalar value expressions also read storage. In particular an
+    // assignment's destination may be an unrelated out-parameter while its
+    // RHS reads receiver fields through nested expression operands.
     let reads_receiver_projection = statements.iter().enumerate().any(|(index, statement)| {
-        let typed_trees::statement::StatementNode::Expression(expression) = statement else {
-            return false;
+        let expression = match statement {
+            typed_trees::statement::StatementNode::Expression(expression) => *expression,
+            typed_trees::statement::StatementNode::Assignment(assignment) => assignment.value,
+            _ => return false,
         };
-        crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            index,
-            *expression,
-        )
-        .is_some_and(|place| receiver_roots.contains(&place.root) && !place.segments.is_empty())
+        expression_reads_receiver_projection(program, state, index, expression, &receiver_roots)
     });
     if reads_receiver_projection {
         return true;
@@ -281,4 +276,75 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
             access.root_symbol.is_valid()
                 && program.symbols.get(access.root_symbol).parent == machine.attached_data_symbol
         })
+}
+
+/// Observe canonical places throughout a value expression rather than assuming
+/// that every runtime field observation entered the scalar computation graph.
+fn expression_reads_receiver_projection(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+    receiver_roots: &[facts::PlaceRoot],
+) -> bool {
+    use typed_trees::expression::ExpressionNode;
+    let mut pending = vec![expression];
+    let mut visited = Vec::new();
+    while let Some(expression) = pending.pop() {
+        if !expression.is_valid() || visited.contains(&expression) {
+            continue;
+        }
+        visited.push(expression);
+        if crate::flow::canonical_place_from_expression_in_state(
+            program,
+            state.symbol,
+            statement_index,
+            expression,
+        )
+        .is_some_and(|place| receiver_roots.contains(&place.root) && !place.segments.is_empty())
+        {
+            return true;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Match(dispatch) => {
+                pending.push(dispatch.subject);
+                for arm in program.expression_table.match_arms(dispatch.arms) {
+                    if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
+                        pending.push(pattern);
+                    }
+                    pending.push(arm.value);
+                }
+            }
+            ExpressionNode::ArrayLiteral(values) => {
+                pending.extend_from_slice(program.expression_table.expression_handles(*values))
+            }
+            ExpressionNode::Atomic(atomic) => pending.extend([atomic.value, atomic.result]),
+            ExpressionNode::Binary(binary) => pending.extend([binary.left, binary.right]),
+            ExpressionNode::Cast(cast) => pending.push(cast.value),
+            ExpressionNode::Call(call) => {
+                pending.push(call.receiver);
+                pending
+                    .extend_from_slice(program.expression_table.expression_handles(call.arguments));
+            }
+            ExpressionNode::Indexed(indexed) => pending.extend([indexed.collection, indexed.index]),
+            ExpressionNode::Member(member) => pending.push(member.receiver),
+            ExpressionNode::Borrow(borrow) => pending.push(borrow.target),
+            ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
+            ExpressionNode::StructLiteral(literal) => pending.extend(
+                program
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .map(|field| field.value),
+            ),
+            ExpressionNode::Unary(unary) => pending.push(unary.operand),
+            ExpressionNode::Boolean(_)
+            | ExpressionNode::Float(_)
+            | ExpressionNode::Integer(_)
+            | ExpressionNode::Name(_)
+            | ExpressionNode::String(_)
+            | ExpressionNode::ZeroValue(_) => {}
+        }
+    }
+    false
 }
