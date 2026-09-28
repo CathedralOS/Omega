@@ -17,6 +17,14 @@
 //! child's own producer then establishes the deeper position, so
 //! `Record { inner: child }` proves `source.inner` reads from the child's
 //! establishment, and a scalar-case child proves `source.inner.Case` reads.
+//! A `Case` then `Field` pair descends an `EstablishCase` the same way into
+//! the payload child it stores whole, for exactly the case it establishes —
+//! the structural-case establishment `Wrap { inner: Inner { .. } }` proves
+//! `source.Wrap.inner` reads. Case-payload copy: the place a `Case
+//! { payload }` arm binding mints is a `StructuralLeafCopy` of its source
+//! at a case-qualified projection; it holds exactly the source's contents
+//! there, so the projection prefixes the remaining path and the source's
+//! own chain decides the proof. Ordinary-projection copies decline.
 //! Bound establishment: a `StructuralPlaceKind::BlockParameter` place holds
 //! no producer of its own, but when every incoming edge binds it to the
 //! same place through a whole `Owned`/`SharedBorrow` argument and nothing

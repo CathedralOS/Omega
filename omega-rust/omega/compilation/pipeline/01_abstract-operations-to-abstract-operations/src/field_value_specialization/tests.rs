@@ -882,6 +882,253 @@ fn replay_rejects_forged_zeroed_field_rows() {
     assert_eq!(validated.unit().identity, commit.output);
 }
 
+/// A structural-case establishment stores its `Inner` payload whole, a
+/// state parameter carries the case uniformly, and the `Outer::Wrap
+/// { inner }` arm binding mints a case-payload `StructuralLeafCopy` whose
+/// read `inner.v` observes the copy. The copy crosses into its source at
+/// the `[Case(Wrap), Field(inner)]` projection, the uniform binding reaches
+/// the `EstablishCase`, and its owned payload child's `EstablishRecord`
+/// proves `7`.
+const CASE_PAYLOAD_COPY_SOURCE: &str = r#"
+    data Inner { v: u32; flag: bool; }
+    data Outer { case Wrap(inner: Inner); case None; }
+    data Root {}
+    machine Root::run() {
+        let o: Outer = Outer::Wrap { inner: Inner { v: 7, flag: true } };
+        transition { _ -> read(o) }
+        state read(o: Outer) {
+            transition o {
+                Outer::Wrap { inner } -> check(inner.v == 7)
+                Outer::None -> bad()
+            }
+        }
+        state check(ok: bool) { transition ok { true -> good() _ -> bad() } }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// The same arm over a source established under the other case: the copy's
+/// `Case(Wrap)` step names a payload overlay the `Outer::Pair` establishment
+/// never wrote, so the read stays an observation even though `Pair` stores
+/// an `Inner` of the same type and value. Payload field identities are
+/// per case as well, so the `Wrap` field names no `Pair` initializer.
+const CASE_PAYLOAD_COPY_OTHER_CASE_SOURCE: &str = r#"
+    data Inner { v: u32; flag: bool; }
+    data Outer { case Wrap(inner: Inner); case Pair(inner: Inner); }
+    data Root {}
+    machine Root::run() {
+        let o: Outer = Outer::Pair { inner: Inner { v: 7, flag: true } };
+        transition { _ -> read(o) }
+        state read(o: Outer) {
+            transition o {
+                Outer::Wrap { inner } -> check(inner.v == 7)
+                Outer::Pair { inner } -> bad()
+            }
+        }
+        state check(ok: bool) { transition ok { true -> good() _ -> bad() } }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// The case-payload copy place in `machine` with its source place and
+/// case-qualified projection — every copy fixture carries exactly one.
+fn case_payload_copy(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+) -> (
+    PlaceId,
+    PlaceId,
+    Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+) {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::StructuralLeafCopy {
+                result,
+                source,
+                path: abstract_operations::StructuralCopyPath::Case(path),
+                ..
+            } => Some((result.place, *source, path.clone())),
+            _ => None,
+        })
+        .expect("the fixture copies a case payload")
+}
+
+/// The `EstablishRecord` that builds the payload child the fixture's
+/// `EstablishCase` stores whole.
+fn case_payload_child_producer(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+) -> semantic_vocabulary::OperationId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    let child = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishCase { fields, .. } => {
+                fields
+                    .iter()
+                    .find_map(|initializer| match &initializer.value {
+                        terminal_psi::RecordFieldValue::Structural(argument) => {
+                            Some(argument.place)
+                        }
+                        _ => None,
+                    })
+            }
+            _ => None,
+        })
+        .expect("the fixture's case stores a structural payload");
+    producer_of(unit, machine, child)
+}
+
+#[test]
+fn case_payload_copy_reads_fold_through_structural_case() {
+    let unit = lowered_unit_entry(CASE_PAYLOAD_COPY_SOURCE, "case payload copy", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (copy, _, projection) = case_payload_copy(&input, machine);
+    assert!(
+        matches!(
+            projection.as_slice(),
+            [
+                semantic_vocabulary::CanonicalStructuralPathSegment::Case(_),
+                semantic_vocabulary::CanonicalStructuralPathSegment::Field(_)
+            ]
+        ),
+        "the arm binding copies the case payload field"
+    );
+    let payload = case_payload_child_producer(&input, machine);
+
+    let run = specialize(unit);
+    let (commit, patch) = single_commit(&run);
+    assert_eq!(patch.place, copy);
+    assert_eq!(
+        patch.producer, None,
+        "the copy is no establishment of its own"
+    );
+    let [row] = patch.reads.as_slice() else {
+        panic!("one folded payload read")
+    };
+    assert_eq!(row.source, copy);
+    assert!(row.path.is_empty(), "the read observes the copy's root");
+    assert_eq!(
+        row.producer,
+        Some(payload),
+        "the payload child's own establishment proves the leaf"
+    );
+    assert_eq!(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(7)
+        ))
+    );
+
+    let validated = validate_field_value_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact case-payload candidate replays independently");
+    assert_eq!(validated.unit().identity, commit.output);
+    assert_ne!(commit.output, input.identity);
+}
+
+#[test]
+fn case_payload_copy_under_other_case_declines() {
+    let unit = lowered_unit_entry(
+        CASE_PAYLOAD_COPY_OTHER_CASE_SOURCE,
+        "case payload copy other case",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (copy, _, _) = case_payload_copy(&input, machine);
+    assert!(
+        field_read_on(&input, machine, copy).is_some(),
+        "the fixture reads the copied payload"
+    );
+    assert_declines(unit);
+}
+
+#[test]
+fn replay_rejects_forged_case_payload_rows() {
+    let unit = lowered_unit_entry(
+        CASE_PAYLOAD_COPY_SOURCE,
+        "case payload copy forged",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let (_, source, _) = case_payload_copy(&input, machine);
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
+    let integer_row = |patch: &FieldValueSpecializationRewrite| {
+        patch
+            .reads
+            .iter()
+            .position(|row| {
+                matches!(
+                    row.resolution,
+                    FieldValueResolution::Constant(FoldedFieldValue::Integer(_))
+                )
+            })
+            .expect("the integer payload read folds")
+    };
+
+    // A forged folded value.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                let row = integer_row(patch);
+                patch.reads[row].resolution = FieldValueResolution::Constant(
+                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(8)),
+                );
+            },
+        ),
+    );
+
+    // A forged witness — the read's own custody claimed as the establishment.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                let row = integer_row(patch);
+                patch.reads[row].producer = Some(patch.reads[row].psi_operation);
+            },
+        ),
+    );
+
+    // A forged place — the copy's source observed in place of the copy.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.place = source;
+                for row in &mut patch.reads {
+                    row.source = source;
+                }
+            },
+        ),
+    );
+}
+
 /// The machine's structural block-parameter place — the state parameter an
 /// edge binding delivers.
 fn block_parameter_place(unit: &PsiOptimizationUnit, machine: MachineId) -> PlaceId {

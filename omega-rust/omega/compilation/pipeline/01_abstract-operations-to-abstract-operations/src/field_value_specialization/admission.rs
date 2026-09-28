@@ -12,6 +12,7 @@ use super::{
     PsiOptimizationFunction, PsiOptimizationUnit, ScalarType, StructuralPlaceKind,
 };
 use crate::representation_specialization::admission::{bound_place, declared_structural_type};
+use abstract_operations::StructuralCopyPath;
 use optimization_unit::{
     ForwardedFieldValue, OptimizationBlock, OptimizationNode, ValueDefinition, ValueDefinitionSite,
 };
@@ -544,10 +545,12 @@ fn establishment_scalar(
     let mut place = evidence.declaration.id;
     let mut producer = evidence.root_producer;
     let mut declared = evidence.root_type;
-    let mut segments = path;
+    // Owned because a case-payload copy prepends its own projection to the
+    // path still to resolve beneath its source.
+    let mut segments = path.to_vec();
     let mut visiting = BTreeSet::from([place]);
     loop {
-        match (producer, segments) {
+        match (producer, segments.as_slice()) {
             (RootProducer::Record(producer), []) => {
                 // An `EstablishRecord` proves its declaration-ordered field
                 // initializers: the observed field's scalar initializer fixes
@@ -564,7 +567,7 @@ fn establishment_scalar(
                 // at zero. `Case` enters a case-payload namespace whose
                 // scalar fields read the same zeroed bytes.
                 let mut position = Position::Type(declared?);
-                for segment in segments {
+                for segment in &segments {
                     position = position.descend(unit, segment)?;
                 }
                 position.field_declaration(unit, field)?;
@@ -580,20 +583,28 @@ fn establishment_scalar(
                     .map(|initializer| EstablishmentScalar::Initializer(producer, initializer));
             }
             (
-                RootProducer::Record(operation),
-                [CanonicalStructuralPathSegment::Field(identity), ..],
-            ) => {
-                // A `Field` segment descends into the nested carrier the
-                // record stores whole: the declared carrier must be exactly
-                // the child place's declared type, and the child must reach
-                // this producer's initializer as one owned, complete
-                // structural argument. A `FixedIndex` segment never crosses —
-                // an `EstablishScalarArray` element is not a placed child.
-                let Position::Type(next) = Position::Type(declared?).descend(unit, &segments[0])?
+                RootProducer::Variant(operation, result_case),
+                [
+                    CanonicalStructuralPathSegment::Case(observed_case),
+                    CanonicalStructuralPathSegment::Field(identity),
+                    ..,
+                ],
+            ) if result_case == *observed_case => {
+                // A `Case` then `Field` pair descends into the payload child
+                // an `EstablishCase` stores whole — the structural-case
+                // establishment. The same custody as a record child applies:
+                // the payload carrier must be exactly the child place's
+                // declared type, reached as one owned, complete structural
+                // argument. A different observed case never crosses: its
+                // payload overlays storage this establishment did not write.
+                let identity = *identity;
+                let Position::Type(next) = Position::Type(declared?)
+                    .descend(unit, &segments[0])?
+                    .descend(unit, &segments[1])?
                 else {
                     return None;
                 };
-                let child = structural_child(function, operation, place, *identity)?;
+                let child = case_structural_child(function, operation, place, identity)?;
                 let declaration = function
                     .structural_places
                     .iter()
@@ -607,9 +618,71 @@ fn establishment_scalar(
                 place = child;
                 producer = root_producer(function, declaration);
                 declared = Some(next);
-                segments = &segments[1..];
+                segments.drain(..2);
+            }
+            (
+                RootProducer::Record(operation),
+                [CanonicalStructuralPathSegment::Field(identity), ..],
+            ) => {
+                // A `Field` segment descends into the nested carrier the
+                // record stores whole: the declared carrier must be exactly
+                // the child place's declared type, and the child must reach
+                // this producer's initializer as one owned, complete
+                // structural argument. A `FixedIndex` segment never crosses —
+                // an `EstablishScalarArray` element is not a placed child.
+                let identity = *identity;
+                let Position::Type(next) = Position::Type(declared?).descend(unit, &segments[0])?
+                else {
+                    return None;
+                };
+                let child = structural_child(function, operation, place, identity)?;
+                let declaration = function
+                    .structural_places
+                    .iter()
+                    .find(|declaration| declaration.id == child)?;
+                if declared_structural_type(function, declaration) != Some(next) {
+                    return None;
+                }
+                if !visiting.insert(child) {
+                    return None;
+                }
+                place = child;
+                producer = root_producer(function, declaration);
+                declared = Some(next);
+                segments.drain(..1);
             }
             (RootProducer::None, _) => {
+                // A case-payload copy — the place a `Case { payload }` arm
+                // binding mints — holds exactly its source's contents at the
+                // copied projection: the copy is fresh storage of an
+                // `Unrestricted` or owned non-reference leaf, and the source
+                // resolves only through establishments and uniform bindings
+                // nothing rewrites. The copy's projection therefore prefixes
+                // the path still to resolve beneath its source, and the
+                // source's own chain decides the proof; a source that
+                // establishes a different case declines at the `Case` step.
+                if let Some((source, copied)) = case_payload_copy(function, place) {
+                    let declaration = function
+                        .structural_places
+                        .iter()
+                        .find(|declaration| declaration.id == source)?;
+                    let source_type = declared_structural_type(function, declaration)?;
+                    let mut position = Position::Type(source_type);
+                    for segment in copied {
+                        position = position.descend(unit, segment)?;
+                    }
+                    if !matches!(position, Position::Type(landed) if Some(landed) == declared) {
+                        return None;
+                    }
+                    if !visiting.insert(source) {
+                        return None;
+                    }
+                    place = source;
+                    producer = root_producer(function, declaration);
+                    declared = Some(source_type);
+                    segments.splice(..0, copied.iter().copied());
+                    continue;
+                }
                 // The position's place holds no producer of its own, but a
                 // block parameter arrives carrying exactly the place its
                 // uniform binding names — the bound place's own
@@ -847,6 +920,77 @@ fn case_field_initializer(
                     terminal_psi::RecordFieldValue::Scalar { value, .. } => Some(value),
                     terminal_psi::RecordFieldValue::Structural(_) => None,
                 }),
+            _ => None,
+        })
+}
+
+/// The child place the `EstablishCase` producer stores whole into payload
+/// `field`, or `None` when the producer node is absent, is not an
+/// `EstablishCase` on this place, or `field`'s initializer is not an owned,
+/// complete structural argument.
+fn case_structural_child(
+    function: &PsiOptimizationFunction,
+    producer: OperationId,
+    place: PlaceId,
+    field: StructuralFieldId,
+) -> Option<PlaceId> {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::EstablishCase {
+                psi_operation,
+                result,
+                fields,
+                ..
+            } if *psi_operation == producer && result.place == place => Some(fields),
+            _ => None,
+        })?
+        .iter()
+        .find(|initializer| initializer.field == field)
+        .and_then(|initializer| match &initializer.value {
+            RecordFieldValue::Structural(argument)
+                if argument.path.is_empty()
+                    && argument.access == terminal_psi::StructuralAccess::Owned =>
+            {
+                Some(argument.place)
+            }
+            _ => None,
+        })
+}
+
+/// The source place and case-qualified projection of the
+/// `StructuralLeafCopy` that produces `place`, or `None` when `place` is not
+/// that copy's operation result or the copy's projection is ordinary.
+/// Ordinary copies decline: their field steps name identities rather than
+/// the verifier field handles this family's canonical paths carry, so
+/// crossing one needs its own identity-to-handle resolution first.
+fn case_payload_copy(
+    function: &PsiOptimizationFunction,
+    place: PlaceId,
+) -> Option<(PlaceId, &[CanonicalStructuralPathSegment])> {
+    let StructuralPlaceKind::OperationResult { producer, .. } = function
+        .structural_places
+        .iter()
+        .find(|declaration| declaration.id == place)?
+        .kind
+    else {
+        return None;
+    };
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            O::StructuralLeafCopy {
+                psi_operation,
+                result,
+                source,
+                path: StructuralCopyPath::Case(path),
+            } if *psi_operation == producer && result.place == place => {
+                Some((*source, path.as_slice()))
+            }
             _ => None,
         })
 }
