@@ -12,8 +12,6 @@ pub fn produce_native_report(
     mut checked: CheckedCompilation,
 ) -> Result<crate::report::CompileReport, Vec<Diagnostic>> {
     let production_subject = checked.production_subject()?;
-    let source_file_count = checked.source_file_count();
-    let pcc_requests = checked.pcc_requests();
     let rollback = request
         .optimization_rollback
         .settle(checked.optimization_selections());
@@ -46,32 +44,12 @@ pub fn produce_native_report(
             imports: &[],
         },
     )
-    .map_err(|(_, diagnostics)| diagnostics)?
-    .into_direct()
-    .map_err(|_| {
-        vec![Diagnostic::error(
-            "direct native production returned a different image carrier",
-        )]
-    })?;
-    let report = crate::report::CompileReport::from_retained_native_artifact(
+    .map_err(|(_, diagnostics)| diagnostics)?;
+    checked.native_report(
         request.root_path,
-        source_file_count,
         artifact,
         rollback.into_receipt(),
         production_subject,
+        request.terminal_admission_profile,
     )
-    .and_then(|report| report.with_pcc_context(pcc_requests, request.terminal_admission_profile))
-    .and_then(|report| {
-        report.with_application_metadata(checked.project_native_application_metadata())
-    })
-    .map_err(|message| vec![Diagnostic::error(message)])?;
-    report
-        .verify_native_source_metadata(
-            checked.source_file_count(),
-            checked.selected_target_profile(),
-            checked.selected_native_target(),
-            &checked.project_native_application_metadata(),
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?;
-    Ok(report)
 }
