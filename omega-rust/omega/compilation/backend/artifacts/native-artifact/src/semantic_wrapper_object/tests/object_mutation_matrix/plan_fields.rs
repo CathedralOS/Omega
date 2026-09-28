@@ -10,6 +10,11 @@
 //! bound symbols, the fixed wrapper byte count, every resolved call field, and
 //! the relocation count — are rejected at encoding as non-canonical
 //! (`InvalidObject`), before any custody decision.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `PlanFieldForTest` inventory; the closed-field encode refusals stay
+//! authored as explicit loops below.
 use super::super::super::{
     OptimizedProgramStorageSemanticWrapperObjectSymbol,
     OptimizedProgramStorageSemanticWrapperObjectSymbolRole,
@@ -21,13 +26,14 @@ use super::super::{
     encode_optimized_program_storage_semantic_wrapper_object,
 };
 use super::super::{child, template};
-use super::fixture::{recompose, staged_parts, three_symbol_parts};
+use super::fixture::{foreign_parts, recompose, staged_parts, three_symbol_parts};
 use crate::semantic_wrapper_object::manifest::validate_manifest;
 use object_file::{ObjectLocalSymbolId, canonical_private_machine_symbol_name};
 use optimization_core::{
-    OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectIdentity, RelocationFreeObjectContainerIdentity,
-    RelocationFreeObjectPlanIdentity,
+    MutationOutcome, OneFieldSubstitutionMatrix, OptimizedObjectArtifactIdentity,
+    OptimizedObjectArtifactManifestIdentity, OptimizedProgramStorageSemanticWrapperObjectIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    run_one_field_substitution_matrix,
 };
 use semantic_vocabulary::MachineId;
 use target::{Architecture, ObjectFormat};
@@ -35,51 +41,74 @@ use terminal_psi::SemanticFingerprint;
 
 type PlanMutation = fn(&mut OptimizedProgramStorageSemanticWrapperObjectPlan);
 
-#[test]
-fn wrapper_object_plan_rejects_every_representable_one_field_substitution() {
-    let (object, _, manifest, _) = staged_parts();
-    let mutations: [(&str, PlanMutation); 10] = [
-        ("source_artifact", |object| {
+optimization_core::custody_field_inventory! {
+    /// One independently representable substitution of the wrapper object
+    /// plan; checked by the retained manifest replay (`validate_manifest`)
+    /// over the honestly re-encoded container, with independent
+    /// recomposition as the joined replay.
+    pub enum PlanFieldForTest {
+        SourceArtifact,
+        SourceArtifactManifest,
+        SourceObject,
+        SourceObjectContainer,
+        SourceSignature,
+        PsiProgramFingerprint,
+        // Wrapper body byte outside the joined call opcode (offset 80) and
+        // displacement field (offsets 81..85).
+        WrapperBodyByte,
+        // Byte between the next-instruction offset (85) and the return
+        // offset (89): covered by length/cursor joins but not by a fixed
+        // value.
+        WrapperTailByte,
+        // The copied child byte at the continuation's section offset.
+        ContinuationByte,
+        // A canonical-shape-preserving roster substitution: an extra
+        // zero-byte `PrivateTerminalFunctionV1` row satisfies every symbol
+        // join, so only honest re-identification and replay expose it.
+        ZeroByteFunctionRowAppended,
+    }
+}
+
+/// Substitute exactly one plan field with a fixed alternate and
+/// re-authenticate the plan identity.
+fn substitute_plan_for_test(
+    object: &mut OptimizedProgramStorageSemanticWrapperObjectPlan,
+    field: PlanFieldForTest,
+    _donor: &OptimizedProgramStorageSemanticWrapperObjectPlan,
+) {
+    match field {
+        PlanFieldForTest::SourceArtifact => {
             object.source_artifact =
                 OptimizedObjectArtifactIdentity::from_canonical_bytes(b"mutated-artifact")
-        }),
-        ("source_artifact_manifest", |object| {
+        }
+        PlanFieldForTest::SourceArtifactManifest => {
             object.source_artifact_manifest =
                 OptimizedObjectArtifactManifestIdentity::from_canonical_bytes(
                     b"mutated-artifact-manifest",
                 )
-        }),
-        ("source_object", |object| {
+        }
+        PlanFieldForTest::SourceObject => {
             object.source_object =
                 RelocationFreeObjectPlanIdentity::from_canonical_bytes(b"mutated-source-object")
-        }),
-        ("source_object_container", |object| {
+        }
+        PlanFieldForTest::SourceObjectContainer => {
             object.source_object_container =
                 RelocationFreeObjectContainerIdentity::from_canonical_bytes(
                     b"mutated-source-container",
                 )
-        }),
-        ("source_signature", |object| {
-            object.source_signature = [0xa7; 32]
-        }),
-        ("psi.program_fingerprint", |object| {
+        }
+        PlanFieldForTest::SourceSignature => object.source_signature = [0xa7; 32],
+        PlanFieldForTest::PsiProgramFingerprint => {
             object.psi.program_fingerprint = SemanticFingerprint::from_bytes([0xa9; 32])
-        }),
-        // Wrapper body byte outside the joined call opcode (offset 80) and
-        // displacement field (offsets 81..85).
-        ("text_bytes[0]", |object| object.text_bytes[0] ^= 0x40),
-        // Byte between the next-instruction offset (85) and the return offset
-        // (89): covered by length/cursor joins but not by a fixed value.
-        ("text_bytes[88]", |object| object.text_bytes[88] ^= 0x40),
-        // The copied child byte at the continuation's section offset.
-        ("text_bytes[90]", |object| object.text_bytes[90] ^= 0x40),
-        // A canonical-shape-preserving roster substitution: an extra
-        // zero-byte `PrivateTerminalFunctionV1` row satisfies every symbol
-        // join, so only honest re-identification and replay expose it.
-        ("symbols.push(zero-byte function row)", |object| {
+        }
+        PlanFieldForTest::WrapperBodyByte => object.text_bytes[0] ^= 0x40,
+        PlanFieldForTest::WrapperTailByte => object.text_bytes[88] ^= 0x40,
+        PlanFieldForTest::ContinuationByte => object.text_bytes[90] ^= 0x40,
+        PlanFieldForTest::ZeroByteFunctionRowAppended => {
             let machine = MachineId::new(8).unwrap();
-            object.symbols.push(
-                OptimizedProgramStorageSemanticWrapperObjectSymbol {
+            object
+                .symbols
+                .push(OptimizedProgramStorageSemanticWrapperObjectSymbol {
                     symbol: ObjectLocalSymbolId::new(3).unwrap(),
                     source_function_index: Some(1),
                     machine: Some(machine),
@@ -88,41 +117,57 @@ fn wrapper_object_plan_rejects_every_representable_one_field_substitution() {
                     byte_count: 0,
                     role:
                         OptimizedProgramStorageSemanticWrapperObjectSymbolRole::PrivateTerminalFunctionV1,
-                },
-            )
-        }),
-    ];
-
-    for (field, mutate) in mutations {
-        let mut mutated = object.clone();
-        mutate(&mut mutated);
-        mutated.identity = mutated.recomputed_identity().unwrap();
-        assert_ne!(
-            mutated.identity, object.identity,
-            "reauthenticated {field} must change the containing object identity",
-        );
-        let mutated_container =
-            encode_optimized_program_storage_semantic_wrapper_object(&mutated, &template())
-                .unwrap_or_else(|error| {
-                    panic!("representable {field} must keep a valid object envelope: {error:?}")
-                });
-        assert_eq!(
-            decode_optimized_program_storage_semantic_wrapper_object(&mutated_container.bytes),
-            Ok(mutated.clone()),
-            "canonical codec must round-trip reauthenticated {field}",
-        );
-        assert_eq!(
-            validate_manifest(&mutated, &mutated_container, &manifest),
-            Err(OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch),
-            "retained manifest replay must reject reauthenticated {field}",
-        );
-        assert_ne!(
-            recompose(&child()),
-            mutated,
-            "independent object recomposition must differ after substituting {field} \
-             (the owning stage rejects this drift as InvalidObject)",
-        );
+                })
+        }
     }
+    object.identity = object.recomputed_identity().unwrap();
+}
+
+#[test]
+fn wrapper_object_plan_rejects_every_representable_one_field_substitution() {
+    let (_, _, manifest, _) = staged_parts();
+    let (foreign, _, _, _) = foreign_parts();
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "wrapper object plan",
+        fields: PlanFieldForTest::INVENTORY,
+        honest: &|| staged_parts().0,
+        donor: foreign,
+        // The containing identity: honest re-authentication must move it.
+        custody: &|object| object.identity,
+        substitute: &substitute_plan_for_test,
+        // A representable substitution still encodes; the retained manifest
+        // replay over the honestly re-encoded container rejects it.
+        check: &|object| {
+            let container =
+                encode_optimized_program_storage_semantic_wrapper_object(object, &template())?;
+            validate_manifest(object, &container, &manifest).map(|()| object.identity)
+        },
+        outcome: &|_| {
+            MutationOutcome::ExactError(
+                OptimizedProgramStorageSemanticWrapperObjectRecordError::ManifestMismatch,
+            )
+        },
+        joined_replay: Some(&|object, field| {
+            let container =
+                encode_optimized_program_storage_semantic_wrapper_object(object, &template())
+                    .unwrap_or_else(|error| {
+                        panic!(
+                            "representable {field:?} must keep a valid object envelope: {error:?}"
+                        )
+                    });
+            assert_eq!(
+                decode_optimized_program_storage_semantic_wrapper_object(&container.bytes),
+                Ok(object.clone()),
+                "canonical codec must round-trip reauthenticated {field:?}",
+            );
+            assert_ne!(
+                recompose(&child()),
+                *object,
+                "independent object recomposition must differ after substituting {field:?} \
+                 (the owning stage rejects this drift as InvalidObject)",
+            );
+        }),
+    });
 }
 
 #[test]

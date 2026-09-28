@@ -7,6 +7,12 @@
 //! additionally bound into the manifest, so manifest replay rejects it too.
 //! Every byte substitution of the canonical container is a non-canonical wire
 //! record: the embedded object identity covers the entire payload.
+//!
+//! The receipt legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `ReceiptFieldForTest` inventory; the container substitutions, whose
+//! rejections span decode, whole-container comparison and manifest replay,
+//! stay authored explicitly.
 use super::super::super::OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt;
 use super::super::custody;
 use super::super::{
@@ -14,15 +20,15 @@ use super::super::{
     decode_optimized_program_storage_semantic_wrapper_object,
     encode_optimized_program_storage_semantic_wrapper_object, template,
 };
-use super::fixture::staged_parts;
+use super::fixture::{foreign_parts, staged_parts};
 use crate::semantic_wrapper_object::manifest::validate_manifest;
 use optimization_core::{
-    OptimizedObjectArtifactIdentity, OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
+    MutationOutcome, OneFieldSubstitutionMatrix, OptimizedObjectArtifactIdentity,
+    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
     OptimizedProgramStorageSemanticWrapperObjectIdentity,
     OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
+    run_one_field_substitution_matrix,
 };
-
-type ReceiptMutation = fn(&mut OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt);
 
 #[test]
 fn wrapper_object_container_rejects_every_one_field_substitution() {
@@ -99,48 +105,74 @@ fn wrapper_object_container_rejects_every_one_field_substitution() {
     );
 }
 
-#[test]
-fn wrapper_object_custody_receipt_rejects_every_one_field_substitution() {
-    let (object, container, manifest, receipt) = staged_parts();
-    let mutations: [(&str, ReceiptMutation); 5] = [
-        ("source_artifact", |receipt| {
+optimization_core::custody_field_inventory! {
+    /// One field of the wrapper object custody receipt; checked by
+    /// recomputing `custody` over the expected plan, container and manifest,
+    /// as `validate_optimized_program_storage_semantic_wrapper_object` does
+    /// before rejecting `staged.custody` as `ReceiptMismatch`.
+    pub enum ReceiptFieldForTest {
+        SourceArtifact,
+        SourceSignature,
+        Object,
+        Container,
+        Manifest,
+    }
+}
+
+/// Substitute exactly one receipt field with a fixed alternate. The receipt
+/// carries no containing identity, so there is nothing to re-authenticate.
+fn substitute_receipt_for_test(
+    receipt: &mut OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+    field: ReceiptFieldForTest,
+    _donor: &OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+) {
+    match field {
+        ReceiptFieldForTest::SourceArtifact => {
             receipt.source_artifact =
                 OptimizedObjectArtifactIdentity::from_canonical_bytes(b"mutated-artifact")
-        }),
-        ("source_signature", |receipt| {
-            receipt.source_signature = [0xa7; 32]
-        }),
-        ("object", |receipt| {
+        }
+        ReceiptFieldForTest::SourceSignature => receipt.source_signature = [0xa7; 32],
+        ReceiptFieldForTest::Object => {
             receipt.object =
                 OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(
                     b"mutated-object",
                 )
-        }),
-        ("container", |receipt| {
+        }
+        ReceiptFieldForTest::Container => {
             receipt.container =
                 OptimizedProgramStorageSemanticWrapperObjectContainerIdentity::from_canonical_bytes(
                     b"mutated-container",
                 )
-        }),
-        ("manifest", |receipt| {
+        }
+        ReceiptFieldForTest::Manifest => {
             receipt.manifest =
                 OptimizedProgramStorageSemanticWrapperObjectManifestIdentity::from_canonical_bytes(
                     b"mutated-manifest",
                 )
-        }),
-    ];
-
-    for (field, mutate) in mutations {
-        let mut mutated = receipt;
-        mutate(&mut mutated);
-        // `validate_optimized_program_storage_semantic_wrapper_object`
-        // recomputes `custody(&expected, &container, &manifest)` and rejects
-        // `staged.custody` on inequality as `ReceiptMismatch`; this is the same
-        // recomputation at component scope.
-        assert_ne!(
-            mutated,
-            custody(&object, &container, &manifest),
-            "independent custody recomputation must reject substituted {field}",
-        );
+        }
     }
+}
+
+#[test]
+fn wrapper_object_custody_receipt_rejects_every_one_field_substitution() {
+    let (object, container, manifest, _) = staged_parts();
+    let (_, _, _, foreign) = foreign_parts();
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "wrapper object custody receipt",
+        fields: ReceiptFieldForTest::INVENTORY,
+        honest: &|| staged_parts().3,
+        donor: foreign,
+        custody: &|receipt| *receipt,
+        substitute: &substitute_receipt_for_test,
+        // The independent recomputation at component scope: honest replay
+        // rebuilds the receipt from the retained artifacts, and the rebuilt
+        // receipt must differ from the substituted one.
+        check: &|_| {
+            Ok::<_, OptimizedProgramStorageSemanticWrapperObjectRecordError>(custody(
+                &object, &container, &manifest,
+            ))
+        },
+        outcome: &|_| MutationOutcome::RebuiltCustodyDiffers,
+        joined_replay: None,
+    });
 }
