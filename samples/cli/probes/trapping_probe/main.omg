@@ -4,17 +4,14 @@
 // (`in Wrapping`). Trapping means: this arithmetic is allowed to be partial,
 // and overflowing it ABORTS the process at the faulting instruction.
 //
-// x = i32::MAX, then x + 1 -> the emitted add is followed by an overflow check
-// that executes ud2, so the process dies with STATUS_ILLEGAL_INSTRUCTION
-// (0xC000001D) and the final exit_process(70) is NEVER reached. The companion
-// canary (arithmetic/runtime_trapping_overflow_traps) runs this shape and
-// asserts the process did NOT exit 70. This sample deliberately carries no
-// exit annotation for the harness: it cannot exit cleanly by design.
-//
-// The compiler also WARNS here (2026-07-18): the interval analysis proves the
-// increment ALWAYS overflows, and an unconditional trap is worth flagging --
-// but only flagging (owner: no compelling reason to forbid it). The warning
-// appearing in this sample's compile output is expected and correct.
+// x = i32::MAX, then x + 1 -> the overflow check executes the target trap:
+// ud2 on x86-64, brk #0 on AArch64. Unix reports SIGILL or SIGTRAP respectively;
+// Windows x86-64 reports STATUS_ILLEGAL_INSTRUCTION (0xC000001D).
+// The final exit_process(70) is NEVER reached. The companion canary
+// (arithmetic/runtime_trapping_overflow_traps) requires the exact target trap,
+// not merely a nonzero exit or another crash. See README.md for running this
+// sample; it deliberately has no ordinary exit-code oracle.
+// Warnings that this computation always overflows are expected.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; x: i32 in Trapping; }
