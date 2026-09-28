@@ -12,9 +12,9 @@ records current experimental status, applicability, and composition limits.
 ## Selection and portable publication
 
 [Build evaluation](omega/compiler/build-evaluation/src/optimization/mod.rs) admits
-the exact vocabulary. The compiler's
-[build vocabulary](omega/compiler/build-evaluation/src/sources/source_assembly/build_vocabulary/mod.rs)
-supplies both preludes from one mapping. The
+the exact vocabulary. Shared Build declarations project the
+[optimization vocabulary](omega/package-manager/build-declarations/src/prelude/optimizations.rs)
+into the toolchain prelude from one mapping. The
 [checked result](omega/compiler/src/checked/checking/checked_compilation.rs)
 retains the complete evaluated Build, including selection and report requests.
 [Rollback settlement](omega/foundation/optimization-core/src/optimization_core/rollback.rs)

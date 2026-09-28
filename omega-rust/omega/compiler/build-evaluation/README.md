@@ -39,8 +39,11 @@ Psi stage 00 owns physical/in-memory loading, scoped load queues and ordered bat
 batch parsing into the caller's syntax arena. Their source, token and parsed-root
 records live in the existing `source`, `tokens` and `syntax-trees` packages.
 Build/Product scope, source coordinates, backing text and diagnostic order travel
-through those operations unchanged. Build-specific prelude and entry-contract
-injection stay here; neither lexical nor grammar rules depend on build evaluation.
+through those operations unchanged. The shared
+[Build declarations](../../package-manager/build-declarations/src/prelude.rs)
+own prelude content; package source preparation selects its injection and scoped
+aliases. This coordinator loads and parses the result. Entry-contract seed
+selection remains here; neither lexical nor grammar rules depend on build evaluation.
 
 ## Root-binding implementation boundary
 

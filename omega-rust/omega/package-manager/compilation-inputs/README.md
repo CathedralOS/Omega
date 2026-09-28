@@ -18,6 +18,12 @@ ownership. It does not schedule parsing or checking. The compiler asks these
 owners for the next source frontier and passes it through Psi's loading,
 lexing and parsing stages.
 
+[Build prelude preparation](src/source_imports/build_prelude.rs) selects the
+toolchain Build source and its scoped aliases. An authored Build in the selected
+build source suppresses injection; an unrelated product-local Build keeps its
+own identity. The declarations come from `build-declarations`, and loading and
+parsing remain explicit compiler stage calls.
+
 [toolchain_library.rs](src/toolchain_library.rs) selects the installed or
 development library and verifies release-library digests. This package's
 `build.rs` records the development root or release digest for that owner.

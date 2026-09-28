@@ -164,6 +164,7 @@ dependencies = [
 name = "build-declarations"
 version = "0.1.0"
 dependencies = [
+ "optimization-core",
  "source-files-to-tokens",
  "syntax-trees",
  "tokens-to-syntax-trees",

@@ -218,11 +218,25 @@ impl ImmutableSourceParseCheckpoint {
                 timings,
             )?;
         }
-        let mut source_scoped_top_level_bindings = super::build_prelude::inject_build_prelude(
-            &mut source_storage,
+        let mut source_scoped_top_level_bindings = Vec::new();
+        if let Some(prelude) = package_compilation::source_imports::prepare_build_prelude(
+            &source_storage,
             self.build_source_id,
-            timings,
-        )?;
+        ) {
+            let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
+                let sources = source_files_to_tokens::load_injected_source(
+                    "<build-prelude>",
+                    &prelude.source,
+                    source_storage.next_source_id(),
+                );
+                lex_sources(sources)
+            })?;
+            let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
+                parse_sources(lexed, &mut source_storage.syntax_trees)
+            })?;
+            source_storage.extend(parsed)?;
+            source_scoped_top_level_bindings = prelude.bindings;
+        }
         source_scoped_top_level_bindings.extend(
             package_compilation::source_imports::retain_module_import_bindings(&source_storage)?,
         );
