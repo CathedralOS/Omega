@@ -1,0 +1,55 @@
+// A scalar-result structural call inside a control cycle, passing the
+// caller's own `&self` parameter whole: `self.at_least(at)` loans the
+// receiver place as a shared re-borrow with an empty path on every loop
+// traversal. The terminal verifier's cyclic-eligibility fence admits the
+// argument the same way the boundary arm does — a machine or block
+// structural parameter borrowed shared moves no loop-carried custody.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Tally {
+    target: u64;
+}
+
+machine Tally::at_least(&self, seen: u64 in Saturating) -> bool {
+    transition { _ -> (seen >= self.target) }
+}
+
+machine Tally::first_reaching(&self, start: u64 in Saturating) -> u64 in Saturating {
+    transition { _ -> scan(start) }
+
+    state scan(&self, at: u64 in Saturating) -> u64 in Saturating {
+        transition self.at_least(at) {
+            true -> (at)
+            false -> step(at)
+        }
+    }
+
+    state step(&self, at: u64 in Saturating) -> u64 in Saturating {
+        transition { _ -> scan(at + 1) }
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+    tally: Tally;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.tally.target = 4;
+    let found: u64 in Saturating = self.tally.first_reaching(0);
+
+    transition found == 4 {
+        true -> done()
+        false -> missed()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}
