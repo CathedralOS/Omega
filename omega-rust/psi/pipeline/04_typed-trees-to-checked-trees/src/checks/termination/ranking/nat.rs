@@ -139,6 +139,139 @@ pub(super) fn state_rank(
     }
 }
 
+/// Resolve an authored subject's root name to the formal of `state` that
+/// carries its entry role under the discovered telescope (`entries` holds
+/// one entry-parameter symbol per non-self formal, the same correspondence
+/// the relational range judgment proved). A cyclic state may rename or
+/// reorder the ranked input — `pending` where the witness reads `remaining`
+/// — so the role's carrier, not a name twin, is the parameter the
+/// executable rank measures. The index returned counts every formal, self
+/// included, matching `state_rank`'s `parameter_position`.
+pub(super) fn carried_subject<'program>(
+    program: &'program typed_trees::TypedTrees,
+    state: &'program typed_trees::state::State,
+    entries: &[symbols::SymbolHandle],
+    subject: ExpressionHandle,
+) -> Option<(usize, &'program typed_trees::signature::StateParameter)> {
+    let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
+        return None;
+    };
+    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+        return None;
+    }
+    let position = entries.iter().position(|entry| *entry == name.symbol)?;
+    program
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .filter(|(_, parameter)| !parameter.is_self)
+        .nth(position)
+}
+
+/// The `Single` rank for a cyclic state whose entry telescope assigns the
+/// subject's role to a renamed or reordered formal. Distance measures keep
+/// the name-based `state_rank` judgment until one needs this route.
+pub(super) fn carried_state_rank(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    measure: DecreaseMeasure,
+    entries: &[symbols::SymbolHandle],
+) -> Option<checked_trees::CheckedStateNaturalRank> {
+    use checked_trees::CheckedNaturalRankMeasure;
+    use typed_trees::types::PrimitiveType;
+    let DecreaseMeasure::Single(subject) = measure else {
+        return None;
+    };
+    let (position, parameter) = carried_subject(program, state, entries, subject)?;
+    let primitive_type = program.primitive_type_reference(parameter.type_reference)?;
+    if matches!(
+        primitive_type,
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::Addr
+    ) {
+        return None;
+    }
+    Some(checked_trees::CheckedStateNaturalRank {
+        state: state.symbol,
+        parameter: parameter.symbol,
+        parameter_position: u32::try_from(position).ok()?,
+        measure: CheckedNaturalRankMeasure::IntegerParameter { primitive_type },
+    })
+}
+
+/// The `direct_countdown_edge` judgment under the entry telescope: the
+/// source carrier is the formal claiming the subject's entry role and the
+/// stepped actual must land in the `target` slot claiming that same role.
+/// The guard and `- 1` recognizers are the name-based edge's own — only the
+/// parameter/slot selection differs, so a renamed or reordered header still
+/// reports the exact parameter/argument join.
+pub(super) fn carried_direct_countdown_edge(
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    guard: &[patterns::GuardFact],
+    arguments: &[ExpressionHandle],
+    decreases: ExpressionHandle,
+    source_entries: &[symbols::SymbolHandle],
+    target_entries: &[symbols::SymbolHandle],
+) -> Option<DirectCountdownEdge> {
+    let ExpressionNode::Name(name) = program.expression_table.expression(decreases) else {
+        return None;
+    };
+    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+        return None;
+    }
+    let (_, parameter) = carried_subject(program, source, source_entries, decreases)?;
+    let target_argument_index = target_entries
+        .iter()
+        .position(|entry| *entry == name.symbol)?;
+    let argument = arguments.get(target_argument_index).copied()?;
+    (guard_is_positive_parameter(program, source, guard, parameter)
+        && argument_is_parameter_minus_one(program, source, argument, parameter))
+    .then_some(DirectCountdownEdge {
+        source_parameter: parameter.symbol,
+        target_argument_index,
+    })
+}
+
+/// The `parameter > 0`/`parameter - 1` countdown edge under the entry
+/// telescope: the source carrier is found by entry role and its stepped
+/// actual must land in the `target` slot claiming the same role. The guard,
+/// positivity floor, and `- 1` recognizers are the name-based edge's own —
+/// only the parameter/slot selection differs.
+pub(super) fn carried_edge_decrease_proven(
+    program: &typed_trees::TypedTrees,
+    source: &typed_trees::state::State,
+    guard: &[patterns::GuardFact],
+    arguments: &[ExpressionHandle],
+    measure: DecreaseMeasure,
+    source_entries: &[symbols::SymbolHandle],
+    target_entries: &[symbols::SymbolHandle],
+) -> bool {
+    let DecreaseMeasure::Single(subject) = measure else {
+        return false;
+    };
+    let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
+        return false;
+    };
+    if !name.symbol.is_valid() || name.head_symbol != name.symbol {
+        return false;
+    }
+    let Some((_, parameter)) = carried_subject(program, source, source_entries, subject) else {
+        return false;
+    };
+    let Some(argument_index) = target_entries
+        .iter()
+        .position(|entry| *entry == name.symbol)
+    else {
+        return false;
+    };
+    let Some(argument) = arguments.get(argument_index).copied() else {
+        return false;
+    };
+    (guard_is_positive_parameter(program, source, guard, parameter)
+        || floor_at_least_one(program, source, parameter))
+        && argument_is_parameter_minus_one(program, source, argument, parameter)
+}
+
 pub(super) fn state_has_proven_self_loop(
     program: &typed_trees::TypedTrees,
     state: &typed_trees::state::State,

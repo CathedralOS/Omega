@@ -935,8 +935,11 @@ pass/termination/rank_range_state_cycle checked 179ms
 pass/termination/ranked_callee_projected_receiver_compile checked 178ms
 pass/termination/remainder_actual_call_component checked 210ms
 pass/termination/remainder_literal_call_component checked 218ms
+pass/termination/runtime_named_state_remainder_endpoint_exit built 33533ms exit:0
 pass/termination/runtime_shrinking_slice_recursion_exit rejected 498ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `scalar field store sequence: write frame agreement`
+pass/termination/runtime_stored_exclusive_endpoint_exit rejected 12050ms
+	native-artifact Terminal production failed: Lowering(InvalidUnitMachinePlan { machine: "run", reason: "scalar callee has no checked executable body", omission: Some("`run` has no admitted body (local construction stopped at statement sequence: local data: structural call binding, statement 1)") })
 pass/termination/stored_reference_endpoint_arrivals checked 195ms
 pass/termination/symbolic_quotient_endpoints checked 224ms
 pass/termination/unsigned_identity_measure_rank_range checked 217ms

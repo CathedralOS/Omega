@@ -69,6 +69,78 @@ fn distance_ranking_preserves_both_boolean_arm_orders() {
     }
 }
 
+/// A cyclic state may rename and reorder the ranked input — `iterate` binds
+/// the authored `remaining` to its third formal `pending`. The retained
+/// countdown evidence and the shared natural ranks must name the carried
+/// formal, not a name twin of the authored subject.
+#[test]
+fn renamed_state_formal_carries_the_ranked_entry_role() {
+    let source = r#"
+        machine walk(remaining: u64, cap: u64, divisor: u64)
+            requires 0 <= remaining && remaining <= 5
+                && 0 <= cap && cap <= 20
+                && 1 <= divisor && divisor <= 5
+        terminates by remaining in 0..(cap % divisor + 6);
+        -> u64 {
+            transition { _ -> iterate(divisor, cap, remaining) }
+            state iterate(width: u64, limit: u64, pending: u64)
+                requires 1 <= width && width <= 5
+                    && 0 <= limit && limit <= 20
+                    && 0 <= pending && pending <= 5
+            {
+                transition pending > 0 {
+                    true -> iterate(width - 0, limit - 0, pending - 1)
+                    false -> pending
+                }
+            }
+        }
+    "#;
+    let typed = typed_program(source);
+    let machine = &typed.machines()[0];
+    let iterate = &typed.machine_states(machine)[1];
+    let (pending_position, pending) = typed
+        .state_parameters(iterate)
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.name.as_str() == "pending")
+        .map(|(position, parameter)| (position, parameter.symbol))
+        .expect("iterate binds pending");
+
+    let components = crate::checks::termination::proven_nat_countdown_sccs(&typed, machine)
+        .expect("renamed carrier retains countdown evidence");
+    assert_eq!(components.len(), 1);
+    assert_eq!(components[0].header_state, iterate.symbol);
+    assert_eq!(
+        components[0].header_rank_parameter_position as usize, pending_position,
+        "the header coordinate names `pending`, the carried formal"
+    );
+    assert_eq!(components[0].covered_cyclic_edges.len(), 1);
+    let edge = &components[0].covered_cyclic_edges[0];
+    assert_eq!(edge.source_state, iterate.symbol);
+    assert_eq!(
+        edge.source_rank_parameter_position as usize,
+        pending_position
+    );
+    assert_eq!(
+        edge.target_rank_parameter_position as usize,
+        pending_position
+    );
+
+    let ranks = crate::checks::termination::proven_state_natural_ranks_with_call_frames(
+        &typed, machine, None,
+    )
+    .expect("the shared natural ranks publish the carried formal");
+    let rank = ranks
+        .iter()
+        .find(|rank| rank.state == iterate.symbol)
+        .expect("iterate carries a natural rank");
+    assert_eq!(rank.parameter, pending);
+    assert_eq!(rank.parameter_position as usize, pending_position);
+
+    lower_typed_trees(typed, &CheckingRequest::settled())
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+}
+
 #[test]
 fn signed_nonzero_does_not_prove_a_positive_countdown_rank() {
     let source = r#"

@@ -381,3 +381,105 @@ fn checked_slice_rank_cannot_be_removed_or_redirected() {
         );
     }
 }
+
+/// A remainder-endpoint countdown whose cyclic state reorders and renames its
+/// formals: `walk` ranks `remaining`, and the entry transition binds that role
+/// to `iterate`'s `pending` (position 2) while `cap` and `divisor` arrive as
+/// `limit` and `width` (positions 1 and 0).
+const REMAINDER_COUNTDOWN: &str = r#"
+    machine walk(remaining: u64, cap: u64, divisor: u64)
+        requires 0 <= remaining && remaining <= 5
+            && 0 <= cap && cap <= 20
+            && 1 <= divisor && divisor <= 5
+    terminates by remaining in 0..(cap % divisor + 6);
+    -> u64 {
+        transition { _ -> iterate(divisor, cap, remaining) }
+        state iterate(width: u64, limit: u64, pending: u64)
+            requires 1 <= width && width <= 5
+                && 0 <= limit && limit <= 20
+                && 0 <= pending && pending <= 5
+        {
+            transition pending > 0 {
+                true -> iterate(width - 0, limit - 0, pending - 1)
+                false -> pending
+            }
+        }
+    }
+"#;
+
+/// The published rank names the formal carrying the subject's entry role —
+/// `pending`, not a name twin of `remaining` — and the composed plan keeps it.
+#[test]
+fn named_state_rank_names_the_carried_formal() {
+    let source = crate::front_end::checked_program(&format!(
+        "{REMAINDER_COUNTDOWN}
+        data Root {{}}
+        machine Root::enter() -> u64 {{ walk(5, 17, 4) }}"
+    ));
+    let walk = source
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "walk")
+        .expect("walk resolves");
+    let plan = source
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .find(|plan| plan.machine == walk.symbol)
+        .expect("walk keeps a composed plan");
+    let iterate = source
+        .machine_states(walk)
+        .iter()
+        .find(|state| state.name.as_str() == "iterate")
+        .expect("iterate resolves");
+    let pending = source
+        .state_parameters(iterate)
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.name.as_str() == "pending")
+        .map(|(position, parameter)| (position, parameter.symbol))
+        .expect("iterate binds pending");
+    let rank = plan
+        .natural_ranks
+        .iter()
+        .find(|rank| rank.state == iterate.symbol)
+        .expect("iterate carries a natural rank");
+    assert_eq!(
+        (rank.parameter_position as usize, rank.parameter),
+        pending,
+        "the rank names the formal carrying `remaining`'s entry role"
+    );
+    checked_trees_to_lowered_psi::lower_machine(
+        &source,
+        TerminalMachineSelection::Name("Root::enter"),
+    )
+    .expect("the carried rank lowers through the attached call closure");
+}
+
+/// The same carried rank survives when the ranked callee is embedded in an
+/// attached caller's Unit closure, the route `Main::main` takes.
+#[test]
+fn named_state_rank_lowers_inside_an_attached_caller() {
+    let source = crate::front_end::checked_program(&format!(
+        "{REMAINDER_COUNTDOWN}
+        boundary trait Exit {{ machine exit(code: u8) reaches Exit; }}
+        data Main {{}}
+        machine Main::main(&mut self) reaches Exit {{
+            let tick: u64 = 40 + 2;
+            let outcome: u64 = walk(5, 17, 4);
+            transition outcome == 0 && tick == 42 {{
+                true -> passed()
+                _ -> failed()
+            }}
+            state passed(&mut self) {{ Exit::exit(0u8); }}
+            state failed(&mut self) {{ Exit::exit(1u8); }}
+        }}"
+    ));
+    checked_trees_to_lowered_psi::lower_machine(
+        &source,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect("the embedded carried rank lowers through the Unit closure");
+}
