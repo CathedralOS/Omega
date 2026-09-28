@@ -688,7 +688,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::DenotationSchema)
                 .count(),
-            43
+            44
         );
         assert_eq!(
             graph
@@ -704,7 +704,7 @@ mod tests {
                 .iter()
                 .filter(|node| node.kind() == TrustDependencyKind::StructuralEffectSchema)
                 .count(),
-            28
+            29
         );
         assert_eq!(
             graph
@@ -714,7 +714,7 @@ mod tests {
                 .count(),
             10
         );
-        assert_eq!(OperationSemanticRow::ALL.len(), 81);
+        assert_eq!(OperationSemanticRow::ALL.len(), 83);
         for (tag, identity) in [
             (
                 OperationSemanticTag::EstablishPrimitiveLocal,
@@ -723,6 +723,10 @@ mod tests {
             (
                 OperationSemanticTag::PrimitiveScalarRead,
                 "schema:operation:primitive-scalar-read",
+            ),
+            (
+                OperationSemanticTag::ByteSequenceStore,
+                "schema:operation:byte-sequence-store",
             ),
         ] {
             let row = OperationSemanticRow::ALL
@@ -751,6 +755,18 @@ mod tests {
             node.identity() == descriptor_store.identity()
                 && node.kind() == TrustDependencyKind::DenotationSchema
         }));
+        let concatenation = graph
+            .nodes()
+            .iter()
+            .find(|node| {
+                node.identity() == "schema:operation:establish-byte-sequence-concatenation"
+            })
+            .expect("owned byte concatenation trust node");
+        assert_eq!(concatenation.kind(), TrustDependencyKind::DenotationSchema);
+        assert_eq!(
+            concatenation.status(),
+            TrustDependencyStatus::TrustedJudgment
+        );
         let store = OperationSemanticRow::ALL
             .iter()
             .find(|row| row.tag() == OperationSemanticTag::WriteOnlyPrimitiveStore)
@@ -768,7 +784,7 @@ mod tests {
                 .iter()
                 .filter(|row| row.custody() == OperationSemanticCustody::LeafDenotation)
                 .count(),
-            71
+            73
         );
         assert_eq!(
             OperationSemanticRow::ALL
