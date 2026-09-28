@@ -57,9 +57,11 @@ Authored selection identity/order and build-over-default precedence remain intac
 [Program-entry planning](src/program_entry.rs) owns target-slot selection,
 source-signature admission, paired semantic/physical calling contracts, package
 provenance and receiver-establishment custody. It consumes root-binding rows,
-not a Build configuration. Build evaluation extracts those rows and asks this
-owner about product-entry query compatibility; the compiler consumes its settled
-entry directly. Backend `program-entry-plan` retains storage and ABI evidence.
+not a Build configuration. Its [root-binding admission](src/program_entry/root_bindings.rs)
+rejoins executed Build requests to exact declarations in their lexical product
+package and rejects mismatched descriptions or duplicate slots. Build evaluation
+supplies the execution receipts and asks this owner about product-entry query
+compatibility; the compiler consumes its settled entry directly. Backend `program-entry-plan` retains storage and ABI evidence.
 The focused planner tests run with
 `cargo nextest run -p provider-planning --lib program_entry::tests`.
 

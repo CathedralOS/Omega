@@ -3,6 +3,9 @@
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
+mod root_bindings;
+pub use root_bindings::collect_root_bindings;
+
 /// An executed Build root choice with its exact lexical product declaration.
 /// Spelling is diagnostic payload; the resolved symbol selects the machine.
 #[derive(Debug, Clone, PartialEq, Eq)]

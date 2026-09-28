@@ -71,13 +71,6 @@ pub mod sources;
 mod tests;
 
 pub use admission::configuration::BuildConfig;
-pub use admission::selection::root_bindings::RootBinding;
-pub use admission::selection::{
-    SelectedCompilerProgramEntry, SelectedProgramEntry, SelectedProgramEntryCallingPlans,
-    program_entry_semantic_binding_role, select_compiler_program_entry,
-    selected_program_entry_machine, validate_selected_program_entry_calling_plan,
-    validate_selected_program_entry_shape,
-};
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
     ComputedBuildConfig, admit_build_program,
@@ -99,6 +92,12 @@ pub use package_compilation::build_execution::{
     BuildNamedInputInventory, BuildObservationIdentity, BuildObservationSummary,
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     RestrictedBuildRequest, prepare_filesystem_scope,
+};
+pub use provider_planning::program_entry::{
+    RootBinding, SelectedCompilerProgramEntry, SelectedProgramEntry,
+    SelectedProgramEntryCallingPlans, program_entry_semantic_binding_role,
+    select_compiler_program_entry, selected_program_entry_machine,
+    validate_selected_program_entry_calling_plan, validate_selected_program_entry_shape,
 };
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 pub use trust_model::AuthoredComponentAssumptionAcceptance;

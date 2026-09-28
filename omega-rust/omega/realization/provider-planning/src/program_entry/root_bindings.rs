@@ -4,7 +4,7 @@ use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
-pub use provider_planning::program_entry::RootBinding;
+use super::RootBinding;
 
 /// Admission is lexical per occurrence package: the `implementation` operand
 /// resolves against the product machines declared in the package containing
@@ -21,7 +21,7 @@ pub use provider_planning::program_entry::RootBinding;
 /// exact retained symbol and requires the authored slot to match the queried
 /// slot. The description names a product declaration only -- its machine was
 /// looked up, never executed.
-pub(crate) fn collect_root_bindings(
+pub fn collect_root_bindings(
     typed: &TypedTrees,
     executed: &[checked_interpreter::ExecutedRootBinding],
 ) -> Result<Vec<RootBinding>, Vec<Diagnostic>> {
