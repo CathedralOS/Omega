@@ -952,6 +952,45 @@ the complete product bar; focused successes below do not establish that baseline
   execution; the default corpus can expose lowering failures, but a `checked`
   or `built` record without execution does not satisfy a runtime oracle.
 
+- **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
+  Complete consuming-transform/replacement execution under
+  [ownership windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
+  and [independent restoration replay](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
+  Start from the
+  [checked-interpreter witness](omega-rust/psi/interpreter/checked-interpreter/tests/borrowed_restoration.rs): consuming
+  `taken.bump()` and restoring its result updates 41 to 42 in the checked
+  interpreter. A native macOS ARM64 wrapper rejects at
+  `statement sequence: assignment: structural call result field store`;
+  restoring the original value instead executes correctly.
+
+  Psi's `execution/terminal_unit/borrowed_windows.rs` already uses ordinary
+  statement sequencing. `OpenWindows::restore` recognizes the original moved
+  local; `replace` refuses an already-open hole. Carry valid replacement
+  custody through that join, the emission `BorrowedWindowLedger` and Omega's
+  `lowering/machine/operation/borrowed_windows.rs`. Extend multi-block transport:
+  composed-control emission currently requires closure after each operation
+  sequence. Preserve evaluation order, disjoint siblings, exact open-place
+  agreement and contained loans. Indexed paths already have support; retain
+  whole-root, referent, scalar-field and nominal-cleanup restrictions until
+  their evidence exists.
+
+  Acceptance: consuming transforms, replacement values and repair on both
+  branches execute with caller-visible updates and exact-once custody in
+  Terminal interpretation and supported native targets, without staging caller
+  storage. Add a real entry and
+  observable oracle to `ownership/move_keyword_field_assignment`, which remains
+  checked-only. Missing repair, early return, stale reads, overlapping loans,
+  wrong-place repair, repeated extraction, whole-owner cleanup and tampered
+  artifacts reject. Cover recoverable failure, suspension/resume/cancellation
+  and crash/process-exit abandonment without invented rollback or survivor
+  guarantees. Preserve the restoration suites, ledger controls and
+  `fail/ownership/borrowed_storage_boundary_call`.
+
+  The product parser and **BUMP-ALLOCATOR-CANARY** consume this mechanism.
+  Shared-reference copy admission is implemented. **CANARY-CORPUS** retains
+  text/domain-provenance work, including
+  `text/runtime_slice_indexed_string_guard_exit`; copies need no restoration window.
+
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and
   documented exit/output on matching hosts under the
@@ -3476,31 +3515,30 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   retirement while the table names a root reject. Uninstalled stubs and ledger
   tests do not close this execution witness.
 
-- **BOUNDED-INSTALLATION-REACH-ROWS.** Finish
+- **BOUNDED-INSTALLATION-REACH-ROWS.** Complete
   [installation-bound reach](wiki/spec/build/external_roots.md#installation-bound-reach)
-  for component contracts and opaque-carrier completion. Selection and nested
-  closure substitution already exist in `provider-planning/installation_reach.rs`
-  and `omega-rust/omega/backend/runtime/external-roots/src/root_entry/root_validation.rs`; preserve the selected
-  nested-row and unresolved-row controls in `calling_policy_plans/opaque_boundaries.rs`.
+  for the shipped `source/library/core/interrupt.omg` acknowledgement.
+  `InterruptAcknowledgement::complete` still fixes `reaches PortIo`; migrate it
+  to `reaches <= MachineControl + PortIo` with a selected satisfier that
+  consumes the real linear receiver. **TOP-LEVEL-BOUNDARY-REQUIREMENTS** owns
+  selected dispatch/discharge; reuse its owned-receiver route.
 
-  The shipped `InterruptAcknowledgement::complete` in `core/interrupt.omg`
-  still declares fixed `reaches PortIo`, and its test pins that limitation.
-  Migrate it to the ratified bound beneath `MachineControl + PortIo` together
-  with a selected satisfier that discharges the linear receiver and retains
-  exact provider execution, policy and token lineage. TOP-LEVEL-BOUNDARY-REQUIREMENTS
-  owns source requirement selection/discharge; owned receiver dispatch already
-  exists, so do not recreate it. A test-local copyable lookalike does not close
-  the real linear-carrier route.
-  COMPONENT-SUBSTRATE supplies the admitted component contract needed to reject
-  unresolved exported rows. This item owns the bound/substitution integration,
-  not another component implementation.
+  Reuse `omega-rust/omega/realization/provider-planning/src/provider_planning/installation_reach.rs`
+  and external-roots' `root_entry/root_validation.rs`. Provider-planning's
+  `tests/{provider_derivation,independent_components}.rs` already cover selected
+  reach and unresolved provider/component rejection. Full component deployment
+  remains with **COMPONENT-SUBSTRATE**.
+  External-roots' `tests/interrupt_entries.rs` checks installed completion
+  coordinates using constructed provider facts; it does not connect the shipped
+  opaque carrier through source and Terminal Psi.
 
-  Acceptance: the shipped core requirement resolves PIC completion to `PortIo`
-  and LAPIC/x2APIC completion to `MachineControl` through source, Terminal Psi
-  and `InstalledInterruptCompletionRoute`. Cross-provider settlement despite
-  equal rows, replayed token/era, an Independent component with an unresolved
-  export, and final admission with any unresolved row reject. Conservative bounds
-  grant no authority; exact selected execution and lineage authorize invocation.
+  Acceptance: PIC completion selects `PortIo`, LAPIC/x2APIC `MachineControl`,
+  through the shipped requirement, Terminal Psi and
+  `InstalledInterruptCompletionRoute`. Preserve complete nested substitution,
+  including service unions across multiple resolution passes. Cross-provider
+  settlement despite equal rows, replayed token/era, unresolved Independent
+  exports and any unresolved final-admission row reject. Conservative bounds
+  grant no authority; exact provider execution, policy and token lineage do.
 
 ## Parallel language and compiler lanes
 
@@ -3574,52 +3612,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   moves into Omega: every body remains checked and retained, and a missing
   called body rejects only the affected realization. Retire this item when
   the executable acceptance is accounted for.
-
-- **BORROWED-STORAGE-RESTORATION.** (split-of:OMEGA-PRODUCT-COMPILER-SOURCE)
-  Complete consuming-transform/replacement execution under
-  [borrowed-storage invariant windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
-  and [Terminal restoration](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
-  The guide move-out/restore body already produces checked Move/Store rows and
-  verified Terminal operations, including reference-local aliases. Reuse
-  `execution/terminal_unit/borrowed_windows.rs`, emission's `BorrowedWindowLedger`
-  and Omega's `lowering/machine/operation/borrowed_windows.rs`.
-
-  Replace the producer's leading move-local/restore-only recognizer with
-  ordinary operation sequencing and explicit place/value custody. Connect
-  consuming calls and replacement values, disjoint sibling work and multi-block
-  joins. Independently reconstruct equal open-place frontiers and closure at
-  required exits, retaining evaluation order, nested/live-arm agreement,
-  contained loans and outcome obligations. Whole-root, indexed, referent,
-  scalar-field and nominal-drop fences stay until their evidence exists.
-
-  **CANARY-CORPUS** owns the shared-reference copy-composition repair, not this
-  row. A record such as `data Room { label: &[u8] in Utf8; }` copied from
-  `&mut self` storage needs an explicit `[copy]` declaration; the current field
-  whitelist wrongly rejects that declaration. See the settled
-  [copy/loan rules](wiki/spec/language/ownership.md).
-  `text/runtime_local_struct_string_field_concat_exit`,
-  `text/runtime_string_stored_suffix_exit` and
-  `text/runtime_slice_indexed_string_guard_exit` also exercise preservation of
-  default-domain facts. Restoration of a deliberately moved-out value is a
-  separate mechanism; do not work around the copy-composition gap with an
-  unnecessary move-and-restore.
-
-  Complete target/native realization without replacing caller storage by a
-  staged copy. Promote `ownership/move_keyword_field_assignment` from
-  checked-only when its full-product route succeeds. Reobserve that command's
-  current failure rather than retaining the retired entry-multiplicity blocker.
-  The product parser and **BUMP-ALLOCATOR-CANARY** consume this mechanism.
-
-  Acceptance: a consuming transform then replacement executes with
-  caller-visible updated contents and exact-once custody in Terminal
-  interpretation and supported native targets, including sibling work, repair
-  on both branches and contained-loan transport. Missing repair, early return,
-  stale reads, overlapping loans, wrong-place repair, repeated extraction and
-  whole-owner cleanup reject; tampered artifacts fail independent replay.
-  Cover recoverable failure, suspension/resume/cancellation and crash/process-exit
-  abandonment without invented rollback or survivor guarantees. Preserve the
-  checker/interpreter `borrowed_restoration` suites, ledger controls and
-  `fail/ownership/borrowed_storage_boundary_call`.
 
 - **MATCH-SELECTIVE-LOWERING.** Complete
   [value dispatch](wiki/spec/language/patterns.md) for owned/borrowed/linear
