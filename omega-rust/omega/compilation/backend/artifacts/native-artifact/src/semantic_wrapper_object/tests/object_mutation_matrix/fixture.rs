@@ -70,6 +70,29 @@ pub(super) fn three_symbol_parts() -> (
     parts(recompose(&child_with_terminal_function()))
 }
 
+/// The retained artifact set of an authentic foreign wrapper object: the same
+/// child composed under a different source artifact, artifact manifest, child
+/// container and signature. Mutation matrices use its records as donors that
+/// prove a distinct plan or receipt is real producer output.
+pub(super) fn foreign_parts() -> (
+    OptimizedProgramStorageSemanticWrapperObjectPlan,
+    OptimizedProgramStorageSemanticWrapperObjectContainer,
+    OptimizedProgramStorageSemanticWrapperObjectManifest,
+    OptimizedProgramStorageSemanticWrapperObjectCustodyReceipt,
+) {
+    parts(
+        compose_optimized_program_storage_semantic_wrapper_object(
+            [6; 32],
+            OptimizedObjectArtifactIdentity::from_canonical_bytes(b"foreign-artifact"),
+            OptimizedObjectArtifactManifestIdentity::from_canonical_bytes(b"foreign-manifest"),
+            RelocationFreeObjectContainerIdentity::from_canonical_bytes(b"foreign-container"),
+            &child(),
+            &template(),
+        )
+        .unwrap(),
+    )
+}
+
 fn parts(
     object: OptimizedProgramStorageSemanticWrapperObjectPlan,
 ) -> (

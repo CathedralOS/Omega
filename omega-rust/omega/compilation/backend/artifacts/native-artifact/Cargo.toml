@@ -41,3 +41,6 @@ program-entry-plan = { path = "../../plans/program-entry-plan" }
 legalized-operations = { path = "../../../representations/target-operations/legalized-operations" }
 terminal-psi-to-abstract-operations = { path = "../../../pipeline/00_terminal-psi-to-abstract-operations" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
+
+[dev-dependencies]
+optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }
