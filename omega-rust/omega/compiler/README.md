@@ -260,6 +260,12 @@ admissions or physical evidence as another child's authority.
 
 ## Checked settlement
 
+Physical, dependency-generated and activation-generated parsing all belong to
+[package source preparation](../package-manager/compilation-inputs/src/source_assembly.rs).
+The coordinator forwards its complete syntax products into resolution and
+typing. Loading, lexing, parsing and syntax construction are not compiler-private
+continuation work; parser dependencies are needed only by corpus fixtures.
+
 Psi owns [source checking](../../../wiki/spec/language/state_contracts.md).
 Its checking stage also owns exact boundary-call and source-authority validation;
 the compiler does not issue a separate source-provider approval after checking.
