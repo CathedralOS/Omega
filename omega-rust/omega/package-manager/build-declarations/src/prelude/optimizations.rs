@@ -27,10 +27,14 @@ fn declarations() -> String {
     for optimization in Optimization::ALL {
         text.push_str(&format!("    case {};\n", optimization.build_case_name()));
     }
-    text.push_str("}\npub data Optimizations {\n    human_report: u8 in Trapping;\n");
+    // Counters are build bookkeeping: a defined-overflow domain keeps the
+    // synthesized increments obligation-free. Saturating clamps at the type
+    // maximum rather than wrapping a report count back to zero, and the
+    // machines emit no `crashes Trap` bucket the verifier would demand.
+    text.push_str("}\npub data Optimizations {\n    human_report: u8 in Saturating;\n");
     for optimization in Optimization::ALL {
         text.push_str(&format!(
-            "    {}: u8 in Trapping;\n",
+            "    {}: u8 in Saturating;\n",
             optimization.build_counter_field()
         ));
     }
