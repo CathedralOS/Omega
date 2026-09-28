@@ -73,7 +73,7 @@ SURFACES = {
         "omega-rust/psi/representations/terminal-psi/codec/src/sections/proof_bundle",
         "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph",
         "omega-rust/psi/representations/terminal-psi/codec/src/trust_graph.rs",
-        "omega-rust/omega/compiler/src/report/pcc.rs",
+        "omega-rust/omega/realization/compilation-products/src/pcc.rs",
         "omega-rust/omega/backend/artifacts/native-artifact/src/proof.rs",
         "omega-rust/omega/backend/artifacts/native-artifact/src/proof",
     ],

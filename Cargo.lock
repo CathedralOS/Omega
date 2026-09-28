@@ -405,6 +405,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "compilation-products"
+version = "0.1.0"
+dependencies = [
+ "artifacts",
+ "backend-plan",
+ "diagnostics",
+ "native-artifact",
+ "optimization-core",
+ "package-compilation",
+ "platform-custody",
+ "proof-admission",
+ "sha2",
+ "target",
+ "terminal-codec",
+ "terminal-psi-to-abstract-operations",
+ "trust-model",
+]
+
+[[package]]
 name = "compiler"
 version = "0.1.0"
 dependencies = [
@@ -424,6 +443,7 @@ dependencies = [
  "checked-interpreter",
  "checked-trees",
  "checked-trees-to-lowered-psi",
+ "compilation-products",
  "component-description",
  "diagnostics",
  "effects",
@@ -451,7 +471,6 @@ dependencies = [
  "object-file",
  "optimization-core",
  "package-compilation",
- "platform-custody",
  "program-entry-plan",
  "proof-admission",
  "provider-planning",
@@ -467,7 +486,6 @@ dependencies = [
  "semantic-vocabulary",
  "serde",
  "serde_json",
- "sha2",
  "source",
  "source-files-to-tokens",
  "symbol-resolved-trees",
@@ -1208,6 +1226,7 @@ dependencies = [
  "artifacts",
  "checked-interpreter",
  "checked-trees-to-lowered-psi",
+ "compilation-products",
  "compiler",
  "diagnostics",
  "lowered-psi",

@@ -105,6 +105,7 @@ members = [
     "omega-rust/omega/realization/provider-planning",
     "omega-rust/psi/checking/representation-planning",
     "omega-rust/omega/realization/trust-model",
+    "omega-rust/omega/realization/compilation-products",
     "omega-rust/omega/omega/trust-ledger",
     "omega-rust/omega/compiler",
     "omega-rust/omega/package-manager/review-evidence",

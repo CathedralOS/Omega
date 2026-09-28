@@ -10,7 +10,7 @@ use diagnostics::{Diagnostic, DiagnosticSeverity};
 use sha2::{Digest, Sha256};
 use target::TargetProfile;
 
-use crate::report::{ProductionArtifactIdentity, ProductionCompilationManifestIdentity};
+use crate::{ProductionArtifactIdentity, ProductionCompilationManifestIdentity};
 
 const BATCH_MANIFEST_DOMAIN: &[u8] = b"OMEGA-BATCH-COMPILATION-MANIFEST-V1\0";
 const BATCH_DIAGNOSTICS_DOMAIN: &[u8] = b"OMEGA-BATCH-CHILD-DIAGNOSTICS-V1\0";

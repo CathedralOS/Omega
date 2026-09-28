@@ -2,7 +2,7 @@
 use super::companions::psi_pair_receipt;
 use super::companions::{appended_file_name_path, remove_stale_companion, stage_psi_pair};
 use crate::CompileReport;
-use crate::report::PccPublicationReceipt;
+use crate::PccPublicationReceipt;
 use native_artifact::{
     PreparedExecutablePublication, build_native_proof_sidecar, publish_macos_application_package,
     validate_native_pair,
@@ -69,7 +69,7 @@ pub(super) fn publish(
     let package = artifact.target().object_format == target::ObjectFormat::MachO
         && matches!(
             report.application_intent(),
-            Some(build_evaluation::HostedApplicationIntent::Gui)
+            Some(target::HostedApplicationIntent::Gui)
         );
     let container_digest = publication.container_digest();
     let mut pcc_publications = Vec::new();

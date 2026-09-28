@@ -1,5 +1,5 @@
 //! Prepare proof companions before installing any artifact bytes.
-use crate::report::PccPublicationReceipt;
+use crate::PccPublicationReceipt;
 use platform_custody::file_publication::{StagedFile, stage_exact_bytes};
 use std::path::{Path, PathBuf};
 use terminal_codec::PreparedPsiProofPair;

@@ -6,10 +6,10 @@
 use std::path::{Path, PathBuf};
 
 pub fn publish_compilation(
-    report: compiler::CompileReport,
+    report: compilation_products::CompileReport,
     build_dir: &Path,
-) -> Result<(compiler::CompileReport, Option<PathBuf>), String> {
-    let report = compiler::artifact_publication::publish_compilation(report, build_dir)?;
+) -> Result<(compilation_products::CompileReport, Option<PathBuf>), String> {
+    let report = compilation_products::publication::publish_compilation(report, build_dir)?;
     let executable = report
         .checked_native_executable_path()
         .map(Path::to_path_buf);
@@ -17,13 +17,13 @@ pub fn publish_compilation(
 }
 
 pub fn publish_native_artifact(
-    report: compiler::CompileReport,
+    report: compilation_products::CompileReport,
     build_dir: &Path,
-) -> Result<(compiler::CompileReport, PathBuf), String> {
-    if report.output_kind() == compiler::CompileOutputKind::BuildArtifacts {
+) -> Result<(compilation_products::CompileReport, PathBuf), String> {
+    if report.output_kind() == compilation_products::CompileOutputKind::BuildArtifacts {
         return Err("an artifact-only build has no executable to run".into());
     }
-    if report.output_kind() != compiler::CompileOutputKind::RetainedNativeArtifact {
+    if report.output_kind() != compilation_products::CompileOutputKind::RetainedNativeArtifact {
         return Err("running requires a retained native executable product".into());
     }
     let (published, path) = publish_compilation(report, build_dir)?;

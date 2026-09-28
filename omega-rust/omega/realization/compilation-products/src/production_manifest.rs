@@ -94,7 +94,7 @@ pub struct ProductionCompilationManifest {
 impl ProductionCompilationManifest {
     pub fn for_build_outputs(
         subject: ProductionCompilationSubject,
-        outputs: &crate::report::RetainedBuildOutputs,
+        outputs: &crate::RetainedBuildOutputs,
     ) -> Result<Self, &'static str> {
         if subject.build_observation_identity() != outputs.observation_identity() {
             return Err("completed build outputs belong to another production observation");

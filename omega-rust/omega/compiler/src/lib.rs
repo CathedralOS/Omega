@@ -8,22 +8,22 @@
 //! and generated source set; the folders are the remaining work those steps
 //! call: `checked` evaluates the build and settles checked Psi, `terminal` produces and
 //! verifies the Terminal artifact, `native` realizes it for a target, and
-//! `report` owns retained products and custody records. `artifact_publication`
-//! installs finished products and their proof companions without re-entering compilation.
+//! finished products and publication belong to the independent
+//! `compilation_products` owner; this crate only sequences their production.
 
-pub mod artifact_publication;
+pub use compilation_products::publication as artifact_publication;
 mod compiler;
 
 pub mod checked;
 pub mod native;
-pub mod report;
+pub use compilation_products as report;
 pub mod terminal;
 
 pub use crate::checked::{
     CheckedAdmission, CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
     PreparedCheckedSource, RestrictedBuildGrants, admit_checked_compilation,
-checked_compilation_call_count, compile_to_checked, executed_preliminary_check_count,
+    checked_compilation_call_count, compile_to_checked, executed_preliminary_check_count,
     executed_settled_check_count, preliminary_check_totals, settled_check_totals,
     source_assembly_invocation_count, typed_frontier_reuse_count,
 };
