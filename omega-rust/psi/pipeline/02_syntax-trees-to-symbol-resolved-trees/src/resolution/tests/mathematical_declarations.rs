@@ -330,6 +330,64 @@ fn an_authored_core_module_cannot_steal_a_fixed_call_target() {
     );
 }
 
+/// A bare `core::*` name path in a proposition body carries no call: it
+/// binds the installed declaration by exact spelling, so no symbol-less
+/// reference reaches the transitional spelling classifier — and the
+/// namespace head itself stays unbound because `core` is not a
+/// declaration.
+#[test]
+fn proposition_name_paths_bind_the_fixed_vocabulary() {
+    let program = resolve(
+        "proposition leveled(x: u64) = core::Level; proposition squashed(x: u64) = base(core::Squash); proposition base(x: u64) = x == x;",
+    );
+    let level = program
+        .symbols
+        .fixed_core_declaration_symbol(FixedCoreDeclaration::Level)
+        .expect("fixed core::Level installed");
+    let squash = program
+        .symbols
+        .fixed_core_declaration_symbol(FixedCoreDeclaration::Squash)
+        .expect("fixed core::Squash installed");
+    let propositions = program
+        .propositions
+        .iter()
+        .map(|proposition| (proposition.name.as_str(), proposition))
+        .collect::<std::collections::BTreeMap<_, _>>();
+
+    let PropositionBody::Transparent { proposition: body } = propositions["leveled"].body else {
+        panic!("transparent proposition body")
+    };
+    let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(body) else {
+        panic!("leveled body is a name path")
+    };
+    assert_eq!(path.symbol, level);
+    assert!(
+        !path.head_symbol.is_valid(),
+        "`core` is the fixed namespace, not a resolvable declaration"
+    );
+
+    // The same law applies inside a call argument: the `core::Squash`
+    // operand is a name path, not a call target.
+    let PropositionBody::Transparent { proposition: body } = propositions["squashed"].body else {
+        panic!("transparent proposition body")
+    };
+    let ExpressionNode::Call(call) = program.tables.bodies.expressions.expression(body) else {
+        panic!("squashed body is a call")
+    };
+    let [argument] = program
+        .tables
+        .bodies
+        .expressions
+        .expression_handles(call.arguments)
+    else {
+        panic!("one call argument")
+    };
+    let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(*argument) else {
+        panic!("argument is a name path")
+    };
+    assert_eq!(path.symbol, squash);
+}
+
 #[test]
 fn seeded_extension_keeps_mathematical_declarations_and_their_symbols() {
     let base_source = "let base_fn(x: u64): u64 = x;";

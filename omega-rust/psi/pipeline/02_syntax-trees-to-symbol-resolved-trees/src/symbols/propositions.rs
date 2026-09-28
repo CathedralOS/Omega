@@ -217,10 +217,30 @@ pub(super) fn assign_expression_symbols(
                     name.as_str(),
                 )
             } else {
+                // Multi-member paths carry no authored lookup here, but the
+                // fixed `core::*` spellings are compiler vocabulary, not
+                // module members: an exact `core::*` name binds its
+                // installed declaration, the same law call targets and type
+                // references apply — so a same-spelled authored declaration
+                // never claims it.
+                let name = members
+                    .iter()
+                    .map(|member| member.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::");
+                symbols::FixedCoreDeclaration::from_name(&name)
+                    .and_then(|declaration| symbols.fixed_core_declaration_symbol(declaration))
+                    .unwrap_or_else(SymbolHandle::invalid)
+            };
+            let head_symbol = if members.len() == 1 {
+                symbol
+            } else {
+                // A `core::*` path's head is the vocabulary's fixed
+                // namespace — there is no `core` declaration to bind.
                 SymbolHandle::invalid()
             };
             if let ExpressionNode::Name(path) = expressions.expression_mut(expression) {
-                path.head_symbol = symbol;
+                path.head_symbol = head_symbol;
                 path.symbol = symbol;
             }
         }
