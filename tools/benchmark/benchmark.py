@@ -3,7 +3,7 @@
 
 Each record is one JSON document in ``records/`` describing a single
 subject compiled and run under one exact rule selection on one target.
-The record schema is versioned (``omega-benchmark-record/1``) and
+The record schema is versioned (``omega-benchmark-record/2``) and
 documented in README.md; ``validate`` enforces it so committed rows
 cannot drift from the documented format.
 
@@ -40,7 +40,11 @@ import tempfile
 import time
 
 
-SCHEMA = "omega-benchmark-record/1"
+SCHEMA = "omega-benchmark-record/2"
+# /1 records predate the compiler-build binding fields; they remain readable
+# and valid under their own rules, but `measure` only writes /2.
+LEGACY_SCHEMA = "omega-benchmark-record/1"
+KNOWN_SCHEMAS = (LEGACY_SCHEMA, SCHEMA)
 METRIC_NAMES = (
     "compile_time_ms",
     "peak_memory_bytes",
@@ -53,6 +57,24 @@ TIMING_LINE = re.compile(r"^\s*([0-9]+(?:\.[0-9]+)?) ms  (.+)$")
 PUBLISHED_LINE = re.compile(r"^published native output to (.+)$")
 REVIEW_LINE = re.compile(r"^review: (.+)$", re.M)
 PENDING_DECISION = re.compile(r"(?m)^(decision .*) pending$")
+ROLLBACK_LINE = re.compile(
+    r"^optimizer rollback: requested=\[(.*)\]; applied=\[(.*)\]; "
+    r"effective=\[(.*)\]$",
+    re.M,
+)
+ROLLBACK_REFUSAL = re.compile(r"optimization rollback")
+# The compiler's generated rule vocabulary is the single declaration of exact
+# names; a probe disable candidate is always drawn from it, never a second
+# list that could drift.
+RULE_VOCABULARY = (
+    "omega-rust/omega/foundation/optimization-core/src/optimization_core.rs"
+)
+RULE_CASE = re.compile(
+    r'^\s*case: "([A-Z][A-Za-z0-9]*)",\s*\n'
+    r'\s*counter: "[^"]*",\s*\n'
+    r"\s*phase: ([A-Za-z0-9_]+)",
+    re.M,
+)
 
 
 # Windows peak-RSS accounting: the spawned child is assigned to a fresh job
@@ -306,7 +328,8 @@ def authored_selection(root):
     ``builder.optimizations.enable(Optimization::Name)`` in the sibling
     ``build.omg``; the CLI can only disable. The scan answers which
     names a default build requests -- it is a record-keeping read, not
-    a substitute for the compiler's own selection.
+    a substitute for the compiler's own selection. ``measure`` reconciles
+    it against the compile's rollback receipt before publishing.
     """
     build_omg = root.parent / "build.omg"
     if not build_omg.is_file():
@@ -316,6 +339,87 @@ def authored_selection(root):
     except OSError:
         return []
     return sorted(set(ENABLED_RULE.findall(text)))
+
+
+def catalog_rules(repository):
+    """Every (name, phase) pair the compiler's generated vocabulary declares.
+
+    Probe-disable candidates are drawn from this catalog so the rollback
+    overlay always accepts them by name; the vocabulary file is the same
+    declaration the compiler shares, so the list cannot drift behind it.
+    """
+    try:
+        text = (Path(repository) / RULE_VOCABULARY).read_text()
+    except OSError:
+        return []
+    return RULE_CASE.findall(text)
+
+
+# Probe-disable candidates prefer stages every native compile executes:
+# target-scoped phases (for example an x86-64 layout rule on aarch64) refuse
+# the request outright, so they are tried last and skipped on refusal.
+PROBE_PHASE_ORDER = (
+    "Psi",
+    "CheckedTrees",
+    "SelectedLowering",
+    "PreAllocation",
+    "AllocationRecovery",
+    "PostAllocationMachine",
+    "FunctionRelativeLayout",
+)
+
+
+def probe_disable_candidates(catalog, enabled, disabled):
+    """Catalog rules the requested selection cannot contain, probe order.
+
+    Disabling a rule outside the authored selection is a valid no-op
+    overlay, and a nonempty request makes the compiler print its rollback
+    receipt — the only public observation of the effective selection.
+    """
+    spoken = set(enabled) | set(disabled)
+    candidates = [entry for entry in catalog if entry[0] not in spoken]
+    order = {phase: index for index, phase in enumerate(PROBE_PHASE_ORDER)}
+    candidates.sort(key=lambda entry: order.get(entry[1], len(order)))
+    return [name for name, _phase in candidates]
+
+
+def parse_rollback_receipt(output_text):
+    """The last ``optimizer rollback:`` receipt a compile printed, if any.
+
+    The receipt is the compiler's own account of the settlement:
+    ``requested`` is the disable overlay it received, ``applied`` the part
+    that intersected the authored selection, and ``effective`` the
+    selection artifact production actually ran. A compile only prints it
+    when the request was nonempty.
+    """
+    receipt = None
+    for match in ROLLBACK_LINE.finditer(output_text):
+        receipt = {
+            "requested": _receipt_names(match.group(1)),
+            "applied": _receipt_names(match.group(2)),
+            "effective": _receipt_names(match.group(3)),
+        }
+    return receipt
+
+
+def _receipt_names(field):
+    names = [name.strip() for name in field.split(",") if name.strip()]
+    return sorted(set(names))
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as source:
+        for block in iter(lambda: source.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def omega_version(omega):
+    code, text = run_plain([str(omega), "--version"], Path.cwd())
+    if code != 0:
+        return None
+    return text.strip().splitlines()[0] if text.strip() else None
 
 
 def selection_label(selection):
@@ -363,6 +467,32 @@ class SubjectNotApplicable(Exception):
         self.reason = reason
 
 
+def select_review_document(update_output, project_dir, target):
+    """The review document `update` rendered for this target, or None.
+
+    A multi-target project prints one ``review:`` line per target; the
+    first line can name another target's already-accepted document, which
+    would settle the wrong review and leave this target unsettled. Match
+    the requested target's document first, then the conventional
+    ``build/package-manager/review-<target>.txt`` path.
+    """
+    candidates = [
+        Path(line.strip())
+        for line in REVIEW_LINE.findall(update_output)
+    ]
+    exact = f"review-{target}.txt"
+    for candidate in candidates:
+        if candidate.is_file() and candidate.name == exact:
+            return candidate
+    for candidate in candidates:
+        if candidate.is_file() and target in candidate.name:
+            return candidate
+    fallback = (Path(project_dir) / "build" / "package-manager" / exact)
+    if fallback.is_file():
+        return fallback
+    return None
+
+
 def settle_package_review(omega, project_dir, target):
     """Accept the generated package review so the project compiles.
 
@@ -376,24 +506,15 @@ def settle_package_review(omega, project_dir, target):
     code, text = run_plain(
         [str(omega), "update", "--project", str(project_dir),
          "--target", target], cwd=str(project_dir))
-    review_path = None
-    found = REVIEW_LINE.search(text)
-    if found:
-        candidate = Path(found.group(1).strip())
-        if candidate.is_file():
-            review_path = candidate
-    if review_path is None:
-        candidate = (project_dir / "build" / "package-manager"
-                     / f"review-{target}.txt")
-        if candidate.is_file():
-            review_path = candidate
-    accepted = 0
+    review_path = select_review_document(text, project_dir, target)
     if review_path is not None:
         document = review_path.read_text()
         settled, accepted = accept_pending_decisions(document)
         if accepted:
             review_path.write_text(settled)
-    if accepted:
+        # Resume publishes omega.lock even when the document carried no
+        # pending tokens; skipping it on accepted == 0 left the gate
+        # unsettled whenever the chosen document was already decided.
         code, text = run_plain(
             [str(omega), "update", "--resume",
              "--project", str(project_dir)], cwd=str(project_dir))
@@ -411,6 +532,29 @@ def settle_package_review(omega, project_dir, target):
 
 def unavailable(unit, reason):
     return {"status": "unavailable", "unit": unit, "reason": reason}
+
+
+def host_block(omega, repository):
+    """The measuring host plus the identity of the binary that ran.
+
+    `source_revision` names the checkout; these fields bind the actual
+    compiler build — its self-reported version and content hash — so a
+    record cannot silently quote numbers from a different binary.
+    """
+    return {
+        "os": sys.platform,
+        "machine": platform.machine(),
+        "cpu": cpu_name(),
+        "logical_cpus": os.cpu_count(),
+        "python": platform.python_version(),
+        "rustc": rustc_version(),
+        "omega_binary": str(omega.relative_to(repository))
+                        if omega.is_relative_to(repository)
+                        else str(omega),
+        "omega_binary_sha256": sha256_file(omega),
+        "omega_version": omega_version(omega),
+        "omega_profile": "dev" if "debug" in omega.parts else "unknown",
+    }
 
 
 def non_applicable_record(args, root, repository, omega, selection,
@@ -438,18 +582,7 @@ def non_applicable_record(args, root, repository, omega, selection,
             "selection_source": "build.omg enable calls plus --enable/--disable",
         },
         "applicability": {"status": "non_applicable", "reason": reason},
-        "host": {
-            "os": sys.platform,
-            "machine": platform.machine(),
-            "cpu": cpu_name(),
-            "logical_cpus": os.cpu_count(),
-            "python": platform.python_version(),
-            "rustc": rustc_version(),
-            "omega_binary": str(omega.relative_to(repository))
-                            if omega.is_relative_to(repository)
-                            else str(omega),
-            "omega_profile": "dev" if "debug" in omega.parts else "unknown",
-        },
+        "host": host_block(omega, repository),
         "metrics": {
             "compile_time_ms": unavailable("ms", reason),
             "peak_memory_bytes": unavailable("bytes", reason),
@@ -477,7 +610,7 @@ HOST_LEGS = (
     {"target": "macos_arm64", "host": "macOS ARM64 host"},
     {
         "target": "macos_x86_64",
-        "host": "macOS x86-64 host",
+        "host": "Intel macOS host",
         "blocked": "native realization pending; see MACOS-X64-HOST-PROFILE",
     },
     {"target": "windows_x86_64", "host": "Windows x86-64 host"},
@@ -546,6 +679,21 @@ def measure(args):
     code_sizes = []
     stages = {}
     artifact_path = None
+    receipt = None
+    # A nonempty rollback request is the only way to make the compiler print
+    # its selection receipt, so every compile adds one probe disable of a
+    # catalog rule the requested selection cannot contain. The probe is a
+    # no-op overlay; if the receipt ever applies it, the authored-selection
+    # scan disagreed with the compiler and the row must not publish.
+    catalog = catalog_rules(repository)
+    if not catalog:
+        raise SystemExit(
+            f"could not read the optimization rule catalog at "
+            f"{RULE_VOCABULARY}; without it the compile's selection "
+            "receipt cannot be reconciled")
+    probes = probe_disable_candidates(
+        catalog, selection["enabled"], selection["disabled"])
+    probes.append(None)
     # Settling package admissions writes omega.admissions beside the
     # subject root; a file the measurement created is removed afterward
     # so the checkout stays clean. A preexisting file is left alone.
@@ -553,52 +701,109 @@ def measure(args):
     created_admissions = not admissions_path.exists()
     keep = Path(tempfile.mkdtemp(prefix="omega-benchmark-exe-"))
     try:
-        for _ in range(args.compile_samples):
-            with tempfile.TemporaryDirectory(
-                prefix="omega-benchmark-"
-            ) as build_dir:
-                argv = [
-                    str(omega), "--timings", "--build-dir", build_dir,
-                    "--target", args.target,
-                ]
-                if args.accept_admissions:
-                    argv.append("--accept-admissions")
-                for name in selection["disabled"]:
-                    argv += ["--disable-optimization", name]
-                argv.append(str(root.resolve()))
-                code, wall_ms, rss, output_text = capture_compile(
-                    argv, repository
-                )
-                if code != 0:
-                    sys.stderr.write(output_text)
-                    raise SystemExit(f"compile failed with exit {code}")
-                sample_stages, published = parse_timings(output_text)
-                if published is None:
-                    sys.stderr.write(output_text)
-                    raise SystemExit(
-                        "compile produced no native output line"
+        probe = probes.pop(0)
+        while True:
+            compile_wall.clear()
+            compile_rss.clear()
+            code_sizes.clear()
+            artifact_path = None
+            receipt = None
+            rollback_refused = False
+            for _ in range(args.compile_samples):
+                with tempfile.TemporaryDirectory(
+                    prefix="omega-benchmark-"
+                ) as build_dir:
+                    argv = [
+                        str(omega), "--timings", "--build-dir", build_dir,
+                        "--target", args.target,
+                    ]
+                    if args.accept_admissions:
+                        argv.append("--accept-admissions")
+                    for name in selection["disabled"]:
+                        argv += ["--disable-optimization", name]
+                    if probe is not None:
+                        argv += ["--disable-optimization", probe]
+                    argv.append(str(root.resolve()))
+                    code, wall_ms, rss, output_text = capture_compile(
+                        argv, repository
                     )
-                candidate = Path(published)
-                if not candidate.is_absolute():
-                    for base in (Path(build_dir), repository):
-                        if (base / candidate).exists():
-                            candidate = base / candidate
+                    if code != 0:
+                        if (probe is not None and probes
+                                and ROLLBACK_REFUSAL.search(output_text)):
+                            rollback_refused = True
                             break
-                    else:
+                        sys.stderr.write(output_text)
                         raise SystemExit(
-                            f"cannot locate published artifact {published!r}"
+                            f"compile failed with exit {code}")
+                    sample_stages, published = parse_timings(output_text)
+                    if published is None:
+                        sys.stderr.write(output_text)
+                        raise SystemExit(
+                            "compile produced no native output line"
                         )
-                artifact_path = candidate
-                code_sizes.append(artifact_path.stat().st_size)
-                stages = sample_stages
-                compile_wall.append(wall_ms)
-                compile_rss.append(rss)
-                kept = keep / artifact_path.name
-                artifact_path.replace(kept)
-                artifact_path = kept
+                    candidate = Path(published)
+                    if not candidate.is_absolute():
+                        for base in (Path(build_dir), repository):
+                            if (base / candidate).exists():
+                                candidate = base / candidate
+                                break
+                        else:
+                            raise SystemExit(
+                                f"cannot locate published artifact {published!r}"
+                            )
+                    artifact_path = candidate
+                    code_sizes.append(artifact_path.stat().st_size)
+                    stages = sample_stages
+                    compile_wall.append(wall_ms)
+                    compile_rss.append(rss)
+                    receipt = parse_rollback_receipt(output_text)
+                    kept = keep / artifact_path.name
+                    artifact_path.replace(kept)
+                    artifact_path = kept
+            if not rollback_refused:
+                break
+            probe = probes.pop(0)
     finally:
         if created_admissions and admissions_path.exists():
             admissions_path.unlink()
+
+    requested = set(selection["disabled"])
+    if receipt is None:
+        if probe is not None or requested:
+            raise SystemExit(
+                "compile produced no optimizer rollback receipt; the "
+                "effective selection cannot be reconciled with this record")
+    else:
+        if probe is not None and probe in receipt["applied"]:
+            raise SystemExit(
+                f"probe disable {probe!r} was applied by the compiler: the "
+                "authored-selection scan disagreed with the compiler's "
+                "selected set; the row is not publishable")
+        if not requested.issubset(set(receipt["requested"])):
+            raise SystemExit(
+                "the compiler's rollback receipt does not carry the "
+                f"requested disables {sorted(requested)} "
+                f"(requested={receipt['requested']})")
+        if probe is not None:
+            extra = set(receipt["requested"]) - requested - {probe}
+            if extra:
+                raise SystemExit(
+                    "the compiler's rollback receipt carries unexpected "
+                    f"requests {sorted(extra)}")
+        build_selected = sorted(set(receipt["applied"])
+                                | set(receipt["effective"]))
+        if selection["enabled"] != build_selected:
+            missing = sorted(set(build_selected) - set(selection["enabled"]))
+            extra = sorted(set(selection["enabled"]) - set(build_selected))
+            enable_only = sorted(set(args.enable) - set(build_selected))
+            detail = ""
+            if enable_only:
+                detail = ("; --enable names absent from the compiler's "
+                          f"selected set: {enable_only} (the CLI can only "
+                          "disable rules)")
+            raise SystemExit(
+                "authored selection does not match the compiler's selected "
+                f"set: missing {missing}, extra {extra}{detail}")
 
     run_wall = []
     run_rss = []
@@ -616,6 +821,15 @@ def measure(args):
             run_wall.append(wall_ms)
             run_rss.append(rss)
             exit_codes.append(code)
+
+    # An observed exit that disagrees with the authored result is a failed
+    # run, not a slower one: preserve it as a failure instead of publishing
+    # a record whose numbers describe a broken subject.
+    if (args.expected_exit is not None and exit_codes
+            and not all(code == args.expected_exit for code in exit_codes)):
+        raise SystemExit(
+            f"subject exited {exit_codes}, expected {args.expected_exit}; "
+            "the runtime observation failed so no record was written")
 
     metrics = {
         "compile_time_ms": {
@@ -685,21 +899,14 @@ def measure(args):
             "selection": selection,
             "selection_source": "build.omg enable calls plus --enable/--disable",
         },
-        "host": {
-            "os": sys.platform,
-            "machine": platform.machine(),
-            "cpu": cpu_name(),
-            "logical_cpus": os.cpu_count(),
-            "python": platform.python_version(),
-            "rustc": rustc_version(),
-            "omega_binary": str(omega.relative_to(repository))
-                            if omega.is_relative_to(repository)
-                            else str(omega),
-            "omega_profile": "dev" if "debug" in omega.parts else "unknown",
-        },
+        "host": host_block(omega, repository),
         "metrics": metrics,
         "notes": args.note,
     }
+    if receipt is not None:
+        record["key"]["selection_receipt"] = receipt
+    if probe is not None:
+        record["key"]["probe_disable"] = probe
     return record
 
 
@@ -709,8 +916,10 @@ def validate_record(record, path):
         if not condition:
             problems.append(f"{path}: {message}")
 
-    need(record.get("schema") == SCHEMA,
-         f"schema must be {SCHEMA!r}, got {record.get('schema')!r}")
+    schema = record.get("schema")
+    need(schema in KNOWN_SCHEMAS,
+         f"schema must be one of {KNOWN_SCHEMAS!r}, got {schema!r}")
+    current = schema == SCHEMA
     subject = record.get("subject", {})
     need(isinstance(subject.get("name"), str) and subject["name"],
          "subject.name is required")
@@ -728,6 +937,58 @@ def validate_record(record, path):
              and all(isinstance(n, str) and RULE_NAME.match(n) for n in names)
              and names == sorted(set(names)),
              f"key.selection.{leg} must be sorted unique exact rule names")
+    # The receipt is the compiler's own settlement account: when present it
+    # must be internally consistent and must match the row's requested key.
+    receipt = key.get("selection_receipt")
+    probe = key.get("probe_disable")
+    if receipt is not None:
+        need(isinstance(receipt, dict),
+             "key.selection_receipt must be an object")
+        if isinstance(receipt, dict):
+            sets = {}
+            for leg in ("requested", "applied", "effective"):
+                names = receipt.get(leg)
+                need(isinstance(names, list)
+                     and all(isinstance(n, str) and RULE_NAME.match(n)
+                             for n in names)
+                     and names == sorted(set(names)),
+                     f"key.selection_receipt.{leg} must be sorted unique "
+                     "exact rule names")
+                sets[leg] = set(names) if isinstance(names, list) else set()
+            if all(isinstance(receipt.get(leg), list)
+                   for leg in sets):
+                build_selected = sets["applied"] | sets["effective"]
+                need(sets["applied"] <= sets["requested"],
+                     "key.selection_receipt.applied must be a subset of "
+                     "requested")
+                need(not (sets["effective"] & sets["requested"]),
+                     "key.selection_receipt.effective cannot contain a "
+                     "requested disable")
+                expected_request = set(selection.get("disabled") or [])
+                if isinstance(probe, str):
+                    expected_request.add(probe)
+                need(sets["requested"] == expected_request,
+                     "key.selection_receipt.requested must equal "
+                     "key.selection.disabled plus key.probe_disable")
+                need(set(selection.get("enabled") or []) == build_selected,
+                     "key.selection.enabled must equal the receipt's "
+                     "applied + effective sets")
+                need(probe is None or probe not in sets["applied"],
+                     "key.probe_disable must never appear in the receipt's "
+                     "applied set")
+    if probe is not None:
+        need(isinstance(probe, str) and RULE_NAME.match(probe) is not None,
+             "key.probe_disable must be an exact rule name")
+        need(receipt is not None,
+             "key.probe_disable requires key.selection_receipt")
+    # A measured /2 row with a nonempty disable request must carry the
+    # compiler's receipt; non-applicable rows never compiled, so they cannot
+    # and need not carry one.
+    if (current and not record.get("applicability")
+            and (selection.get("disabled") or probe is not None)):
+        need(receipt is not None,
+             "a /2 record with a nonempty disable request requires "
+             "key.selection_receipt")
     # Optional: absent means the pairing applies, so every record written
     # before this field keeps validating unchanged.
     if "applicability" in record:
@@ -747,6 +1008,17 @@ def validate_record(record, path):
     for field in ("os", "machine", "omega_binary"):
         need(isinstance(host.get(field), str) and host[field],
              f"host.{field} is required")
+    if current:
+        # /2 rows bind the actual binary that produced the numbers, not just
+        # the checkout revision it was probably built from.
+        need(isinstance(host.get("omega_version"), str)
+             and host["omega_version"],
+             "host.omega_version is required")
+        need(isinstance(host.get("omega_binary_sha256"), str)
+             and re.fullmatch(r"[0-9a-f]{64}",
+                              host.get("omega_binary_sha256", ""))
+             is not None,
+             "host.omega_binary_sha256 must be a lowercase sha256 hex digest")
     metrics = record.get("metrics", {})
     for name in METRIC_NAMES:
         metric = metrics.get(name)
@@ -771,6 +1043,10 @@ def validate_record(record, path):
                 need(isinstance(samples, list) and samples
                      and all(isinstance(s, (int, float)) for s in samples),
                      f"metrics.{name}.samples must be a nonempty number list")
+        if name == "runtime_ms" and metric.get("exit_code_match") is False:
+            problems.append(
+                f"{path}: a failed runtime observation "
+                "(exit_code_match: false) is not valid benchmark evidence")
     return problems
 
 
@@ -793,7 +1069,7 @@ def load_records(records_dir):
             record = json.loads(path.read_text())
         except (OSError, json.JSONDecodeError):
             continue
-        if isinstance(record, dict) and record.get("schema") == SCHEMA:
+        if isinstance(record, dict) and record.get("schema") in KNOWN_SCHEMAS:
             records.append(record)
     return records
 
@@ -863,13 +1139,17 @@ def matrix_rows(records):
                                 selection_label(record["key"]["selection"])),
         )
         rows.extend(measured_row(record) for record in covered)
-        # A non-applicable record speaks for one (subject, target) pairing,
-        # not for the leg: it says this subject binds no root there, which
-        # leaves the leg itself as unrun as it was. Only a measurable record
+        # The pending row tracks the leg's named runtime environment. A
+        # non-applicable record speaks for one (subject, target) pairing,
+        # and a compile-only record whose runtime leg was skipped leaves
+        # the environment just as unrun: only an actually measured runtime
         # retires the leg's own projected row.
-        measurable = [record for record in covered
-                      if not record.get("applicability")]
-        if not measurable:
+        runtime_measured = [
+            record for record in covered
+            if not record.get("applicability")
+            and record["metrics"]["runtime_ms"].get("status") == "measured"
+        ]
+        if not runtime_measured:
             cells = [projected_cell(leg, name) for name in METRIC_NAMES]
             rows.append([leg["target"], leg["host"], "—", "—"] + cells)
     for target in sorted(by_target):
