@@ -75,7 +75,10 @@ get an adaptive cap of max(cap, 3x golden millis), so boundary flap needs a
 genuine slowdown rather than a busier box. `OMEGA_CORPUS_JOBS` overrides the
 worker count; record and diff at the same jobs value on a quiet machine —
 `millis` inflates uniformly under external load, which floods the perf-move
-report. The unfiltered record is the scheduled baseline, not a loop check.
+report. `--record` stamps the golden with a `# context:` line (jobs, cpus,
+load averages bracketing the run), and a diff that finds perf moves compares
+the two contexts and says when one side was measured under contention. The
+unfiltered record is the scheduled baseline, not a loop check.
 
 Exit codes — the gate's machine-readable verdict (every run can also write
 a full verdict document with `--json PATH`):
@@ -526,6 +529,72 @@ def commits_between(revision):
     return int(count) if count and count.isdigit() else None
 
 
+def load_average():
+    """1-minute load average, or None where the host has none (Windows)."""
+    try:
+        return round(os.getloadavg()[0], 2)
+    except (AttributeError, OSError):
+        return None
+
+
+def measurement_context(load_start) -> dict:
+    """The conditions a corpus run measured under. `jobs` is the worker
+    override the runner read (None = runner default); the load pair brackets
+    the run so a timing comparison can tell contention from compiler work.
+    Written into the golden as a `# context:` comment by --record, and
+    compared against the golden's own context on every diff."""
+    return {"schema": "omega-corpus-context-v1",
+            "jobs": os.environ.get("OMEGA_CORPUS_JOBS") or None,
+            "cpus": os.cpu_count(),
+            "platform": platform.system().lower(),
+            "machine": platform.machine().lower(),
+            "load1_start": load_start,
+            "load1_end": load_average()}
+
+
+def contended(context) -> bool:
+    """True when the run measured while the machine was saturated: the
+    higher sampled load met or exceeded the hardware's parallelism, so
+    millis inflated for reasons unrelated to the compiler."""
+    if not context:
+        return False
+    cpus = context.get("cpus") or 0
+    loads = [context.get(key) for key in ("load1_start", "load1_end")]
+    return cpus > 0 and any(load is not None and load >= cpus
+                            for load in loads)
+
+
+def perf_context_warnings(golden_context, current_context) -> list[str]:
+    """Why this run's perf moves may be measurement noise. Perf moves are
+    the only verdict drawn from millis, and millis answer the machine as
+    much as the compiler — the warnings name the specific mismatch so the
+    reader knows which direction the noise pushed."""
+    warnings = []
+    if golden_context is None:
+        warnings.append(
+            "golden predates context stamping — perf moves cannot be "
+            "checked against its recording conditions; re-record on a "
+            "quiet machine to make them meaningful")
+        return warnings
+    golden_jobs = golden_context.get("jobs")
+    current_jobs = current_context.get("jobs") if current_context else None
+    if (golden_jobs is not None and current_jobs is not None
+            and str(golden_jobs) != str(current_jobs)):
+        warnings.append(
+            f"worker counts differ (golden jobs={golden_jobs}, this run "
+            f"jobs={current_jobs}) — record and diff at the same "
+            "OMEGA_CORPUS_JOBS before trusting perf moves")
+    if contended(golden_context):
+        warnings.append(
+            "the golden was recorded under load (load >= cpus); fixtures "
+            "only look faster now — treat perf_faster moves as noise")
+    if contended(current_context):
+        warnings.append(
+            "this run measured under load (load >= cpus); fixtures only "
+            "look slower — treat perf_slower moves as noise")
+    return warnings
+
+
 def measurement_stamp(golden) -> str | None:
     """First 12 hex of HEAD, plus `+wt` when tracked files other than the
     golden differ — the row's provenance for `--record`. None without git."""
@@ -545,7 +614,7 @@ def measurement_stamp(golden) -> str | None:
 
 def verdict_document(options, leg, target, verdict, exit_code, records,
                      classified, oracle_failures, infrastructure_error,
-                     golden_provenance=None):
+                     golden_provenance=None, perf_context=None):
     """The `--json` verdict document; written on every outcome so a caller
     (or `git bisect run` wrapper) never has to grep the text summary."""
     golden = Path(options.golden)
@@ -583,6 +652,7 @@ def verdict_document(options, leg, target, verdict, exit_code, records,
         "oracle_failures": oracle_failures,
         "infrastructure_error": infrastructure_error,
         "golden_provenance": golden_provenance,
+        "perf_context": perf_context,
         "fixtures": classified}
     return document
 
@@ -702,9 +772,13 @@ def main() -> int:
     # (adaptive max(cap, 3x golden millis) — the runner derives them).
     if options.golden.is_file():
         os.environ["OMEGA_CORPUS_TIMINGS"] = str(options.golden)
+    # Sampled before and after the run so the recorded context brackets the
+    # measurement; millis answer the machine as much as the compiler.
+    load_start = load_average()
     try:
         binary = options.runner or build_runner()
         records = run_runner(binary)
+        context = measurement_context(load_start)
     except InfrastructureFailure as error:
         print(str(error), file=sys.stderr)
         code = 125 if options.bisect else 4
@@ -728,18 +802,21 @@ def main() -> int:
     if stamp:
         for record in records:
             record["recorded_at"] = stamp
-    rendered = corpus_records.render(records)
+    rendered = corpus_records.render(records, context)
 
     if options.record:
         # A subset record merges into the golden: fixtures that ran get their
         # fresh records, everything else keeps its pin — so sharded/filtered
-        # recordings assemble the same file an unfiltered record would.
+        # recordings assemble the same file an unfiltered record would. The
+        # context line describes this run, not the merged rows' originals —
+        # which is honest, since load context only says when the file was
+        # written, and each row's @stamp still says when it was measured.
         if subset and options.golden.is_file():
             prior = {record["fixture"]: record
                      for record in corpus_records.read(options.golden)}
             prior.update({record["fixture"]: record for record in records})
             merged = [prior[fixture] for fixture in sorted(prior)]
-            rendered = corpus_records.render(merged)
+            rendered = corpus_records.render(merged, context)
         elif subset:
             print(f"corpus_gate: warning — no golden at {options.golden}; "
                   f"recording only the {len(records)} selected fixtures",
@@ -759,6 +836,7 @@ def main() -> int:
         print(f"corpus_gate: no golden at {options.golden}; "
               f"run --record first", file=sys.stderr)
         return usage_error
+    golden_context = corpus_records.read_context(options.golden)
     golden_records = corpus_records.read(options.golden)
     golden = {record["fixture"]: record for record in golden_records}
     actual = {record["fixture"]: record for record in records}
@@ -866,6 +944,13 @@ def main() -> int:
         commits_between)
     provenance = ("corpus_gate: "
                   + corpus_records.provenance_line(golden_provenance))
+    # Perf moves are the only verdict drawn from millis; when the machines
+    # or worker counts behind the two measurements disagree, say so instead
+    # of letting a busy box read as a compiler slowdown.
+    perf_warnings = (perf_context_warnings(golden_context, context)
+                     if perf_moves or perf_notes else [])
+    perf_context = {"golden": golden_context, "current": context,
+                    "warnings": perf_warnings}
 
     def write_moves() -> None:
         if not options.write_moves:
@@ -881,12 +966,14 @@ def main() -> int:
         print(provenance)
         for line in perf_notes[:20]:
             print(line)
+        for warning in perf_warnings:
+            print(f"corpus_gate: perf context — {warning}")
         # A clean run still rewrites the file, so a reader never mistakes a
         # previous run's moves for this one's.
         write_moves()
         write_verdict(options, verdict_document(
             options, leg, target, "clean", 0, records, classified, [], None,
-            golden_provenance))
+            golden_provenance, perf_context))
         return 0
     for line in structural_moves[:60]:
         print(line)
@@ -897,6 +984,8 @@ def main() -> int:
         print(f"… {remaining} more moves")
     for line in perf_notes[:20]:
         print(line)
+    for warning in perf_warnings:
+        print(f"corpus_gate: perf context — {warning}")
     regressed = verdict_counts.get("regressed", 0) > 0
     verdict = "regressed" if regressed else "moved"
     code = (1 if regressed else 0) if options.bisect else \
@@ -910,7 +999,7 @@ def main() -> int:
         jev_advise(structured_diffs)
     write_verdict(options, verdict_document(
         options, leg, target, verdict, code, records, classified, [], None,
-        golden_provenance))
+        golden_provenance, perf_context))
     return code
 
 

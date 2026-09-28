@@ -168,6 +168,49 @@ class Classify(unittest.TestCase):
                          "clean")
 
 
+class PerfContext(unittest.TestCase):
+    """Perf moves compare millis across two recording conditions; the
+    warnings name when those conditions themselves explain the delta."""
+
+    def test_contended_means_load_met_cpus(self):
+        self.assertTrue(corpus_gate.contended(
+            {"cpus": 8, "load1_start": 4.0, "load1_end": 8.5}))
+        self.assertTrue(corpus_gate.contended(
+            {"cpus": 8, "load1_start": 12.0, "load1_end": 1.0}))
+        self.assertFalse(corpus_gate.contended(
+            {"cpus": 8, "load1_start": 3.0, "load1_end": 4.0}))
+        self.assertFalse(corpus_gate.contended(None))
+        # Hosts without getloadavg (Windows) record no load samples and so
+        # never claim contention.
+        self.assertFalse(corpus_gate.contended(
+            {"cpus": 8, "load1_start": None, "load1_end": None}))
+
+    def test_warnings_name_the_direction_of_noise(self):
+        quiet = {"jobs": None, "cpus": 8, "load1_start": 1.0,
+                 "load1_end": 2.0}
+        busy = {"jobs": None, "cpus": 8, "load1_start": 9.0,
+                "load1_end": 10.0}
+        golden_busy = corpus_gate.perf_context_warnings(busy, quiet)
+        self.assertEqual(len(golden_busy), 1)
+        self.assertIn("golden", golden_busy[0])
+        current_busy = corpus_gate.perf_context_warnings(quiet, busy)
+        self.assertIn("this run", current_busy[0])
+        self.assertEqual(corpus_gate.perf_context_warnings(quiet, quiet), [])
+
+    def test_worker_count_mismatch_and_missing_context_warn(self):
+        quiet = {"jobs": "4", "cpus": 8, "load1_start": 1.0,
+                 "load1_end": 2.0}
+        warnings = corpus_gate.perf_context_warnings(
+            quiet, dict(quiet, jobs="8"))
+        self.assertTrue(any("worker counts differ" in w for w in warnings))
+        # Unstamped golden: no basis for trusting perf moves at all.
+        self.assertTrue(
+            corpus_gate.perf_context_warnings(None, quiet))
+        # One side with a default worker count cannot be compared.
+        self.assertEqual(corpus_gate.perf_context_warnings(
+            quiet, dict(quiet, jobs=None)), [])
+
+
 class MainVerdicts(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -176,14 +219,15 @@ class MainVerdicts(unittest.TestCase):
         self.golden = self.root / "golden.txt"
         self.json_path = self.root / "verdict.json"
 
-    def write_golden(self, records):
-        self.golden.write_text(corpus_records.render(records),
+    def write_golden(self, records, context=None):
+        self.golden.write_text(corpus_records.render(records, context),
                                encoding="utf-8")
 
-    def run_gate(self, records, *extra, golden_records=None):
+    def run_gate(self, records, *extra, golden_records=None,
+                 golden_context=None):
         if golden_records is None:
             golden_records = records
-        self.write_golden(golden_records)
+        self.write_golden(golden_records, context=golden_context)
         argv = ["corpus_gate", "--runner", "unused",
                 "--golden", str(self.golden), *extra]
         patches = [patch.object(corpus_gate, "ROOT", self.root),
@@ -268,6 +312,29 @@ class MainVerdicts(unittest.TestCase):
                   for row in corpus_records.read(self.golden)}
         self.assertEqual(merged["pass/a/x"]["recorded_at"], "aaaaaaaaaaaa")
         self.assertIsNone(merged["pass/a/y"]["recorded_at"])
+
+    def test_record_writes_context_and_diff_carries_perf_warnings(self):
+        rows = [record("pass/a/x", millis=3000)]
+        self.assertEqual(self.run_gate(rows, "--record"), 0)
+        context = corpus_records.read_context(self.golden)
+        self.assertEqual(context["schema"], "omega-corpus-context-v1")
+        self.assertIn("cpus", context)
+
+        # A golden recorded under contention warns on perf moves; patch the
+        # golden's context and a faster current row to prove it surfaces.
+        busy = {"schema": "omega-corpus-context-v1", "jobs": None,
+                "cpus": 8, "platform": "darwin", "machine": "arm64",
+                "load1_start": 9.0, "load1_end": 10.0}
+        slower = [record("pass/a/x", millis=3000)]
+        code = self.run_gate(slower, "--json", str(self.json_path),
+                             golden_records=[record("pass/a/x",
+                                                    millis=9000)],
+                             golden_context=busy)
+        self.assertEqual(code, 0)  # perf_faster is a note, not a move
+        document = json.loads(self.json_path.read_text())
+        self.assertTrue(document["perf_context"]["warnings"])
+        self.assertEqual(document["perf_context"]["golden"]["load1_end"],
+                         10.0)
 
 
 if __name__ == "__main__":
