@@ -798,3 +798,297 @@ fn stale_trivial_affine_local_frontier_catalog_is_rejected() {
         ) if rejected_machine == machine
     ));
 }
+
+/// A member scalar case lent to a unit call: `step` establishes the affine
+/// `picked` from the invariant `s`, shared-borrows it into `weigh`, then
+/// dispatches it. The borrow loans the place for the call's duration only, so
+/// it is an observation position inside the containment bound: `picked`
+/// relocates into the preheader, and the pure `weigh(&picked, s)` follows it
+/// through the same run because its borrowed root is now run-produced and its
+/// scalar argument resolves to `scale`'s anchor.
+const SHARED_BORROW_SCALAR_CASE_SOURCE: &str = r#"
+    data Root {}
+    data Step { case More(rest: u32); case Halt(tag: u32); }
+
+    machine weigh(step: &Step, bias: u32) {}
+
+    machine Root::scan(scale: u32, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32, pending: u32 [0..=5]) {
+            let picked: Step = Step::More { rest: s };
+            weigh(&picked, s);
+            transition picked {
+                Step::More { rest } -> check(rest, s, pending)
+                Step::Halt { tag } -> check(tag, s, pending)
+            }
+        }
+        state check(v: u32, s: u32, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> step(s, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32) {}
+    }
+"#;
+
+/// Same shape, but the borrowing call also reads the loop-carried
+/// countdown: the call stays inside, and the relocated `picked` reaches it as
+/// the one persistent preheader place every traversal lends.
+const CARRIED_BORROWER_SCALAR_CASE_SOURCE: &str = r#"
+    data Root {}
+    data Step { case More(rest: u32); case Halt(tag: u32); }
+
+    machine weigh(step: &Step, bias: u32 [0..=5]) {}
+
+    machine Root::scan(scale: u32, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32, pending: u32 [0..=5]) {
+            let picked: Step = Step::More { rest: s };
+            weigh(&picked, pending);
+            transition picked {
+                Step::More { rest } -> check(rest, s, pending)
+                Step::Halt { tag } -> check(tag, s, pending)
+            }
+        }
+        state check(v: u32, s: u32, pending: u32 [0..=5]) {
+            transition pending > 0 {
+                true -> step(s, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32) {}
+    }
+"#;
+
+/// The member `CallUnit` lending `picked` and its structural argument access.
+fn member_borrowing_unit_call(
+    function: &optimization_unit::PsiOptimizationFunction,
+    component: &optimization_unit::OptimizerCycleComponent,
+    picked: semantic_vocabulary::PlaceId,
+) -> (
+    semantic_vocabulary::OperationId,
+    terminal_psi::StructuralAccess,
+) {
+    let calls = component
+        .members
+        .iter()
+        .flat_map(|member| {
+            function
+                .blocks
+                .iter()
+                .filter(move |block| block.id == *member)
+                .flat_map(|block| block.nodes.iter())
+        })
+        .filter_map(|node| match &node.operation {
+            AbstractOperation::CallUnit {
+                psi_operation,
+                structural_arguments,
+                ..
+            } => structural_arguments
+                .iter()
+                .find(|argument| argument.place == picked)
+                .map(|argument| (*psi_operation, argument.access)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("one member unit call lends the scalar case: {calls:?}")
+    };
+    *call
+}
+
+/// Propose, validate and apply the one candidate, require the applied session
+/// to be a fixed point that replays through the freeze fence, and return the
+/// relocated operations in run order.
+fn relocate_single_candidate(
+    session: crate::VerifiedPsiOptimizationSession,
+) -> Vec<semantic_vocabulary::OperationId> {
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocated = candidate
+        .relocations()
+        .iter()
+        .map(|relocation| relocation.node().psi_operation())
+        .collect::<Vec<_>>();
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+    let (input, unit) = applied.into_session().into_parts();
+    crate::validation::validate_transformed_psi_optimization_unit(&input, &unit)
+        .expect("the transformed unit replays through the freeze fence");
+    relocated
+}
+
+#[test]
+fn shared_borrow_unit_call_relocates_behind_its_scalar_case() {
+    let session = lowered_session_entry(
+        SHARED_BORROW_SCALAR_CASE_SOURCE,
+        "shared-borrow scalar-case loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let cases = member_scalar_case_establishments(function, component);
+    let [(_, establishment)] = cases.as_slice() else {
+        panic!("one member scalar-case establishment")
+    };
+    let picked = match &establishment.operation {
+        AbstractOperation::EstablishCase { result, .. } => result.place,
+        operation => panic!("the member node is a scalar-case establishment: {operation:?}"),
+    };
+    let establishment_operation = operation_of(establishment);
+    let (call_operation, access) = member_borrowing_unit_call(function, component, picked);
+    assert_eq!(access, terminal_psi::StructuralAccess::SharedBorrow);
+
+    let relocated = relocate_single_candidate(session);
+    let establishment_position = relocated
+        .iter()
+        .position(|operation| *operation == establishment_operation)
+        .expect("the lent scalar case relocates");
+    let call_position = relocated
+        .iter()
+        .position(|operation| *operation == call_operation)
+        .expect("the pure borrowing call relocates behind it");
+    assert!(
+        establishment_position < call_position,
+        "the run orders the borrowed root's producer ahead of the borrower"
+    );
+}
+
+#[test]
+fn carried_borrower_stays_while_its_scalar_case_relocates() {
+    let session = lowered_session_entry(
+        CARRIED_BORROWER_SCALAR_CASE_SOURCE,
+        "carried-borrower scalar-case loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let cases = member_scalar_case_establishments(function, component);
+    let [(_, establishment)] = cases.as_slice() else {
+        panic!("one member scalar-case establishment")
+    };
+    let picked = match &establishment.operation {
+        AbstractOperation::EstablishCase { result, .. } => result.place,
+        operation => panic!("the member node is a scalar-case establishment: {operation:?}"),
+    };
+    let establishment_operation = operation_of(establishment);
+    let (call_operation, access) = member_borrowing_unit_call(function, component, picked);
+    assert_eq!(access, terminal_psi::StructuralAccess::SharedBorrow);
+    assert!(
+        crate::validation::relocation_rewrites::scalar_case_result_contained(
+            function, component, picked
+        ),
+        "a claim-free shared loan keeps the case inside the containment bound"
+    );
+
+    let relocated = relocate_single_candidate(session);
+    assert!(
+        relocated.contains(&establishment_operation),
+        "the lent scalar case relocates"
+    );
+    assert!(
+        !relocated.contains(&call_operation),
+        "the carried-argument borrower stays inside, lending the preheader place"
+    );
+}
+
+#[test]
+fn writing_or_moving_loans_leave_the_containment_bound() {
+    let session = lowered_session_entry(
+        SHARED_BORROW_SCALAR_CASE_SOURCE,
+        "shared-borrow scalar-case loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let cases = member_scalar_case_establishments(function, component);
+    let [(_, establishment)] = cases.as_slice() else {
+        panic!("one member scalar-case establishment")
+    };
+    let picked = match &establishment.operation {
+        AbstractOperation::EstablishCase { result, .. } => result.place,
+        operation => panic!("the member node is a scalar-case establishment: {operation:?}"),
+    };
+    let (call_operation, _) = member_borrowing_unit_call(function, component, picked);
+    assert!(
+        crate::validation::relocation_rewrites::scalar_case_result_contained(
+            function, component, picked
+        )
+    );
+    // The Psi lowering does not yet produce a writing or moving loan of a
+    // member-produced case inside a cycle, so the controls respell the
+    // verified call: a mutable or write-only borrow lets the callee write the
+    // place a persistent preheader result would carry into the next
+    // traversal, and an owned argument moves it outright.
+    for access in [
+        terminal_psi::StructuralAccess::MutableBorrow,
+        terminal_psi::StructuralAccess::WriteOnlyBorrow,
+        terminal_psi::StructuralAccess::Owned,
+    ] {
+        let mut respelled = function.clone();
+        let node = respelled
+            .blocks
+            .iter_mut()
+            .flat_map(|block| block.nodes.iter_mut())
+            .find(|node| {
+                matches!(
+                    &node.operation,
+                    AbstractOperation::CallUnit { psi_operation, .. }
+                        if *psi_operation == call_operation
+                )
+            })
+            .expect("the borrowing call exists");
+        let AbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut node.operation
+        else {
+            panic!("the borrowing node is a unit call")
+        };
+        for argument in structural_arguments.iter_mut() {
+            if argument.place == picked {
+                argument.access = access;
+            }
+        }
+        assert!(
+            !crate::validation::relocation_rewrites::scalar_case_result_contained(
+                &respelled, component, picked
+            ),
+            "a {access:?} loan leaves the containment bound"
+        );
+    }
+}

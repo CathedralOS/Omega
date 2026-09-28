@@ -16,13 +16,14 @@ use std::collections::{BTreeMap, BTreeSet};
 /// inside `component`'s
 /// member roster spelled only through positions the relocation's custody
 /// rewrite covers: the producing establishment or call itself, a `StructuralCase`
-/// dispatch or read-only inspection of the sum, a structural return's source
+/// dispatch or read-only inspection of the sum, a claim-free member
+/// `CallUnit` that only shared-borrows it, a structural return's source
 /// or exit-disposal roster, and the member-internal or exit edges whose
 /// discard rosters the rewrite adjusts. The cyclic eligibility fence already
 /// proved `picked` is produced and dispatched (or returned) in one member
 /// block and discarded on every dispatch edge; once the establishment lands
 /// in the preheader the result lives through every member, so any other
-/// spelling — a store destination, a call's structural argument, a reference
+/// spelling — a store destination, a writing or moving call argument, a reference
 /// carrier, an edge structural binding — would move or observe custody the
 /// rewrite cannot re-express and refuses. An unmodeled member operation
 /// fails closed for the same reason. `picked` on a residual discard, or on
@@ -35,7 +36,7 @@ use std::collections::{BTreeMap, BTreeSet};
 /// `DiscardRoot(picked)` in schedule order, a member `ReturnStructural`
 /// either returns `picked` outright or lists it in `trivial_affine_discards`,
 /// and a `Crash` carries only claims.
-pub(super) fn scalar_case_result_contained(
+pub(crate) fn scalar_case_result_contained(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     picked: PlaceId,
@@ -91,6 +92,41 @@ pub(super) fn scalar_case_result_contained(
                 // expressible — while a non-member return cannot name a
                 // place that is dead outside the member roster.
                 O::ReturnStructural { source, .. } => member || *source != picked,
+                // A member unit call that only shared-borrows `picked` is an
+                // observation position like the inspections above: the loan
+                // is created and released inside the call on every
+                // traversal, `structural_arguments` is the call's complete
+                // place surface, and an empty claim roster moves no claim
+                // over it — so the persistent preheader place reaches the
+                // callee with exactly the bytes and custody every fresh
+                // in-loop place had. This is the same argument the Terminal
+                // verifier's cyclic eligibility fence uses to admit the
+                // borrow of an operation result inside a cycle at all. A
+                // mutable, write-only or owned argument naming `picked`
+                // would write or move the place and still refuses.
+                // `CallStructuralScalar` and `CallStructural` stay on the
+                // fail-closed arm: the verifier's cyclic fence admits a
+                // scalar-result call's whole-root shared borrow only over a
+                // primitive local, a view, or a parameter, and no verified
+                // cyclic seed has yet shown a structural-result call lending
+                // a relocatable case, so neither shape has a witness here.
+                O::CallUnit {
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } if structural_arguments
+                    .iter()
+                    .any(|argument| argument.place == picked) =>
+                {
+                    member
+                        && claim_transfers.is_empty()
+                        && structural_arguments
+                            .iter()
+                            .filter(|argument| argument.place == picked)
+                            .all(|argument| {
+                                argument.access == terminal_psi::StructuralAccess::SharedBorrow
+                            })
+                }
                 operation => {
                     // Every modeled operation spelling `picked` outside the
                     // whitelist — a store destination, a call argument, a

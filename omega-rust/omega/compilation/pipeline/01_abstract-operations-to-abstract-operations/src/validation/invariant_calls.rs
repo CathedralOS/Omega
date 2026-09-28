@@ -496,7 +496,7 @@ pub(crate) fn invariant_unit_call_admission(
         structural_arguments,
         relocating,
         relocating_roots,
-        &BTreeSet::new(),
+        relocating_roots,
         effects,
     )
 }
@@ -540,7 +540,7 @@ pub(crate) fn invariant_structural_scalar_call_admission(
         structural_arguments,
         relocating,
         relocating_roots,
-        &BTreeSet::new(),
+        relocating_roots,
         effects,
     )
 }
@@ -675,7 +675,7 @@ pub(crate) fn invariant_crash_continuation_unit_call_admission(
         structural_arguments,
         relocating,
         relocating_roots,
-        &BTreeSet::new(),
+        relocating_roots,
         effects,
     )
 }
@@ -722,7 +722,7 @@ pub(crate) fn invariant_crash_continuation_structural_scalar_call_admission(
         structural_arguments,
         relocating,
         relocating_roots,
-        &BTreeSet::new(),
+        relocating_roots,
         effects,
     )
 }
@@ -859,10 +859,15 @@ fn crash_continuation_borrow_call_admission(
 /// must be unobservable under the same summaries, and the component must
 /// preserve member-visible place contents and custody
 /// ([`component_preserves_place_observations`], run with `tolerated` member
-/// discards — empty for the unit and scalar-result callers, the run's
-/// relocating roots plus the call's own confined result for an affine
-/// structural-result call, whose dispatch edges discard the fresh place the
-/// relocation makes persistent) — only then does the
+/// discards — the run's relocating roots for every caller, plus the call's
+/// own confined result for an affine structural-result call, whose dispatch
+/// edges discard the fresh place the relocation makes persistent). A
+/// relocating root is tolerated for the unit and scalar-result callers too:
+/// an affine one relocated only under `scalar_case_result_contained`, so its
+/// member discards are exactly the per-traversal disposal the custody
+/// rewrite re-expresses on the persistent preheader place — the case a
+/// shared borrow of a relocated scalar case reaches — while an unrestricted
+/// one never appears in a discard roster at all. Only then does the
 /// relocated call observe and return on every traversal exactly what the
 /// in-loop invocation did. That bound is also what confines a mutating
 /// borrow's authority: the call is tolerated inside the roster only when
