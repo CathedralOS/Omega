@@ -1085,6 +1085,46 @@ the complete product bar; focused successes below do not establish that baseline
   `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` in
   `terminal-verifier`. No affine occurrence outlives its required edge.
 
+- **ATOMIC-MEMORY-MODEL.** Complete atomic/fence semantics and native execution
+  under [concurrency](wiki/spec/language/concurrency.md) and the
+  [atomic vocabulary](omega-rust/psi/foundation/language-core/atomic_operations.md).
+  First make `atomics/runtime_atomic_{fetch_add,compare_exchange}_exit` produce
+  their authored exit 70: both stop at stage 02's
+  `lowering/control_flow/operations.rs` fallback, which has no atomic lowering.
+  Serial load/store/fetch/swap/decisive exchange already encode, independently
+  verify and interpret as single Terminal events (`atomic_access_events.rs`).
+  Omega stage 00 retains location/orderings and coherence edges
+  (`atomic_events.rs`); its unique-reaching-write restriction is not a concurrent
+  memory model.
+
+  - Add target operations, selection/encoding and checked refinement for admitted
+    widths, alignment and orderings. Swap/fetch return instruction-observed
+    priors, never separate loads. Preserve decode/encode and round-trip laws,
+    observing/non-observing and decisive/single-attempt behavior, failure
+    ordering, `Uncommitted` custody and target retry-work attribution.
+  - Complete source/Terminal event production and correspondence for shared
+    atomic cells, bounded fields, scalar-result composition, fences and
+    single-attempt exchange. `shared_receiver_atomic_store` fails checked
+    planning because Terminal lacks atomic-cell identity;
+    `atomic_global_order_operations` only checks without an executable entry.
+    Abstract fence/single-attempt carriers exist but lack Terminal producers.
+    A fence remains an event even when realization emits no instruction.
+  - Complete independently checked `sequenced_before`, `reads_from`,
+    `modification_order`, `synchronizes_with`, `happens_before` and
+    `global_sequential_order`, qualifying fence synchronization and
+    outcome-sensitive RMW obligations. Preserve existing serial coherence and
+    optimization replay; resolve genuinely unsettled axioms through the spec
+    owner. Model, relation-witness and target work can proceed before a scheduler.
+    **TR3-TR8** gates actual concurrent publication, fence-pair, global-order
+    and compare-exchange contention witnesses.
+
+  Acceptance: source-free verification binds each relation, location, operation,
+  ordering, outcome, custody and realization; missing/substituted evidence rejects.
+  Preserve source-ordering controls and add matching-host instruction/execution
+  and concurrent coverage. Serial tests and bounded exploration prove no complete
+  memory model. Keep strong `Receive` unless an exact protocol proof permits
+  weakening; device/DMA and interruption ordering retain separate contracts.
+
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and
   documented exit/output on matching hosts under the
@@ -4271,134 +4311,77 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   until complete custody is implemented; Terminal execution does not establish
   native acceptance.
 
-- **TR3-TR8.** Connect activation planning and lifecycle accounting to a
-  selected runtime executing ordinary named machines under the
-  [task-runtime contract](wiki/spec/build/task_runtime.md) and
-  [suspension contract](wiki/spec/terminal-psi/calls_and_outcomes.md#suspension).
-  Owners: `provider-planning/src/task_plans/`, `task-plans`, suspension
-  production/checking, and the selected runtime implementation.
+- **TR3-TR8.** Execute ordinary named machines through a selected runtime
+  under [task activation](wiki/spec/build/task_runtime.md) and
+  [suspension](wiki/spec/terminal-psi/calls_and_outcomes.md#suspension).
+  Reuse `provider-planning/src/task_plans/` and
+  [task-plans](omega-rust/omega/backend/runtime/task-plans/README.md): sealed
+  call graphs, argument images, lease accounting and routed `Task<T>` claims
+  exist. Ledger park/resume tests change accounting state; they execute no
+  worker or native stack switch. `tasks/task_runtime_machine_selection_compile`
+  checks a probe beside an empty, unbound `Main::main`.
 
-  Reuse the sealed call-graph plans, argument marshalling, nonmoving leases and
-  provider-instance claim ledger. Call-side suspension markers already require
-  site/plan pairs; `suspension_call_plan_rejects_coordinated_site_and_plan_deletion`
-  pins that control. The [implementation note](omega-rust/omega/backend/runtime/task-plans/README.md)
-  distinguishes those static/accounting mechanisms from executable activation.
+  - Join final physical frames/spills, alignment, entry overhead and complete
+    live chains to the exact `StackPlan` and actual nonmoving backing.
+    `stack_graphs.rs::task_frame_summary` measures checked locals and parked
+    arguments; `TaskRuntimeAdmission` stores slot shapes, not allocated stacks.
+    Preserve unresolved-call refusal and same-stack/separately provisioned demand.
+  - Complete suspension production in stage 05's
+    `retention/suspension_call_plan.rs`: receiver, persistent/structural places,
+    live claims and Unit-call scalar environments/arguments need exact joins.
+    Boundary targets also fail canonical identity because checked-trees'
+    `facts/carry.rs::symbol_identity` only resolves machine/state symbols;
+    preserve `boundary_call_suspension_frontier_fails_closed_on_target_identity`
+    until that join exists. Retain storage lifetime, pinning, aliasing, address
+    stability and cancellation-outcome evidence through encoding and independent
+    checking; unsupported frontiers reject. Preserve the verifier's
+    `suspension_call_plan_rejects_coordinated_site_and_plan_deletion` control.
+  - Connect one source-selected provider to argument installation, distinct
+    activation, checked park/resume and actual returned outcomes. Bind its exact
+    selection, invocation receipt, runtime instance, storage era and source task
+    route. CPU/thread preservation remains an explicit obligation.
 
-  - Join final physical frame/spill demand, alignment, entry overhead and complete
-    live call chains to the exact `StackPlan` and actual provider backing.
-    Checked-local/park-frontier layout is not final physical WCSU. Preserve
-    unresolved-call refusal and same-stack versus separately provisioned demand.
-  - Execute one source-selected runtime route: install marshalled arguments,
-    start a distinct activation on its fixed nonmoving stack, reach checked
-    suspension points, park/resume the same invocation and return actual outcomes.
-    Bind provider selection, invocation receipt, runtime instance, storage era and
-    source `Task<T>` route. Ledger transitions alone do not run a machine.
-  - Extend exact suspension-frontier production beyond bounded scalar joins to
-    receiver, persistent and structural places and live claims. Retain their
-    Terminal identities and independently checked storage lifetime, pinning,
-    aliasing, address stability and cancellation-outcome evidence. Keep crossing
-    completeness through serialization/lowering; unsupported frontiers reject.
+  Acceptance: concurrent observable work with moved arguments, start/park/resume/
+  finish and fresh eras on reuse. Rejection returns caller arguments/leases;
+  foreign/stale settlement and reclaim with child custody reject. Parking
+  establishes no result/cleanup; resumption repeats no committed work.
+  Cancellation requires a recorded request observed at a declared safe point,
+  never arbitrary unwinding. Runtime custody, backing ownership and linear
+  settlement authority stay distinct; continuations remain source-inaccessible.
 
-  Acceptance: concurrent start/park/resume/finish with observable work and moved
-  arguments; rejection conserves caller-owned arguments/leases; foreign-instance
-  or stale-era settlement rejects and reuse requires fresh eras. Parking produces
-  no result/cleanup, and resumption repeats no committed work. Cancellation needs
-  a recorded request observed at a declared safe point, never arbitrary unwinding.
-  Preserve CPU/thread requirements and reject reclaim while child custody remains.
-  Runtime custody, physical backing ownership and linear settlement authority stay
-  distinct; a compiler/provider-owned continuation is not source-addressable.
+- **BLOCKEXEC.** Implement `source/library/blocking-executor/` as an ordinary
+  package under [task-runtime libraries](wiki/spec/build/task_runtime.md#library-and-foreign-providers)
+  and [foreign execution](wiki/spec/build/foreign_bindings.md#operational-coherence).
+  Its queue/executor files contain contracts, not working bodies.
+  `blockexec/blocking_executor_custody_claims_compile` duplicates concrete
+  declarations, supplies a pre-existing ticket to `submit`, and settles against
+  a wait word instead of the executor borrow. Its bound empty entry builds
+  without invoking the probe or consuming the package; that establishes neither
+  FIFO execution nor claim issuance. `blocking_executor_ticket_scope_loss`
+  checks ordinary linear scope loss.
 
-- **ATOMIC-MEMORY-MODEL.** Complete the formal atomic/fence model and checked
-  source-to-target realization under
-  [concurrency](wiki/spec/language/concurrency.md) and the
-  [atomic vocabulary contract](omega-rust/psi/foundation/language-core/atomic_operations.md).
-  Owners: Psi event/evidence production and independent Terminal checking;
-  Omega event validation, optimization preservation and target refinement.
+  - Implement generic `[T; N]` queue bodies with indexed occupancy,
+    head/length/capacity proofs and conserved queued payloads. `N` is const:
+    runtime value-argument support is not a prerequisite. Exercise combined
+    type/const attached methods through ordinary lowering, not an executor-only
+    path. Use **BORROWED-STORAGE-RESTORATION** where linear slot moves require
+    restoring the borrowed container; no blanket attached-method blocker.
+  - Implement accepted/refused admission and exactly-once settlement using
+    ordinary conserved-claim/outcome evidence. Acceptance issues a claim bound
+    to the actual executor instance; refusal returns the
+    complete moved submission. Close requires an empty queue and no live claims.
+  - Connect worker and wait/wake providers to **TR3-TR8**. Preserve thread
+    affinity and actual loans across suspension, including settlement's executor
+    borrow and instance relationship. Cancellation requests retain the claim.
+  - Implement bounded hung-worker recovery with real process isolation, exact parent
+    endpoint/child manifest, custody and termination evidence. The empty
+    `IsolatedWorkerProvider` marker proves none of this; never kill an in-process
+    worker to reclaim custody.
 
-  A serial load, store, fetch (add/sub/and/or/xor), swap or decisive
-  compare-exchange on a record's atomic field reaches Terminal Psi as one
-  verified `AtomicAccess` event (codec tag 93) at an exact root place, static
-  carrier path and scalar field, with its orderings, operands and observed
-  prior; the interpreter executes it serially. Terminal-to-abstract lowering
-  keeps it as one abstract event at the same location, with reads-from and
-  modification-after edges from a reaching-writes pass that the optimization
-  unit's bounded happens-before replay rechecks. An event with no single
-  latest write refuses. The eight `runtime_atomic_*_exit` canaries now stop in
-  abstract-to-target lowering (`UnsupportedControlFlow`). No target
-  operation, selection or encoding realizes an atomic event yet. Unadmitted:
-  atomic cells behind a shared receiver (`shared_receiver_atomic_store`;
-  Terminal types do not mark atomic cells), bounded fields, fences,
-  single-attempt compare-exchange, and scalar-result machines
-  (`atomic_global_order_operations` stops at ordered scalar control). None of
-  this establishes a concurrent memory model.
-
-  - Complete independently checkable `sequenced_before`, `reads_from`,
-    `modification_order`, `synchronizes_with`, `happens_before` and
-    `global_sequential_order` obligations, qualifying fence synchronization and
-    outcome-sensitive RMW behavior. Preserve settled source guarantees; raise
-    genuinely unsettled formal choices through the governing specification owner.
-    Model/checker work and relation witnesses do not require a running scheduler.
-  - Produce normalized events through checked source, Terminal Psi and abstract
-    operations, retaining exact operation, place, ordering, outcome and custody.
-    Add encoding, independent verification and source-correspondence controls.
-    A fence remains an event even when no instruction is emitted.
-  - Add target operations, realization and checked refinement for admitted
-    widths/alignment and orderings. Retain exact decode/encode and round-trip
-    obligations. Swap/fetch return the instruction-observed prior, not a separate
-    load. Preserve observing/non-observing and decisive/single-attempt behavior,
-    failure ordering, `Uncommitted` custody and retry-work attribution.
-  - Use **TR3-TR8** for real concurrent publication, qualifying fence pairs,
-    global-order and compare-exchange contention controls. That dependency gates
-    runtime witnesses, not all preceding model, producer or target work.
-
-  Acceptance: source-free checking binds every retained relation, place, ordering,
-  outcome and realization; missing/substituted evidence rejects. Retain serial
-  coherence and source-ordering controls, then add matching-host instruction and
-  concurrent execution coverage. Serial tests and bounded exploration are not a
-  formal memory-model proof. Keep the strong `Receive` baseline unless an exact
-  protocol proof admits weakening; device/DMA and interruption ordering retain
-  their separate contracts.
-
-- **BLOCKEXEC.** Implement the ordinary package-level blocking executor in
-  `source/library/blocking-executor/` under
-  [task-runtime library contracts](wiki/spec/build/task_runtime.md#library-and-foreign-providers)
-  and [foreign execution](wiki/spec/build/foreign_bindings.md).
-  It owns bounded queues, moved submissions and linear completion claims, not a
-  new compiler task-runtime mode.
-
-  The package has contract declarations, not working queue/worker bodies.
-  `compiler/tests/canary_suite/task_runtime.rs` checks package consumption,
-  provider selection, linear-slot take/restore and conditional claim returns.
-  These are checked-tree fixtures, not execution. The slot example uses literal
-  index zero; the admission example passes a pre-existing ticket into `submit`.
-  They refute blanket claims that slot vacancy or multi-case linear returns are
-  unavailable, but do not establish a bounded FIFO or real claim issuance.
-
-  - Implement generic bounded queue and executor bodies, with indexed occupancy,
-    head/length/capacity proofs and surviving ownership of every queued payload.
-    Exercise the actual combined type/const `[T; N]` methods through ordinary
-    **RUNTIME-VALUE-GENERICS**; do not keep the obsolete blanket attached-method
-    blocker or manufacture an executor-only lowering path.
-  - Implement accepted/refused admission, provider-instance ticket issuance and
-    exactly-once settlement using ordinary conserved-claim/outcome evidence.
-    Acceptance must mint a claim against the actual executor, not receive a
-    fabricated/pre-existing ticket as the canary does. Rejection returns the
-    complete moved submission; close requires empty queue and no live claims.
-  - Connect selected worker and wait/wake providers to **TR3-TR8** execution.
-    Preserve thread affinity and the actual loans through suspension, including
-    settlement's executor borrow; passing only a wait word does not verify that
-    borrow or its instance relationship. Cancellation requests retain the claim.
-  - For bounded recovery from hung workers, implement actual process-isolated
-    execution with the exact parent endpoint, child manifest, custody and
-    termination evidence required by provider selection. The empty
-    `IsolatedWorkerProvider` marker and inherited conformance test supply no
-    isolation evidence; never terminate an in-process worker to reclaim custody.
-
-  Acceptance: consume the package through its normal dependency/build path and
-  execute queued work, full-capacity refusal, FIFO delivery, park/wake and
-  settlement with linear payloads. Reject duplicate/foreign/stale tickets, lost
-  custody and premature close/reclaim. Exercise isolated hung-worker recovery
-  separately; checked declarations and provider-plan selection alone do not pass.
+  Acceptance: consume the real package through dependency/build selection and
+  execute linear-payload queueing, full-capacity refusal, FIFO delivery, park/wake
+  and settlement. Reject duplicate/foreign/stale tickets, lost custody and early
+  close/reclaim. Witness isolated hung-worker recovery separately.
 
 - **QUOTIENT-THEOREM-LIFT.** Complete checked operation correspondence and
   publication under [lifting operations](wiki/spec/proofs/quotients.md#lifting-operations).
