@@ -4,6 +4,13 @@
 //! visible at the destination only after the staging file has been persisted
 //! and accepted by the canonical decoder. This keeps physical output failures
 //! outside the source language's boundary-operation return convention.
+//!
+//! Optional proof-carrying output is prepared by `psi_proof_pair`: it retains
+//! receiver-checked artifact and companion bytes without selecting a destination.
+
+mod psi_proof_pair;
+
+pub use psi_proof_pair::{PreparedPsiProofPair, PsiProofPairPreparationError};
 
 use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};

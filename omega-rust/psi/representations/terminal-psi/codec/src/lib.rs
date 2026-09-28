@@ -34,8 +34,8 @@ pub use canonical_artifact::{
 };
 pub use codec_error::CodecError;
 pub use publication::{
-    PublishedTerminalSemanticArtifact, TerminalSemanticArtifactPublication,
-    TerminalSemanticPublicationError,
+    PreparedPsiProofPair, PsiProofPairPreparationError, PublishedTerminalSemanticArtifact,
+    TerminalSemanticArtifactPublication, TerminalSemanticPublicationError,
 };
 pub use sections::artifact_manifest::{
     ArtifactManifestError, SectionFingerprint, TerminalArtifactIdentity, TerminalArtifactManifest,
