@@ -31,6 +31,115 @@ fn statements<'program>(
 }
 
 #[test]
+fn ordinary_call_and_internal_jump_have_distinct_target_namespaces() {
+    use symbol_resolved_trees::statement::TransitionTargetNode;
+    let program = resolved(
+        "machine finish(value: u64) -> u64 { value }
+         machine run() -> u64 {
+             let value: u64 = finish(42);
+             transition { _ -> finish(value) }
+             state finish(value: u64) -> u64 { value }
+         }",
+    );
+    let [
+        StatementNode::LocalData(local),
+        StatementNode::Transition(transition),
+    ] = statements(&program, "run")
+    else {
+        panic!("initializer followed by internal jump");
+    };
+    let ExpressionNode::Call(call) = program
+        .tables
+        .bodies
+        .expressions
+        .expression(local.initial_value)
+    else {
+        panic!("ordinary initializer call");
+    };
+    let TransitionTargetNode::Named { path, .. } = program
+        .tables
+        .bodies
+        .statements
+        .transition_target(transition.target)
+    else {
+        panic!("internal state destination");
+    };
+    assert!(call.target_symbol.is_valid());
+    assert!(path.symbol.is_valid());
+    assert_ne!(call.target_symbol, path.symbol);
+    let machine = |name: &str| {
+        program
+            .machines
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("machine")
+            .symbol
+    };
+    assert_eq!(
+        program.symbols.get(call.target_symbol).parent,
+        machine("finish")
+    );
+    assert_eq!(program.symbols.get(path.symbol).parent, machine("run"));
+}
+
+#[test]
+fn internal_states_are_not_ordinary_call_candidates() {
+    for spelling in ["finish(42)", "self.finish(42)", "Helper::run::finish(42)"] {
+        let program = resolved(&format!(
+            "data Helper {{}}
+             machine Helper::run(&self) -> u64 {{
+                 let value: u64 = {spelling};
+                 transition {{ _ -> finish(value) }}
+                 state finish(&self, value: u64) -> u64 {{ value }}
+             }}"
+        ));
+        let StatementNode::LocalData(local) = &statements(&program, "Helper::run")[0] else {
+            panic!("initializer");
+        };
+        let ExpressionNode::Call(call) = program
+            .tables
+            .bodies
+            .expressions
+            .expression(local.initial_value)
+        else {
+            panic!("ordinary initializer call");
+        };
+        assert!(
+            !call.target_symbol.is_valid(),
+            "{spelling} selected a private state"
+        );
+    }
+}
+
+#[test]
+fn trait_contract_calls_keep_their_requirement_instead_of_a_free_machine() {
+    let program = resolved(
+        "machine zero() -> u64 { 0 }
+         trait Numbers {
+             machine zero() -> u64;
+             machine law() ensures zero() == zero();
+         }",
+    );
+    let calls = program
+        .tables
+        .bodies
+        .expressions
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target.as_str() == "zero" => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert!(!calls.is_empty(), "trait law retains its calls");
+    for call in calls {
+        assert!(call.target_symbol.is_valid());
+        let owner = program.symbols.get(call.target_symbol).parent;
+        assert_eq!(program.symbols.get(owner).kind, symbols::SymbolKind::Trait);
+        assert_eq!(program.symbols.name(owner), "Numbers");
+    }
+}
+
+#[test]
 fn unit_context_preservation_does_not_reclassify_value_calls_as_discard_statements() {
     for return_annotation in ["", " -> ()"] {
         let program = resolved(&format!(

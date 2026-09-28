@@ -1,5 +1,5 @@
 //! Receiverless and `self` calls: the machine parameter, specialized entry,
-//! local state, attached machine or free machine a bare call targets.
+//! attached machine or free machine entry a bare call targets.
 
 use super::{
     CallScope, free_machine_entry_state, machine_state_by_symbol, validate_call_arguments_handles,
@@ -9,9 +9,9 @@ use diagnostics::Diagnostic;
 use typed_trees::expression::ExpressionHandle;
 
 /// A receiverless (or `self`) call targets, in order: a machine parameter
-/// signature, a specialized concrete entry of another machine, a local
-/// state, or an attached or free machine's entry state; each validates the
-/// call's result use, arguments and type-parameter bounds.
+/// signature, a specialized concrete entry, or an attached or free machine's
+/// entry state; each validates the call's result use, arguments and
+/// type-parameter bounds.
 pub(super) fn validate_receiverless_call(
     scope: &CallScope<'_>,
     arguments: &[ExpressionHandle],
@@ -22,7 +22,6 @@ pub(super) fn validate_receiverless_call(
         call,
         current_machine,
         current_state,
-        machine_symbols,
         symbols,
         writable_roots,
         value_environment,
@@ -93,44 +92,8 @@ pub(super) fn validate_receiverless_call(
         return;
     }
 
-    if let Some(state) = machine_symbols.state(&call.target) {
-        validate_result_use(
-            program,
-            call,
-            state.name.as_str(),
-            state.return_type,
-            diagnostics,
-        );
-        validate_call_arguments_handles(
-            program,
-            current_machine,
-            current_state,
-            value_environment,
-            arguments,
-            call.target.as_str(),
-            program.state_parameters(state),
-            Some(state),
-            writable_roots,
-            diagnostics,
-        );
-        validate_machine_call_type_parameter_bounds(
-            program,
-            symbols,
-            current_machine,
-            state,
-            call.target.as_str(),
-            arguments,
-            current_machine,
-            current_state,
-            false,
-            diagnostics,
-        );
-        return;
-    }
-
-    // A receiverless call resolved to a state of THIS machine while no local
-    // state owns the spelled name is a recursive machine call onto the
-    // machine's own entry (`walk(n - 1);` inside `machine walk`). Result
+    // A receiverless call resolved to this machine's entry is recursive
+    // (`walk(n - 1);` inside `machine walk`). Result
     // overload rebinding already chose the exact sibling; falling through to
     // the name lookups below would re-choose the first-declared overload.
     if let Some((_, state)) = machine_state_by_symbol(program, call.target_symbol)
@@ -183,7 +146,7 @@ pub(super) fn validate_receiverless_call(
         attached_state.or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))
     else {
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` has no local state `{}`",
+            "machine `{}` cannot resolve ordinary call `{}` to a machine entry or requirement",
             current_machine.name, call.target
         )));
         return;

@@ -176,10 +176,7 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 }
             }
         }
-        if matches!(
-            receiver_kind,
-            SymbolKind::Machine | SymbolKind::Trait | SymbolKind::ConformanceParameter
-        ) {
+        if receiver_kind == SymbolKind::Machine {
             if receiver_symbol == machine.symbol && machine.attached_data_symbol.is_valid() {
                 let target_symbol =
                     machine.attached_call_target(symbols, machine.attached_data_symbol, target);
@@ -188,6 +185,14 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
                 }
             }
 
+            // A machine's internal states are jump destinations, not methods.
+            // Only transition resolution may select those children.
+            return SymbolHandle::invalid();
+        }
+        if matches!(
+            receiver_kind,
+            SymbolKind::Trait | SymbolKind::ConformanceParameter
+        ) {
             return child_symbol_by_kinds(
                 symbols,
                 receiver_symbol,
@@ -197,9 +202,9 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         }
     }
 
-    // Everything below selects a receiverless candidate: the enclosing
-    // machine's own states, static machine and proposition parameters,
-    // builtins, propositions, and free machines. A spelled receiver's target
+    // Everything below selects a receiverless candidate: trait requirements,
+    // static machine and proposition parameters, builtins and free machines.
+    // A spelled receiver's target
     // belongs to the receiver's declaration instead; when the receiver block
     // above could not resolve it (for example a member receiver whose exact
     // field awaits typed-stage resolution), the call stays unresolved here
@@ -208,14 +213,18 @@ pub(in crate::symbols) fn resolve_call_target_symbol(
         return SymbolHandle::invalid();
     }
 
-    let machine_state = child_symbol_by_kinds(
-        symbols,
-        machine.symbol,
-        &[SymbolKind::State],
-        target.as_str(),
-    );
-    if machine_state.is_valid() {
-        return machine_state;
+    // Trait requirements share the State symbol representation, but are
+    // callable contracts, not a machine's private control-flow destinations.
+    if symbols.get(machine.symbol).kind == SymbolKind::Trait {
+        let requirement = child_symbol_by_kinds(
+            symbols,
+            machine.symbol,
+            &[SymbolKind::State],
+            target.as_str(),
+        );
+        if requirement.is_valid() {
+            return requirement;
+        }
     }
 
     // A receiverless call to a static machine parameter (`F(value)`) denotes

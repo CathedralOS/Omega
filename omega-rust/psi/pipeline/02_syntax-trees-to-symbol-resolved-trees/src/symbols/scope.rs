@@ -9,6 +9,7 @@ use symbols::{SymbolHandle, SymbolLookup, SymbolTable};
 pub(super) struct AttachedMachine {
     pub(super) owner: SymbolHandle,
     pub(super) machine: SymbolHandle,
+    pub(super) entry: SymbolHandle,
 }
 
 /// The attached-machine roster together with the by-owner index every
@@ -79,6 +80,11 @@ fn attached_machine_list(
             .then_some(AttachedMachine {
                 owner: machine.attached_data_symbol,
                 machine: machine.symbol,
+                entry: program
+                    .machine_state_handles(machine.states)
+                    .first()
+                    .map(|state| program.machine_state(*state).symbol)
+                    .unwrap_or_else(SymbolHandle::invalid),
             })
         })
         .collect()
@@ -134,13 +140,10 @@ impl MachineScope<'_> {
             .iter()
             .map(|index| &self.attached_machines.list[*index])
         {
-            let state = super::lookup::child_symbol_by_kinds(
-                symbols,
-                attachment.machine,
-                &[symbols::SymbolKind::State],
-                target.as_str(),
-            );
-            if !state.is_valid() {
+            // The declaration supplies its callable entry. Searching all state
+            // children would expose private jump destinations as methods.
+            let state = attachment.entry;
+            if !state.is_valid() || symbols.name(state) != target.as_str() {
                 continue;
             }
             // Lookup spellings only test exposure of an already-selected

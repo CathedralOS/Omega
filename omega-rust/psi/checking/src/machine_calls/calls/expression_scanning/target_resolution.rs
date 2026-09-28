@@ -105,7 +105,7 @@ pub(super) fn named_type_reference_name(
 
 /// True when `type_name` resolves the value-call target through any of the
 /// remaining channels the lowering understands: a boundary-trait machine
-/// signature or a machine's local state. Attached calls use their selected state
+/// signature or a machine's entry. Attached calls use their selected entry
 /// and exact receiver type before this unresolved-call diagnostic.
 fn type_name_resolves_value_call(
     program: &TypedTrees,
@@ -124,8 +124,8 @@ fn type_name_resolves_value_call(
     if let Some(machine) = symbols.machine(type_name)
         && program
             .machine_states(machine)
-            .iter()
-            .any(|state| state.name.as_str() == target)
+            .first()
+            .is_some_and(|state| state.name.as_str() == target)
     {
         return true;
     }
@@ -181,8 +181,8 @@ pub(super) fn report_unresolved_value_call(
         }
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` state `{}`: value call `{target}(..)` does not resolve to a \
-             state of this machine, an attached sibling machine, or a free machine -- \
-             it would silently bind 0 (ZII) at runtime. Check the name.",
+             callable machine entry or requirement. Internal states are transition \
+             destinations, not ordinary callees. Check the name.",
             current_machine.name,
             current_state.name.as_str(),
         )));
@@ -220,9 +220,7 @@ pub(super) fn report_unresolved_value_call(
 
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}`: value call `{receiver}.{target}(..)` does not resolve \
-         to any machine state, attached machine, platform state, or boundary-trait \
-         method -- it would silently bind 0 (ZII) at runtime. Check the receiver and \
-         method names.",
+         to a callable machine entry or requirement. Check the receiver and method names.",
         current_machine.name,
         current_state.name.as_str(),
     )));

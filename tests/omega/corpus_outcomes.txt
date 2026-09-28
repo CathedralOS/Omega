@@ -172,6 +172,7 @@ pass/calls/structural_mut_to_shared_argument checked 458ms
 pass/calls/structural_self_rooted_argument checked 477ms
 pass/calls/transition_arg_local_from_embedded_call_exit rejected 747ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
+pass/calls/state_and_machine_names_exit checked 546ms @0f14a853dd22504c15fa85132ed4eb1e6d7f2ab7+wt
 pass/calls/value_call_as_host_arg_exit rejected 1622ms
 	native-artifact Terminal production failed: Lowering(Unsupported("computed shared argument lost its parameter"))
 pass/calls/value_call_element_view_arg_compile checked 294ms
@@ -1255,7 +1256,7 @@ fail/calls/terminal_return_type_mismatch_rejected rejected 129ms expected
 	machine `Main::main` state `main` stores a boolean into a `i32` return value, which holds a numeric value
 	store in machine `Main::main` state `main` terminal expression implicitly converts `bool` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
 fail/calls/unresolved_value_call_rejected rejected 143ms expected
-	machine `Main::main` state `main`: value call `bogus_fn(..)` does not resolve to a state of this machine, an attached sibling machine, or a free machine -- it would silently bind 0 (ZII) at runtime. Check the name.
+	machine `Main::main` state `main`: value call `bogus_fn(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/calls/value_call_wrong_argument_count_rejected rejected 134ms expected
 	state `pick` expects 2 argument(s), got 1
 fail/calls/void_value_callee_rejected rejected 138ms expected
