@@ -376,21 +376,30 @@ fn canonical_operation_identity_bytes_are_stable() {
         FuelScheduleIdentity::new(70).expect("nonzero schedule"),
     )
     .unwrap();
+    for unit in [&scalar, &structural] {
+        let bytes = crate::optimization_unit::identity::collect_unit_canonical_bytes(unit);
+        let prefix = b"omega.psi-optimization-unit-content.v30\0";
+        assert_eq!(&bytes[..prefix.len()], prefix);
+        assert_eq!(
+            &bytes[prefix.len()..prefix.len() + 2],
+            &111_u16.to_le_bytes()
+        );
+    }
     assert_eq!(
         scalar.identity.bytes(),
         [
-            195, 39, 221, 44, 208, 182, 71, 126, 149, 102, 175, 231, 252, 99, 66, 159, 32, 137,
-            188, 46, 119, 215, 164, 23, 6, 154, 90, 250, 94, 239, 118, 10,
+            114, 224, 187, 121, 217, 10, 166, 147, 25, 134, 209, 31, 97, 239, 109, 146, 146, 151,
+            106, 38, 149, 146, 217, 96, 0, 49, 12, 5, 216, 213, 122, 146,
         ],
-        "identity binds vocabulary 109 and unit schema 30",
+        "identity binds vocabulary 111 and unit schema 30",
     );
     assert_eq!(
         structural.identity.bytes(),
         [
-            85, 229, 213, 13, 56, 99, 168, 135, 192, 2, 133, 212, 162, 220, 94, 245, 236, 79, 221,
-            233, 168, 178, 24, 78, 15, 179, 126, 223, 103, 43, 65, 35,
+            182, 9, 90, 31, 62, 134, 7, 5, 123, 163, 10, 31, 26, 242, 189, 90, 235, 210, 224, 87,
+            206, 19, 14, 175, 18, 20, 188, 233, 131, 143, 218, 88,
         ],
-        "identity binds vocabulary 109 and unit schema 30 alongside unchanged storage and return tags",
+        "identity binds vocabulary 111 and unit schema 30 alongside unchanged storage and return tags",
     );
 }
 
