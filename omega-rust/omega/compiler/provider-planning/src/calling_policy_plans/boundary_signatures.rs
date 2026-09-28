@@ -11,31 +11,22 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
-use crate::calling_policy_plans::value_shapes::{
-    opaque_representation_value_shape, plain_data_value_shape, value_shape_from_type,
-};
 pub use calling_conventions::{BoundaryValueClass, BoundaryValueField, BoundaryValueShape};
 use calling_conventions::{
     BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
     NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan, ValueShape,
     callback_requirement_id, nominal_callback_native_parameter_id,
 };
+use layout::{BoundaryTypeBinding, BoundaryValueLayout, substitute_boundary_type_reference};
 use representation_planning::OpaqueRepresentationSelection;
 use target::NativeTarget;
 use typed_trees::TypedTrees;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-#[derive(Clone)]
-pub(crate) struct TraitTypeBinding {
-    parameter_symbol: symbols::SymbolHandle,
-    parameter_name: String,
-    actual: TypeReferenceHandle,
-}
-
 pub(crate) struct BoundarySignatureInstance<'a> {
     pub(crate) signature: &'a typed_trees::signature::StateSignature,
     pub(crate) requirement_identity: String,
-    pub(crate) bindings: Vec<TraitTypeBinding>,
+    pub(crate) bindings: Vec<BoundaryTypeBinding>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -344,9 +335,8 @@ pub(crate) fn call_signature_from_top_level_requirement(
         ));
     }
 
-    let mut shapes = Vec::new();
-    let mut fields = Vec::new();
-    let mut opaque_representations = Vec::new();
+    let mut values =
+        BoundaryValueLayout::new(typed, native_target, &[], opaque_representation_selections);
     let mut parameters = Vec::with_capacity(runtime_parameters.len());
     let mut native_parameters = Vec::with_capacity(runtime_parameters.len());
     for (formal_ordinal, parameter) in runtime_parameters.iter().enumerate() {
@@ -359,45 +349,9 @@ pub(crate) fn call_signature_from_top_level_requirement(
                     "top-level boundary requirement `self` lost its exact attached data declaration"
                         .to_owned()
                 })?;
-            if attachment.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
-                opaque_representation_value_shape(
-                    typed,
-                    attachment.symbol,
-                    attachment.name.as_str(),
-                    &[],
-                    &mut Vec::new(),
-                    &mut shapes,
-                    &mut fields,
-                    native_target,
-                    opaque_representation_selections,
-                    &mut opaque_representations,
-                )
-            } else {
-                plain_data_value_shape(
-                    typed,
-                    attachment.symbol,
-                    attachment.name.as_str(),
-                    &[],
-                    &mut Vec::new(),
-                    &mut shapes,
-                    &mut fields,
-                    native_target,
-                    opaque_representation_selections,
-                    &mut opaque_representations,
-                )
-            }
+            values.data(attachment.symbol, attachment.name.as_str())
         } else {
-            value_shape_from_type(
-                typed,
-                parameter.type_reference,
-                &[],
-                &mut Vec::new(),
-                &mut shapes,
-                &mut fields,
-                native_target,
-                opaque_representation_selections,
-                &mut opaque_representations,
-            )
+            values.value_type(parameter.type_reference)
         }?;
         parameters.push(root);
         let native_ordinal = u32::try_from(formal_ordinal)
@@ -427,22 +381,13 @@ pub(crate) fn call_signature_from_top_level_requirement(
     }
 
     let result = if entry.return_type.is_valid() {
-        let (_, root) = value_shape_from_type(
-            typed,
-            entry.return_type,
-            &[],
-            &mut Vec::new(),
-            &mut shapes,
-            &mut fields,
-            native_target,
-            opaque_representation_selections,
-            &mut opaque_representations,
-        )?;
+        let (_, root) = values.value_type(entry.return_type)?;
         Some(root)
     } else {
         None
     };
 
+    let (shapes, fields, opaque_representations) = values.into_parts();
     Ok(MaterializedBoundarySignature {
         owner_requirement_identity: owner_requirement_identity.to_owned(),
         native_target,
@@ -653,7 +598,7 @@ pub(crate) fn collect_boundary_signatures<'a>(
                 .type_reference_table
                 .type_reference_handles(requirement.arguments)
                 .iter()
-                .map(|argument| substituted_type_reference(typed, *argument, &bindings))
+                .map(|argument| substitute_boundary_type_reference(typed, *argument, &bindings))
                 .collect::<Vec<_>>();
             collect_boundary_signatures(typed, parent, &parent_arguments, visited, signatures);
         }
@@ -680,12 +625,12 @@ fn trait_type_bindings(
     typed: &TypedTrees,
     definition: &typed_trees::trait_definition::TraitDefinition,
     arguments: &[TypeReferenceHandle],
-) -> Vec<TraitTypeBinding> {
+) -> Vec<BoundaryTypeBinding> {
     typed
         .trait_type_parameters(definition)
         .iter()
         .zip(arguments.iter().copied())
-        .map(|(parameter, actual)| TraitTypeBinding {
+        .map(|(parameter, actual)| BoundaryTypeBinding {
             parameter_symbol: parameter.symbol,
             parameter_name: parameter.name.as_str().to_owned(),
             actual,
@@ -693,36 +638,20 @@ fn trait_type_bindings(
         .collect()
 }
 
-pub(crate) fn substituted_type_reference(
-    typed: &TypedTrees,
-    type_reference: TypeReferenceHandle,
-    bindings: &[TraitTypeBinding],
-) -> TypeReferenceHandle {
-    let TypeReferenceNode::Named { symbol, name } =
-        typed.type_reference_table.type_reference(type_reference)
-    else {
-        return type_reference;
-    };
-    bindings
-        .iter()
-        .find(|binding| {
-            (binding.parameter_symbol.is_valid() && binding.parameter_symbol == *symbol)
-                || binding.parameter_name == name.as_str()
-        })
-        .map_or(type_reference, |binding| binding.actual)
-}
-
 pub(crate) fn call_signature_from_typed(
     typed: &TypedTrees,
     signature: &typed_trees::signature::StateSignature,
-    bindings: &[TraitTypeBinding],
+    bindings: &[BoundaryTypeBinding],
     owner_requirement_identity: &str,
     native_target: NativeTarget,
     opaque_representation_selections: &[OpaqueRepresentationSelection],
 ) -> Result<MaterializedBoundarySignature, String> {
-    let mut shapes = Vec::new();
-    let mut fields = Vec::new();
-    let mut opaque_representations = Vec::new();
+    let mut values = BoundaryValueLayout::new(
+        typed,
+        native_target,
+        bindings,
+        opaque_representation_selections,
+    );
     let mut parameters = Vec::new();
     let mut callback_binders = Vec::new();
     let mut static_machine_ordinal = 0u32;
@@ -863,19 +792,10 @@ pub(crate) fn call_signature_from_typed(
                 .checked_add(1)
                 .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
         }
-        let (_, root) = value_shape_from_type(
-            typed,
-            parameter.type_reference,
-            bindings,
-            &mut Vec::new(),
-            &mut shapes,
-            &mut fields,
-            native_target,
-            opaque_representation_selections,
-            &mut opaque_representations,
-        )?;
+        let (_, root) = values.value_type(parameter.type_reference)?;
         parameters.push(root);
-        let type_reference = substituted_type_reference(typed, parameter.type_reference, bindings);
+        let type_reference =
+            substitute_boundary_type_reference(typed, parameter.type_reference, bindings);
         let layout_data_symbol = exact_boundary_layout_root_symbol(typed, type_reference);
         let formal_ordinal = u32::try_from(formal_ordinal)
             .map_err(|_| "boundary signature has too many runtime parameters")?;
@@ -900,21 +820,12 @@ pub(crate) fn call_signature_from_typed(
             .ok_or_else(|| "boundary native parameter ordinal overflow".to_owned())?;
     }
     let result = if signature.return_type.is_valid() {
-        let (_, root) = value_shape_from_type(
-            typed,
-            signature.return_type,
-            bindings,
-            &mut Vec::new(),
-            &mut shapes,
-            &mut fields,
-            native_target,
-            opaque_representation_selections,
-            &mut opaque_representations,
-        )?;
+        let (_, root) = values.value_type(signature.return_type)?;
         Some(root)
     } else {
         None
     };
+    let (shapes, fields, opaque_representations) = values.into_parts();
     Ok(MaterializedBoundarySignature {
         owner_requirement_identity: owner_requirement_identity.to_owned(),
         native_target,

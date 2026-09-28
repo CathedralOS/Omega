@@ -7,10 +7,13 @@
 //! payloads; `field_paths` resolves a field path to its offset;
 //! `callback_layout` retains and checks private callback field paths and
 //! their target geometry independently of source-parameter association;
+//! `boundary_values` constructs bounded native signature graphs and selected
+//! opaque carrier occurrences from already-typed boundary applications;
 //! `sum_materialization` projects conventional sum layouts for the
 //! layout-plans foundation. Layout never authorizes an access; it only fixes
 //! where a value's bytes live.
 
+mod boundary_values;
 mod builder;
 mod callback_layout;
 mod field_paths;
@@ -19,6 +22,11 @@ mod packing;
 mod sizing;
 mod sum_materialization;
 
+pub use boundary_values::{
+    BOUNDARY_VALUE_FIELD_CAPACITY, BOUNDARY_VALUE_SHAPE_CAPACITY, BoundaryOpaqueRepresentationUse,
+    BoundaryTypeBinding, BoundaryValueLayout, append_boundary_value_shape,
+    substitute_boundary_type_reference,
+};
 pub use builder::{build_layout_plan, layout_type_reference};
 pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
 pub use field_paths::{field_data_layout_fields, field_machine_layout, field_path_offset};

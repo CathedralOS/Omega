@@ -89,6 +89,7 @@ pub use source_signature::{
     ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
     ProgramEntrySourceResultSignature, ProgramEntrySourceSignatureIdentity,
     ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
+    selected_program_storage_source_extent_value_layout,
 };
 pub use uefi::uefi_handle_protocol::{
     UEFI_HANDLE_PROTOCOL_GUID_POINTER_TYPE_IDENTITY, UEFI_HANDLE_PROTOCOL_HANDLE_TYPE_IDENTITY,

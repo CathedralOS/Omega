@@ -365,7 +365,7 @@ pub fn validate_selected_program_entry_shape(
                 _ => unreachable!("selected source shape validation fixed visible arity"),
             };
             let extent_value_layout =
-                provider_planning::calling_policy_plans::selected_program_storage_source_extent_value_layout(
+                program_entry_plan::selected_program_storage_source_extent_value_layout(
                     typed,
                     selected.slot,
                     parameter.type_reference,

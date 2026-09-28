@@ -1489,6 +1489,7 @@ dependencies = [
  "symbols",
  "target",
  "terminal-psi",
+ "typed-trees",
 ]
 
 [[package]]

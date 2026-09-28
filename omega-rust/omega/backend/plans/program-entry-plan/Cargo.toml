@@ -17,6 +17,7 @@ installed-writer = [
 ]
 
 [dependencies]
+typed-trees = { path = "../../../../psi/representations/typed-trees" }
 terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
 calling-conventions = { path = "../../calling-conventions" }
 executable-installation = { path = "../../runtime/executable-installation", optional = true }

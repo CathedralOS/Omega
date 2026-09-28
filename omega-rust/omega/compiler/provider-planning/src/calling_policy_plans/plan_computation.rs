@@ -9,13 +9,12 @@ use crate::calling_policy_plans::boundary_signatures::{
 };
 use crate::calling_policy_plans::build_time_decoding::{
     CALLBACK_FIELD_PATH_CAPACITY, CALLBACK_MATERIALIZATION_CAPACITY, PARAMETER_CAPACITY,
-    VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, decode_boundary_plan_result,
+    VALUE_FIELD_CAPACITY, VALUE_SHAPE_CAPACITY, case, decode_boundary_plan_result,
 };
 use crate::calling_policy_plans::callback_bindings::{
     callback_materialization_context, callback_plan_report_fingerprint,
     validate_retained_callback_binders,
 };
-use crate::calling_policy_plans::value_shapes::{case, push_boundary_shape};
 use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
     BoundaryNativeParameterShape, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
@@ -29,6 +28,7 @@ use calling_conventions::{
     validate_boundary_entry_plan_with_callback_materializations, validate_boundary_plan_result,
 };
 use diagnostics::Diagnostic;
+use layout::append_boundary_value_shape;
 use representation_planning::OpaqueRepresentationSelection;
 use sha2::Digest;
 use sha2::Sha256;
@@ -443,7 +443,7 @@ pub fn materialized_boundary_signature_from_abi(
     let mut parameters = Vec::new();
     let mut native_parameters = Vec::new();
     for (ordinal, shape) in signature.parameters.iter().enumerate() {
-        let root = push_boundary_shape(
+        let root = append_boundary_value_shape(
             &mut shapes,
             BoundaryValueShape {
                 class: match shape.class {
@@ -473,7 +473,7 @@ pub fn materialized_boundary_signature_from_abi(
     let result = signature
         .result
         .map(|shape| {
-            push_boundary_shape(
+            append_boundary_value_shape(
                 &mut shapes,
                 BoundaryValueShape {
                     class: match shape.class {

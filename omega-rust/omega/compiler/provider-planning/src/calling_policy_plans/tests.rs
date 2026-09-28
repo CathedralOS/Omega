@@ -12,6 +12,7 @@ use crate::calling_policy_plans::boundary_signatures::boundary_shape_path;
 use crate::calling_policy_plans::boundary_signatures::compatibility_call_signature;
 use crate::calling_policy_plans::boundary_signatures::exact_boundary_layout_root_symbol;
 use crate::calling_policy_plans::boundary_signatures::exact_compatibility_overload_index;
+use crate::calling_policy_plans::build_time_decoding::case;
 use crate::calling_policy_plans::build_time_decoding::decode_native_place;
 use crate::calling_policy_plans::build_time_decoding::field;
 use crate::calling_policy_plans::build_time_decoding::struct_parts;
@@ -23,7 +24,6 @@ use crate::calling_policy_plans::callback_bindings::validate_fresh_native_parame
 use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::plan_computation::build_boundary_signature;
 use crate::calling_policy_plans::plan_computation::validate_materialized_boundary_plan_result;
-use crate::calling_policy_plans::value_shapes::case;
 use build_time_evaluation::BuildTimeValue;
 use calling_conventions::BoundaryPlanResult;
 use calling_conventions::CallSignature;
