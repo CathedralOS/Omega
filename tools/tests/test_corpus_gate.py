@@ -1,6 +1,9 @@
-"""Native fixture oracles cannot be repinned into a passing golden."""
+"""Native fixture oracles cannot be repinned into a passing golden, and the
+gate's exit code is a machine-readable verdict."""
 
 from pathlib import Path
+import contextlib
+import json
 import sys
 import tempfile
 import unittest
@@ -8,6 +11,15 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import corpus_gate
+import corpus_records
+
+
+def record(fixture, status="checked", millis=1, expected=None, facts=None,
+           diagnostics=None, recorded_at=None):
+    return {"fixture": fixture, "tier": fixture.split("/", 1)[0],
+            "status": status, "millis": millis,
+            "expected_satisfied": expected, "facts": facts or {},
+            "diagnostics": diagnostics or [], "recorded_at": recorded_at}
 
 
 class NativeExitExpectations(unittest.TestCase):
@@ -67,8 +79,195 @@ class NativeExitExpectations(unittest.TestCase):
              patch.dict(corpus_gate.os.environ, {}, clear=True), \
              patch.object(sys, "argv", ["corpus_gate", "--native", "--record",
                                        "--runner", "unused", "--golden", str(golden)]):
-            self.assertEqual(corpus_gate.main(), 1)
+            self.assertEqual(corpus_gate.main(), 3)
         self.assertEqual(golden.read_text(), "retained golden\n")
+
+
+class Classify(unittest.TestCase):
+    def verdict(self, before, after):
+        return corpus_gate.classify(before, after)
+
+    def test_new_and_removed(self):
+        after = record("pass/a/x")
+        self.assertEqual(self.verdict(None, after), ("new", ["fixture added"]))
+        self.assertEqual(self.verdict(after, None),
+                         ("removed", ["fixture removed"]))
+
+    def test_pass_tier_status_rank(self):
+        built = record("pass/a/x", status="built")
+        checked = record("pass/a/x", status="checked")
+        rejected = record("pass/a/x", status="rejected")
+        verdict, reasons = self.verdict(built, rejected)
+        self.assertEqual(verdict, "regressed")
+        self.assertEqual(reasons, ["status built -> rejected"])
+        self.assertEqual(self.verdict(checked, built)[0], "improved")
+        self.assertEqual(self.verdict(built, checked)[0], "regressed")
+        self.assertEqual(self.verdict(checked, checked)[0], "clean")
+
+    def test_fail_tier_stopping_to_reject_is_a_regression(self):
+        rejected = record("fail/a/x", status="rejected")
+        checked = record("fail/a/x", status="checked")
+        verdict, reasons = self.verdict(rejected, checked)
+        self.assertEqual(verdict, "regressed")
+        self.assertEqual(reasons, ["fail fixture stopped rejecting"])
+        self.assertEqual(self.verdict(checked, rejected)[0], "improved")
+
+    def test_expected_fragment_flip(self):
+        satisfied = record("fail/a/x", status="rejected", expected=True)
+        wrong = record("fail/a/x", status="rejected", expected=False)
+        self.assertEqual(self.verdict(satisfied, wrong)[0], "regressed")
+        self.assertEqual(self.verdict(wrong, satisfied)[0], "improved")
+
+    def test_facts_and_exit_moves(self):
+        match = record("run/a/x", status="built",
+                       facts={"exit": "0", "stdout": "match"})
+        differs = record("run/a/x", status="built",
+                         facts={"exit": "0", "stdout": "differs"})
+        absent = record("run/a/x", status="built", facts={"exit": "0"})
+        self.assertEqual(self.verdict(match, differs)[0], "regressed")
+        self.assertEqual(self.verdict(match, absent)[0], "regressed")
+        self.assertEqual(self.verdict(differs, match)[0], "improved")
+        other = record("run/a/x", status="built",
+                       facts={"exit": "3", "stdout": "match"})
+        verdict, reasons = self.verdict(match, other)
+        self.assertEqual(verdict, "moved")
+        self.assertEqual(reasons, ["exit 0 -> 3"])
+
+    def test_diagnostics_compare_normalized(self):
+        before = record("pass/a/x", diagnostics=[
+            "native-artifact Terminal production failed: no root"])
+        raw_change = record("pass/a/x", diagnostics=[
+            "terminal-artifact production failed: no root"])
+        real_change = record("pass/a/x", diagnostics=[
+            "terminal-artifact production failed: different cause"])
+        self.assertEqual(self.verdict(before, raw_change)[0], "clean")
+        self.assertEqual(self.verdict(before, real_change)[0], "moved")
+
+    def test_regressed_dominates_improved_and_moved(self):
+        before = record("pass/a/x", status="checked",
+                        facts={"exit": "0"}, diagnostics=["d1"])
+        after = record("pass/a/x", status="rejected",
+                       facts={"exit": "2"}, diagnostics=["d2"])
+        verdict, reasons = self.verdict(before, after)
+        self.assertEqual(verdict, "regressed")
+        self.assertIn("status checked -> rejected", reasons)
+        self.assertIn("exit 0 -> 2", reasons)
+        self.assertIn("diagnostics moved", reasons)
+
+    def test_perf_only_when_otherwise_clean(self):
+        before = record("pass/a/x", millis=3000)
+        slower = record("pass/a/x", millis=9000)
+        self.assertEqual(self.verdict(before, slower)[0], "perf_slower")
+        fast_before = record("pass/a/x", millis=9000)
+        faster = record("pass/a/x", millis=4000)
+        self.assertEqual(self.verdict(fast_before, faster)[0], "perf_faster")
+        moved_slower = record("pass/a/x", millis=9000, diagnostics=["d"])
+        self.assertEqual(self.verdict(before, moved_slower)[0], "moved")
+        small = record("pass/a/x", millis=100)
+        self.assertEqual(self.verdict(small, record("pass/a/x", millis=500))[0],
+                         "clean")
+
+
+class MainVerdicts(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.golden = self.root / "golden.txt"
+        self.json_path = self.root / "verdict.json"
+
+    def write_golden(self, records):
+        self.golden.write_text(corpus_records.render(records),
+                               encoding="utf-8")
+
+    def run_gate(self, records, *extra, golden_records=None):
+        if golden_records is None:
+            golden_records = records
+        self.write_golden(golden_records)
+        argv = ["corpus_gate", "--runner", "unused",
+                "--golden", str(self.golden), *extra]
+        patches = [patch.object(corpus_gate, "ROOT", self.root),
+                   patch.object(corpus_gate, "run_runner",
+                                return_value=records),
+                   patch.object(corpus_gate, "measurement_stamp",
+                                return_value="aaaaaaaaaaaa"),
+                   patch.dict(corpus_gate.os.environ, {}, clear=True),
+                   patch.object(sys, "argv", argv)]
+        with contextlib.ExitStack() as stack:
+            for patcher in patches:
+                stack.enter_context(patcher)
+            return corpus_gate.main()
+
+    def test_clean_moves_and_regressed_exit_codes(self):
+        rows = [record("pass/a/x")]
+        self.assertEqual(self.run_gate(rows), 0)
+        moved = [record("pass/a/x", diagnostics=["new text"])]
+        self.assertEqual(self.run_gate(moved, golden_records=rows), 1)
+        regressed = [record("pass/a/x", status="rejected")]
+        self.assertEqual(self.run_gate(regressed, golden_records=
+                                       [record("pass/a/x", status="built")]), 3)
+
+    def test_infrastructure_failure_is_4_and_125_under_bisect(self):
+        self.write_golden([record("pass/a/x")])
+        argv = ["corpus_gate", "--runner", "unused", "--golden",
+                str(self.golden), "--json", str(self.json_path)]
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "run_runner",
+                          side_effect=corpus_gate.InfrastructureFailure(
+                              "corpus_gate: runner exited 2")), \
+             patch.dict(corpus_gate.os.environ, {}, clear=True), \
+             patch.object(sys, "argv", argv):
+            self.assertEqual(corpus_gate.main(), 4)
+        document = json.loads(self.json_path.read_text())
+        self.assertEqual(document["verdict"], "infrastructure_failed")
+        self.assertEqual(document["exit_code"], 4)
+        self.assertEqual(document["infrastructure_error"],
+                         "corpus_gate: runner exited 2")
+        argv.append("--bisect")
+        with patch.object(corpus_gate, "ROOT", self.root), \
+             patch.object(corpus_gate, "run_runner",
+                          side_effect=corpus_gate.InfrastructureFailure("x")), \
+             patch.dict(corpus_gate.os.environ, {}, clear=True), \
+             patch.object(sys, "argv", argv):
+            self.assertEqual(corpus_gate.main(), 125)
+
+    def test_bisect_maps_regressed_to_bad_and_moves_to_good(self):
+        golden = [record("pass/a/x", status="built")]
+        regressed = [record("pass/a/x", status="rejected")]
+        moved = [record("pass/a/x", status="built", diagnostics=["moved"])]
+        self.assertEqual(self.run_gate(regressed, "--bisect",
+                                       golden_records=golden), 1)
+        self.assertEqual(self.run_gate(moved, "--bisect",
+                                       golden_records=golden), 0)
+        self.assertEqual(self.run_gate(regressed, golden_records=golden), 3)
+
+    def test_json_document_records_verdict_and_fixtures(self):
+        golden = [record("pass/a/x", status="built"),
+                  record("pass/a/y", status="checked")]
+        after = [record("pass/a/x", status="rejected"),
+                 record("pass/a/y", status="checked", diagnostics=["d"])]
+        self.assertEqual(self.run_gate(after, "--json", str(self.json_path),
+                                       golden_records=golden), 3)
+        document = json.loads(self.json_path.read_text())
+        self.assertEqual(document["schema"], "omega-corpus-verdict-v1")
+        self.assertEqual(document["verdict"], "regressed")
+        self.assertEqual(document["exit_code"], 3)
+        self.assertEqual(document["leg"], "checked")
+        fixtures = {entry["fixture"]: entry for entry in document["fixtures"]}
+        self.assertEqual(fixtures["pass/a/x"]["verdict"], "regressed")
+        self.assertEqual(fixtures["pass/a/y"]["verdict"], "moved")
+        self.assertIn("golden_provenance", document)
+
+    def test_record_stamps_rows_and_subset_preserves_prior_stamps(self):
+        prior = [record("pass/a/x", recorded_at="bbbbbbbbbbbb"),
+                 record("pass/a/y")]
+        code = self.run_gate([record("pass/a/x")], "--record",
+                             "--filter", "a/x", golden_records=prior)
+        self.assertEqual(code, 0)
+        merged = {row["fixture"]: row
+                  for row in corpus_records.read(self.golden)}
+        self.assertEqual(merged["pass/a/x"]["recorded_at"], "aaaaaaaaaaaa")
+        self.assertIsNone(merged["pass/a/y"]["recorded_at"])
 
 
 if __name__ == "__main__":

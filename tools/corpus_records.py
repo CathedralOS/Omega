@@ -7,7 +7,11 @@ One line per fixture:
 
 `expected`/`unexpected` appear only when the fixture's `expected.txt`
 fragments were weighed against diagnostics; `key:value` execution facts
-from the native leg (`exit:70`, `stdout:match`) follow. Each diagnostic follows on its
+from the native leg (`exit:70`, `stdout:match`) follow. A trailing
+`@<revision>` token records which checkout measured the row (`+wt` marks a
+dirty tree); a filtered `--record` merges old rows forward, so without the
+stamp a `built` row can be days stale. Legacy rows carry no stamp. Each
+diagnostic follows on its
 own line after one tab, with backslash, newline, carriage return and tab
 escaped as `\\\\`, `\\n`, `\\r` and `\\t`. Lines starting with `#` are
 comments. Standard library only.
@@ -19,7 +23,9 @@ HEADER = """\
 # Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
-# then any execution facts such as exit:70 or stdout:match.
+# then any execution facts such as exit:70 or stdout:match, then
+# `@<revision>` recording which commit measured the row (`+wt` = dirty
+# tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 """
 
@@ -45,8 +51,9 @@ def unescape(text: str) -> str:
 
 def parse(text: str) -> list[dict]:
     """Records as dictionaries: fixture, tier, status, millis,
-    expected_satisfied (True, False or None), facts (ordered key to value)
-    and diagnostics."""
+    expected_satisfied (True, False or None), facts (ordered key to value),
+    diagnostics and recorded_at (the revision stamp, or None on legacy
+    rows)."""
     records: list[dict] = []
     for number, line in enumerate(text.splitlines(), 1):
         if not line or line.startswith("#"):
@@ -62,9 +69,15 @@ def parse(text: str) -> list[dict]:
         fixture, status, millis = fields[:3]
         verdict = None
         facts: dict[str, str] = {}
-        for token in fields[3:]:
+        recorded_at = None
+        for index, token in enumerate(fields[3:], 3):
             if token in ("expected", "unexpected") and verdict is None and not facts:
                 verdict = token
+            elif token.startswith("@"):
+                if index != len(fields) - 1 or not token[1:]:
+                    raise ValueError(
+                        f"line {number}: @{token[1:]} must be the last token")
+                recorded_at = token[1:]
             elif ":" in token:
                 key, value = token.split(":", 1)
                 facts[key] = value
@@ -78,6 +91,7 @@ def parse(text: str) -> list[dict]:
             "expected_satisfied": None if verdict is None else verdict == "expected",
             "facts": facts,
             "diagnostics": [],
+            "recorded_at": recorded_at,
         })
     return records
 
@@ -90,6 +104,8 @@ def render(records: list[dict]) -> str:
             header += " expected" if record["expected_satisfied"] else " unexpected"
         for key, value in record.get("facts", {}).items():
             header += f" {key}:{value}"
+        if record.get("recorded_at") is not None:
+            header += f" @{record['recorded_at']}"
         lines.append(header)
         lines.extend("\t" + escape(diagnostic) for diagnostic in record["diagnostics"])
     return "\n".join(lines) + "\n"
@@ -98,3 +114,68 @@ def render(records: list[dict]) -> str:
 def read(path) -> list[dict]:
     with open(path, encoding="utf-8") as handle:
         return parse(handle.read())
+
+
+# Retired diagnostic prefixes and the spelling that replaced them. The
+# table exists so a pure wording change in a compiler diagnostic stops
+# reading as behavior movement; add an entry in the same commit that
+# renames a diagnostic prefix.
+DIAGNOSTIC_PREFIX_ALIASES = (
+    ("native-artifact Terminal production failed: ",
+     "terminal-artifact production failed: "),
+)
+
+
+def normalized_diagnostic(text: str) -> str:
+    for retired, current in DIAGNOSTIC_PREFIX_ALIASES:
+        if text.startswith(retired):
+            return current + text[len(retired):]
+    return text
+
+
+def normalized_diagnostics(diagnostics: list) -> list:
+    return [normalized_diagnostic(text) for text in diagnostics]
+
+
+def provenance(records: list[dict], commits_between) -> dict:
+    """Staleness report over the rows' recorded_at stamps.
+
+    `commits_between(revision)` returns commits between that revision and
+    the measuring head (e.g. `git rev-list --count <rev>..HEAD`) or None
+    when the revision is not in local history. Pure otherwise; callers
+    inject the lookup. Informational only — it never gates anything.
+    """
+    stamped = legacy = 0
+    behind = {}
+    unknown = set()
+    for record in records:
+        stamp = record.get("recorded_at")
+        if not stamp:
+            legacy += 1
+            continue
+        stamped += 1
+        revision = stamp.split("+", 1)[0]
+        if revision not in behind:
+            behind[revision] = commits_between(revision)
+        if behind[revision] is None:
+            unknown.add(revision)
+    known = {revision: count for revision, count in behind.items()
+             if count is not None}
+    oldest = None
+    if known:
+        revision = max(known, key=known.get)
+        oldest = {"revision": revision, "commits_behind": known[revision]}
+    return {"stamped": stamped, "legacy": legacy,
+            "unknown_revisions": len(unknown), "oldest": oldest}
+
+
+def provenance_line(report: dict) -> str:
+    text = (f"golden provenance: {report['stamped']} rows stamped, "
+            f"{report['legacy']} legacy (unstamped)")
+    if report["unknown_revisions"]:
+        text += f", {report['unknown_revisions']} unknown-revision row(s)"
+    oldest = report["oldest"]
+    if oldest:
+        text += (f", oldest stamped row {oldest['commits_behind']} commits "
+                 f"behind HEAD (@{oldest['revision']})")
+    return text
