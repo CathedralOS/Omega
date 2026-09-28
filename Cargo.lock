@@ -44,6 +44,7 @@ dependencies = [
  "abstract-operations",
  "abstract-operations-to-abstract-operations",
  "access-plans",
+ "backend-plan",
  "calling-conventions",
  "checked-trees-to-lowered-psi",
  "diagnostics",

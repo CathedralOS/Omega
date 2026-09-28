@@ -7,8 +7,6 @@ use crate::terminal::terminal_artifact::verification::verify_terminal_artifact;
 use diagnostics::Diagnostic;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
-mod callback_registrars;
-
 pub(crate) fn project_terminal_native_realization_proposal(
     checked: &CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
@@ -172,7 +170,7 @@ pub(crate) fn project_callback_occurrences(
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
 ) -> Result<Vec<crate::report::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
-    let callback_source_calls = callback_registrars::CallbackSourceCalls::new(
+    let callback_source_calls = backend_plan::CallbackRegistrarOccurrences::new(
         callback_placements
             .iter()
             .map(|placement| (placement.site, placement.registration_operation)),
