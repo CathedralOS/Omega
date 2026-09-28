@@ -21,8 +21,7 @@ pub(super) struct ProbeCompilation {
 
 pub(super) fn compile(
     mut options: CompileOptions,
-
-    interpret: bool,
+    interpreter_input: Option<&[u8]>,
 ) -> Result<ProbeCompilation, Vec<Diagnostic>> {
     let build_dir = options.retain_build_dir();
     let target = crate::invocation_target_profile(options.target_name.as_deref())
@@ -41,7 +40,7 @@ pub(super) fn compile(
         let request = PreparedLocalProjectNativeRequest::new(prepared, build_dir, target)
             .with_accepted_trust_admissions(admissions);
         compile_prepared_local_project_for_native(request, |checked| {
-            interpret.then(|| interpret_checked(checked))
+            interpreter_input.map(|input| interpret_checked(checked, input))
         })
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?
     } else {
@@ -51,12 +50,12 @@ pub(super) fn compile(
                 .with_accepted_trust_admissions(admissions),
         )
         .and_then(compiler::CompileOutcomes::into_single_report)?;
-        let interpretation = interpret.then(|| {
+        let interpretation = interpreter_input.map(|input| {
             compiler::compile_to_checked(CheckedCompileRequest::new(
                 &options.root_path,
                 Some(target.target_name()),
             ))
-            .and_then(|checked| interpret_checked(&checked))
+            .and_then(|checked| interpret_checked(&checked, input))
         });
         (report, interpretation)
     };
@@ -68,6 +67,7 @@ pub(super) fn compile(
 
 fn interpret_checked(
     checked: &compiler::CheckedCompilation,
+    input: &[u8],
 ) -> Result<InterpretOutcome, Vec<Diagnostic>> {
     let entry = checked.selected_program_entry().ok_or_else(|| {
         vec![Diagnostic::error(
@@ -81,7 +81,7 @@ fn interpret_checked(
     Ok(checked_interpreter::interpret_entry(
         checked,
         BuildMachineEntry::Symbol(entry.source_signature().machine_symbol()),
-        &[],
+        input,
         InterpretOptions::default(),
     ))
 }

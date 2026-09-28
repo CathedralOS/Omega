@@ -29,6 +29,13 @@ including interpreter disagreement. An explicit target compiles without running
 the image. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
+Ordinary host runs inherit the caller's stdin without waiting for EOF upfront.
+Interpreter comparison (`--both`) instead reads stdin to EOF before compilation
+and supplies those same bytes to both engines. Use a finite pipe or redirected
+file for comparison; interactive input must be ended with EOF. Native replay uses
+temporary storage that is deleted even with `--keep`. Target-only invocations do
+not read stdin. Stdout/stderr remain captured until native execution ends.
+
 The library is synchronous and inherits the compiler's current stack requirements.
 The CLI provisions its existing compiler worker stack; embedded callers must
 provide equivalent stack capacity where needed. This is not a scheduler, command

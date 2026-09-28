@@ -3,17 +3,20 @@
 //! neither prints nor exits; callers decide how to present outcomes and exit status.
 
 mod compilation;
+mod standard_input;
 
 use crate::temporary_directory::TemporaryDirectory;
 use compiler::{CompileOptions, CompileReport, TrustAdmissionSettlement};
 use diagnostics::Diagnostic;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 pub struct RunRequest {
     pub root_path: PathBuf,
     /// An explicit target produces an image without executing it on the host.
     pub target_name: Option<String>,
+    /// Host comparison reads process stdin to EOF and replays the same bytes
+    /// to both engines. Without comparison, native execution inherits stdin.
     pub compare_interpreter: bool,
     pub keep_artifacts: bool,
 }
@@ -97,6 +100,7 @@ pub enum InterpreterComparison {
 #[derive(Debug)]
 pub enum RunError {
     TemporaryStorage(std::io::Error),
+    StandardInput(std::io::Error),
     Compilation(Vec<Diagnostic>),
     UnsettledAdmissions(TrustAdmissionSettlement),
     Publication(String),
@@ -111,6 +115,9 @@ impl std::fmt::Display for RunError {
         match self {
             Self::TemporaryStorage(error) => {
                 write!(formatter, "cannot create run output directory: {error}")
+            }
+            Self::StandardInput(error) => {
+                write!(formatter, "cannot prepare run standard input: {error}")
             }
             Self::Compilation(diagnostics) => {
                 write!(formatter, "native compile FAILED:")?;
@@ -138,6 +145,16 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
+    // Only comparison needs a finite snapshot. Ordinary execution inherits the
+    // caller's stream, and target-only compilation must never consume it.
+    let replay_input = if request.compare_interpreter && request.target_name.is_none() {
+        Some(
+            standard_input::ReplayInput::capture(std::io::stdin().lock())
+                .map_err(RunError::StandardInput)?,
+        )
+    } else {
+        None
+    };
     let compilation::ProbeCompilation {
         report,
         interpretation,
@@ -147,7 +164,9 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             build_dir: Some(build_dir.clone()),
             target_name: request.target_name.clone(),
         },
-        request.compare_interpreter && request.target_name.is_none(),
+        replay_input
+            .as_ref()
+            .map(standard_input::ReplayInput::bytes),
     )
     .map_err(RunError::Compilation)?;
     if !report.trust_admission_settlement().is_exactly_admitted() {
@@ -161,7 +180,14 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
         None => {
+            let standard_input = match &replay_input {
+                Some(input) => {
+                    Stdio::from(input.open_native_input().map_err(RunError::StandardInput)?)
+                }
+                None => Stdio::inherit(),
+            };
             let output = Command::new(&executable)
+                .stdin(standard_input)
                 .output()
                 .map_err(|error| RunError::Spawn { executable, error })?;
             let exit = ProcessExitObservation::observe(&output.status);
