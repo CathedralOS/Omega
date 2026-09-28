@@ -2944,36 +2944,28 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   proposition/chained controls. Route CANARY-CORPUS borrow-obligation failures here.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
-  [private callbacks](wiki/spec/build/private_callbacks.md). Reproduce and repair
-  `callback_terminal_custody::direct_callback_relocation_resolves_to_its_private_function`'s
-  reported `fragment import lacks selected call custody` failure. Restore the
-  evaluated `ProgramStorageEntry::enter` calling plan in
-  `a_package_local_calling_copy_rejects_beside_the_standard_library_entry` so
-  that negative reaches its intended check. Neither reported failure establishes
-  native artifact, final-address, or installation acceptance.
+  [private callbacks](wiki/spec/build/private_callbacks.md). Ordinary Psi
+  production and Omega's `callback_settlement` already validate requirement
+  selection and inbound interfaces. Extend native callback bodies, call/import
+  closures and signatures beyond `machine-emission/private_callback`'s single
+  emitted scalar-ABI function and image private-function replay's custody limits;
+  use ordinary lowering with ABI and call evidence, not body recognizers.
 
-  Remaining: multiple callbacks and layout-field destinations; authenticated
-  complete plan applications and independent authored-use-to-Terminal-operation
-  correspondence; ordinary callback bodies and inbound signatures through
-  proposal validation, native lowering and image replay. Psi's
-  `machine_lowering/bounded_callbacks.rs` already delegates ordinary machine
-  lowering. The remaining exact single-`u64` identity/Unit recognizer is in
-  `omega-rust/omega/compiler/src/terminal/native_proposal/mod.rs`;
-  native thunk/image consumers also reject call-bearing bodies. Replace those
-  shape restrictions with requirement, ABI and call-custody checking, not more
-  admitted body families. Close hosted private-stack callback occupancy and
-  ordinary-product admission restrictions only with their missing custody.
+  Remaining: authenticate complete plan applications and independently replay
+  authored-use-to-Terminal-operation correspondence; preserve callback custody
+  through optimization; verify ordinary product publication and hosted
+  private-stack integration. Owners: Omega's callback settlement, native
+  `callback_thunks`, machine emission, selected-call ABI transport and image replay.
 
-  Owners: native proposal construction, `native-realization`'s
-  `retained_native_product` and `callback_thunks`, selected-call ABI transport,
-  and image private-function/relocation replay. See
-  [receiving custody limits](omega-rust/omega/compiler/README.md#callback-custody-boundaries).
-  Acceptance: the direct witness and
-  `source/library/std/tests/callback_materialization_closure.omg` two-slot
-  registrar produce native images binding exact function, symbol, relocation,
-  executable region and destination through object/final replay. Missing,
-  duplicate, reordered, substituted, overlapping or incompatible materializations
-  reject. Private slots remain inaccessible to source. Registration outcome
+  Preserve `callback_terminal_custody`'s direct relocation and two-slot registrar
+  witnesses: both now construct Windows x64 images, check final addresses and
+  replay installation records. The two-slot harness supplies import/stack
+  evidence; neither executes callbacks. Extend acceptance to general bodies and
+  inbound signatures, binding exact function, symbol, relocation, executable
+  region and direct/private-field destination through object/final/installation
+  replay. Missing, duplicate, reordered, substituted, overlapping or incompatible
+  materializations reject. Private slots remain inaccessible to source; preserve
+  the package-local calling-vocabulary duplicate rejection. Registration outcome
   and lifetime belong to REGISTERED-CALLBACK-LIFETIME.
 
 - **REGISTERED-CALLBACK-LIFETIME.** Complete an authored registrar lifecycle
