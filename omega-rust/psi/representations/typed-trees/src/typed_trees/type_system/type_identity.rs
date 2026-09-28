@@ -271,11 +271,18 @@ impl TypedTrees {
         // Module ownership lives on the exact symbol, not the authored
         // machine spelling. Module-free and source-free semantic fixtures
         // retain their existing declaration path.
-        let module_path = self
-            .symbols
-            .symbol_module(machine.symbol)
-            .is_valid()
-            .then(|| self.symbols.display_path(machine.symbol, "::"));
+        let module = self.symbols.symbol_module(machine.symbol);
+        // A target sibling's symbol spelling carries its target suffix to
+        // keep physical slots distinct. That suffix is not part of the
+        // authored overload: every body in the family has the same path,
+        // including when the declaration belongs to a module.
+        let module_path = module.is_valid().then(|| {
+            format!(
+                "{}::{}",
+                self.symbols.display_path(module, "::"),
+                machine.name
+            )
+        });
         Some(self.normalized_named_callable_identity(
             module_path.as_deref().unwrap_or(machine.name.as_str()),
             machine.symbol,

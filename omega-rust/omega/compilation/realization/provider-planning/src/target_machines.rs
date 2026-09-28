@@ -985,8 +985,19 @@ mod tests {
     /// keeps no row.
     #[test]
     fn family_roster_keys_every_body_and_the_swap_consumes_it() {
+        assert_family_roster_and_swap("");
+    }
+
+    #[test]
+    fn module_owned_family_shares_its_signature_across_target_bodies() {
+        assert_family_roster_and_swap("module arithmetic;\n");
+    }
+
+    fn assert_family_roster_and_swap(module: &str) {
         // Resolution retains product scope from the source map.
-        let text = "demo_target machine inert_helper() -> u64 { 3u64 }\nlinux_x86_64 machine family_value() -> u64 { 1u64 }\nwindows_x86_64 machine family_value() -> u64 { 2u64 }\n";
+        let text = format!(
+            "{module}demo_target machine inert_helper() -> u64 {{ 3u64 }}\nlinux_x86_64 machine family_value() -> u64 {{ 1u64 }}\nwindows_x86_64 machine family_value() -> u64 {{ 2u64 }}\n"
+        );
         let mut sources = source::SourceMap::default();
         let source_id = sources
             .add(
@@ -994,7 +1005,7 @@ mod tests {
                 text.to_owned(),
             )
             .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(text)
+        let tokens = source_files_to_tokens::Lexer::new(&text)
             .tokenize()
             .expect("tokenize target-machine fixture");
         let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)

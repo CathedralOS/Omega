@@ -13,10 +13,8 @@ use symbols::{SymbolHandle, SymbolKind, SymbolTable};
 
 struct Sibling {
     machine: SymbolHandle,
+    family: SymbolHandle,
     target: String,
-    /// The authored path, shared with the selected declaration of the same
-    /// family.
-    path: String,
     owner: Option<String>,
 }
 
@@ -29,10 +27,11 @@ pub(crate) fn bind_sibling_calls(program: &mut SymbolResolvedTrees) {
 }
 
 fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTable) {
-    let machine_paths = program
+    let machine_families = program
         .machines
         .iter()
-        .map(|machine| (machine.symbol, machine.name.as_str().to_owned()))
+        .filter(|machine| machine.target_family.is_valid())
+        .map(|machine| (machine.symbol, machine.target_family))
         .collect::<Vec<_>>();
     let siblings = program
         .machines
@@ -41,8 +40,8 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
             let target = machine.target.as_ref()?;
             Some(Sibling {
                 machine: machine.symbol,
+                family: machine.target_family,
                 target: target.as_str().to_owned(),
-                path: machine.name.as_str().to_owned(),
                 owner: machine
                     .attached_data
                     .as_ref()
@@ -57,8 +56,9 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
             .collect::<Vec<_>>();
         let mut decide = |site: &CallSite<'_>| -> Option<SymbolHandle> {
             if site.target_symbol.is_valid() {
-                // Resolved to the selected target's declaration: prefer this
-                // target's own body of the same path when it has one.
+                // Ordinary resolution owns which declaration this call
+                // names. Only a member of that exact target family may
+                // replace it; a same-spelled helper elsewhere is unrelated.
                 let state = symbols.get(site.target_symbol);
                 if state.kind != SymbolKind::State {
                     return None;
@@ -70,11 +70,12 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
                 {
                     return None;
                 }
-                let (_, callee_path) =
-                    machine_paths.iter().find(|(symbol, _)| *symbol == callee)?;
+                let (_, family) = machine_families
+                    .iter()
+                    .find(|(symbol, _)| *symbol == callee)?;
                 let replacement = same_target
                     .iter()
-                    .find(|candidate| candidate.path == *callee_path)?;
+                    .find(|candidate| candidate.family == *family)?;
                 let state = child_symbol_by_kinds(
                     symbols,
                     replacement.machine,
@@ -83,28 +84,36 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
                 );
                 return state.is_valid().then_some(state);
             }
-            // Unresolved: only this target declares the callee.
+            // Unresolved: only this target declares the callee. Resolve its
+            // sibling spelling through the ordinary source namespace and
+            // imports, not a global first-match search over declarations.
             let spelled = site.target.as_str();
             let leaf = spelled.rsplit_once("::").map_or(spelled, |(_, leaf)| leaf);
-            let candidate = same_target
+            let lookup = |path: &str| {
+                symbols.find_top_level_by_name_and_kinds_from_source(
+                    &format!("{path}::{}", sibling.target),
+                    &[SymbolKind::Machine],
+                    site.target.source_span(),
+                )
+            };
+            let candidate = lookup(spelled).or_else(|| {
+                if !site.local_receiver {
+                    return None;
+                }
+                let owner = sibling.owner.as_deref()?;
+                lookup(&format!("{owner}::{leaf}"))
+            })?;
+            if !same_target
                 .iter()
-                .find(|candidate| candidate.path == spelled)
-                .or_else(|| {
-                    if !site.local_receiver {
-                        return None;
-                    }
-                    let owner = sibling.owner.as_deref()?;
-                    same_target.iter().find(|candidate| {
-                        candidate.owner.as_deref() == Some(owner)
-                            && candidate.path == format!("{owner}::{leaf}")
-                    })
-                })?;
-            let named =
-                child_symbol_by_kinds(symbols, candidate.machine, &[SymbolKind::State], leaf);
+                .any(|sibling| sibling.machine == candidate)
+            {
+                return None;
+            }
+            let named = child_symbol_by_kinds(symbols, candidate, &[SymbolKind::State], leaf);
             let state = if named.is_valid() {
                 named
             } else {
-                child_symbol_by_kinds(symbols, candidate.machine, &[SymbolKind::State], "entry")
+                child_symbol_by_kinds(symbols, candidate, &[SymbolKind::State], "entry")
             };
             state.is_valid().then_some(state)
         };
