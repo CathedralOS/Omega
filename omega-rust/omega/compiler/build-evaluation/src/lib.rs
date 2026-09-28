@@ -89,7 +89,6 @@ pub use admission::selection::{
 };
 pub use admission::target_machines;
 pub use admission::vocabulary::is_build_machine;
-pub use admission::wire_protocol::validate_wire_protocol;
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
     BuildSnapshotCapture, BuildSnapshotRequest, ComputedBuildConfig, RestrictedBuildBounds,

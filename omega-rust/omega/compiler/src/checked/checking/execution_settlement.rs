@@ -121,7 +121,10 @@ pub(crate) fn check_selected_execution(
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
-    build_evaluation::validate_wire_protocol(&typed, &build_config.wire_compatibility_demands)?;
+    build_time_evaluation::wire_compatibility::validate_wire_protocol(
+        &typed,
+        &build_config.wire_compatibility_demands,
+    )?;
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
