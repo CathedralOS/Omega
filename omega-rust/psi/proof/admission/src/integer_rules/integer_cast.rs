@@ -7,7 +7,8 @@
 pub use terminal_psi::IntegerCastChainWitness;
 
 use semantic_vocabulary::{
-    IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext, ScalarTerm, ScalarType,
+    IntegerMathTerm, IntegerSign, IntegerType, IntegerValue, Proposition, PropositionContext,
+    ScalarTerm, ScalarType,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -225,6 +226,48 @@ pub fn check_integer_cast_bound_conversion(
     root_bound: &Proposition,
     conclusion: &Proposition,
 ) -> Result<(), IntegerCastBoundConversionError> {
+    // Exact conversion preserves the mathematical value even when the other
+    // endpoint is a live value of a different carrier. Keep that endpoint and
+    // strictness byte-for-byte; only the checked chain's root may change.
+    // Literal retyping remains the separate, existing route below.
+    fn order(proposition: &Proposition) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
+        match proposition {
+            Proposition::IntegerMathLessThan(left, right) => Some((true, left, right)),
+            Proposition::IntegerMathLessOrEqual(left, right) => Some((false, left, right)),
+            _ => None,
+        }
+    }
+    fn embedded_value(term: &ScalarTerm) -> Option<IntegerMathTerm> {
+        let ScalarTerm::Value {
+            id,
+            scalar_type: ScalarType::Integer(source_type),
+        } = term
+        else {
+            return None;
+        };
+        Some(IntegerMathTerm::MathValue {
+            source_type: *source_type,
+            value: *id,
+        })
+    }
+    let mathematical_root =
+        crate::lift_fixed_integer_relation(root_bound).unwrap_or_else(|| root_bound.clone());
+    let mathematical_conclusion =
+        crate::lift_fixed_integer_relation(conclusion).unwrap_or_else(|| conclusion.clone());
+    if let (
+        Some((root_strict, root_left, root_right)),
+        Some((target_strict, target_left, target_right)),
+    ) = (order(&mathematical_root), order(&mathematical_conclusion))
+        && root_strict == target_strict
+        && ((Some(root_left) == embedded_value(chain.root()).as_ref()
+            && Some(target_left) == embedded_value(chain.target()).as_ref()
+            && root_right == target_right)
+            || (Some(root_right) == embedded_value(chain.root()).as_ref()
+                && Some(target_right) == embedded_value(chain.target()).as_ref()
+                && root_left == target_left))
+    {
+        return Ok(());
+    }
     let Proposition::LessOrEqual(root_left, root_right) = root_bound else {
         return Err(IntegerCastBoundConversionError::RootBoundNotLessOrEqual);
     };

@@ -78,7 +78,16 @@ arrival contracts, and integer bound search uses cited endpoint equalities such
 as `y <= max_y` with `max_y == 2`. Every arrival still proves the strengthened
 predicate; failed inference cannot remove an authored requirement. Proof
 admission and independent Terminal verification are unchanged.
-`substring_search` and execution on the other hosts remain open.
+
+`substring_search` now runs unchanged on macOS ARM64, with native and interpreted
+exit **4**: `omega run --both samples/cli/text/substring_search/main.omg < /dev/null`.
+Its mixed-width branch guards survive repeated field and length observations,
+then cross the byte index's widening through the checked cast-bound rule. Replay
+retains the exact live opposite endpoint and strictness and derives the transport
+from cast identities and order substitution, without a per-instance rule axiom.
+The `Utf8` qualifications, Wrapping policies, and search algorithm are unchanged.
+Execution on the other hosts remains open; these repairs do not refresh the
+historical whole-corpus counts above.
 
 ### The whole corpus reconciles
 

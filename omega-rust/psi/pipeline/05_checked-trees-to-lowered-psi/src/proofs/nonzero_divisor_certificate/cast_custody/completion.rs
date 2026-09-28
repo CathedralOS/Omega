@@ -13,8 +13,9 @@ pub(in super::super) fn prove_from_root(
     root: &ScalarTerm,
     root_bound: ProofNode,
 ) -> Option<ProofNode> {
-    let Proposition::LessOrEqual(goal_left, goal_right) = goal else {
-        return None;
+    let (goal_left, goal_right) = match goal {
+        Proposition::LessThan(left, right) | Proposition::LessOrEqual(left, right) => (left, right),
+        _ => return None,
     };
     for target in [goal_left, goal_right]
         .into_iter()

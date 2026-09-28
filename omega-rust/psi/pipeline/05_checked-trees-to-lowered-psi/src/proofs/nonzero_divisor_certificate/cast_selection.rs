@@ -9,6 +9,7 @@ mod affine;
 mod alias;
 mod direct;
 mod literal;
+pub(super) mod relational;
 
 pub(super) fn prove(
     context: &PropositionContext,
@@ -20,6 +21,9 @@ pub(super) fn prove(
         return None;
     }
     if let Some(proof) = direct::prove(context, goal, assumptions, semantic_axioms) {
+        return Some(proof);
+    }
+    if let Some(proof) = relational::prove(context, goal, assumptions, semantic_axioms) {
         return Some(proof);
     }
     if let Some(proof) = prove_from_truth(context, goal, assumptions, semantic_axioms) {

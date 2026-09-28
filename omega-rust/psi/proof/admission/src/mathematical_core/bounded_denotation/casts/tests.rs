@@ -221,3 +221,95 @@ fn truth_root_cast_bound_uses_the_tightest_carrier_membership() {
         assert_eq!(cast_identities, 1);
     }
 }
+
+#[test]
+fn live_cast_endpoint_preserves_strictness_and_derives_without_rule_axioms() {
+    let narrow = integer(IntegerSign::Unsigned, 32);
+    let wide = integer(IntegerSign::Unsigned, 64);
+    let root = value(1, narrow);
+    let target = value(2, wide);
+    let other = value(3, wide);
+    let context = context_for(&[(1, narrow), (2, wide), (3, wide), (4, wide)]);
+    let axioms = [Proposition::Equal(
+        target.clone(),
+        ScalarTerm::integer_widen(narrow, wide, root.clone()).unwrap(),
+    )];
+    for strict in [false, true] {
+        for root_is_left in [false, true] {
+            let relation = |moving: ScalarTerm, fixed: ScalarTerm, strict| {
+                let (left, right) = if root_is_left {
+                    (moving, fixed)
+                } else {
+                    (fixed, moving)
+                };
+                if strict {
+                    Proposition::LessThan(left, right)
+                } else {
+                    Proposition::LessOrEqual(left, right)
+                }
+            };
+            let assumption =
+                crate::lift_fixed_integer_relation(&relation(root.clone(), other.clone(), strict))
+                    .unwrap();
+            let goal = relation(target.clone(), other.clone(), strict);
+            let proof = ProofNode {
+                conclusion: goal.clone(),
+                rule: ProofRule::IntegerCastBound {
+                    root_bound: Box::new(ProofNode {
+                        conclusion: assumption.clone(),
+                        rule: ProofRule::Assumption { index: 0 },
+                    }),
+                    witness: IntegerCastChainWitness {
+                        root: root.clone(),
+                        target: target.clone(),
+                        definition_axioms: vec![0],
+                    },
+                },
+            };
+            let assumptions = [assumption];
+            verify_bounded_certificate(
+                &context,
+                &goal,
+                &assumptions,
+                &axioms,
+                &proof,
+                &mut Budget::default(),
+            )
+            .unwrap();
+            assert_eq!(
+                denotation_counts(&context, &goal, &assumptions, &axioms, &proof),
+                (0, 1)
+            );
+            for changed in [
+                relation(target.clone(), value(4, wide), strict),
+                relation(target.clone(), other.clone(), !strict),
+                relation(other.clone(), target.clone(), strict),
+            ] {
+                let mut tampered = proof.clone();
+                tampered.conclusion = changed.clone();
+                assert!(
+                    verify_bounded_certificate(
+                        &context,
+                        &changed,
+                        &assumptions,
+                        &axioms,
+                        &tampered,
+                        &mut Budget::default()
+                    )
+                    .is_err()
+                );
+            }
+            assert!(
+                verify_bounded_certificate(
+                    &context,
+                    &goal,
+                    &assumptions,
+                    &[],
+                    &proof,
+                    &mut Budget::default()
+                )
+                .is_err()
+            );
+        }
+    }
+}

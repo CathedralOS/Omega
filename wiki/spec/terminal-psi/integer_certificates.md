@@ -151,6 +151,13 @@ carrier, with every definition recorded in premise closure. A `Truth` child is
 allowed only for an exact endpoint of the independently checked carrier
 intersection. Wrong orientation, target, or mapped endpoint rejects.
 
+A strict or inclusive mathematical comparison may also retain a live opposite
+endpoint while the checked word replaces the root with its target. Strictness,
+endpoint side, and the entire opposite term stay unchanged. Mixed source
+carriers retain their mathematical comparison; transport does not introduce a
+common carrier or justify a partial cast's formation. Replay derives this step
+from cast identities and order substitution without a per-instance rule axiom.
+
 ### Correlated forbidden roots
 
 `IntegerCorrelatedForbiddenRoots` handles exact signed division/remainder with

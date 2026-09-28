@@ -389,7 +389,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/proof/admission/src/integer_rules/integer_cast.rs",
-        sha256: Some("51296b4fe47fd7d7832036460e6881fd3f65325ac98626090dfee689bac41a99"),
+        sha256: Some("329963a52c6c88531efd15308fe5db674281190e4109aef95c0e9a349f474b4e"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -444,7 +444,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/proof/admission/src/mathematical_core/bounded_denotation/casts.rs",
-        sha256: Some("3369b23d9c23278f0e4ae15e7f677deeeff106d6c96d28f02db7e9d73ade4031"),
+        sha256: Some("b9bd71ca951481c19648ac075e2543c7bb5192b017743a4fd19bb5425a7c953c"),
         inventory_machinery: false,
     },
     ImplementationSite {
