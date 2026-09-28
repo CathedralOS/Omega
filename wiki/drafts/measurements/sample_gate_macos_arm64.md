@@ -174,3 +174,35 @@ already built the run costs about fifteen minutes.
 Reclaim disk BEFORE starting it. The run compiles 148 projects in parallel;
 begun at 16 GiB free it exhausted the volume and stopped the shell. See
 `tools/testing.md` and prune `target/debug/incremental` while the tree is idle.
+
+## The long checks have moved, 2026-09-28 at `1bfa4c6351c`
+
+SAMPLE-CORPUS asks to "reproduce the reported long checks for
+`gui/windowed_calculator` and `cli/simulation/game_of_life_glider` on a
+current binary and locate the cost". Reproduced: **they are no longer the long
+checks.** One `omega --check` each, sequential, nothing else running:
+
+| sample | `--check` | against baseline |
+| --- | --- | --- |
+| `collections/matrix_multiply` | **2232.3s** (37 min) | 31x |
+| `systems/descriptor_walk` | **805.1s** (13.4 min) | 11x |
+| `simulation/game_of_life_glider` | 91.7s | 1.3x |
+| `gui/windowed_calculator` | 75.6s | 1.1x |
+| `basics/cli_mvp` (trivial control) | 71.0s | baseline |
+
+The two the board names sit within 30% of a sample that sums a few integers
+and exits, so on a current binary they carry no measurable extra cost. The two
+that do are `matrix_multiply` and `descriptor_walk`, and neither appears in
+that line.
+
+Both slow samples were discovered as **timeouts**, not as slow runs:
+`tools/sample_native_gate.py` at a 300s budget reported them as
+`review-timeout`, which is how a 37-minute check presents itself to any gate
+with a per-call budget. A gate that reports a timeout is not reporting a
+compiler refusal, and the two must not be pooled.
+
+**The 71s baseline is the other half of the story.** A trivial sample costs
+over a minute, so most of every sample check here is fixed cost, not program
+cost, and the corpus-wide gate is dominated by it. Locate the cost in
+`matrix_multiply` against that floor: the interesting quantity is the 2161s
+above baseline, not the 2232s total.
