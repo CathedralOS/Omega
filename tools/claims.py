@@ -137,6 +137,17 @@ def paths_overlap(first, second):
                for a in path_atoms(first) for b in path_atoms(second))
 
 
+def is_directory_fence(repository, path):
+    """A claimed path that fences a whole directory: an existing directory,
+    or — when nothing exists there — a name carrying no extension."""
+    target = Path(repository) / path
+    if target.is_dir():
+        return True
+    if target.exists():
+        return False
+    return "." not in PurePosixPath(path).name
+
+
 def board_items(repository, board):
     path = Path(repository) / board
     if not path.is_file():
@@ -539,8 +550,22 @@ class Claims:
         record = snapshot["record"]
         live, expired = live_claims(record), expired_claims(record)
         if options.command == "status":
+            off_board_fences = []
+            for claim in live:
+                if claim["board"] is not None:
+                    continue
+                fences = [atom.as_posix() for field in claim["paths"]
+                          for atom in path_atoms(field)
+                          if is_directory_fence(self.repository,
+                                                atom.as_posix())]
+                if fences:
+                    off_board_fences.append(
+                        {"ticket": claim["ticket"], "item": claim["item"],
+                         "owner": claim["owner"], "paths": fences,
+                         "expires_utc": claim["expires_utc"]})
             emit({"state": "claimed" if live else "available", "claims": live,
-                  "expired": expired, "notes_pending": len(pending_notes(record)),
+                  "expired": expired, "off_board_fences": off_board_fences,
+                  "notes_pending": len(pending_notes(record)),
                   "version": snapshot["version"]})
             return 0
         if options.command == "notes":
@@ -619,6 +644,17 @@ def main(argv=None):
                                                                  options.board):
                 raise ClaimsError(f"Item {options.item} not found in {options.board} "
                                   "(no **<item>.** marker).")
+            # A directory fence blocks everything under it, so it must be
+            # schedulable on a board: --board is required and its existing
+            # validation pins the item to a real marker. --allow-overlap
+            # does not bypass this; file-only claims may stay off-board.
+            for path in options.paths:
+                if not options.board and is_directory_fence(options.repository,
+                                                            path):
+                    raise ClaimsError(
+                        f"Directory fence {path} needs a board item: pass "
+                        "--board <board> --item <ITEM> for an item with a "
+                        "**<ITEM>.** marker, or claim specific files.")
         if options.command == "recover" and not options.reason.strip():
             raise ClaimsError("Recovery requires --reason after checking with the owner.")
         if options.command == "note":

@@ -25,7 +25,9 @@ python tools/claims.py available --board TASKS.md
 ```
 
 `status` lists live claims and recently expired ones (kept for visibility until
-the next writer reaps them). `available` lists a board's items that no live
+the next writer reaps them), plus `off_board_fences`: live claims with no board
+that hold directory fences, so invisible blocking work surfaces instead of
+sitting outside the boards. `available` lists a board's items that no live
 claim holds — the supported boards are `TASKS.md`, `TASKS_BOOTSTRAP.md`, and
 `TASKS_OPTIMIZER.md`.
 
@@ -41,6 +43,13 @@ marker; omit it for work not on a board. `--path` repeats, and each value may
 also be a comma-joined list (`--path a/b,c/d`); empty segments are rejected.
 Paths are normalized to repository-relative form (Windows-style separators
 accepted). The default lease is 8 hours; `--lease-minutes` accepts 15..1440.
+
+A claimed path that is a directory — or that does not exist and has no file
+extension — is a directory fence: it blocks every path under it for every
+other claimant. Directory fences therefore require `--board` with an item
+that exists on it, so the blocking work is schedulable against an
+acceptance instead of invisible to `available` and the boards. Off-board
+file claims stay allowed; `--allow-overlap` does not bypass the rule.
 
 Exit 2 means a live conflicting claim exists; the JSON lists the owner, item,
 and either the shared item or the overlapping paths. Stop and coordinate —

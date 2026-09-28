@@ -172,6 +172,7 @@ class ClaimsTests(unittest.TestCase):
         entry = self.run_claims(self.b, "status")["claims"][0]
         self.assertEqual(entry["paths"], ["src/x", "src/y", "src/z"])
         conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM",
+                                   "--board", "TASKS.md",
                                    "--owner", "B", "--path", "src/y/deep",
                                    expected=2)
         self.assertEqual(conflict["conflicts"][0]["reason"], "overlapping paths")
@@ -190,6 +191,7 @@ class ClaimsTests(unittest.TestCase):
         record["claims"][0]["paths"] = ["src/x,src/y"]
         self.rewrite_record(record)
         conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM",
+                                   "--board", "TASKS.md",
                                    "--owner", "B", "--path", "src/y/deep",
                                    expected=2)
         self.assertEqual(conflict["state"], "conflict")
@@ -197,14 +199,59 @@ class ClaimsTests(unittest.TestCase):
 
     def test_path_overlap_blocks_and_allow_overlap_records_exception(self):
         self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/x")
-        conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM", "--owner", "B",
+        conflict = self.run_claims(self.b, "claim", "--item", "BETA-ITEM", "--board",
+                                   "TASKS.md", "--owner", "B",
                                    "--path", "src/x/y", expected=2)
         self.assertEqual(conflict["conflicts"][0]["reason"], "overlapping paths")
         self.assertEqual(conflict["conflicts"][0]["shared_paths"], ["src/x/y"])
         self.claim(self.b, "BETA-ITEM", "B", "--path", "src/z")
-        allowed = self.run_claims(self.b, "claim", "--item", "GAMMA-ITEM", "--owner", "B",
+        allowed = self.run_claims(self.b, "claim", "--item", "GAMMA-ITEM", "--board",
+                                  "TASKS.md", "--owner", "B",
                                   "--path", "src/x/deep", "--allow-overlap")
         self.assertEqual(allowed["overlaps"][0]["item"], "ALPHA-ITEM")
+
+    def test_directory_fence_requires_board_item(self):
+        (self.a / "src" / "dir").mkdir(parents=True)
+        for path in ("src/dir", "src/not-yet-created"):
+            with self.subTest(path=path):
+                error = self.run_claims(self.a, "claim", "--item", "OFF-BOARD",
+                                        "--owner", "A", "--path", path,
+                                        expected=1)
+                self.assertIn(f"Directory fence {path} needs a board item",
+                              error)
+        # --allow-overlap does not bypass the rule.
+        error = self.run_claims(self.a, "claim", "--item", "OFF-BOARD",
+                                "--owner", "A", "--path", "src/dir",
+                                "--allow-overlap", expected=1)
+        self.assertIn("needs a board item", error)
+        # A directory fence is fine once it is schedulable on a board.
+        claimed = self.run_claims(self.a, "claim", "--item", "ALPHA-ITEM",
+                                  "--board", "TASKS.md", "--owner", "A",
+                                  "--path", "src/dir")
+        self.assertEqual(claimed["state"], "claimed")
+        self.assertEqual(self.run_claims(self.a, "status")
+                         ["off_board_fences"], [])
+
+    def test_file_claim_stays_off_board(self):
+        (self.a / "notes.txt").write_text("x\n", encoding="utf-8")
+        for path in ("notes.txt", "src/new_file.rs"):
+            with self.subTest(path=path):
+                claimed = self.run_claims(self.a, "claim", "--item",
+                                          f"OFF-BOARD-{path}", "--owner", "A",
+                                          "--path", path)
+                self.assertEqual(claimed["state"], "claimed")
+
+    def test_status_reports_off_board_directory_fences(self):
+        claimed = self.claim(self.a, "ALPHA-ITEM", "A", "--path", "src/dir")
+        record = self.remote_record()
+        record["claims"][0]["board"] = None
+        record["claims"][0]["paths"] = ["src/dir", "src/pinned.rs"]
+        self.rewrite_record(record)
+        status = self.run_claims(self.b, "status")
+        self.assertEqual(status["off_board_fences"],
+                         [{"ticket": claimed["ticket"], "item": "ALPHA-ITEM",
+                           "owner": "A", "paths": ["src/dir"],
+                           "expires_utc": status["claims"][0]["expires_utc"]}])
 
     def test_idempotent_retry_and_ticket_ownership(self):
         claimed = self.claim(self.a, owner="A")
