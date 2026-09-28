@@ -2689,34 +2689,34 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
      but rejects the assumption-bearing quotient theorem. Rat's comments do
      not prove that separation.
 
-- **PROOF-CERTIFICATION-BRIDGE.** Check functional guarantees against generated
-  loops, independently of termination, under the
-  [publication contract](wiki/spec/proofs/publication.md). Owners:
-  `04_typed-trees-to-checked-trees/src/checks/contracts/exits/cyclic_headers.rs`,
-  `05_checked-trees-to-lowered-psi/src/proofs/scalar_block_invariants/cyclic_guarantees.rs`,
-  and their independent Terminal verifier.
+- **PROOF-CERTIFICATION-BRIDGE.** Retain checked source invariant derivations
+  for lowering and independent Terminal verification under the
+  [publication contract](wiki/spec/proofs/publication.md). Stage 04's
+  `checks/contracts/exits/cyclic_headers.rs` caches only admitted exits;
+  stage 05's `proofs/scalar_block_invariants/cyclic_guarantees.rs` searches again.
 
-  Reuse `ClosedIntegerRelation`'s exact compound normalization in
-  `omega-rust/psi/proof/admission/src/integer_rules/open_terms.rs` and the free-loop native
-  positive/wrong-update controls. `proof_inductive_gauss_sum` and
-  `proof_inductive_climbing_sum` still need STATE-LOCAL-VALUE-FRONTIER's
-  value-returning cyclic execution beyond their checked-only routes.
+  Reuse the native `runtime_ranked_accumulator_guarantee_exit` control and
+  source checking for a named cyclic state with carried integer parameters.
+  Complete multi-state induction beyond that single-header restriction and
+  storage-changing `self` transitions. Preserve establishment, every arrival's
+  simultaneous substitution, and exact source/Terminal scope.
 
-  Carry the source derivation as checked facts that lowering certifies and the
-  receiver checks, instead of independently searching for the same invariant
-  in both stages. Extend this route to multi-state carried values and
-  storage-changing self transitions. PROOF-KERNEL-CORE owns the open-term
-  arithmetic derivation; share licensed normalization with
-  PCC-CANONICAL-SEMANTIC-LEDGER. Do not invent an arithmetic axiom for each loop,
-  discard exact overflow obligations, or infer residue order/disequality from
-  the existing Wrapping equality support.
+  `proof_inductive_gauss_sum` and `proof_inductive_climbing_sum` have no build
+  entry or runtime oracle. Add native coverage of their authored receivers and
+  results; coordinate demonstrated execution gaps with STATE-LOCAL-VALUE-FRONTIER.
 
-  Acceptance: an arithmetic accumulation fixture or faithful free-loop
-  restatement runs natively; the wrong-update twin fails preservation while
-  its unchanged cycle certificate still answers the same termination question.
-  Missing arrival evidence and an unestablished guarantee reject. Retain
-  `terminal-verifier/tests/ranked_scc/`, `ranked_value_guarantees`,
-  `compiler/tests/pcc_publication.rs`.
+  Reuse `ClosedIntegerRelation` normalization in
+  `proof/admission/src/integer_rules/open_terms.rs`; PROOF-KERNEL-CORE and
+  PCC-CANONICAL-SEMANTIC-LEDGER own its licensed derivation. Preserve exact
+  overflow obligations and Wrapping's equality-only reasoning, without per-loop
+  axioms or inferred residue order/disequality.
+
+  Acceptance: source guarantees and arrival evidence survive serialization and
+  native execution. A wrong update must fail preservation while the unchanged
+  cycle certificate still answers the same termination question; missing arrival
+  evidence and unestablished guarantees reject. Retain the native/wrong-step
+  corpus pair, `ranked_value_guarantees` and
+  `terminal-verifier/tests/ranked_scc/scalar_block_invariants.rs` controls.
 
 - **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted fusion of artifact
   traversal and proof search with a total canonical-ledger generator and an
