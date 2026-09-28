@@ -465,3 +465,33 @@ machine build(builder: &mut Build) {{
     }
     assert_eq!(previous.len(), 2);
 }
+
+#[test]
+fn published_executable_reports_its_optimizer_rollback_receipt() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping optimizer rollback receipt: unsupported host");
+        return;
+    };
+    let project = Project::new(false);
+    project.accept_build(host.target_name());
+    let compiled = project.omega(&[
+        "--offline",
+        "--target",
+        host.target_name(),
+        "--disable-optimization",
+        "ControlFlowCleanup",
+        "main.omg",
+    ]);
+    let stdout = String::from_utf8_lossy(&compiled.stdout).into_owned();
+    success(compiled);
+    assert!(
+        stdout.contains(
+            "optimizer rollback: requested=[ControlFlowCleanup]; applied=[]; effective=["
+        ),
+        "{stdout}"
+    );
+    let compiled = project.omega(&["--offline", "--target", host.target_name(), "main.omg"]);
+    let stdout = String::from_utf8_lossy(&compiled.stdout).into_owned();
+    success(compiled);
+    assert!(!stdout.contains("optimizer rollback:"), "{stdout}");
+}

@@ -86,6 +86,9 @@ struct PublishedNativeProduct {
     /// Exact checked receipt for a macOS application package publication;
     /// flat publications retain `None`.
     package: Option<NativePackagePublicationReceipt>,
+    /// Exact subtractive release overlay applied after build selection and
+    /// before native realization. Ordinary requests retain `None`.
+    optimization_rollback: Option<OptimizationRollbackReceipt>,
     application: NativeApplicationMetadata,
 }
 
@@ -385,6 +388,7 @@ impl CompileReport {
         self.product = CompileProduct::NativeExecutable(PublishedNativeProduct {
             executable: receipt,
             package,
+            optimization_rollback: product.optimization_rollback,
             application: product.application,
         });
         self.wrote_output = true;
@@ -448,6 +452,7 @@ impl CompileReport {
                 Some(executable) => CompileProduct::NativeExecutable(PublishedNativeProduct {
                     executable,
                     package: None,
+                    optimization_rollback: None,
                     application: NativeApplicationMetadata::default(),
                 }),
                 None => {
@@ -576,6 +581,7 @@ impl CompileReport {
             CompileProduct::RetainedNativeArtifact(product) => {
                 product.optimization_rollback.as_ref()
             }
+            CompileProduct::NativeExecutable(product) => product.optimization_rollback.as_ref(),
             _ => None,
         }
     }
