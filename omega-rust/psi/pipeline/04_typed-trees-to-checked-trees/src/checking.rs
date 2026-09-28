@@ -38,6 +38,7 @@ pub struct CheckingRequest<'a> {
     asm_authority: Option<validation::AsmAuthorityAdmission>,
     opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
     declaration_authority: Option<&'a dyn validation::DeclarationSelectionAuthority>,
+    wire_compatibility_demands: &'a [language_semantics::wire::WireCompatibilityDemand],
 }
 
 impl<'a> CheckingRequest<'a> {
@@ -47,6 +48,7 @@ impl<'a> CheckingRequest<'a> {
             asm_authority: None,
             opaque_property_receipts: &[],
             declaration_authority: None,
+            wire_compatibility_demands: &[],
         }
     }
 
@@ -91,6 +93,17 @@ impl<'a> CheckingRequest<'a> {
         self
     }
 
+    /// Authored wire requirements for this invocation. Generated codecs are
+    /// checked even without demands; changing demands cannot reuse a previous
+    /// invocation's acceptance of the same typed source.
+    pub const fn with_wire_compatibility_demands(
+        mut self,
+        demands: &'a [language_semantics::wire::WireCompatibilityDemand],
+    ) -> Self {
+        self.wire_compatibility_demands = demands;
+        self
+    }
+
     /// Reconciled package authority for this invocation. Psi checks authored
     /// selections before returning the program; loading a declaration does not
     /// authorize its use. Standalone source has no package admission request.
@@ -111,6 +124,13 @@ pub fn lower_typed_trees(
     program: typed_trees::TypedTrees,
     request: &CheckingRequest<'_>,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
+    // Wire validity is part of this stage's contract, not an optional report
+    // pass in a product compiler. Demands are invocation-owned, so recheck them
+    // before any exact-input memo can return a prior language judgment.
+    crate::wire_compatibility::validate_wire_protocol(
+        &program,
+        request.wire_compatibility_demands,
+    )?;
     // Input completeness belongs to this stage, including when an otherwise
     // equal preliminary result could serve this request from the memo.
     if request.mode != CheckingMode::Preliminary {
@@ -154,6 +174,7 @@ fn lower_typed_trees_uncached(
         opaque_property_receipts,
         declaration_authority: _,
         asm_authority: _,
+        wire_compatibility_demands: _,
     } = *request;
     // Mathematical `let`/`boundary let` declarations elaborate into
     // `CheckedMathematicalDeclaration` records and then into a kernel

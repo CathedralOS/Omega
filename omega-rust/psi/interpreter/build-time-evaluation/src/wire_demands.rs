@@ -1,8 +1,8 @@
 //! Decode authored wire demands before directional compatibility checking.
 
-use super::WireCompatibilityDemand;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
+use language_semantics::wire::WireCompatibilityDemand;
 use typed_trees::TypedTrees;
 
 /// Collect the edge-specific wire facts requested by the one

@@ -2,17 +2,14 @@
 
 use super::migration::{MigrationRouteSearch, migration_route, retired_identity_reuse};
 use super::schemas::{SchemaRow, qualified_schema_path};
-use super::{
-    WireCompatibilityDemand, WireCompatibilityDemandReportEntry, WireCompatibilityFactReport,
-    WireFieldReportEntry, WireSchemaReportEntry,
-};
+use super::{WireCompatibilityDemand, WireDemandVerdict, WireFact, WireField, WireShape};
 use typed_trees::TypedTrees;
 
-pub(super) fn compatibility_demand_report(
+pub(super) fn compatibility_demand_verdict(
     typed: &TypedTrees,
     rows: &[SchemaRow],
     demand: &WireCompatibilityDemand,
-) -> WireCompatibilityDemandReportEntry {
+) -> WireDemandVerdict {
     let local = select_era_path(
         &demand.local_schema,
         rows.iter().map(|row| (row.qualified_path.as_str(), row)),
@@ -131,13 +128,10 @@ pub(super) fn compatibility_demand_report(
     .into_iter()
     .all(|fact| !fact.required || fact.satisfied);
 
-    WireCompatibilityDemandReportEntry {
+    WireDemandVerdict {
         edge: demand.edge.clone(),
-        lineage: demand.lineage.clone(),
         local_schema: demand.local_schema.clone(),
         peer_schema: demand.peer_schema.clone(),
-        codec,
-        unknown_member_behavior: "strict".to_owned(),
         readability,
         writability,
         unknown_preservation,
@@ -150,7 +144,7 @@ pub(super) fn compatibility_demand_report(
 /// Whether an authored `PreservingDecode<Policy, Value>` realization exists
 /// for the local schema's value type — the codec publishing preserving
 /// decode stops `PreserveUnknown` demands from being unsatisfiable. Returns
-/// the report detail naming the realizing machine.
+/// the diagnostic detail naming the realizing machine.
 fn published_preserving_decode(
     typed: &TypedTrees,
     value_symbol: symbols::SymbolHandle,
@@ -196,8 +190,8 @@ fn published_preserving_decode(
         .next()
 }
 
-fn fact(required: bool, satisfied: bool, detail: String) -> WireCompatibilityFactReport {
-    WireCompatibilityFactReport {
+fn fact(required: bool, satisfied: bool, detail: String) -> WireFact {
+    WireFact {
         required,
         satisfied,
         detail,
@@ -291,10 +285,7 @@ pub(super) fn name_leaf(name: &str) -> &str {
     name.rsplit("::").next().unwrap_or(name)
 }
 
-pub(super) fn schema_accepts(
-    reader: &WireSchemaReportEntry,
-    writer: &WireSchemaReportEntry,
-) -> bool {
+pub(super) fn schema_accepts(reader: &WireShape, writer: &WireShape) -> bool {
     if !reader.cases.is_empty() || !writer.cases.is_empty() {
         return writer.cases.iter().all(|writer_case| {
             reader.cases.iter().any(|reader_case| {
@@ -306,7 +297,7 @@ pub(super) fn schema_accepts(
     fields_equal(&reader.fields, &writer.fields)
 }
 
-pub(super) fn fields_equal(left: &[WireFieldReportEntry], right: &[WireFieldReportEntry]) -> bool {
+pub(super) fn fields_equal(left: &[WireField], right: &[WireField]) -> bool {
     let left_relevant = left
         .iter()
         .filter(|field| !field.relevance.is_erased())

@@ -11,7 +11,6 @@ use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
 use typed_trees::TypedTrees;
 
-mod declarations;
 mod demands;
 mod migration;
 mod observations;
@@ -19,30 +18,16 @@ mod schemas;
 #[cfg(test)]
 mod tests;
 
-pub use declarations::harvest_wire_compatibility_demands;
-pub use observations::*;
-use schemas::{build_wire_protocol_report, qualified_schema_path};
+use language_semantics::wire::WireCompatibilityDemand;
+use observations::{WireCase, WireDemandVerdict, WireFact, WireField, WireShape};
+use schemas::{check_wire_demands, qualified_schema_path};
 
-/// Directional facts requested for one channel/store edge and format lineage.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WireCompatibilityDemand {
-    pub edge: String,
-    pub lineage: String,
-    pub local_schema: String,
-    pub peer_schema: String,
-    pub require_readable: bool,
-    pub require_writable: bool,
-    pub require_unknown_preservation: bool,
-    pub require_canonical: bool,
-    pub require_complete_migration: bool,
-}
-
-/// Evaluate the requested facts and retain their observations on success.
+/// Reject codec divergences and unmet directional facts.
 /// Codec divergences and unmet demands retain their original diagnostic order.
-pub fn validate_wire_protocol(
+pub(crate) fn validate_wire_protocol(
     typed: &TypedTrees,
     compatibility_demands: &[WireCompatibilityDemand],
-) -> Result<WireProtocolReport, Vec<Diagnostic>> {
+) -> Result<(), Vec<Diagnostic>> {
     // Independent verification of every generated codec FIRST: a codec that
     // provably diverges from the public compact_binary requirement is a
     // compile-time diagnostic, not an admission.
@@ -56,14 +41,14 @@ pub fn validate_wire_protocol(
             )
         })
         .collect();
-    let report = build_wire_protocol_report(typed, compatibility_demands, &verifications);
+    let demands = check_wire_demands(typed, compatibility_demands);
     let refusal_diagnostics = verification_diagnostics(&verifications);
-    match (validate_wire_protocol_report(&report), refusal_diagnostics) {
-        (Ok(()), empty) if empty.is_empty() => Ok(report),
+    match (validate_wire_demands(&demands), refusal_diagnostics) {
+        (Ok(()), empty) if empty.is_empty() => Ok(()),
         (Ok(()), diagnostics) => Err(diagnostics),
-        (Err(mut report_diagnostics), mut verification_diagnostics) => {
-            report_diagnostics.append(&mut verification_diagnostics);
-            Err(report_diagnostics)
+        (Err(mut demand_diagnostics), mut verification_diagnostics) => {
+            demand_diagnostics.append(&mut verification_diagnostics);
+            Err(demand_diagnostics)
         }
     }
 }
@@ -87,9 +72,8 @@ fn verification_diagnostics(
         .collect()
 }
 
-fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<Diagnostic>> {
-    let diagnostics = report
-        .demands
+fn validate_wire_demands(demands: &[WireDemandVerdict]) -> Result<(), Vec<Diagnostic>> {
+    let diagnostics = demands
         .iter()
         .filter(|demand| !demand.satisfied)
         .map(|demand| {

@@ -5,6 +5,8 @@
 //! selections. Read that function to read this stage — the module order
 //! below is the order it runs them in.
 //!
+//! Wire codec and compatibility admission runs at the entrance for every
+//! request, including memo reuse; Build supplies demands, not their verdict.
 //! It prepares the typed program, validates it, builds the facts a checked
 //! machine publishes, analyses its flow and values, and plans its execution:
 //!
@@ -45,6 +47,7 @@ mod operators;
 mod proof;
 mod semantic;
 mod values;
+mod wire_compatibility;
 
 // Beside the route.
 mod conformance;

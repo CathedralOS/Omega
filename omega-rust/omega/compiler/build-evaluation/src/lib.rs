@@ -77,7 +77,7 @@ pub use build_evaluation::{
     BuildEvaluationRequest, EvaluatedBuild, RestrictedBuildGrants, evaluate_build,
 };
 pub use build_output::BuildStagedOutputEntryKind;
-pub use build_time_evaluation::wire_compatibility::WireCompatibilityDemand;
+pub use build_time_evaluation::WireCompatibilityDemand;
 pub use compilation_products::{BuildConfig, ComputedBuildConfig};
 pub use effects::AuthoredBehaviorExclusion;
 use execution::execute_admitted_build_program;
