@@ -168,7 +168,7 @@ fn unit_call_preservation_requires_the_selected_body_and_local_argument() {
 fn unit_call_preservation_admits_selected_scalar_arguments() {
     let authentic = checked(
         "machine observe(value: u8) {} \
-         machine wrapper(value: u8) -> u8 { observe(value + 1); value }",
+         machine wrapper(value: u8) -> u8 requires value < 255 { observe(value + 1); value }",
     );
     assert!(preserves_values(&authentic));
 

@@ -299,16 +299,16 @@ fn transitive_guard_dies_when_value_call_writes_guarded_place() {
                 transition { _ -> put() }
             }
 
-            state touch_i(&mut self) -> u64 {
-                self.i = 4;
-                0
-            }
-
             state put(&mut self) {
                 self.buf[self.i] = 7;
             }
 
             state done(&mut self) {}
+        }
+
+        machine Main::touch_i(&mut self) -> u64 {
+            self.i = 4;
+            0
         }
     "#;
 

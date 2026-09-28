@@ -298,7 +298,6 @@ fn integer_entry_comparisons_reject_unsupported_terms_and_bad_landings() {
         ("input: i32 in Trapping", "input / 0 > 0"),
         ("input: i32", "(input as i64) > 0"),
         ("input: u8", "input > 256"),
-        ("input: i32, other: u32", "input > other"),
         ("input: f64", "input > 0"),
         ("input: u8", "1u8 < 2u16"),
         ("input: u8", "1u8 < 256"),
@@ -312,6 +311,9 @@ fn integer_entry_comparisons_reject_unsupported_terms_and_bad_landings() {
         "machine value(input: i32) -> bool requires input > cost() { true } machine cost() -> i32 { 1 }",
     );
     assert!(read(&program).is_none());
+    // Mixed-sign comparisons compare mathematical values, each operand
+    // keeping its own carrier (`IntegerType::compare_with`), so they read.
+    assert!(read(&numeric("input: i32, other: u32", "input > other")).is_some());
 }
 
 #[test]
@@ -733,7 +735,7 @@ fn integer_entry_fields_reject_unreadable_roots_and_invalid_type_chains() {
 }
 
 #[test]
-fn integer_entry_fields_reject_partial_syntax_and_incompatible_carriers() {
+fn integer_entry_fields_reject_partial_syntax_and_read_mixed_carriers_exactly() {
     for (primitive, predicate) in [
         ("i32", "input.number + 1 > 0"),
         ("i32 in Trapping", "input.number + 1 > 0"),
@@ -755,6 +757,8 @@ fn integer_entry_fields_reject_partial_syntax_and_incompatible_carriers() {
         let program = typed_program(&format!(
             "data Input {{ signed: i32; unsigned: u32; }} machine value(input: &Input) -> bool\nrequires {predicate}\n{{ true }}"
         ));
-        assert!(read(&program).is_none(), "{predicate}");
+        // Mixed-sign field comparisons are exact mathematical comparisons
+        // with each carrier retained, not incompatible landings.
+        assert!(read(&program).is_some(), "{predicate}");
     }
 }
