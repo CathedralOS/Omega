@@ -157,9 +157,9 @@ fn is_plain_referent<'a>(
                             )
                         }) && is_plain_referent(*child, lookup, active)
                     }
-                    StructuralFieldType::ByteSequence(_) | StructuralFieldType::Erased { .. } => {
-                        false
-                    }
+                    StructuralFieldType::ByteSequence(_)
+                    | StructuralFieldType::PredicateByteSequence { .. }
+                    | StructuralFieldType::Erased { .. } => false,
                 });
             active.pop();
             plain

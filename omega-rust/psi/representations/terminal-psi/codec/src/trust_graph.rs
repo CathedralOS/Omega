@@ -163,6 +163,12 @@ const BYTE_READ_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/byte_sequence/read.rs");
 const BYTE_VIEW_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/byte_sequence/length.rs");
+const BYTE_OWNER_STORE_VALIDATION_SOURCE: &[u8] =
+    include_bytes!("../../verification/src/validation/byte_sequence/store.rs");
+const BYTE_PREDICATE_SEMANTICS_SOURCE: &[u8] =
+    include_bytes!("../../semantics/src/byte_sequence_predicates.rs");
+const BYTE_OWNER_LOAN_SEMANTICS_SOURCE: &[u8] =
+    include_bytes!("../../semantics/src/call_composition/bounded_byte_owner.rs");
 const BYTE_FIELD_STORE_VALIDATION_SOURCE: &[u8] =
     include_bytes!("../../verification/src/validation/structural/byte_sequence_store.rs");
 const BYTE_FIELD_ACCESS_VALIDATION_SOURCE: &[u8] =

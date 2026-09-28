@@ -14,6 +14,9 @@ use terminal_psi::{BindingRelevance, ByteSequenceCarrier};
 #[path = "structural_byte_sequence_store/indexed.rs"]
 mod indexed;
 
+#[path = "structural_byte_sequence_store/predicates.rs"]
+mod predicates;
+
 fn id<T: PsiSemanticId>(raw: u64) -> T {
     T::new(raw).unwrap()
 }

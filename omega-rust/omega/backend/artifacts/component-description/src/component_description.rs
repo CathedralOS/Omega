@@ -724,6 +724,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::StructuralByteSequenceFieldLength { .. }
                     | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                     | OperationKind::StructuralByteSequenceFieldRead { .. }
+                    | OperationKind::ByteSequenceStore { .. }
                     | OperationKind::StructuralByteSequenceFieldStore { .. }
                     | OperationKind::StructuralCaseMembership { .. }
                     | OperationKind::StructuralLeafCopy { .. }

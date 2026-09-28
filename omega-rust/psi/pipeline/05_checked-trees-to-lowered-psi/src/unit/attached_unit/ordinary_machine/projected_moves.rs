@@ -240,5 +240,9 @@ fn admissible(field_type: &StructuralFieldType) -> bool {
             | StructuralFieldType::Scalar(_)
             | StructuralFieldType::IeeeFloat(_)
             | StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+            | StructuralFieldType::PredicateByteSequence {
+                carrier: ByteSequenceCarrier::BoundedOwned { .. },
+                ..
+            }
     )
 }

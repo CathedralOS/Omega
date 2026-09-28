@@ -63,7 +63,7 @@ pub(crate) fn capacity(
     };
     let required =
         terminal_semantics::byte_parameter_predicates(module, parameter).ok_or_else(invalid)?;
-    super::length::validate_source(module, machine, operation, source, invalid)?;
+    super::length::validate_replacement_source(module, machine, operation, source, invalid)?;
     if !super::read::is_current_length(module, machine, operation, source, length)
         || (!required.is_empty()
             && !terminal_semantics::byte_sequence_source_predicates(module, machine, source)

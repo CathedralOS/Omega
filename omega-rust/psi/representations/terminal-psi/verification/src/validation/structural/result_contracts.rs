@@ -237,10 +237,14 @@ pub(in crate::validation) fn has_plain_owned_shape(
                     }
                     StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    ) => true,
-                    StructuralFieldType::ByteSequence(_) | StructuralFieldType::Erased { .. } => {
-                        false
-                    }
+                    )
+                    | StructuralFieldType::PredicateByteSequence {
+                        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                        ..
+                    } => true,
+                    StructuralFieldType::ByteSequence(_)
+                    | StructuralFieldType::PredicateByteSequence { .. }
+                    | StructuralFieldType::Erased { .. } => false,
                 }
         };
         let supported = match &declaration.shape {

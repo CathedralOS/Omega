@@ -308,7 +308,23 @@ pub(in crate::lowering) fn lower_structural_argument(
             })
         })
         .unwrap_or(&[]);
-    if source_qualifications != callee_parameter.qualifications.as_slice() {
+    // An inline owner field carries typed predicates in its field declaration,
+    // not the enclosing root's domain roster. Optimized admission has checked
+    // both directions of its writable predicate contract; the field geometry
+    // below must still match the callee's exact bounded-owner capacity.
+    let projected_byte_owner = !argument.path.is_empty()
+        && structural_types
+            .get(&callee_parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+            });
+    if !projected_byte_owner && source_qualifications != callee_parameter.qualifications.as_slice()
+    {
         return Err(LoweringError::StructuralCallArgumentTypeMismatch {
             callee,
             place: argument.place,
@@ -680,9 +696,13 @@ pub(in crate::lowering) fn lower_structural_argument(
                             source.access,
                             StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
                         ),
-                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
+                        StructuralAccess::MutableBorrow => {
                             source.access == StructuralAccess::MutableBorrow
                         }
+                        StructuralAccess::WriteOnlyBorrow => matches!(
+                            source.access,
+                            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                        ),
                         _ => false,
                     }
             });

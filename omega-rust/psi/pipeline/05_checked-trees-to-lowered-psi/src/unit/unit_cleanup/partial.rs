@@ -676,6 +676,10 @@ fn checked_partial_affine_field_type(field_type: &CheckedUnitStructuralFieldType
             | CheckedUnitStructuralFieldType::ByteSequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )
+            | CheckedUnitStructuralFieldType::PredicateByteSequence {
+                carrier: checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
+                ..
+            }
             | CheckedUnitStructuralFieldType::Scalar(
                 PrimitiveType::Bool
                     | PrimitiveType::I8

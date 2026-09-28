@@ -42,6 +42,30 @@ pub(super) fn index_structural_types(
             .filter_map(|function| function.attachment),
     );
     for declaration in &unit.structural_types {
+        if attachment_storage.contains(&declaration.id) {
+            let accepts_empty = |field: &terminal_psi::StructuralFieldDeclaration| {
+                field.field_type.byte_predicates().holds_for(&[])
+            };
+            let valid = match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Record { fields } => {
+                    fields.iter().all(accepts_empty)
+                }
+                terminal_psi::StructuralTypeShape::Sum { cases } => cases
+                    .iter()
+                    .flat_map(|case| &case.fields)
+                    .all(accepts_empty),
+                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                    .all(accepts_empty),
+                _ => true,
+            };
+            if !valid {
+                return Err(
+                    OptimizationUnitValidationError::InvalidStructuralTypeIdentity(declaration.id),
+                );
+            }
+        }
         match &declaration.shape {
             // A reference carrier holds loan permission, not referent
             // storage; its exact contract is checked once `types` is complete.
@@ -240,6 +264,18 @@ pub(super) fn index_structural_domains<'unit>(
         ));
     }
     for declaration in unit.structural_domains.iter() {
+        if declaration.byte_predicate.is_some()
+            && (declaration.content_projection.is_some()
+                || !declaration.establishment_routes.is_empty()
+                || !matches!(
+                    types[&declaration.carrier].shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(_)
+                ))
+        {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralDomainIdentity(declaration.id),
+            );
+        }
         if declaration
             .content_projection
             .as_ref()

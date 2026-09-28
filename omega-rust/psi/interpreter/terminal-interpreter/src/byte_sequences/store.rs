@@ -7,18 +7,60 @@ use semantic_vocabulary::IntegerValue;
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
 impl TerminalExecution {
-    pub(crate) fn execute_byte_sequence_store(&mut self, operation: &Operation) -> Result<(), TerminalInterpretError> {
+    pub(crate) fn execute_byte_sequence_store(
+        &mut self,
+        operation: &Operation,
+    ) -> Result<(), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
-        let OperationKind::ByteSequenceStore { destination, source, length, .. } = &operation.kind else { return Err(invalid()); };
-        if operation.result != OperationResult::Unit || source == destination { return Err(invalid()); }
-        let ByteSequenceBinding::MutableField { field, capacity, .. } = self.byte_sequence_values.get(destination).ok_or_else(invalid)? else { return Err(invalid()); };
+        let OperationKind::ByteSequenceStore {
+            destination,
+            source,
+            length,
+            ..
+        } = &operation.kind
+        else {
+            return Err(invalid());
+        };
+        if operation.result != OperationResult::Unit || source == destination {
+            return Err(invalid());
+        }
+        let ByteSequenceBinding::MutableField {
+            field, capacity, ..
+        } = self
+            .byte_sequence_values
+            .get(destination)
+            .ok_or_else(invalid)?
+        else {
+            return Err(invalid());
+        };
         let field = field.clone();
         let capacity = *capacity;
-        let binding = self.byte_sequence_values.get(destination).ok_or_else(invalid)?;
-        binding.validate_mutable_referent(&self.structural_types, self.structural_values.get(destination).ok_or_else(invalid)?)?;
-        let TerminalScalarValue::Integer { value: IntegerValue::Unsigned(length), .. } = self.values.get(length).ok_or_else(invalid)? else { return Err(invalid()); };
-        let bytes = self.byte_sequence_values.get(source).ok_or_else(invalid)?.immutable()?.clone();
-        if bytes.len() as u128 != *length || *length > u128::from(capacity) { return Err(invalid()); }
+        let binding = self
+            .byte_sequence_values
+            .get(destination)
+            .ok_or_else(invalid)?;
+        binding.validate_mutable_referent(
+            &self.structural_types,
+            self.structural_values
+                .get(destination)
+                .ok_or_else(invalid)?,
+        )?;
+        let TerminalScalarValue::Integer {
+            value: IntegerValue::Unsigned(length),
+            ..
+        } = self.values.get(length).ok_or_else(invalid)?
+        else {
+            return Err(invalid());
+        };
+        let bytes = self
+            .byte_sequence_values
+            .get(source)
+            .ok_or_else(invalid)?
+            .immutable()?
+            .clone();
+        if bytes.len() as u128 != *length || *length > u128::from(capacity) {
+            return Err(invalid());
+        }
         // Immutable backing snapshots the whole input before changing this field.
         self.structural_byte_sequence_fields.insert(field, bytes);
         Ok(())

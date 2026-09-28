@@ -636,6 +636,7 @@ pub enum ModuleError {
         place: PlaceId,
     },
     ByteSequenceLiteralEstablishmentMismatch(MachineId),
+    InvalidByteSequenceLiteralQualifications(OperationId),
     NonCanonicalByteSequenceLiterals(MachineId),
     UnknownTrivialAffineLocal {
         operation: OperationId,

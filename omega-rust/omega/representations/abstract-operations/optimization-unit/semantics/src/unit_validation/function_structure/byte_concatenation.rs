@@ -7,8 +7,8 @@ use semantic_vocabulary::{BlockId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::control_flow::ByteSequenceOperand;
 use terminal_psi::{
-    ByteSequenceCarrier, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 pub(super) fn validate(
@@ -137,10 +137,8 @@ pub(super) fn validate(
                             declaration.id == *field
                                 && !declaration.relevance.is_erased()
                                 && matches!(
-                                    declaration.field_type,
-                                    StructuralFieldType::ByteSequence(
-                                        ByteSequenceCarrier::BoundedOwned { .. }
-                                    )
+                                    declaration.field_type.byte_sequence_carrier(),
+                                    Some(ByteSequenceCarrier::BoundedOwned { .. })
                                 )
                         }) {
                             return Err(invalid());

@@ -738,9 +738,14 @@ pub(super) fn parameter_qualifications(
                     if !domain.semantic_id.is_valid() {
                         return None;
                     }
-                    let carrier = if matches!(byte_sequence_carrier(program, type_reference, &[]), Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })) {
+                    let carrier = if matches!(
+                        byte_sequence_carrier(program, type_reference, &[]),
+                        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+                    ) {
                         type_reference
-                    } else { *base_type };
+                    } else {
+                        *base_type
+                    };
                     shapes.add_domain(domain.semantic_id, carrier, binders)?;
                     output.push(domain.semantic_id);
                 }
@@ -1248,7 +1253,12 @@ pub(super) fn byte_sequence_type_identity(
 ) -> Option<String> {
     let carrier = byte_sequence_carrier(program, type_reference, substitutions)?;
     let mut identity_type = type_reference;
-    if carrier.is_borrowed_view() || matches!(carrier, checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }) {
+    if carrier.is_borrowed_view()
+        || matches!(
+            carrier,
+            checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+        )
+    {
         while let TypeReferenceNode::Reference { referee, .. }
         | TypeReferenceNode::Constrained {
             base_type: referee, ..
@@ -1441,10 +1451,13 @@ fn partial_affine_source_contents_are_owned(
     }
     // Preserve the existing no-cleanup bounded-byte field carrier, whose
     // domain spelling is retained by that carrier's own source classifier.
-    if structural_access_for_type_reference(program, reference) == Some(CheckedStructuralAccess::Owned) && matches!(
-        byte_sequence_carrier(program, reference, &[]),
-        Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
-    ) {
+    if structural_access_for_type_reference(program, reference)
+        == Some(CheckedStructuralAccess::Owned)
+        && matches!(
+            byte_sequence_carrier(program, reference, &[]),
+            Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. })
+        )
+    {
         return true;
     }
     let symbol = match program.type_reference_table.type_reference(reference) {
@@ -1531,9 +1544,14 @@ impl<'program> ShapeCollector<'program> {
             .find(|definition| definition.semantic_id == domain)
             .map(|definition| definition.establishment_routes.clone())
             .unwrap_or_default();
-        let byte_predicate = self.program.domain_definitions().iter()
+        let byte_predicate = self
+            .program
+            .domain_definitions()
+            .iter()
             .find(|definition| definition.semantic_id == domain)
-            .and_then(|definition| typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol));
+            .and_then(|definition| {
+                typed_trees::byte_predicates::domain_byte_predicate(self.program, definition.symbol)
+            });
         let plan = CheckedUnitStructuralDomainPlan {
             byte_predicate,
             domain,
@@ -2330,13 +2348,22 @@ impl<'program> ShapeCollector<'program> {
         } else if let Some(carrier) =
             byte_sequence_carrier(self.program, field.type_reference, substitutions)
         {
-            let declared = typed_trees::byte_predicates::type_reference_domain_predicates(self.program, field.type_reference);
-            let mut predicates = language_semantics::byte_predicates::ByteSequencePredicateSet::EMPTY;
-            for (_, predicate) in declared { predicates.insert(predicate?); }
+            let declared = typed_trees::byte_predicates::type_reference_domain_predicates(
+                self.program,
+                field.type_reference,
+            );
+            let mut predicates =
+                language_semantics::byte_predicates::ByteSequencePredicateSet::EMPTY;
+            for (_, predicate) in declared {
+                predicates.insert(predicate?);
+            }
             if predicates.is_empty() {
                 CheckedUnitStructuralFieldType::ByteSequence(carrier)
             } else {
-                CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates }
+                CheckedUnitStructuralFieldType::PredicateByteSequence {
+                    carrier,
+                    predicates,
+                }
             }
         } else {
             match scalar_type(self.program, field.type_reference, substitutions) {
@@ -2835,9 +2862,11 @@ pub(crate) fn byte_sequence_carrier(
             match borrowed {
                 // A domain-qualified fixed byte carrier owns a live extent. A
                 // reference loans that same owner; access remains on the formal.
-                Some(_) if has_domain => Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
-                    capacity: u64::try_from(*capacity).ok()?,
-                }),
+                Some(_) if has_domain => {
+                    Some(checked_trees::CheckedByteSequenceCarrier::BoundedOwned {
+                        capacity: u64::try_from(*capacity).ok()?,
+                    })
+                }
                 // A borrowed reference to a fixed array keeps the referent in
                 // the caller's frame; its extent is the declaration's literal
                 // length rather than a stored descriptor field.

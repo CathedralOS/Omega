@@ -584,7 +584,13 @@ pub(crate) fn resolve_byte_length(
         StructuralFieldType::ByteSequence(
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
             | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-        ) => true,
+        )
+        | StructuralFieldType::PredicateByteSequence {
+            carrier:
+                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                | terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+            ..
+        } => true,
         StructuralFieldType::Structural(view) => binding.declarations.iter().any(|declaration| {
             declaration.id == view
                 && matches!(

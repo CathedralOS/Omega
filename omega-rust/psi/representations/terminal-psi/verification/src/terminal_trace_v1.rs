@@ -319,6 +319,7 @@ fn classify_operation(kind: &OperationKind) -> TerminalTraceV1OperationClassific
         | OperationKind::EstablishPrimitiveLocal { .. }
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
+        | OperationKind::ByteSequenceStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }

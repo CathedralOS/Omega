@@ -53,6 +53,7 @@ fn direct_relevant_scalar_field(
                 StructuralFieldType::BoundedInteger(_) => None,
                 StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
                 StructuralFieldType::ByteSequence(_)
+                | StructuralFieldType::PredicateByteSequence { .. }
                 | StructuralFieldType::Structural(_)
                 | StructuralFieldType::Erased { .. } => None,
             })

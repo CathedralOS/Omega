@@ -29,6 +29,16 @@ pub fn bounded_byte_owner_capacity_from_catalogs(
     argument: &StructuralArgument,
     expected: &StructuralParameterDeclaration,
 ) -> Option<u64> {
+    bounded_byte_owner_capacity_in(types.iter(), domains.iter(), actual, argument, expected)
+}
+
+pub fn bounded_byte_owner_capacity_in<'type_declaration, 'domain>(
+    types: impl Iterator<Item = &'type_declaration terminal_psi::StructuralTypeDeclaration> + Clone,
+    domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
+    actual: &StructuralParameterDeclaration,
+    argument: &StructuralArgument,
+    expected: &StructuralParameterDeclaration,
+) -> Option<u64> {
     if actual.place != argument.place
         || argument.access != expected.access
         || expected.multiplicity != StructuralMultiplicity::Unrestricted
@@ -55,16 +65,16 @@ pub fn bounded_byte_owner_capacity_from_catalogs(
         return None;
     }
     let expected_type = types
-        .iter()
+        .clone()
         .find(|row| row.id == expected.structural_type)?;
     let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
         expected_type.shape
     else {
         return None;
     };
-    let required = crate::byte_parameter_predicates_from_domains(domains, expected)?;
+    let required = crate::byte_parameter_predicates_in(domains.clone(), expected)?;
     let (actual_capacity, predicates) = if argument.path.is_empty() {
-        let declaration = types.iter().find(|row| row.id == actual.structural_type)?;
+        let declaration = types.clone().find(|row| row.id == actual.structural_type)?;
         let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
             declaration.shape
         else {
@@ -72,7 +82,7 @@ pub fn bounded_byte_owner_capacity_from_catalogs(
         };
         (
             capacity,
-            crate::byte_parameter_predicates_from_domains(domains, actual)?,
+            crate::byte_parameter_predicates_in(domains.clone(), actual)?,
         )
     } else {
         if !actual.qualifications.is_empty()
@@ -85,7 +95,7 @@ pub fn bounded_byte_owner_capacity_from_catalogs(
             return None;
         };
         let declaration =
-            crate::runtime_structural_path_tip(types.iter(), actual.structural_type, prefix)?;
+            crate::runtime_structural_path_tip(types.clone(), actual.structural_type, prefix)?;
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
             return None;
         };

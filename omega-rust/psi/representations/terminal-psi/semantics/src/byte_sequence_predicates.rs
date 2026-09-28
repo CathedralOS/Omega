@@ -2,11 +2,10 @@
 //! These queries grant no availability or loan authority: receiving validation
 //! separately checks dominance, source access and current length observations.
 
-use semantic_vocabulary::PlaceId;
+use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     ByteSequencePredicate, ByteSequencePredicateSet, OperationKind, StructuralAccess,
-    StructuralParameterDeclaration, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
-    TerminalModule,
+    StructuralParameterDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 
 /// The exact plain byte predicates carried by a formal. Routed/content domains
@@ -22,12 +21,19 @@ pub fn byte_parameter_predicates_from_domains(
     domains: &[terminal_psi::StructuralDomainDeclaration],
     parameter: &StructuralParameterDeclaration,
 ) -> Option<ByteSequencePredicateSet> {
+    byte_parameter_predicates_in(domains.iter(), parameter)
+}
+
+pub fn byte_parameter_predicates_in<'domain>(
+    domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
+    parameter: &StructuralParameterDeclaration,
+) -> Option<ByteSequencePredicateSet> {
     if !parameter.projected_qualifications.is_empty() {
         return None;
     }
     let mut predicates = ByteSequencePredicateSet::EMPTY;
     for identity in &parameter.qualifications {
-        let domain = domains.iter().find(|domain| domain.id == *identity)?;
+        let domain = domains.clone().find(|domain| domain.id == *identity)?;
         if domain.carrier != parameter.structural_type
             || domain.content_projection.is_some()
             || !domain.establishment_routes.is_empty()
@@ -176,11 +182,29 @@ pub fn byte_literal_qualifications_hold(
     qualifications: &[semantic_vocabulary::StructuralDomainId],
     bytes: &[u8],
 ) -> bool {
+    byte_literal_qualifications_hold_in(domains.iter(), carrier, qualifications, bytes)
+}
+
+pub fn byte_literal_qualifications_hold_in<'domain>(
+    domains: impl Iterator<Item = &'domain terminal_psi::StructuralDomainDeclaration> + Clone,
+    carrier: semantic_vocabulary::StructuralTypeId,
+    qualifications: &[semantic_vocabulary::StructuralDomainId],
+    bytes: &[u8],
+) -> bool {
     !qualifications.windows(2).any(|pair| pair[0] >= pair[1])
-        && qualifications.iter().all(|identity| domains.iter().find(|domain| domain.id == *identity)
-            .is_some_and(|domain| domain.carrier == carrier
-                && domain.content_projection.is_none() && domain.establishment_routes.is_empty()
-                && domain.byte_predicate.is_some_and(|predicate| predicate.holds_for(bytes))))
+        && qualifications.iter().all(|identity| {
+            domains
+                .clone()
+                .find(|domain| domain.id == *identity)
+                .is_some_and(|domain| {
+                    domain.carrier == carrier
+                        && domain.content_projection.is_none()
+                        && domain.establishment_routes.is_empty()
+                        && domain
+                            .byte_predicate
+                            .is_some_and(|predicate| predicate.holds_for(bytes))
+                })
+        })
 }
 
 #[cfg(test)]
@@ -194,17 +218,56 @@ mod tests {
         let carrier = StructuralTypeId::new(1).unwrap();
         let identity = StructuralDomainId::new(1).unwrap();
         let mut domains = [StructuralDomainDeclaration {
-            id: identity, semantic_domain: DomainSemanticId::new(1).unwrap(), identity: "bytes".into(),
-            carrier, content_projection: None, byte_predicate: Some(ByteSequencePredicate::ValidUtf8), establishment_routes: Vec::new(),
+            id: identity,
+            semantic_domain: DomainSemanticId::new(1).unwrap(),
+            identity: "bytes".into(),
+            carrier,
+            content_projection: None,
+            byte_predicate: Some(ByteSequencePredicate::ValidUtf8),
+            establishment_routes: Vec::new(),
         }];
-        assert!(byte_literal_qualifications_hold(&domains, carrier, &[identity], "é".as_bytes()));
-        assert!(!byte_literal_qualifications_hold(&domains, carrier, &[identity], &[0xff]));
-        assert!(!byte_literal_qualifications_hold(&domains, StructuralTypeId::new(2).unwrap(), &[identity], b"ok"));
-        assert!(!byte_literal_qualifications_hold(&domains, carrier, &[identity, identity], b"ok"));
-        domains[0].establishment_routes.push(StructuralEstablishmentRoute::ExactMachine { machine: "issuer".into() });
-        assert!(!byte_literal_qualifications_hold(&domains, carrier, &[identity], b"ok"));
+        assert!(byte_literal_qualifications_hold(
+            &domains,
+            carrier,
+            &[identity],
+            "é".as_bytes()
+        ));
+        assert!(!byte_literal_qualifications_hold(
+            &domains,
+            carrier,
+            &[identity],
+            &[0xff]
+        ));
+        assert!(!byte_literal_qualifications_hold(
+            &domains,
+            StructuralTypeId::new(2).unwrap(),
+            &[identity],
+            b"ok"
+        ));
+        assert!(!byte_literal_qualifications_hold(
+            &domains,
+            carrier,
+            &[identity, identity],
+            b"ok"
+        ));
+        domains[0]
+            .establishment_routes
+            .push(StructuralEstablishmentRoute::ExactMachine {
+                machine: "issuer".into(),
+            });
+        assert!(!byte_literal_qualifications_hold(
+            &domains,
+            carrier,
+            &[identity],
+            b"ok"
+        ));
         domains[0].establishment_routes.clear();
         domains[0].byte_predicate = None;
-        assert!(!byte_literal_qualifications_hold(&domains, carrier, &[identity], b"ok"));
+        assert!(!byte_literal_qualifications_hold(
+            &domains,
+            carrier,
+            &[identity],
+            b"ok"
+        ));
     }
 }

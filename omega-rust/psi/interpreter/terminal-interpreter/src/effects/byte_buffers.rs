@@ -11,13 +11,13 @@ use crate::values::StructuralByteSequenceRuntimeField;
 use crate::values::StructuralRuntimePlace;
 use crate::values::TerminalStructuralValue;
 use std::collections::BTreeMap;
+use terminal_psi::ByteSequenceCarrier;
 use terminal_psi::StructuralAccess;
 use terminal_psi::StructuralArgument;
 use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralParameterDeclaration;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
-use terminal_psi::{ByteSequenceCarrier, StructuralFieldType};
 
 /// One mutable boundary argument's live bytes and original inline capacity.
 /// Replacement is staged: the interpreter commits it only after the handler
@@ -107,14 +107,24 @@ impl BoundaryArguments {
             let access = match &binding {
                 ByteSequenceBinding::Immutable(_) => StructuralAccess::SharedBorrow,
                 ByteSequenceBinding::MutableField { .. }
+                    if parameter.access == StructuralAccess::WriteOnlyBorrow =>
+                {
+                    StructuralAccess::WriteOnlyBorrow
+                }
+                ByteSequenceBinding::MutableField { .. }
                 | ByteSequenceBinding::MutableArray { .. } => StructuralAccess::MutableBorrow,
             };
             if parameter.access != access
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.projected_qualifications.is_empty()
                 || match &binding {
-                    ByteSequenceBinding::MutableField { referent, .. } => referent.qualifications != parameter.qualifications,
-                    _ => !parameter.qualifications.is_empty(),
+                    ByteSequenceBinding::MutableField { referent, .. } => {
+                        referent.qualifications != parameter.qualifications
+                    }
+                    ByteSequenceBinding::Immutable(_) => false,
+                    ByteSequenceBinding::MutableArray { .. } => {
+                        !parameter.qualifications.is_empty()
+                    }
                 }
                 || byte_sequences.insert(parameter.place, binding).is_some()
             {
@@ -228,13 +238,40 @@ impl TerminalExecution {
                 .structural_types
                 .get(&parameter.structural_type)
                 .ok_or_else(invalid)?;
-            if matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }))
-                && matches!(parameter.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
-            {
-                if argument.access != parameter.access || parameter.multiplicity != StructuralMultiplicity::Unrestricted || !parameter.projected_qualifications.is_empty() { return Err(invalid()); }
+            if matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+            ) && matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            ) {
+                if argument.access != parameter.access
+                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return Err(invalid());
+                }
                 let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
-                let ByteSequenceBinding::MutableField { referent, .. } = &binding else { return Err(invalid()); };
+                let ByteSequenceBinding::MutableField { referent, .. } = &binding else {
+                    return Err(invalid());
+                };
                 resolved.values.push(referent.clone());
+                resolved.byte_sequences.push(Some(binding));
+                resolved.element_views.push(None);
+            } else if parameter.access == StructuralAccess::SharedBorrow
+                && matches!(
+                    declaration.shape,
+                    StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+                )
+            {
+                if argument.access != StructuralAccess::SharedBorrow
+                    || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+                    || !parameter.projected_qualifications.is_empty()
+                {
+                    return Err(invalid());
+                }
+                let (referent, binding) = self.resolve_shared_owner_binding(parameter, argument)?;
+                resolved.values.push(referent);
                 resolved.byte_sequences.push(Some(binding));
                 resolved.element_views.push(None);
             } else if parameter.access == StructuralAccess::SharedBorrow
@@ -399,6 +436,47 @@ impl TerminalExecution {
         Ok(binding)
     }
 
+    /// Shared owner arguments snapshot the live prefix while retaining the
+    /// original referent and exact qualifications for alias checks and forwarding.
+    fn resolve_shared_owner_binding(
+        &self,
+        parameter: &StructuralParameterDeclaration,
+        argument: &StructuralArgument,
+    ) -> Result<(TerminalStructuralValue, ByteSequenceBinding), TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        if !argument.path.is_empty() {
+            return self.resolve_shared_boundary_binding(parameter, argument);
+        }
+        let value = self
+            .structural_values
+            .get(&argument.place)
+            .ok_or_else(invalid)?;
+        if value.structural_type != parameter.structural_type
+            || parameter
+                .qualifications
+                .iter()
+                .any(|domain| !value.qualifications.contains(domain))
+        {
+            return Err(invalid());
+        }
+        let binding = self
+            .byte_sequence_values
+            .get(&argument.place)
+            .ok_or_else(invalid)?;
+        let bytes = match binding {
+            ByteSequenceBinding::Immutable(bytes) => bytes.clone(),
+            ByteSequenceBinding::MutableField { field, .. } => {
+                binding.validate_mutable_referent(&self.structural_types, value)?;
+                self.structural_byte_sequence_fields
+                    .get(field)
+                    .ok_or_else(invalid)?
+                    .clone()
+            }
+            ByteSequenceBinding::MutableArray { .. } => return Err(invalid()),
+        };
+        Ok((value.clone(), ByteSequenceBinding::Immutable(bytes)))
+    }
+
     /// Bind a shared byte-view argument to one initialized inline byte field.
     /// The view observes the field's live bytes; the shared loan grants no
     /// writeback, so no staged buffer or field coordinate is retained.
@@ -435,8 +513,8 @@ impl TerminalExecution {
             .find(|field| field.identity == *identity && !field.relevance.is_erased())
             .ok_or_else(invalid)?;
         if !matches!(
-            field.field_type,
-            StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+            field.field_type.byte_sequence_carrier(),
+            Some(ByteSequenceCarrier::BoundedOwned { .. })
         ) {
             return Err(invalid());
         }
@@ -450,7 +528,7 @@ impl TerminalExecution {
             .ok_or_else(invalid)?
             .bytes();
         parent.structural_type = parameter.structural_type;
-        parent.qualifications.clear();
+        parent.qualifications = parameter.qualifications.clone();
         parent
             .path
             .push(StructuralPathSegment::Field(identity.clone()));

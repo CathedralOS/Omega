@@ -3,7 +3,7 @@
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, PlaceId, StructuralFieldId};
 use terminal_psi::{
     ByteSequenceCarrier, Operation, OperationKind, OperationResult, StructuralAccess,
-    StructuralArgument, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
+    StructuralArgument, StructuralMultiplicity, StructuralPathSegment,
     StructuralTypeShape,
 };
 

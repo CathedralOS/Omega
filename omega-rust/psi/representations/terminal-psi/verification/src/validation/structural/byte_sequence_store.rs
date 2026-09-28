@@ -61,7 +61,7 @@ pub(crate) fn capacity(
     {
         return Err(invalid());
     }
-    crate::validation::byte_sequence::length::validate_source(
+    crate::validation::byte_sequence::length::validate_replacement_source(
         module, machine, operation, *source, invalid,
     )?;
     if !crate::validation::byte_sequence::read::is_current_length(

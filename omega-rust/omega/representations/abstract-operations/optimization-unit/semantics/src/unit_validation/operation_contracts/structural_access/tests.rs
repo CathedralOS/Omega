@@ -97,6 +97,7 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
                     std::slice::from_ref(&argument),
                     std::slice::from_ref(&parameter),
                     &types,
+                    &Default::default(),
                     StructuralProjectionPolicy::Unit,
                     false
                 ),
@@ -133,6 +134,7 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
             std::slice::from_ref(&argument),
             std::slice::from_ref(&parameter),
             &types,
+            &Default::default(),
             StructuralProjectionPolicy::Unit,
             false
         ));
@@ -145,6 +147,7 @@ fn static_primitive_subloans_reconstruct_interleaved_paths_and_access() {
             std::slice::from_ref(&argument),
             std::slice::from_ref(&parameter),
             &types,
+            &Default::default(),
             StructuralProjectionPolicy::Unit,
             false
         ));
@@ -179,6 +182,7 @@ fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitu
             std::slice::from_ref(argument),
             std::slice::from_ref(parameter),
             &types,
+            &Default::default(),
             StructuralProjectionPolicy::Projected,
             false,
         )
@@ -204,4 +208,95 @@ fn shared_affine_owner_loan_preserves_owner_and_rejects_access_or_place_substitu
     let mut changed = argument;
     changed.place = PlaceId::new(999).unwrap();
     assert!(!accepts(&changed, &parameter));
+}
+
+#[test]
+fn bounded_owner_call_rechecks_predicate_preservation_after_rewriting() {
+    use terminal_psi::{
+        BindingRelevance, ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet,
+        StructuralAccess as Access, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralMultiplicity as Multiplicity, StructuralPathSegment as Path,
+        StructuralTypeDeclaration, StructuralTypeShape as Shape,
+    };
+    let mut unit =
+        crate::tests::fixtures::scalar_units::projected_shared_structural_scalar_call_unit();
+    let owner = StructuralTypeId::new(9_020).unwrap();
+    let root = StructuralTypeId::new(9_021).unwrap();
+    let domain = semantic_vocabulary::StructuralDomainId::new(9_022).unwrap();
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    let declarations = [
+        StructuralTypeDeclaration {
+            id: owner,
+            identity: "owner".into(),
+            shape: Shape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 }),
+        },
+        StructuralTypeDeclaration {
+            id: root,
+            identity: "container".into(),
+            shape: Shape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: semantic_vocabulary::StructuralFieldId::new(9_023).unwrap(),
+                    identity: "text".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::PredicateByteSequence {
+                        carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                        predicates,
+                    },
+                }],
+            },
+        },
+    ];
+    let types = declarations.iter().map(|row| (row.id, row)).collect();
+    let domain_declaration = terminal_psi::StructuralDomainDeclaration {
+        id: domain,
+        semantic_domain: semantic_vocabulary::DomainSemanticId::new(9_022).unwrap(),
+        identity: "utf8".into(),
+        carrier: owner,
+        content_projection: None,
+        byte_predicate: Some(ByteSequencePredicate::ValidUtf8),
+        establishment_routes: Vec::new(),
+    };
+    let domains = [(domain, &domain_declaration)].into_iter().collect();
+    let caller = &mut unit.functions[0];
+    caller.entry_claim_declarations = Vec::new().into();
+    caller.content_entry_claims = Vec::new().into();
+    let actual = &mut caller.structural_parameters[0];
+    actual.structural_type = root;
+    actual.access = Access::MutableBorrow;
+    actual.multiplicity = Multiplicity::Unrestricted;
+    actual.qualifications.clear();
+    actual.projected_qualifications.clear();
+    let mut expected = actual.clone();
+    expected.structural_type = owner;
+    expected.qualifications.push(domain);
+    let mut argument = terminal_psi::StructuralArgument {
+        place: actual.place,
+        path: vec![Path::Field("text".into())],
+        access: Access::MutableBorrow,
+    };
+    let accepts = |argument: &terminal_psi::StructuralArgument,
+                   expected: &terminal_psi::StructuralParameterDeclaration| {
+        structural_arguments_match(
+            caller,
+            std::slice::from_ref(argument),
+            std::slice::from_ref(expected),
+            &types,
+            &domains,
+            StructuralProjectionPolicy::Unit,
+            false,
+        )
+    };
+    assert!(accepts(&argument, &expected));
+    expected.qualifications.clear();
+    assert!(
+        !accepts(&argument, &expected),
+        "rewritten bare exclusive formal cannot erase the caller's UTF-8 invariant"
+    );
+    expected.access = Access::SharedBorrow;
+    argument.access = Access::SharedBorrow;
+    assert!(
+        accepts(&argument, &expected),
+        "shared observation may weaken predicates"
+    );
 }

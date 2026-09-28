@@ -149,6 +149,7 @@ pub(crate) fn requires_materialized_host_custody(
                 terminal_psi::StructuralFieldType::Scalar(_)
                 | terminal_psi::StructuralFieldType::IeeeFloat(_)
                 | terminal_psi::StructuralFieldType::ByteSequence(_)
+                | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
                 | terminal_psi::StructuralFieldType::Erased { .. } => {}
             }
         }

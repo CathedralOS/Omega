@@ -44,9 +44,20 @@ impl TerminalExecution {
             )
             .find(|parameter| parameter.place == place)
             .ok_or_else(invalid)?;
+        let bounded_owner = self
+            .structural_types
+            .get(&parameter.structural_type)
+            .is_some_and(|declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+            });
         if parameter.access != StructuralAccess::MutableBorrow
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !parameter.qualifications.is_empty()
+            || (!bounded_owner && !parameter.qualifications.is_empty())
             || !parameter.projected_qualifications.is_empty()
             || self
                 .live_claims
@@ -58,7 +69,7 @@ impl TerminalExecution {
         let value = self.structural_values.get(&place).ok_or_else(invalid)?;
         if value.structural_type != parameter.structural_type
             || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
-                            if declaration.shape.is_borrowed_byte_carrier())
+                            if declaration.shape.is_borrowed_byte_carrier() || bounded_owner)
         {
             return Err(invalid());
         }

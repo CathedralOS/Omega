@@ -1,9 +1,9 @@
 //! Owned concatenation reads exact live sources and establishes independent
 //! backing. Capacity constrains a result; it is never an observed length.
 use crate::validation::{
-    ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralFieldType,
-    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
-    TerminalModule, resolve_structural_path,
+    ModuleError, OperationKind, PlaceId, StructuralAccess, StructuralMultiplicity,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
+    resolve_structural_path,
 };
 use terminal_psi::control_flow::ByteSequenceOperand;
 

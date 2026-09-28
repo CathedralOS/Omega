@@ -495,6 +495,10 @@ fn no_cleanup_residual_field(field_type: &checked_trees::CheckedUnitStructuralFi
             | checked_trees::CheckedUnitStructuralFieldType::ByteSequence(
                 checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
             )
+            | checked_trees::CheckedUnitStructuralFieldType::PredicateByteSequence {
+                carrier: checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. },
+                ..
+            }
             | checked_trees::CheckedUnitStructuralFieldType::Scalar(_)
     )
 }

@@ -1,6 +1,7 @@
 //! Exact source-bound construction of the current migration trust graph.
 use super::{
     BLOCK_WIRE_SOURCE, BYTE_BLOCK_BINDINGS_SOURCE, BYTE_CYCLIC_ELIGIBILITY_SOURCE,
+    BYTE_OWNER_STORE_VALIDATION_SOURCE, BYTE_PREDICATE_SEMANTICS_SOURCE, BYTE_OWNER_LOAN_SEMANTICS_SOURCE,
     BYTE_EXTENT_RECONSTRUCTION_SOURCE, BYTE_FIELD_ACCESS_VALIDATION_SOURCE,
     BYTE_FIELD_FRESHNESS_SOURCE, BYTE_FIELD_STORE_VALIDATION_SOURCE,
     BYTE_SUBSLICE_VALIDATION_SOURCE, BYTE_VIEW_ARGUMENTS_SOURCE, BYTE_VIEW_DOMINANCE_SOURCE,
@@ -642,6 +643,13 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                     ("terminal-verifier/validation/byte_sequence_length.rs", BYTE_VIEW_VALIDATION_SOURCE),
                     ("terminal-verifier/verification/reconstruction/operation_facts.rs", OPERATION_FACTS_SOURCE),
                     ("terminal-verifier/verification/reconstruction/machine_context.rs", MACHINE_RECONSTRUCTION_CONTEXT_SOURCE),
+                ]);
+            }
+            if row.tag() == terminal_semantics::OperationSemanticTag::ByteSequenceStore {
+                exact_sources.extend([
+                    ("terminal-verifier/validation/byte_sequence/store.rs", BYTE_OWNER_STORE_VALIDATION_SOURCE),
+                    ("terminal-semantics/byte_sequence_predicates.rs", BYTE_PREDICATE_SEMANTICS_SOURCE),
+                    ("terminal-semantics/call_composition/bounded_byte_owner.rs", BYTE_OWNER_LOAN_SEMANTICS_SOURCE),
                 ]);
             }
             if row.tag() == terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore {

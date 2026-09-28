@@ -444,6 +444,7 @@ fn direct_relevant_scalar_field(
             Some(ScalarType::Integer(bounds.integer_type()))
         }
         StructuralFieldType::ByteSequence(_)
+        | StructuralFieldType::PredicateByteSequence { .. }
         | StructuralFieldType::BoundedInteger(_)
         | StructuralFieldType::Structural(_)
         | StructuralFieldType::Erased { .. } => None,

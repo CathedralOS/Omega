@@ -464,8 +464,15 @@ pub(crate) fn structural_call_arguments(
                         CheckedStructuralAccess::MutableBorrow
                             | CheckedStructuralAccess::SharedBorrow
                     )
-                    && byte_sequence_carrier(program, target.type_reference, &[])
-                        .is_some_and(|carrier| carrier.is_borrowed() || matches!(carrier, checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }))
+                    && byte_sequence_carrier(program, target.type_reference, &[]).is_some_and(
+                        |carrier| {
+                            carrier.is_borrowed()
+                                || matches!(
+                                    carrier,
+                                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                                )
+                        },
+                    )
                     && segments.iter().all(|segment| {
                         matches!(
                             segment,

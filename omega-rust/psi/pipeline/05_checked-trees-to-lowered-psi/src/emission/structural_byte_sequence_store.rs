@@ -1,14 +1,17 @@
 //! Source correspondence and ordered emission for bounded byte-field replacement.
 use super::{
     CheckedTrees, CheckedUnitStructuralPathSegment, LoweringError, Operation, OperationKind,
-    OperationResult, PrimitiveType, StructuralFieldType, StructuralParameterDeclaration,
+    OperationResult, PrimitiveType, StructuralParameterDeclaration,
     StructuralPlaceDeclaration, StructuralPlaceKind, StructuralTypeDeclaration, StructuralTypeId,
     StructuralTypeShape, ValueDeclaration, allocate_dense, obligation_id, place_id,
     structural_type_id, terminal_scalar_type, unsupported, value_id,
 };
 use crate::emission::operation_emission::buffer::OperationBuffer;
 
-use checked_trees::{CheckedByteSequenceStoreDestination as Destination, CheckedByteSequenceValue as ByteValue, CheckedByteSequenceValuePlan};
+use checked_trees::{
+    CheckedByteSequenceStoreDestination as Destination, CheckedByteSequenceValue as ByteValue,
+    CheckedByteSequenceValuePlan,
+};
 use terminal_psi::control_flow::ByteSequenceOperand;
 
 const LITERAL_VIEW_IDENTITY: &str = "compiler(byte-sequence-literal-view)";
@@ -56,9 +59,14 @@ pub(crate) fn validate_assignment(
         ))?;
     let path = match &store.destination {
         Destination::Whole => Vec::new(),
-        Destination::Field { carrier_path, field_identity } => {
+        Destination::Field {
+            carrier_path,
+            field_identity,
+        } => {
             let mut path = carrier_path.clone();
-            path.push(CheckedUnitStructuralPathSegment::Field(field_identity.clone()));
+            path.push(CheckedUnitStructuralPathSegment::Field(
+                field_identity.clone(),
+            ));
             path
         }
     };
@@ -263,19 +271,45 @@ pub(crate) fn emit(
         ))?;
     let field_destination = match &store.destination {
         Destination::Whole => {
-            if !matches!(parameter.access, terminal_psi::StructuralAccess::MutableBorrow | terminal_psi::StructuralAccess::WriteOnlyBorrow)
-                || !structural_types.iter().find(|declaration| declaration.id == parameter.structural_type)
-                    .is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })))
-            { return unsupported("whole byte store requires a borrowed bounded owner"); }
+            if !matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            ) || !structural_types
+                .iter()
+                .find(|declaration| declaration.id == parameter.structural_type)
+                .is_some_and(|declaration| {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+                })
+            {
+                return unsupported("whole byte store requires a borrowed bounded owner");
+            }
             None
         }
-        Destination::Field { carrier_path, field_identity } => {
-            let (path, field) = crate::emission::structural_scalar_store::lower_structural_field_place(
-                store.statement_index, store.statement_index, store.destination_parameter_position,
-                carrier_path, field_identity, parameter, structural_types,
-                crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
-            )?;
-            if !matches!(field.field_type.byte_sequence_carrier(), Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })) {
+        Destination::Field {
+            carrier_path,
+            field_identity,
+        } => {
+            let (path, field) =
+                crate::emission::structural_scalar_store::lower_structural_field_place(
+                    store.statement_index,
+                    store.statement_index,
+                    store.destination_parameter_position,
+                    carrier_path,
+                    field_identity,
+                    parameter,
+                    structural_types,
+                    crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
+                )?;
+            if !matches!(
+                field.field_type.byte_sequence_carrier(),
+                Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
+            ) {
                 return unsupported("byte-field store destination is not bounded owned bytes");
             }
             Some((path, field.id))
@@ -300,13 +334,21 @@ pub(crate) fn emit(
         Some((path, field)) => {
             operations.invalidate_field_lengths_under(parameter.place, &path);
             Ok(OperationKind::StructuralByteSequenceFieldStore {
-                destination: parameter.place, path, field, source, length, obligation,
+                destination: parameter.place,
+                path,
+                field,
+                source,
+                length,
+                obligation,
             })
         }
         None => {
             operations.invalidate_field_lengths_under(parameter.place, &[]);
             Ok(OperationKind::ByteSequenceStore {
-                destination: parameter.place, source, length, obligation,
+                destination: parameter.place,
+                source,
+                length,
+                obligation,
             })
         }
     }
@@ -409,11 +451,9 @@ impl ValueEmitter<'_> {
                         self.structural_types,
                     )?;
                 if field.field_type.byte_sequence_carrier()
-                    != Some(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                            capacity: *capacity,
-                        },
-                    )
+                    != Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                        capacity: *capacity,
+                    })
                 {
                     return unsupported("byte value field has a different carrier");
                 }

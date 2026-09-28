@@ -98,6 +98,13 @@ pub(crate) fn lower_mixed_fields(
                 CheckedUnitStructuralFieldType::Scalar(primitive) => {
                     terminal_structural_field_type(*primitive)?
                 }
+                CheckedUnitStructuralFieldType::PredicateByteSequence {
+                    carrier,
+                    predicates,
+                } => StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_byte_sequence_carrier(*carrier),
+                    predicates: *predicates,
+                },
                 CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
                     StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(*carrier))
                 }
@@ -351,6 +358,7 @@ pub(crate) fn retain_additional_structural_types(
                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                 terminal_structural_field_type(*primitive)?
                             }
+                            CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
                             CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
                                 StructuralFieldType::ByteSequence(terminal_byte_sequence_carrier(
                                     *carrier,
@@ -420,6 +428,7 @@ pub(crate) fn retain_additional_structural_types(
                                             CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                                 terminal_structural_field_type(*primitive)?
                                             }
+                                            CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
                                             CheckedUnitStructuralFieldType::ByteSequence(
                                                 carrier,
                                             ) => StructuralFieldType::ByteSequence(
@@ -543,6 +552,7 @@ pub(crate) fn lower_structural_type_plans(
                                 CheckedUnitStructuralFieldType::Scalar(primitive) => {
                                     terminal_structural_field_type(*primitive)?
                                 }
+                                CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
                                 CheckedUnitStructuralFieldType::ByteSequence(carrier) => {
                                     StructuralFieldType::ByteSequence(
                                         terminal_byte_sequence_carrier(*carrier),
@@ -613,6 +623,7 @@ pub(crate) fn lower_structural_type_plans(
                                                 CheckedUnitStructuralFieldType::Scalar(
                                                     primitive,
                                                 ) => terminal_structural_field_type(*primitive)?,
+                                                CheckedUnitStructuralFieldType::PredicateByteSequence { carrier, predicates } => StructuralFieldType::PredicateByteSequence { carrier: terminal_byte_sequence_carrier(*carrier), predicates: *predicates },
                                                 CheckedUnitStructuralFieldType::ByteSequence(
                                                     carrier,
                                                 ) => StructuralFieldType::ByteSequence(

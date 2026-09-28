@@ -339,6 +339,28 @@ static OP_STORE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
         VAL_BORROWED_WINDOWS,
     ],
 );
+static OP_BYTE_SEQUENCE_STORE: TrustedSurfaceEntry = entry(
+    "operation:byte-sequence-store",
+    "an exclusive bounded-owner parameter, immutable completed source with exact current length, and independently replayed preservation of every declared byte predicate",
+    "source length at most destination capacity is reconstructed before mutation; old destination observations are invalidated and caller backing receives the complete snapshot",
+    &[
+        "fact:structural-effect-observation",
+        "invalidation:structural-field-store",
+        "fact:byte-extent-length",
+        "owner:operation",
+        "formation:operation-validation",
+    ],
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        "omega-rust/psi/representations/terminal-psi/verification/src/validation/byte_sequence/store.rs",
+        "omega-rust/psi/representations/terminal-psi/semantics/src/byte_sequence_predicates.rs",
+        "omega-rust/psi/representations/terminal-psi/semantics/src/call_composition/bounded_byte_owner.rs",
+    ],
+);
 static OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE: TrustedSurfaceEntry = entry(
     "operation:structural-byte-sequence-field-store",
     "a validated byte-sequence field store with declared capacity and length obligation",
@@ -1133,6 +1155,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_STRUCTURAL_SCALAR_FIELD_STORE,
     OP_MOVE_STRUCTURAL_FIELD,
     OP_STORE_STRUCTURAL_FIELD,
+    OP_BYTE_SEQUENCE_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_LENGTH,
     OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_BYTE_STORE,
@@ -1219,6 +1242,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::StructuralScalarFieldStore => &OP_STRUCTURAL_SCALAR_FIELD_STORE,
         OperationSemanticTag::MoveStructuralField => &OP_MOVE_STRUCTURAL_FIELD,
         OperationSemanticTag::StoreStructuralField => &OP_STORE_STRUCTURAL_FIELD,
+        OperationSemanticTag::ByteSequenceStore => &OP_BYTE_SEQUENCE_STORE,
         OperationSemanticTag::StructuralByteSequenceFieldStore => {
             &OP_STRUCTURAL_BYTE_SEQUENCE_FIELD_STORE
         }

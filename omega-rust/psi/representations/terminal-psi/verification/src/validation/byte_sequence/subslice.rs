@@ -159,6 +159,7 @@ pub(in crate::validation) fn validate_uses(
         | OperationKind::BooleanStructuralField { source, .. }
         | OperationKind::ByteSequenceRead { source, .. }
         | OperationKind::StructuralByteSequenceFieldStore { source, .. }
+        | OperationKind::ByteSequenceStore { source, .. }
         | OperationKind::ByteSequenceSubslice { source, .. } => require(*source),
         OperationKind::ByteSequenceWrite { destination, .. }
         | OperationKind::StructuralScalarFieldStore { destination, .. } => require(*destination),

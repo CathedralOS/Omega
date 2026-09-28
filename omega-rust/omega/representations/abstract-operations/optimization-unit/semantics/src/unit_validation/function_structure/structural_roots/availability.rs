@@ -182,7 +182,8 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             destination,
             source,
             ..
-        } | O::StructuralByteSequenceFieldStore {
+        }
+        | O::StructuralByteSequenceFieldStore {
             destination,
             source,
             ..

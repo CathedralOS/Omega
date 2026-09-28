@@ -174,7 +174,12 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         } => {
             storage_operations::encode_write_only_primitive_store(writer, destination, value, path)?
         }
-        OperationKind::ByteSequenceStore { destination, source, length, obligation } => {
+        OperationKind::ByteSequenceStore {
+            destination,
+            source,
+            length,
+            obligation,
+        } => {
             writer.u8(operation_tags::BYTE_SEQUENCE_STORE);
             writer.id(destination);
             writer.id(source);
