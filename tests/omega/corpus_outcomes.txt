@@ -985,6 +985,8 @@ pass/text/runtime_alias_string_write rejected 363ms
 	native-artifact Terminal production failed: Lowering(Unsupported("projected receiver has no exact parameter root"))
 pass/text/runtime_bounded_carrier_alias_concat_exit checked 1167ms
 pass/text/runtime_bounded_carrier_concat_exit checked 1072ms
+pass/text/runtime_bounded_carrier_copy_exit checked 4313ms
+pass/text/runtime_bounded_carrier_normal_status_exit checked 1660ms
 pass/text/runtime_bounded_carrier_length_exit rejected 343ms
 	selected ProgramEntry Binding field `Main::console` requires a selected Fused provider for boundary `Console`
 pass/text/runtime_bounded_carrier_write_read_exit checked 895ms
