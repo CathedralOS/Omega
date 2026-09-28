@@ -8,6 +8,7 @@ mod classification;
 mod commitment;
 mod console_host;
 mod construction;
+mod darwin_clock;
 mod filesystem;
 mod inventory;
 mod model;
@@ -16,6 +17,7 @@ mod syscall;
 mod time_host;
 
 pub use console_host::console_mechanism_row;
+pub use darwin_clock::darwin_clock_mechanism_row;
 pub use filesystem::{
     FilesystemCohortDisposition, FilesystemOrdinaryReleaseContract, UnsettledFilesystemRequirement,
     filesystem_host_permission_row, filesystem_host_permission_rows, filesystem_mechanism_row,
