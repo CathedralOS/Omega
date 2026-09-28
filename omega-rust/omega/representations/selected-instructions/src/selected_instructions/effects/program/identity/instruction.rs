@@ -25,6 +25,7 @@ pub(super) fn encode_ordinary_instruction(
     encode_common_fields(bytes, instruction);
     bytes.push(match instruction.memory {
         MachineMemoryEffect::CopyBytesV1 => 6,
+        MachineMemoryEffect::AtomicPointerV1 => 8,
         MachineMemoryEffect::NoneV1 => 0,
         MachineMemoryEffect::ReadPointerV1 => 1,
         MachineMemoryEffect::HostedReadByteV1 => 5,
@@ -126,6 +127,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
             saturating_family_tag(SaturatingOperation::Multiply, carrier)
         }
         SelectedInstructionKind::TrappingInteger { form } => trapping_family_tag(form),
+        SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -324,6 +326,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::TrappingInteger { .. }
+        | SelectedInstructionKind::AtomicAccess { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64

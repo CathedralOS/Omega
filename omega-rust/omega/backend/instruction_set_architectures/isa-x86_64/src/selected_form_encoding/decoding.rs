@@ -633,6 +633,7 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
+        SelectedInstructionKind::AtomicAccess { .. } => false,
         SelectedInstructionKind::Crash => {
             registers.is_empty() && decoded == [DecodedInstruction::Crash]
         }
@@ -1688,6 +1689,14 @@ pub(crate) fn footprint(
         return trapping_footprint(form, operands);
     }
     let (reads, writes, writes_rflags) = match kind {
+        SelectedInstructionKind::AtomicAccess { form } => (
+            operands[..usize::from(form.operation.input_count())].to_vec(),
+            form.observed_operand()
+                .map(|output| operands[usize::from(output)])
+                .into_iter()
+                .collect(),
+            false,
+        ),
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
@@ -1810,6 +1819,18 @@ pub(crate) fn footprint(
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if kind == SelectedInstructionKind::Crash {
         super::crash::effects(&units("rip"))
+    } else if let SelectedInstructionKind::AtomicAccess { form } = kind {
+        MachineEncodedEffects {
+            memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
+                pointer_operand: 0,
+                form,
+            },
+            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            ..MachineEncodedEffects::fallthrough_v1(
+                (0..form.operation.input_count()).collect(),
+                form.observed_operand().into_iter().collect(),
+            )
+        }
     } else if matches!(
         kind,
         SelectedInstructionKind::ReturnScalar

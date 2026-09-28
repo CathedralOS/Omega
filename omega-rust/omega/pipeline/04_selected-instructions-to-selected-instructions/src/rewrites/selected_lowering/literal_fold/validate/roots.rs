@@ -75,6 +75,10 @@ fn validator_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        atomic_load: keys.atomic_load,
+        atomic_store: keys.atomic_store,
+        atomic_update: keys.atomic_update,
+        atomic_compare_exchange: keys.atomic_compare_exchange,
         crash: keys.crash,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         save_floating_control: keys.save_floating_control,

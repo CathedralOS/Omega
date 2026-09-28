@@ -63,6 +63,10 @@ pub(super) fn selected_environment_keys(
     keys: SelectedConstraintKeys,
 ) -> TargetRegisterEnvironmentConstraintKeys {
     TargetRegisterEnvironmentConstraintKeys {
+        atomic_load: keys.atomic_load,
+        atomic_store: keys.atomic_store,
+        atomic_update: keys.atomic_update,
+        atomic_compare_exchange: keys.atomic_compare_exchange,
         crash: keys.crash,
         load64: keys.load64,
         load8: keys.load8,
@@ -129,6 +133,10 @@ pub(super) fn selected_environment_keys(
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            atomic_load: None,
+            atomic_store: None,
+            atomic_update: None,
+            atomic_compare_exchange: None,
             crash: isa_x86_64::X86_64_CRASH,
             call_aggregate: isa_x86_64::x86_64_system_v_aggregate_call_keys()
                 .into_iter()
@@ -200,6 +208,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
+            atomic_load: None,
+            atomic_store: None,
+            atomic_update: None,
+            atomic_compare_exchange: None,
             crash: isa_x86_64::X86_64_CRASH,
             call_aggregate: isa_x86_64::x86_64_microsoft_aggregate_call_keys()
                 .into_iter()
@@ -269,6 +281,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_MICROSOFT_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
+            atomic_load: None,
+            atomic_store: None,
+            atomic_update: None,
+            atomic_compare_exchange: None,
             crash: isa_aarch64::AARCH64_CRASH,
             call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(false)
                 .into_iter()
@@ -341,6 +357,14 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: AARCH64_AAPCS64_RETURN_UNIT,
         }),
         (Architecture::Aarch64, ObjectFormat::MachO) => Some(SelectedConstraintKeys {
+            atomic_load: (target == NativeTarget::macos_arm64())
+                .then_some(isa_aarch64::AARCH64_ATOMIC_LOAD),
+            atomic_store: (target == NativeTarget::macos_arm64())
+                .then_some(isa_aarch64::AARCH64_ATOMIC_STORE),
+            atomic_update: (target == NativeTarget::macos_arm64())
+                .then_some(isa_aarch64::AARCH64_ATOMIC_UPDATE),
+            atomic_compare_exchange: (target == NativeTarget::macos_arm64())
+                .then_some(isa_aarch64::AARCH64_ATOMIC_COMPARE_EXCHANGE),
             crash: isa_aarch64::AARCH64_CRASH,
             call_aggregate: isa_aarch64::aarch64_register_aggregate_call_keys(true)
                 .into_iter()

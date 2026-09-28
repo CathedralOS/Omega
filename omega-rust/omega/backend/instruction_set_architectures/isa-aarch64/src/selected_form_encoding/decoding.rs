@@ -670,6 +670,8 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedWord],
 ) -> Result<(), Aarch64SelectedFormEncodingError> {
     let valid = match kind {
+        // Atomic bytes have their own opcode/width/register decoder.
+        SelectedInstructionKind::AtomicAccess { .. } => false,
         SelectedInstructionKind::Crash => registers.is_empty() && decoded == [DecodedWord::Crash],
         SelectedInstructionKind::TrappingInteger { form } => {
             decoded == super::trapping_forms::realization(form, registers)
@@ -1091,6 +1093,9 @@ pub(crate) fn footprint(
     // Classify operand indices once. Both physical views and encoded effects
     // must describe the same slots, including when two slots share a register.
     let (read_indices, write_indices, writes_nzcv) = match kind {
+        SelectedInstructionKind::AtomicAccess { form } => {
+            return super::atomic::footprint(form, operands);
+        }
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         // Every Trapping realization leaves NZCV unspecified; the encoded
         // effects below declare it clobbered rather than defined.

@@ -39,6 +39,9 @@ fn family_and_operand_count(
     X86_64SelectedFormEncodingError,
 > {
     Ok(match kind {
+        SelectedInstructionKind::AtomicAccess { .. } => {
+            return Err(X86_64SelectedFormEncodingError::UnsupportedAtomicForm);
+        }
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0, 0..=0),
         SelectedInstructionKind::CompareI64Zero => {
             (MachineAlternativeFamily::CompareI64Zero, 1, 0..=0)

@@ -116,6 +116,10 @@ fn terminal_selected_keys(
     keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        atomic_load: keys.atomic_load,
+        atomic_store: keys.atomic_store,
+        atomic_update: keys.atomic_update,
+        atomic_compare_exchange: keys.atomic_compare_exchange,
         crash: keys.crash,
         hosted_write_byte_i32: keys.hosted_write_byte_i32,
         save_floating_control: keys.save_floating_control,
@@ -285,6 +289,7 @@ fn exact_declaration<'a>(
 
 pub(crate) fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKind {
     match kind {
+        SelectedInstructionKind::AtomicAccess { form } => MachineSemanticKind::AtomicAccess(form),
         SelectedInstructionKind::CompareI64Zero => MachineSemanticKind::CompareI64Zero,
         SelectedInstructionKind::CallAggregate { .. } => MachineSemanticKind::CallAggregate,
         SelectedInstructionKind::ReturnAggregate { .. } => MachineSemanticKind::ReturnAggregate,

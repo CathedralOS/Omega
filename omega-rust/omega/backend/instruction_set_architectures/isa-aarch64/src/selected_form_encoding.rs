@@ -3,6 +3,7 @@
 //! forms and `movn_materialization.rs` immediates; `decoding.rs` reads the
 //! words back and `encoding_types.rs` holds the carriers.
 
+pub(crate) mod atomic;
 #[cfg(test)]
 mod boolean_materialization_tests;
 mod branch_forms;

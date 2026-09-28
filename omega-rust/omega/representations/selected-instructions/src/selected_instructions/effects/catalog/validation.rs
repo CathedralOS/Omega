@@ -1,6 +1,8 @@
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 
 #[cfg(test)]
+mod atomic_tests;
+#[cfg(test)]
 mod tests;
 
 use super::{
@@ -24,6 +26,7 @@ pub(super) fn validate_declaration(
             | MachineSemanticKind::HostedWriteByteI32
             | MachineSemanticKind::HostedExitProcessI32
             | MachineSemanticKind::TrappingInteger(_)
+            | MachineSemanticKind::AtomicAccess(_)
     ) {
         MachineBarrier::ExternalEffect
     } else if matches!(
@@ -67,6 +70,7 @@ pub(super) fn validate_declaration(
     // Understating a surface the rule needs, or overstating one it cannot
     // have, fails admission instead of reaching canonical replay.
     let expected_memory = match semantic {
+        MachineSemanticKind::AtomicAccess(_) => crate::MachineMemoryEffect::AtomicPointerV1,
         MachineSemanticKind::CopyBytes => crate::MachineMemoryEffect::CopyBytesV1,
         MachineSemanticKind::HostedReadByte => crate::MachineMemoryEffect::HostedReadByteV1,
         MachineSemanticKind::HostedWriteByteI32 => crate::MachineMemoryEffect::HostedWriteByteV1,
@@ -96,6 +100,7 @@ pub(super) fn validate_declaration(
         ));
     }
     let expected_trap = match semantic {
+        MachineSemanticKind::AtomicAccess(_) => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
         MachineSemanticKind::TrappingInteger(_) => crate::MachineTrapBehavior::TrappingIntegerV1,
         MachineSemanticKind::HostedExitProcessI32 => {
@@ -595,6 +600,7 @@ fn validate_encoded_effects(
                 declaration.semantic,
                 MachineSemanticKind::SaveFloatingControl
                     | MachineSemanticKind::RestoreFloatingControl
+                    | MachineSemanticKind::AtomicAccess(_)
             ) =>
         {
             MachineBarrier::ExternalEffect
@@ -843,6 +849,41 @@ fn validate_encoded_effects(
         ) && declaration.memory == crate::MachineMemoryEffect::NoneV1
             && declaration.trap == crate::MachineTrapBehavior::TrappingIntegerV1
             && encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1 => {}
+        (
+            MachineEncodedMemoryEffect::AtomicPointerV1 {
+                pointer_operand: 0,
+                form,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::AtomicAccess(form)
+            && declaration.memory == crate::MachineMemoryEffect::AtomicPointerV1
+            && encoded.control == MachineEncodedControlEffect::FallThroughV1
+            && constraint.operands.len() == usize::from(form.operand_count())
+            && encoded
+                .external_operand_reads
+                .iter()
+                .copied()
+                .eq(0..form.operation.input_count())
+            && encoded
+                .external_operand_writes
+                .iter()
+                .copied()
+                .eq(form.observed_operand())
+            && constraint
+                .operands
+                .iter()
+                .enumerate()
+                .all(|(index, operand)| {
+                    if usize::from(operand.operand) != index || operand.tied_to.is_some() {
+                        return false;
+                    }
+                    if Some(operand.operand) == form.observed_operand() {
+                        operand.access == RegisterOperandAccess::Def && operand.early_clobber
+                    } else {
+                        operand.access == RegisterOperandAccess::Use && !operand.early_clobber
+                    }
+                }) => {}
         // The fallthrough surface admits no hosted trap shape; hosted rules
         // must pass their own rows above instead of borrowing this one.
         (

@@ -115,6 +115,7 @@ impl ValidatedX86_64SelectedFormEncoding {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum X86_64SelectedFormEncodingError {
+    UnsupportedAtomicForm,
     NonCanonicalPhysicalModel,
     LayoutDependentForm,
     AlternativeMismatch,

@@ -46,6 +46,10 @@ fn crash_identity_tags_do_not_alias_other_instruction_families() {
 
 fn keys() -> SelectedConstraintKeys {
     SelectedConstraintKeys {
+        atomic_load: Some(instruction(54)),
+        atomic_store: Some(instruction(55)),
+        atomic_update: Some(instruction(56)),
+        atomic_compare_exchange: Some(instruction(57)),
         crash: instruction(780),
         copy_bytes: Some(instruction(40)),
         save_floating_control: Some(instruction(44)),
@@ -924,8 +928,12 @@ fn alternative_family_tag_is_pinned_for_every_family() {
     }
     for semantic in MachineSemanticKind::ALL {
         let family = MachineAlternativeFamily::from(semantic);
-        // Trapping forms take a dense tag block pinned by its own test.
-        if matches!(family, MachineAlternativeFamily::TrappingInteger(_)) {
+        // Parametric forms take dense blocks pinned by their own tests.
+        if matches!(
+            family,
+            MachineAlternativeFamily::TrappingInteger(_)
+                | MachineAlternativeFamily::AtomicAccess(_)
+        ) {
             continue;
         }
         assert!(
@@ -988,6 +996,33 @@ fn trapping_family_tags_are_dense_distinct_and_pinned() {
         .map(|semantic| semantic_kind_tag(*semantic))
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(every_tag.len(), MachineSemanticKind::ALL.len());
+}
+
+#[test]
+fn atomic_family_tags_and_encoded_widths_are_pinned() {
+    for (ordinal, form) in crate::AtomicForm::ALL.into_iter().enumerate() {
+        let tag = 194 + u8::try_from(ordinal).unwrap();
+        assert_eq!(
+            alternative_family_tag(MachineAlternativeFamily::AtomicAccess(form)),
+            tag
+        );
+        assert_eq!(
+            semantic_kind_tag(MachineSemanticKind::AtomicAccess(form)),
+            tag
+        );
+        let encoded = pinned_effects(
+            MachineEncodedMemoryEffect::AtomicPointerV1 {
+                pointer_operand: 0x0201,
+                form,
+            },
+            MachineEncodedStackEffect::UnchangedV1,
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+            MachineEncodedControlEffect::FallThroughV1,
+        );
+        let mut expected = EMPTY_LIST_PREFIX.to_vec();
+        expected.extend_from_slice(&[11, 1, 2, ordinal as u8, 0, 1, 0]);
+        assert_eq!(encoded_identity(&encoded), expected);
+    }
 }
 
 #[test]

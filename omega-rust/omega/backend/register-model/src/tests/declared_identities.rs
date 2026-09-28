@@ -131,6 +131,10 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
     )
     .unwrap();
     let keys = TargetRegisterEnvironmentConstraintKeys {
+        atomic_load: None,
+        atomic_store: None,
+        atomic_update: None,
+        atomic_compare_exchange: None,
         crash: instruction_key(780),
         call_aggregate: Vec::new(),
         return_aggregate: Vec::new(),
@@ -239,6 +243,22 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
     }
 
     for changed_keys in [
+        TargetRegisterEnvironmentConstraintKeys {
+            atomic_load: Some(instruction_key(781)),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            atomic_store: Some(instruction_key(782)),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            atomic_update: Some(instruction_key(783)),
+            ..keys.clone()
+        },
+        TargetRegisterEnvironmentConstraintKeys {
+            atomic_compare_exchange: Some(instruction_key(784)),
+            ..keys.clone()
+        },
         TargetRegisterEnvironmentConstraintKeys {
             crash: instruction_key(781),
             ..keys.clone()

@@ -162,6 +162,7 @@ pub(in crate::text_placement::placement) fn prove_none(
                 | MachineAlternativeFamily::MaterializeBooleanU64LessOrEqual
                 | MachineAlternativeFamily::MaterializeBooleanI64LessOrEqual
                 | MachineAlternativeFamily::ByteViewAddress
+                | MachineAlternativeFamily::AtomicAccess(_)
                 | MachineAlternativeFamily::ExactAddI64
                 | MachineAlternativeFamily::ExactAddI64Immediate
                 | MachineAlternativeFamily::ExactMultiplyI64

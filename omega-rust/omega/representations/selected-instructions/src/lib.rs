@@ -47,3 +47,4 @@ pub use selected_instructions::{
     provenance, saturating_family_tag, selected_instruction_plan_identity, structural_case,
     trapping_family_tag, validate_machine_effect_catalog, values,
 };
+pub use selected_instructions::{AtomicForm, AtomicOperation, AtomicWidth};

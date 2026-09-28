@@ -9,6 +9,23 @@ use crate::register_model::{
 };
 use register_model::{RegisterConstraintFamily, RegisterConstraintKey};
 
+pub const AARCH64_ATOMIC_LOAD: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 781,
+};
+pub const AARCH64_ATOMIC_STORE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 782,
+};
+pub const AARCH64_ATOMIC_UPDATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 783,
+};
+pub const AARCH64_ATOMIC_COMPARE_EXCHANGE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 784,
+};
+
 pub const AARCH64_CRASH: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 780,
@@ -350,7 +367,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 98] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 102] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -554,4 +571,8 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 98] = [
     AARCH64_SAVE_FLOATING_CONTROL,
     AARCH64_RESTORE_FLOATING_CONTROL,
     AARCH64_CRASH,
+    AARCH64_ATOMIC_LOAD,
+    AARCH64_ATOMIC_STORE,
+    AARCH64_ATOMIC_UPDATE,
+    AARCH64_ATOMIC_COMPARE_EXCHANGE,
 ];
