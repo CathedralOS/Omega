@@ -5187,21 +5187,30 @@ but report the missing runtime leg explicitly; it does not close that host row.
   `TASKS_OPTIMIZER.md`. Their deleted test targets are leads to recover
   behavior, not extra package commands or passing evidence.
 
-- **RC-PCC-REPLAY.** Close the release gate for artifact/`.proof` pairs:
-  round-trip valid evidence, reject hostile/substituted evidence before
-  PCC-required interpretation or lowering, and keep ordinary non-PCC output
-  independently checked. Run nextest and doctests for
-  `checked-trees-to-lowered-psi`, `terminal-codec`, `terminal-verifier`,
-  `terminal-interpreter` and `terminal-psi-to-abstract-operations` as specified
-  by the completion contract. The block is red and includes a terminated
-  proof-search case; a harness returning after killing a test is not
-  successful termination of that test.
-  C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT owns that resource defect; package tests
-  and capability owners repair their remaining attributed failures.
-  Acceptance: complete successful commands at the release commit, including
-  source-free hostile controls. Native behavioral correspondence stays with
-  PCC-PRODUCT-PUBLICATION and PCC-CANONICAL-SEMANTIC-LEDGER; placed-image digest
-  checks alone do not close it.
+- **RC-PCC-REPLAY.** Close the [release gate](wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
+  valid artifact/`.proof` pairs round-trip without source or producer state;
+  hostile/substituted evidence rejects before PCC-required interpretation or
+  lowering; ordinary non-PCC output remains independently checked. Run complete
+  nextest and doctest selections for `checked-trees-to-lowered-psi`,
+  `terminal-codec`, `terminal-verifier`, `terminal-interpreter` and
+  `terminal-psi-to-abstract-operations` at the release commit.
+
+  Rebaseline the byte-buffer argument paths, bounded-byte reads/stores/equality
+  and interpreter length admission failures observed at `1ed469454e5`.
+  Reconcile retained carriers and test expectations with
+  [byte views](wiki/spec/terminal-psi/byte_views.md) and
+  [structural access](wiki/spec/terminal-psi/structural_access.md):
+  `byte_sequence_length::parameter_length_requires_whole_readable_borrowed_view_and_real_contents`
+  still rejects bounded-owner length metadata that the contract permits.
+  Preserve payload-access restrictions, separate indexed-write bounds from UTF-8
+  preservation, and retain sidecar substitution, sealed-subject and pre-execution
+  admission controls.
+
+  The full package run terminates; its failures replace the old killed-test
+  diagnosis. **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT** still owns bounded search;
+  killing or filtering a test cannot satisfy this gate. Native behavioral
+  correspondence remains with **PCC-PRODUCT-PUBLICATION** and
+  **PCC-CANONICAL-SEMANTIC-LEDGER**; placed-image digests do not establish it.
 
 The four required native-host rows share the
 [completion contract](wiki/drafts/reference/rust_compiler_completion.md#release-matrix)
