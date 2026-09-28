@@ -2968,73 +2968,58 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   the package-local calling-vocabulary duplicate rejection. Registration outcome
   and lifetime belong to REGISTERED-CALLBACK-LIFETIME.
 
-- **REGISTERED-CALLBACK-LIFETIME.** Complete an authored registrar lifecycle
+- **REGISTERED-CALLBACK-LIFETIME.** Execute an authored registrar lifecycle
   under [registration and lifetime](wiki/spec/build/private_callbacks.md#registration-and-lifetime)
   and [opaque retention](wiki/spec/build/component_publication.md#opaque-retention-and-quarantine).
-  Owners: checked execution/result planning, Terminal result qualification and
-  claim replay, installed-provider interpretation, and
-  `component-publication/src/callback_registration.rs`.
-  Routed-domain authorization of registration sum payloads, interpreted
-  register/unregister ledger integration and installed-provider minting of bare
-  linear result claims exist; do not reopen the resolved payload-authorization
-  question.
+  Carry the success/rejection sum through checked result planning, Terminal
+  case-conditional qualifications/claims and installed-provider interpretation.
+  `terminal-interpreter/src/calls.rs` still rejects projected result qualifications
+  and affine results carrying claims/qualifications. Reuse the verifier's
+  `structural/qualification_rosters.rs` and interpreter `live_claims`; a valid
+  roster must come from authored evidence, not merely removal of the gate.
 
-  Carry the success/rejection sum through executable planning, case-conditional
-  qualifications/claims and an authored provider/customer. The installed-provider
-  path still rejects projected result qualifications and admits affine results
-  only without claims/qualifications
-  (`terminal-interpreter/src/calls.rs`).
+  Join success to the exact live-registration capacity, external root and
+  code/component leases through `component-publication/src/callback_registration.rs`.
+  Rejection creates no root and preserves capacity. Unregister and quiescence
+  precede lease release and return that same capacity occurrence; capacity counts
+  live registrations, not thunks. Use ordinary custody rules.
 
-  Reuse `validate_projected_qualification_roster` in
-  `terminal-verifier/src/validation/foundation/machine_foundations.rs` and the
-  interpreter's `live_claims` custody. Removing the empty-qualification gate is
-  insufficient: the authored customer must establish correct case-conditional
-  evidence and reject a wrong roster.
-  Success must join the exact live-registration capacity occurrence to the
-  external root and code/component leases; rejection preserves that capacity
-  without a root. Teardown requires quiescence before lease release.
-  Capacity counts live registrations, not emitted thunks; successful teardown
-  returns the same capacity occurrence.
-  Use ordinary custody, not registration-specific checker rules.
+  Acceptance: an authored provider/customer rejects, retries, replaces with
+  returned capacity and unregisters; dropped, repeated, stale/cross-occurrence
+  registrations, spent-capacity reuse and wrong qualification rosters reject.
+  Preserve `05_checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs`:
+  routed-payload checks and interpreted bare-registration round trips exist,
+  but the installed-provider witness injects conformance records and does not
+  close this lifecycle. CALLBACK-PRIVATE-MATERIALIZATION supplies the native
+  entry; FFIVAL owns Windows foreign invocation, unavailable on other hosts.
 
-  Acceptance: one authored program rejects, retries, replaces using returned
-  capacity, and unregisters. Dropped, repeated, stale/cross-occurrence
-  registrations and spent-capacity reuse reject. Preserve
-  `05_checked-trees-to-lowered-psi/tests/registered_callback_lifetime.rs` and
-  the interpreted ledger tests, but manual ledger sequencing or injected
-  provider-conformance rows do not close this authored acceptance.
-  CALLBACK-PRIVATE-MATERIALIZATION supplies the native entry; FFIVAL owns
-  the Windows foreign-invocation customer. Other hosts must report that leg
-  unavailable rather than claim execution.
+- **FOREIGN-RETAINED-ARGUMENT-BACKING.** Connect authored retention to native
+  argument backing under [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody).
+  Owners: checked content/call planning, checked-to-lowered retention, Terminal
+  boundary verification, native marshaling and `external-roots`'s
+  `program_local/program_local_extents/retained_foreign_arguments.rs`.
 
-- **FOREIGN-RETAINED-ARGUMENT-BACKING.** Connect authored retained-argument
-  custody to executable native backing under
-  [outbound custody](wiki/spec/build/foreign_storage.md#outbound-custody).
-  Owners: checked content/call planning, checked-to-lowered retention,
-  Terminal boundary validation, native call-site marshaling, and
-  `omega-rust/omega/backend/runtime/external-roots/src/program_local/program_local_extents/retained_foreign_arguments.rs`.
+  Shared-borrow declaration transport and invoked-call verification exist;
+  `retain_foreign_argument_under_custody` still has only test callers. Complete
+  the authored source-to-Terminal-to-native connection, including installed-provider
+  custody (`foundation/provider_candidates.rs` currently refuses retained-borrow
+  guarantees). Materialize pointers only from exact stable-root, range, access,
+  lifetime and revision/lease evidence. Reuse result-`ensures`, nominal matching
+  and structural-result catalogs.
 
-  Shared retained-borrow custody attaches to the invoked Terminal boundary;
-  verification checks its exact shared source and retained result loan.
-  `retain_foreign_argument_under_custody` selects shared lifetime retention
-  from that row, but still has only test callers. Complete the authored
-  source-to-Terminal-to-native call-site connection, materializing pointers
-  only from established stable root/range/access/lifetime/revision-or-lease
-  custody. Reuse the admitted result-`ensures`, nominal-match and structural-result
-  catalog path rather than recreating those gates.
+  Add explicit snapshot permission, private backing and persistent demand with
+  capacity per live occurrence; copying implies neither identity preservation
+  nor write-back. The snapshot registry helper is test-only. Implement moved
+  backing through CONSERVATION-CONTRACT / TERMINAL-CONTENT-CLAIMS; no moved
+  registry implementation remains. Authored custody must select each disposition.
 
-  Add the permitted-snapshot source/checked contract and persistent demand per
-  live occurrence; copying must be explicitly allowed, without invented identity
-  preservation or write-back. Connect moved backing through CONSERVATION-CONTRACT
-  and TERMINAL-CONTENT-CLAIMS. Moved/snapshot registry helpers are test-only;
-  promote a route only when authored custody selects it.
-
-  Acceptance: authored moved, lifetime-borrowed and permitted-snapshot boundaries
-  run natively. Completion redeems moved backing; a live shared loan excludes
-  conflicting writes. Call-scoped, mutable lifetime-borrowed or ambiguous retention and
-  unknown/stale/out-of-range/excess-rights backing reject. Preserve
-  `retained_content_custody` and `retention/retained_borrow_custody` controls.
-  Registration-specific lease custody remains REGISTERED-CALLBACK-LIFETIME.
+  Acceptance: moved, lifetime-borrowed and permitted-snapshot boundaries run
+  natively; completion redeems moved backing and live shared loans exclude
+  conflicting writes. Call-scoped, mutable lifetime-borrowed or ambiguous
+  retention and unknown/stale/out-of-range/excess-rights backing reject. Preserve
+  `retained_content_custody` and `retention/retained_borrow_custody` controls;
+  their declaration and constructed-Terminal witnesses do not prove native
+  calls. Registration leases remain REGISTERED-CALLBACK-LIFETIME.
 
 - **TERMINAL-SLICE-VIEW-VOCABULARY.** (split-of:SLICE-VIEW-LOCAL-ENTRY-ESTABLISHMENT)
   Complete consuming non-byte `&[T]` calls and state transfers through Terminal
