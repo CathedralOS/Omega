@@ -17,6 +17,14 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   to the backend target owner and is shared with native reports; application
   intent remains independent of the image subsystem. Package permissions and
   behavior exclusions remain independent inputs, never inferred from providers.
+  Its [proposal constructor](src/retained_terminal/proposal.rs) owns the full
+  producing sequence: entry settlement, canonical decode, provider demands,
+  callback and comparison joins, boundary coverage and registrar imports.
+  The compiler supplies completed callback artifacts and borrowed selections;
+  the constructor independently checks their roster and exact placement joins.
+  It does not call compilation or grant native authority. Checked selections
+  remain transitional inputs until provider selection itself moves behind
+  Terminal Psi.
   Its [native provider preparation](src/retained_terminal/native_providers.rs)
   rejoins receiving policies and prepares callbacks, imports and builtins in
   one operation. Derived import evidence remains invocation-owned through

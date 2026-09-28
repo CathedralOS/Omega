@@ -20,6 +20,9 @@
 //! `comparison_settlement` rejoins emitted comparison occurrences to authored
 //! applications and this target's selected providers. It produces source-free
 //! comparison records, not a substitute for canonical artifact admission.
+//! `retained_terminal::proposal` owns their producing sequence, joining already
+//! compiled entry/callback artifacts to selected native evidence. The compiler
+//! supplies products and selections rather than reconstructing these joins.
 
 mod artifact_admission;
 mod boundary_application_settlement;
@@ -38,7 +41,8 @@ pub use retained_terminal::{
     TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
     TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
-    TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
+    TerminalNativeOccurrences, TerminalNativeProposalRequest, TerminalNativeProviders,
+    TerminalNativeRealizationProposal, project_terminal_native_realization_proposal,
 };
 
 pub use native_admission::{
