@@ -316,6 +316,9 @@ fn select_function(
                 boolean_value::emit(operation, &mut builder)?
             } else {
                 match &operation.kind {
+                    LegalizedScalarInstructionKind::AtomicAccess { .. } => {
+                        return Err(invalid());
+                    }
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
                         ieee_comparison::emit(operation, &mut builder)?
                     }

@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group.
 //! Common graph legalization and independent corruption controls.
 
+mod atomic_access;
 mod borrowed_windows;
 pub(crate) mod byte_input;
 mod byte_output;

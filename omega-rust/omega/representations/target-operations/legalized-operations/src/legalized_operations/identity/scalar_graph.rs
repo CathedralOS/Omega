@@ -67,6 +67,21 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 None => bytes.push(0),
             }
             match &instruction.kind {
+                LegalizedScalarInstructionKind::AtomicAccess {
+                    location,
+                    field,
+                    scalar_type,
+                    field_byte_offset,
+                    event,
+                } => {
+                    // 95..166 are the existing trapping forms.
+                    bytes.push(167);
+                    super::structural_types::encode_structural_argument(bytes, location);
+                    bytes.extend_from_slice(&field.get().to_le_bytes());
+                    encode_integer_type(bytes, *scalar_type);
+                    bytes.extend_from_slice(&field_byte_offset.to_le_bytes());
+                    encode_atomic_event(bytes, *event);
+                }
                 LegalizedScalarInstructionKind::IeeeFloatCompare {
                     comparison,
                     format,
@@ -836,6 +851,64 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
     encode_len(bytes, function.ownership_frontier_facts.len());
     for fact in &function.ownership_frontier_facts {
         bytes.extend_from_slice(&fact.identity.bytes());
+    }
+}
+
+fn encode_atomic_event(bytes: &mut Vec<u8>, event: terminal_psi::AtomicAccessEvent) {
+    use terminal_psi::{
+        AtomicAccessEvent as Event, AtomicReadModifyWrite as Fetch, MemoryOrdering,
+    };
+    fn ordering(bytes: &mut Vec<u8>, value: MemoryOrdering) {
+        bytes.push(match value {
+            MemoryOrdering::NoOrdering => 0,
+            MemoryOrdering::Receive => 1,
+            MemoryOrdering::Publish => 2,
+            MemoryOrdering::ReceivePublish => 3,
+            MemoryOrdering::GlobalOrder => 4,
+        });
+    }
+    match event {
+        Event::Load { ordering: order } => {
+            bytes.push(0);
+            ordering(bytes, order);
+        }
+        Event::Store {
+            ordering: order, ..
+        } => {
+            bytes.push(1);
+            ordering(bytes, order);
+        }
+        Event::ReadModifyWrite {
+            ordering: order,
+            operation,
+            ..
+        } => {
+            bytes.push(2);
+            bytes.push(match operation {
+                Fetch::FetchAdd => 0,
+                Fetch::FetchSub => 1,
+                Fetch::FetchAnd => 2,
+                Fetch::FetchOr => 3,
+                Fetch::FetchXor => 4,
+            });
+            ordering(bytes, order);
+        }
+        Event::Swap {
+            ordering: order, ..
+        } => {
+            bytes.push(3);
+            ordering(bytes, order);
+        }
+        Event::CompareExchange {
+            success, failure, ..
+        } => {
+            bytes.push(4);
+            ordering(bytes, success);
+            ordering(bytes, failure);
+        }
+    }
+    for operand in event.operands() {
+        bytes.extend_from_slice(&operand.get().to_le_bytes());
     }
 }
 

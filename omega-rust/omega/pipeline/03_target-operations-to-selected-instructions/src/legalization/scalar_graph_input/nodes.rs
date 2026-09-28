@@ -38,6 +38,19 @@ pub(in crate::legalization) fn instruction(
 pub(in crate::legalization) fn admit(
     node: &OptimizationNode,
 ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
+    if let AbstractOperation::AtomicEvent {
+        psi_operation,
+        event,
+        ..
+    } = &node.operation
+    {
+        let (event, result) =
+            super::atomic_access::event(event).ok_or(NodeRejection::UnsupportedFamily)?;
+        if !event.ordering_is_legal() {
+            return Err(NodeRejection::Malformed);
+        }
+        return Ok((*psi_operation, result.map(|result| result.value)));
+    }
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::ElementViewSubslice { psi_operation, .. }
     | AbstractOperation::EstablishElementView { psi_operation, .. }
@@ -774,6 +787,16 @@ pub(super) fn validate(
                 continue;
             }
         }
+        if let AbstractOperation::AtomicEvent { event, .. } = &node.operation {
+            let (_, observed) =
+                super::atomic_access::event(event).ok_or_else(LegalizationError::custody)?;
+            if observed.is_none() {
+                if result.is_some() || !node.definitions.is_empty() {
+                    return Err(LegalizationError::custody());
+                }
+                continue;
+            }
+        }
         let [definition] = node.definitions.as_slice() else {
             return Err(LegalizationError::custody());
         };
@@ -787,6 +810,12 @@ pub(super) fn validate(
             return Err(LegalizationError::custody());
         }
         let expected_type = match &node.operation {
+            AbstractOperation::AtomicEvent { event, .. } => {
+                super::atomic_access::event(event)
+                    .and_then(|(_, result)| result)
+                    .ok_or_else(LegalizationError::custody)?
+                    .scalar_type
+            }
             AbstractOperation::IeeeFloatCompare {
                 format,
                 left,

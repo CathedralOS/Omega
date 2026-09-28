@@ -96,6 +96,59 @@ pub(super) fn validate_operation(
     };
     match (target, abstracted) {
         (
+            TargetUnitOperation::AtomicAccess {
+                psi_operation,
+                location,
+                field,
+                scalar_type,
+                field_byte_offset,
+                event,
+                operands,
+                result_home,
+            },
+            AbstractOperation::AtomicEvent {
+                psi_operation: expected_operation,
+                event: source,
+                ..
+            },
+        ) => {
+            let expected =
+                super::super::atomic_access::access(source, optimized, &unit.structural_types)
+                    .ok_or_else(LegalizationError::custody)?;
+            if super::super::reference_custody::is_suspended_root(custody, location.place)
+                || psi_operation != expected_operation
+                || location != &expected.location
+                || *field != expected.field
+                || *scalar_type != expected.scalar_type
+                || *field_byte_offset != expected.field_byte_offset
+                || *event != expected.event
+                || operands.len() != event.operands().len()
+                || !event
+                    .operands()
+                    .iter()
+                    .zip(operands)
+                    .all(|(value, operand)| {
+                        sources
+                            .iter()
+                            .any(|(identity, source)| identity == value && source == operand)
+                    })
+            {
+                return Err(LegalizationError::custody());
+            }
+            match (result_home, expected.result) {
+                (None, None) => {}
+                (Some(home), Some(result))
+                    if home.defining_operation == *psi_operation
+                        && home.source_value == result.value
+                        && home.scalar_type == result.scalar_type
+                        && Some(home.shape) == super::super::scalar_shape(result.scalar_type) =>
+                {
+                    sources.push((result.value, Source::Home(*home)));
+                }
+                _ => return Err(LegalizationError::custody()),
+            }
+        }
+        (
             TargetUnitOperation::StructuralCaseMembership {
                 psi_operation,
                 result,

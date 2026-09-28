@@ -224,8 +224,14 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::ReturnStructural { .. }
         | AbstractOperation::ReturnUnit { .. }
         | AbstractOperation::StructuralCase { .. } => AdmissionRoute::Terminator,
-        AbstractOperation::AtomicEvent { .. }
-        | AbstractOperation::CallDynamicScalar { .. }
+        AbstractOperation::AtomicEvent { event, .. } => {
+            if super::atomic_access::event(event).is_some() {
+                AdmissionRoute::BodyAdmitted
+            } else {
+                AdmissionRoute::NamedRejection
+            }
+        }
+        AbstractOperation::CallDynamicScalar { .. }
         | AbstractOperation::CallDynamicUnit { .. }
         | AbstractOperation::CallStoredDynamicScalar { .. }
         | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }

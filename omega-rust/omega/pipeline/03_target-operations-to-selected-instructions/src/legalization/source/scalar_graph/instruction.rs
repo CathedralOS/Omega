@@ -39,6 +39,18 @@ pub(super) fn project(
     }
     let (operation, result) = scalar_graph_input::instruction(node).ok_or(Error::custody())?;
     let kind = match &node.operation {
+        AbstractOperation::AtomicEvent { event, .. } => {
+            let access =
+                scalar_graph_input::atomic_access::access(event, optimized, &unit.structural_types)
+                    .ok_or_else(Error::custody)?;
+            LegalizedScalarInstructionKind::AtomicAccess {
+                location: access.location,
+                field: access.field,
+                scalar_type: access.scalar_type,
+                field_byte_offset: access.field_byte_offset,
+                event: access.event,
+            }
+        }
         AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
             let (_, _, source, field) = scalar_graph_input::structural_fields::read(
                 optimized,

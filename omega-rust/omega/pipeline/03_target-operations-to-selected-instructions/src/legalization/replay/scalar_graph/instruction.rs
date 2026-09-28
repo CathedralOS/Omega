@@ -74,6 +74,31 @@ pub(super) fn validate(
     }
     match (&actual.kind, &node.operation) {
         (
+            LegalizedScalarInstructionKind::AtomicAccess {
+                location,
+                field,
+                scalar_type,
+                field_byte_offset,
+                event,
+            },
+            AbstractOperation::AtomicEvent { event: source, .. },
+        ) => {
+            let expected = scalar_graph_input::atomic_access::access(
+                source,
+                optimized,
+                &unit.structural_types,
+            )
+            .ok_or_else(|| invalid.clone())?;
+            if location != &expected.location
+                || *field != expected.field
+                || *scalar_type != expected.scalar_type
+                || *field_byte_offset != expected.field_byte_offset
+                || *event != expected.event
+            {
+                return Err(invalid);
+            }
+        }
+        (
             LegalizedScalarInstructionKind::WrappingAdd { left, right },
             AbstractOperation::WrappingIntegerAdd {
                 left: source_left,
