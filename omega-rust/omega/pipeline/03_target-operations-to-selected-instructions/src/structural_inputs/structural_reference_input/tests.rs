@@ -123,7 +123,7 @@ fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
 }
 
 #[test]
-fn byte_field_layout_does_not_admit_owned_byte_roots() {
+fn owned_byte_roots_have_bounded_geometry_without_plain_aggregate_admission() {
     use terminal_psi::ByteSequenceCarrier;
 
     assert_eq!(
@@ -137,14 +137,30 @@ fn byte_field_layout_does_not_admit_owned_byte_roots() {
         Some(ValueShape::integer(16, 8)),
     );
     let root = StructuralTypeId::new(1).unwrap();
-    let declarations = [StructuralTypeDeclaration {
-        id: root,
-        identity: "Buffer".into(),
-        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 3 }),
-    }];
-    assert_eq!(shape(root, &declarations), None);
-    assert_eq!(plain_record_shape(root, &declarations), None);
-    assert_eq!(owned_aggregate_shape(root, &declarations), None);
+    // The length header and inline capacity have geometry, but that alone
+    // does not make byte storage a plain record or an ordinary owned aggregate.
+    for (capacity, expected_size) in [
+        (0, Some(8)),
+        (3, Some(11)),
+        (65_527, Some(u16::MAX)),
+        (65_528, None),
+        (u64::MAX, None),
+    ] {
+        let declarations = [StructuralTypeDeclaration {
+            id: root,
+            identity: "Buffer".into(),
+            shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                capacity,
+            }),
+        }];
+        assert_eq!(
+            shape(root, &declarations),
+            expected_size.map(|size| ValueShape::integer(size, 8)),
+            "capacity {capacity}",
+        );
+        assert_eq!(plain_record_shape(root, &declarations), None);
+        assert_eq!(owned_aggregate_shape(root, &declarations), None);
+    }
 }
 
 #[test]
