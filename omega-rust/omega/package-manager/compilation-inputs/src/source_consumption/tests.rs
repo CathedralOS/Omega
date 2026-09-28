@@ -62,6 +62,122 @@ fn generated_files(
 }
 
 #[test]
+fn build_source_custody_admits_generated_continuation_without_partial_updates() {
+    let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+    let root = std::env::current_dir().unwrap();
+    let inputs = crate::PackageCompilationInputs::new_package(
+        package,
+        vec![crate::PackageSourceBinding::new(
+            package,
+            "generated_continuation",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .unwrap();
+    let base = Arc::new(source::SourceMap::default());
+    let outputs = generated_fixture()
+        .into_iter()
+        .map(|(_, output)| output)
+        .collect::<Vec<_>>();
+    let initial = super::BuildSourceCustody {
+        source_file_count: 0,
+        build_execution_profile: Some(target::TargetProfile::MacosArm64),
+        generated_source_custody: Vec::new(),
+        base_source_consumption_commitment: Some(PackageSourceConsumptionCommitment::for_test(
+            [42; 32],
+        )),
+    };
+    let mut custody = initial.clone();
+    assert!(
+        custody
+            .admit_generated_extension(&base, None, &[])
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(custody, initial);
+    let missing_package = custody
+        .admit_generated_extension(&base, None, &outputs)
+        .err()
+        .unwrap();
+    assert_eq!(
+        missing_package[0].message,
+        "generated-source final compilation requires package-aware source custody"
+    );
+    assert_eq!(custody, initial);
+
+    let duplicate = custody
+        .admit_generated_extension(
+            &base,
+            Some(&inputs),
+            &[outputs[0].clone(), outputs[0].clone()],
+        )
+        .err()
+        .unwrap();
+    assert!(duplicate[0].message.contains("collides"));
+    assert_eq!(custody, initial);
+
+    custody.source_file_count = usize::MAX;
+    let overflow = custody
+        .admit_generated_extension(&base, Some(&inputs), &outputs)
+        .err()
+        .unwrap();
+    assert_eq!(
+        overflow[0].message,
+        "generated package source count exceeds the compiler range"
+    );
+    assert_eq!(custody.source_file_count, usize::MAX);
+    assert_eq!(
+        custody.generated_source_custody,
+        initial.generated_source_custody
+    );
+    custody.source_file_count = 0;
+
+    let (extension, admitted_inputs) = custody
+        .admit_generated_extension(&base, Some(&inputs), &outputs)
+        .unwrap()
+        .unwrap();
+    assert!(std::ptr::eq(admitted_inputs, &inputs));
+    assert_eq!(custody.source_file_count, 2);
+    assert_eq!(custody.generated_source_custody, extension.custody());
+    assert_eq!(
+        custody.build_execution_profile,
+        initial.build_execution_profile
+    );
+    assert_eq!(
+        custody.base_source_consumption_commitment,
+        initial.base_source_consumption_commitment
+    );
+    let (sources, units) = extension
+        .parse(
+            &base,
+            &mut artifacts::compile_timings::CompileTimings::default(),
+        )
+        .unwrap();
+    assert_eq!(units.len(), 2);
+    for (ordinal, output) in outputs.iter().enumerate() {
+        let file = sources.get(SourceId(ordinal)).unwrap();
+        assert_eq!(file.package_identity, Some(package));
+        assert_eq!(file.package_root, root);
+        assert_eq!(file.source.as_bytes(), output.bytes());
+        assert_eq!(file.dependency_scope, source::DependencyScope::Product);
+        assert_eq!(
+            file.resolution_stratum,
+            source::SourceResolutionStratum::CurrentActivationExtension
+        );
+    }
+    assert!(base.is_empty());
+
+    let retained = custody.clone();
+    let collision = custody
+        .admit_generated_extension(&sources, Some(&inputs), &outputs)
+        .err()
+        .unwrap();
+    assert!(collision[0].message.contains("collides"));
+    assert_eq!(custody, retained);
+}
+
+#[test]
 fn checked_source_custody_seals_the_closure_and_exports_only_own_outputs() {
     let custody = generated_fixture();
     let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
