@@ -53,7 +53,11 @@ pub(crate) fn structural_argument_canonical_prefix(
                     }
                     StructuralFieldType::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                    ) if argument.access == StructuralAccess::MutableBorrow
+                    )
+                    | StructuralFieldType::PredicateByteSequence {
+                        carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                        ..
+                    } if argument.access == StructuralAccess::MutableBorrow
                         && position + 1 == argument.path.len() =>
                     {
                         return Some(prefix);

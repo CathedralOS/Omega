@@ -770,6 +770,13 @@ fn shape(
         StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
+            let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;
+            ValueShape::integer(
+                u16::try_from(bytes).map_err(|_| InvalidStructuralShape)?,
+                8,
+            )
+        }
         StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
             let mut alignment = 1_u16;
