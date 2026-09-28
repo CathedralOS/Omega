@@ -8,6 +8,57 @@ use package_compilation::{BuildExecutionInputs, BuildSnapshotRequest, PackageCom
 use std::path::Path;
 use target::TargetProfile;
 
+/// Inputs to checked compilation, without native publication authority. Source
+/// reuse is input only: every activation independently admits its package custody,
+/// Build sponsors and occurrence-bound restricted consent.
+pub struct CheckedCompileRequest {
+    pub root_path: std::path::PathBuf,
+    /// `None` preserves targetless semantic checking.
+    pub target_name: Option<String>,
+    /// Build runs against this profile, separately from the product target.
+    /// `None` selects the host, or stays unprofiled on an uncatalogued host.
+    pub build_execution_profile: Option<TargetProfile>,
+    pub package_inputs: Option<PackageCompilationInputs>,
+    /// Writable staging, separate from immutable package snapshots.
+    pub build_dir: Option<std::path::PathBuf>,
+    pub filesystem_sponsor: Option<build_time_evaluation::BuildMachineFilesystemSponsor>,
+    pub evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
+    /// Captured immutable source and required sealed outputs for this activation.
+    pub build_snapshot: Option<BuildSnapshotRequest>,
+    pub optimization_rollback: OptimizationRollback,
+    pub prepared_source: Option<crate::PreparedCheckedSource>,
+    /// Return preparation only after successful checking.
+    pub retain_prepared_source: bool,
+    /// `None` observes requests without consulting accepted meaning or granting it.
+    pub restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
+    /// A reused preparation keeps the timing policy under which it was created.
+    pub collect_timings: bool,
+    /// Discovery leaves unsettled fields unestablished; the bound recompile must
+    /// derive or diagnose them under its own inputs.
+    pub permit_unsettled_fused_service_fields: bool,
+}
+
+impl CheckedCompileRequest {
+    pub fn new(root_path: &Path, target_name: Option<&str>) -> Self {
+        Self {
+            root_path: root_path.to_owned(),
+            target_name: target_name.map(str::to_owned),
+            build_execution_profile: None,
+            package_inputs: None,
+            build_dir: None,
+            filesystem_sponsor: None,
+            evaluation_sponsor: None,
+            build_snapshot: None,
+            optimization_rollback: OptimizationRollback::default(),
+            prepared_source: None,
+            retain_prepared_source: false,
+            restricted_build_grants: None,
+            collect_timings: false,
+            permit_unsettled_fused_service_fields: false,
+        }
+    }
+}
+
 /// One checked activation's policy and custody inputs, not authority produced by
 /// checking. Product and Build profiles remain separate. A supplied consent
 /// guard is consumed by Build execution, never by input admission or reuse.

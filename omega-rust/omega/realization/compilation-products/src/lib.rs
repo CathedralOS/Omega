@@ -5,6 +5,8 @@
 //! `compile_request` validates target configurations and product eligibility
 //! without executing a compiler phase. `compile_outcomes` retains every result
 //! and binds its batch commitment; the compiler owns the target execution loop.
+//! `prepared_source` retains exact parsed/typed work and selects reuse without
+//! invoking assembly, resolution, typing or Build execution.
 //! `evaluated_build` retains Build settings and observation results without
 //! depending on their evaluator. `checked_compilation` seals whole checked
 //! stage products against package source custody, supplies their projections and
@@ -29,6 +31,7 @@ mod compile_outcomes;
 pub mod compile_request;
 mod evaluated_build;
 mod pcc;
+mod prepared_source;
 mod production_manifest;
 pub mod publication;
 
@@ -40,12 +43,12 @@ pub use checked_compilation::{
     CheckedCompilation, CheckedCompilationInputs, CheckedProductReport, CompileReportSettlement,
 };
 pub use compilation_products::{CompileOutputKind, CompileReport};
-pub use compile_outcomes::{CompileOutcomes, CompileTargetOutcome};
+pub use compile_outcomes::{CheckedCompileOutcome, CompileOutcomes, CompileTargetOutcome};
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
-    CheckedExecutionRequest, CompileRequest, NativeProductRequest, NativeRealizationRequest,
-    RequestedCompileProduct, RequestedNativeArtifactError, RetainedNativeRealizationRequest,
-    TargetCompileConfiguration,
+    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,
+    NativeRealizationRequest, RequestedCompileProduct, RequestedNativeArtifactError,
+    RetainedNativeRealizationRequest, TargetCompileConfiguration,
 };
 pub use evaluated_build::{
     BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery, IndependentComponentSelection,
@@ -59,6 +62,9 @@ pub use native_artifact::{NativePackagePublicationReceipt, PackagePublicationCom
 pub use optimization_core::OptimizationRollbackReceipt;
 pub use package_compilation::{ProductionCompilationSubject, RetainedBuildOutputs};
 pub use pcc::{PccPublicationReceipt, verify_published_proof_pair};
+pub use prepared_source::{
+    PreparedCheckedSource, PreparedSourceFrontier, TypedCompilationFrontier, TypedFrontierRetention,
+};
 pub use production_manifest::{
     FinalRealizationEvidenceError, ProductionArtifactIdentity, ProductionCompilationManifest,
     ProductionCompilationManifestIdentity,

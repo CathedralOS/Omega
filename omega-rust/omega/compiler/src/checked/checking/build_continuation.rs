@@ -1,7 +1,7 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::CheckedExecutionRequest;
+use compilation_products::{CheckedExecutionRequest, TypedCompilationFrontier};
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::PackageCompilationInputs;
@@ -27,25 +27,12 @@ pub(crate) struct BuiltCheckedProgram {
     pub(super) selected_build_machine_identity: Option<String>,
 }
 
-/// The complete deterministic product of one child's source assembly and
-/// typed frontend: everything `evaluate_build_and_continue` consumes before
-/// the declaration-authority check, retained so a later child of the same
-/// checkpoint under identical frontier inputs reuses it exactly.
-#[derive(Clone)]
-pub(crate) struct TypedFrontier {
-    frontend: CheckedFrontend,
-    source_file_count: usize,
-    generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    base_sources: Arc<source::SourceMap>,
-    application: Option<build_declarations::ApplicationDeclaration>,
-}
-
 /// Consume a prepared typed program. Source preparation owns any reuse;
 /// declaration authority and Build effects are admitted for this activation.
 pub(crate) fn evaluate_build_and_continue(
     root_path: &Path,
     child: CheckedExecutionRequest<'_>,
-    frontier: TypedFrontier,
+    frontier: TypedCompilationFrontier,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltCheckedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedExecutionRequest {
@@ -63,8 +50,11 @@ pub(crate) fn evaluate_build_and_continue(
     // CLI aliases end at request admission. Every source, build, provider, and
     // artifact consumer below observes only the catalog's canonical spelling.
     let target_name = selected_target_profile.map(target::TargetProfile::target_name);
-    let TypedFrontier {
-        frontend,
+    let TypedCompilationFrontier {
+        typing,
+        mut selected_target_machine_declarations,
+        build_source_id,
+        mut pending_pre_checks,
         mut source_file_count,
         mut generated_source_custody,
         base_sources,
@@ -77,8 +67,8 @@ pub(crate) fn evaluate_build_and_continue(
     } = build_evaluation::evaluate_build(
         build_evaluation::BuildEvaluationRequest {
             root_path,
-            typed: frontend.typing.typed(),
-            build_source_id: frontend.build_source_id,
+            typed: typing.typed(),
+            build_source_id,
             sources: &base_sources,
             package_inputs,
             generated_source_custody: &generated_source_custody,
@@ -94,12 +84,6 @@ pub(crate) fn evaluate_build_and_continue(
         },
         timings,
     )?;
-    let CheckedFrontend {
-        typing,
-        mut selected_target_machine_declarations,
-        mut pending_pre_checks,
-        ..
-    } = frontend;
     let typed = if computed_build_config.generated_sources.is_empty() {
         typing.into_typed()
     } else {
@@ -159,15 +143,6 @@ pub(crate) fn evaluate_build_and_continue(
     ))
 }
 
-#[derive(Clone)]
-struct CheckedFrontend {
-    typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
-    selected_target_machine_declarations:
-        provider_planning::target_machines::SelectedTargetMachineDeclarations,
-    build_source_id: Option<source::SourceId>,
-    pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
-}
-
 pub(super) fn lower_typed_frontier(
     source_file_count: usize,
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
@@ -175,7 +150,7 @@ pub(super) fn lower_typed_frontier(
     execution_profile_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
-) -> Result<TypedFrontier, Vec<Diagnostic>> {
+) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
     let application = syntax.application.take();
@@ -238,13 +213,11 @@ pub(super) fn lower_typed_frontier(
         .evaluate_or_defer(typing_base.typed_mut())?
         .into_iter()
         .collect();
-    Ok(TypedFrontier {
-        frontend: CheckedFrontend {
-            typing: typing_base,
-            selected_target_machine_declarations,
-            build_source_id,
-            pending_pre_checks,
-        },
+    Ok(TypedCompilationFrontier {
+        typing: typing_base,
+        selected_target_machine_declarations,
+        build_source_id,
+        pending_pre_checks,
         source_file_count,
         generated_source_custody,
         base_sources,

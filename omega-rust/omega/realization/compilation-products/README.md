@@ -23,6 +23,14 @@ read-only inputs to the coordinator. Evaluated Build requirements are admitted
 by the same product owner before production dispatch. Exact target-name set
 normalization belongs to the backend target catalog.
 
+[prepared_source.rs](src/prepared_source.rs) retains parsed sources and complete
+typed frontiers for exact-input reuse. It owns root admission, live package
+custody checks on reuse and retention slots, but never loads source or runs a
+frontend stage. The compiler explicitly executes a pending frontier and supplies
+the completed result. The immutable parse checkpoint remains package-owned;
+its root is the sole root identity. Checked requests and outcomes use this same
+product rather than depending on compiler-owned cache types.
+
 [compile_outcomes.rs](src/compile_outcomes.rs) retains successful reports and
 rejections together, derives their batch commitments, and refuses single-report
 extraction when siblings exist. Neither a request nor an outcome grants trust,

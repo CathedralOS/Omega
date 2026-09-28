@@ -22,7 +22,7 @@ pub mod terminal;
 pub use crate::checked::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, OptimizationRollback, OptimizationRollbackInputError,
-    PreparedCheckedSource, RestrictedBuildGrants, checked_compilation_call_count,
+    PreparedCheckedSource, RestrictedBuildGrants, checked_compilation_call_count, compile_checked,
     compile_to_checked, executed_preliminary_check_count, executed_settled_check_count,
     preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
     typed_frontier_reuse_count,

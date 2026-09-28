@@ -13,7 +13,7 @@
 //! that enforcement in one execution path without making aliases new instances.
 
 use super::session_accounting::verify_build_session_accounting;
-use compiler::CheckedCompileRequest;
+use compilation_products::CheckedCompileRequest;
 
 use super::super::custody::{
     dependency_first_package_order, package_build_root, verify_selected_source_custody,
@@ -39,7 +39,7 @@ use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
-use compiler::checked::CheckedCompileOutcome;
+use compilation_products::CheckedCompileOutcome;
 use diagnostics::Diagnostic;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
@@ -555,7 +555,7 @@ pub(super) fn compile_dependency_closure(
                 result: checked,
                 prepared_source: mut retained,
                 independent_components: component_discovery,
-            } = request.compile();
+            } = compiler::compile_checked(request);
             let (checked, occurrence_inputs) = match checked {
                 Ok(checked) => (checked, unanswered_inputs),
                 Err(diagnostics) => {
@@ -620,7 +620,7 @@ pub(super) fn compile_dependency_closure(
                         ..CheckedCompileRequest::new(entry, Some(target))
                     };
                     preparation.fresh_preparations += 1;
-                    let outcome = request.compile();
+                    let outcome = compiler::compile_checked(request);
                     retained = outcome.prepared_source;
                     let checked = outcome.result.map_err(|diagnostics| {
                         CompileResolvedPackageReviewsError::Compilation {
