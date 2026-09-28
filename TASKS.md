@@ -2556,49 +2556,46 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 - **PROOF-KERNEL-CORE.** Finish independently checked mathematical proofs
   under the [foundation](wiki/spec/proofs/foundation.md) and
   [W-based profile](wiki/spec/proofs/inductive_profile.md). Owner:
-  `proof-admission/src/mathematical_core/`; source integration belongs to
-  PROOF-CONTRACT-MIGRATION. The core and derived schemes exist as Rust-built
-  terms. [Combined metatheory](wiki/spec/proofs/kernel_metatheory.md) is
-  argued at paper level, not mechanized; helper judgments do not establish
-  source coverage or a complete verified profile.
+  `proof-admission/src/mathematical_core/`, coordinated with
+  **PROOF-CONTRACT-MIGRATION**'s source integration.
 
-  Remaining work:
-
-  - Replace bounded denotation's per-instance `rule_axiom` fallbacks with
-    checked derivations or explicitly justified checked rules, driven by real
-    source obligations. Reuse correlated multiply/forbidden-root derivations,
-    `caseTwo` Boolean identity transport, and cast endpoint-substitution laws;
-    keep `casts/tests.rs`'s `rule_axioms == 0` controls. Remaining residue is
-    behind `rule_instance` fallbacks, including nested identity reversal and
-    `Id Two`/`Id Int` crossings, not wholly underived rules.
-    Preserve numeric policy and exact operands. Unsupported arithmetic or construction-budget fallback
-    must not be reported as independently proved merely because the kernel
-    checks a term assuming its conclusion. Existing fixed integer laws also
-    remain explicit assumptions, not a consistency proof.
-  - Check source-produced indexed-scheme applications against exact
-    parameters, indices, payloads, case constraints and recursive uses.
-    The hand-built `indexed_*.rs` tests are useful controls, not a source
-    encoding. Reject negative recursion at elaboration and distinguish an
-    invalid declaration from unsupported valid encoding or producer failure.
-    Complete the profile's required scheme/correspondence justification;
-    structural round trips alone do not prove induction or computation.
-  - Supply only kernel additions demanded by that source path. Preserve exact
-    assumption closure through declaration types/statements, imports and wire
-    encoding, independently of unfolding and erasure. Do not introduce a
-    parallel primitive-indexed/strict checker or untyped eta rewriting.
+  - Replace remaining `bounded_denotation.rs::rule_instance` assumptions with
+    derivations or justified checked rules for actual source obligations.
+    `an_undecided_crossing_keeps_the_explicit_rule_instance` pins a live case:
+    open `Equal(!a, b)` expanded into a disjunction still assumes its conversion.
+    Nested identity reversal and closed Truth/Falsehood carrier crossings
+    already derive; reuse `equality_transport/tests.rs`, the Boolean,
+    correlated-arithmetic and cast derivations, including `casts/tests.rs`'s
+    zero-rule-axiom checks. Preserve numeric policy and exact operands.
+    Fixed arithmetic laws and construction-budget fallbacks remain explicit
+    assumptions; a judgment assuming its conclusion is not an independent proof.
+  - Check source-produced indexed applications against exact parameters,
+    indices, payloads, case constraints and recursive uses. The five parametric
+    `indexed_scheme` declarations pass signature checking and tests of dependent
+    induction and computation with neutral children. These Rust-built tests
+    and codec round trips do not establish source correspondence. Cover the
+    profile's vector, derivation, mutual and nested families; distinguish
+    negative recursion, unsupported valid encoding and malformed producer
+    evidence. Add only kernel support required by source integration, preserving
+    the selected calculus without a parallel indexed/strict checker or untyped eta.
 
   Acceptance: the [migration examples](wiki/spec/proofs/foundation.md#migration-acceptance)
-  reach source-free kernel judgments from Omega source: a universe-polymorphic
-  theorem over arbitrary predicates with dependent pairs, identity transport
-  and induction; strict same-statement conversion without identifying relevant
-  witnesses; malformed universes, capture-changing substitution and illegal
-  elimination reject. Retain `compiler/tests/kernel_equality_transport.rs`
-  and its false-source, changed-operand and changed-equality-endpoint controls.
-  Measure term size, retained storage and checking cost on source-produced
-  evidence in the application checker. PCC-CANONICAL-SEMANTIC-LEDGER owns
-  trusted-row soundness; PROOF-CERTIFICATION-BRIDGE owns loop correspondence.
-  Any demonstrated need to change the selected calculus goes to
-  `OWNER_QUESTIONS.md`, not an implementation shortcut.
+  reach source-free judgments from Omega: universe-polymorphic arbitrary
+  predicates, dependent pairs, identity transport and induction; strict
+  same-statement conversion preserves distinct relevant witnesses. Malformed
+  universes, capture-changing substitution and illegal elimination reject.
+  Preserve exact assumption closure through declaration statements/types,
+  imports, erasure and wire, independently of unfolding. Exercise source-produced
+  equality transport with false-source, missing-equation, changed-operand and
+  changed-J-endpoint controls; the surviving `proofs/kernel_theorem_equality_*`
+  corpus pair and codec theorem tests do not cover that entire chain.
+
+  Measure source-produced term size, retained storage and checking cost in the
+  application checker. Refresh the [metatheory evidence ledger](wiki/spec/proofs/kernel_metatheory.md#evidence-ledger)
+  against surviving controls; its combined-profile argument remains paper-level,
+  not mechanized. **PCC-CANONICAL-SEMANTIC-LEDGER** owns trusted-row soundness;
+  **PROOF-CERTIFICATION-BRIDGE** owns loop correspondence. Calculus changes
+  require `OWNER_QUESTIONS.md`.
 
 - **C2L-PROOF-SEARCH-BLOWUP-CONTAINMENT.** (new-scope) Finish aggregate
   proof-search accounting and [outcome publication](wiki/spec/proofs/publication.md#outcomes).
