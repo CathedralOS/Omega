@@ -527,7 +527,16 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                 checked_trees::CheckedStorageRoot::Parameter {
                     index: parameter_position,
                 } => {
-                    if !path.is_empty() {
+                    // A whole owned array has an empty carrier path, but
+                    // still gets its extent and element type from the same
+                    // declaration as an array field. It is not a borrowed
+                    // view and must not acquire view-observation authority.
+                    let owned_parameter =
+                        structural_parameters.iter().any(|(position, parameter)| {
+                            *position == parameter_position
+                                && parameter.access == StructuralAccess::Owned
+                        });
+                    if !path.is_empty() || owned_parameter {
                         if !element_path.is_empty() {
                             return unsupported(
                                 "a projected element read carries no element field path",
