@@ -4551,43 +4551,41 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   separate customer dependency; owned erased cleanup remains with
   **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP**.
 
-- **TARGET-SEMANTIC-APPLICATIONS.** Complete the portable
+- **TARGET-SEMANTIC-APPLICATIONS.** Complete source-free replay of the
   [target-semantic capsule](wiki/spec/language/evaluation.md#target-semantic-capsule)
-  and artifact-qualified
-  [application closure](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
-  Provider-dependent const applications already defer and fold under exact
-  selected execution. Preserve named/token, field/let/return, alternate-provider
-  and unselected-provider controls rather than rebuild that route.
+  and [application closure](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
+  Retain sealed, versioned target semantics, exact selected plans,
+  implementations and canonical arguments as inputs shared with realization.
+  Typed observations must close their address-space/layout/format/profile
+  subject without compiler-host facts. Reuse ordinary typed arguments and
+  compiler-materialized target data; a new projection needs a concrete customer
+  and owner audit, not a general `TargetSemantics::*` source API.
 
-  Retain sealed versioned target semantics, exact selected plans,
-  implementations and arguments as replayable inputs shared with realization.
-  Typed observations name their actual address-space/layout/format/profile
-  subject and reject unresolved subjects; compiler-host state supplies none.
-  Reuse ordinary typed arguments and compiler-materialized target data where
-  they express the customer. The spec does not approve a general
-  `TargetSemantics::*` source API; do not add one merely to implement the
-  capsule. A genuinely missing observation capability needs a concrete
-  customer and the normal owner-escalation audit.
+  Reuse selected-provider const folding and
+  `provider-planning/src/data_layout_queries.rs`: `size_of`/`align_of`
+  already fold retained requests through native layout authority into `u64`
+  literals. These checked-program paths do not establish portable capsule
+  replay; targetless settlement currently chooses the host.
 
-  Extend package manager review's `symbolic_boundary_applications` beyond
-  explicitly supplied direct-type-binder requests to the complete reachable
-  specialization set, preserving original mappings and complete canonical
-  arguments for replay. Recheck actual reach, transitive proof obligations,
-  target facts, admission and selected realization after substitution.
-  A reviewed closed demand alone grants no Terminal/native, coverage or
-  installation authority; complete-set composition is not an install/update
-  prerequisite. Preserve the distinction between an operator's canonical
-  empty telescope and a boundary-trait call with no telescope. Physical-child
-  binding stays with TRANSLATION-VALIDATION in `TASKS_OPTIMIZER.md`.
+  Extend package review's `symbolic_boundary_applications` from supplied
+  direct-type-binder requests to complete reachable specialization closure,
+  including canonical const arguments. Its exact plan rejoin, mapping retention
+  and deduplication already support bounded type binders; lifetime/non-type
+  producer telescopes still reject. Recheck reach, transitive proof obligations,
+  target facts, admission and realization after substitution. A closed review
+  demand grants no coverage, Terminal/native or installation authority;
+  complete-set composition is not an install/update prerequisite.
+  Preserve canonical empty operator applications versus absent boundary-trait
+  telescopes. Physical-child binding belongs to TRANSLATION-VALIDATION in
+  `TASKS_OPTIMIZER.md`.
 
-  Acceptance: source-free cross-artifact customers reproduce exact selected
-  application/target identity and all reachable obligations; missing, extra,
-  stale, substituted or unresolved mappings cannot acquire coverage.
-  Retain provider-free evaluation, distinct selected const results and
-  false-result/unselected controls. Reject a build dependency cycle rather
-  than searching visible satisfiers or silently choosing a body.
-  Checked-source folding or a manually supplied closure request alone does
-  not close this acceptance.
+  Acceptance: source-free cross-artifact customers reproduce exact application,
+  target and complete reachable obligations; missing, extra, stale, substituted
+  or unresolved mappings cannot acquire coverage. Preserve provider-free
+  evaluation and named/token, field/let/return, alternate-provider,
+  distinct-result, false-result and unselected-provider controls. Reject build
+  dependency cycles without satisfier guessing. Checked folding or manually
+  supplied requests alone do not close acceptance.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Complete selected execution and
   source-free identity for explicit `boundary requirement Owner::name(...);`
