@@ -72,7 +72,7 @@ pub fn produce_native_report(
         rollback.into_receipt(),
         production_subject,
     )
-    .map(|report| report.with_pcc_context(pcc_requests, request.terminal_admission_profile))
+    .and_then(|report| report.with_pcc_context(pcc_requests, request.terminal_admission_profile))
     .and_then(|report| {
         report.with_application_metadata(checked.project_native_application_metadata())
     })

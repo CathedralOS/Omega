@@ -258,7 +258,9 @@ fn assert_accepted_native_report_custody(
     assert!(native_manifest.matches_native_artifact(&terminal_native));
 }
 
-fn console_binding_fixture() -> (
+fn console_binding_fixture(
+    proof_requests: package_compilation::build_execution::build_value::PccRequests,
+) -> (
     TemporaryTree,
     PathBuf,
     package_manager::resolution::graph::ResolvedPackageSourceClosure,
@@ -304,6 +306,15 @@ machine build(builder: &mut Build) {
 }
 "#,
     );
+    if proof_requests.any() {
+        let build_path = application.join("build.omg");
+        let source = fs::read_to_string(&build_path).unwrap();
+        write_file(&build_path, &source.replace(
+            "    builder.application(\"console_consumer\");",
+            &format!("    builder.application(\"console_consumer\");\n    builder.pcc.psi = {};\n    builder.pcc.native = {};",
+                proof_requests.psi, proof_requests.native),
+        ));
+    }
     write_file(
         application.join("main.omg"),
         r#"use ordinary_console::main;
@@ -491,7 +502,7 @@ pub machine access()
 
 #[test]
 fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
-    let (temporary, application, closure) = console_binding_fixture();
+    let (temporary, application, closure) = console_binding_fixture(Default::default());
     let preliminary = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("preliminary-build"),
@@ -1174,7 +1185,7 @@ fn consumer_scoped_console_binding_survives_review_and_fresh_admission() {
 
 #[test]
 fn retained_production_discovery_reaches_fresh_final_acceptance() {
-    let (temporary, _application, closure) = console_binding_fixture();
+    let (temporary, _application, closure) = console_binding_fixture(Default::default());
     let preliminary = compile_resolved_package_reviews(
         &closure.for_exact_target(target::TargetProfile::LinuxX64),
         &temporary.0.join("preliminary-build"),
@@ -1231,4 +1242,51 @@ fn retained_production_discovery_reaches_fresh_final_acceptance() {
         closure.graph().packages().len()
     );
     drop(discovered);
+}
+
+#[test]
+fn reviewed_native_proof_requests_survive_the_intermediate_terminal_artifact() {
+    for psi in [false, true] {
+        let requests =
+            package_compilation::build_execution::build_value::PccRequests { psi, native: true };
+        let (temporary, _, closure) = console_binding_fixture(requests);
+        let target = closure.for_exact_target(target::TargetProfile::LinuxX64);
+        let candidate = compile_resolved_package_candidate_for_production(
+            &target,
+            &temporary.0.join("review"),
+            SemanticBindingReview::Discover,
+            None,
+        )
+        .expect("review native proof request");
+        let policy = accepted_policy_fixture::accepted_policy(&target, candidate.reviews());
+        let evidence = accept_ordinary_closure_evidence(
+            &target,
+            candidate.reviews(),
+            CanonicalPackageReconstructionQuestionLimits::default(),
+            ReviewOnlyCapabilityConflictLimits::default(),
+            Some(&policy),
+        )
+        .unwrap();
+        let report = realize_accepted_native_report(
+            AcceptedNativeInput::Reviewed {
+                candidate: Box::new(candidate),
+                optimization_rollback: &compiler::OptimizationRollback::default(),
+            },
+            AcceptedNativeRealizationRequest {
+                evidence: &evidence,
+                profile: &proof_admission::AdmissionProfile::default(),
+                terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
+                receiving_terminal_authority_permission_policy: None,
+                imports: &[],
+            },
+        )
+        .expect("native requests must not be rejected as a Terminal-only stop");
+        assert_eq!(
+            report.output_kind(),
+            compiler::CompileOutputKind::RetainedNativeArtifact
+        );
+        assert_eq!(report.pcc_requests(), requests);
+        assert!(report.has_consistent_executable_publication_custody());
+        assert!(!report.wrote_output());
+    }
 }

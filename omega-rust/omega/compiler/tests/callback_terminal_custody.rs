@@ -527,6 +527,51 @@ fn terminal_handoff_rejects_callbacks_outside_the_emitted_entry_closure() {
 }
 
 #[test]
+fn terminal_report_rejects_native_proofs_and_freezes_published_context() {
+    use package_compilation::build_execution::build_value::PccRequests;
+    let fixture = Fixture::reachable();
+    let report = || {
+        compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "proof-context"))
+            .and_then(compiler::CompileOutcomes::into_single_report)
+            .expect("retain Terminal report")
+    };
+    let directory = fixture.root.join("proof-context-publication");
+    assert_eq!(
+        report()
+            .with_pcc_context(
+                PccRequests {
+                    psi: false,
+                    native: true
+                },
+                Default::default()
+            )
+            .unwrap_err(),
+        "a Terminal stop cannot satisfy a native proof-product request",
+    );
+    assert!(!directory.exists());
+    let published = compiler::artifact_publication::publish_compilation(
+        report()
+            .with_pcc_context(
+                PccRequests {
+                    psi: true,
+                    native: false,
+                },
+                Default::default(),
+            )
+            .unwrap(),
+        &directory,
+    )
+    .expect("publish the requested Psi proof pair");
+    assert_eq!(published.pcc_publications().len(), 1);
+    assert_eq!(
+        published
+            .with_pcc_context(PccRequests::default(), Default::default())
+            .unwrap_err(),
+        "published proof-product context cannot be replaced",
+    );
+}
+
+#[test]
 fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
     let fixture = Fixture::reachable();
     let checked = compile_to_checked(CheckedCompileRequest {
@@ -545,13 +590,15 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
     let publication = fixture.root.join("published-terminal");
     assert!(!publication.exists(), "compilation does not publish files");
     let terminal = compiler::artifact_publication::publish_compilation(
-        terminal.with_pcc_context(
-            package_compilation::build_execution::build_value::PccRequests {
-                psi: true,
-                native: false,
-            },
-            proof_admission::AdmissionProfile::default(),
-        ),
+        terminal
+            .with_pcc_context(
+                package_compilation::build_execution::build_value::PccRequests {
+                    psi: true,
+                    native: false,
+                },
+                proof_admission::AdmissionProfile::default(),
+            )
+            .expect("Terminal supports its Psi proof request"),
         &publication,
     )
     .expect("explicit Terminal publication installs its requested pair");

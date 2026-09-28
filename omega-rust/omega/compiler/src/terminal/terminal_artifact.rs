@@ -111,6 +111,11 @@ pub fn produce_terminal_report(
     rollback: &OptimizationRollback,
 ) -> Result<crate::report::CompileReport, Vec<Diagnostic>> {
     let pcc_requests = checked.pcc_requests();
+    compilation_products::RequestedCompileProduct::TerminalArtifact.admit_build_requirements(
+        checked.application_artifact_only(),
+        pcc_requests,
+        rollback,
+    )?;
     let production_subject = checked.production_subject()?;
     let source_file_count = checked.source_file_count();
     let rollback = rollback.settle(checked.optimization_selections());
@@ -122,7 +127,7 @@ pub fn produce_terminal_report(
         production_subject,
     )
     .and_then(|report| report.with_terminal_optimization_rollback(rollback.into_receipt()))
-    .map(|report| report.with_pcc_context(pcc_requests, profile.clone()))
+    .and_then(|report| report.with_pcc_context(pcc_requests, profile.clone()))
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 

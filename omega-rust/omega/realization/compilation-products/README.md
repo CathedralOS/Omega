@@ -24,6 +24,12 @@ transitions validate artifact, rollback, application-package and build-observati
 joins. Compiler and package-admission routes retain this same type; reports do
 not manufacture lower-level evidence or grant receiving authority.
 
+Proof-product eligibility is shared by early request admission and direct report
+context attachment. Check-only, artifact-only and object products cannot carry
+proof requests; Terminal products can request only Psi proofs. Publication freezes
+the proof context. A package's pending native requests stay with its native
+production flow, not on the intermediate Terminal report.
+
 `CompileReport::verify_native_source_metadata` checks a retained native result
 against the originating compilation's source count, target profile, native
 target and application metadata. Compiler orchestration supplies those facts;

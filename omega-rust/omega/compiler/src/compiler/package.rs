@@ -1,23 +1,26 @@
 //! Continue package-manager-owned checked production without reopening its inputs.
 //!
 //! Two products continue from one already-checked package: the retained
-//! Terminal report, and — for a dependency compiled as its own component —
+//! Terminal artifact, and — for a dependency compiled as its own component —
 //! the canonical component description a consuming root attaches to its
 //! target inputs.
 
-use crate::{CheckedCompilation, CompileReport, OptimizationRollback};
+use crate::CheckedCompilation;
+use compilation_products::RetainedTerminalArtifact;
 use component_description::{ComponentDescriptionFacts, encode_component_description};
 use diagnostics::Diagnostic;
 use package_compilation::IndependentComponentDescription;
 use std::path::PathBuf;
 
-/// Revalidate package custody before producing a retained Terminal report.
+/// Revalidate package custody before producing the retained Terminal artifact.
+/// Final product requirements remain with the caller; this is an intermediate
+/// artifact used by native production and independent component descriptions.
 /// Package review owns the checked input; this does not rerun its build machine.
-pub fn retained_terminal_report_from_checked_package(
-    root_path: PathBuf,
-    checked: CheckedCompilation,
+pub fn retained_terminal_artifact_from_checked_package(
+    mut checked: CheckedCompilation,
     profile: proof_admission::AdmissionProfile,
-) -> Result<CompileReport, Vec<Diagnostic>> {
+    rollback: optimization_core::OptimizationRollback,
+) -> Result<RetainedTerminalArtifact, Vec<Diagnostic>> {
     crate::checked::run_on_compile_thread(move || {
         checked.verify_current_source_consumption()?;
         if checked.production_subject()?.is_none() {
@@ -25,11 +28,11 @@ pub fn retained_terminal_report_from_checked_package(
                 "reviewed package Terminal production requires package-aware checked custody",
             )]);
         }
-        crate::terminal::produce_terminal_report(
-            root_path,
-            checked,
+        let selections = rollback.settle(checked.optimization_selections());
+        crate::terminal::produce_retained_terminal_artifact(
+            &mut checked,
             &profile,
-            &OptimizationRollback::default(),
+            selections.effective(),
         )
     })
 }
@@ -55,7 +58,7 @@ pub fn retained_terminal_report_from_checked_package(
 /// description still rejects at the component-closure fence rather than
 /// compiling as a fused edge.
 pub fn published_independent_component_description(
-    root_path: PathBuf,
+    _root_path: PathBuf,
     checked: CheckedCompilation,
     profile: proof_admission::AdmissionProfile,
 ) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
@@ -69,12 +72,12 @@ pub fn published_independent_component_description(
     // compilation settled, not one recomputed beside it.
     let selected_provider_plans = checked.selected_provider_plans().clone();
     let component_progress = checked.component_progress().cloned();
-    let report = retained_terminal_report_from_checked_package(root_path, checked, profile)?;
-    let artifact = report.artifact().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "component publication requires the dependency's retained canonical Terminal artifact",
-        )]
-    })?;
+    let retained = retained_terminal_artifact_from_checked_package(
+        checked,
+        profile,
+        optimization_core::OptimizationRollback::default(),
+    )?;
+    let artifact = retained.artifact();
     // A Psi component capsule has no native realization yet, so it publishes
     // no emitter-derived stack demand and no bound realization identity. The
     // description's own producer owns which rows that omits; nothing is
