@@ -121,13 +121,22 @@ fn field_class_meets_all_predecessors_independent_of_state_order() {
 }
 
 #[test]
-fn ordinary_state_invocation_does_not_inherit_transition_field_evidence() {
-    check(
-        &loop_source(
-            "self.output = \"AB\"; step();",
-            "self.output[self.position] = 65;",
-        ),
-        false,
+fn ordinary_state_invocation_is_not_a_field_evidence_route() {
+    // A state is a transition destination, never a callee
+    // (state_contracts.md), so an ordinary `step();` cannot reach the loop
+    // with or without the transition's field evidence: it is refused as a
+    // call before any field domain is considered.
+    let source = loop_source(
+        "self.output = \"AB\"; step();",
+        "self.output[self.position] = 65;",
+    );
+    let diagnostics = lower_typed_trees(parse_typed_trees(&source), &CheckingRequest::settled())
+        .expect_err("an internal state is not callable");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("calls its internal state `step` as an ordinary call")),
+        "{source}\n{diagnostics:#?}"
     );
 }
 
