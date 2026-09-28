@@ -130,94 +130,6 @@ pub(in crate::legalization) fn sum_type_layout(
         .map_err(|_| LegalizationError::custody())
 }
 
-pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
-    function.declared_places
-        == function
-            .structural_places
-            .iter()
-            .filter(|place| !matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. }))
-            .map(|place| place.id)
-            .collect::<std::collections::BTreeSet<_>>()
-        && function.structural_places.iter().all(|place| {
-            // Provider attachments are semantic specialization witnesses, not
-            // receiver storage. Whole-unit custody checks the exact erased
-            // field, boundary and service; they must compose with runtime
-            // parameters and results without entering the declared-place set.
-            if let StructuralPlaceKind::ProviderAttachment { attachment, .. } = place.kind {
-                return function.attachment == Some(attachment);
-            }
-            if matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. }) {
-                return super::literals::declaration_producer(function, place.id).is_some();
-            }
-            // An empty-record local is justified by its one exact
-            // establishment of the type the place declares.
-            if let StructuralPlaceKind::TrivialAffineLocal {
-                structural_type, ..
-            } = place.kind
-            {
-                return function
-                    .blocks
-                    .iter()
-                    .flat_map(|block| &block.nodes)
-                    .filter(|node| {
-                        matches!(&node.operation,
-                            AbstractOperation::EstablishTrivialAffineLocal {
-                                place: established,
-                                structural_type: declaration,
-                                ..
-                            } if *established == *place && declaration.id == structural_type)
-                    })
-                    .count()
-                    == 1;
-            }
-            // One graph may own primitive storage alongside aggregate results.
-            // Keep each place joined to its exact producer; the primitive input
-            // validator separately checks the declared type and initializer.
-            if let Some((producer, result, _)) =
-                super::primitive_locals::producer(function, place.id)
-            {
-                return place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer,
-                        structural_type: result.structural_type,
-                    }
-                    && super::primitive_locals::valid_result(function, producer, result);
-            }
-            if place.kind == StructuralPlaceKind::Result {
-                return function
-                    .result
-                    .structural()
-                    .is_some_and(|result| result.place == place.id);
-            }
-            if let Ok((producer, result)) =
-                super::structural_case::source_result(function, place.id)
-            {
-                return place.kind
-                    == StructuralPlaceKind::OperationResult {
-                        producer,
-                        structural_type: result.structural_type,
-                    };
-            }
-            function.structural_parameters.iter().any(|parameter| {
-                parameter.place == place.id
-                    && place.kind
-                        == StructuralPlaceKind::Parameter {
-                            position: parameter.position,
-                            is_self: parameter.is_self,
-                        }
-            }) || function.blocks.iter().any(|block| {
-                block.structural_parameters.iter().any(|parameter| {
-                    parameter.place == place.id
-                        && place.kind
-                            == StructuralPlaceKind::BlockParameter {
-                                block: block.id,
-                                position: parameter.position,
-                            }
-                })
-            })
-        })
-}
-
 pub(super) fn cleanup(
     function: &PsiOptimizationFunction,
     actions: &[terminal_psi::TerminalAffineCleanupAction],
@@ -323,7 +235,7 @@ pub(super) fn header(
         || (!matches!(abstracted.result, AbstractFunctionResult::Scalar(_))
             && (target.scalar_abi.is_some() || target.mixed_structural_scalar_abi.is_some()))
         || optimized.result != abstracted.result
-        || !roster(optimized)
+        || !super::place_declarations::matches_producers(optimized)
         || optimized.structural_parameters != abstracted.structural_parameters
         || !abstracted.entry_claims.is_empty()
         || !optimized.entry_claims.is_empty()

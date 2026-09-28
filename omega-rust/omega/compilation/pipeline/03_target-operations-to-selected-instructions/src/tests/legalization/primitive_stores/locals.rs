@@ -75,6 +75,290 @@ fn fixture(scalar: ScalarType) -> AbstractOperationPlan {
     source
 }
 
+fn mixed_storage_fixture() -> AbstractOperationPlan {
+    let scalar = integer(IntegerSign::Unsigned, 64);
+    let mut source = fixture(scalar);
+    let literal_type = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(2).unwrap(),
+        identity: "literal bytes".into(),
+        shape: StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+        }),
+    };
+    let literal = terminal_psi::StructuralPlaceDeclaration {
+        id: PlaceId::new(2).unwrap(),
+        kind: semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+            // This is the first literal, although other operations and a
+            // primitive storage declaration precede its establishment.
+            declaration_ordinal: 0,
+            structural_type: literal_type.id,
+        },
+    };
+    source
+        .structural_types
+        .make_mut()
+        .push(literal_type.clone());
+    let function = &mut source.functions[0];
+    function.operations.splice(
+        2..3,
+        [
+            AbstractOperation::EstablishByteSequenceLiteral {
+                psi_operation: OperationId::new(5).unwrap(),
+                place: literal,
+                structural_type: literal_type,
+                bytes: vec![0, 0x80, 0xff],
+                qualifications: Vec::new(),
+            },
+            AbstractOperation::ByteSequenceLength {
+                psi_operation: OperationId::new(3).unwrap(),
+                result: AbstractResult {
+                    value: ValueId::new(2).unwrap(),
+                    scalar_type: scalar,
+                },
+                source: literal.id,
+            },
+        ],
+    );
+    function.operations.insert(
+        function.operations.len() - 1,
+        AbstractOperation::PrimitiveScalarRead {
+            path: Vec::new(),
+            psi_operation: OperationId::new(6).unwrap(),
+            source: PlaceId::new(1).unwrap(),
+            result: AbstractResult {
+                value: ValueId::new(3).unwrap(),
+                scalar_type: scalar,
+            },
+        },
+    );
+
+    source
+}
+
+fn check_mixed_storage(source: &AbstractOperationPlan) {
+    // Both homes reach lowering directly: no optional optimization can erase
+    // the literal observation or the local's establishment, store and read.
+    let native = NativeTarget::macos_arm64();
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        source,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .expect("mixed storage lowers through the ordinary target graph");
+    let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        source,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    let legalized = legalize_target_operations(&target, source, &unit)
+        .expect("unrelated storage producers compose in one graph");
+    validate_legalized_operations(&target, source, &unit, legalized.plan().clone()).unwrap();
+    assert_eq!(
+        legalized.plan().scalar_functions[0].blocks.len(),
+        source.functions[0].block_entries.len()
+    );
+    let environment = register_environment::baseline_target_register_environment(native).unwrap();
+    let constraints = crate::selection_constraints(&legalized, &environment);
+    let selected = crate::select_instructions(
+        &legalized,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+    )
+    .expect("selection retains both ordinary storage homes");
+    crate::validate_selected_instructions(
+        &legalized,
+        &constraints,
+        environment.physical(),
+        environment.constraints(),
+        selected.plan().clone(),
+    )
+    .unwrap();
+
+    let mut substituted = target.clone();
+    let literal = substituted.functions[0]
+        .graph
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation,
+                TargetUnitOperation::EstablishByteSequenceLiteral { .. }
+            )
+        })
+        .unwrap();
+    let TargetUnitOperation::EstablishByteSequenceLiteral { place, .. } = literal else {
+        panic!("literal follows scalar computation and local establishment");
+    };
+    place.id = PlaceId::new(1).unwrap();
+    assert!(legalize_target_operations(&substituted, source, &unit).is_err());
+    assert!(
+        validate_legalized_operations(&substituted, source, &unit, legalized.plan().clone())
+            .is_err(),
+        "mixed admission must still reject a literal substituted for the primitive home"
+    );
+
+    for mutation in 0..4 {
+        let mut changed = unit.clone();
+        let places = &mut changed.functions[0].structural_places;
+        match mutation {
+            0 => places.retain(|place| place.id != PlaceId::new(2).unwrap()),
+            1 => {
+                let declaration = places
+                    .iter_mut()
+                    .find(|place| place.id == PlaceId::new(1).unwrap())
+                    .unwrap();
+                let semantic_vocabulary::StructuralPlaceKind::OperationResult { producer, .. } =
+                    &mut declaration.kind
+                else {
+                    panic!("primitive local producer");
+                };
+                *producer = OperationId::new(5).unwrap();
+            }
+            2 => {
+                let declaration = places
+                    .iter_mut()
+                    .find(|place| place.id == PlaceId::new(2).unwrap())
+                    .unwrap();
+                let semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    ..
+                } = &mut declaration.kind
+                else {
+                    panic!("literal declaration");
+                };
+                *declaration_ordinal = 1;
+            }
+            _ => {
+                let mut undeclared = *places
+                    .iter()
+                    .find(|place| place.id == PlaceId::new(2).unwrap())
+                    .unwrap();
+                undeclared.id = PlaceId::new(99).unwrap();
+                places.push(undeclared);
+                changed.functions[0].declared_places.insert(undeclared.id);
+            }
+        }
+        // Recompute the commitment so rejection must inspect custody rather
+        // than merely detect a stale identity after the mutation.
+        changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+        assert!(
+            legalize_target_operations(&target, source, &changed).is_err(),
+            "malformed mixed storage roster {mutation}"
+        );
+        assert!(
+            validate_legalized_operations(&target, source, &changed, legalized.plan().clone())
+                .is_err(),
+            "independent malformed storage replay {mutation}"
+        );
+    }
+
+    let mut changed = selected.plan().clone();
+    let materialization = changed.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| {
+            instruction
+                .provenance
+                .operations
+                .contains(&OperationId::new(5).unwrap())
+                && matches!(
+                    instruction.kind,
+                    selected_instructions::SelectedInstructionKind::MaterializeI64 { .. }
+                )
+        })
+        .expect("literal byte materialization");
+    materialization.kind = selected_instructions::SelectedInstructionKind::MaterializeI64 {
+        value: IntegerValue::Unsigned(0),
+    };
+    assert!(
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            changed,
+        )
+        .is_err(),
+        "literal bytes must be reconstructed independently beside primitive storage"
+    );
+}
+
+#[test]
+fn primitive_local_and_byte_literal_compose_after_scalar_computation() {
+    check_mixed_storage(&mixed_storage_fixture());
+}
+
+#[test]
+fn primitive_local_and_byte_literal_compose_with_scalar_return() {
+    let mut source = mixed_storage_fixture();
+    let scalar = integer(IntegerSign::Unsigned, 64);
+    let function = &mut source.functions[0];
+    let AbstractOperation::ReturnUnit {
+        psi_edge,
+        cleanup_actions,
+    } = function.operations.pop().unwrap()
+    else {
+        panic!("fixture Unit return");
+    };
+    function.result = abstract_operations::AbstractFunctionResult::Scalar(AbstractResult {
+        value: ValueId::new(4).unwrap(),
+        scalar_type: scalar,
+    });
+    function.operations.push(AbstractOperation::Return {
+        psi_edge,
+        result: ValueId::new(4).unwrap(),
+        value: ValueId::new(3).unwrap(),
+        scalar_type: scalar,
+        cleanup_actions,
+    });
+    check_mixed_storage(&source);
+}
+
+#[test]
+fn primitive_local_and_byte_literal_compose_after_scalar_successor_binding() {
+    let mut source = mixed_storage_fixture();
+    let scalar = integer(IntegerSign::Unsigned, 64);
+    let successor = semantic_vocabulary::BlockId::new(2).unwrap();
+    let parameter = ValueId::new(4).unwrap();
+    let function = &mut source.functions[0];
+    // The scalar computation belongs to the predecessor; ordinary value
+    // binding supplies the local initializer in the following block.
+    function.operations.insert(
+        1,
+        AbstractOperation::Jump {
+            structural_bindings: Vec::new(),
+            psi_edge: semantic_vocabulary::EdgeId::new(2).unwrap(),
+            target: successor,
+            bindings: vec![abstract_operations::ValueBinding {
+                parameter,
+                argument: ValueId::new(1).unwrap(),
+                scalar_type: scalar,
+            }],
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    );
+    function
+        .block_entries
+        .push(abstract_operations::AbstractBlockEntry {
+            block: successor,
+            parameters: vec![abstract_operations::AbstractParameter {
+                value: parameter,
+                scalar_type: scalar,
+            }],
+            structural_parameters: Vec::new(),
+            operation_offset: 2,
+        });
+    let AbstractOperation::EstablishPrimitiveLocal { value, .. } = &mut function.operations[2]
+    else {
+        panic!("local initializer follows the jump");
+    };
+    value.value = parameter;
+    check_mixed_storage(&source);
+}
+
 #[test]
 fn boolean_field_store_replays_the_exact_dominating_scalar_home() {
     let mut source = fixture(ScalarType::Boolean);

@@ -55,28 +55,6 @@ pub(crate) fn local(
     }
     Some((row.operation, result, value.scalar_type, *shape))
 }
-pub(super) fn accepts(source: &LegalizedScalarFunction) -> bool {
-    source.structural.as_ref().is_some_and(|signature| {
-        signature.parameters.is_empty()
-            && signature.entry_claims.is_empty()
-            && source.parameters.len() == source.call_plan.parameters.len()
-            && source
-                .parameters
-                .iter()
-                .zip(&source.call_plan.parameters)
-                .all(|(parameter, placement)| parameter.placement == *placement)
-            // Specialization metadata neither needs a frame home nor creates
-            // a local-storage contract. At least one real local must remain.
-            && signature.structural_places.iter().any(|place| local(source, place.id).is_some())
-            && signature
-                .structural_places
-                .iter()
-                .all(|place| match place.kind {
-                    StructuralPlaceKind::ProviderAttachment { attachment, .. } => source.attachment == Some(attachment),
-                    _ => local(source, place.id).is_some(),
-                })
-    })
-}
 pub(super) fn readable(
     source: &LegalizedScalarFunction,
     place: PlaceId,

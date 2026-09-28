@@ -2,66 +2,6 @@
 use super::{AbstractOperation, PsiOptimizationFunction};
 use semantic_vocabulary::{OperationId, PlaceId, StructuralPlaceKind};
 
-/// Provider roots are specialization witnesses, not literal storage or ABI inputs.
-/// The enclosing unit custody check independently validates their exact field,
-/// boundary roster, and service authority. Keep this separate from `roster` so
-/// metadata alone never manufactures a runtime structural contract.
-pub(super) fn provider_metadata_roster(function: &PsiOptimizationFunction) -> bool {
-    !function.structural_places.is_empty()
-        && function.declared_places.is_empty()
-        && function.structural_places.iter().all(|place| {
-            matches!(place.kind, StructuralPlaceKind::ProviderAttachment { attachment, .. }
-                if function.attachment == Some(attachment))
-        })
-        && !function
-            .blocks
-            .iter()
-            .flat_map(|block| &block.nodes)
-            .any(|node| {
-                matches!(
-                    node.operation,
-                    AbstractOperation::EstablishByteSequenceLiteral { .. }
-                )
-            })
-}
-
-pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
-    if function.structural_places.is_empty() {
-        return function.declared_places.is_empty()
-            && !function
-                .blocks
-                .iter()
-                .flat_map(|block| &block.nodes)
-                .any(|node| {
-                    matches!(
-                        node.operation,
-                        AbstractOperation::EstablishByteSequenceLiteral { .. }
-                    )
-                });
-    }
-    let [block] = function.blocks.as_slice() else {
-        return false;
-    };
-    if function.declared_places
-        != function
-            .structural_places
-            .iter()
-            .map(|place| place.id)
-            .collect()
-    {
-        return false;
-    }
-    function.structural_places.iter().enumerate().all(|(ordinal, declaration)| {
-        let Some(node) = block.nodes.get(ordinal) else { return false; };
-        matches!(&node.operation, AbstractOperation::EstablishByteSequenceLiteral { place, structural_type, .. }
-            if place == declaration
-                && place.kind == StructuralPlaceKind::ByteSequenceLiteral {
-                    declaration_ordinal: ordinal as u32, structural_type: structural_type.id,
-                }
-                && structural_type.shape.is_borrowed_byte_view())
-    }) && block.nodes.iter().filter(|node| matches!(node.operation, AbstractOperation::EstablishByteSequenceLiteral { .. })).count() == function.structural_places.len()
-}
-
 pub(super) fn producer(
     function: &PsiOptimizationFunction,
     call: OperationId,

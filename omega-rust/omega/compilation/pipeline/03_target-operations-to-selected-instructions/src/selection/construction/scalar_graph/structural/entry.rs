@@ -20,18 +20,8 @@ pub(in crate::selection) fn entry(
     let Some(signature) = &source.structural else {
         return Ok(());
     };
-    if signature.parameters.is_empty() {
-        return if crate::selection::primitive_local_input::accepts(source)
-            || crate::selection::literal_storage_input::accepts(source)
-            || crate::selection::read_result_input::accepts(source)
-            || crate::selection::silent_boundary_input::accepts(source)
-            || crate::selection::aggregate_result_input::has_local_aggregates(source)
-        {
-            Ok(())
-        } else {
-            Err(SelectedInstructionError::unsupported_shape(function))
-        };
-    }
+    // Legalization owns place/producer custody. Entry captures only incoming
+    // ABI storage; an empty parameter list follows the same call-plan check.
     let parameters = signature
         .parameters
         .iter()

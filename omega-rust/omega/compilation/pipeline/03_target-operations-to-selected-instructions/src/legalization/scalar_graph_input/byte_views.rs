@@ -108,7 +108,7 @@ pub(super) fn validate(
         || abstracted.published_service_ceiling != optimized.published_service_ceiling
         // Provider attachments are specialization witnesses, not declared
         // storage; they stay out of `declared_places` by contract (see
-        // `reconstruct_declared_places` and `aggregate_results::roster`).
+        // `reconstruct_declared_places` and `place_declarations::matches_producers`).
         || optimized.declared_places
             != optimized
                 .structural_places
@@ -253,7 +253,7 @@ pub(super) fn validate(
         // Provider attachments are specialization witnesses, not declared
         // storage or runtime views. Unit custody checks their exact field,
         // boundary, and service authority; here they must name the function's
-        // own attachment, matching `aggregate_results::roster`.
+        // own attachment, matching `place_declarations::matches_producers`.
         if let semantic_vocabulary::StructuralPlaceKind::ProviderAttachment { attachment, .. } =
             place.kind
         {

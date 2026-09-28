@@ -6,7 +6,6 @@ use super::{
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::i32_type;
 use calling_conventions::ConventionalSumLayout;
-use semantic_vocabulary::StructuralPlaceKind;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, CompilerBuiltinExecution, TargetBoundaryResult,
     TargetUnitOperation,
@@ -149,63 +148,11 @@ pub(in crate::legalization) fn validate(
     Ok(())
 }
 
-/// Retains the complete graph roster of owned read results,
-/// alongside erased provider-attachment witnesses checked by unit custody.
-pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
-    let results = function
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .filter_map(|node| match &node.operation {
-            AbstractOperation::BoundaryCall {
-                psi_operation,
-                result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                ..
-            } => Some((*psi_operation, result)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    !results.is_empty()
-        && function.declared_places == results.iter().map(|(_, result)| result.place).collect()
-        && function
-            .structural_places
-            .iter()
-            .all(|declaration| match declaration.kind {
-                StructuralPlaceKind::ProviderAttachment { attachment, .. } => {
-                    function.attachment == Some(attachment)
-                }
-                StructuralPlaceKind::OperationResult {
-                    producer,
-                    structural_type,
-                } => results.iter().any(|(operation, result)| {
-                    *operation == producer
-                        && result.place == declaration.id
-                        && result.structural_type == structural_type
-                }),
-                _ => false,
-            })
-        && results.iter().all(|(operation, result)| {
-            function
-                .structural_places
-                .iter()
-                .filter(|declaration| {
-                    declaration.id == result.place
-                        && declaration.kind
-                            == StructuralPlaceKind::OperationResult {
-                                producer: *operation,
-                                structural_type: result.structural_type,
-                            }
-                })
-                .count()
-                == 1
-        })
-}
-
 pub(super) fn cleanup(
     function: &PsiOptimizationFunction,
     actions: &[TerminalAffineCleanupAction],
 ) -> bool {
-    if !roster(function) {
+    if !super::place_declarations::matches_producers(function) {
         return false;
     }
     // The independently validated current graph owns liveness and order on
