@@ -140,30 +140,48 @@ pub(crate) fn validate_shared_place_argument_at(
     position: usize,
     place: &checked_trees::CapturedPlace,
 ) -> Result<(), LoweringError> {
+    validate_place_argument_at(checked, call, position, place, BorrowAccessKind::Read)
+}
+
+/// Rejoin one authored access at its exact position after the complete ordered
+/// roster has been replayed. The expected kind distinguishes a reference-carrier
+/// read from an explicit mutable borrow of its referent.
+pub(crate) fn validate_place_argument_at(
+    checked: &CheckedTrees,
+    call: &BorrowCallFact,
+    position: usize,
+    place: &checked_trees::CapturedPlace,
+    expected_kind: BorrowAccessKind,
+) -> Result<(), LoweringError> {
     let borrow = &checked.facts.borrow;
     let accesses =
         borrow
             .argument_accesses
             .span(call.accesses)
             .ok_or(LoweringError::Unsupported(
-                "shared primitive borrow has a stale access span",
+                "borrowed place has a stale access span",
             ))?;
     let argument = accesses.get(position).ok_or(LoweringError::Unsupported(
-        "shared primitive borrow lost its argument occurrence",
+        "borrowed place lost its argument occurrence",
     ))?;
     if !place.root_symbol.is_valid()
         || argument.root_symbol != place.root_symbol
-        || argument.kind != BorrowAccessKind::Read
+        || argument.kind != expected_kind
         || borrow
             .access_segments
             .span(argument.segments)
             .is_none_or(|path| path != place.segments)
-        || accesses.iter().any(|candidate| {
-            candidate.root_symbol == place.root_symbol && candidate.kind.is_exclusive()
-        })
+        || accesses
+            .iter()
+            .enumerate()
+            .any(|(other_position, candidate)| {
+                other_position != position
+                    && candidate.root_symbol == place.root_symbol
+                    && (candidate.kind.is_exclusive() || expected_kind.is_exclusive())
+            })
     {
         return Err(LoweringError::Unsupported(
-            "shared primitive borrow substituted its occurrence or access",
+            "borrowed place substituted its occurrence or access",
         ));
     }
     Ok(())

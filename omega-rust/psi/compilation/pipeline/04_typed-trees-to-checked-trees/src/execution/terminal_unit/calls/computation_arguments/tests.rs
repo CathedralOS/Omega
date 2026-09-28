@@ -398,3 +398,141 @@ fn owned_graph_receiving_check_rejects_retained_signature_tampering() {
         );
     }
 }
+
+#[test]
+fn mutable_receiver_computation_retains_its_projected_loan_and_source_access() {
+    let checked = checked(
+        r#"
+        data Counter { count: i32 in Wrapping; }
+        data Main { base: i32 in Wrapping; counter: Counter; }
+        machine Counter::double(&mut self, value: i32 in Wrapping) -> i32 in Wrapping {
+            self.count = self.count + 1;
+            value * 2
+        }
+        machine Main::run(&mut self) {
+            self.base = 10;
+            let result: i32 in Wrapping = self.base + self.counter.double(6) * 3;
+            transition result == 46 { true -> done() false -> done() }
+            state done(&mut self) { }
+        }
+        "#,
+    );
+    let caller = machine(&checked.typed, "Main::run");
+    let state = &checked.machine_states(caller)[0];
+    let callee = machine(&checked.typed, "Counter::double");
+    let target = &checked.state_parameters(&checked.machine_states(callee)[0])[0];
+    let plans = &checked.facts.values.scalar_computations;
+    assert!(
+        plans
+            .root_at(
+                state.symbol,
+                1,
+                CheckedScalarExpressionRole::LocalInitializer { binding_ordinal: 0 },
+            )
+            .is_some(),
+        "the call remains an operand of the authored arithmetic initializer",
+    );
+    let (source_call, structural_arguments) = plans
+        .nodes
+        .iter()
+        .find_map(|(_, node)| {
+            let checked_trees::CheckedScalarComputationKind::Call {
+                target_machine,
+                source_call,
+                structural_arguments,
+                ..
+            } = node.kind
+            else {
+                return None;
+            };
+            (target_machine == callee.symbol).then_some((source_call, structural_arguments))
+        })
+        .expect("mutable receiver call");
+    let arguments = plans
+        .structural_arguments
+        .span(structural_arguments)
+        .unwrap();
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = arguments
+    else {
+        panic!("one exact receiver loan");
+    };
+    assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+    assert!(matches!(
+        argument.source,
+        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+    ));
+    assert_eq!(argument.path.len(), 1);
+    let call = checked.facts.flow.control.calls.get(source_call);
+    let ExpressionNode::Call(authored) = checked
+        .expression_table
+        .expression(call.authored_expression)
+    else {
+        panic!("authored call");
+    };
+    let receiver = authored.receiver;
+    let source_parameter = checked.state_parameters(state)[0].symbol;
+    for access in [
+        language_semantics::ReferenceAccess::Shared,
+        language_semantics::ReferenceAccess::WriteOnly,
+    ] {
+        let mut program = checked.typed.clone();
+        let handle = program
+            .state_parameters
+            .iter()
+            .find(|(_, parameter)| parameter.symbol == source_parameter)
+            .unwrap()
+            .0;
+        let mut reference = program
+            .type_reference_table
+            .type_reference(program.state_parameters.get(handle).type_reference)
+            .clone();
+        let TypeReferenceNode::Reference {
+            access: retained, ..
+        } = &mut reference
+        else {
+            panic!("borrowed source receiver");
+        };
+        *retained = access;
+        let reference = program.type_reference_table.insert(reference);
+        program.state_parameters.get_mut(handle).type_reference = reference;
+        assert!(
+            structural_computation_argument(
+                &program,
+                &checked.facts.borrow,
+                caller.symbol,
+                state,
+                call,
+                receiver,
+                target,
+            )
+            .is_none(),
+            "source {access:?} cannot grant a mutable readable loan"
+        );
+    }
+}
+
+#[test]
+fn computed_receiver_alone_keeps_the_unit_callers_storage() {
+    let checked = checked(
+        r#"
+        data Counter { count: u64; }
+        data Main { counter: Counter; }
+        machine Counter::replace(&mut self) -> u64 { self.count = 7; 7 }
+        machine Main::run(&mut self) {
+            let saved: u64 in Wrapping = self.counter.replace() * 10;
+        }
+    "#,
+    );
+    let caller = machine(&checked.typed, "Main::run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(caller.symbol)
+        .expect("unit caller retains its computed local");
+    let [receiver] = plan.structural_parameters.as_slice() else {
+        panic!("computed receiver use must retain one structural parameter");
+    };
+    assert!(receiver.is_self);
+    assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
+}

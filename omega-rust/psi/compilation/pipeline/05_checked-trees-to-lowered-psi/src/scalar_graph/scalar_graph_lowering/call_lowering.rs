@@ -112,11 +112,13 @@ pub(crate) fn lower_scalar_call(
         || !target.entry_claims().is_empty()
         || structural_arguments.iter().any(|argument| {
             !argument.path.is_empty()
-                && (argument.access != StructuralAccess::SharedBorrow
-                    || argument
-                        .path
-                        .iter()
-                        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_))))
+                && (!matches!(
+                    argument.access,
+                    StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                ) || argument
+                    .path
+                    .iter()
+                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_))))
         })
     {
         return unsupported("computed scalar call requires exact structural custody");

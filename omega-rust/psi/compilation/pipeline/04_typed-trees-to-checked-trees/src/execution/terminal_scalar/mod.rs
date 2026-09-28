@@ -440,6 +440,31 @@ fn build_machine_graph(
     })
 }
 
+/// A single body retains its readable receiver with the declared access even
+/// when unused. Re-entry reconstructs this same signature; mutable access does
+/// not authorize erasing the receiver operand. Multi-state forwarding belongs
+/// to the Unit graph.
+fn retains_borrowed_receiver(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    owner_state_count: usize,
+) -> bool {
+    owner_state_count == 1
+        && program.state_parameters(state).iter().any(|parameter| {
+            parameter.is_self
+                && matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    typed_trees::types::TypeReferenceNode::Reference {
+                        access: language_semantics::ReferenceAccess::Shared
+                            | language_semantics::ReferenceAccess::Mutable,
+                        ..
+                    }
+                )
+        })
+}
+
 fn checked_state_graph(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
@@ -503,10 +528,7 @@ fn checked_state_graph(
             // Only a machine of one authored state retains its borrowed
             // receiver; see `build_machine_graph` for why.
             let receiver = parameters.iter().any(|parameter| parameter.is_self);
-            let retains_receiver = owner_state_count == 1
-                && parameters
-                    .iter()
-                    .any(|parameter| parameter.is_self && !parameter.is_mutable);
+            let retains_receiver = retains_borrowed_receiver(program, state, owner_state_count);
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed
                 && machine.attached_data.is_some()
                 && (retains_receiver || !receiver)

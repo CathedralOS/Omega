@@ -1,4 +1,4 @@
-//! Shared nominal operands retain their declared owner and exact call occurrence.
+//! Borrowed nominal operands retain their declared owner and exact call occurrence.
 //! Records may retain supported field projections; scalar sums are observed
 //! whole at their established home, including ordinary returned case values.
 //! The implicit receiver precedes explicit actuals but has no row in their
@@ -33,21 +33,34 @@ pub(super) fn validate(
     explicit_position: Option<usize>,
 ) -> Result<(), LoweringError> {
     let TypeReferenceNode::Reference {
-        access: ReferenceAccess::Shared,
+        access: target_access @ (ReferenceAccess::Shared | ReferenceAccess::Mutable),
         referee,
         ..
     } = checked
         .type_reference_table
         .type_reference(target.type_reference)
     else {
-        return unsupported("record operand requires a shared reference formal");
+        return unsupported("record operand requires a readable reference formal");
     };
-    if argument.access != CheckedStructuralAccess::SharedBorrow {
-        return unsupported("record operand changed its shared custody");
+    let (expected_access, expected_kind) = match target_access {
+        ReferenceAccess::Shared => (
+            CheckedStructuralAccess::SharedBorrow,
+            checked_trees::BorrowAccessKind::Read,
+        ),
+        ReferenceAccess::Mutable => (
+            CheckedStructuralAccess::MutableBorrow,
+            checked_trees::BorrowAccessKind::Mutable,
+        ),
+        ReferenceAccess::WriteOnly => {
+            return unsupported("record operand requires readable access");
+        }
+    };
+    if argument.access != expected_access {
+        return unsupported("record operand changed its formal borrow access");
     }
     let table = &checked.expression_table;
     let named = match table.expression(expression) {
-        ExpressionNode::Borrow(borrow) if borrow.access == ReferenceAccess::Shared => borrow.target,
+        ExpressionNode::Borrow(borrow) if borrow.access == *target_access => borrow.target,
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression,
         _ => return unsupported("record operand has no named or projected source"),
     };
@@ -118,11 +131,21 @@ pub(super) fn validate(
                 .type_reference(local.type_reference)
             {
                 TypeReferenceNode::Reference {
-                    access: ReferenceAccess::Shared | ReferenceAccess::Mutable,
-                    referee,
-                    ..
-                } => *referee,
-                TypeReferenceNode::Named { .. } => local.type_reference,
+                    access, referee, ..
+                } if !local.is_mutable
+                    && (*access == ReferenceAccess::Mutable
+                        || (*access == ReferenceAccess::Shared
+                            && *target_access == ReferenceAccess::Shared)) =>
+                {
+                    *referee
+                }
+                // Lending exclusive receiver custody follows the ordinary
+                // receiver lane's mutable-local requirement.
+                TypeReferenceNode::Named { .. }
+                    if *target_access == ReferenceAccess::Shared || local.is_mutable =>
+                {
+                    local.type_reference
+                }
                 _ => return unsupported("record operand widens source access"),
             }
         }
@@ -150,11 +173,20 @@ pub(super) fn validate(
                 .type_reference(source.type_reference)
             {
                 TypeReferenceNode::Reference {
-                    access: ReferenceAccess::Shared | ReferenceAccess::Mutable,
-                    referee,
-                    ..
-                } => *referee,
-                TypeReferenceNode::Named { .. } => source.type_reference,
+                    access, referee, ..
+                } if *access == ReferenceAccess::Mutable
+                    || (*access == ReferenceAccess::Shared
+                        && *target_access == ReferenceAccess::Shared) =>
+                {
+                    *referee
+                }
+                TypeReferenceNode::Named { .. }
+                    if *target_access == ReferenceAccess::Shared
+                        || source.is_mutable
+                        || source.is_self =>
+                {
+                    source.type_reference
+                }
                 _ => return unsupported("record operand widens source access"),
             };
             if source.is_self {
@@ -203,7 +235,7 @@ pub(super) fn validate(
         .iter()
         .find(|data| data.symbol == *symbol)
         .ok_or(LoweringError::Unsupported(
-            "shared nominal operand has no declaration",
+            "borrowed nominal operand has no declaration",
         ))?;
     let members = checked.data_members(declaration);
     if members
@@ -225,18 +257,18 @@ pub(super) fn validate(
                 })
             }))
     {
-        return unsupported("shared case operand requires a non-erased nominal sum");
+        return unsupported("borrowed case operand requires a non-erased nominal sum");
     }
-    // A `&self` receiver operand is verified nominally below: its referent
+    // A borrowed receiver operand is verified nominally below: its referent
     // must be the callee's own attached declaration and the authored place
     // must be the call's actual receiver — a stronger identity check than the
     // plain-contents closure an observed record borrow owes. Capability
     // members of the attachment (provider bindings and the like) stay under
     // the machine's custody on a forwarded receiver loan, matching the
     // statement lane.
-    if !target.is_self
-        && (!validation::has_plain_owned_contents_with_numeric_constraints(checked, reference)
-            || checked.normalized_type_identity(reference).as_str() != argument.type_identity)
+    if checked.normalized_type_identity(reference).as_str() != argument.type_identity
+        || (!target.is_self
+            && !validation::has_plain_owned_contents_with_numeric_constraints(checked, reference))
     {
         return unsupported("record operand changed its declared referent type");
     }
@@ -267,22 +299,30 @@ pub(super) fn validate(
             ))?;
         if accesses.iter().any(|access| {
             (access.root_symbol == root || access.root_symbol == endpoint)
-                && access.kind.is_exclusive()
+                && (expected_access == CheckedStructuralAccess::MutableBorrow
+                    || access.kind.is_exclusive())
         }) {
-            return unsupported("shared record receiver overlaps an exclusive actual");
+            return unsupported("record receiver overlaps an incompatible actual");
         }
     } else {
         if checked.normalized_type_identity(*referee) != checked.normalized_type_identity(reference)
         {
             return unsupported("record argument differs from its exact formal referent");
         }
-        super::borrow_rows::validate_shared_place_argument_at(
+        super::borrow_rows::validate_place_argument_at(
             checked,
             call,
             explicit_position.ok_or(LoweringError::Unsupported(
                 "record argument lost its observation position",
             ))?,
             source.captured_place(),
+            // Bare forwarding reads the reference carrier; an explicit
+            // borrow records the requested referent access at this position.
+            if matches!(table.expression(expression), ExpressionNode::Borrow(_)) {
+                expected_kind
+            } else {
+                checked_trees::BorrowAccessKind::Read
+            },
         )?;
     }
     Ok(())

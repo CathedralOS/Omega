@@ -282,3 +282,243 @@ fn computed_initializer_custody_mutations_reject_before_publication() {
         );
     }
 }
+
+#[test]
+fn computed_nominal_borrows_retain_receiver_access_path_and_occurrence() {
+    use checked_trees::{CheckedScalarComputationKind, CheckedScalarComputationStructuralArgument};
+    use typed_trees::types::TypeReferenceNode;
+
+    for explicit in [false, true] {
+        for multistate in [false, true] {
+            let (callee, invocation) = if explicit {
+                (
+                    "machine replace(counter: &mut Counter) -> i32 in Wrapping { counter.count = 7; 7 }",
+                    "replace(&mut self.left)",
+                )
+            } else {
+                (
+                    "machine Counter::replace(&mut self) -> i32 in Wrapping { self.count = 7; 7 }",
+                    "self.left.replace()",
+                )
+            };
+            let completion = if multistate {
+                "transition { _ -> finish(saved) } state finish(&mut self, result: i32 in Wrapping) -> i32 { result as i32 }"
+            } else {
+                "saved as i32"
+            };
+            let source = format!(
+                r#"
+                data Counter {{ count: i32; }}
+                data Main {{ left: Counter; right: Counter; }}
+                {callee}
+                machine Main::value(&mut self) -> i32 {{
+                    let saved: i32 in Wrapping = {invocation} * 10;
+                    {completion}
+                }}
+            "#
+            );
+            let original = checked_arms(&source, false);
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
+                &original,
+                TerminalMachineSelection::Name("Main::value"),
+            )
+            .unwrap_or_else(|error| panic!("mutable nominal computation operand: {error:?}, explicit={explicit}, multistate={multistate}"));
+            let semantic_bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+            let proof_bytes = terminal_codec::encode_proof_section(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+            )
+            .unwrap();
+            let module = terminal_codec::decode_module(&semantic_bytes).unwrap();
+            let proof = terminal_codec::decode_proof_bundle(&proof_bytes).unwrap();
+            terminal_verifier::verify_module(
+                &module,
+                &proof,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .expect("decoded mutable computation verifies independently");
+            let plans = &original.facts.values.scalar_computations;
+            let calls: Vec<_> = plans.nodes.iter().filter_map(|(handle, node)| {
+                let CheckedScalarComputationKind::Call { structural_arguments, .. } = &node.kind else { return None; };
+                let arguments = plans.structural_arguments.span(*structural_arguments)?;
+                matches!(arguments, [CheckedScalarComputationStructuralArgument::Place(argument)]
+                    if argument.access == checked_trees::CheckedStructuralAccess::MutableBorrow)
+                    .then_some((handle, *structural_arguments))
+            }).collect();
+            let [(call_handle, arguments)] = calls.as_slice() else {
+                panic!("one mutable computation call");
+            };
+            let machine = original
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == "Main::value")
+                .unwrap();
+            let state = &original.machine_states(machine)[0];
+            let receiver = state.parameters.start();
+            for mutation in ["access", "path", "type", "ordinal", "shared backing"] {
+                let mut changed = original.clone();
+                if mutation == "ordinal" {
+                    let CheckedScalarComputationKind::Call { call_ordinal, .. } = &mut changed
+                        .facts
+                        .values
+                        .scalar_computations
+                        .nodes
+                        .get_mut(*call_handle)
+                        .kind
+                    else {
+                        unreachable!();
+                    };
+                    *call_ordinal += 1;
+                } else if mutation == "shared backing" {
+                    let mut reference = changed
+                        .type_reference_table
+                        .type_reference(original.state_parameters(state)[0].type_reference)
+                        .clone();
+                    let TypeReferenceNode::Reference { access, .. } = &mut reference else {
+                        panic!("mutable source receiver");
+                    };
+                    *access = language_semantics::ReferenceAccess::Shared;
+                    let reference = changed.typed.type_reference_table.insert(reference);
+                    changed
+                        .typed
+                        .state_parameters
+                        .get_mut(receiver)
+                        .type_reference = reference;
+                } else {
+                    let CheckedScalarComputationStructuralArgument::Place(argument) = changed
+                        .facts
+                        .values
+                        .scalar_computations
+                        .structural_arguments
+                        .get_mut(arguments.start())
+                    else {
+                        unreachable!();
+                    };
+                    match mutation {
+                        "access" => {
+                            argument.access = checked_trees::CheckedStructuralAccess::SharedBorrow
+                        }
+                        "path" => {
+                            argument.path =
+                                vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
+                                    "right".to_owned(),
+                                )]
+                        }
+                        "type" => argument.type_identity.push_str("_substituted"),
+                        _ => unreachable!(),
+                    }
+                }
+                assert!(
+                    checked_trees_to_lowered_psi::lower_machine(
+                        &changed,
+                        TerminalMachineSelection::Name("Main::value")
+                    )
+                    .is_err(),
+                    "{mutation}, explicit={explicit}, multistate={multistate}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn pure_computed_callee_retains_exact_unread_receiver_access() {
+    use checked_trees::CheckedStructuralAccess;
+    use typed_trees::types::TypeReferenceNode;
+
+    for transition in [false, true] {
+        let body = if transition {
+            "transition { _ -> (n * 2) }"
+        } else {
+            "n * 2"
+        };
+        let source = format!(
+            r#"
+            data Calc {{}}
+            data Main {{ calc: Calc; }}
+            machine Calc::double_val(&mut self, n: i32 in Wrapping) -> i32 in Wrapping {{ {body} }}
+            machine Main::value(&mut self) -> i32 {{
+                let result: i32 in Wrapping = self.calc.double_val(6) * 3;
+                result as i32
+            }}
+        "#
+        );
+        let checked = checked_arms(&source, false);
+        let callee = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Calc::double_val")
+            .unwrap();
+        let callee_symbol = callee.symbol;
+        let state = &checked.machine_states(callee)[0];
+        let receiver_handle = state.parameters.start();
+        let receiver_type = checked.state_parameters(state)[0].type_reference;
+        let graph_index = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .machines
+            .iter()
+            .position(|graph| graph.machine == callee_symbol)
+            .expect("pure callee has its ordinary scalar graph");
+        let graph = &checked.facts.flow.terminal_scalar_graphs.machines[graph_index];
+        assert_eq!(graph.states[0].structural_parameters.len(), 1);
+        assert_eq!(graph.states[0].scalar_parameters.len(), 1);
+        assert_eq!(
+            graph.states[0].structural_parameters[0].access,
+            CheckedStructuralAccess::MutableBorrow
+        );
+        for name in ["Calc::double_val", "Main::value"] {
+            let lowered = checked_trees_to_lowered_psi::lower_machine(
+                &checked,
+                TerminalMachineSelection::Name(name),
+            )
+            .unwrap_or_else(|error| panic!("{name}, transition={transition}: {error:?}"));
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .expect("pure mutable receiver and caller independently verify");
+        }
+        for mutation in ["retained shared", "source shared"] {
+            let mut changed = checked.clone();
+            if mutation == "retained shared" {
+                changed.facts.flow.terminal_scalar_graphs.machines[graph_index].states[0]
+                    .structural_parameters[0]
+                    .access = CheckedStructuralAccess::SharedBorrow;
+            } else {
+                let mut reference = changed
+                    .type_reference_table
+                    .type_reference(receiver_type)
+                    .clone();
+                let TypeReferenceNode::Reference { access, .. } = &mut reference else {
+                    panic!("authored mutable receiver reference");
+                };
+                *access = language_semantics::ReferenceAccess::Shared;
+                let reference = changed.typed.type_reference_table.insert(reference);
+                changed
+                    .typed
+                    .state_parameters
+                    .get_mut(receiver_handle)
+                    .type_reference = reference;
+            }
+            let error = checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Main::value"),
+            )
+            .expect_err("retained receiver cannot disagree with its source");
+            if mutation == "retained shared" {
+                assert!(
+                    matches!(
+                        error,
+                        checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                            "scalar parameter storage disagrees with its authored signature"
+                        )
+                    ),
+                    "transition={transition}, mutation={mutation}: {error:?}"
+                );
+            }
+        }
+    }
+}

@@ -54,23 +54,32 @@ pub(crate) fn parameter_storage<'checked>(
             // The receiver rejoins only as a borrowed reference. When the
             // entry roster retained it as the machine's ambient operand, it
             // owns the matching structural entry exactly here.
-            if !matches!(
-                checked
-                    .type_reference_table
-                    .type_reference(parameter.type_reference),
-                checked_trees::types::TypeReferenceNode::Reference { .. }
-            ) {
+            let checked_trees::types::TypeReferenceNode::Reference { access, .. } = checked
+                .type_reference_table
+                .type_reference(parameter.type_reference)
+            else {
                 return unsupported(
                     "scalar parameter storage disagrees with its authored signature",
                 );
-            }
+            };
             if ambient_self {
+                let access = match access {
+                    language_semantics::ReferenceAccess::Shared => {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow
+                    }
+                    language_semantics::ReferenceAccess::Mutable => {
+                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                    }
+                    language_semantics::ReferenceAccess::WriteOnly => {
+                        return unsupported("scalar graph retained receiver must be readable");
+                    }
+                };
                 let retained = structural.next().ok_or(LoweringError::Unsupported(
                     "scalar graph lost its ambient receiver",
                 ))?;
                 if !retained.is_self
                     || retained.position as usize != position
-                    || retained.access != checked_trees::CheckedStructuralAccess::SharedBorrow
+                    || retained.access != access
                     || retained.multiplicity != Multiplicity::Unrestricted
                 {
                     return unsupported(
