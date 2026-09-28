@@ -351,11 +351,11 @@ backend-visible; full corpus runs only at the end of an item.
   slot-collision comment is not a diagnosis of the current compiler.
 
 - **BYTE-CARRIER-STORE-LITERAL-ONLY.** (new-scope) Finish plain carrier
-  copies and whole borrowed output stores into bounded byte storage, including
-  nested destinations. Stage 04's
+  copies and nested bounded-byte replacement customers. Stage 04's
   `terminal_unit/structural_scalar_store/byte_stores.rs` plans literal and runtime
-  concatenation; direct field-to-field copies and whole borrowed output assignment
-  remain. Follow [bounded replacement](wiki/spec/terminal-psi/structural_access.md):
+  concatenation and whole borrowed output replacement; direct field-to-field
+  copies and nested destinations still need observable acceptance.
+  Follow [bounded replacement](wiki/spec/terminal-psi/structural_access.md):
   preserve siblings and source backing, permit empty/shorter replacements,
   establish required `Utf8`, and retain raw fixed arrays' exact-length rule.
   Capacity is not readable content.
@@ -368,12 +368,15 @@ backend-visible; full corpus runs only at the end of an item.
   and total **70**. All exit **70**. The native corpus control
   `python3 tools/corpus_gate.py --native --filter
   pass/text/runtime_bounded_carrier_concat_exit` also exits **70**.
+  At `831d401c63a`, unchanged `omega run
+  tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit/main.omg`
+  on macOS arm64 verifies **== Gate ==** in the caller after a mutable output
+  call and exits **70**. Terminal serialization, independent verification and
+  native corpus execution pass; the existing concatenation control also exits
+  **70**. Whole-owner loans retain capacity, predicates and original storage.
   Remaining acceptance after Terminal reload/verification and native execution:
 
   - Exercise `status_report`'s normal branch and retain its output oracle.
-  - `tests/omega/pass/text/runtime_bounded_carrier_alias_concat_exit`
-    produces **== Gate ==** and exits **70** through a mutable output
-    parameter across a call. Preserve aliasing and exact live bytes/length.
   - Cover plain copies, nested destinations and borrowed outputs, retaining
     literal and capacity-overflow controls. Make the assigned bytes/length
     observable in `tests/omega/pending/text/byte_carrier_store_literal_only`,
@@ -1006,7 +1009,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `collections/entity_list`, `rendering/bouncing_particles`, `algorithms/dutch_flag` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pending/collections/runtime_indexed_record_field_store` and `pending/control_flow/runtime_indexed_case_dispatch`. `dutch_flag` must construct, read and swap the actual Color array, interact with Console and exit 70; integer substitutes are not acceptance. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. Retain `dungeon_render`'s field/glyph evidence under **NOMINAL-FIELD-FLOW** while verifying its complete program; transition transport is already implemented. |
-  | `basics/text_greeting`, `systems/status_report`, `text/string_catalog` | **BYTE-CARRIER-STORE-LITERAL-ONLY** owns remaining plain carrier copies, nested destinations and whole borrowed output stores. Unchanged samples run natively: `text_greeting` prints **Hello, Ada!**, `status_report` prints **ALERT temp**, and `string_catalog` verifies **[Alpha+Beta]** and total **70**; all exit **70**. Retain the normal status branch and finish `text/runtime_bounded_carrier_alias_concat_exit` through its mutable output parameter. |
+  | `basics/text_greeting`, `systems/status_report`, `text/string_catalog` | **BYTE-CARRIER-STORE-LITERAL-ONLY** owns remaining plain carrier copies and nested destination acceptance. Unchanged samples run natively: `text_greeting` prints **Hello, Ada!**, `status_report` prints **ALERT temp**, and `string_catalog` verifies **[Alpha+Beta]** and total **70**; all exit **70**. `text/runtime_bounded_carrier_alias_concat_exit` now verifies **== Gate ==** through its mutable output parameter and exits **70**. Retain the normal status branch oracle. |
   | `gui/{image_viewer,window_app,window_demo}` | **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** owns the authored by-value primitive-array boundary arguments/results. Changing every parameter to a domain carrier or reference evades that acceptance. Exact fixture/sample provider selection remains required. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the rejection rule and many explicit casts are implemented. Recheck the previously affected cohort without changing arithmetic policy or algorithms: `longest_run`, `maze_flood`, `collatz_sequence`, `prime_sieve`, `multiplication_table`, `heat_grid`, `dice_histogram`, `dungeon_crawler_cli`, `rpn_calculator`, `stack_calculator`, `self_mutation_between_calls`, `histogram`, `game_of_life`, `rule_30`, `luhn_checksum`, `substring_search`, and `windowed_calculator`. Re-measure the current set instead of treating an old refusal count as a baseline. |
