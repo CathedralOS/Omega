@@ -53,6 +53,79 @@ fn package_aware_probe_retains_authored_symbol_ownership() {
     );
 }
 
+#[test]
+fn generated_cohort_continues_once_and_rejects_a_changed_typed_predecessor() {
+    let package = PackageKeyIdentity::from_digest([0x6a; 32]).unwrap();
+    let (syntax, sources) = parsed_source("machine authored() -> u64 { 1 }", package);
+    let resolved = crate::syntax_probes::resolve(&syntax, Some(sources.clone()), &[]).unwrap();
+    let base =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(resolved)
+            .unwrap();
+    let retained = base.typed().clone();
+    let resolved_base = base.resolved_base_for_extension();
+    let mut extension_sources = (*sources).clone();
+    let units = [
+        "machine first() -> u64 { authored() }",
+        "machine second() -> u64 { 2 }",
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, text)| {
+        let source_id = extension_sources
+            .add_checked_instance(
+                PathBuf::from(format!("cache/selected/.omega/generated/unit{index}.omg")),
+                text.to_owned(),
+                PathBuf::from("cache/selected"),
+                Some(package),
+                SourceOrigin::User,
+                source::SourceResolutionStratum::CurrentActivationExtension,
+                source::DependencyScope::Product,
+            )
+            .source_id;
+        crate::front_end::syntax_program_with_id(source_id, text)
+    })
+    .collect();
+    let extension_sources = Arc::new(extension_sources);
+    let (syntax, pre_checks) = super::PreResolutionEvaluation::evaluate_extension(
+        units,
+        source::SourceId(sources.len()),
+        BuildTimeSourceContext {
+            sources: extension_sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: Some(&resolved_base),
+        },
+    )
+    .unwrap();
+    assert_eq!(pre_checks.len(), 2);
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve_extension(
+        syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
+            base: resolved_base,
+            syntax: &syntax,
+            sources: extension_sources,
+            top_level_bindings: Vec::new(),
+        },
+    )
+    .unwrap();
+    let mut typed = base.lower_extension(resolved).unwrap();
+    assert_eq!(typed.machines().len(), 3);
+    let pending = super::PreCheckEvaluation::evaluate_extension_or_defer(
+        pre_checks.clone(),
+        &retained,
+        &mut typed,
+    )
+    .unwrap();
+    assert!(pending.is_empty());
+
+    let wrong_name = typed.machines()[1].name.clone();
+    typed.machines_mut()[0].name = wrong_name;
+    let error =
+        super::PreCheckEvaluation::evaluate_extension_or_defer(pre_checks, &retained, &mut typed)
+            .err()
+            .expect("the evaluator must preserve its predecessor");
+    assert!(error[0].message.contains("changed the retained typed base"));
+}
+
 /// Every literal value surviving inside a const-generic argument after
 /// pre-resolution: integer const expressions and plain literal names both
 /// count as folded results.

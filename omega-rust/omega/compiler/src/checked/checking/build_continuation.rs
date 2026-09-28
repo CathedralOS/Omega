@@ -131,72 +131,67 @@ pub(crate) fn evaluate_frontier_and_continue(
     // `None` admits an unprofiled compiler host; the build-scope filter then
     // selects against the host's `NativeTarget` triple.
     let execution_profile_name = build_execution_profile.map(target::TargetProfile::target_name);
-    let (
-        mut source_file_count,
-        mut generated_source_custody,
-        base_sources,
-        application,
-        mut frontend,
-    ) = match frontier {
-        CheckedFrontierInput::Assembled {
-            source_file_count,
-            syntax,
-        } => {
-            let generated_source_custody = syntax.generated_source_custody.clone();
-            let base_sources = syntax.sources.clone();
-            let application = syntax.application.clone();
-            let frontend = lower_checked_frontend(
+    let (mut source_file_count, mut generated_source_custody, base_sources, application, frontend) =
+        match frontier {
+            CheckedFrontierInput::Assembled {
+                source_file_count,
                 syntax,
-                target_name,
-                execution_profile_name,
-                package_inputs,
-                timings,
-            )?;
-            if let Some(slot) = memo_slot {
-                let mut entries = slot
-                    .memo
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                entries.retain(|(key, _)| *key != slot.key);
-                entries.push((
-                    slot.key,
-                    TypedFrontier {
-                        frontend: frontend.clone(),
-                        source_file_count,
-                        generated_source_custody: generated_source_custody.clone(),
-                        base_sources: base_sources.clone(),
-                        application: application.clone(),
-                    },
-                ));
+            } => {
+                let generated_source_custody = syntax.generated_source_custody.clone();
+                let base_sources = syntax.sources.clone();
+                let application = syntax.application.clone();
+                let frontend = lower_checked_frontend(
+                    syntax,
+                    target_name,
+                    execution_profile_name,
+                    package_inputs,
+                    timings,
+                )?;
+                if let Some(slot) = memo_slot {
+                    let mut entries = slot
+                        .memo
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    entries.retain(|(key, _)| *key != slot.key);
+                    entries.push((
+                        slot.key,
+                        TypedFrontier {
+                            frontend: frontend.clone(),
+                            source_file_count,
+                            generated_source_custody: generated_source_custody.clone(),
+                            base_sources: base_sources.clone(),
+                            application: application.clone(),
+                        },
+                    ));
+                }
+                (
+                    source_file_count,
+                    generated_source_custody,
+                    base_sources,
+                    application,
+                    frontend,
+                )
             }
-            (
-                source_file_count,
-                generated_source_custody,
-                base_sources,
-                application,
-                frontend,
-            )
-        }
-        CheckedFrontierInput::Retained(frontier) => {
-            let TypedFrontier {
-                frontend,
-                source_file_count,
-                generated_source_custody,
-                base_sources,
-                application,
-            } = frontier;
-            (
-                source_file_count,
-                generated_source_custody,
-                base_sources,
-                application,
-                frontend,
-            )
-        }
-    };
+            CheckedFrontierInput::Retained(frontier) => {
+                let TypedFrontier {
+                    frontend,
+                    source_file_count,
+                    generated_source_custody,
+                    base_sources,
+                    application,
+                } = frontier;
+                (
+                    source_file_count,
+                    generated_source_custody,
+                    base_sources,
+                    application,
+                    frontend,
+                )
+            }
+        };
     let package_authority_verdict = if let Some(package_inputs) = package_inputs {
         Some(crate::checked::package::declaration_admission::validate_authored_declaration_selections_before_build(
-            frontend.typed(),
+            frontend.typing.typed(),
             package_inputs,
             &generated_source_custody,
             timings,
@@ -214,7 +209,7 @@ pub(crate) fn evaluate_frontier_and_continue(
         build_snapshot.as_ref(),
     )?;
     let admitted_build = build_evaluation::admit_build_program(
-        frontend.typed(),
+        frontend.typing.typed(),
         frontend.build_source_id,
         &build_machine_filesystem_scope,
         evaluation_sponsor.as_ref(),
@@ -241,7 +236,15 @@ pub(crate) fn evaluate_frontier_and_continue(
     // The activation's grant guard ends with execution, before source continuation.
     drop(restricted_build_grants);
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
-    if !computed_build_config.generated_sources.is_empty() {
+    let CheckedFrontend {
+        typing,
+        mut selected_target_machine_declarations,
+        mut pending_pre_checks,
+        ..
+    } = frontend;
+    let typed = if computed_build_config.generated_sources.is_empty() {
+        typing.into_typed()
+    } else {
         let package_inputs = package_inputs.ok_or_else(|| {
             vec![Diagnostic::error(
                 "generated-source final compilation requires package-aware source custody",
@@ -250,56 +253,33 @@ pub(crate) fn evaluate_frontier_and_continue(
         let package_root = package_inputs
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
-        let extension = build_evaluation::sources::retain_generated_syntax_extension(
+        let extension = package_compilation::source_imports::admit_generated_extension(
             &base_sources,
             package_root,
             Some(package_inputs.root()),
             &computed_build_config.generated_sources,
         )?;
         source_file_count = source_file_count
-            .checked_add(extension.source_count())
+            .checked_add(extension.custody().len())
             .ok_or_else(|| {
                 vec![Diagnostic::error(
                     "generated package source count exceeds the compiler range",
                 )]
             })?;
-        generated_source_custody.extend(extension.generated_source_custody().iter().cloned());
-        let CheckedFrontend {
+        generated_source_custody.extend(extension.custody().iter().cloned());
+        let (typed, declarations, extension_pre_checks) = continue_generated_sources(
             typing,
+            &base_sources,
+            extension,
             selected_target_machine_declarations,
-            build_source_id,
-            mut pending_pre_checks,
-        } = frontend;
-        let CheckedFrontendTyping::Continuable(typing_base) = typing else {
-            return Err(vec![Diagnostic::error(
-                "generated-source continuation lost its retained frontend base",
-            )]);
-        };
-        let (typed, selected_target_machine_declarations, extension_pre_checks) =
-            try_seeded_extension(
-                typing_base,
-                &base_sources,
-                extension,
-                selected_target_machine_declarations,
-                target_name,
-                Some(package_inputs),
-                timings,
-            )?;
+            target_name,
+            package_inputs,
+            timings,
+        )?;
+        selected_target_machine_declarations = declarations;
         pending_pre_checks.extend(extension_pre_checks);
-        frontend = CheckedFrontend {
-            typing: CheckedFrontendTyping::Complete(typed),
-            selected_target_machine_declarations,
-            build_source_id,
-            pending_pre_checks,
-        };
-    }
-    let CheckedFrontend {
-        typing,
-        selected_target_machine_declarations,
-        pending_pre_checks,
-        ..
-    } = frontend;
-    let typed = typing.into_typed();
+        typed
+    };
     let selected_build_machine_identity = selected_build_machine_symbol
         .map(|selected| {
             let machine = typed
@@ -344,39 +324,11 @@ pub(crate) fn evaluate_frontier_and_continue(
 
 #[derive(Clone)]
 struct CheckedFrontend {
-    typing: CheckedFrontendTyping,
+    typing: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     selected_target_machine_declarations:
         provider_planning::target_machines::SelectedTargetMachineDeclarations,
     build_source_id: Option<source::SourceId>,
     pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
-}
-
-#[derive(Clone)]
-enum CheckedFrontendTyping {
-    Continuable(symbol_resolved_trees_to_typed_trees::SeededTypingBase),
-    Complete(typed_trees::TypedTrees),
-}
-
-impl CheckedFrontendTyping {
-    fn typed(&self) -> &typed_trees::TypedTrees {
-        match self {
-            Self::Continuable(base) => base.typed(),
-            Self::Complete(typed) => typed,
-        }
-    }
-
-    fn into_typed(self) -> typed_trees::TypedTrees {
-        match self {
-            Self::Continuable(base) => base.into_typed(),
-            Self::Complete(typed) => typed,
-        }
-    }
-}
-
-impl CheckedFrontend {
-    fn typed(&self) -> &typed_trees::TypedTrees {
-        self.typing.typed()
-    }
 }
 
 fn lower_checked_frontend(
@@ -451,21 +403,21 @@ fn lower_checked_frontend(
     // checker will subsequently validate and retain.
     validation::resolve_dynamic_call_targets(typing_base.typed_mut())?;
     Ok(CheckedFrontend {
-        typing: CheckedFrontendTyping::Continuable(typing_base),
+        typing: typing_base,
         selected_target_machine_declarations,
         build_source_id,
         pending_pre_checks,
     })
 }
 
-fn try_seeded_extension(
+fn continue_generated_sources(
     base: symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     base_sources: &Arc<source::SourceMap>,
-    extension: build_evaluation::sources::RetainedGeneratedSyntaxExtension,
+    extension: package_compilation::source_imports::GeneratedSourceExtension,
     selected_target_machine_declarations:
         provider_planning::target_machines::SelectedTargetMachineDeclarations,
     target_name: Option<&str>,
-    package_inputs: Option<&PackageCompilationInputs>,
+    package_inputs: &PackageCompilationInputs,
     timings: &mut CompileTimings,
 ) -> Result<
     (
@@ -475,36 +427,41 @@ fn try_seeded_extension(
     ),
     Vec<Diagnostic>,
 > {
+    let (sources, custody) = extension.into_source_inputs(base_sources)?;
+    let mut units = Vec::with_capacity(custody.len());
+    for (source_id, _) in &custody {
+        let source = sources
+            .get(*source_id)
+            .expect("admitted generated source retains its exact source instance");
+        let lexed = timings.record(artifacts::compile_timings::SOURCE_FILES_TO_TOKENS, || {
+            source_files_to_tokens::lex_sources(
+                source_files_to_tokens::load_package_generated_source(
+                    source.path.clone(),
+                    &source.source,
+                    source_id.0,
+                    source::DependencyScope::Product,
+                ),
+            )
+        })?;
+        let mut syntax = syntax_trees::SyntaxTrees::new(*source_id);
+        timings.record(artifacts::compile_timings::TOKENS_TO_SYNTAX_TREES, || {
+            tokens_to_syntax_trees::parse_sources(lexed, &mut syntax)
+        })?;
+        units.push(syntax);
+    }
     let retained_prefix = base.typed().clone();
-    let mut wire_schema_frontier = retained_prefix.wire_schemas().len();
-    let (extension_units, sources) = extension.into_pre_resolution_inputs(base_sources)?;
-    let mut extension_syntax = syntax_trees::SyntaxTrees::new(source::SourceId(base_sources.len()));
-    let mut pre_checks = Vec::with_capacity(extension_units.len());
-    // Normalize each unit against the same immutable predecessor. Retained
-    // nominal arguments are selectable; sibling units and base templates are
-    // not silently re-normalized together.
     let resolved_base = base.resolved_base_for_extension();
-    let authority = package_inputs
-        .filter(|_| !extension_units.is_empty())
-        .map(|inputs| {
-            Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
-        });
-    for unit in extension_units {
-        let evaluated = build_time_evaluation::evaluate_pre_resolution(
-            build_time_evaluation::BuildTimeEvaluationRequest {
-                syntax_trees: unit,
-                source_context: Some(build_time_evaluation::BuildTimeSourceContext {
-                    sources: sources.clone(),
-                    source_scoped_top_level_bindings: &[],
-                    selection_authority: authority.clone(),
-                    retained_base: Some(&resolved_base),
-                }),
+    let (mut extension_syntax, pre_checks) =
+        build_time_evaluation::PreResolutionEvaluation::evaluate_extension(
+            units,
+            source::SourceId(base_sources.len()),
+            build_time_evaluation::BuildTimeSourceContext {
+                sources: sources.clone(),
+                source_scoped_top_level_bindings: &[],
+                selection_authority: Some(Arc::new(package_inputs.clone())),
+                retained_base: Some(&resolved_base),
             },
         )?;
-        let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
-        extension_syntax.extend_from(&unit);
-        pre_checks.push(pre_check);
-    }
     let selected_target_machine_declarations = selected_target_machine_declarations
         .filter_generated_extension(&mut extension_syntax, target_name)?;
     let seeded = timings.record(
@@ -520,54 +477,17 @@ fn try_seeded_extension(
             )
         },
     )?;
-    let rebased = seeded
-        .rebase_authored_selections_for_typed_continuation(
-            base.typed().authored_declaration_selections(),
-        )
-        .map_err(|(_, error)| {
-            vec![Diagnostic::error(format!(
-                "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
-            ))]
-        })?;
-    let mut typed = match timings.record_result(
+    let mut typed = timings.record(
         artifacts::compile_timings::SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
-        || symbol_resolved_trees_to_typed_trees::lower_seeded_extension(rebased, base),
-    ) {
-        Ok(typed) => Ok(typed),
-        Err((
-            _,
-            symbol_resolved_trees_to_typed_trees::SeededContinuationError::Lowering(
-                diagnostic,
-            ),
-        )) => Err(vec![diagnostic]),
-        Err((
-            _,
-            symbol_resolved_trees_to_typed_trees::SeededContinuationError::UnsupportedExtensionShape,
-        )) => Err(vec![Diagnostic::error(
-            "generated source uses a declaration shape not yet supported by retained-checkpoint continuation; reconstructing a second frontend is forbidden",
-        )]),
-        Err((_, error)) => Err(vec![Diagnostic::error(format!(
-            "generated-source continuation violated its retained-base invariant: {error:?}"
-        ))]),
-    }?;
+        || base.lower_extension(seeded),
+    )?;
     selected_target_machine_declarations.admit_provider_default_calls(&typed)?;
-    let mut pending_pre_checks = Vec::new();
-    for pre_check in pre_checks {
-        if let Some(pending) =
-            pre_check.evaluate_extension_or_defer(&mut typed, wire_schema_frontier)?
-        {
-            pending_pre_checks.push(pending);
-        }
-        wire_schema_frontier = typed.wire_schemas().len();
-    }
-    if !symbol_resolved_trees_to_typed_trees::retained_typed_base_is_exact_prefix(
-        &retained_prefix,
-        &typed,
-    ) {
-        return Err(vec![Diagnostic::error(
-            "generated-source pre-check evaluation changed the retained typed base",
-        )]);
-    }
+    let pending_pre_checks =
+        build_time_evaluation::PreCheckEvaluation::evaluate_extension_or_defer(
+            pre_checks,
+            &retained_prefix,
+            &mut typed,
+        )?;
     Ok((
         typed,
         selected_target_machine_declarations,
