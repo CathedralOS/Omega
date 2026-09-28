@@ -48,22 +48,22 @@ use crate::record::PackageReviewSymbolicBoundaryApplicationArgument;
 use crate::record::PackageReviewTypeIdentity;
 use target::TargetProfile;
 
-fn identity(path: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn identity(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(package()),
         path: path.to_owned(),
     }
 }
-fn package() -> semantic_vocabulary::PackageKeyIdentity {
+pub(in crate::encoding::recovery) fn package() -> semantic_vocabulary::PackageKeyIdentity {
     semantic_vocabulary::PackageKeyIdentity::from_digest([17; 32]).unwrap()
 }
-fn properties() -> PackageReviewDataProperties {
+pub(in crate::encoding::recovery) fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
         multiplicity: language_semantics::Multiplicity::Unrestricted,
         carry: None,
     }
 }
-pub(super) fn fixture() -> PackagePolicyBaseline {
+pub(in crate::encoding::recovery) fn fixture() -> PackagePolicyBaseline {
     let mut callables = super::super::callable_policy::tests::fixture();
     let callable = &mut callables.callables[0];
     let service = identity("Filesystem");
@@ -139,7 +139,8 @@ pub(super) fn fixture() -> PackagePolicyBaseline {
 
 /// A fully populated restricted build-host request, valid under the shared
 /// fixture's linux_x86_64 target activation.
-pub(super) fn restricted_build_request() -> PackagePolicyRestrictedBuildRequest {
+pub(in crate::encoding::recovery) fn restricted_build_request()
+-> PackagePolicyRestrictedBuildRequest {
     PackagePolicyRestrictedBuildRequest {
         operation: PackagePolicyRestrictedBuildOperation::ScopedFilesystemExecution,
         read_grants: vec![
@@ -183,24 +184,25 @@ pub(super) fn restricted_build_request() -> PackagePolicyRestrictedBuildRequest 
     }
 }
 
-fn unchecked_bytes(value: &PackagePolicyBaseline) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn unchecked_bytes(value: &PackagePolicyBaseline) -> Vec<u8> {
     let mut encoder = Encoder::policy_bounded(4 * 1024 * 1024);
     encoder.fixed_bytes(PACKAGE_POLICY_BASELINE_MAGIC);
     encoder.u16(PACKAGE_POLICY_BASELINE_VERSION);
     encode_baseline_policy(&mut encoder, value).unwrap();
     encoder.finish().unwrap()
 }
-pub(super) fn recover(bytes: &[u8]) -> Result<PackagePolicyBaseline, Error> {
+pub(in crate::encoding::recovery) fn recover(bytes: &[u8]) -> Result<PackagePolicyBaseline, Error> {
     PackagePolicyBaseline::recover_canonical(bytes, PackagePolicyRecoveryLimits::default())
 }
-pub(super) fn rejects(value: &PackagePolicyBaseline) {
+pub(in crate::encoding::recovery) fn rejects(value: &PackagePolicyBaseline) {
     assert!(value.validate_canonical_structure().is_err());
     assert!(value.canonical_bytes().is_err());
     assert_eq!(recover(&unchecked_bytes(value)), Err(Error::InvalidValue));
 }
 
 #[test]
-fn composed_nonempty_meaning_roundtrips_with_no_nested_envelopes() {
+pub(in crate::encoding::recovery) fn composed_nonempty_meaning_roundtrips_with_no_nested_envelopes()
+{
     let mut value = fixture();
     value
         .restricted_build_requests
@@ -229,7 +231,8 @@ fn composed_nonempty_meaning_roundtrips_with_no_nested_envelopes() {
 }
 
 #[test]
-fn composed_policy_scale_headroom_admits_beyond_the_legacy_byte_ceiling() {
+pub(in crate::encoding::recovery) fn composed_policy_scale_headroom_admits_beyond_the_legacy_byte_ceiling()
+ {
     // Real packages now produce composed policies above the original 4 MiB
     // ceiling: `semantic_dependencies` alone carried ~4 MiB on a ~84-file
     // package. The product is format-consistent (self-describing fields with
@@ -258,7 +261,8 @@ fn composed_policy_scale_headroom_admits_beyond_the_legacy_byte_ceiling() {
 }
 
 #[test]
-fn child_package_and_target_disagreement_is_rejected_after_recovery() {
+pub(in crate::encoding::recovery) fn child_package_and_target_disagreement_is_rejected_after_recovery()
+ {
     let original = fixture();
     let foreign = semantic_vocabulary::PackageKeyIdentity::from_digest([18; 32]).unwrap();
     for child in 0..4 {
@@ -301,7 +305,8 @@ fn child_package_and_target_disagreement_is_rejected_after_recovery() {
 }
 
 #[test]
-fn semantic_consumer_and_authority_slack_require_exact_retained_associations() {
+pub(in crate::encoding::recovery) fn semantic_consumer_and_authority_slack_require_exact_retained_associations()
+ {
     let mut value = fixture();
     value.semantic_dependencies[0].consumer =
         PackagePolicySemanticDependencyConsumer::Callable(identity("missing"));
@@ -344,7 +349,7 @@ fn semantic_consumer_and_authority_slack_require_exact_retained_associations() {
 }
 
 #[test]
-fn duplicated_and_reordered_aggregate_collections_reject() {
+pub(in crate::encoding::recovery) fn duplicated_and_reordered_aggregate_collections_reject() {
     let mut value = fixture();
     value
         .dangerous_capabilities
@@ -368,7 +373,7 @@ fn duplicated_and_reordered_aggregate_collections_reject() {
     rejects(&value);
 }
 
-fn symbolic() -> PackagePolicyBaseline {
+pub(in crate::encoding::recovery) fn symbolic() -> PackagePolicyBaseline {
     let mut value = fixture();
     let parameter = PackagePolicyTypeParameter {
         kind: PackagePolicyTypeParameterKind::Type,
@@ -410,7 +415,8 @@ fn symbolic() -> PackagePolicyBaseline {
 }
 
 #[test]
-fn symbolic_demands_rejoin_exact_producer_type_binders_and_local_operator() {
+pub(in crate::encoding::recovery) fn symbolic_demands_rejoin_exact_producer_type_binders_and_local_operator()
+ {
     let original = symbolic();
     assert_eq!(
         recover(&original.canonical_bytes().unwrap()).unwrap(),
@@ -464,7 +470,7 @@ fn symbolic_demands_rejoin_exact_producer_type_binders_and_local_operator() {
 }
 
 #[test]
-fn closed_application_cannot_name_an_absent_selected_plan() {
+pub(in crate::encoding::recovery) fn closed_application_cannot_name_an_absent_selected_plan() {
     let mut value = fixture();
     let operator_coordinate = PackageReviewOperatorCoordinate {
         identity: identity("Boundary"),
@@ -491,7 +497,10 @@ fn closed_application_cannot_name_an_absent_selected_plan() {
     rejects(&value);
 }
 
-fn minimum(mut high: usize, accepted: impl Fn(usize) -> bool) -> usize {
+pub(in crate::encoding::recovery) fn minimum(
+    mut high: usize,
+    accepted: impl Fn(usize) -> bool,
+) -> usize {
     assert!(accepted(high));
     let mut low = 0;
     while low < high {
@@ -506,7 +515,8 @@ fn minimum(mut high: usize, accepted: impl Fn(usize) -> bool) -> usize {
 }
 
 #[test]
-fn aggregate_recovery_obeys_exact_bytes_elements_owned_storage_and_depth() {
+pub(in crate::encoding::recovery) fn aggregate_recovery_obeys_exact_bytes_elements_owned_storage_and_depth()
+ {
     let value = symbolic();
     let bytes = value.canonical_bytes().unwrap();
     let limits = |elements, owned, depth| {
@@ -557,7 +567,7 @@ fn aggregate_recovery_obeys_exact_bytes_elements_owned_storage_and_depth() {
 }
 
 #[test]
-fn unknown_envelope_versions_and_dependency_vocabulary_reject() {
+pub(in crate::encoding::recovery) fn unknown_envelope_versions_and_dependency_vocabulary_reject() {
     let bytes = fixture().canonical_bytes().unwrap();
     let mut changed = bytes.clone();
     changed[0] ^= 1;

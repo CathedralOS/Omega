@@ -1,12 +1,15 @@
 use super::{Error, PackagePolicyRecoveryLimits, SELECTED_PROVIDER_POLICY_MAGIC, fixtures};
 use crate::record::*;
 
-pub(super) fn recover(bytes: &[u8]) -> Result<PackagePolicySelectedProviders, Error> {
+pub(in crate::encoding::recovery) fn recover(
+    bytes: &[u8],
+) -> Result<PackagePolicySelectedProviders, Error> {
     PackagePolicySelectedProviders::recover_canonical(bytes, PackagePolicyRecoveryLimits::default())
 }
 
 #[test]
-fn complete_provider_policy_round_trips_without_nested_receipt_envelopes() {
+pub(in crate::encoding::recovery) fn complete_provider_policy_round_trips_without_nested_receipt_envelopes()
+ {
     for policy in [fixtures::empty(), fixtures::complete()] {
         let bytes = policy.canonical_bytes().unwrap();
         let recovered = recover(&bytes).unwrap();
@@ -39,7 +42,7 @@ fn complete_provider_policy_round_trips_without_nested_receipt_envelopes() {
 }
 
 #[test]
-fn provider_family_plan_links_and_selector_order_reject_drift() {
+pub(in crate::encoding::recovery) fn provider_family_plan_links_and_selector_order_reject_drift() {
     let original = fixtures::complete();
     let mut cases = Vec::new();
     let mut changed = original.clone();
@@ -95,7 +98,8 @@ fn provider_family_plan_links_and_selector_order_reject_drift() {
 }
 
 #[test]
-fn service_policy_changes_and_missing_intrinsic_classification_remain_visible() {
+pub(in crate::encoding::recovery) fn service_policy_changes_and_missing_intrinsic_classification_remain_visible()
+ {
     let original = fixtures::complete();
     let bytes = original.canonical_bytes().unwrap();
     let mut cases = Vec::new();

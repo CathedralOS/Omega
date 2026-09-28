@@ -156,11 +156,16 @@ fn resolve_staged_external_local_project(
                 let cache_dir = SourceCacheLane::Retained(storage.external_local_sources())
                     .checked_source_cache_dir()
                     .map_err(ResolveExternalLocalPackageClosureError::Root)?;
+                let review_cache_dir = SourceCacheLane::Retained(storage.external_local_sources())
+                    .compiled_review_cache_dir()
+                    .map_err(ResolveExternalLocalPackageClosureError::Root)?;
                 resolve_bound_external_local_closure(
                     stage.requested_root(),
                     stage.canonical_live_root(),
                     source_context,
-                    root.into_custody().with_checked_source_cache_dir(cache_dir),
+                    root.into_custody()
+                        .with_checked_source_cache_dir(cache_dir)
+                        .with_compiled_review_cache_dir(review_cache_dir),
                     SourceCacheLane::Retained(storage.external_local_sources()),
                     SourceCacheLane::Retained(storage.workspace_members()),
                     SourceCacheLane::Retained(storage.git_sources()),
@@ -245,11 +250,16 @@ fn resolve_external_local_declared_closure_from_lanes(
     let cache_dir = local_cache
         .checked_source_cache_dir()
         .map_err(ResolveExternalLocalPackageClosureError::Root)?;
+    let review_cache_dir = local_cache
+        .compiled_review_cache_dir()
+        .map_err(ResolveExternalLocalPackageClosureError::Root)?;
     resolve_bound_external_local_closure(
         &requested_root,
         &canonical_live_root,
         source_context,
-        root.into_custody().with_checked_source_cache_dir(cache_dir),
+        root.into_custody()
+            .with_checked_source_cache_dir(cache_dir)
+            .with_compiled_review_cache_dir(review_cache_dir),
         local_cache,
         workspace_cache,
         git_cache,

@@ -4,7 +4,9 @@ use crate::record::PackageReviewIntegerBinaryKind;
 use crate::record::PackageReviewPrimitiveType;
 
 use super::Error;
-pub(super) fn primitive_type(reader: &mut Reader<'_>) -> Result<PackageReviewPrimitiveType, Error> {
+pub(in crate::encoding::recovery) fn primitive_type(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewPrimitiveType, Error> {
     use PackageReviewPrimitiveType as Primitive;
     Ok(match reader.byte()? {
         0 => Primitive::Bool,
@@ -23,7 +25,7 @@ pub(super) fn primitive_type(reader: &mut Reader<'_>) -> Result<PackageReviewPri
     })
 }
 
-pub(super) fn primitive_type_name(
+pub(in crate::encoding::recovery) fn primitive_type_name(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewPrimitiveType, Error> {
     use PackageReviewPrimitiveType as Primitive;
@@ -44,7 +46,7 @@ pub(super) fn primitive_type_name(
     })
 }
 
-pub(super) fn integer_binary(
+pub(in crate::encoding::recovery) fn integer_binary(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewIntegerBinaryKind, Error> {
     use PackageReviewIntegerBinaryKind as Kind;

@@ -8,7 +8,7 @@ use crate::encoding::recovery::policy::public_api::public_api;
 use crate::encoding::recovery::policy::reader::Reader;
 use crate::record::*;
 
-fn identity(name: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn identity(name: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::ToolchainSource(PackageReviewToolchainSourceIdentity {
             digest: [9; 32],
@@ -17,20 +17,20 @@ fn identity(name: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-fn value_type() -> PackageReviewTypeIdentity {
+pub(in crate::encoding::recovery) fn value_type() -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {
         canonical: "Unit".to_owned(),
     }
 }
 
-fn properties() -> PackageReviewDataProperties {
+pub(in crate::encoding::recovery) fn properties() -> PackageReviewDataProperties {
     PackageReviewDataProperties {
         multiplicity: language_semantics::Multiplicity::Affine,
         carry: None,
     }
 }
 
-fn routes() -> Vec<PackagePolicyCrashRoute> {
+pub(in crate::encoding::recovery) fn routes() -> Vec<PackagePolicyCrashRoute> {
     vec![PackagePolicyCrashRoute {
         cause: PackageReviewCrashCause::Trap,
         alternative_guards: vec![PackagePolicyCrashGuard::Expression(
@@ -39,7 +39,7 @@ fn routes() -> Vec<PackagePolicyCrashRoute> {
     }]
 }
 
-fn termination() -> PackagePolicyTermination {
+pub(in crate::encoding::recovery) fn termination() -> PackagePolicyTermination {
     use effects::provider_plan::ServiceProgressEstablishmentRouteKind as Kind;
     PackagePolicyTermination::Terminates {
         premises: vec![PackagePolicyProgressPremise {
@@ -62,7 +62,7 @@ fn termination() -> PackagePolicyTermination {
     }
 }
 
-fn signature() -> PackagePolicyMachineParameterSignature {
+pub(in crate::encoding::recovery) fn signature() -> PackagePolicyMachineParameterSignature {
     PackagePolicyMachineParameterSignature {
         lifetime_parameter_count: 1,
         type_parameters: vec![],
@@ -85,7 +85,7 @@ fn signature() -> PackagePolicyMachineParameterSignature {
     }
 }
 
-fn parameters() -> Vec<PackagePolicyTypeParameter> {
+pub(in crate::encoding::recovery) fn parameters() -> Vec<PackagePolicyTypeParameter> {
     [
         PackagePolicyTypeParameterKind::Type,
         PackagePolicyTypeParameterKind::Const(value_type()),
@@ -116,7 +116,7 @@ fn parameters() -> Vec<PackagePolicyTypeParameter> {
     .collect()
 }
 
-pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyPublicApi {
+pub(in crate::encoding::recovery) fn fixture() -> PackagePolicyPublicApi {
     PackagePolicyPublicApi {
         traits: vec![PackagePolicyTraitShape {
             identity: identity("Trait"),
@@ -219,13 +219,13 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyPublicApi
     }
 }
 
-fn encode(api: &PackagePolicyPublicApi) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn encode(api: &PackagePolicyPublicApi) -> Vec<u8> {
     let mut encoder = Encoder::policy_bounded(1_000_000);
     encode_public_api(&mut encoder, api).unwrap();
     encoder.finish().unwrap()
 }
 
-fn decode(
+pub(in crate::encoding::recovery) fn decode(
     bytes: &[u8],
     limits: PackagePolicyRecoveryLimits,
 ) -> Result<PackagePolicyPublicApi, Error> {
@@ -236,7 +236,7 @@ fn decode(
 }
 
 #[test]
-fn complete_public_api_text_retains_all_declaration_families() {
+pub(in crate::encoding::recovery) fn complete_public_api_text_retains_all_declaration_families() {
     let mut api = fixture();
     text_test_support::component(Component::PublicApi(&api));
     api.traits[0]
@@ -272,7 +272,8 @@ fn complete_public_api_text_retains_all_declaration_families() {
 }
 
 #[test]
-fn nested_static_contract_text_retains_promises_at_supported_depth() {
+pub(in crate::encoding::recovery) fn nested_static_contract_text_retains_promises_at_supported_depth()
+ {
     let mut contract = PackagePolicyMachineParameterContract::Structural(signature());
     for _ in 0..24 {
         contract = PackagePolicyMachineParameterContract::Structural(
@@ -295,7 +296,8 @@ fn nested_static_contract_text_retains_promises_at_supported_depth() {
 }
 
 #[test]
-fn normalized_public_api_roundtrips_all_families_and_nested_full_promises() {
+pub(in crate::encoding::recovery) fn normalized_public_api_roundtrips_all_families_and_nested_full_promises()
+ {
     let api = fixture();
     let bytes = encode(&api);
     let recovered = decode(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
@@ -316,7 +318,8 @@ fn normalized_public_api_roundtrips_all_families_and_nested_full_promises() {
 }
 
 #[test]
-fn absent_results_differ_from_unit_and_typed_route_owners_remain_observable() {
+pub(in crate::encoding::recovery) fn absent_results_differ_from_unit_and_typed_route_owners_remain_observable()
+ {
     let api = fixture();
     let baseline = encode(&api);
     let mut result = api.clone();
@@ -360,7 +363,7 @@ fn absent_results_differ_from_unit_and_typed_route_owners_remain_observable() {
 }
 
 #[test]
-fn public_api_children_use_one_resource_budget() {
+pub(in crate::encoding::recovery) fn public_api_children_use_one_resource_budget() {
     let bytes = encode(&fixture());
     for (elements, owned, depth, error) in [
         (0, 1_000_000, 128, Error::ElementLimitExceeded),
@@ -403,7 +406,7 @@ fn public_api_children_use_one_resource_budget() {
 }
 
 #[test]
-fn normalized_signature_and_aggregate_unknown_tags_reject() {
+pub(in crate::encoding::recovery) fn normalized_signature_and_aggregate_unknown_tags_reject() {
     assert_eq!(
         signatures::machine_contract(
             &mut Reader::new(&[3], PackagePolicyRecoveryLimits::default()).unwrap()

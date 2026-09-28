@@ -1,17 +1,17 @@
 use crate::encoding::PackagePolicyRecoveryError as Error;
 
-pub(super) struct Tokens<'text> {
+pub(in crate::encoding::recovery) struct Tokens<'text> {
     remaining: &'text [u8],
 }
 
 impl<'text> Tokens<'text> {
-    pub(super) fn new(text: &'text str) -> Self {
+    pub(in crate::encoding::recovery) fn new(text: &'text str) -> Self {
         Self {
             remaining: text.as_bytes(),
         }
     }
 
-    fn whitespace(&mut self) {
+    pub(in crate::encoding::recovery) fn whitespace(&mut self) {
         let count = self
             .remaining
             .iter()
@@ -20,7 +20,7 @@ impl<'text> Tokens<'text> {
         self.remaining = &self.remaining[count..];
     }
 
-    pub(super) fn atom(&mut self) -> Result<&'text str, Error> {
+    pub(in crate::encoding::recovery) fn atom(&mut self) -> Result<&'text str, Error> {
         self.whitespace();
         let count = self
             .remaining
@@ -35,7 +35,7 @@ impl<'text> Tokens<'text> {
         std::str::from_utf8(token).map_err(|_| Error::InvalidUtf8)
     }
 
-    pub(super) fn expect(&mut self, expected: &str) -> Result<(), Error> {
+    pub(in crate::encoding::recovery) fn expect(&mut self, expected: &str) -> Result<(), Error> {
         if self.atom()? == expected {
             Ok(())
         } else {
@@ -43,14 +43,14 @@ impl<'text> Tokens<'text> {
         }
     }
 
-    pub(super) fn done(&mut self) -> bool {
+    pub(in crate::encoding::recovery) fn done(&mut self) -> bool {
         self.whitespace();
         self.remaining.is_empty()
     }
 
     /// Borrow the encoded field. Counting and decoding can each traverse it
     /// without allocating a temporary unescaped string.
-    pub(super) fn quoted(&mut self) -> Result<&'text [u8], Error> {
+    pub(in crate::encoding::recovery) fn quoted(&mut self) -> Result<&'text [u8], Error> {
         self.whitespace();
         if self.remaining.first() != Some(&b'"') {
             return Err(Error::InvalidValue);
@@ -82,7 +82,7 @@ impl<'text> Tokens<'text> {
     }
 }
 
-pub(super) fn decoded(value: &[u8]) -> impl Iterator<Item = u8> + '_ {
+pub(in crate::encoding::recovery) fn decoded(value: &[u8]) -> impl Iterator<Item = u8> + '_ {
     let mut index = 0;
     std::iter::from_fn(move || {
         let byte = *value.get(index)?;
@@ -102,7 +102,7 @@ pub(super) fn decoded(value: &[u8]) -> impl Iterator<Item = u8> + '_ {
     })
 }
 
-pub(super) fn nibble(byte: u8) -> Result<u8, Error> {
+pub(in crate::encoding::recovery) fn nibble(byte: u8) -> Result<u8, Error> {
     match byte {
         b'0'..=b'9' => Ok(byte - b'0'),
         b'a'..=b'f' => Ok(byte - b'a' + 10),

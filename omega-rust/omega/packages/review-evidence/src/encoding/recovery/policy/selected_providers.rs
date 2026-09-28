@@ -6,27 +6,27 @@ use crate::record::{
     PackageReviewProviderGrantSelectorKind, PackageReviewProviderSelectionAuthority,
     PackageReviewSelectedInstallationReach,
 };
-mod authority;
+pub(in crate::encoding::recovery) mod authority;
 #[cfg(test)]
-mod authority_tests;
+pub(in crate::encoding::recovery) mod authority_tests;
 #[cfg(test)]
-mod binding_tests;
-mod bindings;
+pub(in crate::encoding::recovery) mod binding_tests;
+pub(in crate::encoding::recovery) mod bindings;
 #[cfg(test)]
-mod budgets;
+pub(in crate::encoding::recovery) mod budgets;
 #[cfg(test)]
-mod fixtures;
+pub(in crate::encoding::recovery) mod fixtures;
 #[cfg(test)]
-pub(super) use fixtures::complete as row_fixture;
+pub(in crate::encoding::recovery) use fixtures::complete as row_fixture;
 #[cfg(test)]
-pub(super) use fixtures::method as service_method_fixture;
-mod service;
+pub(in crate::encoding::recovery) use fixtures::method as service_method_fixture;
+pub(in crate::encoding::recovery) mod service;
 #[cfg(test)]
-mod service_tests;
-mod signature;
-pub(super) use service::method as service_method;
+pub(in crate::encoding::recovery) mod service_tests;
+pub(in crate::encoding::recovery) mod signature;
+pub(in crate::encoding::recovery) use service::method as service_method;
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits,
@@ -63,7 +63,9 @@ impl PackagePolicySelectedProviders {
     }
 }
 
-pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicySelectedProviders, Error> {
+pub(in crate::encoding::recovery) fn policy(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicySelectedProviders, Error> {
     Ok(PackagePolicySelectedProviders {
         package: package(reader)?,
         target: target(reader)?,
@@ -72,7 +74,9 @@ pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicySelectedPro
     })
 }
 
-pub(super) fn target(reader: &mut Reader<'_>) -> Result<target::TargetProfile, Error> {
+pub(in crate::encoding::recovery) fn target(
+    reader: &mut Reader<'_>,
+) -> Result<target::TargetProfile, Error> {
     let identity = reader.string()?;
     target::TargetProfile::ALL
         .into_iter()
@@ -80,7 +84,9 @@ pub(super) fn target(reader: &mut Reader<'_>) -> Result<target::TargetProfile, E
         .ok_or(Error::InvalidValue)
 }
 
-fn plan(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderPlan, Error> {
+pub(in crate::encoding::recovery) fn plan(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyProviderPlan, Error> {
     Ok(PackagePolicyProviderPlan {
         plan_name: reader.string()?,
         realizing_package: reader.option(package)?,
@@ -100,7 +106,9 @@ fn plan(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderPlan, Error> {
     })
 }
 
-fn row(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderRow, Error> {
+pub(in crate::encoding::recovery) fn row(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyProviderRow, Error> {
     Ok(PackagePolicyProviderRow {
         method: reader.string()?,
         requirement: nominal(reader)?,
@@ -117,7 +125,9 @@ fn row(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderRow, Error> {
     })
 }
 
-fn family(reader: &mut Reader<'_>) -> Result<PackagePolicyProviderFamily, Error> {
+pub(in crate::encoding::recovery) fn family(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyProviderFamily, Error> {
     Ok(PackagePolicyProviderFamily {
         family_identity: nominal(reader)?,
         provider_type_declaration: nominal(reader)?,

@@ -29,7 +29,7 @@ pub struct SemanticBindingReviewCandidate {
 }
 
 impl SemanticBindingReviewCandidate {
-    fn new(binding: AcceptedSemanticBinding, service_schema: ServiceSchema) -> Self {
+    pub(super) fn new(binding: AcceptedSemanticBinding, service_schema: ServiceSchema) -> Self {
         debug_assert_eq!(
             binding.normalized_schema_digest(),
             package_compilation::accepted_service_schema_digest(binding.role(), &service_schema,),

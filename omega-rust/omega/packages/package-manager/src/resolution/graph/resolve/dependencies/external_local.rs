@@ -64,7 +64,9 @@ pub(super) fn resolve_external_dependency_from_root(
         resolved.key(),
         resolved.source().canonical_live_root(),
     )?;
-    Ok(resolved.into_custody())
+    Ok(resolved
+        .into_custody()
+        .with_compiled_review_cache_dir(local_cache.compiled_review_cache_dir()?))
 }
 
 pub(super) fn workspace_requester_root(

@@ -1,5 +1,6 @@
 //! Interpret authored paths from fresh requester locations, never lock paths.
 
+use super::super::cache::SourceCacheLane;
 use super::super::dependencies::{normalize_member_path, workspace_path_escapes};
 use super::{ResolveLockedPackageClosureError as Error, Resolver};
 use crate::declarations::{PackageName, PackageSelection};
@@ -52,7 +53,10 @@ impl Resolver<'_> {
                             resolved.key(),
                             resolved.source().canonical_live_root(),
                         )?;
-                        Ok(resolved.into_custody())
+                        Ok(resolved.into_custody().with_compiled_review_cache_dir(
+                            SourceCacheLane::Retained(self.storage.workspace_members())
+                                .compiled_review_cache_dir()?,
+                        ))
                     }
                     Err(_) if workspace_path_escapes(base, location) => {
                         self.external_path(requester, location, expected)
@@ -117,7 +121,10 @@ impl Resolver<'_> {
             selected.source_context().clone(),
         )?;
         self.register_local_root(resolved.key(), resolved.source().canonical_live_root())?;
-        Ok(resolved.into_custody())
+        Ok(resolved.into_custody().with_compiled_review_cache_dir(
+            SourceCacheLane::Retained(self.storage.external_local_sources())
+                .compiled_review_cache_dir()?,
+        ))
     }
 
     fn git_path(

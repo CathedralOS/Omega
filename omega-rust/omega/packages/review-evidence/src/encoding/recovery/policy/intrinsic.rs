@@ -1,7 +1,7 @@
 //! Exact closed execution vocabulary, without evaluator or native receipts.
 
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
 use super::{Error, reader::Reader};
 use crate::record::PackageReviewCompilerIntrinsicExecution;
@@ -11,7 +11,7 @@ use provider_planning::{
     CompilerPrimitiveIntegerComparisonOperation,
 };
 
-pub(super) fn execution(
+pub(in crate::encoding::recovery) fn execution(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewCompilerIntrinsicExecution, Error> {
     use PackageReviewCompilerIntrinsicExecution as Execution;
@@ -48,7 +48,7 @@ pub(super) fn execution(
     })
 }
 
-fn integer_comparison(
+pub(in crate::encoding::recovery) fn integer_comparison(
     reader: &mut Reader<'_>,
 ) -> Result<CompilerPrimitiveIntegerComparisonOperation, Error> {
     use CompilerPrimitiveIntegerComparisonOperation as Operation;
@@ -63,7 +63,9 @@ fn integer_comparison(
     })
 }
 
-fn float_format(reader: &mut Reader<'_>) -> Result<FloatFormat, Error> {
+pub(in crate::encoding::recovery) fn float_format(
+    reader: &mut Reader<'_>,
+) -> Result<FloatFormat, Error> {
     Ok(match reader.byte()? {
         0 => FloatFormat::F32,
         1 => FloatFormat::F64,
@@ -71,7 +73,9 @@ fn float_format(reader: &mut Reader<'_>) -> Result<FloatFormat, Error> {
     })
 }
 
-fn float_binary(reader: &mut Reader<'_>) -> Result<CompilerPrimitiveFloatBinaryOperation, Error> {
+pub(in crate::encoding::recovery) fn float_binary(
+    reader: &mut Reader<'_>,
+) -> Result<CompilerPrimitiveFloatBinaryOperation, Error> {
     use CompilerPrimitiveFloatBinaryOperation as Operation;
     Ok(match reader.byte()? {
         0 => Operation::Add,
@@ -88,7 +92,9 @@ fn float_binary(reader: &mut Reader<'_>) -> Result<CompilerPrimitiveFloatBinaryO
     })
 }
 
-fn numeric_type(reader: &mut Reader<'_>) -> Result<CompilerNumericType, Error> {
+pub(in crate::encoding::recovery) fn numeric_type(
+    reader: &mut Reader<'_>,
+) -> Result<CompilerNumericType, Error> {
     use CompilerNumericType as Numeric;
     Ok(match reader.byte()? {
         0 => Numeric::I8,
@@ -105,7 +111,9 @@ fn numeric_type(reader: &mut Reader<'_>) -> Result<CompilerNumericType, Error> {
     })
 }
 
-fn arithmetic_domain(reader: &mut Reader<'_>) -> Result<ArithmeticDomain, Error> {
+pub(in crate::encoding::recovery) fn arithmetic_domain(
+    reader: &mut Reader<'_>,
+) -> Result<ArithmeticDomain, Error> {
     Ok(match reader.byte()? {
         0 => ArithmeticDomain::Exact,
         1 => ArithmeticDomain::Wrapping,

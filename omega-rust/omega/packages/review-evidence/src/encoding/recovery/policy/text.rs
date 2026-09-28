@@ -2,8 +2,8 @@
 
 pub(in crate::encoding) mod framing;
 #[cfg(test)]
-mod tests;
-mod tokens;
+pub(in crate::encoding::recovery) mod tests;
+pub(in crate::encoding::recovery) mod tokens;
 
 use crate::encoding::encode::encoder::text::{MAXIMUM_TEXT_BYTES, Writer, render};
 use crate::encoding::{

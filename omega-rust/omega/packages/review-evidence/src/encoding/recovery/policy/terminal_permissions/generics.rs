@@ -8,7 +8,7 @@ use crate::record::{
     PackageReviewTypeIdentity,
 };
 
-pub(super) fn generic_fixture() -> PackagePolicyTerminalPermissions {
+pub(in crate::encoding::recovery) fn generic_fixture() -> PackagePolicyTerminalPermissions {
     let mut policy = fixture();
     let service = &mut policy.services[0];
     let machine = service.methods[0].signature.static_parameters[0].clone();
@@ -64,7 +64,8 @@ pub(super) fn generic_fixture() -> PackagePolicyTerminalPermissions {
 }
 
 #[test]
-fn complete_generic_service_telescope_and_contract_kinds_roundtrip() {
+pub(in crate::encoding::recovery) fn complete_generic_service_telescope_and_contract_kinds_roundtrip()
+ {
     let original = generic_fixture();
     assert_eq!(
         original.services[0].methods[0].signature.schema_arguments[0].canonical,
@@ -92,7 +93,8 @@ fn complete_generic_service_telescope_and_contract_kinds_roundtrip() {
 }
 
 #[test]
-fn root_binder_arguments_reject_substitution_reordering_and_method_namespace() {
+pub(in crate::encoding::recovery) fn root_binder_arguments_reject_substitution_reordering_and_method_namespace()
+ {
     let original = generic_fixture();
     let mut cases = Vec::new();
     let mut changed = original.clone();
@@ -159,7 +161,8 @@ fn root_binder_arguments_reject_substitution_reordering_and_method_namespace() {
 }
 
 #[test]
-fn generic_service_truncations_and_static_parameter_tags_fail_closed() {
+pub(in crate::encoding::recovery) fn generic_service_truncations_and_static_parameter_tags_fail_closed()
+ {
     let bytes = generic_fixture().canonical_bytes().unwrap();
     for end in [0, bytes.len() / 2, bytes.len() - 1] {
         assert!(recover(&bytes[..end]).is_err(), "generic prefix {end}");

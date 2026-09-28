@@ -5,7 +5,9 @@ use crate::record::{
     PackagePolicyStatePlan,
 };
 
-pub(super) fn entry_control(reader: &mut Reader<'_>) -> Result<PackagePolicyEntryControl, Error> {
+pub(in crate::encoding::recovery) fn entry_control(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyEntryControl, Error> {
     Ok(match reader.byte()? {
         0 => PackagePolicyEntryControl::CallReturn,
         1 => PackagePolicyEntryControl::SupervisorCall {
@@ -17,7 +19,9 @@ pub(super) fn entry_control(reader: &mut Reader<'_>) -> Result<PackagePolicyEntr
     })
 }
 
-pub(super) fn state_plan(reader: &mut Reader<'_>) -> Result<PackagePolicyStatePlan, Error> {
+pub(in crate::encoding::recovery) fn state_plan(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyStatePlan, Error> {
     Ok(PackagePolicyStatePlan {
         initial_regime: match reader.byte()? {
             0 => PackagePolicyMachineRegime::X86Long64,
@@ -50,7 +54,9 @@ pub(super) fn state_plan(reader: &mut Reader<'_>) -> Result<PackagePolicyStatePl
     })
 }
 
-fn state_set(reader: &mut Reader<'_>) -> Result<PackagePolicyMachineStateSet, Error> {
+pub(in crate::encoding::recovery) fn state_set(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyMachineStateSet, Error> {
     let states = reader.sequence(1, |reader| {
         Ok(match reader.byte()? {
             0 => PackagePolicyMachineState::GeneralRegisters,

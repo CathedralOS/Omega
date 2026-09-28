@@ -19,18 +19,18 @@ use language_semantics::{
 use semantic_vocabulary::PackageKeyIdentity;
 use target::TargetProfile;
 
-pub(super) fn nominal(path: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(package()),
         path: path.to_owned(),
     }
 }
 
-pub(super) fn package() -> PackageKeyIdentity {
+pub(in crate::encoding::recovery) fn package() -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([7; 32]).unwrap()
 }
 
-pub(super) fn empty() -> PackagePolicySelectedProviders {
+pub(in crate::encoding::recovery) fn empty() -> PackagePolicySelectedProviders {
     PackagePolicySelectedProviders {
         package: package(),
         target: TargetProfile::LinuxX64,
@@ -39,7 +39,7 @@ pub(super) fn empty() -> PackagePolicySelectedProviders {
     }
 }
 
-pub(super) fn carry() -> CarryPolicy {
+pub(in crate::encoding::recovery) fn carry() -> CarryPolicy {
     CarryPolicy {
         suspension: CarrySuspension::Allowed,
         cpu: CarryCpu::Any,
@@ -48,7 +48,7 @@ pub(super) fn carry() -> CarryPolicy {
     }
 }
 
-pub(in crate::encoding::recovery::policy) fn method() -> PackagePolicyServiceMethod {
+pub(in crate::encoding::recovery) fn method() -> PackagePolicyServiceMethod {
     let calling = super::super::calling_application::tests::complete_fixture();
     let signature = PackagePolicyServiceSignature {
         schema_arguments: calling.boundary_arguments.clone(),
@@ -135,7 +135,7 @@ pub(in crate::encoding::recovery::policy) fn method() -> PackagePolicyServiceMet
     }
 }
 
-pub(in crate::encoding::recovery::policy) fn complete() -> PackagePolicySelectedProviders {
+pub(in crate::encoding::recovery) fn complete() -> PackagePolicySelectedProviders {
     let mut policy = empty();
     let method = method();
     let row = PackagePolicyProviderRow {
@@ -193,7 +193,7 @@ pub(in crate::encoding::recovery::policy) fn complete() -> PackagePolicySelected
     policy
 }
 
-pub(super) fn producer() -> PackagePolicyEvaluatedBindingProducer {
+pub(in crate::encoding::recovery) fn producer() -> PackagePolicyEvaluatedBindingProducer {
     PackagePolicyEvaluatedBindingProducer {
         declaration: nominal("binding"),
         package: Some(package()),

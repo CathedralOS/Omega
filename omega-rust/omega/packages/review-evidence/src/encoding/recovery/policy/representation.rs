@@ -1,17 +1,17 @@
 //! Bounded, source-independent recovery of complete representation policy.
 
-mod availability;
+pub(in crate::encoding::recovery) mod availability;
 #[cfg(test)]
-mod budgets;
+pub(in crate::encoding::recovery) mod budgets;
 #[cfg(test)]
-mod fixtures;
+pub(in crate::encoding::recovery) mod fixtures;
 #[cfg(test)]
-pub(super) use fixtures::complete as row_fixture;
+pub(in crate::encoding::recovery) use fixtures::complete as row_fixture;
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
 #[cfg(test)]
-mod group_tests;
+pub(in crate::encoding::recovery) mod group_tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits, calling_application, conformance,
@@ -55,7 +55,9 @@ impl PackagePolicyRepresentation {
     }
 }
 
-pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyRepresentation, Error> {
+pub(in crate::encoding::recovery) fn policy(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyRepresentation, Error> {
     Ok(PackagePolicyRepresentation {
         package: package(reader)?,
         target: calling_application::shapes::target(reader)?,
@@ -71,7 +73,9 @@ pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyRepresentat
     })
 }
 
-fn selection(reader: &mut Reader<'_>) -> Result<PackagePolicyRepresentationSelection, Error> {
+pub(in crate::encoding::recovery) fn selection(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyRepresentationSelection, Error> {
     Ok(PackagePolicyRepresentationSelection {
         opaque: nominal(reader)?,
         carrier: nominal(reader)?,

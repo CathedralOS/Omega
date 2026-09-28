@@ -43,6 +43,18 @@ pub struct BuildStagedOutputTreeCommitment {
 }
 
 impl BuildStagedOutputTreeCommitment {
+    /// A commitment recovered from a persisted record. The value is trusted
+    /// for nothing until decoded rows reproduce it through
+    /// `from_retained_parts`.
+    #[doc(hidden)]
+    pub const fn from_retained_parts(digest: [u8; 32], entry_count: u64, file_bytes: u64) -> Self {
+        Self {
+            digest,
+            entry_count,
+            file_bytes,
+        }
+    }
+
     pub const fn digest(self) -> [u8; 32] {
         self.digest
     }
@@ -84,6 +96,18 @@ pub struct PackageGeneratedSource {
 }
 
 impl PackageGeneratedSource {
+    /// One retained generated source recovered from a persisted record. The
+    /// digest is recomputed over the supplied bytes, never carried.
+    #[doc(hidden)]
+    pub fn from_retained_parts(relative_path: Vec<u8>, bytes: Arc<[u8]>) -> Self {
+        let digest: [u8; 32] = Sha256::digest(bytes.as_ref()).into();
+        Self {
+            relative_path,
+            bytes,
+            digest,
+        }
+    }
+
     pub fn relative_path(&self) -> &[u8] {
         &self.relative_path
     }
@@ -97,7 +121,76 @@ impl PackageGeneratedSource {
     }
 }
 
+/// Owned kind of one staged-output entry supplied to
+/// [`BuildStagedOutputTree::from_retained_parts`]. Persisted review records
+/// decode into this shape; construction re-derives the commitment rather than
+/// trusting the stored one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BuildStagedOutputEntryInput {
+    Directory,
+    File { bytes: Arc<[u8]>, executable: bool },
+    Symlink { target: Vec<u8> },
+}
+
 impl BuildStagedOutputTree {
+    /// Rebuild a retained tree from persisted entries. The commitment is
+    /// recomputed over the decoded rows and must equal `expected_commitment`;
+    /// a record whose rows do not reproduce it was never written by this
+    /// commitment scheme and fails closed.
+    #[doc(hidden)]
+    pub fn from_retained_parts(
+        expected_commitment: &BuildStagedOutputTreeCommitment,
+        entries: impl IntoIterator<Item = (Vec<u8>, BuildStagedOutputEntryInput)>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut retained = Vec::new();
+        for (relative_path, kind) in entries {
+            if relative_path.is_empty()
+                || !checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+                    &relative_path,
+                    false,
+                )
+            {
+                return Err(diagnostics(format!(
+                    "retained staged-output entry is not a canonical relative path: {relative_path:?}"
+                )));
+            }
+            let kind = match kind {
+                BuildStagedOutputEntryInput::Directory => RetainedStagedOutputEntryKind::Directory,
+                BuildStagedOutputEntryInput::File { bytes, executable } => {
+                    RetainedStagedOutputEntryKind::File { bytes, executable }
+                }
+                BuildStagedOutputEntryInput::Symlink { target } => {
+                    RetainedStagedOutputEntryKind::Symlink { target }
+                }
+            };
+            retained.push(RetainedStagedOutputEntry {
+                relative_path,
+                kind,
+            });
+        }
+        retained.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+        if retained
+            .windows(2)
+            .any(|pair| pair[0].relative_path == pair[1].relative_path)
+        {
+            return Err(diagnostics(
+                "retained staged-output entries repeat a relative path",
+            ));
+        }
+        let commitment = commitment_for_retained_entries(&retained).ok_or_else(|| {
+            diagnostics("retained staged-output tree exceeds its unique-bytes ceiling")
+        })?;
+        if &commitment != expected_commitment {
+            return Err(diagnostics(
+                "retained staged-output entries do not reproduce the recorded commitment",
+            ));
+        }
+        Ok(Self {
+            commitment,
+            entries: retained,
+        })
+    }
+
     pub const fn commitment(&self) -> BuildStagedOutputTreeCommitment {
         self.commitment
     }

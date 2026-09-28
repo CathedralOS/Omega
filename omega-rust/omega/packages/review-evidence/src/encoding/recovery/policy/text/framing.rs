@@ -36,7 +36,7 @@ struct Reader<'text> {
 }
 
 impl Reader<'_> {
-    fn reserve(&mut self, count: usize) -> Result<(), Error> {
+    pub(in crate::encoding::recovery) fn reserve(&mut self, count: usize) -> Result<(), Error> {
         let required = self
             .output
             .len()
@@ -64,17 +64,19 @@ impl Reader<'_> {
         Ok(())
     }
 
-    fn append(&mut self, bytes: &[u8]) -> Result<(), Error> {
+    pub(in crate::encoding::recovery) fn append(&mut self, bytes: &[u8]) -> Result<(), Error> {
         self.reserve(bytes.len())?;
         self.output.extend_from_slice(bytes);
         Ok(())
     }
 
-    fn number<T: std::str::FromStr>(&mut self) -> Result<T, Error> {
+    pub(in crate::encoding::recovery) fn number<T: std::str::FromStr>(
+        &mut self,
+    ) -> Result<T, Error> {
         self.tokens.atom()?.parse().map_err(|_| Error::InvalidValue)
     }
 
-    fn open(&mut self) -> Result<(), Error> {
+    pub(in crate::encoding::recovery) fn open(&mut self) -> Result<(), Error> {
         self.tokens.expect("{")?;
         if self.depth == MAXIMUM_MARKUP_DEPTH {
             return Err(Error::NestingLimitExceeded);
@@ -83,7 +85,7 @@ impl Reader<'_> {
         Ok(())
     }
 
-    fn value(&mut self, token: &str) -> Result<(), Error> {
+    pub(in crate::encoding::recovery) fn value(&mut self, token: &str) -> Result<(), Error> {
         match token {
             "field" | "record" => {
                 if !label(self.tokens.atom()?) {

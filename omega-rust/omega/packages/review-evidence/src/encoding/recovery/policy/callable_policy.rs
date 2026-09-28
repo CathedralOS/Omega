@@ -6,14 +6,14 @@ use crate::record::{
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewInstallationReach,
     PackageReviewOperatorRealization,
 };
-mod behavior;
-pub(super) use behavior::{crash_route, termination};
+pub(in crate::encoding::recovery) mod behavior;
+pub(in crate::encoding::recovery) use behavior::{crash_route, termination};
 #[cfg(test)]
-mod budgets;
+pub(in crate::encoding::recovery) mod budgets;
 #[cfg(test)]
-mod signatures;
+pub(in crate::encoding::recovery) mod signatures;
 #[cfg(test)]
-pub(super) mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
 use super::{
     Error, PackagePolicyRecoveryLimits,
@@ -54,7 +54,9 @@ impl PackagePolicyCallables {
     }
 }
 
-pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyCallables, Error> {
+pub(in crate::encoding::recovery) fn policy(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCallables, Error> {
     Ok(PackagePolicyCallables {
         package: package(reader)?,
         target: super::selected_providers::target(reader)?,
@@ -62,7 +64,9 @@ pub(super) fn policy(reader: &mut Reader<'_>) -> Result<PackagePolicyCallables, 
     })
 }
 
-pub(super) fn callable(reader: &mut Reader<'_>) -> Result<PackagePolicyCallable, Error> {
+pub(in crate::encoding::recovery) fn callable(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCallable, Error> {
     Ok(PackagePolicyCallable {
         role: match reader.byte()? {
             0 => PackagePolicyCallableRole::Boundary,
@@ -137,7 +141,9 @@ pub(super) fn callable(reader: &mut Reader<'_>) -> Result<PackagePolicyCallable,
     })
 }
 
-fn supply(reader: &mut Reader<'_>) -> Result<PackageReviewCallableSupply, Error> {
+pub(in crate::encoding::recovery) fn supply(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewCallableSupply, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewCallableSupply::CheckedBody,
         1 => PackageReviewCallableSupply::Requirement,
@@ -149,7 +155,7 @@ fn supply(reader: &mut Reader<'_>) -> Result<PackageReviewCallableSupply, Error>
     })
 }
 
-pub(super) fn callable_conformance(
+pub(in crate::encoding::recovery) fn callable_conformance(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyCallableConformance, Error> {
     Ok(PackagePolicyCallableConformance {

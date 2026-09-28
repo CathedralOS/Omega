@@ -92,9 +92,58 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) obligation_ledger_bytes: usize,
     /// Index of this occurrence's review inside the pass's review vector.
     pub(super) review: usize,
-    /// The checked compilation itself, shared storage with the component
-    /// candidate or checked root this pass retained.
-    pub(super) checked: compiler::CheckedCompilation,
+    /// The checked compilation itself — shared storage with the component
+    /// candidate or checked root this pass retained — or, for an occurrence
+    /// recovered from the persistent review cache, the carried facts that
+    /// stand in for it.
+    pub(super) checked: OccurrenceCompile,
+}
+
+/// One retained occurrence's checked compile. A compile minted in this
+/// process keeps its `CheckedCompilation`; a compile recovered from the
+/// persistent review cache carries only the facts the carried path and the
+/// component publisher consume, since a `CheckedCompilation`'s sealed
+/// program storage is not serializable.
+#[derive(Debug, Clone)]
+pub(super) enum OccurrenceCompile {
+    Checked(compiler::CheckedCompilation),
+    Cached(Box<super::super::review_cache::CachedOccurrenceFacts>),
+}
+
+impl OccurrenceCompile {
+    fn tolerated_unsettled_service_fields(&self) -> bool {
+        match self {
+            Self::Checked(checked) => checked.tolerated_unsettled_service_fields(),
+            Self::Cached(facts) => facts.tolerated_unsettled_service_fields,
+        }
+    }
+
+    /// The source-consumption re-verification a carried compile owes before
+    /// its review counts. A live `CheckedCompilation` re-reads the physical
+    /// sources it retained; a cached occurrence instead re-derives its
+    /// retained commitment over the stored consumed units plus the live
+    /// inputs — the same content identity, checked without the physical read
+    /// the surrounding custody verification already performs.
+    fn verify_current_source_consumption(
+        &self,
+        inputs: &PackageCompilationInputs,
+    ) -> Result<(), Vec<Diagnostic>> {
+        match self {
+            Self::Checked(checked) => checked.verify_current_source_consumption(),
+            Self::Cached(facts) => {
+                let commitment = package_compilation::derive_source_consumption_commitment(
+                    &facts.consumed_units,
+                    inputs,
+                )?;
+                if commitment != facts.source_consumption_commitment {
+                    return Err(vec![Diagnostic::error(
+                        "a persisted review's retained source-consumption commitment does not re-derive over its retained consumed units and the live inputs",
+                    )]);
+                }
+                Ok(())
+            }
+        }
+    }
 }
 
 /// Only the preliminary Discover pass may propose an already-checked
@@ -178,7 +227,7 @@ pub(super) fn compile_dependency_closure(
     // independent consumer.
     let mut component_candidates: BTreeMap<
         (semantic_vocabulary::PackageKeyIdentity, DependencyPurpose),
-        compiler::CheckedCompilation,
+        OccurrenceCompile,
     > = BTreeMap::new();
     let mut retained_obligation_ledger_total = 0usize;
     // Sponsored build evaluations that ran inside a compile the
@@ -430,6 +479,13 @@ pub(super) fn compile_dependency_closure(
             // differs between the discovery and bound passes is exactly that
             // map; normalizing it out of this key would replay a review that
             // never consumed this pass's authority.
+            // A persisted review from an earlier update invocation is the
+            // same carry an in-session prior offers: the record key binds
+            // package identity, purpose, checked context, entry, toolchain,
+            // and the complete live inputs, and the decoded record
+            // re-verifies its own canonical payloads before it counts.
+            // Tolerated records are never stored, and the graph root is never
+            // persisted — its checked compilation is the invocation's product.
             let reused = prior.and_then(|prior| {
                 prior
                     .occurrences
@@ -450,29 +506,68 @@ pub(super) fn compile_dependency_closure(
                             .map(|review| (occurrence, review.clone()))
                     })
             });
-            if let Some((occurrence, review)) = reused {
-                let checked = occurrence.checked.clone();
-                checked
-                    .verify_current_source_consumption()
+            let carried = reused
+                .map(|(occurrence, review)| {
+                    (
+                        occurrence.checked.clone(),
+                        review,
+                        occurrence.policy_canonical_bytes,
+                        occurrence.obligation_ledger_bytes,
+                    )
+                })
+                .or_else(|| {
+                    if key == *closure.graph().root() {
+                        return None;
+                    }
+                    let directory = custody.compiled_review_cache_dir()?;
+                    let cache = super::super::review_cache::CompiledReviewCache::open(directory)?;
+                    let record = cache.lookup(&super::super::review_cache::compiled_review_key(
+                        key.identity(),
+                        purpose,
+                        checked_target,
+                        execution_profile,
+                        entry,
+                        &unanswered_inputs,
+                        &build_snapshot,
+                    ))?;
+                    let policy_canonical_bytes = record.policy_canonical_bytes()?;
+                    let obligation_ledger_bytes = record.obligation_ledger_bytes()?;
+                    let (review, facts) =
+                        record.into_review_and_facts(&key, custody.resolution())?;
+                    let occurrence = OccurrenceCompile::Cached(Box::new(facts));
+                    if occurrence.tolerated_unsettled_service_fields() {
+                        return None;
+                    }
+                    Some((
+                        occurrence,
+                        review,
+                        policy_canonical_bytes,
+                        obligation_ledger_bytes,
+                    ))
+                });
+            if let Some((compile, review, policy_canonical_bytes, obligation_ledger_bytes)) =
+                carried
+            {
+                compile
+                    .verify_current_source_consumption(&unanswered_inputs)
                     .map_err(|diagnostics| {
                         CompileResolvedPackageReviewsError::SourceConsumptionDrift {
                             package: key.clone(),
                             diagnostics,
                         }
                     })?;
-                retained_policy_canonical_total = super::policy::reserve(
-                    retained_policy_canonical_total,
-                    occurrence.policy_canonical_bytes,
-                )
-                .ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
-                        package: key.clone(),
-                        maximum_bytes: super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-                    }
-                })?;
+                retained_policy_canonical_total =
+                    super::policy::reserve(retained_policy_canonical_total, policy_canonical_bytes)
+                        .ok_or_else(|| {
+                            CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                                package: key.clone(),
+                                maximum_bytes:
+                                    super::policy::MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                            }
+                        })?;
                 retained_obligation_ledger_total = reserve_retained_obligation_ledger_bytes(
                     retained_obligation_ledger_total,
-                    occurrence.obligation_ledger_bytes,
+                    obligation_ledger_bytes,
                 )
                 .ok_or_else(|| {
                     CompileResolvedPackageReviewsError::RetainedObligationLedgerBudget {
@@ -489,16 +584,32 @@ pub(super) fn compile_dependency_closure(
                 let review_position = reviews.len();
                 review_positions[position][purpose_slot(purpose)] = Some(review_position);
                 reviews.push(review);
-                let mut carried = occurrence.clone();
-                carried.review = review_position;
                 if key == *closure.graph().root() {
                     if retained_root_entry.is_some() {
-                        checked_root = Some(Box::new(checked));
+                        let OccurrenceCompile::Checked(checked) = &compile else {
+                            return Err(CompileResolvedPackageReviewsError::Projection {
+                                package: key.clone(),
+                                diagnostics: vec![Diagnostic::error(
+                                    "the graph root's checked compilation is never persisted to the review cache",
+                                )],
+                            });
+                        };
+                        checked_root = Some(Box::new(checked.clone()));
                     }
                 } else {
-                    component_candidates.insert((key.identity(), purpose), checked);
+                    component_candidates.insert((key.identity(), purpose), compile.clone());
                 }
-                occurrences.push(carried);
+                occurrences.push(RetainedOccurrenceCompile {
+                    position,
+                    purpose,
+                    entry: entry.to_path_buf(),
+                    inputs: unanswered_inputs.clone(),
+                    build_snapshot: build_snapshot.clone(),
+                    policy_canonical_bytes,
+                    obligation_ledger_bytes,
+                    review: review_position,
+                    checked: compile,
+                });
                 carried_occurrences += 1;
                 verify_selected_source_custody(
                     &scope,
@@ -785,6 +896,48 @@ pub(super) fn compile_dependency_closure(
                 &key,
                 &review,
             )?;
+            // Persist the review under the occurrence's post-settlement
+            // inputs so a later invocation arriving at exactly these inputs
+            // carries it without compiling. The key's inputs digest is the
+            // retried compile's inputs when a retry joined independent
+            // component descriptions, so an occurrence that required the
+            // publication retry never matches an unanswered-inputs lookup —
+            // the same shape the in-session carry takes.
+            if &key != closure.graph().root()
+                && !checked.tolerated_unsettled_service_fields()
+                && let Some(directory) = custody.compiled_review_cache_dir()
+                && let Some(cache) =
+                    super::super::review_cache::CompiledReviewCache::open(directory)
+                && let Some(subject) = checked.package_compilation_subject()
+            {
+                let component_description =
+                    super::component_publication::publish_checked_component(
+                        checked.clone(),
+                        proof_admission::AdmissionProfile::default(),
+                    )
+                    .ok();
+                if let Some(record) = super::super::review_cache::record_compiled_review(
+                    &review,
+                    &checked,
+                    subject.consumed_units().to_vec(),
+                    component_description,
+                    policy_canonical_bytes,
+                    obligations_bytes,
+                ) {
+                    cache.store(
+                        &super::super::review_cache::compiled_review_key(
+                            key.identity(),
+                            purpose,
+                            checked_target,
+                            execution_profile,
+                            entry,
+                            &occurrence_inputs,
+                            &build_snapshot,
+                        ),
+                        &record,
+                    );
+                }
+            }
             let review_position = reviews.len();
             review_positions[position][purpose_slot(purpose)] = Some(review_position);
             reviews.push(review);
@@ -797,14 +950,17 @@ pub(super) fn compile_dependency_closure(
                 policy_canonical_bytes,
                 obligation_ledger_bytes: obligations_bytes,
                 review: review_position,
-                checked: checked.clone(),
+                checked: OccurrenceCompile::Checked(checked.clone()),
             });
             if &key == closure.graph().root() {
                 if retained_root_entry.is_some() {
                     checked_root = Some(Box::new(checked));
                 }
             } else {
-                component_candidates.insert((key.identity(), purpose), checked);
+                component_candidates.insert(
+                    (key.identity(), purpose),
+                    OccurrenceCompile::Checked(checked),
+                );
             }
         }
     }
@@ -878,7 +1034,7 @@ fn publish_independent_component_descriptions(
     independent_component_selections: &[compilation_products::IndependentComponentSelection],
     component_candidates: &BTreeMap<
         (semantic_vocabulary::PackageKeyIdentity, DependencyPurpose),
-        compiler::CheckedCompilation,
+        OccurrenceCompile,
     >,
 ) -> Result<Option<package_compilation::PackageCompilationInputs>, CompileResolvedPackageReviewsError>
 {
@@ -891,27 +1047,41 @@ fn publish_independent_component_descriptions(
         if component == key.identity() || !described.insert(component) {
             continue;
         }
-        let Some(component_checked) = component_candidates.get(&(component, purpose)) else {
-            return Err(CompileResolvedPackageReviewsError::Compilation {
-                package: key.clone(),
-                diagnostics: vec![Diagnostic::error(format!(
-                    "an independent provider selection names dependency package `{}`, which this closure never compiled",
-                    inputs.package_name(component).unwrap_or("<unnamed>"),
-                ))],
-            });
-        };
-        descriptions.push(
-            super::component_publication::publish_checked_component(
-                component_checked.clone(),
-                proof_admission::AdmissionProfile::default(),
-            )
-            .map_err(|diagnostics| {
-                CompileResolvedPackageReviewsError::Compilation {
+        let description = match component_candidates.get(&(component, purpose)) {
+            Some(OccurrenceCompile::Checked(component_checked)) => {
+                super::component_publication::publish_checked_component(
+                    component_checked.clone(),
+                    proof_admission::AdmissionProfile::default(),
+                )
+                .map_err(|diagnostics| {
+                    CompileResolvedPackageReviewsError::Compilation {
+                        package: key.clone(),
+                        diagnostics,
+                    }
+                })?
+            }
+            Some(OccurrenceCompile::Cached(facts)) => {
+                facts.component_description.clone().ok_or_else(|| {
+                    CompileResolvedPackageReviewsError::Compilation {
+                        package: key.clone(),
+                        diagnostics: vec![Diagnostic::error(format!(
+                            "an independent provider selection names dependency package `{}`, whose persisted review retains no component description",
+                            inputs.package_name(component).unwrap_or("<unnamed>"),
+                        ))],
+                    }
+                })?
+            }
+            None => {
+                return Err(CompileResolvedPackageReviewsError::Compilation {
                     package: key.clone(),
-                    diagnostics,
-                }
-            })?,
-        );
+                    diagnostics: vec![Diagnostic::error(format!(
+                        "an independent provider selection names dependency package `{}`, which this closure never compiled",
+                        inputs.package_name(component).unwrap_or("<unnamed>"),
+                    ))],
+                });
+            }
+        };
+        descriptions.push(description);
     }
     if descriptions.is_empty() {
         return Ok(None);

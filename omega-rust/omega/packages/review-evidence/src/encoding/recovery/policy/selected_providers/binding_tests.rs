@@ -2,7 +2,7 @@ use super::{fixtures, tests::recover};
 use crate::record::*;
 use target::TargetProfile;
 
-fn policy(
+pub(in crate::encoding::recovery) fn policy(
     binding: PackagePolicyProviderBinding,
     target: TargetProfile,
 ) -> PackagePolicySelectedProviders {
@@ -16,7 +16,7 @@ fn policy(
 }
 
 #[test]
-fn every_binding_kind_and_all_four_locator_forms_round_trip() {
+pub(in crate::encoding::recovery) fn every_binding_kind_and_all_four_locator_forms_round_trip() {
     use PackagePolicyProviderBinding as Binding;
     let producer = fixtures::producer();
     let mut cases = vec![
@@ -118,7 +118,7 @@ fn every_binding_kind_and_all_four_locator_forms_round_trip() {
 }
 
 #[test]
-fn retired_string_backed_import_tag_is_rejected_by_name() {
+pub(in crate::encoding::recovery) fn retired_string_backed_import_tag_is_rejected_by_name() {
     // The two encodings differ first at the binding tag byte: `Syscall` is
     // tag 1 and `CompilerIntrinsic` tag 2. Rewriting that byte to the retired
     // tag 0 yields the stale artifact shape without hand-assembling a row.
@@ -156,7 +156,8 @@ fn retired_string_backed_import_tag_is_rejected_by_name() {
 }
 
 #[test]
-fn absent_intrinsic_execution_is_not_replaced_with_a_supported_leaf() {
+pub(in crate::encoding::recovery) fn absent_intrinsic_execution_is_not_replaced_with_a_supported_leaf()
+ {
     let mut unsupported = policy(
         PackagePolicyProviderBinding::CompilerIntrinsic {
             machine: "intrinsic".into(),
@@ -176,7 +177,7 @@ fn absent_intrinsic_execution_is_not_replaced_with_a_supported_leaf() {
 }
 
 #[test]
-fn invalid_binding_custody_rejects_without_recovering_receipts() {
+pub(in crate::encoding::recovery) fn invalid_binding_custody_rejects_without_recovering_receipts() {
     let mut cases = vec![
         policy(
             PackagePolicyProviderBinding::VtableSlot { index: -1 },

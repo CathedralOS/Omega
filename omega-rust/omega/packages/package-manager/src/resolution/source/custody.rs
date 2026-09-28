@@ -29,11 +29,19 @@ pub struct PackageSourceCustody {
     /// canonical source index. It is a storage location, not source
     /// identity, so equality and semantic equivalence ignore it.
     checked_source_cache_dir: Option<PathBuf>,
+    /// Retained resolver lane directory that may persist this custody's
+    /// compiled review records. A storage location, not source identity —
+    /// equality and semantic equivalence ignore it.
+    compiled_review_cache_dir: Option<PathBuf>,
 }
 
 /// Name of the lane child holding persistent checked-source indexes beneath
 /// a retained resolver storage lane.
 pub(crate) const CHECKED_SOURCE_CACHE_LANE: &str = "checked-source-cache";
+
+/// Name of the lane child holding persistent compiled-review records beneath
+/// a retained resolver storage lane.
+pub(crate) const COMPILED_REVIEW_CACHE_LANE: &str = "compiled-review-cache";
 
 impl PartialEq for PackageSourceCustody {
     fn eq(&self, other: &Self) -> bool {
@@ -77,6 +85,7 @@ impl PackageSourceCustody {
             source_limits,
             dependency_projections: projected_dependencies.into(),
             checked_source_cache_dir: None,
+            compiled_review_cache_dir: None,
         }
     }
 
@@ -91,6 +100,19 @@ impl PackageSourceCustody {
     /// resolution supplied one.
     pub fn checked_source_cache_dir(&self) -> Option<&Path> {
         self.checked_source_cache_dir.as_deref()
+    }
+
+    /// Attach the retained lane directory offered to the compiled review
+    /// cache during dependency compilation.
+    pub(crate) fn with_compiled_review_cache_dir(mut self, directory: PathBuf) -> Self {
+        self.compiled_review_cache_dir = Some(directory);
+        self
+    }
+
+    /// Retained directory offered to the compiled review cache, when
+    /// resolution supplied one.
+    pub fn compiled_review_cache_dir(&self) -> Option<&Path> {
+        self.compiled_review_cache_dir.as_deref()
     }
 
     pub fn key(&self) -> &PackageKey {

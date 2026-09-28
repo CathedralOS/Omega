@@ -14,6 +14,7 @@ artifacts = { path = "../../foundation/artifacts" }
 provider-planning = { path = "../../compilation/realization/provider-planning" }
 build-declarations = { path = "../build-declarations" }
 build-evaluation = { path = "../../compilation/build-evaluation" }
+build-output = { path = "../build-output" }
 boundary-applications = { path = "../../compilation/backend/artifacts/boundary-applications" }
 compiler = { path = "../../compilation/driver" }
 compilation-products = { path = "../../compilation/products" }
@@ -37,6 +38,7 @@ proof-admission = { path = "../../../psi/compilation/proof/admission" }
 source = { path = "../../../psi/foundation/source" }
 source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 tokens = { path = "../../../psi/compilation/representations/tokens" }
 tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 cap-std = "4.0.3"

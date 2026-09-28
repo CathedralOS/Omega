@@ -29,7 +29,7 @@ use crate::record::{
 };
 use symbols::BuiltinFunction;
 
-fn identity(path: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn identity(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
             semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
@@ -38,17 +38,17 @@ fn identity(path: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-fn value_type() -> PackageReviewTypeIdentity {
+pub(in crate::encoding::recovery) fn value_type() -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {
         canonical: "u64".to_owned(),
     }
 }
 
-fn operand() -> Box<PackageReviewContractExpression> {
+pub(in crate::encoding::recovery) fn operand() -> Box<PackageReviewContractExpression> {
     Box::new(PackageReviewContractExpression::Parameter(3))
 }
 
-fn meaning() -> PackageReviewContractOperatorMeaning {
+pub(in crate::encoding::recovery) fn meaning() -> PackageReviewContractOperatorMeaning {
     PackageReviewContractOperatorMeaning::Declared(PackageReviewOperatorCoordinate {
         identity: identity("Math::plus"),
         parameter_dispatch: "u64,u64".to_owned(),
@@ -56,33 +56,42 @@ fn meaning() -> PackageReviewContractOperatorMeaning {
     })
 }
 
-fn encoded_expression(value: &PackageReviewContractExpression) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn encoded_expression(
+    value: &PackageReviewContractExpression,
+) -> Vec<u8> {
     let mut encoder = Encoder::bounded(1 << 20);
     encode_contract_expression(&mut encoder, value).unwrap();
     encoder.finish().unwrap()
 }
 
-fn recovered_expression(bytes: &[u8]) -> Result<PackageReviewContractExpression, Error> {
+pub(in crate::encoding::recovery) fn recovered_expression(
+    bytes: &[u8],
+) -> Result<PackageReviewContractExpression, Error> {
     let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default())?;
     let value = expression(&mut reader)?;
     reader.finish()?;
     Ok(value)
 }
 
-fn encoded_static(value: &PackageReviewContractStaticArgument) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn encoded_static(
+    value: &PackageReviewContractStaticArgument,
+) -> Vec<u8> {
     let mut encoder = Encoder::bounded(1 << 20);
     encode_contract_static_argument(&mut encoder, value).unwrap();
     encoder.finish().unwrap()
 }
 
-fn recovered_static(bytes: &[u8]) -> Result<PackageReviewContractStaticArgument, Error> {
+pub(in crate::encoding::recovery) fn recovered_static(
+    bytes: &[u8],
+) -> Result<PackageReviewContractStaticArgument, Error> {
     let mut reader = Reader::new(bytes, PackagePolicyRecoveryLimits::default())?;
     let value = static_argument(&mut reader)?;
     reader.finish()?;
     Ok(value)
 }
 
-fn static_arguments() -> Vec<PackageReviewContractStaticArgument> {
+pub(in crate::encoding::recovery) fn static_arguments() -> Vec<PackageReviewContractStaticArgument>
+{
     use PackageReviewContractStaticArgument as Argument;
     vec![
         Argument::Type(value_type()),
@@ -115,7 +124,7 @@ fn static_arguments() -> Vec<PackageReviewContractStaticArgument> {
     ]
 }
 
-fn evidence() -> PackageReviewContractEvidenceArgument {
+pub(in crate::encoding::recovery) fn evidence() -> PackageReviewContractEvidenceArgument {
     PackageReviewContractEvidenceArgument {
         lane_position: 7,
         source: PackageReviewContractEvidenceTerm {
@@ -131,7 +140,9 @@ fn evidence() -> PackageReviewContractEvidenceArgument {
     }
 }
 
-fn call(target: PackageReviewContractCallTarget) -> PackageReviewContractExpression {
+pub(in crate::encoding::recovery) fn call(
+    target: PackageReviewContractCallTarget,
+) -> PackageReviewContractExpression {
     PackageReviewContractExpression::Call {
         receiver: Some(operand()),
         target,
@@ -144,7 +155,8 @@ fn call(target: PackageReviewContractCallTarget) -> PackageReviewContractExpress
 }
 
 #[test]
-fn every_static_argument_roundtrips_without_losing_nested_identity() {
+pub(in crate::encoding::recovery) fn every_static_argument_roundtrips_without_losing_nested_identity()
+ {
     for value in static_arguments() {
         text_test_support::meaning(|encoder| encode_contract_static_argument(encoder, &value));
         let bytes = encoded_static(&value);
@@ -155,7 +167,7 @@ fn every_static_argument_roundtrips_without_losing_nested_identity() {
 }
 
 #[test]
-fn every_expression_variant_roundtrips_exactly() {
+pub(in crate::encoding::recovery) fn every_expression_variant_roundtrips_exactly() {
     use PackageReviewContractExpression as Expression;
     let mut values = vec![
         Expression::Boolean(true),
@@ -305,7 +317,8 @@ fn every_expression_variant_roundtrips_exactly() {
 }
 
 #[test]
-fn case_membership_retains_subject_and_exact_classifier_without_value_equality() {
+pub(in crate::encoding::recovery) fn case_membership_retains_subject_and_exact_classifier_without_value_equality()
+ {
     let value = PackageReviewContractExpression::CaseMembership {
         subject: operand(),
         case: identity("Message::Data"),
@@ -359,7 +372,8 @@ fn case_membership_retains_subject_and_exact_classifier_without_value_equality()
 }
 
 #[test]
-fn case_membership_recovery_shares_expression_depth_and_owned_storage_limits() {
+pub(in crate::encoding::recovery) fn case_membership_recovery_shares_expression_depth_and_owned_storage_limits()
+ {
     let value = PackageReviewContractExpression::CaseMembership {
         subject: operand(),
         case: identity("Message::Data"),
@@ -380,7 +394,8 @@ fn case_membership_recovery_shares_expression_depth_and_owned_storage_limits() {
 }
 
 #[test]
-fn all_call_target_variants_preserve_evidence_and_static_arguments() {
+pub(in crate::encoding::recovery) fn all_call_target_variants_preserve_evidence_and_static_arguments()
+ {
     let mut targets = BuiltinFunction::ALL
         .iter()
         .copied()
@@ -415,7 +430,8 @@ fn all_call_target_variants_preserve_evidence_and_static_arguments() {
 }
 
 #[test]
-fn recursive_expression_and_static_argument_text_preserve_nested_meaning() {
+pub(in crate::encoding::recovery) fn recursive_expression_and_static_argument_text_preserve_nested_meaning()
+ {
     let mut argument = PackageReviewContractStaticArgument::ConformanceApplication {
         declaration: identity("Selected"),
         arguments: static_arguments(),
@@ -455,7 +471,8 @@ fn recursive_expression_and_static_argument_text_preserve_nested_meaning() {
 }
 
 #[test]
-fn unknown_expression_tags_enum_values_and_builtin_ordinals_reject() {
+pub(in crate::encoding::recovery) fn unknown_expression_tags_enum_values_and_builtin_ordinals_reject()
+ {
     for bytes in [
         vec![24],
         vec![255],
@@ -488,7 +505,7 @@ fn unknown_expression_tags_enum_values_and_builtin_ordinals_reject() {
 }
 
 #[test]
-fn evidence_lane_kinds_and_incomplete_terms_reject() {
+pub(in crate::encoding::recovery) fn evidence_lane_kinds_and_incomplete_terms_reject() {
     let value = call(PackageReviewContractCallTarget::BuiltinFunction(
         BuiltinFunction::IntegerEmbed,
     ));
@@ -510,7 +527,8 @@ fn evidence_lane_kinds_and_incomplete_terms_reject() {
 }
 
 #[test]
-fn expression_recovery_rejects_truncation_trailing_bytes_counts_and_depth() {
+pub(in crate::encoding::recovery) fn expression_recovery_rejects_truncation_trailing_bytes_counts_and_depth()
+ {
     let value = call(PackageReviewContractCallTarget::BuiltinFunction(
         BuiltinFunction::IntegerEmbed,
     ));

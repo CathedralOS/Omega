@@ -66,6 +66,7 @@ pub use recovery::{
     PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
     decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
+    recover_package_review_projection,
 };
 pub(crate) use recovery::{canonical_row_framing_for_ledger, canonical_row_subject_for_ledger};
 impl CheckedPackageReviewProjection {

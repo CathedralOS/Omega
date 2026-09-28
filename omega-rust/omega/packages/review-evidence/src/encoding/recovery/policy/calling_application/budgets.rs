@@ -12,9 +12,7 @@ use crate::record::{
 
 // These fixtures have only nominal machine statics, so each machine contract
 // charges one node in addition to its outer list element.
-pub(in crate::encoding::recovery::policy) fn fixture_elements(
-    policy: &PackagePolicyCallingPlan,
-) -> usize {
+pub(in crate::encoding::recovery) fn fixture_elements(policy: &PackagePolicyCallingPlan) -> usize {
     let conformance_elements = |application: &PackagePolicyClosedConformanceApplication| {
         application.lifetime_arguments.len()
             + application.type_arguments.len()
@@ -83,7 +81,7 @@ pub(in crate::encoding::recovery::policy) fn fixture_elements(
             .len()
 }
 
-fn fixture_owned(policy: &PackagePolicyCallingPlan) -> usize {
+pub(in crate::encoding::recovery) fn fixture_owned(policy: &PackagePolicyCallingPlan) -> usize {
     let physical = &policy.physical;
     let states = &physical.state;
     policy.boundary_trait.path.len()
@@ -113,7 +111,8 @@ fn fixture_owned(policy: &PackagePolicyCallingPlan) -> usize {
 }
 
 #[test]
-fn owned_storage_exact_boundary_includes_complete_canonical_scratch() {
+pub(in crate::encoding::recovery) fn owned_storage_exact_boundary_includes_complete_canonical_scratch()
+ {
     let policy = fixture();
     let bytes = policy.canonical_bytes().unwrap();
     let owned = fixture_owned(&policy) + bytes.len();
@@ -137,7 +136,8 @@ fn owned_storage_exact_boundary_includes_complete_canonical_scratch() {
 }
 
 #[test]
-fn inner_calling_codec_keeps_bytes_and_shares_aggregate_budgets() {
+pub(in crate::encoding::recovery) fn inner_calling_codec_keeps_bytes_and_shares_aggregate_budgets()
+{
     use crate::encoding::encode::{calling::encode_application, encoder::Encoder};
 
     let policy = fixture();

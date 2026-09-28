@@ -1,21 +1,23 @@
 //! Normalized public API meaning, sharing its enclosing baseline budget.
 
-mod data;
-mod domains;
-mod signatures;
-mod traits;
-pub(super) use signatures::type_parameter;
-pub(super) use traits::conformance_shape;
+pub(in crate::encoding::recovery) mod data;
+pub(in crate::encoding::recovery) mod domains;
+pub(in crate::encoding::recovery) mod signatures;
+pub(in crate::encoding::recovery) mod traits;
+pub(in crate::encoding::recovery) use signatures::type_parameter;
+pub(in crate::encoding::recovery) use traits::conformance_shape;
 
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 #[cfg(test)]
-pub(super) use tests::fixture as row_fixture;
+pub(in crate::encoding::recovery) use tests::fixture as row_fixture;
 
 use super::{Error, declarations, reader::Reader};
 use crate::record::PackagePolicyPublicApi;
 
-pub(super) fn public_api(reader: &mut Reader<'_>) -> Result<PackagePolicyPublicApi, Error> {
+pub(in crate::encoding::recovery) fn public_api(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyPublicApi, Error> {
     Ok(PackagePolicyPublicApi {
         traits: reader.sequence(1, traits::trait_shape)?,
         conformances: reader.sequence(1, traits::conformance_shape)?,

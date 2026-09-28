@@ -40,7 +40,9 @@ pub(super) fn resolve_git_dependency(
         resolved.selection_evidence(),
         resolved.source_limits(),
     )?;
-    Ok(resolved.into_custody())
+    Ok(resolved
+        .into_custody()
+        .with_compiled_review_cache_dir(git_cache.compiled_review_cache_dir()?))
 }
 
 pub(in super::super) fn register_git_repository(

@@ -1,16 +1,13 @@
 use super::super::{Error, identity::type_identity, reader::Reader};
-#[cfg(test)]
 use super::super::{
     contracts::contract_fact,
     identity::nominal,
     signatures::{data_properties, type_parameter},
 };
 use crate::record::{PackageReviewDataField, PackageReviewDataMember};
-#[cfg(test)]
 use crate::record::{PackageReviewDataKind, PackageReviewDataShape};
 
-#[cfg(test)]
-pub(in crate::encoding::recovery::policy) fn data_shape(
+pub(in crate::encoding::recovery) fn data_shape(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDataShape, Error> {
     Ok(PackageReviewDataShape {
@@ -38,7 +35,7 @@ pub(in crate::encoding::recovery::policy) fn data_shape(
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn data_member(
+pub(in crate::encoding::recovery) fn data_member(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewDataMember, Error> {
     Ok(match reader.byte()? {
@@ -53,7 +50,9 @@ pub(in crate::encoding::recovery::policy) fn data_member(
     })
 }
 
-fn data_field(reader: &mut Reader<'_>) -> Result<PackageReviewDataField, Error> {
+pub(in crate::encoding::recovery) fn data_field(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewDataField, Error> {
     Ok(PackageReviewDataField {
         identity: reader.option(|reader| reader.u64())?,
         name: reader.string()?,

@@ -278,10 +278,15 @@ fn resolve_workspace_package_closure_impl(
     let cache_dir = workspace_cache
         .checked_source_cache_dir()
         .map_err(ResolveWorkspacePackageClosureError::Root)?;
+    let review_cache_dir = workspace_cache
+        .compiled_review_cache_dir()
+        .map_err(ResolveWorkspacePackageClosureError::Root)?;
 
     resolve_registered_package_closure(
         root_request,
-        root.into_custody().with_checked_source_cache_dir(cache_dir),
+        root.into_custody()
+            .with_checked_source_cache_dir(cache_dir)
+            .with_compiled_review_cache_dir(review_cache_dir),
         closure_limits,
         workspace_cache,
         git_cache,

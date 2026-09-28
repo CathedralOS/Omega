@@ -2,7 +2,8 @@ use super::{Error, fixtures, tests::recover};
 use crate::record::{PackageReviewNominalOwner, PackageReviewSynchronousInvocation};
 
 #[test]
-fn authority_owners_are_observable_without_changing_legacy_service_names() {
+pub(in crate::encoding::recovery) fn authority_owners_are_observable_without_changing_legacy_service_names()
+ {
     let original = fixtures::complete();
     let baseline = original.canonical_bytes().unwrap();
     let foreign = PackageReviewNominalOwner::Package(
@@ -58,7 +59,7 @@ fn authority_owners_are_observable_without_changing_legacy_service_names() {
 }
 
 #[test]
-fn typed_authority_order_repetition_and_progress_tags_reject() {
+pub(in crate::encoding::recovery) fn typed_authority_order_repetition_and_progress_tags_reject() {
     let original = fixtures::complete();
     let mut cases = Vec::new();
     let mut changed = original.clone();

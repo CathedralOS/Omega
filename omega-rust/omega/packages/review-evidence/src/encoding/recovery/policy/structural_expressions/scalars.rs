@@ -12,7 +12,7 @@ use crate::record::PackageReviewScalarExpression;
 use super::Error;
 use super::tags::{integer_binary, primitive_type_name};
 
-pub(super) fn scalar_expression(
+pub(in crate::encoding::recovery) fn scalar_expression(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewScalarExpression, Error> {
     reader.nested(|reader| {

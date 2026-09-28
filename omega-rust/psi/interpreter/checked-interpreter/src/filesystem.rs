@@ -15,6 +15,7 @@ mod canonical_metadata;
 mod grants;
 mod logical_handles;
 mod metadata_layout;
+pub mod observation_codec;
 mod observations;
 mod operands;
 mod operation_attempts;

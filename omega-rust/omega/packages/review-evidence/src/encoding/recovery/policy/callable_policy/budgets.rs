@@ -5,7 +5,8 @@ use crate::record::PackagePolicyCallables;
 use crate::record::PackageReviewBooleanExpression;
 
 #[test]
-fn all_policy_recovery_budgets_apply_to_nested_callable_meaning() {
+pub(in crate::encoding::recovery) fn all_policy_recovery_budgets_apply_to_nested_callable_meaning()
+{
     let bytes = fixture().canonical_bytes().unwrap();
     let default = PackagePolicyRecoveryLimits::default();
     for (limits, error) in [
@@ -54,7 +55,8 @@ fn all_policy_recovery_budgets_apply_to_nested_callable_meaning() {
 }
 
 #[test]
-fn shared_structural_requirement_depth_is_bounded_for_encoding_and_recovery() {
+pub(in crate::encoding::recovery) fn shared_structural_requirement_depth_is_bounded_for_encoding_and_recovery()
+ {
     let mut policy = fixture();
     let mut expression = PackageReviewBooleanExpression::Constant(true);
     for _ in 0..12 {

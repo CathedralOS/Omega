@@ -13,7 +13,7 @@ use crate::record::PackageReviewCheckedServiceReach;
 use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewExternalCallableParameter;
 
-fn external() -> PackagePolicyBaseline {
+pub(in crate::encoding::recovery) fn external() -> PackagePolicyBaseline {
     let mut value = fixture();
     value.slack_uses.clear();
     value.dangerous_capabilities.clear();
@@ -54,7 +54,8 @@ fn external() -> PackagePolicyBaseline {
 }
 
 #[test]
-fn external_rows_rejoin_public_and_private_surfaces_without_conflicting_bindings() {
+pub(in crate::encoding::recovery) fn external_rows_rejoin_public_and_private_surfaces_without_conflicting_bindings()
+ {
     let original = external();
     assert_eq!(
         recover(&original.canonical_bytes().unwrap()).unwrap(),
@@ -82,7 +83,8 @@ fn external_rows_rejoin_public_and_private_surfaces_without_conflicting_bindings
 }
 
 #[test]
-fn external_full_signature_and_requirement_cannot_drift_from_callable() {
+pub(in crate::encoding::recovery) fn external_full_signature_and_requirement_cannot_drift_from_callable()
+ {
     let original = external();
     for field in 0..7 {
         let mut value = original.clone();

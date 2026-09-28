@@ -1,9 +1,9 @@
 //! Recover an inert physical component, not validator or native custody.
 
-pub(super) mod placement;
-mod state;
+pub(in crate::encoding::recovery) mod placement;
+pub(in crate::encoding::recovery) mod state;
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
 
 use super::{Error, PackagePolicyRecoveryLimits, reader::Reader};
 use crate::encoding::{PACKAGE_PHYSICAL_CALLING_POLICY_VERSION, PHYSICAL_CALLING_POLICY_MAGIC};
@@ -35,7 +35,7 @@ impl PackagePolicyPhysicalCallingContract {
     }
 }
 
-pub(super) fn physical(
+pub(in crate::encoding::recovery) fn physical(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyPhysicalCallingContract, Error> {
     Ok(PackagePolicyPhysicalCallingContract {
@@ -50,7 +50,9 @@ pub(super) fn physical(
     })
 }
 
-fn policy(reader: &mut Reader<'_>) -> Result<PackageReviewBoundaryCallingPolicy, Error> {
+pub(in crate::encoding::recovery) fn policy(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewBoundaryCallingPolicy, Error> {
     Ok(match reader.byte()? {
         0 => PackageReviewBoundaryCallingPolicy::MicrosoftX64,
         1 => PackageReviewBoundaryCallingPolicy::SystemVAMD64,

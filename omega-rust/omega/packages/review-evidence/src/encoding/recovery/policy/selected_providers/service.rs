@@ -10,7 +10,7 @@ use language_semantics::{
     CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicateBody,
 };
 
-pub(in crate::encoding::recovery::policy) fn method(
+pub(in crate::encoding::recovery) fn method(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyServiceMethod, Error> {
     Ok(PackagePolicyServiceMethod {
@@ -76,7 +76,7 @@ pub(in crate::encoding::recovery::policy) fn method(
     })
 }
 
-fn carry(reader: &mut Reader<'_>) -> Result<CarryPolicy, Error> {
+pub(in crate::encoding::recovery) fn carry(reader: &mut Reader<'_>) -> Result<CarryPolicy, Error> {
     Ok(CarryPolicy {
         suspension: match reader.byte()? {
             0 => CarrySuspension::Forbidden,

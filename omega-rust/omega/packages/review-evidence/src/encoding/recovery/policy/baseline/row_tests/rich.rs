@@ -11,7 +11,7 @@ use crate::record::PackageReviewOperatorCoordinate;
 use crate::record::PackageReviewTraitRequirementParameter;
 use crate::record::PackageReviewTypeIdentity;
 
-fn rich() -> PackagePolicyBaseline {
+pub(in crate::encoding::recovery) fn rich() -> PackagePolicyBaseline {
     let mut value = fixture();
     value.selected_providers = super::super::super::selected_providers::row_fixture();
     value.package = value.selected_providers.package;
@@ -78,7 +78,8 @@ fn rich() -> PackagePolicyBaseline {
 }
 
 #[test]
-fn all_public_families_and_nonempty_provider_representation_permissions_remain_readable() {
+pub(in crate::encoding::recovery) fn all_public_families_and_nonempty_provider_representation_permissions_remain_readable()
+ {
     let value = rich();
     let original_bytes = value.canonical_bytes().unwrap();
     let original_text = value.canonical_text().unwrap();
@@ -127,7 +128,8 @@ fn all_public_families_and_nonempty_provider_representation_permissions_remain_r
 }
 
 #[test]
-fn each_public_family_and_atomic_index_association_mutation_changes_rows() {
+pub(in crate::encoding::recovery) fn each_public_family_and_atomic_index_association_mutation_changes_rows()
+ {
     let original = rich();
     let baseline = rows(&original).0;
     for axis in 0..14 {

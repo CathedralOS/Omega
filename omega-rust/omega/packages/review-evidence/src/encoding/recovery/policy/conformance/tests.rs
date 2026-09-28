@@ -9,7 +9,7 @@ use crate::record::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
-fn nominal(path: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
             PackageKeyIdentity::from_digest([7; 32]).expect("nonzero owner"),
@@ -18,13 +18,13 @@ fn nominal(path: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-fn value_type(identity: &str) -> PackageReviewTypeIdentity {
+pub(in crate::encoding::recovery) fn value_type(identity: &str) -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {
         canonical: identity.to_owned(),
     }
 }
 
-fn application() -> PackagePolicyClosedConformanceApplication {
+pub(in crate::encoding::recovery) fn application() -> PackagePolicyClosedConformanceApplication {
     PackagePolicyClosedConformanceApplication {
         declaration: nominal("Chosen"),
         lifetime_arguments: vec![0, 1, 0],
@@ -55,21 +55,25 @@ fn application() -> PackagePolicyClosedConformanceApplication {
     }
 }
 
-fn recover(bytes: &[u8]) -> Result<PackagePolicyClosedConformanceApplication, Error> {
+pub(in crate::encoding::recovery) fn recover(
+    bytes: &[u8],
+) -> Result<PackagePolicyClosedConformanceApplication, Error> {
     PackagePolicyClosedConformanceApplication::recover_canonical(
         bytes,
         PackagePolicyRecoveryLimits::default(),
     )
 }
 
-fn bytes(application: &PackagePolicyClosedConformanceApplication) -> Vec<u8> {
+pub(in crate::encoding::recovery) fn bytes(
+    application: &PackagePolicyClosedConformanceApplication,
+) -> Vec<u8> {
     application
         .canonical_bytes()
         .expect("encode inert application")
 }
 
 #[test]
-fn complete_application_and_subjectless_application_round_trip() {
+pub(in crate::encoding::recovery) fn complete_application_and_subjectless_application_round_trip() {
     let mut original = application();
     for subject in [original.subject.clone(), None] {
         original.subject = subject;
@@ -81,7 +85,7 @@ fn complete_application_and_subjectless_application_round_trip() {
 }
 
 #[test]
-fn every_semantic_coordinate_changes_application_bytes() {
+pub(in crate::encoding::recovery) fn every_semantic_coordinate_changes_application_bytes() {
     let original = application();
     let encoded = bytes(&original);
     let mutations: &[fn(&mut PackagePolicyClosedConformanceApplication)] = &[
@@ -159,14 +163,14 @@ fn every_semantic_coordinate_changes_application_bytes() {
     }
 }
 
-fn nominal_owner(byte: u8) -> PackageReviewNominalOwner {
+pub(in crate::encoding::recovery) fn nominal_owner(byte: u8) -> PackageReviewNominalOwner {
     PackageReviewNominalOwner::Package(
         PackageKeyIdentity::from_digest([byte; 32]).expect("nonzero owner"),
     )
 }
 
 #[test]
-fn hostile_versions_owners_tags_utf8_and_counts_reject() {
+pub(in crate::encoding::recovery) fn hostile_versions_owners_tags_utf8_and_counts_reject() {
     let encoded = bytes(&application());
     // Reader bounds are tested once; retain envelope, body, and final-byte cuts here.
     for end in [0, encoded.len() / 2, encoded.len() - 1] {
@@ -204,7 +208,7 @@ fn hostile_versions_owners_tags_utf8_and_counts_reject() {
 }
 
 #[test]
-fn caller_limits_bound_bytes_elements_fields_and_owned_storage() {
+pub(in crate::encoding::recovery) fn caller_limits_bound_bytes_elements_fields_and_owned_storage() {
     let encoded = bytes(&application());
     let limits = [
         PackagePolicyRecoveryLimits::new(
@@ -238,7 +242,7 @@ fn caller_limits_bound_bytes_elements_fields_and_owned_storage() {
 }
 
 #[test]
-fn writer_obeys_component_byte_and_aggregate_element_ceilings() {
+pub(in crate::encoding::recovery) fn writer_obeys_component_byte_and_aggregate_element_ceilings() {
     let mut oversized = application();
     oversized.type_arguments = vec![value_type("too-large"); 65_537];
     assert!(oversized.canonical_bytes().is_err());
@@ -248,7 +252,7 @@ fn writer_obeys_component_byte_and_aggregate_element_ceilings() {
 }
 
 #[test]
-fn owned_storage_budget_includes_canonical_comparison_scratch() {
+pub(in crate::encoding::recovery) fn owned_storage_budget_includes_canonical_comparison_scratch() {
     let minimal = PackagePolicyClosedConformanceApplication {
         declaration: nominal("Chosen"),
         lifetime_arguments: Vec::new(),

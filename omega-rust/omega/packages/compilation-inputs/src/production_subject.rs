@@ -245,7 +245,7 @@ fn append_field(bytes: &mut Vec<u8>, field: &[u8]) {
     bytes.extend_from_slice(field);
 }
 
-fn target_profile_tag(profile: target::TargetProfile) -> u8 {
+pub(crate) fn target_profile_tag(profile: target::TargetProfile) -> u8 {
     match profile {
         target::TargetProfile::LinuxArm64 => 1,
         target::TargetProfile::LinuxX64 => 2,
@@ -279,4 +279,21 @@ fn append_native_target(bytes: &mut Vec<u8>, target: target::NativeTarget) {
             .expect("native pointer alignment fits u64")
             .to_le_bytes(),
     );
+}
+
+/// Recover a target profile from its canonical evidence tag.
+pub(crate) fn recover_target_profile_tag(tag: u8) -> Option<target::TargetProfile> {
+    use target::TargetProfile::*;
+    match tag {
+        1 => Some(LinuxArm64),
+        2 => Some(LinuxX64),
+        3 => Some(MacosArm64),
+        4 => Some(WindowsX64),
+        5 => Some(UefiX64),
+        6 => Some(CrossPlatformCli),
+        7 => Some(LocalUnchecked),
+        8 => Some(AlphaBootstrap),
+        9 => Some(MacosX64),
+        _ => None,
+    }
 }

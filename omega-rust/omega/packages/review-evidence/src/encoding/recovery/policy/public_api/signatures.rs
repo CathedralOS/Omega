@@ -13,7 +13,7 @@ use crate::record::{
     PackageReviewPropositionParameterSignature, PackageReviewPropositionParameterValue,
 };
 
-pub(in crate::encoding::recovery::policy) fn type_parameter(
+pub(in crate::encoding::recovery) fn type_parameter(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyTypeParameter, Error> {
     let kind = match reader.byte()? {
@@ -41,7 +41,7 @@ pub(in crate::encoding::recovery::policy) fn type_parameter(
     })
 }
 
-pub(in crate::encoding::recovery::policy) fn machine_contract(
+pub(in crate::encoding::recovery) fn machine_contract(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyMachineParameterContract, Error> {
     reader.nested(|reader| {
@@ -57,7 +57,7 @@ pub(in crate::encoding::recovery::policy) fn machine_contract(
     })
 }
 
-fn machine_signature(
+pub(in crate::encoding::recovery) fn machine_signature(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyMachineParameterSignature, Error> {
     Ok(PackagePolicyMachineParameterSignature {

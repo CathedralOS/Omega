@@ -9,7 +9,7 @@ use crate::encoding::recovery::policy::reader::Reader;
 use crate::record::PackagePolicyCallingPlan;
 
 #[test]
-fn target_and_shape_graph_reject_unknown_closed_tags() {
+pub(in crate::encoding::recovery) fn target_and_shape_graph_reject_unknown_closed_tags() {
     let target = [1, 1, 0, 8, 0, 8, 0];
     for index in 0..3 {
         let mut bytes = target;
@@ -24,7 +24,8 @@ fn target_and_shape_graph_reject_unknown_closed_tags() {
 }
 
 #[test]
-fn callback_demand_and_materialization_destinations_reject_unknown_tags() {
+pub(in crate::encoding::recovery) fn callback_demand_and_materialization_destinations_reject_unknown_tags()
+ {
     let mut demand = 0u64.to_le_bytes().to_vec(); // no binders
     demand.extend_from_slice(&1u64.to_le_bytes());
     demand.extend_from_slice(&[0; 46]); // minimum complete destination + requirement
@@ -41,7 +42,7 @@ fn callback_demand_and_materialization_destinations_reject_unknown_tags() {
 }
 
 #[test]
-fn declared_nested_counts_reject_before_unbounded_allocation() {
+pub(in crate::encoding::recovery) fn declared_nested_counts_reject_before_unbounded_allocation() {
     for count in [u64::MAX, 65_537] {
         let bytes = count.to_le_bytes();
         let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
@@ -55,7 +56,8 @@ fn declared_nested_counts_reject_before_unbounded_allocation() {
 }
 
 #[test]
-fn opaque_selection_lifetimes_cannot_borrow_the_callback_telescope() {
+pub(in crate::encoding::recovery) fn opaque_selection_lifetimes_cannot_borrow_the_callback_telescope()
+ {
     let mut policy = tests::complete_fixture();
     policy.boundary_lifetime_parameter_count = 1;
     for layout in &mut policy.callbacks.layouts {

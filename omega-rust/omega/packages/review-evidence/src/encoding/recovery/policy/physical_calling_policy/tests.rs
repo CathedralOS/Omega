@@ -13,7 +13,7 @@ use crate::record::{
     PackageReviewMachineRegister,
 };
 
-fn fixture() -> PackagePolicyPhysicalCallingContract {
+pub(in crate::encoding::recovery) fn fixture() -> PackagePolicyPhysicalCallingContract {
     PackagePolicyPhysicalCallingContract {
         policy: PackageReviewBoundaryCallingPolicy::SystemVAMD64,
         parameters: Vec::new(),
@@ -40,7 +40,9 @@ fn fixture() -> PackagePolicyPhysicalCallingContract {
     }
 }
 
-fn recover(bytes: &[u8]) -> Result<PackagePolicyPhysicalCallingContract, Error> {
+pub(in crate::encoding::recovery) fn recover(
+    bytes: &[u8],
+) -> Result<PackagePolicyPhysicalCallingContract, Error> {
     PackagePolicyPhysicalCallingContract::recover_canonical(
         bytes,
         PackagePolicyRecoveryLimits::default(),
@@ -48,7 +50,8 @@ fn recover(bytes: &[u8]) -> Result<PackagePolicyPhysicalCallingContract, Error> 
 }
 
 #[test]
-fn envelope_roundtrips_and_rejects_short_unknown_or_trailing_input() {
+pub(in crate::encoding::recovery) fn envelope_roundtrips_and_rejects_short_unknown_or_trailing_input()
+ {
     let component = fixture();
     let bytes = component.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), component);
@@ -70,7 +73,7 @@ fn envelope_roundtrips_and_rejects_short_unknown_or_trailing_input() {
 }
 
 #[test]
-fn decoder_and_writer_reject_reordered_and_duplicate_sets() {
+pub(in crate::encoding::recovery) fn decoder_and_writer_reject_reordered_and_duplicate_sets() {
     let component = fixture();
     let bytes = component.canonical_bytes().unwrap();
     let body = PHYSICAL_CALLING_POLICY_MAGIC.len() + 2;
@@ -96,7 +99,7 @@ fn decoder_and_writer_reject_reordered_and_duplicate_sets() {
 }
 
 #[test]
-fn all_closed_tag_entrances_reject_unknown_variants() {
+pub(in crate::encoding::recovery) fn all_closed_tag_entrances_reject_unknown_variants() {
     let bytes = fixture().canonical_bytes().unwrap();
     let body = PHYSICAL_CALLING_POLICY_MAGIC.len() + 2;
     let clobbers = body + 18;
@@ -139,7 +142,7 @@ fn all_closed_tag_entrances_reject_unknown_variants() {
 }
 
 #[test]
-fn malformed_nested_locations_and_optional_copy_tags_reject() {
+pub(in crate::encoding::recovery) fn malformed_nested_locations_and_optional_copy_tags_reject() {
     let mut component = fixture();
     component.parameters = vec![PackageReviewBoundaryValuePlacement {
         shape: PackageReviewBoundaryValueShape {
@@ -172,7 +175,8 @@ fn malformed_nested_locations_and_optional_copy_tags_reject() {
 }
 
 #[test]
-fn component_recovery_enforces_byte_element_and_owned_storage_limits() {
+pub(in crate::encoding::recovery) fn component_recovery_enforces_byte_element_and_owned_storage_limits()
+ {
     let bytes = fixture().canonical_bytes().unwrap();
     let limits = |maximum_bytes, elements, owned| {
         PackagePolicyRecoveryLimits::new(maximum_bytes, usize::MAX, elements, owned, usize::MAX)
@@ -227,7 +231,7 @@ fn component_recovery_enforces_byte_element_and_owned_storage_limits() {
 }
 
 #[test]
-fn writer_enforces_aggregate_elements() {
+pub(in crate::encoding::recovery) fn writer_enforces_aggregate_elements() {
     let mut component = fixture();
     let placement = PackageReviewBoundaryValuePlacement {
         shape: PackageReviewBoundaryValueShape {

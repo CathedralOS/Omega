@@ -55,6 +55,28 @@ impl ConsumedSourceUnit {
         byte_count: u64,
         content_digest: [u8; 32],
     ) -> Result<Self, &'static str> {
+        Self::from_retained(
+            kind,
+            package,
+            toolchain_namespace,
+            relative_path,
+            byte_count,
+            content_digest,
+        )
+    }
+
+    /// Rebuild one retained row from its decoded coordinates. Same shape
+    /// contract as [`for_test`](Self::for_test) — persisted projections are
+    /// validated on the way in rather than trusted.
+    #[doc(hidden)]
+    pub fn from_retained(
+        kind: ConsumedSourceUnitKind,
+        package: Option<semantic_vocabulary::PackageKeyIdentity>,
+        toolchain_namespace: Option<String>,
+        relative_path: Vec<String>,
+        byte_count: u64,
+        content_digest: [u8; 32],
+    ) -> Result<Self, &'static str> {
         let coordinates_match = match kind {
             ConsumedSourceUnitKind::PackageAuthored
             | ConsumedSourceUnitKind::PackageGenerated(_) => {
@@ -226,6 +248,13 @@ impl PackageSourceConsumptionCommitment {
     #[cfg(any(test, feature = "test-support"))]
     #[doc(hidden)]
     pub const fn for_test(digest: [u8; 32]) -> Self {
+        Self { digest }
+    }
+
+    /// Rebuild a commitment from its retained digest. The digest was bound
+    /// when the rows were derived; recovery replays the same value.
+    #[doc(hidden)]
+    pub const fn from_retained_digest(digest: [u8; 32]) -> Self {
         Self { digest }
     }
 

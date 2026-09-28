@@ -83,17 +83,23 @@ pub(super) fn resolve_path_dependency(
                         identity: workspace_identity,
                     });
                 }
-                Ok(resolved.into_custody())
+                Ok(resolved
+                    .into_custody()
+                    .with_compiled_review_cache_dir(git_cache.compiled_review_cache_dir()?))
             }
-            WorkspaceContextKind::Local { root, .. } => resolve_workspace_member_from_cache(
-                &context.root_source,
-                source_relative_path(&member_path),
-                root,
-                workspace_cache,
-                source_limits,
-            )
-            .map(|resolved| resolved.into_custody())
-            .map_err(ResolveDependencySourceError::from),
+            WorkspaceContextKind::Local { root, .. } => {
+                let resolved = resolve_workspace_member_from_cache(
+                    &context.root_source,
+                    source_relative_path(&member_path),
+                    root,
+                    workspace_cache,
+                    source_limits,
+                )
+                .map_err(ResolveDependencySourceError::from)?;
+                Ok(resolved
+                    .into_custody()
+                    .with_compiled_review_cache_dir(workspace_cache.compiled_review_cache_dir()?))
+            }
         },
         Err(_)
             if matches!(

@@ -5,6 +5,7 @@ mod compilation;
 mod custody;
 mod error;
 mod evidence;
+mod review_cache;
 mod review_set;
 mod rows;
 mod semantic_bindings;

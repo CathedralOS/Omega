@@ -8,7 +8,7 @@ use calling_conventions::{
 };
 use semantic_vocabulary::PackageKeyIdentity;
 
-fn nominal(path: &str) -> PackageReviewNominalIdentity {
+pub(in crate::encoding::recovery) fn nominal(path: &str) -> PackageReviewNominalIdentity {
     PackageReviewNominalIdentity {
         owner: PackageReviewNominalOwner::Package(
             PackageKeyIdentity::from_digest([7; 32]).unwrap(),
@@ -17,13 +17,13 @@ fn nominal(path: &str) -> PackageReviewNominalIdentity {
     }
 }
 
-fn value_type(canonical: &str) -> PackageReviewTypeIdentity {
+pub(in crate::encoding::recovery) fn value_type(canonical: &str) -> PackageReviewTypeIdentity {
     PackageReviewTypeIdentity {
         canonical: canonical.to_owned(),
     }
 }
 
-fn conformance() -> PackagePolicyClosedConformanceApplication {
+pub(in crate::encoding::recovery) fn conformance() -> PackagePolicyClosedConformanceApplication {
     PackagePolicyClosedConformanceApplication {
         declaration: nominal("Chosen"),
         lifetime_arguments: Vec::new(),
@@ -38,7 +38,7 @@ fn conformance() -> PackagePolicyClosedConformanceApplication {
     }
 }
 
-pub(super) fn fixture() -> PackagePolicyCallingPlan {
+pub(in crate::encoding::recovery) fn fixture() -> PackagePolicyCallingPlan {
     let native = evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::SystemVAMD64,
         &CallSignature {
@@ -100,7 +100,7 @@ pub(super) fn fixture() -> PackagePolicyCallingPlan {
     }
 }
 
-pub(in crate::encoding::recovery::policy) fn complete_fixture() -> PackagePolicyCallingPlan {
+pub(in crate::encoding::recovery) fn complete_fixture() -> PackagePolicyCallingPlan {
     let mut policy = fixture();
     let native = evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::SystemVAMD64,
@@ -244,12 +244,15 @@ pub(in crate::encoding::recovery::policy) fn complete_fixture() -> PackagePolicy
     policy
 }
 
-fn recover(bytes: &[u8]) -> Result<PackagePolicyCallingPlan, Error> {
+pub(in crate::encoding::recovery) fn recover(
+    bytes: &[u8],
+) -> Result<PackagePolicyCallingPlan, Error> {
     PackagePolicyCallingPlan::recover_canonical(bytes, PackagePolicyRecoveryLimits::default())
 }
 
 #[test]
-fn complete_callback_and_opaque_children_round_trip_without_nested_envelopes() {
+pub(in crate::encoding::recovery) fn complete_callback_and_opaque_children_round_trip_without_nested_envelopes()
+ {
     for policy in [fixture(), complete_fixture()] {
         let bytes = policy.canonical_bytes().unwrap();
         let recovered = recover(&bytes).unwrap();
@@ -281,7 +284,8 @@ fn complete_callback_and_opaque_children_round_trip_without_nested_envelopes() {
 }
 
 #[test]
-fn nested_components_share_aggregate_byte_and_allocation_budgets() {
+pub(in crate::encoding::recovery) fn nested_components_share_aggregate_byte_and_allocation_budgets()
+{
     let complete = complete_fixture();
     let bytes = complete.canonical_bytes().unwrap();
     for limits in [
@@ -347,7 +351,7 @@ fn nested_components_share_aggregate_byte_and_allocation_budgets() {
 }
 
 #[test]
-fn every_semantic_child_changes_complete_policy_bytes() {
+pub(in crate::encoding::recovery) fn every_semantic_child_changes_complete_policy_bytes() {
     let original = complete_fixture();
     let baseline = original.canonical_bytes().unwrap();
     let mutations: &[fn(&mut PackagePolicyCallingPlan)] = &[
@@ -413,7 +417,8 @@ fn every_semantic_child_changes_complete_policy_bytes() {
 }
 
 #[test]
-fn invalid_cross_component_coordinates_reject_before_publication() {
+pub(in crate::encoding::recovery) fn invalid_cross_component_coordinates_reject_before_publication()
+{
     let mutations: &[fn(&mut PackagePolicyCallingPlan)] = &[
         |p| p.native_parameters[0].name = "other".into(),
         |p| p.shape_graph.parameters[0] = u16::MAX,

@@ -6,7 +6,7 @@ use crate::record::{
     PackageReviewRepresentationTargetProfile,
 };
 
-pub(in crate::encoding::recovery::policy) fn target(
+pub(in crate::encoding::recovery) fn target(
     reader: &mut Reader<'_>,
 ) -> Result<PackageReviewRepresentationTarget, Error> {
     Ok(PackageReviewRepresentationTarget {
@@ -37,7 +37,9 @@ pub(in crate::encoding::recovery::policy) fn target(
     })
 }
 
-pub(super) fn graph(reader: &mut Reader<'_>) -> Result<PackageReviewBoundaryShapeGraph, Error> {
+pub(in crate::encoding::recovery) fn graph(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewBoundaryShapeGraph, Error> {
     Ok(PackageReviewBoundaryShapeGraph {
         shapes: reader.sequence(5, |reader| {
             Ok(PackageReviewBoundaryShape {

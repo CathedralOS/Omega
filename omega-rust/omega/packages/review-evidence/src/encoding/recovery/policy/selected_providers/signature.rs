@@ -2,7 +2,9 @@ use super::{Error, Reader};
 use crate::encoding::recovery::policy::{identity::type_identity, public_api::type_parameter};
 use crate::record::{PackagePolicyServiceSignature, PackageReviewTraitRequirementParameter};
 
-pub(super) fn signature(reader: &mut Reader<'_>) -> Result<PackagePolicyServiceSignature, Error> {
+pub(in crate::encoding::recovery) fn signature(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyServiceSignature, Error> {
     Ok(PackagePolicyServiceSignature {
         schema_arguments: reader.sequence(8, type_identity)?,
         schema_lifetime_parameter_count: reader.u32()?,

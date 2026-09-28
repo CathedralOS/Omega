@@ -9,7 +9,8 @@
 pub struct FilesystemLogicalHandleIdentity(u64);
 
 impl FilesystemLogicalHandleIdentity {
-    pub(crate) const fn new(value: u64) -> Option<Self> {
+    #[doc(hidden)]
+    pub const fn new(value: u64) -> Option<Self> {
         if value == 0 { None } else { Some(Self(value)) }
     }
 

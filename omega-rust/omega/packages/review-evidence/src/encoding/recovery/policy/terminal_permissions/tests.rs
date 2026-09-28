@@ -8,7 +8,7 @@ use crate::record::PackageReviewNominalOwner;
 use effects::TerminalAuthorityClass;
 use effects::TerminalAuthorityDisposition;
 
-pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyTerminalPermissions {
+pub(in crate::encoding::recovery) fn fixture() -> PackagePolicyTerminalPermissions {
     let mut method = super::super::selected_providers::service_method_fixture();
     method.parameter_type_identities = method
         .signature
@@ -45,7 +45,9 @@ pub(in crate::encoding::recovery::policy) fn fixture() -> PackagePolicyTerminalP
     }
 }
 
-pub(super) fn recover(bytes: &[u8]) -> Result<PackagePolicyTerminalPermissions, Error> {
+pub(in crate::encoding::recovery) fn recover(
+    bytes: &[u8],
+) -> Result<PackagePolicyTerminalPermissions, Error> {
     PackagePolicyTerminalPermissions::recover_canonical(
         bytes,
         PackagePolicyRecoveryLimits::default(),
@@ -53,7 +55,8 @@ pub(super) fn recover(bytes: &[u8]) -> Result<PackagePolicyTerminalPermissions, 
 }
 
 #[test]
-fn complete_schema_and_nested_calling_survive_without_nested_envelopes() {
+pub(in crate::encoding::recovery) fn complete_schema_and_nested_calling_survive_without_nested_envelopes()
+ {
     let policy = fixture();
     let bytes = policy.canonical_bytes().unwrap();
     assert_eq!(recover(&bytes).unwrap(), policy);
@@ -86,7 +89,8 @@ fn complete_schema_and_nested_calling_survive_without_nested_envelopes() {
 }
 
 #[test]
-fn unpermitted_schema_and_declaration_order_changes_remain_observable() {
+pub(in crate::encoding::recovery) fn unpermitted_schema_and_declaration_order_changes_remain_observable()
+ {
     let original = fixture();
     let baseline = original.canonical_bytes().unwrap();
     let mut cases = Vec::new();
@@ -117,7 +121,7 @@ fn unpermitted_schema_and_declaration_order_changes_remain_observable() {
 }
 
 #[test]
-fn every_terminal_class_and_explicit_empty_differ_from_absence() {
+pub(in crate::encoding::recovery) fn every_terminal_class_and_explicit_empty_differ_from_absence() {
     let original = fixture();
     for classes in
         std::iter::once(Vec::new()).chain(TerminalAuthorityClass::ALL.map(|class| vec![class]))
@@ -152,7 +156,8 @@ fn every_terminal_class_and_explicit_empty_differ_from_absence() {
 }
 
 #[test]
-fn unknown_repeated_and_unsorted_terminal_classes_reject_before_normalization() {
+pub(in crate::encoding::recovery) fn unknown_repeated_and_unsorted_terminal_classes_reject_before_normalization()
+ {
     let bytes = fixture().canonical_bytes().unwrap();
     let start = bytes.len() - TerminalAuthorityClass::ALL.len();
     for (offset, tag, error) in [
@@ -170,7 +175,8 @@ fn unknown_repeated_and_unsorted_terminal_classes_reject_before_normalization() 
 }
 
 #[test]
-fn permission_membership_identity_target_and_canonical_sets_reject_drift() {
+pub(in crate::encoding::recovery) fn permission_membership_identity_target_and_canonical_sets_reject_drift()
+ {
     let original = fixture();
     let mut cases = Vec::new();
     let mut changed = original.clone();

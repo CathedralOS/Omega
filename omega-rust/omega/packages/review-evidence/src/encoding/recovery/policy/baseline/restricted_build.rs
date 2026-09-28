@@ -21,7 +21,7 @@ const GRANT_MINIMUM_BYTES: usize = 3;
 /// length-prefixed byte string contributes its usize length alone.
 const REQUIRED_OUTPUT_MINIMUM_BYTES: usize = 8;
 
-pub(super) fn request(
+pub(in crate::encoding::recovery) fn request(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyRestrictedBuildRequest, Error> {
     Ok(PackagePolicyRestrictedBuildRequest {
@@ -38,7 +38,9 @@ pub(super) fn request(
     })
 }
 
-fn grant(reader: &mut Reader<'_>) -> Result<PackagePolicyRestrictedBuildGrant, Error> {
+pub(in crate::encoding::recovery) fn grant(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyRestrictedBuildGrant, Error> {
     Ok(PackagePolicyRestrictedBuildGrant {
         root: match reader.byte()? {
             0 => PackagePolicyRestrictedBuildGrantRoot::SourceInventory,
@@ -51,7 +53,9 @@ fn grant(reader: &mut Reader<'_>) -> Result<PackagePolicyRestrictedBuildGrant, E
     })
 }
 
-fn bounds(reader: &mut Reader<'_>) -> Result<PackagePolicyRestrictedBuildBounds, Error> {
+pub(in crate::encoding::recovery) fn bounds(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyRestrictedBuildBounds, Error> {
     Ok(PackagePolicyRestrictedBuildBounds {
         filesystem_sponsor_limits: reader.option(|reader| {
             Ok(PackagePolicyFilesystemSponsorLimits {
@@ -77,7 +81,7 @@ fn bounds(reader: &mut Reader<'_>) -> Result<PackagePolicyRestrictedBuildBounds,
     })
 }
 
-pub(super) fn requests(
+pub(in crate::encoding::recovery) fn requests(
     reader: &mut Reader<'_>,
 ) -> Result<Vec<PackagePolicyRestrictedBuildRequest>, Error> {
     reader.sequence(REQUEST_MINIMUM_BYTES, request)

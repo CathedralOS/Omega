@@ -2,8 +2,9 @@
 
 use super::super::projection::project_package_build;
 use super::super::{
-    CHECKED_SOURCE_CACHE_LANE, PackageSourceCustody, PackageSourceMaterialization,
-    PackageSourceNavigation, PackageSourceSelectionEvidence, ResolvePackageSourceError,
+    CHECKED_SOURCE_CACHE_LANE, COMPILED_REVIEW_CACHE_LANE, PackageSourceCustody,
+    PackageSourceMaterialization, PackageSourceNavigation, PackageSourceSelectionEvidence,
+    ResolvePackageSourceError,
 };
 use crate::declarations::PackageKey;
 use package_source::local::operations::{
@@ -41,6 +42,11 @@ pub(crate) fn recover_cached_external_local_source(
         .retain_child(CHECKED_SOURCE_CACHE_LANE)?
         .path()
         .to_path_buf();
+    let review_cache_dir = storage
+        .external_local_sources()
+        .retain_child(COMPILED_REVIEW_CACHE_LANE)?
+        .path()
+        .to_path_buf();
     Ok(Some(
         PackageSourceCustody::from_resolved_parts(
             PackageKey::new(declaration.name, current.key().source_lineage().clone()),
@@ -53,6 +59,7 @@ pub(crate) fn recover_cached_external_local_source(
             current.source_limits(),
             declaration.dependencies,
         )
-        .with_checked_source_cache_dir(cache_dir),
+        .with_checked_source_cache_dir(cache_dir)
+        .with_compiled_review_cache_dir(review_cache_dir),
     ))
 }

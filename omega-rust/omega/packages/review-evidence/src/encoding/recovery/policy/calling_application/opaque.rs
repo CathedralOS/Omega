@@ -10,7 +10,9 @@ use crate::record::{
     PackageReviewOpaqueRepresentationPathElement,
 };
 
-pub(super) fn decode(reader: &mut Reader<'_>) -> Result<PackagePolicyCallingOpaqueUse, Error> {
+pub(in crate::encoding::recovery) fn decode(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyCallingOpaqueUse, Error> {
     Ok(PackagePolicyCallingOpaqueUse {
         opaque: nominal(reader)?,
         carrier: nominal(reader)?,

@@ -36,7 +36,7 @@ impl PackagePolicyClosedConformanceApplication {
     }
 }
 
-pub(super) fn application(
+pub(in crate::encoding::recovery) fn application(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyClosedConformanceApplication, Error> {
     Ok(PackagePolicyClosedConformanceApplication {
@@ -60,7 +60,9 @@ pub(super) fn application(
     })
 }
 
-fn const_argument(reader: &mut Reader<'_>) -> Result<PackagePolicyConformanceConstArgument, Error> {
+pub(in crate::encoding::recovery) fn const_argument(
+    reader: &mut Reader<'_>,
+) -> Result<PackagePolicyConformanceConstArgument, Error> {
     Ok(match reader.byte()? {
         0 => PackagePolicyConformanceConstArgument::Evaluated {
             parameter_carrier: type_identity(reader)?,
@@ -77,4 +79,4 @@ fn const_argument(reader: &mut Reader<'_>) -> Result<PackagePolicyConformanceCon
 }
 
 #[cfg(test)]
-mod tests;
+pub(in crate::encoding::recovery) mod tests;
