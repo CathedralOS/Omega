@@ -6,6 +6,8 @@
 //! `source_snapshot` captures the package source a compilation consumed,
 //! `source_consumption` records exactly which of it was read, and
 //! `semantic_bindings` carries the optional standard-library bindings.
+//! This package is the shared input contract below compilation and package
+//! commands, not a dependency on either application's orchestration.
 
 mod checked_source_cache;
 mod package_compilation;

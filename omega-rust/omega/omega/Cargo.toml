@@ -21,7 +21,7 @@ artifacts = { path = "../foundation/artifacts" }
 platform-custody = { path = "../foundation/platform-custody" }
 package-manager = { path = "../package-manager" }
 package-source = { path = "../package-manager/source-acquisition" }
-package-compilation = { path = "../compiler/package-compilation" }
+package-compilation = { path = "../package-manager/compilation-inputs" }
 resolver-execution = { path = "../package-manager/resolver-execution" }
 target = { path = "../backend/target" }
 trust-ledger = { path = "trust-ledger" }

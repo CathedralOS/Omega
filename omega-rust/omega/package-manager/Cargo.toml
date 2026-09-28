@@ -11,14 +11,14 @@ path = "src/lib.rs"
 
 [dependencies]
 provider-planning = { path = "../realization/provider-planning" }
-build-declarations = { path = "../compiler/build-declarations" }
+build-declarations = { path = "build-declarations" }
 build-evaluation = { path = "../compiler/build-evaluation" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 compiler = { path = "../compiler" }
 effects = { path = "../backend/plans/provider-evidence" }
 package-evidence = { path = "review-evidence" }
 package-source = { path = "source-acquisition" }
-package-compilation = { path = "../compiler/package-compilation" }
+package-compilation = { path = "compilation-inputs" }
 optimization-core = { path = "../foundation/optimization-core" }
 platform-custody = { path = "../foundation/platform-custody" }
 target = { path = "../backend/target" }

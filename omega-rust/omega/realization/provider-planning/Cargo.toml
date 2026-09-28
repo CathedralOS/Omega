@@ -26,7 +26,7 @@ effects = { path = "../../backend/plans/provider-evidence" }
 executable-installation = { path = "../../backend/runtime/executable-installation", optional = true }
 external-roots = { path = "../../backend/runtime/external-roots", optional = true }
 layout = { path = "../../backend/layout" }
-package-compilation = { path = "../../compiler/package-compilation" }
+package-compilation = { path = "../../package-manager/compilation-inputs" }
 post-handoff-writer-plan = { path = "../../backend/plans/post-handoff-writer-plan", optional = true }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan", optional = true }
 representation-planning = { path = "../../../psi/checking/representation-planning" }

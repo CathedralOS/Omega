@@ -35,10 +35,20 @@ package-manager/
 ├── tests/                 manager integration tests
 ├── source-acquisition/    independent source acquisition crate
 ├── resolver-execution/    independent resolver process crate
+├── build-declarations/    shared project-role and dependency grammar
+├── build-output/          captured source/output trees and materialization
+├── compilation-inputs/    shared compilation-input and source-custody contract
 └── review-evidence/       independent compiler findings crate
 ```
 
 `package_manager.rs` owns command orchestration and composes `operations`.
+The independent [declaration](build-declarations/README.md),
+[output](build-output/README.md) and [compilation-input](compilation-inputs/README.md)
+packages are below both the compiler and this command application. Their placement
+does not make the compiler depend on install/update orchestration. Source
+acquisition constructs input custody; compiler consumption records the exact
+source units it used; review joins those results to package policy.
+
 [`operations::inspect_packages`](src/operations/inspect_packages/README.md)
 drives `omega audit packages`: current project source, pinned dependencies,
 fresh compiler findings, and comparison with accepted policy without publishing

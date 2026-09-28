@@ -136,13 +136,10 @@ an independent package beside their Psi admission owner at
 
 ### Subsystem entrances and supporting packages
 
-`omega/compiler/` owns compilation orchestration. Its supporting crates are
-`build-declarations`, `build-evaluation`, `build-output` and `package-compilation`.
-Each retains its own `Cargo.toml` and domain
-entrypoint. Nesting makes the compilation responsibilities discoverable; it
-does not make helpers depend on the coordinator. In particular,
-`build-declarations` remains a compiler-neutral syntactic projection used by
-both compilation and package management.
+`omega/compiler/` owns compilation orchestration. Its remaining
+`build-evaluation` child is an independent build admission/execution package.
+The shared package-input contracts live with the package system, not compiler
+orchestration.
 
 The CLI's independent [`trust-ledger`](omega/omega/trust-ledger/README.md)
 package owns reading and explicitly replacing `omega.admissions`. Compile and
@@ -166,9 +163,14 @@ boundary. Host file writing and timing have no dependency on these semantics.
 
 `omega/package-manager/` owns package operations, with independent
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates beneath
-it. Package operations and evidence capture consume compiler services; the
-compiler does not depend back on package management. Shared process and
-filesystem utilities remain independent packages under `omega/foundation/`.
+it. Its independent [build declarations](omega/package-manager/build-declarations/README.md),
+[build outputs](omega/package-manager/build-output/README.md) and
+[compilation inputs](omega/package-manager/compilation-inputs/README.md) packages
+own the shared project grammar and source/output custody contract.
+Compilation and realization consume these input packages directly; none depends
+on the package-command application or compiler coordinator. Package operations
+and review evidence consume compiler services, never the reverse.
+Shared process and filesystem utilities remain under `omega/foundation/`.
 
 `psi/interpreter/` contains the independent `checked-interpreter` and
 `terminal-interpreter` engines and `build-time-evaluation`, which admits
