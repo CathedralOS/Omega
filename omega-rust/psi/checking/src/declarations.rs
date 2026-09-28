@@ -5,6 +5,7 @@
 pub(crate) mod declaration_visibility;
 pub(crate) mod definition_facts;
 pub(crate) mod operators;
+pub(crate) mod selection_authority;
 pub(crate) mod standard_declarations;
 pub(crate) mod state_signatures;
 pub(crate) mod symbols;

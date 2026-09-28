@@ -84,6 +84,9 @@ pub use value_custody::intrinsic_boundaries::exact_byte_read_result_type;
 pub use value_custody::intrinsic_boundaries::exact_compiler_intrinsic_boundary_requirement;
 
 pub use crate::declarations::declaration_visibility::validate_declaration_visibility;
+pub use crate::declarations::selection_authority::{
+    DeclarationSelectionAuthority, validate_authored_declaration_selections,
+};
 pub use crate::machine_calls::call_cycles::{
     ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
     ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
