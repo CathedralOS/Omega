@@ -31,6 +31,32 @@ advanced out of implicit-store into an honest `exact arithmetic ... may
 overflow u64` proof obligation, and three are the GUI samples reporting
 `validated named operator application has no checked selected use`.
 
+### `dungeon_crawler_cli` is at least two blockers deep
+
+`carve_room` does `level.room_count = max(level.room_count, index + 1)` where
+`index` binds `self.cell_index(cell)`, and `cell_index` carries
+`ensures result <= 15`. The bound is real, so the addition cannot overflow a
+`u64`, yet the assignment is refused as not provably in range.
+
+Constraining the local (`let index: u64 [0..=15] = ...`) does clear that
+refusal, and the sample then advances to a SECOND blocker: the unit plan is
+omitted at an unavailable callee `Game::run_game_loop`, itself omitted at
+`call operation: structural arguments: parameter path`. So clearing the
+arithmetic does not make this sample check, and that edit was reverted rather
+than landed: **REMOVE-BRACKETED-RANGE-ANNOTATIONS is migrating ~1,300 sites
+off `T [lo..=hi]`**, and a load-bearing local bound is exactly the row that
+memo records as NOT migrating to `in D`, so adding one here buys an
+intermediate blocker at the cost of new migration debt.
+
+The open question is why the `ensures` does not reach the caller's
+arithmetic. Four reductions all CHECK — a call result plus one, a literal
+control, the arithmetic in a call-argument position, and a store through a
+nested field — so the callee-bound-to-caller-arithmetic route works
+generally, and something specific to this sample defeats it. Worth noting
+before re-deriving: in those reductions the callee's arms are constants, so
+the bound may come from the BODY rather than the `ensures`; a reduction whose
+callee is bounded ONLY by its `ensures` is the next control.
+
 ### Read this before trusting any earlier number
 
 This run was taken **after** repairing a stale baked library path. The first
