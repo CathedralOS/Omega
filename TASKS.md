@@ -2436,109 +2436,63 @@ syntax and other terminal services are not prerequisites.
   loan admission; **TERMINAL-SLICE-VIEW-VOCABULARY** owns broader view bounds;
   **PLAN-LAID-VIEWS** owns provider-backed establishment and access plans.
 
-- **ASSUMED-BINDING-CONTRACTS.** (new-scope) Implement the root-only
-  [`Build::assume_binding_contract<Required::operation, Supplied::operation>()`](wiki/spec/build/assumed_binding_contracts.md)
-  relationship through existing Build/provider installation, Terminal evidence,
-  interpreter/native call custody and package review. Both sides stay checked
-  against their own contracts; retain the exact assumed entry/exit difference,
-  authorized issuer/subject mapping and selected implementation closure, never
-  a forged `satisfies` row or unchecked assembly body.
-  Acceptance: source caller -> root-selected link -> honestly checked supplier
-  executes with the caller-facing qualification; direct supplier calls gain no
-  qualification. Cover input-side authority too. Reject carrier, order, passing
-  mode, ABI, lifetime/custody and operational incompatibility, incomplete or
-  cyclic supply, unapproved roots and stale project acceptance. Install/update/
-  audit surface **Extremely high risk** transitively and require renewed approval
-  for changed contract/implementation identities while keeping lock rows compact.
-  Build helpers, generators, const/layout evaluation and automatic tests reject
-  execution or use of the link's assumptions, including erased evidence. A direct
-  independently checked supplier call remains eligible on its own merits.
-  Implement the settled [refutable-connection exception](wiki/spec/build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing)
-  on this relationship only. An explicitly accepted link from a supplier
-  guaranteeing `result == 0` to a requirement guaranteeing `result == 1` must
-  retain both checked contracts, the contradiction and its supporting facts;
-  unknown and refuted relationships must be distinguished in audit. Cover an
-  input-side contradiction too. Neither the assumption nor its consequences may
-  discharge either body's own checking or the non-assumable compatibility checks.
-  Verify acceptance and source-independent conditional evidence without requiring
-  a particular runtime value or controlled trap after the false premise. Ordinary
-  refutable grants, invalid `satisfies` edges, stale approvals and build-time
-  reliance must still reject. No new override flag or parallel approval surface.
+- **RECAST-SOURCE-POSITIONS.** Carry representation-compatible shared/mutable
+  re-views through checked trees and native execution, following the
+  [recast contract](wiki/spec/layouts/recasts.md). `checking::value_custody::recasts`
+  already judges statement-reachable guards, call arguments and nested operands.
+  `judge_scalar_recast` emits diagnostics but no retained re-view judgment;
+  checked trees have no corresponding representation. Stage 05's
+  `expression_preparation/bindings/structural_fields::resolve` rejects observations
+  whose scalar type differs from the declared field. Retain and replay the
+  compatibility relationship instead of relaxing that equality check. Preserve
+  checked layout/validity, backing identity, lifetime, access and whole-place
+  reads through ordinary expression sequencing and temporary loans.
 
-- **RECAST-SOURCE-POSITIONS.** Finish native execution of inline recasts in
-  guards, call arguments and nested expressions. Reuse their checked admission
-  and whole-place source reads, preserving borrow-polarity rejection. The
-  [recast contract](wiki/spec/layouts/recasts.md) requires representation
-  compatibility, not this source-position restriction.
-  Carry checked layout/validity, backing identity, lifetime and access through
-  ordinary expression sequencing and temporary loans rather than bypassing
-  the recast check. No fixture named `recast_views` exists. Acceptance: valid
-  inline equivalents of supported shared
-  and mutable recasts check and execute; incompatible geometry/validity,
-  access escalation and conflicting backing use reject at the offending
-  location. Preserve precise symbolic/boundary-witness footprint refusals.
+  The committed check/native records reject the `tests/omega/pass/recast`
+  executable customers at local-binding, attached-shape or store planning;
+  `corpus_runner` now realizes entry-bearing fixtures even on its check leg.
+  `nested_operand_view_compile` checks without an executable entry. Reference
+  locals initialized from place loans remain shared work with
+  **STATE-LOCAL-VALUE-FRONTIER** / **REFERENCE-LOCAL-BINDING-ROUTES**; range syntax
+  migration belongs to **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Re-measure each
+  customer's first refusal after those repairs, rather than preserving old stops.
 
-  The `tests/omega/{pass,fail}/recast` corpus is green only through the Check
-  product. `corpus_runner`'s pass route compiles targetless and establishes no
-  program entry, so all 14 `_exit` fixtures record `checked` while none has
-  ever been realized; `omega --check` of the same fixture refuses at
-  `statement sequence: local data: structural call binding`.
-
-  This item's source-position premise is inverted. A minimal pair differing
-  only in the recast's position shows the inline operand is the supported one:
-  `transition (&self.flag as &u8) == 1` establishes its entry and reaches
-  realization, while `let bits: &u8 = &self.flag as &u8;` omits the unit plan
-  at state 0, statement 1. That omission is not about recasts -- `let bits:
-  &bool = &self.flag;` omits identically -- and belongs to
-  **STATE-LOCAL-VALUE-FRONTIER**, which owns reference-typed locals bound to a
-  place loan.
-
-  What remains here is the realization refusal the inline form reaches:
-  `runtime field observation changes its declared scalar type` in
-  `05_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_fields/`.
-  Checked trees record no re-view -- `recast` appears nowhere under
-  `psi/representations/checked-trees/src` -- so lowering sees a field read
-  whose scalar type disagrees with its declaration and has no relationship to
-  re-verify. Carry the re-view into checked trees and re-derive representation
-  compatibility there; relaxing the equality alone removes a real check.
+  Acceptance: let-bound and inline equivalents of supported scalar, record,
+  array and slice re-views execute, with mutable writes visible through the
+  original backing. Run `python3 tools/corpus_gate.py --native --filter recast/`
+  on matching hosts and require the authored exit results. Incompatible
+  geometry/validity, access escalation and conflicting backing use reject at
+  their source locations. Keep proof-only recasts fenced and preserve precise
+  symbolic/boundary-witness footprint refusals and placed-view restrictions.
 
 - **EXTERNAL-DATA-SCHEMA-CONVERSION.** Finish and verify the authored
   preserving-codec customer under the [codec contract](wiki/spec/layouts/codecs.md),
-  not a compiler-special `decode_preserving` path. Admission already recognizes
-  `PreservingDecode`; `wire/wire_preserving_decode_relay_exit` validates a
-  known byte and retains the exact ordered unknown tail in a borrowed
-  `OpaqueWireRemainder`. Its landing established checked compilation, not
-  native success.
+  using ordinary library machines and call/storage/lifetime owners. Admission
+  recognizes `source/library/std/wire.omg`'s `PreservingDecode` requirement.
+  `tests/omega/pass/wire/wire_preserving_decode_relay_exit` validates one known
+  byte and inspects the borrowed remainder's codec identity and ordered tail;
+  it does not yet re-encode a relay. Committed check/native records reject its
+  `DecodeResult<Relayed<LocalMessage>>` binding at `local data: structural result
+  shape`; the fixture's execution comment is not runtime evidence.
 
-  Remeasured on macOS arm64 at 58bd86a4e5: the parameter-custody wall this row
-  recorded at `b725fb771e` is gone, and the omission has moved EARLIER, to
-  `statement sequence: local data: structural result shape` (state 0,
-  statement 3) -- the `let decoded: DecodeResult<Relayed<LocalMessage>> =
-  preserving_decode(..)` binding, before `inspect` is reached at all. Do not
-  chase the recorded parameter-custody phase.
+  Follow `terminal_unit/control/call_results.rs::checked_structural_result_type`
+  into `checking/src/value_custody/storage_contents.rs`.
+  `has_owned_or_shared_view_fields` accepts generic applications only with empty
+  type arguments and handles direct record fields only: removing that first
+  restriction alone does not cover the result sum or its nested borrowed
+  remainder. Finish closed substitution, case/nested-view shape and returned-loan
+  custody through the existing owners; do not add a codec-specific classifier.
+  Preserve exact conformance identity and rejection of unresolved generic
+  returned-carrier lifetime frontiers.
 
-  `terminal_unit/control/call_results.rs::checked_structural_result_type`
-  refuses that type. Measured for it: `has_plain_owned_contents_with_numeric_
-  constraints`, `is_closed_primitive_array_type`, `is_reference_record` and
-  `has_owned_or_shared_view_fields` are all false, multiplicity is `Affine`,
-  and there are no qualifications, so the gate returns `None`. The classifier
-  that should answer is `has_owned_or_shared_view_fields`
-  (`omega-rust/psi/checking/src/value_custody/storage_contents.rs`): it accepts a `Generic`
-  node only when its type arguments are EMPTY, which admits a
-  lifetime-parameterized record and drops an instantiated
-  `DecodeResult<Relayed<LocalMessage>>` to its `_ => return false`. Widen it
-  there rather than adding a second classifier beside the gate. That file is
-  held by another lane's live claim; coordinate before editing it.
-
-  Complete faithful relay through the same selected codec: preserve unknown
-  bytes/order while independently handling the validated known value, reject
-  incompatible codec identity and invalid known input, and retain the input
-  loan while the borrowed remainder is live. Use ordinary library machines and
-  existing call/storage/lifetime owners. Acceptance: the source customer runs
-  on a matching host, relay output preserves the required opaque bytes/order,
-  and codec-substitution, invalid-input and loan-conflict controls reject.
-  Preserve unique historical-migration selection; generated-codec verification
-  and trust remain with their existing owner.
+  Acceptance: execute the source customer on a matching host with an explicit
+  exit-70 oracle, then verify faithful relay through the same selected codec.
+  Independently handle the validated known value while preserving exact unknown
+  bytes/order in the output and retaining the input loan while its remainder
+  lives. Codec substitution, invalid known input and conflicting input-buffer
+  use must reject. Preserve unique historical-migration selection and existing
+  generated-codec verification ownership: `checked-interpreter::verify_wire_schema_codec`
+  supplies finite regression probes, which cannot earn `Derived` trust.
 
 - **SYMBOLIC-MATERIALIZATION.** Restore repeatable native acceptance for the
   existing recursive [derived consumer](wiki/spec/layouts/plans.md#derived-consumers),
@@ -2635,6 +2589,37 @@ syntax and other terminal services are not prerequisites.
   or including padding, pools and callees. Reject missing native realization
   and use in the same product's type/constant/layout or optimization computation.
   Interpreted entry IDs do not receive a fabricated code size or byte region.
+
+- **ASSUMED-BINDING-CONTRACTS.** (new-scope) Implement the root-only
+  [`Build::assume_binding_contract<Required::operation, Supplied::operation>()`](wiki/spec/build/assumed_binding_contracts.md)
+  relationship. `language-semantics::BuildOperation` has no admission for it;
+  `package-manager/review-evidence/src/record/rows.rs` has no corresponding
+  review kind. Extend existing Build/provider installation, Terminal conditional
+  evidence/replay, interpreter/native call custody and package review/lock
+  acceptance. Retain exact entry/exit assumptions, authorized issuer/subject
+  mapping and selected implementation closure through erasure and inlining.
+  Both bodies remain checked against their own contracts.
+
+  Acceptance: a source caller executes through the root-selected link with
+  caller-facing qualification, including input-side authority; direct supplier
+  calls gain none and remain independently eligible. Reject carrier/order,
+  passing-mode, ABI, lifetime/custody and operational incompatibility, incomplete,
+  competing or cyclic supply, unapproved roots and stale project acceptance.
+  Install/update/audit disclose **Extremely high risk** transitively; compact lock
+  rows commit to exact contracts, mapping and implementation closure, requiring
+  renewed acceptance when these change. Build may register the relationship;
+  helpers, generators, const/layout evaluation and automatic tests reject its
+  execution or assumptions, including erased reliance.
+
+  Preserve the settled [refutable-connection exception](wiki/spec/build/assumed_binding_contracts.md#known-contradictions-at-the-trust-crossing):
+  an explicitly accepted supplier guaranteeing `result == 0` may supply a
+  requirement guaranteeing `result == 1`. Retain both contracts, the contradiction
+  and supporting facts; distinguish unknown from refuted in audit and cover an
+  input-side contradiction. Verify source-independent conditional evidence,
+  without promising a runtime value or controlled trap under the false premise.
+  Assumptions cannot discharge either body's checking or non-assumable compatibility.
+  Ordinary refutable grants, invalid `satisfies`, stale approval and build-time
+  reliance still reject. No unchecked body, override flag or parallel approval.
 
 ## P3 - Terminal Psi, PCC, and observation
 
