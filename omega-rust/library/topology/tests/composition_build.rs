@@ -182,8 +182,7 @@ fn the_package_composes_and_a_source_free_consumer_verifies() {
     )
     .expect("ordinary accepted artifact-only production");
     let publication = workspace.join("published");
-    let report = report
-        .publish_completed_build_outputs(&publication)
+    let report = compiler::artifact_publication::publish_compilation(report, &publication)
         .expect("build outputs publish");
     let outputs = report.build_outputs().unwrap();
     let directory = outputs.published_directory().unwrap();

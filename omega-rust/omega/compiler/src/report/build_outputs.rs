@@ -80,55 +80,8 @@ impl RetainedBuildOutputs {
         self.published_directory.as_deref()
     }
 
-    /// Materialize a content-addressed set; the manifest is installed last.
-    /// Existing sets are checked against retained bytes, never adopted by name.
-    /// Failure may leave a partial copy but returns no successful publication.
-    pub(crate) fn publish(&mut self, build_dir: &Path) -> Result<(), String> {
-        let name = self
-            .identity
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect::<String>();
-        let sets = build_dir.join("completed");
-        std::fs::create_dir_all(&sets)
-            .map_err(|error| format!("cannot create completed-output directory: {error}"))?;
-        let directory = sets.join(name);
-        let fresh = match std::fs::create_dir(&directory) {
-            Ok(()) => true,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => false,
-            Err(error) => return Err(format!("cannot create completed-output set: {error}")),
-        };
-        let files = directory.join("files");
-        let manifest = directory.join("manifest.bin");
-        if fresh {
-            std::fs::create_dir(&files)
-                .map_err(|error| format!("cannot create completed-output files: {error}"))?;
-            self.tree
-                .materialize_into(&files)
-                .map_err(|error| error.to_string())?;
-            platform_custody::file_publication::publish_exact_file_bytes(
-                &manifest,
-                &self.manifest,
-            )?;
-        } else {
-            let metadata =
-                std::fs::symlink_metadata(&directory).map_err(|error| error.to_string())?;
-            if !metadata.is_dir() || metadata.file_type().is_symlink() {
-                return Err("completed-output set is not a concrete directory".into());
-            }
-            let metadata =
-                std::fs::symlink_metadata(&manifest).map_err(|error| error.to_string())?;
-            if !metadata.is_file()
-                || metadata.file_type().is_symlink()
-                || std::fs::read(&manifest).map_err(|error| error.to_string())? != self.manifest
-            {
-                return Err("completed-output manifest differs from this compilation".into());
-            }
-            self.tree
-                .verify_materialized_at(&files)
-                .map_err(|error| error.to_string())?;
-        }
+    /// Record the directory after the publisher installs or replays its exact bytes.
+    pub(crate) fn record_publication(&mut self, directory: PathBuf) {
         self.published_directory = Some(directory);
-        Ok(())
     }
 }

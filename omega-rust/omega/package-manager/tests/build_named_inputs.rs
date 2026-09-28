@@ -247,13 +247,17 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
     .expect("ordinary accepted artifact-only production");
     let publication = fixture.0.join("published");
     assert!(!publication.exists());
+    let check_only = compiler::CompileReport::check_only(fixture.0.join("main.omg"), 1).unwrap();
+    assert!(compiler::artifact_publication::publish_compilation(check_only, &publication).is_err());
+    assert!(
+        !publication.exists(),
+        "a non-product cannot create output directories"
+    );
     assert_eq!(
         report.output_kind(),
         compiler::CompileOutputKind::BuildArtifacts
     );
-    let report = report
-        .publish_completed_build_outputs(&publication)
-        .unwrap();
+    let report = compiler::artifact_publication::publish_compilation(report, &publication).unwrap();
     let outputs = report.build_outputs().unwrap();
     let directory = outputs.published_directory().unwrap();
     assert_eq!(
@@ -269,6 +273,14 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
         1
     );
     assert!(report.has_consistent_executable_publication_custody());
+    let repeated_destination = fixture.0.join("republished");
+    assert!(
+        compiler::artifact_publication::publish_compilation(report, &repeated_destination).is_err()
+    );
+    assert!(
+        !repeated_destination.exists(),
+        "published reports cannot install a second time"
+    );
 }
 
 #[test]

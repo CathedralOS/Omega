@@ -146,7 +146,7 @@ fn compose(workspace: &Path) -> Result<PathBuf, String> {
     )
     .map_err(|diagnostics| format!("{diagnostics:?}"))?;
     let publication = workspace.join("published");
-    let report = report.publish_completed_build_outputs(&publication)?;
+    let report = compiler::artifact_publication::publish_compilation(report, &publication)?;
     let outputs = report
         .build_outputs()
         .ok_or_else(|| "no retained build outputs".to_owned())?;

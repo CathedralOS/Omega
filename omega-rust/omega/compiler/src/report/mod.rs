@@ -1,49 +1,21 @@
-//! Product reports, requested file publication, and their custody joins.
+//! Retained compilation products, identities, and publication receipts.
 //!
-//! Start at `CompileReport` in `compile_report.rs`: select the product,
-//! prepare its proof companions and native evidence, install the requested
-//! files, then retain their receipts. The report checks product-specific
-//! payload cardinality and the joins between package, Terminal and native
-//! evidence; it does not compute native publication digests.
+//! `CompileReport` records which payload a compilation produced and validates
+//! its custody joins. It does not choose output paths or install files;
+//! `crate::artifact_publication::publish_compilation` owns that operation.
 //!
-//! `native_artifact::PreparedExecutablePublication` owns native evidence
-//! preparation and receipt construction. Its receipt replays installation
-//! identity and published-file bytes. These custody commitments do not
-//! establish native behavior or receiving authority.
-//!
-//! `build_outputs.rs` selects completed files from sealed build staging.
-//! `publication.rs` prepares proof pairs and their companion paths;
-//! `platform_custody::file_publication` stages, installs and replays exact bytes.
-//! A failure removes newly installed members, reports cleanup failures, and
-//! preserves untouched destinations; replaced files are not restored.
-//!
-//! Publication consumes a finished report, not another compiler request.
-//! Every report constructor checks custody before returning its result.
-//!
-//! A selected macOS GUI product publishes one complete `.app` package through
-//! `native_artifact::publish_macos_application_package` — the executable, the fixed
-//! `Contents/Info.plist`, the exact directory shape, and the three-way
-//! identifier join specified in `wiki/spec/build/macos_application.md` —
-//! instead of the flat executable path. The retained authored
-//! `builder.application` name supplies the basename and inner leaf; the
-//! retained `builder.identifier` must agree with the CodeDirectory identity
-//! already bound into the signed bytes.
-//!
-//! Start at [`CompileReport`] in `compile_report.rs` for product selection,
-//! publication sequencing, and custody validation. Follow
-//! `publication/psi_pair.rs` for preparing and staging the same
-//! Psi artifact/proof pair under Terminal, flat native, and package publication.
-//! `pcc.rs` owns pair receipts and dispatches receiver checking by product kind;
-//! native evidence construction and replay live in `native_artifact::proof`
-//! (`backend/artifacts/native-artifact/src/proof.rs`). Publication policy stays
-//! here; the native artifact crate consumes source-free bytes and evidence.
+//! `build_outputs` selects completed files from sealed build staging;
+//! `terminal_product` retains the portable artifact and native proposal;
+//! production and batch manifests commit their exact subjects. `pcc` describes
+//! published proof pairs and dispatches receiver checking, independently of
+//! producer publication. Native evidence and image receipt construction remain
+//! with `native_artifact`; filesystem mechanics remain with `platform_custody`.
 
 mod batch_manifest;
 mod build_outputs;
 mod compile_report;
 mod pcc;
 mod production_manifest;
-mod publication;
 mod terminal_product;
 
 pub use batch_manifest::{

@@ -68,6 +68,15 @@ one ordinary `CompileReport` or diagnostic result per target, without hiding fai
 siblings. Single-product consumers explicitly use `into_single_report`, which
 rejects any other cardinality. Executable publication remains a later operation.
 
+[artifact_publication.rs](src/artifact_publication.rs) owns that operation:
+`publish_compilation(report, directory)` selects the retained Native, Terminal,
+or build-only product, installs its requested proof pairs, then publishes
+completed build companions. The CLI and library callers use this same entrypoint.
+`CompileReport` owns payload cardinality and receipt joins, not filesystem
+orchestration. Check-only and already-published reports reject before filesystem
+mutation. Backend artifact owners still construct native evidence; platform
+custody owns staging and installation mechanics.
+
 ## Supporting packages
 
 This directory contains the coordinator crate and independent supporting crates.

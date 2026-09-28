@@ -538,6 +538,37 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
     let terminal = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "terminal"))
         .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("the admitted registrar must close its thunk custody at Terminal");
+    let expected_bytes = terminal
+        .artifact()
+        .expect("retained Terminal bytes")
+        .to_bytes();
+    let publication = fixture.root.join("published-terminal");
+    assert!(!publication.exists(), "compilation does not publish files");
+    let terminal = compiler::artifact_publication::publish_compilation(
+        terminal.with_pcc_context(
+            build_evaluation::PccRequests {
+                psi: true,
+                native: false,
+            },
+            proof_admission::AdmissionProfile::default(),
+        ),
+        &publication,
+    )
+    .expect("explicit Terminal publication installs its requested pair");
+    assert_eq!(
+        fs::read(publication.join("main.psi")).unwrap(),
+        expected_bytes
+    );
+    let [proof_pair] = terminal.pcc_publications() else {
+        panic!("exactly one requested Psi proof pair")
+    };
+    assert_eq!(proof_pair.artifact_path, publication.join("main.psi"));
+    assert_eq!(proof_pair.sidecar_path, publication.join("main.psi.proof"));
+    assert_eq!(
+        fs::metadata(&proof_pair.sidecar_path).unwrap().len(),
+        proof_pair.sidecar_byte_len
+    );
+    assert!(terminal.has_consistent_executable_publication_custody());
     let retained = terminal
         .into_retained_terminal_artifact()
         .expect("Terminal product owns the private callback sidecar");
