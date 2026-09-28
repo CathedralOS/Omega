@@ -455,6 +455,55 @@ pre_allocation_cases! {
         EquivalentCompare;
 }
 
+/// `SelectedConstantBranchFoldV1` on AArch64. The rule's decided-branch
+/// descriptors bind each target's machine-effect catalog — the branch row
+/// must encode `ConditionalRelativeBranchV1` and the jump row
+/// `UnconditionalRelativeBranchV1` — so the matrix's x86-64 leg alone does
+/// not show the declared control relationship admits the other
+/// architecture's rows. The same compiler-produced workload commits and
+/// replays on `linux_arm64`.
+mod constant_branch_fold_aarch64 {
+    use super::*;
+    use crate::ValidatedPreAllocationTransformation;
+    use crate::selected_optimization::SelectedInstructionOptimizationEvidence;
+
+    const CASE: CoverageCase = CoverageCase {
+        selection: Optimization::SelectedConstantBranchFoldV1,
+        sibling: Optimization::SelectedSameBlockCopyI64RemovalV1,
+        positive: constant_branch,
+        target: target::NativeTarget::linux_arm64,
+        pressure: 0,
+        commits,
+    };
+
+    fn commits(evidence: &SelectedInstructionOptimizationEvidence) -> bool {
+        match evidence {
+            SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+                run.steps().iter().any(|step| {
+                    matches!(
+                        step.transformation(),
+                        ValidatedPreAllocationTransformation::ConstantBranch(_)
+                    )
+                })
+            }
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn exact_selection() {
+        assert_exact_selection_leg(&CASE);
+    }
+    #[test]
+    fn disabled() {
+        assert_disabled_leg(&CASE);
+    }
+    #[test]
+    fn downstream_replay() {
+        assert_downstream_replay_leg(&CASE);
+    }
+}
+
 /// `SelectedAddressOffsetFoldV1` cannot commit through the public stage
 /// entrance. Every `AddressOffset` producer pairs its result with a consumer
 /// the rule's admission table does not cover: byte-field reads and stores feed

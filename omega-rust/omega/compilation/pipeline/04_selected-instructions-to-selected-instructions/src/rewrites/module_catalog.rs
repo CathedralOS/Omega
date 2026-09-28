@@ -241,10 +241,11 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
     },
     RewriteModuleRow {
-        // The four declarative pair families beyond the literal-fold
-        // grammar (`condition_materialization`, `copied_call_operand`,
-        // `projected_access`, `terminator_pair`) and their shared
-        // `condition_flow` walk.
+        // The three staged declarative pair families beyond the
+        // literal-fold grammar (`condition_materialization`,
+        // `copied_call_operand`, `projected_access`) and the
+        // materialization family's `condition_flow` walk. The former
+        // `terminator_pair` descriptors execute inside `constant_branch`.
         module: "peepholes",
         route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
     },

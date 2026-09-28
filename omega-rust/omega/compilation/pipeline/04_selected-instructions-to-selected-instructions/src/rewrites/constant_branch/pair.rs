@@ -1,30 +1,34 @@
-//! Declarative terminator-pair descriptors: producer, consumer, and the
-//! rewritten form plus the admissibility axes each must satisfy.
+//! Declarative decided-branch descriptors: the condition-state producer,
+//! the conditional-branch consumer, the `Jump` rewrite, and the
+//! admissibility axes each pair must satisfy.
 //!
 //! The [`literal_fold`](crate::rewrites::selected_lowering) pair grammar
 //! describes instruction-to-instruction pairs — an ordinary consumer operand
 //! carries the materialized victim, so its descriptor vocabulary has no way
 //! to name the consumer every block actually ends on: the terminator-carried
 //! instruction, whose traffic flows through implicit physical units rather
-//! than an explicit operand. This module extends the same declaration
+//! than an explicit operand. This table extends the same declaration
 //! discipline to that consumer position. A [`TerminatorPairRule`] declares
 //! one (producer kind, consumer kind, rewritten kind) triple and the axes
-//! the relationship must satisfy; the producer consults its own descriptor
-//! when admitting a candidate, while the independent replay re-derives the
-//! whole grammar — consumer variant, flag-unit flow, operand resolution,
-//! and decided edge — from the instruction records alone and never reads a
-//! rule.
+//! the relationship must satisfy; `admission` consults its own descriptor
+//! when admitting a candidate, while the independent `validation`
+//! re-derives the whole grammar — consumer variant, flag-unit flow, operand
+//! resolution, decided edge, and catalog control surface — from the
+//! instruction records alone and never reads a rule.
 //!
-//! The landed family is the decided condition-state branch: a conditional
-//! branch terminator whose flag reads all reach one condition-state producer
-//! whose operands are compile-time constant becomes the `Jump` carrying the
-//! decided successor. The rewrite carries control flow the instruction-pair
-//! grammar never could — the consumer's alternatives encode
-//! `ConditionalRelativeBranchV1` and the rewritten row encodes
-//! `UnconditionalRelativeBranchV1` — and it exercises unit roles beyond the
-//! retired implicit definitions and operand-swapped preservation the
-//! instruction-pair descriptors already declare: the consumer's flag uses
-//! are *retired* (the compile-time decision replaces the observation), the
+//! The table was staged as `rewrites/unexecuted/peepholes/terminator_pair`
+//! beside this executed family and duplicated its admission. It now lives
+//! at the semantic owner the stage already executes under
+//! `SelectedConstantBranchFoldV1`, so the declared control-flow and unit
+//! relationships reach compiler-produced plans through the one existing
+//! enablement path instead of a second rule identity over the same fold.
+//!
+//! Each rule carries control flow the instruction-pair grammar never could —
+//! the consumer's alternatives encode `ConditionalRelativeBranchV1` and the
+//! rewritten row encodes `UnconditionalRelativeBranchV1` — and unit roles
+//! beyond the retired implicit definitions and operand-swapped preservation
+//! the instruction-pair descriptors declare: the consumer's flag uses are
+//! *retired* (the compile-time decision replaces the observation), the
 //! non-flag control-unit use is *preserved* onto the rewritten row, and the
 //! consumer's implicit definitions and clobbers are *republished* verbatim.
 //! The producer stays: its flag definitions remain published for every
@@ -39,14 +43,14 @@ use selected_instructions::{
 };
 
 use crate::analyses::machine_effects::machine_semantic_kind;
-use crate::rewrites::unexecuted::peepholes::condition_flow::ConditionOperandResolution;
+use crate::rewrites::condition_state::{ConditionOperandResolution, resolved_unit_surface};
 
 /// The implicit physical-unit relationship the rewrite asserts between the
 /// producer's definitions and the consumer's uses — the unit roles the
 /// instruction-pair `PairUnitEffects` vocabulary cannot name because its
 /// consumers carry the victim in an explicit operand.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminatorPairUnitFlow {
+pub(super) enum TerminatorPairUnitFlow {
     /// The producer's implicit definitions feed the consumer's
     /// condition-state uses. Every flag-universe unit — the units any of the
     /// environment's condition-state producer rows defines — that the
@@ -67,7 +71,7 @@ pub enum TerminatorPairUnitFlow {
 /// The control-flow relationship the rewrite carries between the consumer's
 /// and the rewritten form's effect declarations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TerminatorPairControlFlow {
+pub(super) enum TerminatorPairControlFlow {
     /// Every consumer alternative encodes `ConditionalRelativeBranchV1` and
     /// every rewritten alternative encodes `UnconditionalRelativeBranchV1`;
     /// both declarations carry the control-flow barrier and are otherwise
@@ -83,11 +87,11 @@ pub enum TerminatorPairControlFlow {
 /// kind, the rewritten form, and the axes the relationship must satisfy.
 ///
 /// The descriptor declares admissibility; it never certifies it. The
-/// producer consults its own rule through [`TerminatorPairRule::for_pair`]
-/// and the axes' `admits_*` predicates; the replay in `validate` re-derives
+/// producer consults its own rule through [`terminator_pair_for`]
+/// and the axes' `admits_*` predicates; `validation` re-derives
 /// the grammar from the instruction records without reading this table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TerminatorPairRule {
+pub(super) struct TerminatorPairRule {
     producer: MachineSemanticKind,
     consumer: MachineSemanticKind,
     rewritten: MachineSemanticKind,
@@ -111,83 +115,83 @@ impl TerminatorPairRule {
     };
 
     /// `compare left, right` deciding a nonzero/zero branch.
-    pub const COMPARE_BRANCH_NONZERO: Self = Self::DECIDED_BRANCH;
+    pub(super) const COMPARE_BRANCH_NONZERO: Self = Self::DECIDED_BRANCH;
     /// `compare left, right` deciding an unsigned-less-than branch.
-    pub const COMPARE_BRANCH_U64_LESS_THAN: Self = Self {
+    pub(super) const COMPARE_BRANCH_U64_LESS_THAN: Self = Self {
         consumer: MachineSemanticKind::ConditionalBranchU64LessThan,
         ..Self::DECIDED_BRANCH
     };
     /// `compare left, right` deciding a signed-less-than branch.
-    pub const COMPARE_BRANCH_I64_LESS_THAN: Self = Self {
+    pub(super) const COMPARE_BRANCH_I64_LESS_THAN: Self = Self {
         consumer: MachineSemanticKind::ConditionalBranchI64LessThan,
         ..Self::DECIDED_BRANCH
     };
     /// `compare left, immediate` deciding a nonzero/zero branch.
-    pub const COMPARE_IMMEDIATE_BRANCH_NONZERO: Self = Self {
+    pub(super) const COMPARE_IMMEDIATE_BRANCH_NONZERO: Self = Self {
         producer: MachineSemanticKind::CompareI64Immediate,
         operand_resolution: ConditionOperandResolution::RegisterAndKindImmediate,
         ..Self::DECIDED_BRANCH
     };
     /// `compare left, immediate` deciding an unsigned-less-than branch.
-    pub const COMPARE_IMMEDIATE_BRANCH_U64_LESS_THAN: Self = Self {
+    pub(super) const COMPARE_IMMEDIATE_BRANCH_U64_LESS_THAN: Self = Self {
         consumer: MachineSemanticKind::ConditionalBranchU64LessThan,
         ..Self::COMPARE_IMMEDIATE_BRANCH_NONZERO
     };
     /// `compare left, immediate` deciding a signed-less-than branch.
-    pub const COMPARE_IMMEDIATE_BRANCH_I64_LESS_THAN: Self = Self {
+    pub(super) const COMPARE_IMMEDIATE_BRANCH_I64_LESS_THAN: Self = Self {
         consumer: MachineSemanticKind::ConditionalBranchI64LessThan,
         ..Self::COMPARE_IMMEDIATE_BRANCH_NONZERO
     };
     /// `compare left, 0` deciding a nonzero/zero branch.
-    pub const COMPARE_ZERO_BRANCH_NONZERO: Self = Self {
+    pub(super) const COMPARE_ZERO_BRANCH_NONZERO: Self = Self {
         producer: MachineSemanticKind::CompareI64Zero,
         operand_resolution: ConditionOperandResolution::RegisterAndZeroBound,
         ..Self::DECIDED_BRANCH
     };
     /// `compare left, 0` deciding an unsigned-less-than branch.
-    pub const COMPARE_ZERO_BRANCH_U64_LESS_THAN: Self = Self {
+    pub(super) const COMPARE_ZERO_BRANCH_U64_LESS_THAN: Self = Self {
         consumer: MachineSemanticKind::ConditionalBranchU64LessThan,
         ..Self::COMPARE_ZERO_BRANCH_NONZERO
     };
     /// `compare left, 0` deciding a signed-less-than branch.
-    pub const COMPARE_ZERO_BRANCH_I64_LESS_THAN: Self = Self {
+    pub(super) const COMPARE_ZERO_BRANCH_I64_LESS_THAN: Self = Self {
         consumer: MachineSemanticKind::ConditionalBranchI64LessThan,
         ..Self::COMPARE_ZERO_BRANCH_NONZERO
     };
 
-    pub const fn producer(self) -> MachineSemanticKind {
+    pub(super) const fn producer(self) -> MachineSemanticKind {
         self.producer
     }
-    pub const fn consumer(self) -> MachineSemanticKind {
+    pub(super) const fn consumer(self) -> MachineSemanticKind {
         self.consumer
     }
-    pub const fn rewritten(self) -> MachineSemanticKind {
+    pub(super) const fn rewritten(self) -> MachineSemanticKind {
         self.rewritten
     }
-    pub const fn operand_resolution(self) -> ConditionOperandResolution {
+    pub(super) const fn operand_resolution(self) -> ConditionOperandResolution {
         self.operand_resolution
     }
-    pub const fn unit_flow(self) -> TerminatorPairUnitFlow {
+    pub(super) const fn unit_flow(self) -> TerminatorPairUnitFlow {
         self.unit_flow
     }
-    pub const fn control(self) -> TerminatorPairControlFlow {
+    pub(super) const fn control(self) -> TerminatorPairControlFlow {
         self.control
     }
 
     /// Whether `kind` is the consumer this rule declares.
-    pub(crate) fn matches_consumer(&self, kind: SelectedInstructionKind) -> bool {
+    pub(super) fn matches_consumer(&self, kind: SelectedInstructionKind) -> bool {
         machine_semantic_kind(kind) == self.consumer
     }
 
     /// Whether `kind` is the producer this rule declares.
-    pub(crate) fn matches_producer(&self, kind: SelectedInstructionKind) -> bool {
+    pub(super) fn matches_producer(&self, kind: SelectedInstructionKind) -> bool {
         machine_semantic_kind(kind) == self.producer
     }
 
     /// The declared consumer kind pairs with exactly one terminator
     /// variant; a record pairing the kind with a different variant is not
     /// the form the rule describes and cannot decide an arm.
-    pub(crate) fn matches_terminator(&self, terminator: &SelectedTerminator) -> bool {
+    pub(super) fn matches_terminator(&self, terminator: &SelectedTerminator) -> bool {
         matches!(
             (self.consumer, terminator),
             (
@@ -206,7 +210,7 @@ impl TerminatorPairRule {
     /// The successor the consumer selects for the decided `(left, right)`
     /// state, or `None` when the terminator's variant is not the one the
     /// declared consumer kind pairs with.
-    pub(crate) fn decided_successor<'terminator>(
+    pub(super) fn decided_successor<'terminator>(
         &self,
         terminator: &'terminator SelectedTerminator,
         left: u64,
@@ -260,7 +264,7 @@ impl TerminatorPairRule {
     /// must republish the consumer's implicit definitions and clobbers
     /// verbatim — the flag uses retire while the control-unit use and the
     /// definitions are preserved.
-    pub(crate) fn admits_unit_flow(
+    pub(super) fn admits_unit_flow(
         &self,
         flag_uses: &[register_model::RegisterUnitId],
         plain_uses: &[register_model::RegisterUnitId],
@@ -269,9 +273,7 @@ impl TerminatorPairRule {
     ) -> bool {
         match self.unit_flow() {
             TerminatorPairUnitFlow::ConditionStateResolved => {
-                crate::rewrites::unexecuted::peepholes::condition_flow::resolved_unit_surface(
-                    flag_uses, plain_uses, consumer, rewritten,
-                )
+                resolved_unit_surface(flag_uses, plain_uses, consumer, rewritten)
             }
         }
     }
@@ -282,7 +284,7 @@ impl TerminatorPairRule {
     /// outside the encoded control effect, the consumer encodes a
     /// conditional relative branch on every alternative, and the rewritten
     /// form encodes an unconditional one.
-    pub(crate) fn admits_declarations(
+    pub(super) fn admits_declarations(
         &self,
         consumer: &MachineEffectDeclaration,
         rewritten: &MachineEffectDeclaration,
@@ -306,7 +308,7 @@ impl TerminatorPairRule {
 
 /// Every terminator pair the family declares: each condition-state producer
 /// kind against each conditional-branch consumer kind.
-pub(crate) const TERMINATOR_PAIR_RULES: &[TerminatorPairRule] = &[
+pub(super) const TERMINATOR_PAIR_RULES: &[TerminatorPairRule] = &[
     TerminatorPairRule::COMPARE_BRANCH_NONZERO,
     TerminatorPairRule::COMPARE_BRANCH_U64_LESS_THAN,
     TerminatorPairRule::COMPARE_BRANCH_I64_LESS_THAN,
@@ -322,7 +324,7 @@ pub(crate) const TERMINATOR_PAIR_RULES: &[TerminatorPairRule] = &[
 /// when the family declares no such relationship — several rules matching
 /// one combination is a catalog defect and refuses rather than preferring
 /// table order.
-pub(crate) fn terminator_pair_for(
+pub(super) fn terminator_pair_for(
     producer: MachineSemanticKind,
     consumer: MachineSemanticKind,
 ) -> Option<&'static TerminatorPairRule> {
@@ -339,7 +341,7 @@ pub(crate) fn terminator_pair_for(
 /// The consumer kinds the family declares at all — for admission error
 /// reporting that distinguishes an unadmitted branch kind from an admitted
 /// one whose flag flow or operands refuse.
-pub(crate) fn declared_consumer(kind: SelectedInstructionKind) -> bool {
+pub(super) fn declared_consumer(kind: SelectedInstructionKind) -> bool {
     TERMINATOR_PAIR_RULES
         .iter()
         .any(|rule| rule.matches_consumer(kind))
@@ -347,7 +349,7 @@ pub(crate) fn declared_consumer(kind: SelectedInstructionKind) -> bool {
 
 /// The declared producer kinds — the condition-state producers whose
 /// implicit definitions the flag universe is computed from.
-pub(crate) fn declared_producers() -> impl Iterator<Item = MachineSemanticKind> {
+pub(super) fn declared_producers() -> impl Iterator<Item = MachineSemanticKind> {
     [
         MachineSemanticKind::CompareI64,
         MachineSemanticKind::CompareI64Immediate,

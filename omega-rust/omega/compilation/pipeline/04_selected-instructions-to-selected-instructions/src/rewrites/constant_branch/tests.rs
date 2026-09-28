@@ -1,8 +1,6 @@
-use super::{
-    ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch,
-    fold_selected_constant_branch, validate_constant_branch_fold,
-};
+use super::{ConstantBranchError, ConstantBranchReceipt, ValidatedConstantBranch};
 use crate::ValidatedSelectedAnalysis;
+use crate::analyses::validated_machine_effect_catalog;
 use crate::rewrites::test_support::{instruction, measured_step_budget};
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
@@ -282,6 +280,55 @@ fn fixture(
         },
         transformed: std::sync::Arc::new(plan),
     }
+}
+
+/// The machine-effect catalog the stage binds for `environment` — the
+/// declarations the decided-branch pair descriptors resolve their control
+/// surfaces in.
+fn catalog(
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+) -> std::sync::Arc<selected_instructions::ValidatedMachineEffectCatalog> {
+    validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap()
+}
+
+/// The stage-bound fold: the environment's own validated catalog, exactly
+/// as the pre-allocation pass binds it. Tests that exercise a foreign or
+/// corrupted catalog call `super::fold_selected_constant_branch` directly.
+fn fold_selected_constant_branch(
+    source: &impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    branch: SelectedInstructionId,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<ValidatedConstantBranch, ConstantBranchError> {
+    super::fold_selected_constant_branch(
+        source,
+        function_index,
+        branch,
+        environment,
+        &catalog(environment),
+        budget,
+    )
+}
+
+/// The stage-bound independent replay, binding the environment's catalog.
+fn validate_constant_branch_fold(
+    source: &impl ValidatedSelectedAnalysis,
+    function_index: usize,
+    branch: SelectedInstructionId,
+    environment: &register_environment::ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+    proposed: SelectedInstructionPlan,
+) -> Result<ValidatedConstantBranch, ConstantBranchError> {
+    super::validate_constant_branch_fold(
+        source,
+        function_index,
+        branch,
+        environment,
+        &catalog(environment),
+        budget,
+        proposed,
+    )
 }
 
 fn keys(
@@ -1034,6 +1081,77 @@ fn replay_rejects_anything_but_the_exact_form() {
             validate_constant_branch_fold(&source, 0, BRANCH, &environment, budget(), proposed)
                 .is_err(),
             "mutation {mutation}"
+        );
+    }
+}
+
+/// The declared control-flow axis binds the stage's own catalog: a catalog
+/// built for another target and constraint inventory, or a branch record
+/// bound to a constraint key no conditional-branch declaration names,
+/// cannot attest the conditional-to-unconditional relationship. Both the
+/// descriptor-driven admission and the independent replay refuse with
+/// `EffectSurfaceMismatch`, on each host architecture's catalog.
+#[test]
+fn effect_surface_mismatches_reject() {
+    for (target, foreign) in [
+        (NativeTarget::linux_x64(), NativeTarget::linux_arm64()),
+        (NativeTarget::macos_arm64(), NativeTarget::windows_x64()),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        let source = fixture(
+            target,
+            IntegerValue::Unsigned(3),
+            IntegerValue::Unsigned(5),
+            BranchShape::NonZero,
+        );
+        let foreign_environment = baseline_target_register_environment(foreign).unwrap();
+        let foreign_catalog = catalog(&foreign_environment);
+        assert_eq!(
+            super::fold_selected_constant_branch(
+                &source,
+                0,
+                BRANCH,
+                &environment,
+                &foreign_catalog,
+                budget()
+            )
+            .unwrap_err(),
+            ConstantBranchError::EffectSurfaceMismatch
+        );
+        let result = fold(&source, &environment).unwrap();
+        assert_eq!(
+            super::validate_constant_branch_fold(
+                &source,
+                0,
+                BRANCH,
+                &environment,
+                &foreign_catalog,
+                budget(),
+                result.transformed().clone()
+            )
+            .unwrap_err(),
+            ConstantBranchError::EffectSurfaceMismatch
+        );
+        // A branch record rebound to the jump row's key: no declaration
+        // pairs that key with the conditional-branch semantic.
+        let rebound = {
+            let mut source = source.clone();
+            let jump_key = environment.selected_keys().jump;
+            let plan = std::sync::Arc::make_mut(&mut source.transformed);
+            let SelectedTerminator::ConditionalBranch { instruction, .. } =
+                &mut plan.functions[0].blocks[0].terminator
+            else {
+                unreachable!("the fixture terminator is a ConditionalBranch")
+            };
+            instruction.constraint = jump_key;
+            let identity = selected_instruction_plan_identity(&source.transformed);
+            source.receipt.source_selected = identity;
+            source.receipt.transformed_selected = identity;
+            source
+        };
+        assert_eq!(
+            fold(&rebound, &environment).unwrap_err(),
+            ConstantBranchError::EffectSurfaceMismatch
         );
     }
 }

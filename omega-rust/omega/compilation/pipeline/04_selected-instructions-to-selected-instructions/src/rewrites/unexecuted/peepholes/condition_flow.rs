@@ -11,12 +11,14 @@
 //! same questions for the constant-condition rewrites, but stays inside the
 //! rewrites subtree, so the pair families' analysis stands alone here and
 //! is shared by the descriptor-driven admissions and the descriptor-free
-//! replays alike. `terminator_pair` reads at a block's terminator position;
-//! `condition_materialization` reads at a mid-block instruction position —
-//! both are `read_position` arguments to the same walk.
+//! replays alike. `condition_materialization` reads at a mid-block
+//! instruction position; the landed constant-branch family, which absorbed
+//! the former `terminator_pair` descriptors, reads at the terminator
+//! position through `rewrites::condition_state` — both are `read_position`
+//! arguments to the same walk.
 use std::collections::{BTreeSet, VecDeque};
 
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnitId};
+use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
     SelectedBlock, SelectedBlockId, SelectedFunction, SelectedInstruction, SelectedInstructionKind,
     SelectedSuccessor, SelectedTerminator, VirtualRegisterId,
@@ -174,31 +176,13 @@ fn plain_use(
     Ok(operand.virtual_register)
 }
 
-/// How a producer record resolves the bits a consumer predicate decides
-/// on — `left - right` in the compare's own direction.
-///
-/// Each variant binds one producer kind's operand grammar: a descriptor
-/// names the grammar rather than leaving admission to infer it from operand
-/// counts, and the replays restate the same grammar from the producer's
-/// kind alone. The grammars are producer-side facts shared by every
-/// condition-state pair family.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ConditionOperandResolution {
-    /// `CompareI64`: two plain `Use` operands. Each register resolves to the
-    /// bits its unique in-function `MaterializeI64` producer publishes — a
-    /// `UseDef` or a terminator-carried write makes it a second producer and
-    /// refuses — or both operands name the same register, where `x - x`
-    /// fixes the state at `(0, 0)` whatever produced `x`.
-    TwoRegisterOperands,
-    /// `CompareI64Immediate`: operand 0 resolves as under
-    /// [`TwoRegisterOperands`](Self::TwoRegisterOperands); the right operand
-    /// is the literal the kind's `immediate` field carries.
-    RegisterAndKindImmediate,
-    /// `CompareI64Zero`: operand 0 resolves as under
-    /// [`TwoRegisterOperands`](Self::TwoRegisterOperands); the right operand
-    /// is the kind's zero bound.
-    RegisterAndZeroBound,
-}
+/// The producer operand grammars are owned by the executed
+/// `rewrites::condition_state`, which the landed constant-branch family's
+/// descriptors bind; the staged materialization family names the same
+/// vocabulary rather than a parallel copy.
+pub(super) use crate::rewrites::condition_state::{
+    ConditionOperandResolution, resolved_unit_surface,
+};
 
 /// The `(left, right)` bit patterns the producer's published flag state
 /// describes — `left - right` in the compare's own direction — under the
@@ -251,33 +235,6 @@ pub(super) fn resolved_operands(
             Ok((materialized_bits(function, left)?, 0))
         }
     }
-}
-
-/// The unit-surface contract every condition-resolved rewrite republishes,
-/// shared by the pair families: the flag uses retire — the compile-time
-/// decision replaces the observation — while every non-flag unit the
-/// consumer record used must stay read on the rewritten row, the rewritten
-/// row republishes the consumer's implicit definitions and clobbers
-/// verbatim, and it may read no unit the consumer did not read. The
-/// terminator family's `Jump` row carries the control unit forward under
-/// this contract; the materialization family's `MaterializeI64` row reads
-/// nothing, so its consumer may carry flag uses only.
-pub(super) fn resolved_unit_surface(
-    flag_uses: &[RegisterUnitId],
-    plain_uses: &[RegisterUnitId],
-    consumer: &SelectedInstruction,
-    rewritten: &RegisterInstructionConstraint,
-) -> bool {
-    !flag_uses.is_empty()
-        && plain_uses
-            .iter()
-            .all(|unit| rewritten.implicit_uses.contains(unit))
-        && rewritten.implicit_defs == consumer.implicit_defs
-        && rewritten.clobbers == consumer.clobbers
-        && rewritten
-            .implicit_uses
-            .iter()
-            .all(|unit| consumer.implicit_uses.contains(unit))
 }
 
 /// A condition-state event located by block and instruction-stream
