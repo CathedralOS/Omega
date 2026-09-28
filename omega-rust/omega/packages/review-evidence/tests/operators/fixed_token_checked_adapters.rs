@@ -522,7 +522,12 @@ fn checked_requirement_review_revalidates_the_exact_edge_and_body() {
     if host_target_name().is_none() {
         return;
     }
-    let source = BINARY_SUBTRACT.replace("boundary operator", "boundary machine");
+    let source = BINARY_SUBTRACT
+        .replace("boundary operator", "boundary machine")
+        .replace(
+            "right: i32) -> i32;",
+            "right: i32) -> i32 requires 0i32 <= right;",
+        );
     let checked = compile_fixture(&source);
     let provider_index = checked
         .typed
@@ -566,6 +571,32 @@ fn checked_requirement_review_revalidates_the_exact_edge_and_body() {
         .unwrap()
         .is_public = false;
     assert!(project_checked_package_review(&hidden).is_err());
+}
+
+#[test]
+fn private_checked_requirement_retains_its_audited_contract() {
+    if host_target_name().is_none() {
+        return;
+    }
+    let source = BINARY_SUBTRACT
+        .replace("pub boundary operator", "boundary machine")
+        .replace(
+            "pub machine CheckedMathProvider",
+            "machine CheckedMathProvider",
+        )
+        .replace(
+            "right: i32) -> i32;",
+            "right: i32) -> i32 requires 0i32 <= right;",
+        );
+    let checked = compile_fixture(&source);
+    let review = project_checked_package_review(&checked)
+        .expect("private requirements are audited without publishing their names");
+    let requirement = review
+        .callables()
+        .iter()
+        .find(|callable| callable.supply() == PackageReviewCallableSupply::TopLevelRequirement)
+        .expect("private requirement");
+    assert_eq!(requirement.contracts().len(), 1);
 }
 
 #[test]

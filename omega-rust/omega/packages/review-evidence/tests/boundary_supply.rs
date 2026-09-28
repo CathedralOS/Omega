@@ -8,6 +8,8 @@ mod external_executable_supply;
 mod machine_telescopes;
 #[path = "boundary_supply/primitive_float_supply.rs"]
 mod primitive_float_supply;
+#[path = "boundary_supply/private_requirements.rs"]
+mod private_requirements;
 #[path = "boundary_supply/requirement_lifetimes.rs"]
 mod requirement_lifetimes;
 #[path = "boundary_supply/static_telescopes.rs"]

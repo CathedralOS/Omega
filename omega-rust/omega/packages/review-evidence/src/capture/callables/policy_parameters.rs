@@ -46,10 +46,6 @@ pub(super) fn type_parameters(
         &[],
         &scopes,
         public_nominals,
-        if machine.is_public || machine.supply_mode.is_boundary_declaration() {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
-        } else {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-        },
+        crate::capture::contracts::facts::callable_contract_exposure(machine),
     )
 }

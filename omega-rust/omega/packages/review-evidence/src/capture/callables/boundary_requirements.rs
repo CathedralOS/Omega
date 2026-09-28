@@ -32,9 +32,9 @@ pub(super) fn project_checked_requirement_realization(
             machine.name, requirement.name,
         ))]);
     }
-    if !requirement.is_public {
+    if machine.is_public && !requirement.is_public {
         return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes non-public top-level requirement `{}` whose complete contract is absent from package review",
+            "reviewed public callable `{}` exposes private top-level requirement `{}`",
             machine.name, requirement.name,
         ))]);
     }
@@ -70,12 +70,8 @@ pub(super) fn project_top_level_requirement_external_supply(
             machine.name, requirement.name
         ))]);
     }
-    if !requirement.is_public {
-        return Err(vec![Diagnostic::error(format!(
-            "reviewed callable `{}` realizes non-public top-level requirement `{}` whose complete contract is absent from package review",
-            machine.name, requirement.name
-        ))]);
-    }
+    // Review retains every boundary requirement, including private ones.
+    // Visibility controls source access, not whether its trust is audited.
     let requirement_parameters = compilation.machine_type_parameters(requirement);
     validation::revalidate_top_level_requirement_realization(
         &compilation.typed,

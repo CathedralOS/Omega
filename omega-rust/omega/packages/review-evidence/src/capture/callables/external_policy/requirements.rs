@@ -88,11 +88,9 @@ pub(super) fn project(
             if conformance.symbol != requirement.symbol {
                 return Err(rejected("external top-level requirement owner drifted"));
             }
-            if !requirement.is_public
-                || matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic)
-            {
+            if matches!(binding, PackageReviewExternalBinding::CompilerIntrinsic) {
                 return Err(rejected(
-                    "external top-level requirement lacks a public contract or supported closed execution",
+                    "external top-level requirement lacks supported closed execution",
                 ));
             }
             validation::revalidate_top_level_requirement_realization(

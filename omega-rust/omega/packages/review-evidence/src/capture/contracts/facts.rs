@@ -37,21 +37,30 @@ impl ContractProjectionContext<'_> {
     }
 }
 
+/// Reconstruct frontend exposure, not audit inclusion. Private carrier-owned
+/// requirements are audited trust surfaces without publishing their names.
+pub(crate) fn callable_contract_exposure(
+    machine: &typed_trees::machine::Machine,
+) -> language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    use language_semantics::MachineSupplyMode;
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
+    if machine.is_public
+        || matches!(
+            machine.supply_mode,
+            MachineSupplyMode::Boundary | MachineSupplyMode::AdmissionClaim
+        )
+    {
+        AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        AuthoredDeclarationSelectionExposure::PrivateImplementation
+    }
+}
+
 pub(crate) fn project_callable_contracts(
     compilation: &PackageReviewInput<'_>,
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
-) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
-    project_callable_contracts_with_exposure(compilation, machine, entry, binders, language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface)
-}
-
-pub(crate) fn project_callable_contracts_with_exposure(
-    compilation: &PackageReviewInput<'_>,
-    machine: &typed_trees::machine::Machine,
-    entry: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-    selection_exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
 ) -> Result<Vec<PackageReviewCallableContract>, Vec<Diagnostic>> {
     let parameters = compilation.state_parameters(entry);
     let context = ContractProjectionContext {
@@ -68,7 +77,7 @@ pub(crate) fn project_callable_contracts_with_exposure(
         data_symbol: None,
         lifetime_binders: &machine.lifetime_parameters,
         lifetime_substitutions: &[],
-        selection_exposure,
+        selection_exposure: callable_contract_exposure(machine),
     };
     project_contracts(
         compilation,
@@ -149,11 +158,7 @@ pub(crate) fn project_callable_contract_entailment_stand_down(
         data_symbol: None,
         lifetime_binders: &machine.lifetime_parameters,
         lifetime_substitutions: &[],
-        selection_exposure: if machine.is_public {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
-        } else {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
-        },
+        selection_exposure: callable_contract_exposure(machine),
     };
     let projected =
         project_contracts(compilation, std::slice::from_ref(&exact), &context, binders)?;
