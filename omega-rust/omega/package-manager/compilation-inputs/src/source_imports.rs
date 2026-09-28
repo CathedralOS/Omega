@@ -8,6 +8,7 @@
 mod bindings;
 mod build_prelude;
 mod frontier;
+mod generated;
 mod package_selection;
 mod paths;
 mod project;
@@ -17,6 +18,7 @@ pub use build_prelude::{BuildPrelude, prepare_build_prelude};
 pub use frontier::{
     SourceFile, SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };
+pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 pub use package_selection::{
     MissingDependencyEdge, ReconciledPackageImport, ReconciledPackageImportRequest,
     reconciled_package_import, source_import_scope,

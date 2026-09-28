@@ -153,6 +153,34 @@ pub struct PreResolutionEvaluation {
 }
 
 impl PreResolutionEvaluation {
+    /// Normalize each generated unit against the same immutable predecessor.
+    /// Siblings must not participate in one another's generic synthesis; only
+    /// their already-normalized roots join the resolver's extension input.
+    pub fn evaluate_extension(
+        units: Vec<syntax_trees::SyntaxTrees>,
+        first_source: source::SourceId,
+        context: BuildTimeSourceContext<'_>,
+    ) -> Result<(syntax_trees::SyntaxTrees, Vec<PreCheckEvaluation>), Vec<diagnostics::Diagnostic>>
+    {
+        let mut syntax = syntax_trees::SyntaxTrees::new(first_source);
+        let mut pre_checks = Vec::with_capacity(units.len());
+        for unit in units {
+            let evaluated = evaluate_pre_resolution(BuildTimeEvaluationRequest {
+                syntax_trees: unit,
+                source_context: Some(BuildTimeSourceContext {
+                    sources: context.sources.clone(),
+                    source_scoped_top_level_bindings: context.source_scoped_top_level_bindings,
+                    selection_authority: context.selection_authority.clone(),
+                    retained_base: context.retained_base,
+                }),
+            })?;
+            let (unit, pre_check) = evaluated.into_syntax_and_pre_check();
+            syntax.extend_from(&unit);
+            pre_checks.push(pre_check);
+        }
+        Ok((syntax, pre_checks))
+    }
+
     /// Separate the syntax consumed by target filtering and name resolution
     /// from the opaque continuation that owns the matching typed-tree work.
     pub fn into_syntax_and_pre_check(self) -> (syntax_trees::SyntaxTrees, PreCheckEvaluation) {
@@ -211,13 +239,31 @@ impl PreCheckEvaluation {
         Ok(None)
     }
 
+    /// Complete one generated cohort in unit order, retaining deferred work
+    /// with its own wire frontier. Evaluation may append to the predecessor,
+    /// never rewrite it, even when provider-dependent work remains deferred.
     pub fn evaluate_extension_or_defer(
-        mut self,
+        pre_checks: Vec<Self>,
+        retained: &typed_trees::TypedTrees,
         typed: &mut typed_trees::TypedTrees,
-        wire_schema_frontier: usize,
-    ) -> Result<Option<Self>, Vec<diagnostics::Diagnostic>> {
-        self.wire_schema_frontier = wire_schema_frontier;
-        self.evaluate_or_defer(typed)
+    ) -> Result<Vec<Self>, Vec<diagnostics::Diagnostic>> {
+        let mut wire_schema_frontier = retained.wire_schemas().len();
+        let mut pending = Vec::new();
+        for mut pre_check in pre_checks {
+            pre_check.wire_schema_frontier = wire_schema_frontier;
+            if let Some(pre_check) = pre_check.evaluate_or_defer(typed)? {
+                pending.push(pre_check);
+            }
+            wire_schema_frontier = typed.wire_schemas().len();
+        }
+        if !symbol_resolved_trees_to_typed_trees::retained_typed_base_is_exact_prefix(
+            retained, typed,
+        ) {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "generated-source pre-check evaluation changed the retained typed base",
+            )]);
+        }
+        Ok(pending)
     }
 
     /// Finish the deferred const work under exact selected execution.

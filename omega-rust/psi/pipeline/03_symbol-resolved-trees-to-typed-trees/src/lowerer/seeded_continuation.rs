@@ -36,6 +36,33 @@ pub struct SeededTypingBase {
 }
 
 impl SeededTypingBase {
+    /// Admit the resolver's authored-selection suffix against this exact
+    /// typed predecessor, then run transactional append-only lowering.
+    /// The coordinator cannot choose a different ledger for this join.
+    pub fn lower_extension(
+        self,
+        source: syntax_trees_to_symbol_resolved_trees::SeededSymbolResolvedTrees,
+    ) -> Result<TypedTrees, Vec<Diagnostic>> {
+        let rebased = source
+            .rebase_authored_selections_for_typed_continuation(
+                self.typed.authored_declaration_selections(),
+            )
+            .map_err(|(_, error)| {
+                vec![Diagnostic::error(format!(
+                    "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
+                ))]
+            })?;
+        lower_seeded_extension(rebased, self).map_err(|(_, error)| match error {
+            SeededContinuationError::Lowering(diagnostic) => vec![diagnostic],
+            SeededContinuationError::UnsupportedExtensionShape => vec![Diagnostic::error(
+                "generated source uses a declaration shape not yet supported by retained-checkpoint continuation; reconstructing a second frontend is forbidden",
+            )],
+            error => vec![Diagnostic::error(format!(
+                "generated-source continuation violated its retained-base invariant: {error:?}"
+            ))],
+        })
+    }
+
     /// Clone the exact retained predecessor for the append-only seeded
     /// resolver. The continuation later compares the resolver carrier's
     /// retained snapshot back to this owned snapshot before any mutation.
@@ -258,7 +285,7 @@ pub fn lower_seeded_extension(
 }
 
 /// Verify the semantic and custody-bearing base prefix after every extension
-/// phase, including compiler-owned pre-check evaluation performed by Omega.
+/// phase, including the Psi build-time evaluator's pre-check continuation.
 pub fn retained_typed_base_is_exact_prefix(base: &TypedTrees, candidate: &TypedTrees) -> bool {
     let roots_are_prefixes = candidate.retains_exact_root_storage(base);
     let symbol_prefix_is_exact = candidate.symbols.symbols().nodes().len()
