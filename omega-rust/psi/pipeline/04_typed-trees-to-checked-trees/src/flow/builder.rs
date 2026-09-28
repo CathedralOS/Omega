@@ -166,7 +166,8 @@ pub(crate) fn build_flow_facts_with_service_reaches(
         }
         // Each newly reached field contributes one literal and its finite
         // predicate set; parameter qualifications contribute finite membership
-        // cells. Subsequent joins only remove these cells.
+        // cells. Scalar parameter intervals additionally traverse a finite
+        // outward threshold set; their allowance is registered at discovery.
         pass_limit = pass_limit.saturating_add(build.new_state_field_input_height);
         if build.dirty_state_value_inputs.is_empty() {
             if complete_pass {

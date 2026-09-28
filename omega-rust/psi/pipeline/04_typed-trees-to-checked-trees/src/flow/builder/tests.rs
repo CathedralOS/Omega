@@ -77,3 +77,61 @@ fn reverse_chain_source(length: usize, independent: usize) -> String {
     }
     source
 }
+
+#[test]
+fn large_parameter_counter_converges_without_proving_a_false_exit() {
+    let source = r#"
+        machine count() -> u64 {
+            transition { _ -> advance(0) }
+            state advance(value: u64) -> u64 {
+                let next: u64 = ((value as u64 in Wrapping) + 1) as u64;
+                transition value < 100000 {
+                    true -> advance(next)
+                    _ -> finish(value)
+                }
+            }
+            state finish(value: u64) -> u64 { value }
+        }
+    "#;
+    STATE_BUILDS.set(0);
+    let checked =
+        check_against_whole_pass(typed_program(source), &crate::CheckingRequest::settled())
+            .expect("the guarded counter checks");
+    let program = &checked.typed;
+    let state = program
+        .machine_states(&program.machines()[0])
+        .iter()
+        .find(|state| program.symbols.name(state.symbol) == "advance")
+        .unwrap();
+    let parameter = program.state_parameters(state)[0].symbol;
+    let semantic = &checked.facts.semantic;
+    let settled = semantic.facts.iter().find_map(|(_, fact)| {
+        if !matches!(fact.point, facts::ProgramPoint::State { state_symbol, .. } if state_symbol == state.symbol) {
+            return None;
+        }
+        let facts::FactPlace::Place(place) = fact.place else { return None; };
+        if semantic.places.get(place).root != facts::PlaceRoot::Symbol(parameter) { return None; }
+        let facts::FactPayload::AssignedIntegerBounds { bounds } = fact.payload else { return None; };
+        Some(semantic.integer_ranges.get(bounds))
+    }).expect("convergence must retain a settled interval; exhausted-budget fallback erases it");
+    assert!(settled.minimum <= numerics::bignum::BigInt::zero());
+    assert!(settled.maximum >= numerics::bignum::BigInt::from_u64(100000));
+    assert!(
+        STATE_BUILDS.get() < 250,
+        "must not enumerate counter values"
+    );
+    let false_claim = source.replace(
+        "machine count() -> u64 {",
+        "machine count() -> u64 ensures result < 100000 {",
+    );
+    let diagnostics = check_against_whole_pass(
+        typed_program(&false_claim),
+        &crate::CheckingRequest::settled(),
+    )
+    .expect_err("early provisional bounds cannot prove the false exit");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("ensures"))
+    );
+}

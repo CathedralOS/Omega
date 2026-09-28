@@ -13,6 +13,8 @@ use symbols::SymbolHandle;
 use typed_trees::statement::{TransitionExit, TransitionTargetNode};
 
 mod arguments;
+mod parameter_bounds;
+use parameter_bounds::ParameterBounds;
 pub(super) mod fields;
 pub(in crate::flow) mod qualifications;
 pub(super) use arguments::capture_argument;
@@ -31,7 +33,7 @@ pub(super) struct StateValues {
     /// only knows the argument lies inside the widest delivered range.
     /// `put(35) | put(46)` joins `ch` to `[35, 46]`, which is how an
     /// all-ASCII glyph table keeps a `u8` byte store provably in-class.
-    bounds: Vec<(SymbolHandle, Option<facts::IntegerRange>)>,
+    bounds: Vec<ParameterBounds>,
     fields: Vec<fields::FieldValue>,
     qualifications: Vec<qualifications::QualifiedInput>,
 }
@@ -118,29 +120,24 @@ fn join(
                 *value = ScalarValue::Unknown;
             }
         }
-        for (parameter, bound) in &mut previous.bounds {
+        for bound in &mut previous.bounds {
             let next = incoming
                 .bounds
                 .iter()
-                .find(|row| row.0 == *parameter)
-                .and_then(|row| row.1.clone());
-            let before = bound.take();
-            let merged = before
-                .clone()
-                .zip(next)
-                .map(|(before, next)| facts::IntegerRange {
-                    minimum: before.minimum.min(next.minimum),
-                    maximum: before.maximum.max(next.maximum),
-                });
-            if before != merged {
-                changed = true;
-            }
-            *bound = merged;
+                .find(|row| row.symbol == bound.symbol)
+                .and_then(|row| row.bounds.as_ref());
+            changed |= bound.join(program, destination, next, thresholds.as_slice());
         }
     } else {
         changed = true;
         build.new_state_field_input_height += fields::height(&incoming.fields, thresholds.len());
         build.new_state_field_input_height += incoming.qualifications.len();
+        build.new_state_field_input_height = incoming
+            .bounds
+            .iter()
+            .fold(build.new_state_field_input_height, |height, bound| {
+                height.saturating_add(bound.height(thresholds.len()))
+            });
         let mut incoming = incoming;
         for field in &mut incoming.fields {
             field.seed_delivery(source);
@@ -297,7 +294,7 @@ pub(super) fn record_transition(
                 }),
         };
         values.push((parameter.symbol, value));
-        bounds.push((parameter.symbol, bound));
+        bounds.push(ParameterBounds::new(parameter.symbol, bound));
     }
     let fields = fields::capture(
         program,
@@ -432,12 +429,12 @@ pub(super) fn append_entry_context(
         semantic.append_ref(&mut refs, fact);
         semantic.append_context(point, refs);
     }
-    for (parameter, bounds) in &input.bounds {
-        let Some(bounds) = bounds else {
+    for parameter in &input.bounds {
+        let Some(bounds) = &parameter.bounds else {
             continue;
         };
         let mut refs = HandleSpan::empty();
-        let place = semantic.append_symbol_place(*parameter);
+        let place = semantic.append_symbol_place(parameter.symbol);
         let bounds = semantic.integer_ranges.append(bounds.clone());
         let fact = semantic.append_fact(Fact {
             place: FactPlace::Place(place),
