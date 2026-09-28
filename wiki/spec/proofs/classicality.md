@@ -8,11 +8,11 @@ foundation or disguised as translation.
 
 The classification is executable, not only prose:
 `AcceptedProofRule::foundation`
-(`omega-rust/psi/proof/admission/src/classicality.rs`) assigns each
+(`omega-rust/psi/compilation/proof/admission/src/classicality.rs`) assigns each
 rule a `ProofRuleFoundation` by exhaustive match, so a new certificate rule
 does not compile until it is classified. `ProofLemma::foundation` and
 `ForAllInRangeFact::ELIMINATION_FOUNDATION`
-(`omega-rust/psi/proof/src/lemmas.rs`) hold the obligation-side
+(`omega-rust/psi/compilation/proof/src/lemmas.rs`) hold the obligation-side
 lemma vocabulary to the same rule. The module's tests keep the
 boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
 `TrustedAdmission`.
@@ -103,7 +103,7 @@ it would need a new `Proposition` connective and a new `ProofRule`
 variant, which the exhaustive `foundation` classification forces into the
 audit before it compiles.
 
-## Obligation-side lemma library and deciders (`omega-rust/psi/proof`)
+## Obligation-side lemma library and deciders (`omega-rust/psi/compilation/proof`)
 
 These are obligation checkers and premise planners, not certificate rules:
 a checker decides an obligation against declared facts, and whatever it

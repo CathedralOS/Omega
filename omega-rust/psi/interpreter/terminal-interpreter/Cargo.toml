@@ -11,12 +11,12 @@ path = "src/lib.rs"
 [dependencies]
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 numerics = { path = "../../foundation/numerics" }
-terminal-psi = { path = "../../representations/terminal-psi" }
-terminal-codec = { path = "../../representations/terminal-psi/codec" }
-terminal-fuel = { path = "../../representations/terminal-psi/fuel" }
-terminal-verifier = { path = "../../representations/terminal-psi/verification" }
-terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
-proof-admission = { path = "../../proof/admission" }
+terminal-psi = { path = "../../compilation/representations/terminal-psi" }
+terminal-codec = { path = "../../compilation/representations/terminal-psi/codec" }
+terminal-fuel = { path = "../../compilation/representations/terminal-psi/fuel" }
+terminal-verifier = { path = "../../compilation/representations/terminal-psi/verification" }
+terminal-semantics = { path = "../../compilation/representations/terminal-psi/semantics" }
+proof-admission = { path = "../../compilation/proof/admission" }
 
 [dev-dependencies]
-terminal-fixed-fuel = { path = "../../representations/terminal-psi/fuel/certification" }
+terminal-fixed-fuel = { path = "../../compilation/representations/terminal-psi/fuel/certification" }

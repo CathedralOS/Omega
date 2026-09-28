@@ -518,7 +518,7 @@ thereby become interchangeable aliases.
 
 More complex conversion can use a checked adapter. The
 [layout contract](../spec/layouts/plans.md#placement-vocabulary) owns encoding;
-the [implementation note](../../omega-rust/psi/interpreter/build-time-evaluation/layouts.md)
+the [implementation note](../../omega-rust/psi/compilation/compile-time/layouts.md)
 records supported widths and materialization shapes without narrowing the language.
 
 ### Loans, aliases, and phases
@@ -595,7 +595,7 @@ Recasts exclude `Placed<P, T>` and its accessors: another shape could expose a
 field denied by the access plan. Recast a detached ordinary snapshot, or request
 another placement through the underlying qualified extent. See the
 [recast judgment](../spec/layouts/recasts.md) and
-[implementation limits](../../omega-rust/psi/checking/recasts.md).
+[implementation limits](../../omega-rust/psi/compilation/checking/recasts.md).
 
 ## Endianness
 

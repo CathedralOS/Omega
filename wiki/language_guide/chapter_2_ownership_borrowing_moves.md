@@ -165,7 +165,7 @@ Checked helpers must preserve non-observation transitively. A foreign provider
 may physically be able to read the address, so its restriction needs admitted
 provider evidence or enforced isolation. See the [structural access contract](../spec/terminal-psi/structural_access.md#write-only-authority).
 Current source, artifact and native support are distinguished
-[beside Terminal production](../../omega-rust/psi/terminal-production/README.md#structural-access-and-stores).
+[beside Terminal production](../../omega-rust/psi/compilation/pipeline/terminal-production/README.md#structural-access-and-stores).
 
 ## Reborrow Authority and Restoration
 
@@ -332,7 +332,7 @@ correspondence. A dynamic index conservatively includes all possible sources.
 
 The [lifetime specification](../spec/language/lifetimes.md) owns binder syntax,
 elision and carried-loan transport. The compiler's current multiple-input and
-generic returned-view limitations are documented [beside checking](../../omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
+generic returned-view limitations are documented [beside checking](../../omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/README.md#lifetime-source-correspondence).
 Those limitations are not permission to forget unresolved borrows.
 
 ## Storage Carried By Placed Views

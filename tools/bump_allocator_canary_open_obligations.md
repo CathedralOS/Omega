@@ -61,7 +61,7 @@ the stand-down accounting skips.
 
 ## Owning stage + mechanism
 
-Producer: `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/
+Producer: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/
 validation/proof_contracts/contract_entailment.rs` +
 `contract_entailment/inductive_judgment.rs`.
 

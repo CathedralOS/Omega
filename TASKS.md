@@ -1091,7 +1091,7 @@ the complete product bar; focused successes below do not establish that baseline
   `&mut T` at call admission, entry, return and fact handback, including domains
   that reject zero. This is an implementation gap, not an unsettled design.
 
-  Owner: `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees`.
+  Owner: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees`.
   `src/semantic/facts/field_domains.rs` still seeds receiver rows through
   `append_data_field_domain_facts`' zero-validity filter, while
   `append_state_parameter_domain_facts` skips `self` and seeds named parameters
@@ -1960,7 +1960,7 @@ contract bounds, and two-sided emitted-call replay already exist. Remaining:
   invent a parallel selection identity or a second proof system.
 
 Owners: `05_checked-trees-to-lowered-psi/src/retention/closed_reach_applications.rs`,
-`omega-rust/psi/checking/src/machine_calls/static_machine_call_contracts.rs`, and
+`omega-rust/psi/compilation/checking/src/machine_calls/static_machine_call_contracts.rs`, and
 `terminal-psi/verification/src/validation/reach_applications.rs`. Keep ordinary semantic
 replay distinct from optional producer-correspondence certification; neither
 test coverage nor matching hashes justify a full generic-PCC claim.
@@ -2100,9 +2100,9 @@ extend that route through ordinary checked Build execution and retained outputs.
 Finish the [canonical process-exit contract](wiki/spec/language/process_exit.md)
 through source-produced Terminal Psi and independent replay. Core/std declarations,
 checked-interpreter canonical recognition and selected native exit custody exist.
-Terminal's [terminator](omega-rust/psi/representations/terminal-psi/src/terminal_module/control_flow/termination.rs)
+Terminal's [terminator](omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/control_flow/termination.rs)
 has no external-completion variant; the
-[trace codec](omega-rust/psi/representations/terminal-psi/codec/src/sections/terminal_trace_v1_profile.rs) writes zero external rows and
+[trace codec](omega-rust/psi/compilation/representations/terminal-psi/codec/src/sections/terminal_trace_v1_profile.rs) writes zero external rows and
 rejects a nonempty roster. A native nonreturning operation does not fill this gap.
 
 - Close native customer gaps using existing `SelectedProcessExit` custody.
@@ -2146,7 +2146,7 @@ completion syntax or other terminal service is a prerequisite.
   source-created binding or provider lookup repairs missing establishment.
 
   - Complete borrowed `Binding<R>` transport. Psi checking's
-    [carrier placement gate](omega-rust/psi/checking/src/value_custody/type_references.rs)
+    [carrier placement gate](omega-rust/psi/compilation/checking/src/value_custody/type_references.rs)
     still rejects references to the carrier.
     Make `capabilities/uses_caller_folder` lend the caller's field to
     `Librarian::archive(folder: &Binding<Folder>)`; promote
@@ -3324,7 +3324,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   bounds must not delay otherwise legal native programs or add runtime metering.
 
   Reuse `terminal-fixed-fuel`'s
-  [outcome bounds](omega-rust/psi/representations/terminal-psi/fuel/certification/src/fuel_certification/outcome_bounds.rs):
+  [outcome bounds](omega-rust/psi/compilation/representations/terminal-psi/fuel/certification/src/fuel_certification/outcome_bounds.rs):
   acyclic maximum paths, ranked components, conditional/relational contracts,
   linear integer math with multiple variables and carrier extremes, verified
   block invariants and reconstructed entering-edge guards already contribute.
@@ -3614,7 +3614,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 - **IMPLICIT-STORE-CONVERSION.** Finish diagnostic cleanup and migration
   verification under [numeric carrier rules](wiki/spec/language/numeric_values.md)
   and [explicit coercion/erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure).
-  `omega-rust/psi/checking/src/proof_contracts/arithmetic_domains/assignments.rs`'s
+  `omega-rust/psi/compilation/checking/src/proof_contracts/arithmetic_domains/assignments.rs`'s
   `check_narrowing_assignment` already rejects typed carrier/policy changes and
   names `as`, even when the source range fits. Preserve integer widening,
   signedness, float-format and policy-add/drop rejection; anonymous literal
@@ -3652,7 +3652,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   retain their valid behavior. Migrated negative fixtures
   must still reach the intended obligation, as in
   `argument_widening_does_not_reinterpret_saved_wrapping_computations` under
-  `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_bounds/tests/widening.rs`.
+  `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/checks/contracts/call_bounds/tests/widening.rs`.
   Every ordinary cross-carrier/policy store in maintained pass fixtures and samples
   must spell its required conversion. Complete diagnostic and migration evidence
   without treating checked admission or a later lowering refusal as native success.
@@ -4156,7 +4156,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   value expression must preserve a disjoint index-bound fact and invalidate
   the overlapping one, including writes made while evaluating operands.
 
-  Owner: `omega-rust/psi/checking/src/machine_calls/calls/write_frames/`, consumed
+  Owner: `omega-rust/psi/compilation/checking/src/machine_calls/calls/write_frames/`, consumed
   by stage 04's flow mutation and range/progress checks. `CallFrameResolver`
   already shares call/expression summaries and transition fixed points.
   Stage 04's `src/tests/termination/write_frame_aggregate_results.rs` reaches
@@ -4167,7 +4167,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   Complete the source-admission and fact-use joins still represented by
   resolver-only probes in `write_frame_candidate_origins.rs`,
   `write_frame_contextual_cases.rs`, `write_frame_carrier_results.rs` and
-  `omega-rust/psi/checking/tests/wire_codec_write_frames.rs`. Proven candidate
+  `omega-rust/psi/compilation/checking/tests/wire_codec_write_frames.rs`. Proven candidate
   unions must survive computed receivers, codec arguments, nested results,
   state arrivals and stored-reference rebinds. Author explicit output lifetimes
   for multi-input helpers: `borrow/view_link.rs` already retains matching-input
@@ -4195,7 +4195,7 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   Private ranking witnesses stay outside public identity; lineage transports an
   existing live qualification and cannot establish one.
 
-  Owner: `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees`.
+  Owner: `omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees`.
   `src/checks/termination/progress/{origins,lineage,machine_summaries}.rs` already
   recover owned loads, exact callee replacement inputs and some guarded-result
   alternatives. `ParameterLineage::Exact` retains multiple subjects and
@@ -4232,9 +4232,9 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `src/tests/borrow/carrier_results.rs` and `select(forward_array(values)[0])`;
   the earlier-local `select(forward_outer(outer).inner)` already has serialized
   Terminal execution/replay coverage in
-  `omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests/reference_result_source.rs`.
+  `omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/tests/reference_result_source.rs`.
   Complete structural-array ingress and residual cleanup through shared evaluation,
-  retiring superseded `omega-rust/psi/checking/src/machine_calls/calls/expression_scanning/result_realization.rs`
+  retiring superseded `omega-rust/psi/compilation/checking/src/machine_calls/calls/expression_scanning/result_realization.rs`
   shape gates only when real producers preserve custody.
 
   Acceptance: calls evaluate once; result homes, carrier locations, loan occurrences

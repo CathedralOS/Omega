@@ -32,9 +32,9 @@ isa-aarch64 = { path = "../instruction-set-architectures/isa-aarch64" }
 isa-x86_64 = { path = "../instruction-set-architectures/isa-x86_64" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
-terminal-fuel = { path = "../../../../psi/representations/terminal-psi/fuel" }
+terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }
 
 physical-instructions = { path = "../../representations/post-allocation-machine" }
 
 [dev-dependencies]
-terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

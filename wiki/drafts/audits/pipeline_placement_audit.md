@@ -45,7 +45,7 @@ identities, raw evidence and codecs). All confirmed against `pipeline.md`.
 | `omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/preservation/identity.rs` | Sha256 identity producer for preservation receipts | Same family as above; fold into the relocation leg or justify as stage-private receipt |
 | `omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/codec/` | ~50-file durable codec subtree (envelope/evidence/selected/structural) inside the rewrite | Boarded: DURABLE-CODEC-RELOCATION leg (3) — move to `representation-selections` or a named area |
 | `omega/compilation/driver/src/native/optimized_semantic_wrapper_object/` | durable object model + `codec.rs` + manifest inside a compiler coordinator | Boarded: PIPELINE-WRAPPER-OBJECT-ORPHAN; codec leg deferred to PIPELINE-OWNER-CONSOLIDATION per the verified relocation plan |
-| `psi/semantics/terminal-codec/` | the canonical binary codec and `TerminalPsiIdentity` for the whole Terminal Psi representation; the durable types live in `psi/representations/terminal-psi`, the codec+identity live in `semantics/` — the only codec crate in a directory of verifiers/interpreters/validators | **New finding.** Relocate to `psi/representations/` (e.g. beside `terminal-psi`). Note the bound surface: `terminal-codec/build.rs` folds `src/` into `source-closure`, so a move is a source-closure rebind ceremony (see PCC-CANONICAL-SEMANTIC-LEDGER's closure discipline), not a plain `git mv` |
+| `psi/semantics/terminal-codec/` | the canonical binary codec and `TerminalPsiIdentity` for the whole Terminal Psi representation; the durable types live in `psi/compilation/representations/terminal-psi`, the codec+identity live in `semantics/` — the only codec crate in a directory of verifiers/interpreters/validators | **New finding.** Relocate to `psi/compilation/representations/` (e.g. beside `terminal-psi`). Note the bound surface: `terminal-codec/build.rs` folds `src/` into `source-closure`, so a move is a source-closure rebind ceremony (see PCC-CANONICAL-SEMANTIC-LEDGER's closure discipline), not a plain `git mv` |
 | `psi/semantics/checked-interpreter/src/interpreter/evaluator/wire_codec.rs` | compact_binary v0 encoder inside the evaluator | Borderline: the evaluator *models* the wire operation's semantics (era discriminator, field order, bounded writes) — a semantics-side behavior, arguably justified. Record for review; not a clear violation |
 | `psi/semantics/validation/src/machine_calls/calls/write_frames/wire_codecs/` | wire-codec tables inside call validation | Borderline: semantic-side checking of wire framing. Same review flag |
 
@@ -106,7 +106,7 @@ Same method, same commands. Deltas against the `37d18e2104` picture:
 
 **New finding**
 
-- `psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs` —
+- `psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs` —
   `CheckedTreeProductSelectionIdentity([u8; 32])` newtype plus a `Sha256`
   producer inside the transform. Row-1 violation; add to the
   DURABLE-CODEC-RELOCATION leg list (move to `representations/typed-trees` or

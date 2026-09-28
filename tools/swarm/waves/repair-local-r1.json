@@ -22,7 +22,7 @@
       "host": "local",
       "owning_paths": [
         "omega-rust/omega/compilation/driver/src/checked",
-        "omega-rust/psi/terminal-production"
+        "omega-rust/psi/compilation/pipeline/terminal-production"
       ],
       "suggested_first_slice": "reproduce the 41.2 s double-check on samples/cli/basics/print_squares, then carry the checked library under its exact identity instead of rechecking",
       "host_gates": ["which mbx || which cargo"],
@@ -87,9 +87,9 @@
       "item": "NOMINAL-FIELD-FLOW",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/semantic",
-        "omega-rust/psi/checking/src/proof_contracts/default_domains",
-        "omega-rust/psi/checking/src/value_custody",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic",
+        "omega-rust/psi/compilation/checking/src/proof_contracts/default_domains",
+        "omega-rust/psi/compilation/checking/src/value_custody",
         "tests/omega/fail/domains"
       ],
       "suggested_first_slice": "remove the receiver-specific default-domain exception so &mut self is an ordinary &mut T argument; the item's own text says this is implementation cleanup",
@@ -102,7 +102,7 @@
       "item": "TRANSLATION-VALIDATION",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi",
+        "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi",
         "omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical"
       ],
       "suggested_first_slice": "extend derive_operator_physical_span past its Ok(None) arm for the intrinsic families that can actually be produced from source; the linw4 leg parked probes on swarm/linw4-translation-validation",
@@ -142,14 +142,14 @@
       "item": "TYPED-TREES-OWNED-INDEXES",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/lookup",
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts",
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/flow",
-        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
-        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees",
-        "omega-rust/psi/representations/typed-trees",
-        "omega-rust/psi/checking/src/machine_calls",
-        "omega-rust/psi/checking/src/effect_inference"
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/lookup",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/flow",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
+        "omega-rust/psi/compilation/representations/typed-trees",
+        "omega-rust/psi/compilation/checking/src/machine_calls",
+        "omega-rust/psi/compilation/checking/src/effect_inference"
       ],
       "suggested_first_slice": "make TypedTrees own the symbol-to-declaration index its mutating methods invalidate; seven caches already key on TypedTrees::identity — delete the remaining address-keyed ones",
       "host_gates": ["which mbx || which cargo"],
@@ -174,7 +174,7 @@
       "item": "RC-REPOSITORY-CLOSURE",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/representations/terminal-psi/verification",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification",
         "tools/fmt.py"
       ],
       "suggested_first_slice": "the macOS matrix measured fmt drift on 48 sites/31 files, 2 terminal-verifier clippy lints, and a trusted-surface digest miss (zeroed_structural.rs unregistered) — repair what claims cleanly, claim files ad hoc, skip claimed paths with a note",
@@ -187,7 +187,7 @@
       "item": "RC-PCC-REPLAY",
       "host": "local",
       "owning_paths": [
-        "omega-rust/psi/representations/terminal-psi/codec/src",
+        "omega-rust/psi/compilation/representations/terminal-psi/codec/src",
         "omega-rust/psi/interpreter/terminal-interpreter/src",
         "omega-rust/omega/packages/package-manager/src"
       ],
@@ -231,9 +231,9 @@
       "host": "local",
       "layer": 1,
       "owning_paths": [
-        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees",
-        "omega-rust/psi/representations/typed-trees",
-        "omega-rust/psi/terminal-production"
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
+        "omega-rust/psi/compilation/representations/typed-trees",
+        "omega-rust/psi/compilation/pipeline/terminal-production"
       ],
       "suggested_first_slice": "the item's remaining work is the family record (one path, bodies keyed by target) carried through lowering and Terminal Psi — land it with the selection move; terminal-production may be claimed by another lane",
       "host_gates": ["which mbx || which cargo"],

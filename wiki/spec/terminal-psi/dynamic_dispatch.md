@@ -124,7 +124,7 @@ coincide. Known finite indices do not make external plugin bodies statically
 known or remove their ordinary admission and resource obligations. Current
 nongeneric dispatch support is not evidence of implemented family expansion;
 the implementation migration is tracked beside
-[source staging](../../../omega-rust/psi/pipeline/README.md#value-generic-staging).
+[source staging](../../../omega-rust/psi/compilation/pipeline/README.md#value-generic-staging).
 
 ### Selection retention
 

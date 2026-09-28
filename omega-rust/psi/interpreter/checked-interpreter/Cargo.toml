@@ -18,17 +18,17 @@ language-semantics = { path = "../../foundation/language-semantics" }
 numerics = { path = "../../foundation/numerics" }
 source = { path = "../../foundation/source" }
 layout-plans = { path = "../../foundation/layout-plans" }
-typed-trees = { path = "../../representations/typed-trees" }
-checked-trees = { path = "../../representations/checked-trees" }
-validation = { path = "../../checking" }
+typed-trees = { path = "../../compilation/representations/typed-trees" }
+checked-trees = { path = "../../compilation/representations/checked-trees" }
+validation = { path = "../../compilation/checking" }
 
 [dev-dependencies]
 diagnostics = { path = "../../foundation/diagnostics" }
-source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }
-symbol-resolved-trees-to-typed-trees = { path = "../../pipeline/03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-tokens-to-syntax-trees = { path = "../../pipeline/01_tokens-to-syntax-trees" }
-typed-trees-to-checked-trees = { path = "../../pipeline/04_typed-trees-to-checked-trees" }
+source-files-to-tokens = { path = "../../compilation/pipeline/00_source-files-to-tokens" }
+symbol-resolved-trees-to-typed-trees = { path = "../../compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../compilation/pipeline/01_tokens-to-syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../compilation/pipeline/04_typed-trees-to-checked-trees" }
 
 [[test]]
 name = "suite"

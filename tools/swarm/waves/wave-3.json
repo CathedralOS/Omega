@@ -37,8 +37,8 @@
       "item": "MATCH-SELECTIVE-LOWERING",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/checking/src/expression_types",
-        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/tests/value_dispatch.rs",
+        "omega-rust/psi/compilation/checking/src/expression_types",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/tests/value_dispatch.rs",
         "omega-rust/psi/interpreter/checked-interpreter/tests/value_dispatch.rs",
         "tests/native-differential/tests/scalar_case_results.rs"
       ],
@@ -50,8 +50,8 @@
       "item": "MODULE-NAMESPACE-RESOLUTION",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs",
-        "omega-rust/psi/interpreter/build-time-evaluation/src/const_initializers.rs",
+        "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/module_normalization.rs",
+        "omega-rust/psi/compilation/compile-time/src/const_initializers.rs",
         "omega-rust/omega/compilation/driver/compiler/tests/module_machine_indices.rs",
         "omega-rust/omega/compilation/driver/compiler/tests/module_machine_indices"
       ],
@@ -63,9 +63,9 @@
       "item": "CALLBACK-PARAMETER-REQUIREMENT",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/01_tokens-to-syntax-trees/src/parser/machine.rs",
-        "omega-rust/psi/representations/typed-trees/src/typed_trees/calls/signature.rs",
-        "omega-rust/psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/state.rs",
+        "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser/machine.rs",
+        "omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/calls/signature.rs",
+        "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/state.rs",
         "omega-rust/omega/compilation/driver/provider-planning/src/calling_policy_plans.rs",
         "omega-rust/omega/compilation/driver/compiler/tests/calling_policy_plans.rs",
         "omega-rust/omega/compilation/driver/compiler/tests/callback_terminal_custody.rs"
@@ -113,8 +113,8 @@
       "item": "CASE-CONSTRAINTS",
       "host": "linux",
       "owning_paths": [
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/values",
-        "omega-rust/psi/pipeline/05_checked-trees-to-lowered-psi/src/psi_lowering/payloadless_case_return.rs",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/values",
+        "omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/psi_lowering/payloadless_case_return.rs",
         "omega-rust/omega/compilation/driver/compiler/tests/canary_suite/value_and_type_checks.rs",
         "tests/omega/pass/constraints",
         "tests/omega/fail/constraints"
@@ -128,10 +128,10 @@
       "host": "linux",
       "probe_only": true,
       "owning_paths": [
-        "omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/facts",
-        "omega-rust/psi/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
-        "omega-rust/psi/representations/terminal-psi/src",
-        "omega-rust/psi/pipeline/07_lowered-psi-to-terminal-psi/src",
+        "omega-rust/psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/facts",
+        "omega-rust/psi/compilation/representations/checked-trees/src/checked_trees/facts/contract_plans.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/src",
+        "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/src",
         "tests/native-differential/tests/terminal_psi_source/locals_calls_and_short_circuit.rs"
       ],
       "suggested_first_slice": "wave 2 found Terminal Psi has no carrier for a selected-operator crash site (MachineContract carries only crash_routes/requires/ensures); design the smallest Terminal row that carries it, and land it only if codec, verifier, and architecture tests stay one bounded change"

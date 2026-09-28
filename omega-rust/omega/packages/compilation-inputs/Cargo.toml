@@ -13,25 +13,25 @@ test-support = []
 
 [dependencies]
 artifacts = { path = "../../foundation/artifacts" }
-tokens-to-syntax-trees = { path = "../../../psi/pipeline/01_tokens-to-syntax-trees" }
-typed-trees = { path = "../../../psi/representations/typed-trees" }
+tokens-to-syntax-trees = { path = "../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
+typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 flow-effects = { path = "../../../psi/foundation/flow-effects" }
 optimization-core = { path = "../../foundation/optimization-core" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }
-syntax-trees = { path = "../../../psi/representations/syntax-trees" }
-tokens = { path = "../../../psi/representations/tokens" }
-source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }
+syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
+tokens = { path = "../../../psi/compilation/representations/tokens" }
+source-files-to-tokens = { path = "../../../psi/compilation/pipeline/00_source-files-to-tokens" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../foundation/platform-custody" }
 effects = { path = "../../compilation/backend/plans/provider-evidence" }
 target = { path = "../../compilation/backend/target" }
-checked-trees = { path = "../../../psi/representations/checked-trees" }
-build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
+checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
+build-time-evaluation = { path = "../../../psi/compilation/compile-time" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
-terminal-psi = { path = "../../../psi/representations/terminal-psi" }
+terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 source = { path = "../../../psi/foundation/source" }
 sha2 = "0.10.9"

@@ -9,20 +9,20 @@ name = "trust_model"
 path = "src/lib.rs"
 
 [dependencies]
-build-time-evaluation = { path = "../../../../psi/interpreter/build-time-evaluation" }
+build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
 checked-interpreter = { path = "../../../../psi/interpreter/checked-interpreter" }
 effects = { path = "../../backend/plans/provider-evidence" }
-checked-trees = { path = "../../../../psi/representations/checked-trees" }
-checked-trees-to-lowered-psi = { path = "../../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
-lowered-psi = { path = "../../../../psi/representations/lowered-psi" }
-terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
+checked-trees-to-lowered-psi = { path = "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi" }
+lowered-psi = { path = "../../../../psi/compilation/representations/lowered-psi" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
-typed-trees = { path = "../../../../psi/representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/04_typed-trees-to-checked-trees" }
+typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
+typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
 sha2 = "0.10.9"
 
 [dev-dependencies]

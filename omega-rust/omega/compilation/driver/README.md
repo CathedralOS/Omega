@@ -78,7 +78,7 @@ checked pass; eliminating that duplicate semantic work is separate from moving
 the protocol out of the coordinator. There is no compiler-private package gate
 or public raw Build checkpoint that can bypass the evaluation protocol.
 Checked-product selection belongs to
-[Psi stage 04](../../../psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
+[Psi stage 04](../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
 the coordinator supplies the requested roots after rollback; the stage owns the
 identity case, root validation, pruning and selection evidence. It consumes only
 checked trees, not the Omega provider-settlement carrier.
@@ -152,9 +152,9 @@ belong to the package system's independent
 depend on those contracts directly, not on the package-command application.
 
 Target-neutral build evaluation remains in
-[Psi's compiler support](../../../psi/interpreter/build-time-evaluation/README.md).
+[Psi's compiler support](../../../psi/compilation/compile-time/README.md).
 Opaque representation admission belongs to
-[Psi checking](../../../psi/checking/representation-planning/README.md);
+[Psi checking](../../../psi/compilation/checking/representation-planning/README.md);
 provider selection and planning belong to
 [Omega provider realization](../realization/provider-planning/README.md), beside
 [selected execution](../realization/selected-dispatch/README.md).
@@ -188,7 +188,7 @@ proposal-construction errors; neither step publishes or executes an artifact.
 Entry Terminal production retains the unoptimized lowering only for authored
 behavior exclusions. Callback production also needs it for the callback lowering
 receipt. Exclusion admission uses the backend effects checker; on rejection,
-[Psi lowering's source attribution](../../../psi/pipeline/05_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
+[Psi lowering's source attribution](../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/lowered_machine_provenance.rs)
 supplies machine names and declaration spans. That diagnostic mapping is not
 admission evidence.
 
@@ -269,7 +269,7 @@ Today's implementation instead retains one immutable source parse checkpoint
 and runs an exact-target child per configuration: per-target source assembly,
 declaration filtering, build evaluation, provider settlement and checking, with
 request-level policy copied into each configuration.
-[Generated-source continuation](../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees/README.md)
+[Generated-source continuation](../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/README.md)
 owns append custody and [checked settlement](#checked-settlement) owns its
 later ordered joins. The
 [pipeline route items](../../../../TASKS.md#pipeline-route) replace the child

@@ -18,8 +18,8 @@ installed-writer = [
 ]
 
 [dependencies]
-typed-trees-to-checked-trees = { path = "../../../../psi/pipeline/04_typed-trees-to-checked-trees" }
-syntax-trees = { path = "../../../../psi/representations/syntax-trees" }
+typed-trees-to-checked-trees = { path = "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
+syntax-trees = { path = "../../../../psi/compilation/representations/syntax-trees" }
 checked-interpreter = { path = "../../../../psi/interpreter/checked-interpreter" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
@@ -31,30 +31,30 @@ layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
 post-handoff-writer-plan = { path = "../../backend/plans/post-handoff-writer-plan", optional = true }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
-representation-planning = { path = "../../../../psi/checking/representation-planning" }
+representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
 target = { path = "../../backend/target" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 arena = { path = "../../../../psi/foundation/arena" }
-build-time-evaluation = { path = "../../../../psi/interpreter/build-time-evaluation" }
-checked-trees = { path = "../../../../psi/representations/checked-trees" }
-terminal-psi = { path = "../../../../psi/representations/terminal-psi" }
+build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
+checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../../psi/foundation/flow-effects" }
-facts = { path = "../../../../psi/representations/checked-trees/facts" }
+facts = { path = "../../../../psi/compilation/representations/checked-trees/facts" }
 language-core = { path = "../../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
 layout-plans = { path = "../../../../psi/foundation/layout-plans" }
 numerics = { path = "../../../../psi/foundation/numerics" }
 source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
-typed-trees = { path = "../../../../psi/representations/typed-trees" }
-validation = { path = "../../../../psi/checking" }
+typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
+validation = { path = "../../../../psi/compilation/checking" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
-source-files-to-tokens = { path = "../../../../psi/pipeline/00_source-files-to-tokens" }
-terminal-codec = { path = "../../../../psi/representations/terminal-psi/codec" }
-symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/pipeline/03_symbol-resolved-trees-to-typed-trees" }
-syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
-tokens-to-syntax-trees = { path = "../../../../psi/pipeline/01_tokens-to-syntax-trees" }
+source-files-to-tokens = { path = "../../../../psi/compilation/pipeline/00_source-files-to-tokens" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+symbol-resolved-trees-to-typed-trees = { path = "../../../../psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees" }
+syntax-trees-to-symbol-resolved-trees = { path = "../../../../psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees" }
+tokens-to-syntax-trees = { path = "../../../../psi/compilation/pipeline/01_tokens-to-syntax-trees" }
