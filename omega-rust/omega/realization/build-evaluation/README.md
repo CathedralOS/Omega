@@ -9,7 +9,7 @@ cannot obtain an executable checkpoint and skip consent. The private
 `execution` consumes that activation against its selected filesystem.
 The preliminary declaration check still uses the full Psi checked pass. This
 ownership change does not claim to eliminate that duplicate semantic work.
-[Compilation products](../../realization/compilation-products/src/evaluated_build.rs)
+[Compilation products](../compilation-products/src/evaluated_build.rs)
 owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exported
 here for callers. Evaluation produces those records; consumers need not import
 the evaluator merely to retain its result.
@@ -29,14 +29,14 @@ Build configuration, then asks that owner to settle outputs and select generated
 sources. It does not assemble durable filesystem evidence itself.
 
 Authored trust grants, component-assumption acceptances, and executed exclusion
-receipts are checked by [realization trust](../../realization/trust-model/README.md).
+receipts are checked by [realization trust](../trust-model/README.md).
 Build evaluation decodes wire demands; Psi's
 [typed-to-checked stage](../../../psi/pipeline/04_typed-trees-to-checked-trees/src/checking.rs)
 checks their meaning before publishing checked trees. Package review reconstructs grants through
 the same trust owner without calling the Build evaluator.
 
 Target-declaration preparation, provider-selection decoding and settlement belong to
-[provider planning](../../realization/provider-planning/README.md), not this
+[provider planning](../provider-planning/README.md), not this
 evaluator. The provider planner retains target-declaration custody and consumes
 it into exact typed defaults and origins. Build execution supplies executed
 selection receipts to that owner, and package review uses its replay. The integration

@@ -100,7 +100,7 @@ members = [
     "omega-rust/omega/backend/object/object-file",
     "omega-rust/omega/foundation/artifacts",
     "omega-rust/omega/package-manager/build-declarations",
-    "omega-rust/omega/compiler/build-evaluation",
+    "omega-rust/omega/realization/build-evaluation",
     "omega-rust/omega/package-manager/build-output",
     "omega-rust/omega/realization/provider-planning",
     "omega-rust/psi/checking/representation-planning",

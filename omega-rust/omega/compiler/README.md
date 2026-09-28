@@ -61,7 +61,7 @@ they do not import the evaluator or coordinator. Compilation still visibly
 schedules the stages and supplies their complete results to sealing.
 The continuation calls resolution and typing directly, including generated-source
 extension, with timing around those actual calls rather than another transition
-module. The existing [Build evaluator](build-evaluation/src/build_evaluation.rs)
+module. The existing [Build evaluator](../realization/build-evaluation/src/build_evaluation.rs)
 owns the complete pre-effect admission/consent/execution protocol and returns
 configuration, restricted requests and the admitted source commitment together.
 Its private declaration-admission operation still uses the preliminary Psi
@@ -132,8 +132,9 @@ custody owns staging and installation mechanics.
 
 ## Supporting packages
 
-This directory contains the coordinator and the remaining independent
-`build-evaluation` package. `src/` belongs only to the coordinator.
+This directory contains only compilation coordination. Build activation belongs to
+[realization/build-evaluation](../realization/build-evaluation/README.md), an
+independent package consumed by the coordinator and package review.
 Project declaration grammar, retained build outputs and compilation-input custody
 belong to the package system's independent
 [declarations](../package-manager/build-declarations/README.md),

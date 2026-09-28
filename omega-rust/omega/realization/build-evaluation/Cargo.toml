@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 artifacts = { path = "../../foundation/artifacts" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
-compilation-products = { path = "../../realization/compilation-products" }
+compilation-products = { path = "../compilation-products" }
 arena = { path = "../../../psi/foundation/arena" }
 language-core = { path = "../../../psi/foundation/language-core" }
 validation = { path = "../../../psi/checking" }
@@ -19,10 +19,10 @@ build-output = { path = "../../package-manager/build-output" }
 effects = { path = "../../backend/plans/provider-evidence" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../../package-manager/compilation-inputs" }
-provider-planning = { path = "../../realization/provider-planning" }
+provider-planning = { path = "../provider-planning" }
 representation-planning = { path = "../../../psi/checking/representation-planning" }
 target = { path = "../../backend/target" }
-trust-model = { path = "../../realization/trust-model" }
+trust-model = { path = "../trust-model" }
 build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

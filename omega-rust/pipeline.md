@@ -154,8 +154,9 @@ This product owner consumes artifact and custody owners without depending
 on compiler orchestration or build evaluation. It is an output lifecycle, not a
 new program representation or pipeline phase. The CLI publishes through it directly.
 
-`omega/compiler/` owns compilation orchestration. Its remaining
-`build-evaluation` child is an independent build admission/execution package.
+`omega/compiler/` owns only compilation orchestration.
+[`omega/realization/build-evaluation/`](omega/realization/build-evaluation/README.md)
+owns Build admission, consent and execution; it is not a new pipeline phase.
 The shared package-input contracts live with the package system, not compiler
 orchestration.
 
@@ -380,7 +381,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   Representation data and candidate production remain independent of checking.
 - Psi `terminal-production/` — checked-program lowering through publication.
 - Psi `interpreter/` — checked and Terminal execution plus compile-time evaluation.
-- `compiler/` — compilation coordination and independent supporting packages.
+- `compiler/` — compilation coordination.
 - Omega `package-manager/` — package operations and independent acquisition,
   resolver execution, and review packages.
 - `backend/` — target, ABI, layout, object, linker, image.

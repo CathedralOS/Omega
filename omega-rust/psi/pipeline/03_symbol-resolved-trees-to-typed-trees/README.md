@@ -9,14 +9,15 @@ limits, not a different generated-source language.
 - [filesystem_scope.rs](../../../omega/package-manager/compilation-inputs/src/build_execution/filesystem_scope.rs) binds request staging and sponsor
   inputs to the package/root filesystem scope. It checks canonical Source metadata
   before reopening review-only replay; it does not admit or execute the build.
-- [build_continuation.rs](../../../omega/compiler/src/checked/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
-  couples the coherent frontend, admitted build, package verdict, and base source
-  map. Execution verifies the returned build symbol. `try_seeded_extension`
-  continues the retained frontend rather than reconstructing it.
-- [build-evaluation](../../../omega/compiler/build-evaluation/src/lib.rs):
-  `AdmittedBuildProgram` retains the prepared program and program-bound entry
-  token with reach/admission, initial Build value, target, scope, and sponsor.
-  Evaluation and replay consume the admitted route.
+- [build_continuation.rs](../../../omega/compiler/src/checked/checking/build_continuation.rs):
+  `evaluate_build_and_continue` schedules Build evaluation, then
+  `continue_generated_sources` resolves and types the extension against the
+  retained frontend rather than reconstructing it.
+- [build-evaluation](../../../omega/realization/build-evaluation/src/build_evaluation.rs):
+  `evaluate_build` owns declaration admission, filesystem preparation, exact
+  machine admission, consent and execution. Its private `AdmittedBuildProgram`
+  retains the prepared program, selected machine, scope and sponsor; the
+  coordinator receives the completed result, not an executable checkpoint.
 - [source assembly](../../../omega/package-manager/compilation-inputs/src/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
   `GeneratedSourceExtension::parse` joins the exact base and produces separate
