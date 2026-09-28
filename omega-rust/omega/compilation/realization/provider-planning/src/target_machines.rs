@@ -226,9 +226,9 @@ impl SelectedTargetMachineDeclarations {
     /// body before checking: calls that resolved to the canonical body move to
     /// the target's sibling, which loses its sibling marker and so brings its
     /// own conformances into selection, while the canonical body becomes that
-    /// target's sibling. A family implemented by two or more targets but not by
-    /// `target` rejects; a single-target helper for another target stays an
-    /// inert sibling with its callers.
+    /// target's sibling. A family with no body for `target` stays inert;
+    /// only a surviving call demands an implementation. The number of foreign
+    /// implementations does not change that obligation.
     pub fn select_product_target(
         &mut self,
         typed: &mut TypedTrees,
@@ -274,19 +274,8 @@ impl SelectedTargetMachineDeclarations {
                     .is_ok_and(|resolved| resolved == target)
             });
             let Some(wanted) = wanted else {
-                if family.members.len() >= 2 {
-                    let providers = family
-                        .members
-                        .iter()
-                        .map(|member| member.target.as_str())
-                        .collect::<Vec<_>>();
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{name}` has no implementation for the selected target -- \
-                         target-scoped implementations exist for: {} (add this target's \
-                         `<target> machine {name}(..)` in that target package)",
-                        providers.join(", "),
-                    )));
-                }
+                // Demote the canonical body before examining calls. Its mere
+                // presence in a shared source set does not demand realization.
                 swaps.push((canonical_index, None, canonical_origin, None));
                 continue;
             };
@@ -1071,6 +1060,60 @@ mod tests {
                 .is_none(),
             "native shape equality must not retain the UEFI canonical body"
         );
+    }
+
+    #[test]
+    fn missing_target_body_is_required_by_calls_not_family_size() {
+        for foreign_profiles in [&["linux_x86_64"][..], &["linux_x86_64", "uefi_x86_64"][..]] {
+            for called in [false, true] {
+                let mut text = String::from("data Helper { seed: u64; }\n");
+                for profile in foreign_profiles {
+                    text.push_str(&format!(
+                        "{profile} machine Helper::value(&self) -> u64 {{ 63 }}\n"
+                    ));
+                }
+                let result = if called { "helper.value()" } else { "7u64" };
+                text.push_str(&format!(
+                    "machine portable(helper: &Helper) -> u64 {{ {result} }}"
+                ));
+                let mut sources = source::SourceMap::default();
+                let source_id = sources.add("helper.omg".into(), text.clone()).source_id;
+                let mut program = syntax(source_id.0, &text);
+                let mut declarations = prepare_target_machines(&mut program, Some(&sources), None)
+                    .expect("foreign families belong to the shared source set");
+                let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+                    syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                        syntax: &program,
+                        sources: Some(std::sync::Arc::new(sources)),
+                        top_level_bindings: Vec::new(),
+                    },
+                )
+                .expect("resolve every target body");
+                let mut typed =
+                    symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                        .expect("type every target body");
+                let selection = declarations
+                    .select_product_target(&mut typed, target::TargetProfile::WindowsX64);
+                if called {
+                    let errors = selection.expect_err("a surviving call needs a Windows body");
+                    assert!(errors.iter().any(|error| {
+                        error.message.contains("call has no implementation")
+                            && error.message.contains("portable")
+                    }));
+                } else {
+                    selection.expect("unused foreign families do not demand a Windows body");
+                    assert!(typed.target_machine_families.iter().all(|family| {
+                        family.members.iter().all(|member| {
+                            typed
+                                .machine_by_symbol(member.machine)
+                                .expect("retained foreign member")
+                                .target
+                                .is_some()
+                        })
+                    }));
+                }
+            }
+        }
     }
 
     #[test]
