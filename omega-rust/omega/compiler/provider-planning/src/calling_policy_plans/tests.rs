@@ -22,7 +22,6 @@ use crate::calling_policy_plans::callback_bindings::validate_callback_requiremen
 use crate::calling_policy_plans::callback_bindings::validate_fresh_native_parameter_report_identity;
 use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
 use crate::calling_policy_plans::plan_computation::build_boundary_signature;
-use crate::calling_policy_plans::plan_computation::validate_authored_abi_shape;
 use crate::calling_policy_plans::plan_computation::validate_materialized_boundary_plan_result;
 use crate::calling_policy_plans::value_shapes::case;
 use build_time_evaluation::BuildTimeValue;
@@ -1197,54 +1196,6 @@ fn callback_closure_reconciliation_requires_the_preclosure_strong_commitment() {
     assert_eq!(reconciled.resource_receipt, original.resource_receipt);
 }
 
-fn four_f32_array_signature() -> MaterializedBoundarySignature {
-    MaterializedBoundarySignature {
-        owner_requirement_identity: "test::Array::call#exact".to_owned(),
-        native_target: NativeTarget::host(),
-        opaque_representations: Vec::new(),
-        shapes: vec![
-            BoundaryValueShape {
-                class: BoundaryValueClass::Float,
-                byte_size: 4,
-                alignment: 4,
-            },
-            BoundaryValueShape {
-                class: BoundaryValueClass::FixedArray {
-                    element: 0,
-                    length: 4,
-                },
-                byte_size: 16,
-                alignment: 4,
-            },
-        ],
-        fields: Vec::new(),
-        parameters: vec![1],
-        callback_binders: Vec::new(),
-        callback_demands: Vec::new(),
-        callback_layout_catalog: Vec::new(),
-        native_parameters: Vec::new(),
-        direct_callback_parameters: Vec::new(),
-        result: None,
-    }
-}
-
-#[test]
-fn recursive_array_classification_is_policy_specific() {
-    let signature = four_f32_array_signature();
-    let hfa = ValueShape::homogeneous_float_aggregate(4, 4);
-    validate_authored_abi_shape(&signature, 1, hfa, CallingPolicy::Aapcs64)
-        .expect("AAPCS64 should classify four f32 elements as an HFA");
-    validate_authored_abi_shape(&signature, 1, hfa, CallingPolicy::SystemVAMD64)
-        .expect("SysV should classify four f32 elements through its SSE aggregate path");
-    validate_authored_abi_shape(
-        &signature,
-        1,
-        ValueShape::integer(16, 4),
-        CallingPolicy::MicrosoftX64,
-    )
-    .expect("Microsoft x64 should classify the fixed array as an indirect aggregate");
-}
-
 #[test]
 fn compatibility_signature_excludes_dispatch_only_table_parameter() {
     let signature = MaterializedBoundarySignature {
@@ -1327,20 +1278,4 @@ fn compatibility_lookup_requires_one_exact_nonempty_overload_identity() {
             "case: {case}",
         );
     }
-}
-
-#[test]
-fn authored_policy_cannot_publish_a_preclassified_shape_for_the_wrong_abi() {
-    let signature = four_f32_array_signature();
-    let error = validate_authored_abi_shape(
-        &signature,
-        1,
-        ValueShape::integer(16, 4),
-        CallingPolicy::Aapcs64,
-    )
-    .expect_err("AAPCS64 policy must preserve the HFA classification");
-    assert!(
-        error.contains("requires HomogeneousFloatAggregate"),
-        "{error}"
-    );
 }

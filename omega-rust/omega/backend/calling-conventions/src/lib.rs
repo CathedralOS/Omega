@@ -10,10 +10,12 @@
 //! capabilities and the external binding rows that bind an operation to a
 //! foreign symbol; `plans` owns the calling-plan vocabulary, `stack_realizations`
 //! and `callback_materializations` realize stacks and callbacks,
-//! `aggregate_layout` lays out aggregates, and `hosts` fixes each host's registers, syscall numbers and import
+//! `boundary_values` classifies public value graphs and checks authored ABI
+//! classes, `aggregate_layout` lays out aggregates, and `hosts` fixes each host's registers, syscall numbers and import
 //! libraries.
 
 mod aggregate_layout;
+mod boundary_values;
 mod callback_materializations;
 mod host_operations;
 mod hosts;
@@ -23,6 +25,9 @@ mod stack_realizations;
 pub use aggregate_layout::{
     AggregateLayoutError, ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,
     evaluate_conventional_sum_layout,
+};
+pub use boundary_values::{
+    BoundaryValueClass, BoundaryValueField, BoundaryValueGraph, BoundaryValueShape,
 };
 pub use callback_materializations::{
     CallbackBinderRequirement, CallbackMaterialization, CallbackMaterializationContext,

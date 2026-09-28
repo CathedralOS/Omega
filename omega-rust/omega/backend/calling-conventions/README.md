@@ -15,6 +15,12 @@ range-checks its output, and invokes the normalized validator. Current graph
 nodes cover integers, floats, references, fixed arrays, and fixed records.
 Opaque by-value uses close through representation selection first.
 
+[Boundary values](src/boundary_values.rs) owns that source-free shape vocabulary
+and policy-specific ABI classification. Signature materialization borrows the
+same graph for compatibility calling plans and authored-plan class checking;
+SysV eightbyte and AAPCS64 homogeneous-float rules are backend decisions.
+Class compatibility does not replace placement or full calling-plan validation.
+
 The source vocabulary is [std/calling.omg](../../../../source/library/std/calling.omg).
 Its existing `Calling<C>` declaration remains behind the specified
 `Calling<C, Policy>` explicit named-evidence surface. Policy evaluation itself
