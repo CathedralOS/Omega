@@ -1,4 +1,3 @@
-use crate::sources::frontend::ParsedSources;
 use crate::sources::source::SourceFile;
 use arena::Arena;
 use diagnostics::Diagnostic;
@@ -7,6 +6,7 @@ use source::SourceMap;
 use source::SourceOrigin;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use syntax_trees::ParsedSources;
 use syntax_trees::SyntaxTrees;
 
 #[derive(Clone, Default)]

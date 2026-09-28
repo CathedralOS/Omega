@@ -4,11 +4,12 @@
 //! beside `build_vocabulary`, not sequencing in the assembly entry file.
 
 use super::build_vocabulary;
-use crate::sources::frontend::{extend_source_storage, lex_sources, parse_sources};
 use crate::sources::source::SourceStorage;
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
+use source_files_to_tokens::lex_sources;
+use tokens_to_syntax_trees::parse_sources;
 
 /// Toolchain-provided build vocabulary (wiki/spec/build/declarations.md): a
 /// build.omg has exactly one free `machine build(builder: &mut Build) { ... }`
@@ -388,7 +389,7 @@ pub(super) fn inject_build_prelude(
     let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
         parse_sources(lexed, &mut source_storage.syntax_trees)
     })?;
-    extend_source_storage(source_storage, parsed)?;
+    source_storage.extend(parsed)?;
     let bindings = match (program_declares_build_data, build_source_id) {
         (true, Some(build_source_id)) => vec![symbols::SourceScopedTopLevelBinding::new(
             build_source_id,

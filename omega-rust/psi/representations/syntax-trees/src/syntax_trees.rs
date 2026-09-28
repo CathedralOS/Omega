@@ -13,6 +13,7 @@ pub mod declarations;
 pub mod inspection;
 mod item_copies;
 pub mod names;
+pub mod source_files;
 #[cfg(test)]
 mod tests;
 pub mod type_system;

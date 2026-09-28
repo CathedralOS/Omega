@@ -5,6 +5,16 @@ configuration, declarations, target/root selection, optimization, observation,
 and output custody modules own their respective results and checks. The admitted
 machine executes once against its selected filesystem.
 
+## Source-stage ownership
+
+Source assembly schedules file frontiers and retains package/import custody.
+Psi stage 00 owns physical loading and ordered batch lexing; stage 01 owns
+batch parsing into the caller's syntax arena. Their source, token and parsed-root
+records live in the existing `source`, `tokens` and `syntax-trees` packages.
+Build/Product scope, source coordinates, backing text and diagnostic order travel
+through those operations unchanged. Build-specific injection and package source
+selection stay here; neither lexical nor grammar rules depend on build evaluation.
+
 ## Root-binding implementation boundary
 
 `builder.roots.bind(Target::Slot, Product::entry);` is retained as a dedicated

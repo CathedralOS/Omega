@@ -1,8 +1,8 @@
 //! The lexer: one source text in, one `TokenStream` out.
 //!
-//! `Lexer::new(source).tokenize()` is the only entry. The compiler's
-//! source-assembly frontend (`lex_sources`) calls it once per loaded source
-//! file; parser, package and test code also call it on small texts.
+//! `Lexer::new(source).tokenize()` owns the lexical rules. This stage's
+//! `lex_sources` calls it once per loaded source file; parser, package and
+//! test code also call it on small texts.
 //!
 //! `tokenize` repeats two steps until the text is used up. `lex_next_token`
 //! reads one token's kind and span, choosing the rule by its first character:

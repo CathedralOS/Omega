@@ -1,5 +1,6 @@
 //! The current source token sequence and its spelling vocabulary.
 
+pub mod sources;
 pub mod token;
 pub mod token_kind;
 pub mod token_text;
