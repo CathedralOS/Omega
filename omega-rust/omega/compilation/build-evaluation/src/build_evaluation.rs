@@ -8,7 +8,7 @@ use artifacts::compile_timings::CompileTimings;
 use build_time_evaluation::{BuildEvaluationSponsor, BuildMachineFilesystemSponsor};
 use diagnostics::Diagnostic;
 pub use package_compilation::build_execution::RestrictedBuildGrants;
-use package_compilation::build_execution::RestrictedBuildRequest;
+use package_compilation::build_execution::{RestrictedBuildRequest, select_build_machine};
 use package_compilation::{
     BuildSnapshotRequest, PackageCompilationInputs, PackageSourceConsumptionCommitment,
 };
@@ -66,16 +66,52 @@ pub fn evaluate_build(
         mut restricted_build_grants,
         artifact_only,
     } = request;
+    // Source-owned entry selection requires no interpreter or host resources.
+    // A package without an entry has nothing to admit or execute: its ordinary
+    // declarations are checked by the final product pass, just once.
+    let selected_machine = select_build_machine(typed, build_source_id)?;
+    if selected_machine.is_some() {
+        if let Some(packages) = package_inputs {
+            crate::admission::declaration_authority::admit_authored_declarations(
+                typed, packages, timings,
+            )?;
+        }
+    } else if artifact_only {
+        return Err(vec![Diagnostic::error(
+            "an artifact-only application requires a build machine that completes at least one required output",
+        )]);
+    } else if snapshot.is_some_and(|snapshot| !snapshot.required_outputs().is_empty()) {
+        return Err(vec![Diagnostic::error(
+            "a required-output request requires a build machine that completes those outputs",
+        )]);
+    }
+    // Source commitment is independent of Build admission, including when
+    // defaults apply. It identifies retained bytes, not a checked program.
     let base_source_consumption_commitment = package_inputs
         .map(|packages| {
-            crate::admission::declaration_authority::admit_authored_declarations(
-                typed,
+            package_compilation::derive_package_compilation_subject(
+                typed.symbols.source_files(),
                 packages,
                 generated_source_custody,
-                timings,
             )
+            .map(|subject| subject.source_consumption_commitment())
         })
         .transpose()?;
+    let Some(selected_machine) = selected_machine else {
+        return Ok(EvaluatedBuild {
+            configuration: crate::ComputedBuildConfig {
+                config: crate::BuildConfig::default(),
+                optimization_report_request:
+                    optimization_core::OptimizationReportRequest::Suppressed,
+                evaluation_usage: None,
+                observation_summary: None,
+                selected_build_machine_symbol: None,
+                generated_sources: Vec::new(),
+            },
+            restricted_build_requests: Vec::new(),
+            base_source_consumption_commitment,
+        });
+    };
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
         package_inputs,
@@ -87,7 +123,7 @@ pub fn evaluate_build(
     )?;
     let admitted = crate::admit_build_program(
         typed,
-        build_source_id,
+        selected_machine.symbol,
         &filesystem_scope,
         evaluation_sponsor.as_ref(),
         artifact_only,
@@ -100,7 +136,7 @@ pub fn evaluate_build(
         }
     }
     let configuration = admitted.execute()?;
-    if configuration.selected_build_machine_symbol != admitted_symbol {
+    if configuration.selected_build_machine_symbol != Some(admitted_symbol) {
         return Err(vec![Diagnostic::error(
             "build execution returned a selected symbol different from its admitted checkpoint",
         )]);

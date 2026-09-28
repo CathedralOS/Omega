@@ -1,10 +1,12 @@
 //! Build admission, execution, and checked result assembly.
 //!
-//! [`evaluate_build`] owns declaration admission, filesystem preparation,
-//! restricted-request consent, and execution. Its private admitted checkpoint
+//! [`evaluate_build`] selects the source-owned entry before declaration admission,
+//! filesystem preparation, restricted-request consent, and execution. Its private admitted checkpoint
 //! binds the exact program and entry before effects. The returned [`EvaluatedBuild`]
 //! carries configuration, requested authority and source commitment together.
 //! Selection and evidence operations remain with their domain owners.
+//! With no entry, default settings and source identity require no activation;
+//! final product checking remains responsible for the ordinary program.
 //!
 //! Build configuration (wiki/spec/build/configuration.md):
 //! image facts come from `build.omg`'s augmenting machine, never from an

@@ -18,7 +18,7 @@ use typed_trees::TypedTrees;
 #[must_use = "an admitted build program must be consumed by execute"]
 pub(crate) struct AdmittedBuildProgram {
     pub(crate) prepared: PreparedBuildMachineProgram,
-    pub(crate) machine: Option<SelectedBuildMachine>,
+    pub(crate) machine: SelectedBuildMachine,
     pub(crate) filesystem_scope: BuildMachineFilesystemScope,
     pub(crate) evaluation_sponsor: Option<BuildEvaluationSponsor>,
     /// The validated `builder.artifact_only()` application modifier. An
@@ -29,11 +29,8 @@ pub(crate) struct AdmittedBuildProgram {
 }
 
 impl AdmittedBuildProgram {
-    pub const fn selected_build_machine_symbol(&self) -> Option<SymbolHandle> {
-        match &self.machine {
-            None => None,
-            Some(selected) => Some(selected.symbol),
-        }
+    pub const fn selected_build_machine_symbol(&self) -> SymbolHandle {
+        self.machine.symbol
     }
 
     /// The normalized restricted build-host requests this activation asks of
@@ -42,13 +39,10 @@ impl AdmittedBuildProgram {
     /// so a consumer may retain accepted request meaning separately from the
     /// actual invocation grants.
     pub fn restricted_build_requests(&self) -> Vec<RestrictedBuildRequest> {
-        let Some(selected) = &self.machine else {
-            return Vec::new();
-        };
         self.filesystem_scope.restricted_build_requests(
             self.evaluation_sponsor.as_ref(),
             self.artifact_only,
-            &selected.execution_mode,
+            &self.machine.execution_mode,
         )
     }
 
@@ -60,12 +54,13 @@ impl AdmittedBuildProgram {
 
 /// Prepare and admit the program's exact build-machine activation.
 ///
-/// This stage performs every selection and authority decision but executes no
-/// authored code. The returned carrier owns the only entry token accepted by
-/// its prepared program.
+/// Entry discovery and package declaration admission have already finished.
+/// This stage prepares that exact entry and admits its operational contract and
+/// host grants without executing authored code. The returned carrier owns the
+/// only entry token accepted by its prepared program.
 pub(crate) fn admit_build_program(
     typed: &TypedTrees,
-    build_source_id: Option<source::SourceId>,
+    machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     artifact_only: bool,
@@ -77,7 +72,7 @@ pub(crate) fn admit_build_program(
 
     let machine = admit_build_machine(
         &prepared,
-        build_source_id,
+        machine_symbol,
         &operational_plan,
         &service_reach_plan,
         filesystem_scope,

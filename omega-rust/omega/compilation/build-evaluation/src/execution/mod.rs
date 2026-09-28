@@ -1,8 +1,7 @@
 //! Executes one admitted build activation and settles its captured outputs.
 mod machine_evaluation;
 
-use crate::admission::configuration::BuildConfig;
-use crate::{AdmittedBuildProgram, ComputedBuildConfig};
+use crate::{AdmittedBuildProgram, BuildConfig, ComputedBuildConfig};
 use build_time_evaluation::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
 use package_compilation::{CapturedBuildObservations, SelectedBuildMachine};
@@ -37,22 +36,6 @@ fn execute_admitted_build_occurrence(
         evaluation_sponsor,
         artifact_only,
     } = admitted;
-    let Some(selected) = machine else {
-        if artifact_only {
-            return Err(vec![Diagnostic::error(
-                "an artifact-only application requires a build machine that completes at least one required output"
-                    .to_owned(),
-            )]);
-        }
-        return Ok(ComputedBuildConfig {
-            config: BuildConfig::default(),
-            optimization_report_request: optimization_core::OptimizationReportRequest::Suppressed,
-            evaluation_usage: None,
-            observation_summary: None,
-            selected_build_machine_symbol: None,
-            generated_sources: Vec::new(),
-        });
-    };
     let SelectedBuildMachine {
         entry: machine_entry,
         symbol: machine_symbol,
@@ -62,7 +45,7 @@ fn execute_admitted_build_occurrence(
         filesystem_reachable,
         execution_mode,
         initial_build,
-    } = selected;
+    } = machine;
     let typed = prepared.typed();
     let machine = typed
         .machines()

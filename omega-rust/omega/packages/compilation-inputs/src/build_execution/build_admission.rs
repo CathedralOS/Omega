@@ -27,16 +27,12 @@ pub struct SelectedBuildMachine {
     pub initial_build: BuildTimeValue,
 }
 
-/// Select at most one source-owned Build entry, then admit its protocol and grants.
-/// Returns None when the selected source contains no Build machine.
-pub fn admit_build_machine(
-    prepared: &PreparedBuildMachineProgram,
+/// Select the authored entry before preparing an activation or granting resources.
+/// Absence means the program uses default Build settings, not an empty activation.
+pub fn select_build_machine(
+    typed: &typed_trees::TypedTrees,
     build_source_id: Option<source::SourceId>,
-    operational_plan: &flow_effects::OperationalPlan,
-    service_reach_plan: &flow_effects::ServiceReachInferencePlan,
-    filesystem_scope: &BuildMachineFilesystemScope,
-) -> Result<Option<SelectedBuildMachine>, Vec<Diagnostic>> {
-    let typed = prepared.typed();
+) -> Result<Option<&typed_trees::machine::Machine>, Vec<Diagnostic>> {
     let mut build_machines = typed
         .machines()
         .iter()
@@ -51,7 +47,28 @@ pub fn admit_build_machine(
             second.name.as_str(),
         ))]);
     }
-    let machine_symbol = machine.symbol;
+    Ok(Some(machine))
+}
+
+/// Admit the already-selected entry against its prepared program and host grants.
+/// Preparation preserves authored symbol identity; it does not repeat discovery.
+pub fn admit_build_machine(
+    prepared: &PreparedBuildMachineProgram,
+    machine_symbol: SymbolHandle,
+    operational_plan: &flow_effects::OperationalPlan,
+    service_reach_plan: &flow_effects::ServiceReachInferencePlan,
+    filesystem_scope: &BuildMachineFilesystemScope,
+) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
+    let typed = prepared.typed();
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "prepared Build program lost its selected entry",
+            )]
+        })?;
     let machine_name = machine.name.as_str().to_owned();
     let machine_entry = prepared.entry(machine_symbol).map_err(|reason| {
         vec![Diagnostic::error(format!(
@@ -117,7 +134,7 @@ pub fn admit_build_machine(
             filesystem_metadata_layout: BuildMachineFilesystemMetadataLayout::default(),
         }
     };
-    Ok(Some(SelectedBuildMachine {
+    Ok(SelectedBuildMachine {
         entry: machine_entry,
         symbol: machine_symbol,
         name: machine_name,
@@ -126,5 +143,5 @@ pub fn admit_build_machine(
         filesystem_reachable,
         execution_mode,
         initial_build: zero_build,
-    }))
+    })
 }
