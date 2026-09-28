@@ -2,7 +2,9 @@
 use super::{ScalarType, TerminalMachineResult, hard_root_checked_fixture, lower_machine};
 use crate::TerminalMachineSelection;
 use lowered_psi::LoweredPsi;
-use lowered_psi_to_lowered_psi::{PsiOptimizationStageError, run_psi_optimization};
+use lowered_psi_to_lowered_psi::{
+    PsiOptimizationStageError, PsiRewriteRefusalReason, run_psi_optimization,
+};
 use lowered_psi_to_terminal_psi::finalize_terminal_artifact;
 use optimization::{PsiOptimization, PsiOptimizationSelections};
 use semantic_vocabulary::{ObligationId, OperationId, Proposition, ValueId};
@@ -615,7 +617,69 @@ fn consumed_literal_join_keeps_the_invariant_and_refuses_rewrites() {
             lowered.semantic_module,
             "{optimization:?} refuses at the reconstructed question boundary"
         );
+        // The identity output is a deliberate decision, not "nothing to
+        // rewrite": the stage result names the pass and the boundary.
+        let refusals = optimized
+            .refusals()
+            .iter()
+            .map(|refusal| (refusal.optimization(), refusal.reason()))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            refusals,
+            [(optimization, PsiRewriteRefusalReason::ChangedProofQuestion)],
+            "{optimization:?} reports its withheld rewrite"
+        );
     }
+}
+
+/// The no-obligation control for the consumed join: the same two-arm literal
+/// join, dead comparison and dead literal without the runtime index site. No
+/// machine-owned question reaches the interval, so no invariant is retained,
+/// dead scalar elimination rewrites the module, and neither pass reports a
+/// refusal.
+#[test]
+fn unconsumed_literal_join_rewrites_without_refusal() {
+    let checked = crate::front_end::checked_program(
+        "data Main { value: i32; }\n\
+         machine Main::compute(&self, a: u64, b: u64) -> i32 {\n\
+             let unused: bool = a < b;\n\
+             let dead_const: i32 = 7;\n\
+             transition {\n\
+                 a == b -> (10)\n\
+                 _ -> (99)\n\
+             }\n\
+         }\n\
+         machine Main::main(&mut self) {\n\
+             self.value = self.compute(1, 2);\n\
+         }\n",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::compute"))
+        .expect("transition source lowers");
+    assert!(
+        lowered.semantic_module.scalar_block_invariants.is_empty(),
+        "no machine-owned question keeps the interval proposal"
+    );
+    let eliminated = run_psi_optimization(
+        lowered.clone(),
+        PsiOptimizationSelections::new([PsiOptimization::DeadPureScalarElimination]).unwrap(),
+    )
+    .expect("dead scalar elimination runs");
+    assert_ne!(
+        eliminated.lowered().semantic_module,
+        lowered.semantic_module,
+        "the dead comparison and literal leave"
+    );
+    assert!(eliminated.refusals().is_empty());
+    let both = run_psi_optimization(
+        lowered,
+        PsiOptimizationSelections::new([
+            PsiOptimization::CopyPropagation,
+            PsiOptimization::DeadPureScalarElimination,
+        ])
+        .unwrap(),
+    )
+    .expect("both passes run");
+    assert!(both.refusals().is_empty());
 }
 
 #[test]

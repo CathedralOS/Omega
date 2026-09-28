@@ -34,7 +34,10 @@
 //! identities a rewrite must preserve — `copy_propagation`,
 //! `global_value_numbering` and `dead_scalar_elimination` all consult it —
 //! and `optimization_error` carries the refusals the entrance and every pass
-//! return.
+//! return. `rewrite_refusal` records the deliberate, non-error refusals: a
+//! proof-bearing module whose reconstructed proof question a proposed
+//! rewrite would change keeps the module as authored, and the stage result
+//! lists which pass withheld its rewrite and why.
 
 // The entrance.
 mod psi_optimization;
@@ -50,12 +53,16 @@ mod sparse_conditional_constant_propagation;
 // Beneath the passes: what a rewrite must preserve, and how it refuses.
 mod optimization_error;
 mod retained_identities;
+mod rewrite_refusal;
 
 // The entrance and its validated carrier.
 pub use psi_optimization::{PsiOptimizationStageResult, run_psi_optimization};
 
 // The refusal a caller of that entrance matches on.
 pub use optimization_error::PsiOptimizationStageError;
+
+// The deliberate rewrite withholdings the validated result lists.
+pub use rewrite_refusal::{PsiRewriteRefusal, PsiRewriteRefusalReason};
 
 // The execution record this stage fills: owned by `terminal_codec`, which
 // encodes it, and re-exported here beside the entrance that produces it.

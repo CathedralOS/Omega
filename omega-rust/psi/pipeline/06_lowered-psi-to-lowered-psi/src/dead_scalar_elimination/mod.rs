@@ -5,7 +5,8 @@
 //! removal survives only while the reconstructed question is unchanged; a
 //! removal the question cannot carry verbatim refuses, leaving the complete
 //! closure as authored until proof-context transport lets the question move
-//! with the rewrite — never silently re-proved.
+//! with the rewrite — never silently re-proved. The refusal is recorded as a
+//! `PsiRewriteRefusal` on the stage result.
 //! Unused scalar block parameters are removed together with their dead
 //! results, dropping the matching edge-argument positions. Ranking evidence
 //! names exact values and covered member parameter tables: those stay live
@@ -14,7 +15,9 @@
 mod liveness;
 
 use crate::PsiOptimizationStageError;
+use crate::rewrite_refusal::{PsiRewriteRefusal, PsiRewriteRefusalReason};
 use lowered_psi::LoweredPsi;
+use optimization::PsiOptimization;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
 use terminal_verifier::{
@@ -22,7 +25,10 @@ use terminal_verifier::{
     validate_module_for_optimization,
 };
 
-pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
+pub(super) fn eliminate(
+    before: LoweredPsi,
+    refusals: &mut Vec<PsiRewriteRefusal>,
+) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let validated = validate_module_for_optimization(&before.semantic_module)
         .map_err(PsiOptimizationStageError::InvalidModule)?;
     let questions = reconstruct_optimizable_terminal_obligations(validated)
@@ -72,14 +78,23 @@ pub(super) fn eliminate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
     {
         // Without proof-context transport a proof-bearing input keeps only a
         // rewrite the reconstructed question survives unchanged; a refused
-        // rewrite leaves the module as authored.
-        if proof_bearing
-            && matches!(
-                error,
-                terminal_verifier::DeadScalarRewriteError::InvalidModule(_)
-                    | terminal_verifier::DeadScalarRewriteError::ChangedProofQuestion
-            )
-        {
+        // rewrite leaves the module as authored and is reported as a
+        // decision, so the identity output is not mistaken for "nothing to
+        // remove".
+        let reason = match error {
+            terminal_verifier::DeadScalarRewriteError::ChangedProofQuestion => {
+                Some(PsiRewriteRefusalReason::ChangedProofQuestion)
+            }
+            terminal_verifier::DeadScalarRewriteError::InvalidModule(_) => {
+                Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
+            }
+            _ => None,
+        };
+        if let Some(reason) = reason.filter(|_| proof_bearing) {
+            refusals.push(PsiRewriteRefusal::new(
+                PsiOptimization::DeadPureScalarElimination,
+                reason,
+            ));
             return Ok(before);
         }
         return Err(PsiOptimizationStageError::InvalidDeadScalarRewrite(error));
