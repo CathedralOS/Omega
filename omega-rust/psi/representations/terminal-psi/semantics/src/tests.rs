@@ -18,14 +18,14 @@ fn i8_type() -> ScalarType {
 
 #[test]
 fn operation_inventory_is_exact_unique_and_closed() {
-    assert_eq!(OperationSemanticTag::ALL.len(), 82);
-    assert_eq!(OperationSemanticRow::ALL.len(), 82);
+    assert_eq!(OperationSemanticTag::ALL.len(), 83);
+    assert_eq!(OperationSemanticRow::ALL.len(), 83);
     assert_eq!(
         OperationSemanticRow::ALL
             .iter()
             .filter(|row| row.custody == OperationSemanticCustody::LeafDenotation)
             .count(),
-        72,
+        73,
     );
     assert_eq!(
         OperationSemanticRow::ALL
@@ -47,7 +47,7 @@ fn operation_inventory_is_exact_unique_and_closed() {
             .map(|row| row.tag)
             .collect::<BTreeSet<_>>()
             .len(),
-        82,
+        83,
     );
     assert_eq!(
         OperationSemanticRow::ALL
@@ -55,12 +55,26 @@ fn operation_inventory_is_exact_unique_and_closed() {
             .map(|row| row.identity)
             .collect::<BTreeSet<_>>()
             .len(),
-        82,
+        83,
     );
     assert!(
         OperationSemanticRow::ALL
             .iter()
             .all(|row| !row.identity.is_empty()),
+    );
+    let concatenation = exact_operation_semantic_row_in(
+        OperationSemanticTag::EstablishByteSequenceConcatenation,
+        &OperationSemanticRow::ALL,
+    )
+    .unwrap();
+    assert_eq!(
+        concatenation.custody,
+        OperationSemanticCustody::LeafDenotation
+    );
+    assert_eq!(concatenation.goal_free_scalar_leaf, None);
+    assert_eq!(
+        concatenation.identity,
+        "schema:operation:establish-byte-sequence-concatenation",
     );
 }
 
