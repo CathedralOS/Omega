@@ -19,6 +19,7 @@ pub use terminal_psi_to_abstract_operations::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    UnconsumedOptimizationPhase(optimization_core::OptimizationExecutionPhase),
     UnsupportedIeeeFloatFmaRealization(OperationId),
     TranslationValidation(crate::AbstractToTargetTranslationValidationError),
     /// Parameter-rooted path qualifications are preserved through the

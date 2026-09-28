@@ -7,13 +7,25 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     SelectedOptimization(
         selected_instructions_to_selected_instructions::SelectedInstructionOptimizationError,
     ),
-    PostTerminalSelectionMismatch,
     UnconsumedPostTerminalPhase(optimization_core::OptimizationExecutionPhase),
     RegisterEnvironment(register_environment::TargetRegisterEnvironmentValidationError),
     Selection(OptimizedSelectionPipelineError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
+}
+
+// Preserve the public diagnostic while the stage owns the refusal. There is
+// no selection-policy check in the coordinator.
+impl From<OptimizedPostAllocationMachinePipelineError> for OptimizedVerifiedPhysicalPipelineError {
+    fn from(error: OptimizedPostAllocationMachinePipelineError) -> Self {
+        match error {
+            OptimizedPostAllocationMachinePipelineError::UnconsumedOptimizationPhase(phase) => {
+                Self::UnconsumedPostTerminalPhase(phase)
+            }
+            error => Self::PostAllocationMachine(error),
+        }
+    }
 }
 
 impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {

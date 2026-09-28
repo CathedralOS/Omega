@@ -52,14 +52,9 @@ pub(crate) fn emit_realization_object(
         },
     )
     .map_err(|error| realization_error("target lowering", error))?;
-    let physical =
-        stage_optimized_verified_physical_pipeline(target, request.optimization_selections)
-            .map_err(|error| {
-                selected_physical_pipeline_failed(
-                    request.optimization_selections.selections(),
-                    error,
-                )
-            })?;
+    let physical = stage_optimized_verified_physical_pipeline(target).map_err(|error| {
+        selected_physical_pipeline_failed(request.optimization_selections.selections(), error)
+    })?;
     publish_fragment_object(
         physical,
         FragmentObjectPublicationRequest {

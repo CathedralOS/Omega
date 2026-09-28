@@ -147,18 +147,14 @@ fn fragment_container(
         budget,
     )
     .expect("verified artifact optimizes");
-    let post_terminal = optimized.selections().project_post_terminal();
     let optimized_target =
         abstract_operations_to_target_operations::lower_optimized_to_target_operations(
             optimized,
             abstract_operations_to_target_operations::OptimizedTargetLoweringRequest::new(target),
         )
         .expect("verified plan lowers to target operations");
-    let physical = compiler::native::stage_optimized_verified_physical_pipeline(
-        optimized_target,
-        post_terminal.selections(),
-    )
-    .expect("entry machine reaches physical realization");
+    let physical = compiler::native::stage_optimized_verified_physical_pipeline(optimized_target)
+        .expect("entry machine reaches physical realization");
     let fragments = machine_emission::stage_optimized_function_fragment_emission(physical)
         .expect("function fragments");
     let framed = machine_emission::stage_function_fragment_frame_application(fragments)
