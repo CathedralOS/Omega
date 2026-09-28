@@ -89,29 +89,10 @@ pub(crate) fn produce_retained_terminal_artifact(
     profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
 ) -> Result<crate::report::RetainedTerminalArtifact, Vec<Diagnostic>> {
-    // A settled `Independent` edge has no product carrier: the composition
-    // fence rejects before any fused artifact can be produced or admitted.
-    provider_planning::verify_selected_compositions_are_realized(
-        checked.execution().selected_provider_provenance.as_slice(),
-    )?;
-    let callback_placements = checked.execution().callback_placements.as_slice().to_vec();
-    // The selected entry rejoins Terminal production by its exact checked
-    // machine symbol: the build product operand's lexical package choice must
-    // survive a same-named declaration in another package. The retained
-    // product also carries the checked entry receipt so later native re-entry
-    // can settle the hosted receiver without the checked frontend.
-    let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
-        vec![Diagnostic::error(
-            "terminal-artifact production requires one exact selected program entry",
-        )]
-    })?;
+    let selected_program_entry = checked.admit_terminal_production()?;
     let entry_machine_symbol = selected_program_entry.source_signature().machine_symbol();
     let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
-    selected_dispatch::validate_selected_operator_terminal_custody(checked)?;
-    selected_dispatch::validate_fused_service_terminal_custody(
-        checked,
-        checked.execution().selected_provider_provenance.as_slice(),
-    )?;
+    let callback_placements = checked.execution().callback_placements.as_slice().to_vec();
     // The accumulator steps out of the checked record across the measured
     // legs below so each closure may borrow the record while it is timed; it
     // rejoins the record once the product is produced and admitted.

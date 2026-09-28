@@ -82,15 +82,15 @@ run visibly before and after execution, without extra checkpoint couriers.
 Restricted host-request vocabulary and normalization belong to package
 [build-execution custody](../package-manager/compilation-inputs/src/build_execution/restricted_requests.rs),
 beside the filesystem grants, captured inventories and sponsor limits they
-describe. Build admission supplies its exact execution mode; the coordinator
-still checks consent before execution. Review and encoding consume that package
+describe. Build evaluation checks consent under its admitted execution mode
+before execution. Review and encoding consume that package
 contract directly, without reconstructing it from compiler-owned records.
 Authored Build policy remains distinct from per-target realized evidence, and
 checked-product equality includes the complete evaluated Build. Clones share program
 storage until mutation; review instantiation borrow-projects table rows rather
 than clone-rebuilding scratch. Any mutation does not reseal evidence, and
 downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
-evidence; compiler malformed-tree tests use that raw representation.
+evidence.
 
 Candidate discovery calls `compile_checked(request)` for one owned
 `CheckedCompileOutcome`: the verdict, optional reusable source, and
@@ -163,7 +163,10 @@ Package installation and update belong to the separate
 
 The [Terminal coordinator](src/terminal/terminal_artifact.rs) directly sequences
 Psi production, exclusion admission, proof verification and native-proposal
-construction. Callback placements stay in Omega rather than travelling through
+construction. The [checked-product owner](../realization/compilation-products/src/checked_compilation/terminal.rs)
+admits composition, exact-entry and selected-provider custody before production;
+these eligibility checks do not replace verification of the produced artifact.
+Callback placements stay in Omega rather than travelling through
 Psi as an opaque payload. The effective optimization selection flows from the
 entry to each callback thunk; thunk production does not reread authored choices
 and undo rollback. The coordinator produces callback artifacts before asking
@@ -180,7 +183,7 @@ receipt. Exclusion admission uses the backend effects checker; on rejection,
 supplies machine names and declaration spans. That diagnostic mapping is not
 admission evidence.
 
-[Request validation](src/compiler/request.rs) checks the requested product and
+[Request validation](../realization/compilation-products/src/compile_request.rs) checks the requested product and
 rollback selection before acquiring source or opening output directories.
 Checking permits no rollback; Terminal publication permits only applicable
 Psi-stage rollback; native products permit their applicable phase set. Rollback
@@ -201,7 +204,7 @@ Compilation produces the requested product and diagnostics. It does not construc
 or write optional JSON, HTML, text or Markdown debug dumps, disassembly reports,
 or timing files. There is no full/output-only observation policy.
 
-[Checked admission](src/checked/admission/mod.rs)
+[Trust admission](../realization/trust-model/README.md)
 still reconstructs trust obligations, settles exact owner admissions and validates
 target/report consistency. Wire compatibility, capability validation, package
 locks and required product evidence remain mandatory. A check or retained-artifact
@@ -243,7 +246,7 @@ rejected. The selection narrows realization only. Psi checks every target's
 bodies once per compilation regardless
 ([multi-target compilation](../../../wiki/spec/build/configuration.md#multi-target-compilation)).
 
-[Request admission](src/compiler/request.rs) stores root, product, observation
+[Request admission](../realization/compilation-products/src/compile_request.rs) stores root, product, observation
 policy, package sources and the target set once. Compilation collects one
 ordered outcome per realized target without fail-fast; a shared checking
 failure supplies the same diagnostics to every realization, and one
@@ -343,9 +346,11 @@ provider evidence. Those inputs do not select alternate API entrypoints.
 
 Program and callback realization pass verified abstract input directly to
 [Omega's abstract optimization stage](../pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs),
-then feed its validated plan into target lowering. The compiler retains only
-its product work-budget policy and callback/identity admission checks, with no
-parallel optimization request or stage-error model.
+then feed its validated plan into target lowering. The
+[product request](../realization/compilation-products/src/compile_request/native.rs)
+supplies the work budget; optimization stages own its use. Callback and identity
+admission belong to the product and realization owners. The coordinator sequences
+those calls.
 
 [Object emission](src/native/native_realization/object_emission.rs) feeds the
 target-lowering result directly into the shared physical sequence. That sequence
@@ -398,9 +403,8 @@ It does not call the Psi receipt producer to validate that producer's output.
 selected Fused service evidence to the Terminal receiver's attachment and exact
 erased fields, then to the selected provider plans. Semantic receiver identity
 and retained Terminal attachment identity are separate facts and need not have
-the same spelling. The [entry controls](src/native/tests/native_realization/entry_settlement.rs)
-cover this join; it is not evidence of runtime slot publication or Independent
-execution support.
+the same spelling. This join is not evidence of runtime slot publication or
+Independent execution support.
 
 ### Callback custody boundaries
 
@@ -410,10 +414,6 @@ Widening scalar-provider forwarding additionally requires preserved incoming
 ABI homes, complete call/relocation replay, and a genuinely reachable authored
 entry. Use rooted provider and callback controls retaining complete argument,
 result, and resource custody; metadata-only receipt tests do not close the route.
-
-[callback_custody.rs](src/native/native_realization/callback_custody.rs) returns the caller's
-opaque companion by value on both success and rejection. That wrapper does not
-admit, lower, fingerprint, or interpret its contents.
 
 Native callback arguments separately enter the realization request. Their
 [backend placement](../backend/plans/backend-plan/src/callback_placements.rs)

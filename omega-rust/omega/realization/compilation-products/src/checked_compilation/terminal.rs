@@ -1,4 +1,4 @@
-//! Project checked product custody into Terminal inspection and native handoff.
+//! Admit and project checked product custody for Terminal production and handoff.
 //!
 //! These projections supply existing stage inputs and assemble reports; they do
 //! not lower code, produce callback bodies, or execute native proposal production.
@@ -16,6 +16,33 @@ use terminal_psi_to_abstract_operations::{
 };
 
 impl CheckedCompilation {
+    /// Admit the checked product for Terminal production and borrow its exact
+    /// entry. This is product eligibility, not proof or native admission of the
+    /// artifact that Psi has yet to produce.
+    pub fn admit_terminal_production(
+        &self,
+    ) -> Result<&provider_planning::program_entry::SelectedCompilerProgramEntry, Vec<Diagnostic>>
+    {
+        // An Independent edge has no product carrier yet. Reject it before
+        // checking entry custody or allowing a fused artifact to be produced.
+        provider_planning::verify_selected_compositions_are_realized(
+            self.execution().selected_provider_provenance.as_slice(),
+        )?;
+        // Preserve the build operand's lexical package choice, including when
+        // another package contains a machine with the same display name.
+        let entry = self.selected_program_entry().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "terminal-artifact production requires one exact selected program entry",
+            )]
+        })?;
+        selected_dispatch::validate_selected_operator_terminal_custody(self)?;
+        selected_dispatch::validate_fused_service_terminal_custody(
+            self,
+            self.execution().selected_provider_provenance.as_slice(),
+        )?;
+        Ok(entry)
+    }
+
     /// Borrow the exact checked selections for a produced Terminal occurrence
     /// roster. Supplied callbacks remain candidates, not admitted native code;
     /// stage 00 must check their cardinality, identities and source associations.
