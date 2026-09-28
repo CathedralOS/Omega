@@ -2,12 +2,12 @@
 mod machine_evaluation;
 
 use crate::admission::configuration::BuildConfig;
-use crate::admission::selection::root_bindings::collect_root_bindings;
 use crate::admitted_build_program::{AdmittedBuildMachine, SelectedAdmittedBuildMachine};
 use crate::{AdmittedBuildProgram, ComputedBuildConfig};
 use build_time_evaluation::wire_compatibility::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
 use package_compilation::CapturedBuildObservations;
+use provider_planning::program_entry::collect_root_bindings;
 use trust_model::{
     harvest_behavior_exclusions, harvest_component_assumption_acceptances, harvest_root_grants,
 };
