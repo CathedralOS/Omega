@@ -576,6 +576,35 @@ fn checked_synchronous_invocation_targets_reject_every_exact_drift() {
 }
 
 #[test]
+fn checked_adapter_lookup_excludes_inactive_target_siblings() {
+    for sibling_first in [false, true] {
+        let (mut typed, plan, _) = checked_invocation_fixture(32, 1);
+        let selected_symbol = typed.machines()[0].symbol;
+        let mut sibling = typed.machines()[0].clone();
+        sibling.symbol = symbols::SymbolHandle::from_arena_index(35);
+        sibling.target = Some(typed_trees::name::Identifier::generated("linux_arm64"));
+        typed.push_machine(sibling);
+        if sibling_first {
+            typed.machines_mut().swap(0, 1);
+        }
+
+        let selected = crate::exact_checked_adapter(&typed, &plan, &plan.rows[0])
+            .expect("inactive target bodies do not compete with the selected adapter");
+        assert_eq!(selected.symbol, selected_symbol);
+    }
+}
+
+#[test]
+fn checked_adapter_lookup_cannot_fall_back_to_an_inactive_target() {
+    let (mut typed, plan, _) = checked_invocation_fixture(32, 1);
+    typed.machines_mut()[0].target = Some(typed_trees::name::Identifier::generated("linux_arm64"));
+
+    let diagnostic = crate::exact_checked_adapter(&typed, &plan, &plan.rows[0])
+        .expect_err("an inactive body cannot supply a missing selected adapter");
+    assert!(diagnostic.message.contains("is absent from typed machines"));
+}
+
+#[test]
 fn self_forwarding_erases_only_the_exact_schema_receiver() {
     let (typed, plan, inferred) = checked_invocation_fixture(31, 0);
     assert_eq!(
