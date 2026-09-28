@@ -323,9 +323,8 @@ pub(crate) fn replay_bounded_byte_field(
         )?;
         field_offset = checked_align_up(field_offset, u32::from(shape.alignment))?;
         if field.identity == *identity {
-            let terminal_psi::StructuralFieldType::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-            ) = field.field_type
+            let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
+                field.field_type.byte_sequence_carrier()
             else {
                 return None;
             };
@@ -372,7 +371,8 @@ fn replay_structural_field_shape(
         terminal_psi::StructuralFieldType::IeeeFloat(
             semantic_vocabulary::IeeeFloatFormat::Binary64,
         ) => Some(ValueShape::float(8)),
-        terminal_psi::StructuralFieldType::ByteSequence(carrier) => {
+        terminal_psi::StructuralFieldType::ByteSequence(carrier)
+        | terminal_psi::StructuralFieldType::PredicateByteSequence { carrier, .. } => {
             let byte_size = match carrier {
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
                 // A bounded view's extent lives in the declaration; the stored
