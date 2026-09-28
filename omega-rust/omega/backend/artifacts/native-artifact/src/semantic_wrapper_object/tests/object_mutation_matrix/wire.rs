@@ -67,11 +67,16 @@ fn wrapper_object_wire_rejects_every_closed_axis_and_envelope_mutation() {
         |bytes| bytes[offsets.identity] ^= 1,
         OptimizedProgramStorageSemanticWrapperObjectDecodeError::IdentityMismatch,
     );
-    assert_decode_error(
-        encoded,
-        |bytes| bytes[offsets.vocabulary..offsets.vocabulary + 2].fill(0),
-        OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidVocabulary,
-    );
+    for vocabulary in [0_u16, 109, 110, 112] {
+        assert_decode_error(
+            encoded,
+            |bytes| {
+                bytes[offsets.vocabulary..offsets.vocabulary + 2]
+                    .copy_from_slice(&vocabulary.to_le_bytes());
+            },
+            OptimizedProgramStorageSemanticWrapperObjectDecodeError::InvalidVocabulary,
+        );
+    }
     for offset in [offsets.architecture, offsets.object_format] {
         assert_decode_error(
             encoded,
