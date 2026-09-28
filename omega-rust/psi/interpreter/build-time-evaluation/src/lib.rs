@@ -73,6 +73,9 @@ pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
     BuildTimeSelectionAuthority,
 };
+pub use machine_execution::build_activation::{
+    admit_toolchain_build_activation, is_exact_toolchain_build_prelude_data,
+};
 pub use machine_execution::build_machines::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, BuildMachineEvaluationError,
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,

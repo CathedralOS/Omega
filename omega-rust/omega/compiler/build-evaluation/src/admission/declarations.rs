@@ -4,7 +4,7 @@
 use crate::admission::behavior_exclusions::{
     AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
 };
-use crate::admission::vocabulary::is_exact_toolchain_build_prelude_data;
+use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::BuildOperation;
 use provider_planning::{ProviderSelection, ProviderSelectionIdentity};

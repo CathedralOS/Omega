@@ -64,7 +64,7 @@ fn execute_admitted_build_occurrence(
         name: machine_name,
         normalized_callable_identity: _,
         optimization_admission,
-        activation_vocabulary,
+        has_toolchain_build_activation,
         filesystem_reachable,
         execution_mode,
         initial_build,
@@ -127,7 +127,7 @@ fn execute_admitted_build_occurrence(
     let (mut config, optimization_report) = extract_build_config(
         &augmented,
         optimization_admission,
-        activation_vocabulary.is_some(),
+        has_toolchain_build_activation,
     )
     .map_err(|reason| {
         vec![Diagnostic::error(format!(

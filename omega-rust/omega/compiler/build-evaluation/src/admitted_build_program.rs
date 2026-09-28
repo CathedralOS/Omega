@@ -3,9 +3,6 @@
 //! runs.
 
 use crate::admission::configuration::BuildConfig;
-use crate::admission::target_vocabulary::{
-    BuildActivationVocabulary, build_activation_vocabulary, validate_build_activation_integrity,
-};
 use crate::admission::vocabulary;
 use crate::admission::vocabulary::{
     build_reaches_filesystem_facet, has_exact_toolchain_build_facet, is_build_machine,
@@ -416,7 +413,7 @@ pub(crate) struct SelectedAdmittedBuildMachine {
     pub(crate) name: String,
     pub(crate) normalized_callable_identity: String,
     pub(crate) optimization_admission: optimization::BuildOptimizationAdmission,
-    pub(crate) activation_vocabulary: Option<BuildActivationVocabulary>,
+    pub(crate) has_toolchain_build_activation: bool,
     pub(crate) filesystem_reachable: bool,
     pub(crate) execution_mode: BuildMachineExecutionMode,
     pub(crate) initial_build: BuildTimeValue,
@@ -591,10 +588,8 @@ pub fn admit_build_program(
             )]
         })?;
     let optimization_admission = optimization::BuildOptimizationAdmission::admit(typed)?;
-    let activation_vocabulary = build_activation_vocabulary(typed)?;
-    if let Some(activation_vocabulary) = activation_vocabulary {
-        validate_build_activation_integrity(typed, activation_vocabulary)?;
-    }
+    let has_toolchain_build_activation =
+        build_time_evaluation::admit_toolchain_build_activation(typed)?;
 
     // Build authority comes only from compiler-owned Build facets. Runtime
     // boundary services remain ordinary program authority and are never
@@ -632,7 +627,7 @@ pub fn admit_build_program(
         build_reaches_filesystem_facet(typed, &operational_plan, machine.symbol);
 
     let mut build_fields = Vec::new();
-    if activation_vocabulary.is_some() {
+    if has_toolchain_build_activation {
         build_fields.push((
             "x86_deployment_features".to_owned(),
             BuildTimeValue::Case {
@@ -768,7 +763,7 @@ pub fn admit_build_program(
             name: machine_name,
             normalized_callable_identity,
             optimization_admission,
-            activation_vocabulary,
+            has_toolchain_build_activation,
             filesystem_reachable,
             execution_mode,
             initial_build: zero_build,

@@ -7,12 +7,21 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
-use crate::admission::vocabulary::is_exact_toolchain_build_prelude_data;
+#[cfg(test)]
+mod tests;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct BuildActivationVocabulary {
-    pub(crate) build_symbol: SymbolHandle,
-    pub(crate) x86_deployment_features_field_symbol: SymbolHandle,
+/// Admit the compiler-issued Build before any build effects execute.
+///
+/// Recognition alone grants nothing: the same operation checks the exact
+/// toolchain declaration and rejects source construction, storage, copying,
+/// or whole-value replacement. Returns true for an admitted toolchain Build;
+/// false leaves a legacy authored Build without compiler-issued fields.
+pub fn admit_toolchain_build_activation(typed: &TypedTrees) -> Result<bool, Vec<Diagnostic>> {
+    let Some(build_symbol) = build_activation_symbol(typed)? else {
+        return Ok(false);
+    };
+    validate_build_activation_integrity(typed, build_symbol)?;
+    Ok(true)
 }
 
 fn type_reference_names_exact_data(
@@ -32,15 +41,9 @@ fn type_reference_names_exact_data(
     }
 }
 
-/// Admit `Build.target` and its deployment-feature companion only when every
-/// field and closed enum type comes from the exact toolchain virtual source.
-/// `BuildTimeValue` is structurally named, so this nominal check must precede
-/// argument construction.
-/// The exact toolchain Build, when the program's build uses it. An authored
-/// legacy `Build` receives no compiler-owned fields and yields `None`.
-pub(crate) fn build_activation_vocabulary(
-    typed: &TypedTrees,
-) -> Result<Option<BuildActivationVocabulary>, Vec<Diagnostic>> {
+/// Resolve the exact toolchain Build and deployment-feature field before
+/// argument construction. A source-authored legacy Build yields no activation.
+fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
     let exact_builds = typed
         .data_definitions()
         .iter()
@@ -88,10 +91,7 @@ pub(crate) fn build_activation_vocabulary(
             "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type",
         )]);
     }
-    Ok(Some(BuildActivationVocabulary {
-        build_symbol: build.symbol,
-        x86_deployment_features_field_symbol: x86_feature_field.symbol,
-    }))
+    Ok(Some(build.symbol))
 }
 
 fn expression_denotes_exact_build(
@@ -112,11 +112,11 @@ fn expression_denotes_exact_build(
 }
 
 /// Prove source cannot transiently overwrite, replace, or lend exclusive
-/// access to the compiler-issued target occurrence. Final-value equality is
+/// access to the compiler-issued Build occurrence. Final-value equality is
 /// retained as corruption defense, but is not used as the immutability proof.
-pub(crate) fn validate_build_activation_integrity(
+fn validate_build_activation_integrity(
     typed: &TypedTrees,
-    vocabulary: BuildActivationVocabulary,
+    build_symbol: SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
     use typed_trees::{data::DataMember, expression::ExpressionNode, statement::StatementNode};
 
@@ -127,8 +127,7 @@ pub(crate) fn validate_build_activation_integrity(
             let DataMember::Field(field) = member else {
                 continue;
             };
-            if type_reference_names_exact_data(typed, field.type_reference, vocabulary.build_symbol)
-            {
+            if type_reference_names_exact_data(typed, field.type_reference, build_symbol) {
                 diagnostics.push(Diagnostic::error(format!(
                     "the compiler-owned Build activation cannot be stored in field `{}`",
                     field.name.as_str()
@@ -141,11 +140,7 @@ pub(crate) fn validate_build_activation_integrity(
         if !machine.body_is_present
             && typed.machine_states(machine).iter().any(|state| {
                 typed.state_parameters(state).iter().any(|parameter| {
-                    type_reference_names_exact_data(
-                        typed,
-                        parameter.type_reference,
-                        vocabulary.build_symbol,
-                    )
+                    type_reference_names_exact_data(typed, parameter.type_reference, build_symbol)
                 })
             })
         {
@@ -155,8 +150,7 @@ pub(crate) fn validate_build_activation_integrity(
             )));
         }
         for owned in typed.machine_owned_data(machine) {
-            if type_reference_names_exact_data(typed, owned.type_reference, vocabulary.build_symbol)
-            {
+            if type_reference_names_exact_data(typed, owned.type_reference, build_symbol) {
                 diagnostics.push(Diagnostic::error(format!(
                     "the compiler-owned Build activation cannot be stored in machine field `{}`",
                     owned.name.as_str()
@@ -166,11 +160,7 @@ pub(crate) fn validate_build_activation_integrity(
         }
         for state in typed.machine_states(machine) {
             for parameter in typed.state_parameters(state) {
-                if type_reference_names_exact_data(
-                    typed,
-                    parameter.type_reference,
-                    vocabulary.build_symbol,
-                ) {
+                if type_reference_names_exact_data(typed, parameter.type_reference, build_symbol) {
                     build_value_symbols.push(parameter.symbol);
                 }
             }
@@ -191,7 +181,7 @@ pub(crate) fn validate_build_activation_integrity(
                         if type_reference_names_exact_data(
                             typed,
                             local.type_reference,
-                            vocabulary.build_symbol,
+                            build_symbol,
                         ) =>
                     {
                         if !matches!(
@@ -214,19 +204,13 @@ pub(crate) fn validate_build_activation_integrity(
     }
     for (_, expression) in typed.expression_table.iter_expressions() {
         match expression {
-            ExpressionNode::StructLiteral(literal)
-                if literal.type_symbol == vocabulary.build_symbol =>
-            {
+            ExpressionNode::StructLiteral(literal) if literal.type_symbol == build_symbol => {
                 diagnostics.push(Diagnostic::error(
                     "source cannot construct the compiler-owned Build activation",
                 ));
             }
             ExpressionNode::ZeroValue(type_reference)
-                if type_reference_names_exact_data(
-                    typed,
-                    *type_reference,
-                    vocabulary.build_symbol,
-                ) =>
+                if type_reference_names_exact_data(typed, *type_reference, build_symbol) =>
             {
                 diagnostics.push(Diagnostic::error(
                     "source cannot construct a zero value of the compiler-owned Build activation",
@@ -240,4 +224,25 @@ pub(crate) fn validate_build_activation_integrity(
     } else {
         Err(diagnostics)
     }
+}
+
+/// Recognize one exact nominal data declaration in the toolchain Build prelude.
+/// This predicate alone does not admit an activation or any build effects.
+pub fn is_exact_toolchain_build_prelude_data(
+    typed: &TypedTrees,
+    symbol: SymbolHandle,
+    expected_name: &str,
+) -> bool {
+    typed.data_definitions().iter().any(|definition| {
+        definition.symbol == symbol
+            && definition.name.as_str() == expected_name
+            && typed
+                .symbols
+                .symbol_source_span(symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::Toolchain
+                        && file.path == std::path::Path::new("<build-prelude>")
+                })
+    })
 }

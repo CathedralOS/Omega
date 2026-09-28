@@ -10,6 +10,5 @@ pub(crate) mod configuration;
 pub(crate) mod declarations;
 pub(crate) mod selection;
 pub mod target_machines;
-pub(crate) mod target_vocabulary;
 pub(crate) mod vocabulary;
 pub(crate) mod wire_protocol;
