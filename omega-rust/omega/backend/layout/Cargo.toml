@@ -20,7 +20,7 @@ numerics = { path = "../../../psi/foundation/numerics" }
 runtime-abi = { path = "../runtime/runtime-abi" }
 target = { path = "../target" }
 calling-conventions = { path = "../calling-conventions" }
-representation-selections = { path = "../../compiler/representation-planning/selections" }
+representation-selections = { path = "../../../psi/checking/representation-planning/selections" }
 
 [dev-dependencies]
 build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }

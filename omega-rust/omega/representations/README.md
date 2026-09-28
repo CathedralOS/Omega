@@ -69,8 +69,8 @@ and artifact boundary coverage in
 [`backend/artifacts/boundary-applications/`](../backend/artifacts/boundary-applications/src/lib.rs).
 Installation evidence and task activation plans have separate packages under
 `backend/runtime/`. Opaque representation-selection records live beside
-[representation planning](../compiler/representation-planning/README.md) in its
-independent [`selections/` package](../compiler/representation-planning/selections/src/lib.rs).
+[representation planning](../../psi/checking/representation-planning/README.md) in its
+independent [`selections/` package](../../psi/checking/representation-planning/selections/src/lib.rs).
 These remain directly consumable library packages; moving them out of
 `representations/` does not make callers depend on a coordinator or grant their
 raw records authority.

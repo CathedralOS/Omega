@@ -16,7 +16,7 @@ package-compilation = { path = "../../compiler/package-compilation" }
 provider-planning = { path = "../../compiler/provider-planning" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 layout = { path = "../../backend/layout" }
-representation-planning = { path = "../../compiler/representation-planning" }
+representation-planning = { path = "../../../psi/checking/representation-planning" }
 selected-dispatch = { path = "../../compiler/selected-dispatch" }
 effects = { path = "../../backend/plans/provider-evidence" }
 target = { path = "../../backend/target" }

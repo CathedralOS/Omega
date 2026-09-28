@@ -130,14 +130,15 @@ make folder counts match.
 Target descriptions, calling conventions and register models belong to backend;
 installation/task evidence belongs to backend runtime; boundary-application
 companions belong to backend artifacts; provider authority evidence belongs to
-backend plans. Representation-selection records remain an independent package
-beside their compiler planning owner. None of these is a pipeline program IR.
+backend plans. Target-independent opaque representation-selection records remain
+an independent package beside their Psi admission owner at
+`psi/checking/representation-planning/`. None of these is a pipeline program IR.
 
 ### Subsystem entrances and supporting packages
 
 `omega/compiler/` owns compilation orchestration. Its supporting crates are
 `build-declarations`, `build-evaluation`, `build-output`, `package-compilation`,
-`provider-planning`, `representation-planning`, `selected-dispatch`,
+`provider-planning`, `selected-dispatch`,
 `trust-ledger`, and `trust-model`. Each retains its own `Cargo.toml` and domain
 entrypoint. Nesting makes the compilation responsibilities discoverable; it
 does not make helpers depend on the coordinator. In particular,
@@ -157,7 +158,13 @@ compile-time execution and elaborates its results into source and typed trees.
 publication. These are named services, not a second complete compiler driver;
 there is no `psi/compiler/` umbrella.
 
-`psi/checking/` owns reusable source-program judgments. `psi/proof/` constructs
+`psi/checking/` owns reusable source-program judgments. Its independent
+[`representation-planning`](psi/checking/representation-planning/README.md)
+package admits source-level opaque representation relationships and checks their
+transitive cleanup and copy properties. The caller supplies build authority;
+backend layout derives target shape from the admitted carrier. Its independent
+`selections/` package keeps consumers free of a dependency on admission.
+`psi/proof/` constructs
 and solves source proof obligations; its independent `admission/` package owns
 the mathematical kernel and supplied-certificate checking shared with Terminal
 verification. Terminal-specific codec, semantic reconstruction, verification,
