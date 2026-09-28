@@ -94,7 +94,6 @@ pub(crate) fn evaluate_build_and_continue(
         },
         timings,
     )?;
-    let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let CheckedFrontend {
         typing,
         mut selected_target_machine_declarations,
@@ -139,27 +138,8 @@ pub(crate) fn evaluate_build_and_continue(
         pending_pre_checks.extend(extension_pre_checks);
         typed
     };
-    let selected_build_machine_identity = selected_build_machine_symbol
-        .map(|selected| {
-            let machine = typed
-                .machines()
-                .iter()
-                .find(|machine| machine.symbol == selected)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected build machine disappeared before final checking",
-                    )]
-                })?;
-            typed
-                .normalized_machine_overload_identity(machine)
-                .map(|identity| identity.identity().to_owned())
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "selected build machine has no canonical callable identity",
-                    )]
-                })
-        })
-        .transpose()?;
+    let selected_build_machine_identity =
+        computed_build_config.selected_machine_identity(&typed)?;
     Ok((
         BuiltCheckedProgram {
             typed,

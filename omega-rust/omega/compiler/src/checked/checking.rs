@@ -4,49 +4,15 @@ pub(crate) mod build_continuation;
 pub(crate) mod compile_thread;
 pub(crate) mod execution_settlement;
 
-pub use compilation_products::CheckedCompilation;
+pub use compilation_products::{
+    CheckedCompilation, IndependentComponentDiscovery, IndependentComponentSelection,
+};
 
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use package_compilation::source_assembly::ImmutableSourceParseCheckpoint;
 use std::path::Path;
-
-/// One `Independent` provider selection discovered while evaluating a checked
-/// child's build, paired with the dependency package it names.
-///
-/// The named component is the selected provider type's owning package: the
-/// dependency whose own checked compilation must publish a verified component
-/// description for the selection to settle. `None` means the selected
-/// provider carries no package identity — source-free or toolchain-owned — so
-/// no dependency description can answer it; a selection naming the compiling
-/// package itself is self-deployment, likewise unanswerable. Neither kind
-/// falls back to a fused edge: the component-closure fence in provider
-/// settlement still rejects them.
-#[derive(Debug, Clone)]
-pub struct IndependentComponentSelection {
-    /// The exact evaluated selection the build authored.
-    pub selection: provider_planning::ProviderSelection,
-    /// The owning package of the selected provider type.
-    pub component: Option<semantic_vocabulary::PackageKeyIdentity>,
-}
-
-/// Post-evaluation discovery one checked compile reports beside its verdict:
-/// the `Independent` provider selections the evaluated build authored and
-/// the usage of the evaluation that produced them. Both are recorded between
-/// build evaluation and provider settlement's component-closure fence, so
-/// they survive a rejection the fence issues. A settled compile reports the
-/// same evaluation through its retained review instead.
-#[derive(Debug, Default)]
-pub struct IndependentComponentDiscovery {
-    /// Every `Independent` selection, paired with the dependency package it
-    /// names. Empty when the build selected none.
-    pub selections: Vec<IndependentComponentSelection>,
-    /// The sponsored build evaluation this attempt consumed. A caller that
-    /// publishes the named components and compiles again reconciles it as
-    /// discarded session consumption against the shared sponsor.
-    pub evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
-}
 
 pub use build_evaluation::RestrictedBuildGrants;
 
@@ -581,22 +547,7 @@ fn compile_checked_worker(
         build_started.elapsed().as_micros(),
         artifacts::allocations::AllocationDelta::default(),
     );
-    let independent_components = IndependentComponentDiscovery {
-        evaluation_usage: built.computed_build_config.evaluation_usage,
-        selections: built
-            .computed_build_config
-            .config
-            .provider_selections
-            .iter()
-            .filter(|selection| {
-                selection.composition_mode == provider_planning::CompositionMode::Independent
-            })
-            .map(|selection| IndependentComponentSelection {
-                selection: selection.clone(),
-                component: selection.provider_type.package,
-            })
-            .collect(),
-    };
+    let independent_components = built.computed_build_config.independent_components();
     let settlement_started = std::time::Instant::now();
     let result = execution_settlement::check_selected_execution(
         built,

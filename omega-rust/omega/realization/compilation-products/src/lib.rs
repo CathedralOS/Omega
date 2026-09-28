@@ -45,7 +45,9 @@ pub use compile_request::options::CompileOptions;
 pub use compile_request::{
     CompileRequest, NativeProductRequest, RequestedCompileProduct, TargetCompileConfiguration,
 };
-pub use evaluated_build::{BuildConfig, ComputedBuildConfig};
+pub use evaluated_build::{
+    BuildConfig, ComputedBuildConfig, IndependentComponentDiscovery, IndependentComponentSelection,
+};
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,

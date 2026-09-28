@@ -94,6 +94,76 @@ pub struct ComputedBuildConfig {
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
 
+/// An authored Independent selection and the provider's owning package.
+/// No package means no dependency can answer it; self-deployment likewise
+/// remains unanswerable. Neither case may silently become a Fused edge.
+#[derive(Debug, Clone)]
+pub struct IndependentComponentSelection {
+    pub selection: ProviderSelection,
+    pub component: Option<semantic_vocabulary::PackageKeyIdentity>,
+}
+
+/// Discovery retained before provider settlement, including when that later
+/// stage rejects. Package review may publish the named component descriptions
+/// and retry; its sponsor must still account for the first Build evaluation.
+#[derive(Debug, Default)]
+pub struct IndependentComponentDiscovery {
+    pub selections: Vec<IndependentComponentSelection>,
+    pub evaluation_usage: Option<package_compilation::BuildEvaluationUsage>,
+}
+
+impl ComputedBuildConfig {
+    /// Preserve every authored Independent selection in evaluation order,
+    /// including absent or self package identities for the consumer to reject.
+    /// Discovery grants no component authority and does not settle providers.
+    pub fn independent_components(&self) -> IndependentComponentDiscovery {
+        IndependentComponentDiscovery {
+            evaluation_usage: self.evaluation_usage,
+            selections: self
+                .config
+                .provider_selections
+                .iter()
+                .filter(|selection| {
+                    selection.composition_mode == provider_planning::CompositionMode::Independent
+                })
+                .map(|selection| IndependentComponentSelection {
+                    selection: selection.clone(),
+                    component: selection.provider_type.package,
+                })
+                .collect(),
+        }
+    }
+
+    /// Require the Build's selected symbol to remain present and canonically
+    /// named in the final typed continuation after generated-source extension.
+    pub fn selected_machine_identity(
+        &self,
+        typed: &typed_trees::TypedTrees,
+    ) -> Result<Option<String>, Vec<diagnostics::Diagnostic>> {
+        self.selected_build_machine_symbol
+            .map(|selected| {
+                let machine = typed
+                    .machines()
+                    .iter()
+                    .find(|machine| machine.symbol == selected)
+                    .ok_or_else(|| {
+                        vec![diagnostics::Diagnostic::error(
+                            "selected build machine disappeared before final checking",
+                        )]
+                    })?;
+                typed
+                    .normalized_machine_overload_identity(machine)
+                    .map(|identity| identity.identity().to_owned())
+                    .ok_or_else(|| {
+                        vec![diagnostics::Diagnostic::error(
+                            "selected build machine has no canonical callable identity",
+                        )]
+                    })
+            })
+            .transpose()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

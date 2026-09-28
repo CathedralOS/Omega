@@ -19,6 +19,7 @@ source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 task-plans = { path = "../../backend/runtime/task-plans" }
 typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
+typed-trees = { path = "../../../psi/representations/typed-trees" }
 validation = { path = "../../../psi/checking" }
 artifacts = { path = "../../foundation/artifacts" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
