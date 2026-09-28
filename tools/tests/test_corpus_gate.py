@@ -172,13 +172,17 @@ class PerfContext(unittest.TestCase):
     """Perf moves compare millis across two recording conditions; the
     warnings name when those conditions themselves explain the delta."""
 
-    def test_contended_means_load_met_cpus(self):
-        self.assertTrue(corpus_gate.contended(
-            {"cpus": 8, "load1_start": 4.0, "load1_end": 8.5}))
-        self.assertTrue(corpus_gate.contended(
-            {"cpus": 8, "load1_start": 12.0, "load1_end": 1.0}))
+    def test_contended_judges_only_the_pre_run_load(self):
+        # The gate's own workers saturate the end sample; a quiet start with
+        # a pegged end is a normal full run, not contention.
         self.assertFalse(corpus_gate.contended(
-            {"cpus": 8, "load1_start": 3.0, "load1_end": 4.0}))
+            {"cpus": 12, "load1_start": 1.0, "load1_end": 14.0}))
+        self.assertFalse(corpus_gate.contended(
+            {"cpus": 12, "load1_start": 5.19, "load1_end": 8.43}))
+        self.assertTrue(corpus_gate.contended(
+            {"cpus": 12, "load1_start": 6.0, "load1_end": 1.0}))
+        self.assertTrue(corpus_gate.contended(
+            {"cpus": 8, "load1_start": 12.0, "load1_end": 12.0}))
         self.assertFalse(corpus_gate.contended(None))
         # Hosts without getloadavg (Windows) record no load samples and so
         # never claim contention.

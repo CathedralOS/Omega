@@ -77,7 +77,8 @@ worker count; record and diff at the same jobs value on a quiet machine —
 `millis` inflates uniformly under external load, which floods the perf-move
 report. `--record` stamps the golden with a `# context:` line (jobs, cpus,
 load averages bracketing the run), and a diff that finds perf moves compares
-the two contexts and says when one side was measured under contention. The
+the two contexts and says when one side started on a busy machine; only the
+pre-run load counts, since the end sample includes the gate's own workers. The
 unfiltered record is the scheduled baseline, not a loop check.
 
 Exit codes — the gate's machine-readable verdict (every run can also write
@@ -539,10 +540,12 @@ def load_average():
 
 def measurement_context(load_start) -> dict:
     """The conditions a corpus run measured under. `jobs` is the worker
-    override the runner read (None = runner default); the load pair brackets
-    the run so a timing comparison can tell contention from compiler work.
-    Written into the golden as a `# context:` comment by --record, and
-    compared against the golden's own context on every diff."""
+    override the runner read (None = runner default). `load1_start` is the
+    external load before the gate started; `load1_end` includes the gate's
+    own workers (the runner defaults to up to 12), so it is informational
+    only and never judges contention. Written into the golden as a
+    `# context:` comment by --record, and compared against the golden's own
+    context on every diff."""
     return {"schema": "omega-corpus-context-v1",
             "jobs": os.environ.get("OMEGA_CORPUS_JOBS") or None,
             "cpus": os.cpu_count(),
@@ -553,15 +556,26 @@ def measurement_context(load_start) -> dict:
 
 
 def contended(context) -> bool:
-    """True when the run measured while the machine was saturated: the
-    higher sampled load met or exceeded the hardware's parallelism, so
-    millis inflated for reasons unrelated to the compiler."""
+    """True when the machine was already busy before the gate started: the
+    pre-run load met or exceeded half the hardware's parallelism, so the
+    runner's workers competed with outside work and millis inflated for
+    reasons unrelated to the compiler. Only `load1_start` counts — the end
+    sample carries the gate's own workers, and a 15-fixture run on an idle
+    12-cpu host was measured moving it from 5.19 to 8.43; a full run
+    saturates it by itself."""
     if not context:
         return False
     cpus = context.get("cpus") or 0
-    loads = [context.get(key) for key in ("load1_start", "load1_end")]
-    return cpus > 0 and any(load is not None and load >= cpus
-                            for load in loads)
+    load = context.get("load1_start")
+    return (cpus > 0 and load is not None
+            and load >= cpus * CONTENDED_LOAD_FRACTION)
+
+
+# The runner defaults to one worker per cpu (capped at 12), so any outside
+# load competes with it; half the machine already busy is where the
+# resulting millis inflation stops being plausibly small. A judgment
+# threshold, not a measured one — it only chooses when to print a warning.
+CONTENDED_LOAD_FRACTION = 0.5
 
 
 def perf_context_warnings(golden_context, current_context) -> list[str]:
@@ -586,12 +600,16 @@ def perf_context_warnings(golden_context, current_context) -> list[str]:
             "OMEGA_CORPUS_JOBS before trusting perf moves")
     if contended(golden_context):
         warnings.append(
-            "the golden was recorded under load (load >= cpus); fixtures "
-            "only look faster now — treat perf_faster moves as noise")
+            f"the golden was recorded on a busy machine (pre-run load "
+            f"{golden_context.get('load1_start')} on "
+            f"{golden_context.get('cpus')} cpus); fixtures only look faster "
+            "now — treat perf_faster moves as noise")
     if contended(current_context):
         warnings.append(
-            "this run measured under load (load >= cpus); fixtures only "
-            "look slower — treat perf_slower moves as noise")
+            f"this run started on a busy machine (pre-run load "
+            f"{current_context.get('load1_start')} on "
+            f"{current_context.get('cpus')} cpus); fixtures only look "
+            "slower — treat perf_slower moves as noise")
     return warnings
 
 
