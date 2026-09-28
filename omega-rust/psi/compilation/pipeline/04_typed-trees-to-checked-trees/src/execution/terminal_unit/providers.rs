@@ -170,15 +170,26 @@ pub(super) fn checked_provider_attachment_requirements(
             // the requirement's own retained boundary seam and consumes no
             // attached provider field. A boundary call targeting a signature —
             // any receiver-carried provider use — still requires the field.
+            // A direct call to a bodyless external leaf likewise names its
+            // realization, not a field: the operation targets the leaf's
+            // exact satisfied requirement and the leaf's own selected row
+            // settles it.
             let targets_machine = match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
                     target_machine, ..
-                } => program
-                    .machines()
-                    .iter()
-                    .any(|candidate| candidate.symbol == *target_machine),
+                } => {
+                    program
+                        .machines()
+                        .iter()
+                        .any(|candidate| candidate.symbol == *target_machine)
+                        || validation::exact_external_leaf_boundary_requirement(
+                            program,
+                            call.target_symbol,
+                        )
+                        .is_some_and(|(requirement, _)| requirement == *target_machine)
+                }
                 _ => false,
             };
             if targets_machine {

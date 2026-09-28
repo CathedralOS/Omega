@@ -45,10 +45,11 @@ pub(crate) use signatures::{
     structural_scalar_signature, structural_scalar_signature_traced, structural_signature,
 };
 pub(crate) use structural_arguments::call_claim_transfers;
-/// Rejoin a bodyless compiler-intrinsic satisfier to the exact boundary-trait
-/// requirement whose call it realizes. Provider selection may resolve a call
-/// to the target satisfier before checked Unit planning; that satisfier is not
-/// an ordinary transitive machine body. Terminal projection grants no
-/// execution authority here: the later sealed compiler catalog independently
+/// Rejoin a bodyless external leaf (a compiler intrinsic or an evaluated
+/// foreign binding) to the exact boundary-trait requirement whose call it
+/// realizes. Provider selection may resolve a call to the target satisfier
+/// before checked Unit planning; that satisfier is not an ordinary transitive
+/// machine body. Terminal projection grants no execution authority here: the
+/// later sealed compiler catalog or normalized-import settlement independently
 /// decides whether the exact requirement/realization/target tuple is native.
-pub(super) use validation::exact_compiler_intrinsic_boundary_requirement;
+pub(super) use validation::exact_external_leaf_boundary_requirement;

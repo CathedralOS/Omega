@@ -319,15 +319,17 @@ pub(crate) fn target_signature(
     if !source_target.is_valid() {
         return unsupported("call source custody has no live target identity");
     }
-    let intrinsic =
-        validation::exact_compiler_intrinsic_boundary_requirement(program, source_target);
+    // A bodyless external leaf's call source is its exact boundary
+    // requirement; the leaf declares no body to supply one.
+    let external_leaf =
+        validation::exact_external_leaf_boundary_requirement(program, source_target);
     let mut states = program.machines().iter().flat_map(|machine| {
         program
             .machine_states(machine)
             .iter()
             .filter_map(move |state| (state.symbol == source_target).then_some((machine, state)))
     });
-    if intrinsic.is_none()
+    if external_leaf.is_none()
         && let Some((machine, state)) = states.next()
     {
         if states.next().is_some() || !machine.symbol.is_valid() {
@@ -344,7 +346,7 @@ pub(crate) fn target_signature(
             state: state.symbol,
         });
     }
-    let requirement = if let Some((requirement, _)) = intrinsic {
+    let requirement = if let Some((requirement, _)) = external_leaf {
         requirement
     } else if let Some((owner, signature)) = program.machine_parameter_signature(source_target) {
         if owner.symbol != caller_machine {
