@@ -429,10 +429,10 @@ pub(super) fn argument(
     })
 }
 
-/// An available address join lends its own joined referent, whole and shared:
-/// the callee receives the carried address, exactly as it would receive a
-/// caller's borrowed parameter. A projection through the join, a wider access
-/// or a substituted referent type needs its own place evidence and rejects.
+/// An available address join lends from its carried address, not copied storage.
+/// Projections use the same typed layout and dominating scalar operands as an
+/// incoming parameter; the block source retains the joined root's identity.
+/// Access cannot widen, and the projected referent must match the callee.
 pub(super) fn address_join_argument(
     argument: &terminal_psi::StructuralArgument,
     declaration: &terminal_psi::StructuralParameterDeclaration,
@@ -442,7 +442,6 @@ pub(super) fn address_join_argument(
     types: &StructuralTypeLookup<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     if !live.address_joins.contains(&argument.place)
-        || !argument.path.is_empty()
         || !matches!(
             argument.access,
             StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
@@ -465,16 +464,18 @@ pub(super) fn address_join_argument(
                 .map(|parameter| (entry, parameter))
         })
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-    let referent = crate::lowering::structural_layout::structural_shape(
-        parameter.structural_type,
-        types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
+    let (selected, referent, offset, runs) =
+        crate::lowering::structural_layout::runtime_projection(
+            parameter.structural_type,
+            &argument.path,
+            types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?;
     if !super::transfers::is_address_join(parameter, types)
         || argument.access == StructuralAccess::MutableBorrow
             && parameter.access != StructuralAccess::MutableBorrow
-        || parameter.structural_type != declaration.structural_type
+        || selected != declaration.structural_type
         || destination.shape
             != crate::lowering::structural_layout::structural_parameter_shape(
                 referent,
@@ -483,17 +484,22 @@ pub(super) fn address_join_argument(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
+    let indices = super::scalar_sources::runtime_indices(
+        runs,
+        function,
+        &super::scalar_sources::ScalarSources::from(live),
+    )?;
     Ok(TargetStructuralArgument {
         place: argument.place,
         access: argument.access,
-        path: Vec::new(),
+        path: argument.path.clone(),
         root_structural_type: parameter.structural_type,
-        structural_type: parameter.structural_type,
+        structural_type: selected,
         shape: destination.shape,
-        source_byte_offset: 0,
+        source_byte_offset: offset,
         fixed_array_length: None,
         element_stride: None,
-        indices: Vec::new(),
+        indices,
         source: TargetStructuralArgumentSource::BlockParameter {
             block: entry.block,
             place: parameter.place,

@@ -179,3 +179,85 @@ fn address_join_edges_reject_substituted_referents_widened_access_and_forged_roo
         .is_err()
     );
 }
+
+#[test]
+fn loop_carried_borrows_project_call_arguments_from_the_joined_address() {
+    let source = "data Cell { value: u64; }
+        machine Cell::copy_from(&mut self, source: &Cell) { self.value = source.value; }
+        data Holder { prefix: u64; cells: [Cell; 4]; }
+        machine Holder::copy_all(&mut self, source: &Holder) {
+            transition { _ -> copy(source, 0) }
+            state copy(&mut self, source: &Holder, position: u64) {
+                transition position < 4 { true -> step(source, position) false -> done() }
+            }
+            state step(&mut self, source: &Holder, position: u64) {
+                self.cells[position].copy_from(&source.cells[position]);
+                transition { _ -> copy(source, position + 1) }
+            }
+            state done(&mut self) {}
+        }
+        data Main { source: Holder; target: Holder; }
+        machine Main::run(&mut self) { self.target.copy_all(&self.source); }";
+    let plan = source_plan(source);
+    for native in [NativeTarget::macos_arm64(), NativeTarget::windows_x64()] {
+        let target =
+            crate::lower_to_target_operations(&plan, crate::TargetLoweringRequest::new(native))
+                .expect("loop-carried borrows retain projected arguments");
+        crate::validate_abstract_to_target_translation(&plan, native, &target).unwrap();
+        let projected = target
+            .functions
+            .iter()
+            .flat_map(|function| &function.graph.blocks)
+            .flat_map(|block| &block.operations)
+            .filter_map(|operation| match operation {
+                TargetUnitOperation::Call { arguments, .. } => Some(arguments),
+                _ => None,
+            })
+            .flatten()
+            .filter(|argument| {
+                matches!(
+                    argument.source,
+                    TargetStructuralArgumentSource::BlockParameter { .. }
+                ) && !argument.indices.is_empty()
+            })
+            .collect::<Vec<_>>();
+        assert!(
+            !projected.is_empty(),
+            "a loop parameter supplies the projected loan"
+        );
+        for argument in projected {
+            assert_eq!(argument.source_byte_offset, 8);
+            assert_eq!(argument.indices.len(), 1);
+            assert_eq!(argument.indices[0].stride, 8);
+            assert_eq!(argument.shape, ValueShape::borrowed_reference(8, 8));
+        }
+        for corrupt_offset in [true, false] {
+            let mut forged = target.clone();
+            let argument = forged
+                .functions
+                .iter_mut()
+                .flat_map(|function| &mut function.graph.blocks)
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::Call { arguments, .. } => {
+                        arguments.iter_mut().find(|argument| {
+                            matches!(
+                                argument.source,
+                                TargetStructuralArgumentSource::BlockParameter { .. }
+                            ) && !argument.indices.is_empty()
+                        })
+                    }
+                    _ => None,
+                })
+                .unwrap();
+            if corrupt_offset {
+                argument.source_byte_offset += 8;
+            } else {
+                argument.indices[0].stride += 8;
+            }
+            assert!(
+                crate::validate_abstract_to_target_translation(&plan, native, &forged).is_err()
+            );
+        }
+    }
+}
