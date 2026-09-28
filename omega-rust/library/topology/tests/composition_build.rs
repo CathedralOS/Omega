@@ -28,7 +28,7 @@ use package_manager::{declarations::DependencyPurpose, review::SemanticBindingRe
 use package_source::{
     LocalSourceLimits, PrimaryGitChoices, SourceLineage, SourceRelativePath, SourceResolver,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use support::*;
 use topology_plan::*;
 
@@ -80,12 +80,18 @@ fn accepted_policy(
     PackageLockTarget::from_policies(source, &policies, history).expect("accepted project policy")
 }
 
-fn copy_fixture(workspace: &Path) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+fn fixture_directory() -> PathBuf {
+    // Cargo and nextest supply the active checkout at execution time. A binary
+    // reused from a shared target must not read or regenerate another worktree.
+    PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo test package directory"))
         .join("../../..")
         .join("tests/omega/packages/build-scope-topology")
         .canonicalize()
-        .expect("committed fixture exists");
+        .expect("committed fixture exists")
+}
+
+fn copy_fixture(workspace: &Path) {
+    let fixture = fixture_directory();
     for entry in ["root/build.omg", "root/main.omg", "topology/build.omg"] {
         let data = std::fs::read(fixture.join(entry)).unwrap();
         let target = workspace.join(entry);
@@ -214,11 +220,7 @@ fn regenerate_package_inputs() {
     if std::env::var("TOPOLOGY_REGENERATE_INPUTS").is_err() {
         return;
     }
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
-        .join("tests/omega/packages/build-scope-topology")
-        .canonicalize()
-        .expect("committed fixture exists");
+    let fixture = fixture_directory();
     let (request, components, bindings) = build_scope_inputs();
     for (name, bytes) in [
         ("request.bin", request.as_slice()),
