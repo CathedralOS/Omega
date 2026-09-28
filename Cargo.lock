@@ -417,6 +417,7 @@ dependencies = [
  "checked-trees",
  "diagnostics",
  "effects",
+ "image-emission",
  "native-artifact",
  "optimization-core",
  "package-compilation",
