@@ -15,9 +15,7 @@ use crate::calling_policy_plans::callback_bindings::{
     callback_materialization_context, callback_plan_report_fingerprint,
     validate_retained_callback_binders,
 };
-use crate::calling_policy_plans::value_shapes::{
-    case, classify_boundary_aggregate, push_boundary_shape,
-};
+use crate::calling_policy_plans::value_shapes::{case, push_boundary_shape};
 use crate::calling_policy_plans::{
     BoundaryCallingPlanRealization, BoundaryNativeParameter, BoundaryNativeParameterOrigin,
     BoundaryNativeParameterShape, BoundaryValueClass, BoundaryValueField, BoundaryValueShape,
@@ -860,9 +858,9 @@ pub(crate) fn validate_materialized_boundary_plan_result(
         .enumerate()
     {
         let validation = match native_parameter.shape {
-            BoundaryNativeParameterShape::Semantic(root) => {
-                validate_authored_abi_shape(signature, root, placement.shape, plan.call.policy)
-            }
+            BoundaryNativeParameterShape::Semantic(root) => signature
+                .value_graph()
+                .validate_abi_shape(root, placement.shape, plan.call.policy),
             BoundaryNativeParameterShape::TargetFunctionPointer {
                 byte_size,
                 alignment,
@@ -885,9 +883,12 @@ pub(crate) fn validate_materialized_boundary_plan_result(
         })?;
     }
     if let (Some(placement), Some(root)) = (&plan.call.result, signature.result) {
-        validate_authored_abi_shape(signature, root, placement.shape, plan.call.policy).map_err(
-            |reason| invalid_authored_plan(format!("result classification is invalid: {reason}")),
-        )?;
+        signature
+            .value_graph()
+            .validate_abi_shape(root, placement.shape, plan.call.policy)
+            .map_err(|reason| {
+                invalid_authored_plan(format!("result classification is invalid: {reason}"))
+            })?;
     }
     let classified = CallSignature {
         parameters: plan
@@ -1027,36 +1028,4 @@ pub(crate) fn boundary_plan_application_identity(
 
 fn invalid_authored_plan(reason: String) -> String {
     format!("calling policy accepted an invalid plan: {reason}")
-}
-
-pub(crate) fn validate_authored_abi_shape(
-    signature: &MaterializedBoundarySignature,
-    root: u16,
-    abi: ValueShape,
-    policy: CallingPolicy,
-) -> Result<(), String> {
-    let shape = signature
-        .shapes
-        .get(usize::from(root))
-        .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
-    if abi.byte_size != shape.byte_size || abi.alignment != shape.alignment {
-        return Err(format!(
-            "ABI shape {}/{} does not preserve semantic size/alignment {}/{}",
-            abi.byte_size, abi.alignment, shape.byte_size, shape.alignment
-        ));
-    }
-    let expected = match shape.class {
-        BoundaryValueClass::Integer | BoundaryValueClass::Reference => ValueClass::Integer,
-        BoundaryValueClass::Float => ValueClass::Float,
-        BoundaryValueClass::FixedArray { .. } | BoundaryValueClass::Record { .. } => {
-            classify_boundary_aggregate(signature, root, policy)?
-        }
-    };
-    if abi.class != expected {
-        return Err(format!(
-            "policy published ABI class {:?}, but its recursive public shape requires {:?} under {:?}",
-            abi.class, expected, policy
-        ));
-    }
-    Ok(())
 }

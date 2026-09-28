@@ -12,12 +12,12 @@ use crate::calling_policy_plans::opaque_representations::{
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,
 };
 use crate::calling_policy_plans::value_shapes::{
-    classify_boundary_aggregate, opaque_representation_value_shape, plain_data_value_shape,
-    value_shape_from_type,
+    opaque_representation_value_shape, plain_data_value_shape, value_shape_from_type,
 };
+pub use calling_conventions::{BoundaryValueClass, BoundaryValueField, BoundaryValueShape};
 use calling_conventions::{
-    CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand, NativeParameterId,
-    StaticMachineBinderId, ValidatedBoundaryEntryPlan, ValueClass, ValueShape,
+    BoundaryValueGraph, CallSignature, CallbackRequirementId, CallingPolicy, NativeCallbackDemand,
+    NativeParameterId, StaticMachineBinderId, ValidatedBoundaryEntryPlan, ValueShape,
     callback_requirement_id, nominal_callback_native_parameter_id,
 };
 use representation_planning::OpaqueRepresentationSelection;
@@ -36,28 +36,6 @@ pub(crate) struct BoundarySignatureInstance<'a> {
     pub(crate) signature: &'a typed_trees::signature::StateSignature,
     pub(crate) requirement_identity: String,
     pub(crate) bindings: Vec<TraitTypeBinding>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundaryValueClass {
-    Integer,
-    Float,
-    Reference,
-    FixedArray { element: u16, length: u16 },
-    Record { first_field: u16, field_count: u16 },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundaryValueShape {
-    pub(crate) class: BoundaryValueClass,
-    pub(crate) byte_size: u16,
-    pub(crate) alignment: u16,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BoundaryValueField {
-    pub(crate) shape: u16,
-    pub(crate) byte_offset: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -97,6 +75,14 @@ impl MaterializedBoundarySignature {
     /// is deliberately absent.
     pub fn opaque_representation_uses(&self) -> &[BoundaryOpaqueRepresentationUse] {
         &self.opaque_representations
+    }
+
+    /// Source-free public shape input for the backend's ABI classifier.
+    pub fn value_graph(&self) -> BoundaryValueGraph<'_> {
+        BoundaryValueGraph {
+            shapes: &self.shapes,
+            fields: &self.fields,
+        }
     }
 
     pub fn shapes(&self) -> &[BoundaryValueShape] {
@@ -277,30 +263,6 @@ pub(crate) fn boundary_shape_path(
             }
             Ok(found)
         }
-    }
-}
-
-impl BoundaryValueShape {
-    pub const fn class(self) -> BoundaryValueClass {
-        self.class
-    }
-
-    pub const fn byte_size(self) -> u16 {
-        self.byte_size
-    }
-
-    pub const fn alignment(self) -> u16 {
-        self.alignment
-    }
-}
-
-impl BoundaryValueField {
-    pub const fn shape(self) -> u16 {
-        self.shape
-    }
-
-    pub const fn byte_offset(self) -> u16 {
-        self.byte_offset
     }
 }
 
@@ -550,7 +512,7 @@ pub(crate) fn compatibility_call_signature(
                 if syscall_words {
                     Ok(ValueShape::integer(8, 8))
                 } else {
-                    classified_boundary_shape(materialized, root, policy)
+                    materialized.value_graph().classify(root, policy)
                 }
             })
             .collect::<Result<Vec<_>, _>>()?,
@@ -560,33 +522,10 @@ pub(crate) fn compatibility_call_signature(
                 if syscall_words {
                     Ok(ValueShape::integer(8, 8))
                 } else {
-                    classified_boundary_shape(materialized, root, policy)
+                    materialized.value_graph().classify(root, policy)
                 }
             })
             .transpose()?,
-    })
-}
-
-fn classified_boundary_shape(
-    signature: &MaterializedBoundarySignature,
-    root: u16,
-    policy: CallingPolicy,
-) -> Result<ValueShape, String> {
-    let shape = signature
-        .shapes
-        .get(usize::from(root))
-        .ok_or_else(|| format!("shape root {root} is outside the normalized graph"))?;
-    let class = match shape.class {
-        BoundaryValueClass::Integer | BoundaryValueClass::Reference => ValueClass::Integer,
-        BoundaryValueClass::Float => ValueClass::Float,
-        BoundaryValueClass::FixedArray { .. } | BoundaryValueClass::Record { .. } => {
-            classify_boundary_aggregate(signature, root, policy)?
-        }
-    };
-    Ok(ValueShape {
-        class,
-        byte_size: shape.byte_size,
-        alignment: shape.alignment,
     })
 }
 
