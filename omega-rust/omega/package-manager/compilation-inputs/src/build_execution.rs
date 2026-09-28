@@ -7,6 +7,7 @@
 //! Restricted host requests project the admitted execution mode and scope
 //! before execution, so package review and consumption share one vocabulary.
 
+mod build_admission;
 pub mod build_value;
 mod completed_outputs;
 mod filesystem_scope;
@@ -17,6 +18,7 @@ mod output_custody;
 mod restricted_requests;
 mod snapshot_request;
 
+pub use build_admission::{SelectedBuildMachine, admit_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
 pub use filesystem_scope::{
