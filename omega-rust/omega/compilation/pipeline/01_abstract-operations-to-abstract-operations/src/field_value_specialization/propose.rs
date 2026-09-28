@@ -7,18 +7,23 @@
 //! whose `result_case` matches proves the payload field's initializer; and
 //! a `Field` segment descends the same two proofs into a nested position
 //! when the record stores the field as an owned, complete structural child
-//! whose declared type is exactly the field's declared carrier. An
-//! initializer that is a same-function constant folds the read to a literal;
-//! a nonconstant initializer instead substitutes itself at every use of the
-//! read's result and retires the observation node when the substitution
-//! lane covers every use and the initializer dominates them all. At any
-//! resolvable path a field declared `BoundedInteger` with a singleton bound
-//! proves the value independently of producer. `Field` segments descend
-//! through `Record`/`Mixed` common fields and case-payload fields by
-//! identity, `FixedIndex` descends a `FixedArray` element, and `Case` enters
-//! a `Sum`/`Mixed` case payload namespace. Reads whose resolved field the
-//! unit cannot prove stay unfolded; the rule freezes machines holding an
-//! authenticated cyclic component before asking for a plan.
+//! whose declared type is exactly the field's declared carrier — a block
+//! parameter crosses through the one place every incoming edge binds it to
+//! whole. An `EstablishZeroedStructural` producer fixes every scalar leaf
+//! of the position at literal zero — the verifier admits it only on
+//! zero-constructible shapes, so the remaining canonical path descends the
+//! declared type alone without a child place to cross. An initializer that
+//! is a same-function constant folds the read to a literal; a nonconstant
+//! initializer instead substitutes itself at every use of the read's
+//! result and retires the observation node when the substitution lane
+//! covers every use and the initializer dominates them all. At any
+//! resolvable path a field declared `BoundedInteger` with a singleton
+//! bound proves the value independently of producer. `Field` segments
+//! descend through `Record`/`Mixed` common fields and case-payload fields
+//! by identity, `FixedIndex` descends a `FixedArray` element, and `Case`
+//! enters a `Sum`/`Mixed` case payload namespace. Reads whose resolved
+//! field the unit cannot prove stay unfolded; the rule freezes machines
+//! holding an authenticated cyclic component before asking for a plan.
 
 use super::{
     FieldValueSpecializationRewrite, PlaceId, PsiOptimizationFunction, PsiOptimizationUnit,

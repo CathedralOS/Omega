@@ -2,7 +2,7 @@
 //!
 //! One bounded specialization family: a `BooleanStructuralField` or
 //! `IntegerStructuralField` observation whose `source` place carries a stored
-//! field value the unit itself proves. Five proofs qualify. Record
+//! field value the unit itself proves. Six proofs qualify. Record
 //! establishment: the place is declared `StructuralPlaceKind::OperationResult`
 //! and its producer node in the same function is an `EstablishRecord` — the
 //! operation-result place is assigned exactly once by its producer and no
@@ -23,8 +23,12 @@
 //! in the function rewrites or mutably re-lends it, the parameter's
 //! contents are exactly the bound place's — the bound place's own
 //! establishment proves the parameter's observations, transitively through
-//! further parameters. Declared bound: the observed field's declared type
-//! is a `BoundedInteger` whose inclusive bound closes over exactly one
+//! further parameters. Zeroed establishment: an `EstablishZeroedStructural`
+//! producer fixes every scalar leaf of the position at literal zero — the
+//! verifier admits it only on zero-constructible shapes, so the remaining
+//! canonical path descends the declared type alone and never needs a child
+//! place to cross an index. Declared bound: the observed field's declared
+//! type is a `BoundedInteger` whose inclusive bound closes over exactly one
 //! value, so every inhabitant of the position holds that value independently
 //! of how the place arrived —
 //! parameters, block parameters, results, and non-establishing producers all

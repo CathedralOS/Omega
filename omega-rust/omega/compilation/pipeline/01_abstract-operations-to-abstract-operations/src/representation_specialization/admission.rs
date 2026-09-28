@@ -123,19 +123,21 @@ fn proof_basis(
 /// The establishing operation a place's producer or uniform binding
 /// resolves to, when it is one this family's proofs can draw on: `Record`
 /// for an `EstablishRecord`, `Variant` for an `EstablishCase`
-/// carrying its `result_case`, `None` for every other producer or place
-/// kind.
+/// carrying its `result_case`, `Zeroed` for an `EstablishZeroedStructural`
+/// whose all-zero storage selects each admissible sum's first declared
+/// case, `None` for every other producer or place kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Establishment {
     None,
     Record(OperationId),
     Variant(OperationId, StructuralCaseId),
+    Zeroed(OperationId),
 }
 
 /// The establishing producer `declaration`'s operation-result kind names,
 /// or `Establishment::None` when the place is not an operation result or
-/// its producer is not an `EstablishRecord`/`EstablishCase` in
-/// `function`.
+/// its producer is not an `EstablishRecord`/`EstablishCase`/
+/// `EstablishZeroedStructural` in `function`.
 fn establishment_producer(
     function: &PsiOptimizationFunction,
     declaration: &StructuralPlaceDeclaration,
@@ -160,6 +162,12 @@ fn establishment_producer(
             } if *psi_operation == producer && result.place == declaration.id => {
                 return Establishment::Variant(producer, *result_case);
             }
+            O::EstablishZeroedStructural {
+                psi_operation,
+                result,
+            } if *psi_operation == producer && result.place == declaration.id => {
+                return Establishment::Zeroed(producer);
+            }
             _ => {}
         }
     }
@@ -167,15 +175,20 @@ fn establishment_producer(
 }
 
 /// The case an establishing producer proves at `path`'s resolved position
-/// under `declaration`'s place, witnessed by the `EstablishCase`
-/// operation at that position. `None` when any step is not established: a
-/// `Field` segment crosses only into an `EstablishRecord` field stored as
-/// an owned, complete structural child whose declared type is exactly the
-/// field's declared carrier, and a block parameter — which holds no
-/// producer of its own — crosses only into the one place every incoming
-/// edge binds it to whole when nothing rewrites or mutably re-lends it.
-/// `FixedIndex`, `RuntimeIndex`, `FixedByteRange`, and `Referent` segments
-/// never cross: an `EstablishScalarArray` element is not a placed child.
+/// under `declaration`'s place, witnessed by the `EstablishCase` or
+/// `EstablishZeroedStructural` operation that fixes it. `None` when any
+/// step is not established: a `Field` segment crosses only into an
+/// `EstablishRecord` field stored as an owned, complete structural child
+/// whose declared type is exactly the field's declared carrier, and a
+/// block parameter — which holds no producer of its own — crosses only
+/// into the one place every incoming edge binds it to whole when nothing
+/// rewrites or mutably re-lends it. `FixedIndex`, `RuntimeIndex`,
+/// `FixedByteRange`, and `Referent` segments never cross a record or
+/// variant establishment: an `EstablishScalarArray` element is not a
+/// placed child. A zeroed establishment crosses every `Field` and index
+/// segment inside its own storage instead — the verifier admits
+/// `EstablishZeroedStructural` only on zero-constructible shapes, so every
+/// sum the declared path resolves holds its first declared case.
 fn established_case_at(
     unit: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
@@ -193,6 +206,28 @@ fn established_case_at(
                 // An `EstablishCase` proves the case of the position
                 // its result occupies permanently.
                 return Some((producer, case));
+            }
+            (Establishment::Zeroed(operation), _) => {
+                // Zeroed storage selects each admissible sum's first
+                // declared case — the tag's all-zero bits name case ordinal
+                // zero — at every position inside the place's own storage.
+                // The remaining path descends the declared type alone:
+                // `Field` and both index segments stay inside the zeroed
+                // storage, while `Referent` and `FixedByteRange` leave it
+                // and never resolve under a zero-admissible shape anyway.
+                let mut position = declared?;
+                for segment in segments {
+                    match segment {
+                        StructuralPathSegment::Field(_)
+                        | StructuralPathSegment::FixedIndex(_)
+                        | StructuralPathSegment::RuntimeIndex { .. } => {
+                            position = descended_type(unit, position, segment)?;
+                        }
+                        StructuralPathSegment::Referent
+                        | StructuralPathSegment::FixedByteRange { .. } => return None,
+                    }
+                }
+                return roster_first_case(unit, position).map(|case| (operation, case));
             }
             (Establishment::Record(operation), [StructuralPathSegment::Field(identity), ..]) => {
                 // A `Field` segment descends into the nested carrier the
@@ -594,6 +629,26 @@ fn descended_type(
             _ => None,
         },
     }
+}
+
+/// The first declared case of `type_id`'s roster — the case a zeroed tag's
+/// ordinal-zero bits select — or `None` when the shape is not a
+/// `Sum`/`Mixed` or declares no case at all.
+fn roster_first_case(
+    unit: &PsiOptimizationUnit,
+    type_id: StructuralTypeId,
+) -> Option<StructuralCaseId> {
+    let cases = match &unit
+        .structural_types
+        .as_slice()
+        .iter()
+        .find(|entry| entry.id == type_id)?
+        .shape
+    {
+        StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
+        _ => return None,
+    };
+    cases.first().map(|case| case.id)
 }
 
 /// The one case of `type_id`'s closed roster, or `None` when its shape is

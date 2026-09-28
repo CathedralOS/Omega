@@ -2,7 +2,7 @@
 //!
 //! One bounded specialization family: a `StructuralCaseMembership`
 //! observation whose `source` place carries a case the unit itself proves
-//! folds to a `BooleanConstant` holding that verdict. Two proofs qualify.
+//! folds to a `BooleanConstant` holding that verdict. Three proofs qualify.
 //! Establishment: the position the observation names resolves to an
 //! `EstablishCase` — the observed place's own producer when it is an
 //! operation result, the establishment a uniform whole
@@ -10,8 +10,13 @@
 //! incoming edge names the same place and nothing rewrites or mutably
 //! re-lends it, or a stored-whole child's producer when a `Field` path
 //! descends an `EstablishRecord` field carried by one owned, complete
-//! structural argument of exactly the declared carrier type. Sole-case
-//! roster: the place's declared structural type is a closed `Sum` or
+//! structural argument of exactly the declared carrier type. Zeroed
+//! establishment: the position resolves to an
+//! `EstablishZeroedStructural` — the same producer or bound/child chain
+//! — whose all-zero storage selects each admissible sum's first declared
+//! case; the verifier admits it only on zero-constructible shapes, so the
+//! remaining `Field` and index path descends the declared type alone.
+//! Sole-case roster: the place's declared structural type is a closed `Sum` or
 //! `Mixed` roster of exactly one case, so every inhabitant of the place
 //! holds that case independently of how it arrived — parameters, results,
 //! and non-`EstablishCase` producers all qualify. In either proof the

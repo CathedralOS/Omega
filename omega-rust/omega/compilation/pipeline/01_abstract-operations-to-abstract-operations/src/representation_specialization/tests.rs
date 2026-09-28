@@ -405,6 +405,210 @@ fn self_field_array_membership_folds() {
     assert!(row.outcome);
 }
 
+/// A state parameter uniformly bound to a record whose `c` member arrives
+/// as a stored-whole zeroed child: a zeroed establishment selects each
+/// admissible sum's first declared case at every position of its storage,
+/// so `h.c in Choice::Empty` folds to `true` and `h.c in Choice::Some`
+/// folds to `false` under the same `EstablishZeroedStructural` witness.
+const ZEROED_SUM_MEMBER_SOURCE: &str = r#"
+    data Choice { case Empty; case Some(value: u32); }
+    data Holder { c: Choice; flag: bool; }
+    data Root {}
+    machine Root::run() {
+        let h: Holder = Holder { flag: true };
+        transition { _ -> check(h) }
+        state check(h: Holder) {
+            let e: bool = h.c in Choice::Empty;
+            let s: bool = h.c in Choice::Some;
+            transition e && !s { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// The same proof reached through the whole-record form: `Holder {}`
+/// mints one `EstablishZeroedStructural` for the record itself, and the
+/// state parameter's uniform binding forwards it to the membership's
+/// establishment chain.
+const ZEROED_ROOT_SOURCE: &str = r#"
+    data Choice { case Empty; case Some(value: u32); }
+    data Holder { c: Choice; flag: bool; }
+    data Root {}
+    machine Root::run() {
+        let h: Holder = Holder { };
+        transition { _ -> check(h) }
+        state check(h: Holder) {
+            let m: bool = h.c in Choice::Empty;
+            transition m { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
+/// The `EstablishZeroedStructural` custody identity in `machine` — every
+/// fixture carries exactly one.
+fn zeroed_producer(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+) -> semantic_vocabulary::OperationId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishZeroedStructural { psi_operation, .. } => {
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .expect("the fixture establishes a zeroed structural")
+}
+
+#[test]
+fn zeroed_sum_member_memberships_fold_both_verdicts() {
+    let unit = lowered_unit_entry(ZEROED_SUM_MEMBER_SOURCE, "zeroed sum member", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = block_parameter_place(&input, machine);
+    let memberships = memberships_on(&input, machine, place);
+    assert_eq!(
+        memberships.len(),
+        2,
+        "two memberships observe the zeroed sum member"
+    );
+    let zeroed = zeroed_producer(&input, machine);
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.place, place);
+    assert_eq!(
+        patch.producer, None,
+        "the block parameter carries no root basis of its own"
+    );
+    let [empty_row, some_row] = patch.memberships.as_slice() else {
+        panic!("both memberships fold in one candidate")
+    };
+    for row in [empty_row, some_row] {
+        assert_eq!(row.source, place);
+        assert_eq!(row.producer, Some(zeroed));
+        assert_eq!(
+            row.proven_case, empty_row.observed_case,
+            "both memberships prove the first declared case"
+        );
+    }
+    assert!(empty_row.outcome, "the observed case is the proven case");
+    assert_ne!(
+        some_row.observed_case, some_row.proven_case,
+        "the second membership observes a later case"
+    );
+    assert!(
+        !some_row.outcome,
+        "observing a non-first case under zeroed storage folds to false"
+    );
+}
+
+#[test]
+fn zeroed_root_membership_folds_through_binding() {
+    let unit = lowered_unit_entry(ZEROED_ROOT_SOURCE, "zeroed root", "Root::run");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = block_parameter_place(&input, machine);
+    let (site, (psi_operation, _, _)) =
+        membership_on(&input, machine, place).expect("membership exists");
+    let zeroed = zeroed_producer(&input, machine);
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    let [row] = patch.memberships.as_slice() else {
+        panic!("one folded membership")
+    };
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, psi_operation);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, Some(zeroed));
+    assert_eq!(row.proven_case, row.observed_case);
+    assert!(row.outcome);
+
+    // The folded node is a `BooleanConstant` holding `true` at the same
+    // coordinates.
+    let function = run
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine retained");
+    let folded = &function
+        .blocks
+        .iter()
+        .find(|block| block.id == site.block)
+        .expect("block retained")
+        .nodes[usize::try_from(site.node).expect("index")];
+    assert!(matches!(
+        folded.operation,
+        AbstractOperation::BooleanConstant { value: true, .. }
+    ));
+}
+
+#[test]
+fn replay_rejects_forged_zeroed_rows() {
+    let unit = lowered_unit_entry(ZEROED_ROOT_SOURCE, "zeroed root forged", "Root::run");
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
+
+    // A roster-basis claim on an establishment-proven row mismatches the
+    // replayed proof: the resolved roster holds two cases, not one.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].producer = None;
+            },
+        ),
+    );
+
+    // A forged proven case mismatches the zeroed first-case proof.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].proven_case = semantic_vocabulary::StructuralCaseId::new(
+                    patch.memberships[0].proven_case.get() + 7,
+                )
+                .expect("forged case identity");
+            },
+        ),
+    );
+
+    // A forged witness — a different operation claimed as the establishment.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.memberships[0].producer = Some(patch.memberships[0].psi_operation);
+            },
+        ),
+    );
+
+    let validated = validate_case_membership_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact zeroed candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
+}
+
 #[test]
 fn multi_case_array_element_membership_yields_no_candidate() {
     let unit = lowered_unit_entry(ARRAY_MULTI_CASE_SOURCE, "multi-case array element", "probe");
