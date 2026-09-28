@@ -50,15 +50,16 @@ impl CheckedBoundaryOperatorApplicationScope {
     }
 
     /// Exact source-produced dynamic calls replayed into the admitted
-    /// descriptor-table lane, one row per surviving Terminal occurrence.
+    /// descriptor-table lanes, one row per surviving Terminal occurrence.
     pub fn dynamic_call_occurrences(&self) -> &[CheckedDynamicCallOccurrence] {
         &self.dynamic_call_occurrences
     }
 }
 
-/// Which checked rebound roster one source-produced dynamic-call occurrence
-/// rejoins. Both lanes are local descriptor-table materializations; forwarded
-/// and stored forms emit different catalog species and stay unadmitted here.
+/// Which checked descriptor-table roster one source-produced dynamic-call
+/// occurrence rejoins. All lanes are local descriptor-table
+/// materializations; forwarded, direct and joined forms emit different
+/// catalog species and stay unadmitted here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckedDynamicCallLane {
     /// A rebound scalar binding: a scalar dispatch through a materialized
@@ -67,12 +68,17 @@ pub enum CheckedDynamicCallLane {
     /// A rebound Unit binding: a Unit dispatch through a materialized rebound
     /// descriptor (`CallDynamicUnit`).
     ReboundUnit,
+    /// A stored scalar binding: a scalar dispatch through a descriptor
+    /// established in one local aggregate field (`StoreDynamicDescriptor`
+    /// then `CallDynamicScalar`). Stored Unit calls are refused at lowering,
+    /// so the lane is scalar-only.
+    StoredScalar,
 }
 
-/// Compiler-private join from one retained checked rebound dynamic-call plan
-/// to the exact Terminal operation and descriptor-table row produced for it.
+/// Compiler-private join from one retained checked dynamic-call plan to the
+/// exact Terminal operation and descriptor-table row produced for it.
 /// `plan_index` addresses the checked `dynamic_dispatch.calls` roster, whose
-/// row is the rebound binding `lane` names;
+/// row is the rebound or stored binding `lane` names;
 /// the machine/operation pair names the emitted `CallDynamic*` occurrence the
 /// native projection must retain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,7 +111,7 @@ impl CheckedDynamicCallOccurrence {
         self.lane
     }
 
-    /// Index into the lane's checked rebound roster.
+    /// Index into the lane's checked dynamic-call plan roster.
     pub const fn plan_index(self) -> usize {
         self.plan_index
     }
@@ -118,7 +124,9 @@ impl CheckedDynamicCallOccurrence {
         self.terminal_operation
     }
 
-    /// Owner-local rebound descriptor ordinal the dispatch consumes.
+    /// Owner-local descriptor ordinal the dispatch consumes: a rebound
+    /// descriptor row for the rebound lanes, a stored descriptor row for the
+    /// stored lane.
     pub const fn descriptor_ordinal(self) -> u32 {
         self.descriptor_ordinal
     }
