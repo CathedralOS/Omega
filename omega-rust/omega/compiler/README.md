@@ -214,9 +214,10 @@ Psi checks assembly authority even when the language judgment is memoized.
 Language-only probes do not issue runtime installation authority.
 
 [Provider checking inputs](../realization/selected-dispatch/src/provider_checking.rs)
-belong to Omega realization. That owner prepares specialization and
-representation inputs, then binds callback placements and provider grants to
-Psi's checked result. `CheckedProviderProgram` retains the resulting program
+belong to Omega realization. That owner prepares representation inputs, then
+binds callback placements and provider grants to Psi's checked result. Psi
+derives candidate specializations from authored conformances independently of
+runtime provider selection. `CheckedProviderProgram` retains the resulting program
 and exact review records; the coordinator does not reconstruct them.
 
 Deferred constant folds keep provider-plan rederivation in Omega. Their final

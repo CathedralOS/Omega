@@ -128,38 +128,83 @@ fn dynamic_family_call_preserves_correlated_roster_tuples() {
 }
 
 #[test]
-fn boundary_family_demand_rejects_an_open_roster() {
-    // A fabricated boundary demand naming a requirement whose roster is open
-    // must reject: demand collection only emits `Finite` requirements, so a
-    // `NotFinite` probe here is orchestration drift, not a partial demand.
-    let mut typed = typed_program(UNBOUNDED_CALL_SOURCE);
-    let requirement = typed
-        .traits()
-        .iter()
-        .flat_map(|definition| typed.trait_machine_signatures(definition).iter())
-        .find(|signature| signature.name.as_str() == "code")
-        .expect("requirement signature")
-        .symbol;
-    let provider = typed
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "Item::code")
-        .expect("provider template")
-        .symbol;
-    let demand = crate::SelectedBoundaryFamilySpecialization {
-        requirement_signature: requirement,
-        realization_machine: provider,
-    };
-    let Err(errors) =
-        crate::monomorphization::generate_dynamic_family_specializations(&mut typed, &[demand])
-    else {
-        panic!("an open-roster boundary demand must reject")
-    };
-    assert!(
-        errors
+fn open_boundary_requirement_does_not_invent_a_finite_roster() {
+    let mut typed = typed_program(
+        r#"
+        boundary trait Shape {
+            machine code<Width: u32>() -> i32;
+        }
+        data Provider {}
+        machine Provider::code<Width: u32>() -> i32 satisfies Shape::code { 7 }
+    "#,
+    );
+    let generated = crate::monomorphization::generate_dynamic_family_specializations(&mut typed)
+        .expect("open requirements remain ordinary static contracts");
+    assert_eq!(generated, 0);
+    assert!(typed.machine_specializations.is_empty());
+}
+
+const BOUNDARY_CANDIDATES: &str = r#"
+    boundary trait Measure {
+        machine value<Width: u32>() -> i32 where Width == 16 || Width == 32;
+    }
+    data First {}
+    machine First::value<Width: u32>() -> i32 satisfies Measure::value { 7 }
+    data Second {}
+    machine Second::value<Width: u32>() -> i32 satisfies Measure::value { 9 }
+    data Unrelated {}
+    machine Unrelated::value<Width: u32>() -> i32 { 11 }
+"#;
+
+#[test]
+fn every_boundary_candidate_gets_the_complete_roster_without_build_selection() {
+    let checked = checked_program_result(BOUNDARY_CANDIDATES)
+        .expect("both authored boundary candidates check without a Build selection or call");
+    for name in ["First::value", "Second::value", "Unrelated::value"] {
+        let template = checked
+            .machines()
             .iter()
-            .any(|diagnostic| { diagnostic.message.contains("names an open roster") }),
-        "the rejection must name the open roster, got {errors:#?}"
+            .find(|machine| machine.name.as_str() == name)
+            .expect("authored template");
+        let mut tuples = checked
+            .machine_specializations
+            .iter()
+            .filter(|instance| instance.template == template.symbol)
+            .map(|instance| instance.const_argument_identities.clone())
+            .collect::<Vec<_>>();
+        tuples.sort();
+        if name == "Unrelated::value" {
+            assert!(
+                tuples.is_empty(),
+                "shape matching is not a conformance edge"
+            );
+        } else {
+            assert_eq!(
+                tuples,
+                vec![
+                    vec!["named(integer-const(16))".to_owned()],
+                    vec!["named(integer-const(32))".to_owned()],
+                ],
+                "every candidate covers exactly the declared roster"
+            );
+        }
+    }
+}
+
+#[test]
+fn boundary_candidate_must_close_exact_requirement_binders() {
+    let source = BOUNDARY_CANDIDATES.replace(
+        "Second::value<Width: u32>",
+        "Second::value<Width: u32, Extra: u32>",
+    );
+    let typed = typed_program(&source);
+    let errors = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect_err("another valid candidate cannot hide an uncloseable candidate");
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("exactly the requirement's 1 const/value binders")),
+        "the declared roster must close the complete candidate telescope: {errors:?}"
     );
 }
 

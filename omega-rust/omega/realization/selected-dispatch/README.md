@@ -1,7 +1,8 @@
 # Selected execution realization
 
-[provider_checking.rs](src/provider_checking.rs) prepares the selected
-specialization roster and representation receipts. Psi checks the program;
+[provider_checking.rs](src/provider_checking.rs) prepares representation receipts
+and retains source review records. Psi derives and checks every authored generic
+operator candidate and finite boundary family without provider selection;
 this owner then binds callback placements and provider grants to that result.
 
 [execution_settlement.rs](src/execution_settlement.rs) is the post-checking

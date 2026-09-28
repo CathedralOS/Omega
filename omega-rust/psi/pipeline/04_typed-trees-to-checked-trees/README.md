@@ -7,12 +7,11 @@ execution plans, and publication are visible there in order.
 check facts, finalizes scalar graphs, assembles structural control and return
 plans, then completes affine cleanup. It returns the facts only after cleanup
 diagnostics clear; the checker never publishes an intermediate plan set.
-[selected_execution.rs](src/execution/selected_execution.rs) owns rebuilding execution
-plans after provider settlement; [lib.rs](src/lib.rs) wires the public API.
-Both paths use [execution_plans.rs](src/execution/execution_plans.rs) for independent
-scalar returns, Unit closure, then dependent structural returns. It returns owned
-plans and diagnostics; initial finalization owns dependent cleanup while selected
-rebuilding preserves its narrower transactional publication point.
+[execution_plans.rs](src/execution/execution_plans.rs) builds independent scalar
+returns, Unit closure, then dependent structural returns. It returns owned plans
+and diagnostics; finalization owns dependent cleanup. There is no production
+re-entry for rebuilding plans after provider settlement. Evidence-mutation tests
+have a private reconstruction helper; [lib.rs](src/lib.rs) wires the public API.
 Public borrow requirements are in
 [loan resources and compatibility](../../../../wiki/spec/terminal-psi/loans.md).
 Authored declaration custody and carried-type dependency production are described
@@ -40,9 +39,12 @@ domain assumptions. Shared call-coordinate queries come directly from
 `semantic::calls`, not through the semantic fact builder.
 
 `lower_typed_trees` is the crate's one lowering entrance. Its `CheckingRequest`
-names the preliminary-package or settled-package checkpoint and carries the
-settled selections (generic operator providers, boundary families, opaque
-property receipts); there is no second semantic-to-checked route, and
+names the preliminary-package or settled-package checkpoint and carries
+representation receipts and invocation-owned admission authority. It accepts no
+runtime provider choices. [Operator candidates](src/monomorphization/operator_candidates.rs)
+derive from authored conformance edges; [finite families](src/monomorphization/dynamic_families.rs)
+materialize every checked boundary candidate's complete declared roster, alongside
+local dynamic selections. There is no second semantic-to-checked route, and
 standalone programs and package builds share the settled checkpoint.
 Semantic validation returns both operational and service-reach
 analyses; behavior checking and fact construction consume those exact results
@@ -75,12 +77,9 @@ Unit planning borrows an explicit `ScalarCalleePlans` roster: independent bounda
 and primitive-reference returns precede the Unit closure, and the complete
 structural-scalar return roster follows that closure. Preliminary call-free
 discovery has no callee roster; it cannot read a partially published one from
-`CheckFacts`. Selected execution rebuilds prepare the independent returns and
-reconcile them with the previous roster, preserving nominal and selected returns
-while replacing or removing stale primitive bodies. They construct the new Unit
-plans from those inputs without mutating published facts. The fallible full
-rebuild publishes the return and Unit plans together only after diagnostics clear;
-on rejection the original checked trees remain unchanged.
+`CheckFacts`. Provider installation consumes these source-derived plans rather
+than rebuilding them. The test-only evidence-mutation helper reconstructs plans
+transactionally so a failed reconstruction leaves its original fixture intact.
 
 | Owner under `src/` | Responsibility |
 | --- | --- |

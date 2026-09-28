@@ -17,9 +17,7 @@ mod provider_checking;
 mod selected_dispatch;
 mod service_custody;
 
-pub use boundary_dispatch::{
-    selected_boundary_family_specializations, settle_selected_boundary_adapter_dispatch,
-};
+pub use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
 
 pub use compiler_intrinsic::{
     derive_selected_compiler_intrinsic_execution_identity_for_row,

@@ -142,21 +142,17 @@ fn family_typed(source: &str) -> (typed_trees::TypedTrees, Vec<ProviderPlan>) {
     (typed, plans)
 }
 
-/// Check a fixture the way settled orchestration does: the boundary family
-/// demands its selected surface commits to are carried into checking, so the
-/// selected provider's complete roster is materialized before any dispatch
-/// row resolution consults it.
+/// Psi derives the complete candidate roster from source. Selected facts
+/// here establish only the fixture's fused service erasure; they do not
+/// determine which provider bodies Psi specializes or checks.
 fn family_checked(
     mut typed: typed_trees::TypedTrees,
     selected: &effects::SelectedProviderPlanFacts,
 ) -> CheckedTrees {
     bind_fixture_fused_service_erasures(&mut typed, selected);
-    let demands =
-        crate::boundary_dispatch::selected_boundary_family_specializations(&typed, selected);
     typed_trees_to_checked_trees::lower_typed_trees(
         typed,
-        &typed_trees_to_checked_trees::CheckingRequest::settled()
-            .with_selected_boundary_families(&demands),
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
     )
     .expect("check finite-family fixture")
 }

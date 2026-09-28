@@ -69,16 +69,8 @@ fn check_selected_provider_result_local(additional_endpoint: bool, direct_provid
     // Ordinary specialization closes endpoint<2> before the provider is cloned
     // from the saved generic snapshot. The following ordinary pass has no new
     // tuple to apply, but must repair the clone's copied endpoint result type.
-    let checked = crate::lower_typed_trees(
-        typed,
-        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&[
-            crate::SelectedGenericOperatorProviderSpecialization {
-                requirement_operator,
-                realization_machine,
-            },
-        ]),
-    )
-    .expect("a selected provider clone must refresh its already-closed callee result");
+    let checked = crate::lower_typed_trees(typed, &crate::CheckingRequest::settled())
+        .expect("a selected provider clone must refresh its already-closed callee result");
 
     assert_eq!(
         checked.machine_specializations.len(),

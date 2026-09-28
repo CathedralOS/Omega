@@ -22,7 +22,7 @@ pub(super) fn replay(source: &mut TypedTrees, program: &TypedTrees, machine: &Ma
             crate::monomorphization::body_rewriting::statement_span_handles(state.statement_nodes)
         {
             sites.push(CallSite::Statement(handle));
-            for root in super::selected_operator_providers::executable_statement_expression_roots(
+            for root in super::operator_candidates::executable_statement_expression_roots(
                 source,
                 source.statement_table.statement(handle),
             ) {

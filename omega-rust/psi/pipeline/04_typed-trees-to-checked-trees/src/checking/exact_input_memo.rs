@@ -13,10 +13,7 @@
 //! the same programs again holds [`retain_repeated_checks`] to retain them on
 //! first sight.
 
-use super::{
-    CheckingMode, SelectedBoundaryFamilySpecialization,
-    SelectedGenericOperatorProviderSpecialization,
-};
+use super::CheckingMode;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use std::hash::{Hash, Hasher};
@@ -35,9 +32,6 @@ const REMEMBERED_FINGERPRINTS: usize = 64;
 #[derive(Clone, PartialEq)]
 pub(super) struct RequestKey {
     pub(super) mode: CheckingMode,
-    pub(super) selected_generic_operator_providers:
-        Vec<SelectedGenericOperatorProviderSpecialization>,
-    pub(super) selected_boundary_families: Vec<SelectedBoundaryFamilySpecialization>,
     pub(super) opaque_property_receipts: Vec<validation::OpaqueDataPropertyReceipt>,
 }
 
@@ -267,11 +261,6 @@ fn fingerprint(program: &TypedTrees, request: &RequestKey) -> u64 {
         .expression_count()
         .hash(&mut hasher);
     program.statement_table.statement_count().hash(&mut hasher);
-    request
-        .selected_generic_operator_providers
-        .len()
-        .hash(&mut hasher);
-    request.selected_boundary_families.len().hash(&mut hasher);
     request.opaque_property_receipts.len().hash(&mut hasher);
     hasher.finish()
 }

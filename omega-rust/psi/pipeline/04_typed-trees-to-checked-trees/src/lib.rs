@@ -55,9 +55,8 @@ mod package_review;
 mod product_pruning;
 
 pub use checking::{
-    CheckingRequest, RepeatedCheckRetention, SelectedBoundaryFamilySpecialization,
-    SelectedGenericOperatorProviderSpecialization, lower_typed_trees,
-    normalize_open_index_identities, retain_repeated_checks, specialize_static_machine_calls,
+    CheckingRequest, RepeatedCheckRetention, lower_typed_trees, normalize_open_index_identities,
+    retain_repeated_checks, specialize_static_machine_calls,
 };
 // The borrow certificate ledgers published inside the checked fact arenas
 // replay independently for any consumer of the published record: the

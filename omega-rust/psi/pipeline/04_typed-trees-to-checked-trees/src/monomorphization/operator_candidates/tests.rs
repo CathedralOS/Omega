@@ -1,6 +1,6 @@
 use super::SymbolHandle;
-use crate::monomorphization::SelectedProviderTemplates;
-use crate::monomorphization::specialize_selected_generic_operator_providers;
+use crate::monomorphization::OperatorCandidateTemplates;
+use crate::monomorphization::specialize_operator_candidates;
 use crate::tests::front_end::typed_program;
 use std::cell::Cell;
 
@@ -64,6 +64,47 @@ fn token_candidates_discover_nested_demands_without_build_selection() {
         (1, 2),
         "one authored snapshot, one copy per demanded provider"
     );
+}
+
+#[test]
+fn named_operator_checks_all_authored_candidates_without_selection() {
+    let program = typed_program(
+        r#"
+        pub data Operation {}
+        pub boundary operator Operation::identity<Element>(value: Element) -> Element;
+        pub data First {}
+        pub machine First::identity<Value>(value: Value) -> Value
+        satisfies Operation::identity { value }
+        pub data Second {}
+        pub machine Second::identity<Value>(value: Value) -> Value
+        satisfies Operation::identity { value }
+        pub data Unrelated {}
+        pub machine Unrelated::identity<Value>(value: Value) -> Value { value }
+        machine exercise(value: i32) -> i32 { Operation::identity(value) }
+    "#,
+    );
+    let checked = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("named operator candidates derive from source, just like token candidates");
+    for (name, expected) in [
+        ("First::identity", 1),
+        ("Second::identity", 1),
+        ("Unrelated::identity", 0),
+    ] {
+        let template = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == name)
+            .expect("authored template");
+        let count = checked
+            .machine_specializations
+            .iter()
+            .filter(|instance| instance.template == template.symbol)
+            .count();
+        assert_eq!(
+            count, expected,
+            "only authored conformance edges are candidate authority"
+        );
+    }
 }
 
 #[test]
@@ -163,18 +204,17 @@ fn closed_requirement_replay_rejects_substituted_and_ambiguous_receipts() {
 }
 
 #[test]
-fn invalid_provider_request_rejects_even_without_applications() {
+fn invalid_candidate_edge_rejects_even_without_applications() {
     let mut program = typed_program("machine identity(value: i32) -> i32 { value }");
-    let selected = [crate::SelectedGenericOperatorProviderSpecialization {
+    let selected = [super::GenericOperatorCandidate {
         requirement_operator: SymbolHandle::invalid(),
         realization_machine: program.machines()[0].symbol,
     }];
     WORK.set((0, 0));
     let templates =
-        SelectedProviderTemplates::prepare(&program, &selected).expect("selected preparation");
-    let errors =
-        specialize_selected_generic_operator_providers(&templates, &mut program, &selected)
-            .expect_err("invalid request");
+        OperatorCandidateTemplates::prepare(&program, &selected).expect("selected preparation");
+    let errors = specialize_operator_candidates(&templates, &mut program, &selected)
+        .expect_err("invalid request");
     assert_eq!(errors.len(), 1);
     assert!(errors[0].message.contains("no operator requirement"));
     assert_eq!(WORK.get(), (1, 0));
@@ -197,27 +237,10 @@ fn nested_providers_prepare_once_and_copy_only_new_demand() {
         machine exercise(value: i32) -> i32 { Outer::identity(value) }
     "#,
     );
-    let selected = ["InnerProvider::identity", "OuterProvider::identity"]
-        .into_iter()
-        .zip(program.operators())
-        .map(
-            |(name, operator)| crate::SelectedGenericOperatorProviderSpecialization {
-                requirement_operator: operator.symbol,
-                realization_machine: program
-                    .machines()
-                    .iter()
-                    .find(|machine| machine.name.as_str() == name)
-                    .expect("provider")
-                    .symbol,
-            },
-        )
-        .collect::<Vec<_>>();
+    let selected = OperatorCandidateTemplates::candidate_requests(&program);
     WORK.set((0, 0));
-    let checked = crate::lower_typed_trees(
-        program.clone(),
-        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
-    )
-    .expect("fixed point");
+    let checked = crate::lower_typed_trees(program.clone(), &crate::CheckingRequest::settled())
+        .expect("fixed point");
     assert_eq!(
         WORK.get(),
         (1, 2),
@@ -245,11 +268,8 @@ fn nested_providers_prepare_once_and_copy_only_new_demand() {
             .expect("retained template");
         assert_eq!(checked.machine_type_parameters(template).len(), 1);
     }
-    let repeated = crate::lower_typed_trees(
-        program,
-        &crate::CheckingRequest::settled().with_selected_generic_operator_providers(&selected),
-    )
-    .expect("independent checking");
+    let repeated = crate::lower_typed_trees(program, &crate::CheckingRequest::settled())
+        .expect("independent checking");
     assert_eq!(
         receipts, &repeated.machine_specializations,
         "exact ordered receipts survive fresh preparation"
