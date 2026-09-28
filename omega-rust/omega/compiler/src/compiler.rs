@@ -6,9 +6,9 @@
 //! this file own what each call does.
 
 use crate::checked::{
-    AssembledSource, BuildSourceCustody, BuiltCheckedProgram, CheckedChildExecution,
-    CheckedCompilation, PreparedCheckedSource, check_selected_execution,
-    evaluate_build_and_continue, run_on_compile_thread,
+    AssembledSource, BuiltCheckedProgram, CheckedChildExecution, CheckedCompilation,
+    PreparedCheckedSource, check_selected_execution, evaluate_build_and_continue,
+    run_on_compile_thread,
 };
 use crate::compiler::request::{SharedCompileInputs, ValidatedTargetCompilation};
 use crate::native::produce_native_report;
@@ -21,6 +21,7 @@ use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta,
 };
 use diagnostics::Diagnostic;
+use package_compilation::BuildSourceCustody;
 
 pub(crate) mod options;
 pub(crate) mod package;

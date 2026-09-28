@@ -3,6 +3,7 @@
 use super::CheckedChildExecution;
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
+use package_compilation::BuildSourceCustody;
 use package_compilation::PackageCompilationInputs;
 use std::path::Path;
 use std::sync::Arc;
@@ -24,17 +25,6 @@ pub(crate) struct BuiltCheckedProgram {
     /// executable leaf; its artifact-only intent narrows the admitted route.
     pub(super) application: Option<build_declarations::ApplicationDeclaration>,
     pub(super) selected_build_machine_identity: Option<String>,
-}
-
-/// Source custody spanning the pre-build admission and generated extension.
-#[derive(Clone)]
-pub(crate) struct BuildSourceCustody {
-    pub(super) source_file_count: usize,
-    pub(super) build_execution_profile: Option<target::TargetProfile>,
-    pub(super) generated_source_custody:
-        Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    pub(super) base_source_consumption_commitment:
-        Option<package_compilation::PackageSourceConsumptionCommitment>,
 }
 
 /// One admitted child's route to its typed frontier.

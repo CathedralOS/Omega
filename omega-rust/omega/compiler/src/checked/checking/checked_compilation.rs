@@ -1,10 +1,11 @@
 //! Checked compilation and the source custody sealed against it.
 
-use super::build_continuation::BuildSourceCustody;
 use super::execution_settlement::CheckedExecution;
 use artifacts::compile_timings::CompileTimings;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
+use package_compilation::BuildSourceCustody;
+use package_compilation::CheckedSourceCustody;
 use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
 
@@ -30,18 +31,6 @@ pub struct CheckedCompilation {
     timings: CompileTimings,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CheckedSourceCustody {
-    source_file_count: usize,
-    package_purpose: Option<build_declarations::DependencyPurpose>,
-    build_execution_profile: Option<target::TargetProfile>,
-    package_subject: Option<package_compilation::PackageCompilationSubject>,
-    base_source_consumption_commitment:
-        Option<package_compilation::PackageSourceConsumptionCommitment>,
-    exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
-    generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-}
-
 // Measurements are observations, not checked semantic identity. Each retained
 // semantic owner derives equality so newly retained fields participate too.
 impl PartialEq for CheckedCompilation {
@@ -59,37 +48,10 @@ impl CheckedCompilation {
         package_inputs: Option<&PackageCompilationInputs>,
         timings: CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let package_subject = package_inputs
-            .map(|inputs| {
-                package_compilation::derive_package_compilation_subject(
-                    &execution.settled.program,
-                    inputs,
-                    &sources.generated_source_custody,
-                )
-            })
-            .transpose()?;
-        let exact_toolchain_sources =
-            package_compilation::toolchain_source_identities(&execution.settled.program)?;
-        if package_subject.is_some() {
-            package_compilation::verify_current_files(
-                &execution.settled.program,
-                &sources.generated_source_custody,
-            )?;
-        }
-        if let Some(package_inputs) = package_inputs {
-            package_inputs.validate_canonical_source_metadata()?;
-        }
+        let sources = sources.seal(&execution.settled.program, package_inputs)?;
         Ok(Self {
             execution,
-            sources: CheckedSourceCustody {
-                source_file_count: sources.source_file_count,
-                package_purpose: package_inputs.map(PackageCompilationInputs::compilation_purpose),
-                build_execution_profile: sources.build_execution_profile,
-                package_subject,
-                base_source_consumption_commitment: sources.base_source_consumption_commitment,
-                exact_toolchain_sources,
-                generated_source_custody: sources.generated_source_custody,
-            },
+            sources,
             timings,
         })
     }
@@ -103,7 +65,7 @@ impl CheckedCompilation {
 
     /// Exact physical/generated source count consumed by this checked run.
     pub const fn source_file_count(&self) -> usize {
-        self.sources.source_file_count
+        self.sources.source_file_count()
     }
 
     /// Project the build-owned image metadata as one retention unit. The name
@@ -162,7 +124,7 @@ impl CheckedCompilation {
     /// Reconciled root package identity for package-aware compilation.
     /// Standalone compilation has no package identity.
     pub const fn package_identity(&self) -> Option<semantic_vocabulary::PackageKeyIdentity> {
-        match &self.sources.package_subject {
+        match self.sources.package_subject() {
             Some(subject) => Some(subject.root()),
             None => None,
         }
@@ -173,7 +135,7 @@ impl CheckedCompilation {
     pub const fn dependency_closure(
         &self,
     ) -> Option<&package_compilation::PackageDependencyClosure> {
-        match &self.sources.package_subject {
+        match self.sources.package_subject() {
             Some(subject) => Some(subject.dependency_closure()),
             None => None,
         }
@@ -185,7 +147,7 @@ impl CheckedCompilation {
     pub const fn source_consumption_commitment(
         &self,
     ) -> Option<package_compilation::PackageSourceConsumptionCommitment> {
-        match &self.sources.package_subject {
+        match self.sources.package_subject() {
             Some(subject) => Some(subject.source_consumption_commitment()),
             None => None,
         }
@@ -198,7 +160,7 @@ impl CheckedCompilation {
     pub const fn base_source_consumption_commitment(
         &self,
     ) -> Option<package_compilation::PackageSourceConsumptionCommitment> {
-        self.sources.base_source_consumption_commitment
+        self.sources.base_source_consumption_commitment()
     }
 
     /// Canonical package/source subject derived from the final checked source
@@ -206,7 +168,7 @@ impl CheckedCompilation {
     pub const fn package_compilation_subject(
         &self,
     ) -> Option<&package_compilation::PackageCompilationSubject> {
-        self.sources.package_subject.as_ref()
+        self.sources.package_subject()
     }
 
     #[doc(hidden)]
@@ -300,7 +262,7 @@ impl CheckedCompilation {
     /// join coordinates and never enter canonical product or review bytes.
     #[doc(hidden)]
     pub fn exact_toolchain_sources(&self) -> &[(source::SourceId, [u8; 32])] {
-        &self.sources.exact_toolchain_sources
+        self.sources.exact_toolchain_sources()
     }
 
     /// Re-read every ordinary physical source path and require it to equal the
@@ -309,10 +271,8 @@ impl CheckedCompilation {
     /// orchestration calls this around its own whole-snapshot verification;
     /// hostile same-user races still require an OS isolation boundary.
     pub fn verify_current_source_consumption(&self) -> Result<(), Vec<Diagnostic>> {
-        package_compilation::verify_current_files(
-            &self.execution.settled.program,
-            &self.sources.generated_source_custody,
-        )
+        self.sources
+            .verify_current_source_consumption(&self.execution.settled.program)
     }
 
     /// Retain this package's own explicit generated-source handoffs as one
@@ -321,32 +281,9 @@ impl CheckedCompilation {
     pub fn package_generated_source_bundle(
         &self,
     ) -> Result<package_compilation::PackageGeneratedSourceBundle, &'static str> {
-        let package = self
-            .package_identity()
-            .ok_or("generated-source bundles require package-aware compilation")?;
-        let target = self
-            .execution
-            .selected_target_profile
-            .ok_or("generated-source bundles require one selected target")?;
-        let dependency_closure = self
-            .dependency_closure()
-            .cloned()
-            .ok_or("generated-source bundles require one dependency closure")?;
-        let source_consumption_commitment = self
-            .source_consumption_commitment()
-            .ok_or("generated-source bundles require source-consumption custody")?;
-        Ok(
-            package_compilation::PackageGeneratedSourceBundle::from_checked(
-                package,
-                self.sources
-                    .package_purpose
-                    .ok_or("generated-source bundles require a checked package purpose")?,
-                target,
-                self.sources.build_execution_profile,
-                dependency_closure,
-                source_consumption_commitment,
-                self.execution.build.generated_sources.clone(),
-            ),
+        self.sources.package_generated_source_bundle(
+            self.execution.selected_target_profile,
+            self.execution.build.generated_sources.clone(),
         )
     }
 
