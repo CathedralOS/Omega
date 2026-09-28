@@ -57,15 +57,19 @@ impl SourceCallKey {
     }
 }
 
-pub(super) struct CallbackSourceCalls<'source> {
+/// Request-sized association from checked registrar sites to produced Terminal
+/// calls. Only requested keys are retained; every matching occurrence is counted.
+/// Lookup returns the exact count on ambiguity or absence so the producer can
+/// report failures in authored order while producing each callback body.
+pub struct CallbackRegistrarOccurrences<'source> {
     requested: Vec<(
         SourceCallKey,
         OccurrenceMatches<&'source LoweredSourceCallOccurrence>,
     )>,
 }
 
-impl<'source> CallbackSourceCalls<'source> {
-    pub(super) fn new(
+impl<'source> CallbackRegistrarOccurrences<'source> {
+    pub fn new(
         placements: impl Iterator<Item = (NominalMachineUseSite, SymbolHandle)>,
         source_calls: &'source [LoweredSourceCallOccurrence],
     ) -> Self {
@@ -88,7 +92,9 @@ impl<'source> CallbackSourceCalls<'source> {
         Self { requested }
     }
 
-    pub(super) fn find(
+    /// Return the unique produced call or its match count (zero when absent).
+    /// Statement/expression kind and full handle generations remain significant.
+    pub fn find(
         &self,
         site: NominalMachineUseSite,
         target: SymbolHandle,
@@ -100,3 +106,6 @@ impl<'source> CallbackSourceCalls<'source> {
             .and_then(|position| self.requested[position].1.unique())
     }
 }
+
+#[cfg(test)]
+mod tests;

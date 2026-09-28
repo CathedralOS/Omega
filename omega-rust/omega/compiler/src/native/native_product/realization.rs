@@ -72,7 +72,7 @@ pub(super) fn realize(
         &callback_placements,
         &source_call_occurrences,
     )?;
-    let native_callbacks = crate::native::retained_native_product::admitted_native_callbacks(
+    let native_callbacks = abstract_operations_to_target_operations::provider_admission::admit_native_callback_arguments(
         &callback_placements,
         &callback_occurrences,
     )?;

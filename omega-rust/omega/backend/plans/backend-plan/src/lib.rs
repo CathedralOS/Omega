@@ -77,12 +77,14 @@
 //! Start with `callback_placements` for checked selections and exact ABI plans,
 //! `callback_artifacts` for retained body/occurrence replay and native-input
 //! projection, or `callback_root_schedule` for activation schedules.
+//! `callback_registrars` joins checked registrar sites to produced Terminal calls.
 //! The compiler retains these records and sequences their checks. Producer-side
 //! records deliberately retain source-to-Terminal receipts; the borrowed
 //! `NativeCallbackThunkSettlement` passed to native lowering does not.
 
 mod callback_artifacts;
 mod callback_placements;
+mod callback_registrars;
 mod callback_root_schedule;
 pub use callback_artifacts::{
     NativeCallbackThunkSettlement, TerminalCallbackOccurrenceProposal,
@@ -95,6 +97,7 @@ pub use callback_placements::{
     callback_thunk_placement_identity_report_fingerprint, canonical_callback_private_symbol,
     canonical_callback_thunk_identity, validate_bound_nominal_callback_placement,
 };
+pub use callback_registrars::CallbackRegistrarOccurrences;
 pub use callback_root_schedule::{
     CallbackRootActivationIdentity, CallbackRootSchedule, plan_callback_root_schedule,
     replay_callback_root_schedule,

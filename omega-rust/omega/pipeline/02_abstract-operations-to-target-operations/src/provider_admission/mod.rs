@@ -5,8 +5,11 @@
 //! `admit_native_providers` independently checks those inputs, settles external
 //! executions, and admits the exact checked-provider installation and authority
 //! closure retained by the plan.
+//! `admit_native_callback_arguments` projects exact retained callback
+//! destinations for the lowerer's independent target/application replay.
 
 mod adapters;
+mod callback_arguments;
 mod compiler_builtins;
 mod diagnostics;
 mod installation;
@@ -17,6 +20,8 @@ mod terminal_authority_permission_policy;
 pub mod terminal_authority_permissions;
 mod terminal_authority_policy;
 mod terminal_authority_review;
+
+pub use callback_arguments::admit_native_callback_arguments;
 
 pub use source_evaluated_imports::{
     PreparedSourceEvaluatedImports, SourceEvaluatedImportSettlement,

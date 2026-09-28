@@ -150,7 +150,10 @@ pub fn realize_retained_native_artifact(
             )?;
         }
         let native_callbacks =
-            admitted_native_callbacks(&callback_placements, proposal.callback_occurrences())?;
+            abstract_operations_to_target_operations::provider_admission::admit_native_callback_arguments(
+                &callback_placements,
+                proposal.callback_occurrences(),
+            )?;
         let callback_thunks = backend_plan::admitted_native_callback_thunks(
             &callback_placements,
             proposal.callback_occurrences(),
@@ -239,64 +242,6 @@ pub fn realize_retained_native_artifact(
         .map_err(|error| error.into_parts().1)
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
-}
-
-pub(crate) fn admitted_native_callbacks(
-    placements: &[backend_plan::BoundNominalCallbackPlacement],
-    occurrences: &[crate::report::TerminalCallbackOccurrenceProposal],
-) -> Result<
-    Vec<abstract_operations_to_target_operations::AdmittedNativeCallbackArgument>,
-    Vec<Diagnostic>,
-> {
-    let mut admitted = Vec::with_capacity(occurrences.len());
-    let mut admitted_placements = std::collections::BTreeSet::new();
-    for occurrence in occurrences {
-        if !admitted_placements.insert(occurrence.placement_index()) {
-            return Err(diagnostic(
-                "Terminal callback custody",
-                "two callback occurrences share one retained placement",
-            ));
-        }
-        let placement = placements
-            .get(occurrence.placement_index())
-            .ok_or_else(|| {
-                diagnostic(
-                    "Terminal callback custody",
-                    "callback occurrence names an absent retained placement",
-                )
-            })?;
-        let materialization = placement.private_materialization.as_ref().ok_or_else(|| {
-            diagnostic(
-                "Terminal callback custody",
-                "callback placement has no private registrar materialization",
-            )
-        })?;
-        let application = materialization
-            .destination_parameter_application()
-            .map_err(|error| diagnostic("Terminal callback custody", error.0))?;
-        if occurrence.destination_parameter_application() != Some(application) {
-            return Err(diagnostic(
-                "Terminal callback custody",
-                "callback occurrence parameter application drifted from its retained registrar materialization",
-            ));
-        }
-        admitted.push(
-            abstract_operations_to_target_operations::AdmittedNativeCallbackArgument {
-                terminal_operation: occurrence.terminal_operation(),
-                placement_index: occurrence.placement_index(),
-                callback_function: occurrence.callback_thunk_identity(),
-                destination: materialization.destination.clone(),
-                field_byte_offset: materialization.field_byte_offset,
-                application: application.clone(),
-                registrar_boundary_entry_plan: materialization
-                    .registrar_boundary_entry_plan
-                    .clone(),
-                registrar_context: materialization.context.clone(),
-                registrar_application_commitment: materialization.registrar_application_commitment,
-            },
-        );
-    }
-    Ok(admitted)
 }
 
 fn diagnostic(context: &str, message: impl std::fmt::Display) -> Vec<Diagnostic> {
