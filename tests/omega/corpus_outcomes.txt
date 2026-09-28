@@ -94,12 +94,12 @@ pass/calls/machine_self_call_recursion_compile checked 442ms
 pass/calls/mutable_output_host_call checked 2265ms
 pass/calls/mutual_cycle_tail_admitted_exit checked 1797ms
 pass/calls/named_target_payload_dispatch checked 1934ms
+pass/calls/nested_call_init_transition checked 1482ms
 pass/calls/nested_call_runtime_index_arg_exit checked 985ms
 pass/calls/nested_call_tail_roots_exit rejected 1131ms
 	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy(OperationId(21)))
 pass/calls/nested_machine_continuation checked 1719ms
-pass/calls/nested_value_call_arg_compile rejected 778ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a local initializer` (state 0, statement 0)
+pass/calls/nested_value_call_arg_compile checked 1385ms
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 736ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1245ms
@@ -165,8 +165,8 @@ pass/calls/structural_mut_to_shared_argument checked 458ms
 pass/calls/structural_self_rooted_argument checked 477ms
 pass/calls/transition_arg_local_from_embedded_call_exit rejected 747ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
-pass/calls/value_call_as_host_arg_exit rejected 799ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a call statement`
+pass/calls/value_call_as_host_arg_exit rejected 1622ms
+	native-artifact Terminal production failed: Lowering(Unsupported("computed shared argument lost its parameter"))
 pass/calls/value_call_element_view_arg_compile checked 294ms
 pass/calls/value_call_embedded_in_binary_exit rejected 782ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)

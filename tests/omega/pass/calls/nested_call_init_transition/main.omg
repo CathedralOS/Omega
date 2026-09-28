@@ -1,0 +1,128 @@
+// Nested calls inside a local initializer, a transition scrutinee, a
+// transition arm payload (including a call whose receiver is another call's
+// result and a call nested inside an outer call's argument), and a named
+// target's argument — every nested call must be consumed into the outer
+// call roster for the body to admit a unit plan.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub data Sum [copy] {
+    case First;
+    case Second(payload: u64);
+}
+
+pub data Parse {
+    case Parsed(value: Cell);
+    case Refused;
+}
+
+pub data Cell {
+    big: [u8; 64];
+    sum: Sum;
+    len: u64;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Cell::fresh(sum: Sum, len: u64) -> Cell {
+    transition { _ -> (Cell { sum: sum, len: len }) }
+}
+
+machine Cell::get_sum(&self) -> Sum {
+    self.sum
+}
+
+machine Cell::get_len(&self) -> u64 {
+    self.len
+}
+
+machine Sum::size(&self, unit: u64) -> u64 {
+    transition self {
+        Sum::First -> (unit)
+        Sum::Second { payload } -> (payload)
+    }
+}
+
+machine Cell::size_of_sum(&self, unit: u64) -> u64 {
+    transition self.sum {
+        Sum::First -> (unit)
+        Sum::Second { payload } -> (payload)
+    }
+}
+
+machine Main::bump(&self, x: u64) -> u64 {
+    transition { _ -> (x | 1) }
+}
+
+// API SHAPE 1 (AnonymousValueString::clone): `let mut` local initialized by a
+// structural-result call whose arguments hold nested calls.
+machine Main::clone_cell(&mut self, source: &Cell) -> Cell {
+    let mut value: Cell = Cell::fresh(source.get_sum(), source.get_len());
+    transition { _ -> (value) }
+}
+
+// API SHAPE 1b: record-literal field holding a nested call inside a local
+// initializer.
+machine Main::init_field_call(&mut self, source: &Cell) -> u64 {
+    let cell: Cell = Cell { sum: source.get_sum(), len: source.get_len() };
+    transition { _ -> (cell.len) }
+}
+
+// API SHAPE 2 (holds): transition arm `(expr)` payload carrying nested
+// scalar calls.
+machine Main::holds(&mut self, result: Parse, want_len: u64, want_size: u64) -> bool {
+    transition result {
+        Parse::Parsed { value } -> (value.get_len() == want_len
+            && value.get_sum().size(1) == want_size)
+        Parse::Refused -> (false)
+    }
+}
+
+// API SHAPE 5 (ContainerType::get_total_size_in_bytes): arm payload is a
+// call whose argument is itself a payload-bound call + a cast.
+machine Main::sat_mul(&self, left: u64 in Saturating, right: u64 in Saturating) -> u64 {
+    (left * right) as u64
+}
+machine Main::size_of(&self, sum: Sum, unit: u64) -> u64 {
+    transition sum {
+        Sum::First -> (unit)
+        Sum::Second { payload } -> (self.sat_mul(payload as u64 in Saturating, unit as u64 in Saturating))
+    }
+}
+machine Main::size_via_call(&self, cell: Cell) -> u64 {
+    transition cell.get_sum() {
+        Sum::First -> (1)
+        Sum::Second { payload } -> (payload)
+    }
+}
+
+// API SHAPE 3: nested scalar call inside a named-target transition argument.
+machine Main::next_arg(&mut self, x: u64) -> u64 {
+    transition { _ -> finish(self.bump(x)) }
+    state finish(&mut self, y: u64) -> u64 {
+        transition { _ -> (y) }
+    }
+}
+
+// Nested call inside a named-target arm argument (call-in-call).
+machine Main::target_arg_nested(&mut self, x: u64) -> u64 {
+    transition { _ -> finish(self.bump(self.bump(x))) }
+    state finish(&mut self, y: u64) -> u64 {
+        transition { _ -> (y) }
+    }
+}
+
+// API SHAPE 4: call inside the transition scrutinee expression.
+machine Main::scrutinee_call(&mut self, x: u64) -> u64 {
+    transition self.bump(x) {
+        _ -> (x)
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let cell: Cell = Cell { sum: Sum::Second { payload: 5 }, len: 2 };
+    let parsed: Parse = Parse::Parsed { value: cell };
+    self.console.exit_process(0);
+}
