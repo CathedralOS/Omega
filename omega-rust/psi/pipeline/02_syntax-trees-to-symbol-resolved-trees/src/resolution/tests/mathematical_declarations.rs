@@ -11,6 +11,7 @@ use std::sync::Arc;
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbol_resolved_trees::expression::ExpressionNode;
 use symbol_resolved_trees::mathematical::{MathematicalBody, MathematicalType};
+use symbol_resolved_trees::proposition::PropositionBody;
 use symbol_resolved_trees::types::TypeReference;
 use symbols::{FixedCoreDeclaration, SymbolKind};
 use tokens_to_syntax_trees::{parse_syntax_trees, parse_syntax_trees_with_id};
@@ -234,6 +235,99 @@ fn authored_core_spelling_cannot_shadow_fixed_vocabulary() {
         panic!("named result reference")
     };
     assert_eq!(*symbol, fixed_type);
+}
+
+/// Proposition bodies share the proof-surface expression walk but keep
+/// their authored call kinds at `[Proposition]`: qualified `core::*`
+/// spellings still bind their compiler-installed declarations there —
+/// the qualified-call pass owns them because `core` is the vocabulary's
+/// fixed namespace, never a `Module` — while authored proposition calls
+/// keep resolving through the ordinary chain.
+#[test]
+fn proposition_call_targets_bind_the_fixed_vocabulary() {
+    let program = resolve(
+        "proposition base(x: u64) = x == x; proposition squashed(x: u64) = core::Squash(x); proposition via(x: u64) = base(x);",
+    );
+    let squash = program
+        .symbols
+        .fixed_core_declaration_symbol(FixedCoreDeclaration::Squash)
+        .expect("fixed core::Squash installed");
+    let propositions = program
+        .propositions
+        .iter()
+        .map(|proposition| (proposition.name.as_str(), proposition))
+        .collect::<std::collections::BTreeMap<_, _>>();
+
+    let PropositionBody::Transparent { proposition: body } = propositions["squashed"].body else {
+        panic!("transparent proposition body")
+    };
+    let ExpressionNode::Call(call) = program.tables.bodies.expressions.expression(body) else {
+        panic!("squashed body is a call")
+    };
+    assert_eq!(call.target.as_str(), "core::Squash");
+    assert_eq!(call.target_symbol, squash);
+    assert!(
+        !call.receiver.is_valid(),
+        "the fixed binding leaves no unresolved qualifier receiver"
+    );
+
+    // An authored proposition call resolves through the unchanged kind set.
+    let PropositionBody::Transparent { proposition: body } = propositions["via"].body else {
+        panic!("transparent proposition body")
+    };
+    let ExpressionNode::Call(call) = program.tables.bodies.expressions.expression(body) else {
+        panic!("via body is a call")
+    };
+    assert_eq!(call.target_symbol, propositions["base"].symbol);
+}
+
+/// A `core` module authored beside the vocabulary still cannot claim a
+/// fixed name at a call site: `core::Squash(x)` binds the installed
+/// declaration, never the module's same-spelled proposition — the same
+/// non-shadowing law type references follow.
+#[test]
+fn an_authored_core_module_cannot_steal_a_fixed_call_target() {
+    let source = "module core; pub proposition Squash(x: u64) = x == x; proposition caller(x: u64) = core::Squash(x);";
+    let mut sources = SourceMap::default();
+    let source_id = sources
+        .add(PathBuf::from("core.omg"), source.to_owned())
+        .source_id;
+    let syntax =
+        parse_syntax_trees_with_id(source_id, &Lexer::new(source).tokenize().unwrap()).unwrap();
+    let program = crate::resolve(ResolutionRequest {
+        syntax: &syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+    })
+    .expect("resolve module-scoped same-spelled call");
+
+    let squash = program
+        .symbols
+        .fixed_core_declaration_symbol(FixedCoreDeclaration::Squash)
+        .expect("fixed core::Squash installed");
+    let authored_twin = program
+        .propositions
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "Squash")
+        .expect("authored Squash proposition exists")
+        .symbol;
+    assert_ne!(authored_twin, squash);
+
+    let caller = program
+        .propositions
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "caller")
+        .expect("caller proposition");
+    let PropositionBody::Transparent { proposition: body } = caller.body else {
+        panic!("transparent proposition body")
+    };
+    let ExpressionNode::Call(call) = program.tables.bodies.expressions.expression(body) else {
+        panic!("caller body is a call")
+    };
+    assert_eq!(
+        call.target_symbol, squash,
+        "the fixed `core::Squash` owns its exact spelling even inside an authored `core` module"
+    );
 }
 
 #[test]

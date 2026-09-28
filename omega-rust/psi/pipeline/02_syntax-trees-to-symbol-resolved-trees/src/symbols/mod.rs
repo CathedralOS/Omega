@@ -60,6 +60,32 @@ pub(crate) fn normalize_static_module_calls(
             .collect::<Vec<_>>()
             .join("::");
         let reference = lookup::diagnostic_path_source_span(path);
+        let name = format!("{receiver_name}::{}", target.as_str());
+        // The fixed `core::*` mathematical declarations own their exact
+        // spellings ahead of any authored module lookup: `core` is the
+        // vocabulary's fixed namespace — the declarations install as root
+        // children, never under a `Module` symbol — so an authored module
+        // cannot claim one of these names at a call site, the same law the
+        // type-reference resolver applies. This arm is also what reaches
+        // proposition-body and mathematical-term calls: their resolver
+        // leaves receiver-qualified targets for this pass.
+        let fixed = symbols::FixedCoreDeclaration::from_name(&name)
+            .and_then(|declaration| program.symbols.fixed_core_declaration_symbol(declaration))
+            .unwrap_or_else(SymbolHandle::invalid);
+        if fixed.is_valid() {
+            if let ExpressionNode::Call(call) = program
+                .tables
+                .bodies
+                .expressions
+                .expression_mut(*expression)
+            {
+                call.receiver = ExpressionHandle::invalid();
+                call.target =
+                    symbol_resolved_trees::name::DiagnosticName::from_str(&name, reference);
+                call.target_symbol = fixed;
+            }
+            continue;
+        }
         let namespace = program
             .symbols
             .find_top_level_by_name_and_kinds_from_source(
@@ -70,7 +96,6 @@ pub(crate) fn normalize_static_module_calls(
         if !namespace.is_some_and(|symbol| program.symbols.get(symbol).kind == SymbolKind::Module) {
             continue;
         }
-        let name = format!("{receiver_name}::{}", target.as_str());
         let selected = program
             .symbols
             .find_top_level_by_name_and_kinds_from_source(

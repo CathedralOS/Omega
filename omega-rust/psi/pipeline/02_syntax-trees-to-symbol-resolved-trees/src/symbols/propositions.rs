@@ -166,6 +166,11 @@ pub(super) fn assign_expression_symbols(
                 call.arguments,
             );
             let target_symbol = if call.receiver.is_valid() {
+                // Qualified `receiver::target` calls are bound by
+                // `normalize_static_module_calls` once every declaration
+                // exists — including the fixed `core::*` vocabulary, which
+                // carries no `Module` symbol the ordinary namespace arm
+                // could find.
                 SymbolHandle::invalid()
             } else {
                 call_kinds
