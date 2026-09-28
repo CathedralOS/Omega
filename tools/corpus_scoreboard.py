@@ -204,10 +204,15 @@ def commits_between(repository):
     return count
 
 
-def collect(repository, golden=None, base_rev=None, head_rev=None):
+def collect(repository, golden=None, base_rev=None, head_rev=None,
+            base_golden=None):
     """The full scoreboard record for one golden: `head` counts, plus
-    `base`/`authored_delta`/`gained`/`lost`/`exit_changed` when `base_rev`
-    is given. Raises ScoreboardError when the golden is missing."""
+    `base`/`authored_delta`/`gained`/`lost`/`exit_changed` when a base is
+    given — either `base_rev` (the golden at that revision) or
+    `base_golden` (any recorded file, e.g. a scratch recording that was
+    never committed). Raises ScoreboardError when the golden is missing."""
+    if base_rev is not None and base_golden is not None:
+        raise ScoreboardError("--base and --base-golden name different bases")
     if golden is None:
         golden, target = default_golden()
     else:
@@ -236,17 +241,27 @@ def collect(repository, golden=None, base_rev=None, head_rev=None):
              # the commit that measured them; this is the staleness readout.
              "provenance": corpus_records.provenance(
                  head, commits_between(repository))}
-    if base_rev is not None:
-        base = records_at(repository, golden, base_rev)
-        if base is None:
-            raise ScoreboardError(
-                f"{golden.name} does not exist at {base_rev}")
+    if base_rev is not None or base_golden is not None:
+        if base_golden is not None:
+            base_path = Path(base_golden)
+            if not base_path.is_file():
+                raise ScoreboardError(f"base golden {base_path} does not exist")
+            base = corpus_records.read(base_path)
+            base_label = str(base_path)
+        else:
+            base = records_at(repository, golden, base_rev)
+            if base is None:
+                raise ScoreboardError(
+                    f"{golden.name} does not exist at {base_rev}")
+            base_label = base_rev
         # The authored oracle lives with the fixture, not the golden; use
         # the head-revision oracle for both sides so a new oracle does not
         # manufacture a false delta.
         oracles = oracle_lookup(repository, golden, head_rev)
         diff = diff_scoreboards(base, head, oracles)
-        board.update({"base_rev": base_rev, "base": diff["base"],
+        board.update({"base_rev": base_rev,
+                      "base_golden": str(base_golden) if base_golden else None,
+                      "base_label": base_label, "base": diff["base"],
                       "authored_delta": diff["authored_delta"],
                       "executed_delta": diff["executed_delta"],
                       "gained": diff["gained"], "lost": diff["lost"],
@@ -263,6 +278,11 @@ def main(argv=None):
                              "golden tests/omega/corpus_native_<target>.txt)")
     parser.add_argument("--base", metavar="REV",
                         help="compare against the golden at this revision")
+    parser.add_argument("--base-golden", metavar="PATH",
+                        help="compare against a recorded golden file "
+                             "(e.g. a scratch --record output that was "
+                             "never committed); mutually exclusive with "
+                             "--base")
     parser.add_argument("--head", metavar="REV",
                         help="read the golden at this revision instead of "
                              "the working tree")
@@ -272,7 +292,8 @@ def main(argv=None):
     try:
         board = collect(ROOT, golden=Path(options.golden)
                         if options.golden else None,
-                        base_rev=options.base, head_rev=options.head)
+                        base_rev=options.base, head_rev=options.head,
+                        base_golden=options.base_golden)
     except ScoreboardError as error:
         print(f"corpus_scoreboard: {error}", file=sys.stderr)
         return 1
@@ -282,7 +303,7 @@ def main(argv=None):
     print(summary_line(board["head"], board["target"]))
     print(corpus_records.provenance_line(board["provenance"]))
     if "base" in board:
-        print(f"base {options.base}: "
+        print(f"base {board['base_label']}: "
               f"{board['base']['authored']} authored / "
               f"{board['base']['executed']} executed / "
               f"{board['base']['fixtures']} fixtures")
