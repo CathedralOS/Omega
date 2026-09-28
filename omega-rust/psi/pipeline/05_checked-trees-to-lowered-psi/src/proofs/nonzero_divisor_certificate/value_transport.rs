@@ -41,12 +41,27 @@ pub(super) fn prove(
             )
         });
         let Some(fact) = fact else { continue };
-        fact.proposition.visit_value_ids(|dependency| {
+        let Proposition::Equal(endpoint, _) = fact.proposition else {
+            continue;
+        };
+        // A definition may stop at a field, while a prior guard relates that
+        // same live field to a literal through another read. Carry the proved
+        // equality chain instead of discarding it during forward expansion.
+        // Only this site's retained facts participate; no source-level fact
+        // or invalidated storage observation is recovered here.
+        let equality = super::integer_selection::cited_literal_equality(
+            context,
+            endpoint,
+            assumptions,
+            semantic_axioms,
+        )
+        .unwrap_or_else(|| fact.proof());
+        equality.conclusion.visit_value_ids(|dependency| {
             if dependency != value && !visited.contains(&dependency) {
                 pending.push(dependency);
             }
         });
-        equalities.push(fact);
+        equalities.push(equality);
     }
     if equalities.is_empty() {
         return None;
@@ -54,7 +69,7 @@ pub(super) fn prove(
     let transported = check_value_equality_denotation(
         context,
         goal,
-        equalities.iter().map(|fact| fact.proposition),
+        equalities.iter().map(|equality| &equality.conclusion),
     )
     .ok()?;
     if &transported == goal {
@@ -71,7 +86,7 @@ pub(super) fn prove(
         conclusion: goal.clone(),
         rule: ProofRule::ValueEqualityTransport {
             premise: Box::new(premise),
-            equalities: equalities.iter().map(|fact| fact.proof()).collect(),
+            equalities,
         },
     })
 }

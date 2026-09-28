@@ -60,6 +60,16 @@ compared 2^32 - 5 against 60. With both repaired, `slice_maximum` (exit 9),
 `clamp_sum` (exit 200) and `fletcher_checksum` meet their oracles. The table
 above keeps the 2026-09-27 counts.
 
+`nested_counters` also now runs unchanged on macOS ARM64. Its final exact
+arithmetic needs the retained equality chains from earlier guarded field reads,
+not merely the later reads' defining field identities. The integer proof producer
+carries those chains into existing value-equality transport; proof admission and
+independent Terminal verification remain unchanged. After local package review,
+`omega run --both samples/cli/probes/nested_counters/main.omg < /dev/null`
+prints `PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)` and reports both
+native and interpreted exit 70. `heat_grid` and `substring_search` remain separate
+customers; this result does not close their proof failures or the other hosts.
+
 ### The whole corpus reconciles
 
 | | count |
