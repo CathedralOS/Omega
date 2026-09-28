@@ -5,6 +5,48 @@ project carrying a `build.omg`, except `apps/squalr`. This file records what
 it said and what MOVED, so the next reader does not re-derive the delta from
 a stale board.
 
+## 2026-09-27 at `f7cbf4e93375`, plus the toolchain-library recovery
+
+**105/148 check, 43 refuse.** Against 89/148 at `9246f32b305` earlier the same
+day: **+16, zero regressions.**
+
+| cluster | was (89) | now (105) |
+| --- | --- | --- |
+| implicit store conversion | 17 | **0** |
+| unit-plan omission | 22 | 18 |
+| provider absent on this host | 11 | 11 |
+| nested value call | 5 | 5 |
+| boundary provider route unimplemented | 3 | 3 |
+| default-domain field requirement | 1 | 2 |
+| other | 0 | 4 |
+
+**IMPLICIT-STORE-CONVERSION's sample cluster is empty.** It was the second
+largest and is now fully cleared, by the sample-side conversion spellings and
+the compiler work that landed beside them. `unit-plan omission` fell 22 -> 18,
+concentrated in the guard-expression phase (6 -> 3) that the mixed integer
+comparison repair reached.
+
+The 4 in `other` are new only as a label: one is `dungeon_crawler_cli`, which
+advanced out of implicit-store into an honest `exact arithmetic ... may
+overflow u64` proof obligation, and three are the GUI samples reporting
+`validated named operator application has no checked selected use`.
+
+### Read this before trusting any earlier number
+
+This run was taken **after** repairing a stale baked library path. The first
+attempt the same day reported **55/148**, which reads as a 34-sample
+regression and was not one: 77 samples failed with `missing Omega toolchain
+library at <repo>/.codex/worktrees/bootstrap-test-cleanup/source/library`, a
+worktree that no longer exists. `build-evaluation/build.rs` bakes that absolute
+path at compile time and asks Cargo to rerun only when the release digest
+changes, so it survives the checkout being moved or deleted, and a rebuild
+immediately beforehand does not clear it.
+
+The `9246f32b305` reading above is **not** affected — its `other` cluster was
+empty, which is the signature of this bug — so the 89 -> 105 gain is real.
+When a reading drops by tens of cases, cluster the diagnostics before
+reporting a regression.
+
 ## 2026-09-27 at `9246f32b305`
 
 **89/148 check, 59 refuse.**
