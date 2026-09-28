@@ -7,6 +7,7 @@ mod dependencies_and_aggregates;
 mod floating_aggregates;
 mod generic_application_carriers;
 mod generic_invocations;
+mod named_float_calls;
 
 use language_semantics::const_value::CanonicalConstIdentity;
 use source::SourceMap;

@@ -92,6 +92,30 @@ struct Collector<'program> {
 impl Collector<'_> {
     fn call(&mut self, target: SymbolHandle, reference: SourceSpan) -> Result<(), String> {
         let symbol = self.program.symbols.get(target);
+        if symbol.kind == SymbolKind::Operator {
+            // A named boundary operator (`F32::square_root`) keeps its exact
+            // declaration identity but owns no machine body to traverse: its
+            // contract is admission evidence, not an evaluation dependency.
+            // Typed named-call selection and the checked interpreter own the
+            // exact selected execution of this call.
+            let declaration = self
+                .program
+                .symbols
+                .symbol_source_span(target)
+                .ok_or("constant operator call lost its exact declaration source")?;
+            let selection = (reference, declaration);
+            if !self.dependencies.calls.contains(&selection) {
+                self.dependencies.calls.push(selection);
+            }
+            if !self
+                .dependencies
+                .call_targets
+                .contains(&(reference, target))
+            {
+                self.dependencies.call_targets.push((reference, target));
+            }
+            return Ok(());
+        }
         let machine = match symbol.kind {
             SymbolKind::Machine => target,
             SymbolKind::State

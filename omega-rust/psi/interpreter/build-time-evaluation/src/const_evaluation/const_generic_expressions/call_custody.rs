@@ -444,6 +444,26 @@ impl<'program> Collector<'program> {
         let executable = target;
         let target = self.authored_target(target, initializer)?;
         let symbol = self.program.symbols.get(target);
+        if symbol.kind == SymbolKind::Operator {
+            // A named boundary operator (`F32::square_root`) has no machine
+            // body to traverse, but the call still owes its exact authored
+            // declaration pair: the interpreter's named-requirement route
+            // supplies the value while custody keeps the occurrence/operator
+            // join for receipt comparison.
+            let declaration = self
+                .program
+                .symbols
+                .symbol_source_span(target)
+                .ok_or("constant operator call lost its exact declaration source")?;
+            let selection = (reference, declaration);
+            if !self.custody.calls.contains(&selection) {
+                self.custody.calls.push(selection);
+            }
+            if !self.custody.call_targets.contains(&(reference, target)) {
+                self.custody.call_targets.push((reference, target));
+            }
+            return Ok(());
+        }
         let machine = match symbol.kind {
             SymbolKind::Machine => target,
             SymbolKind::State
