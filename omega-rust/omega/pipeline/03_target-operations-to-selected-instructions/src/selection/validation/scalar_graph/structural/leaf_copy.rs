@@ -2,7 +2,7 @@
 //! borrowed window's inverse reseat.
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedMemoryAccessRole, memory,
+    SelectedInstructionKind,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -66,10 +66,14 @@ pub(super) fn copy(
             _source,
             row,
             source,
-            result.place,
+            CopyEnd {
+                place: result.place,
+                pointer,
+                byte_offset: 0,
+                elements: &[],
+            },
             *byte_offset,
             *shape,
-            pointer,
             indices,
             replay,
         )?;
@@ -99,7 +103,7 @@ pub(super) fn copy(
 }
 
 /// Replay mirror of construction `reseat`: the consumed value's home is read
-/// through its durable pointer and written through the root's referent
+/// through its durable pointer or incoming ABI fragments and written through the root's referent
 /// pointer at the vacated field's offset, by the same chunked copy.
 pub(super) fn reseat(
     source: &LegalizedScalarFunction,
@@ -152,7 +156,6 @@ pub(super) fn reseat(
             .ok_or_else(|| invalid())
     };
     let root = pointer_of(destination.place())?;
-    let home = pointer_of(*value)?;
     let root = super::runtime_address::scale(
         replay,
         row,
@@ -161,6 +164,21 @@ pub(super) fn reseat(
         root,
         indices,
     )?;
+    let destination = CopyEnd {
+        place: destination.place(),
+        pointer: root,
+        byte_offset: *byte_offset,
+        elements: indices,
+    };
+    let home = replay
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == *value)
+        .map(|(_, pointer)| *pointer);
+    let Some(home) = home else {
+        return check_fragments(source, row, value, destination, 0, *shape, &[], replay);
+    };
     copy_bytes(
         replay,
         row,
@@ -170,12 +188,7 @@ pub(super) fn reseat(
             byte_offset: 0,
             elements: &[],
         },
-        CopyEnd {
-            place: destination.place(),
-            pointer: root,
-            byte_offset: *byte_offset,
-            elements: indices,
-        },
+        destination,
         u32::from(shape.byte_size),
     )
 }
@@ -293,18 +306,17 @@ fn chunk(remaining: u32) -> u8 {
 }
 
 /// Replay mirror of construction `copy_from_fragments`: the same owned
-/// parameter's inline ABI fragments store into the result slot at
-/// leaf-relative offsets — a fragment cut by the leaf's bounds or any
-/// runtime-index traversal stays honest-unsupported.
+/// parameter's inline ABI fragments store into the exact destination at
+/// leaf-relative offsets, retaining indexed destination evidence. A fragment
+/// cut by the leaf's bounds or runtime-indexed source stays unsupported.
 #[allow(clippy::too_many_arguments)]
 fn check_fragments(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
     place: &semantic_vocabulary::PlaceId,
-    result_place: semantic_vocabulary::PlaceId,
+    destination: CopyEnd<'_>,
     byte_offset: u32,
     shape: calling_conventions::ValueShape,
-    pointer: selected_instructions::VirtualRegisterId,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     replay: &mut Replay<'_>,
 ) -> Result<(), SelectedInstructionError> {
@@ -359,18 +371,30 @@ fn check_fragments(
             .find(|(stored, offset, _)| *stored == *place && *offset == fragment_offset)
             .map(|(_, _, value)| *value)
             .ok_or_else(|| invalid())?;
-        let offset = fragment_offset - byte_offset;
-        memory(
+        let offset = destination
+            .byte_offset
+            .checked_add(fragment_offset - byte_offset)
+            .ok_or_else(|| invalid())?;
+        let (pointer, displacement) = super::memory_pointer(
             replay,
             row,
-            result_place,
+            destination.place,
+            destination.pointer,
             offset,
             u32::from(width),
-            SelectedMemoryAccessRole::WritePlace,
+        )?;
+        super::runtime_address::footprint(
+            replay,
+            row,
+            destination.place,
+            offset,
+            u32::from(width),
+            destination.elements,
+            super::runtime_address::Written::Structural,
         )?;
         replay.check_instruction(
             SelectedInstructionKind::Store {
-                byte_offset: offset,
+                byte_offset: displacement,
                 byte_size: u8::try_from(width).map_err(|_| invalid())?,
             },
             replay.constraints.keys.store.ok_or_else(|| invalid())?,

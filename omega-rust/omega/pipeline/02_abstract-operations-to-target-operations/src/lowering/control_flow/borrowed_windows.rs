@@ -109,7 +109,7 @@ pub(super) fn store_field(
             &mut BTreeMap::new(),
             &mut BTreeSet::new(),
         )?;
-    // The value must be a complete owned home of the declared field type
+    // The value must be a complete owned value of the declared field type
     // whose layout is the field's own extent: the reseat writes exactly
     // those bytes. A runtime element step's selector resolves to its
     // dominating scalar source, as the leaf-copy sibling does.
@@ -118,24 +118,49 @@ pub(super) fn store_field(
         function,
         &super::scalar_sources::ScalarSources::from(&*live),
     )?;
-    let value_home = live
-        .structural_homes
-        .get(&value.place)
-        .cloned()
-        .ok_or_else(invalid)?;
+    let multiplicity = if let Some(home) = live.structural_homes.get(&value.place) {
+        if home.structural_type() != field_type
+            || home.has_claims()
+            || !home.qualifications().is_empty()
+            || !home.projected_qualifications().is_empty()
+            || home.layout.shape() != shape
+        {
+            return Err(invalid());
+        }
+        home.multiplicity()
+    } else {
+        // An owned argument may still be in ABI fragments. Retain its place,
+        // not a fabricated operation-result home; selection already captures
+        // the incoming fragments or indirect pointer for this parameter.
+        let declaration = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == value.place)
+            .ok_or_else(invalid)?;
+        let parameter = prepared
+            .parameters
+            .iter()
+            .find(|parameter| parameter.place == value.place)
+            .ok_or_else(invalid)?;
+        if declaration.access != StructuralAccess::Owned
+            || declaration.is_self
+            || declaration.structural_type != field_type
+            || !declaration.qualifications.is_empty()
+            || !declaration.projected_qualifications.is_empty()
+            || parameter.shape != shape
+        {
+            return Err(invalid());
+        }
+        declaration.multiplicity
+    };
     if super::references::contains_reference(types, field_type)
-        || value_home.structural_type() != field_type
-        || value_home.multiplicity() == StructuralMultiplicity::Linear
-        || value_home.has_claims()
-        || !value_home.qualifications().is_empty()
-        || !value_home.projected_qualifications().is_empty()
-        || value_home.layout.shape() != shape
+        || multiplicity == StructuralMultiplicity::Linear
     {
         return Err(invalid());
     }
     // The store consumes an affine value as record construction consumes a
     // field operand; an unrestricted value's home stays readable.
-    if value_home.multiplicity() == StructuralMultiplicity::Affine {
+    if multiplicity == StructuralMultiplicity::Affine {
         live.structural_homes.remove(&value.place);
     }
     operations.push(TargetUnitOperation::StoreStructuralField {
@@ -143,7 +168,7 @@ pub(super) fn store_field(
         destination: destination.clone(),
         path: path.clone(),
         field: *field,
-        value_home,
+        value: value.place,
         byte_offset,
         indices,
     });

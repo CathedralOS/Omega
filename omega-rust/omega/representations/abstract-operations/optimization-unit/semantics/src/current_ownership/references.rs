@@ -127,6 +127,18 @@ fn window_hole(
 ) -> Option<Vec<terminal_psi::StructuralPathSegment>> {
     let parent =
         crate::unit_validation::structural_catalog::resolve_structural_path(types, root, path)?;
+    if matches!(
+        path.last(),
+        Some(
+            terminal_psi::StructuralPathSegment::FixedIndex(_)
+                | terminal_psi::StructuralPathSegment::RuntimeIndex { .. }
+        )
+    ) {
+        // The structural catalog has rejoined the array field and element
+        // type. An element window's path is already the complete vacancy;
+        // appending the array field would test loans against a different place.
+        return Some(path.to_vec());
+    }
     let declaration = types.get(&parent)?;
     let fields = match &declaration.shape {
         terminal_psi::StructuralTypeShape::Record { fields }

@@ -107,17 +107,17 @@ pub enum TargetUnitOperation {
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// Reseat the field a borrowed-window move vacated: the inverse of the
-    /// window's `StructuralLeafCopy`. The complete bytes of `value_home`, the
-    /// consumed owned subtree's activation home, are written at
+    /// window's `StructuralLeafCopy`. The complete bytes of `value`, the
+    /// consumed owned subtree in a local home or incoming ABI parameter, are written at
     /// `byte_offset` beneath `destination`'s referent, the resolved offset of
-    /// `field` under the spelled `path`. The value's home is spent and the
+    /// `field` under the spelled `path`. The value is spent and the
     /// borrowed root regains full custody of the field.
     StoreStructuralField {
         psi_operation: OperationId,
         destination: abstract_operations::StructuralWindowRoot,
         path: Vec<StructuralPathSegment>,
         field: StructuralFieldId,
-        value_home: TargetStructuralHomeRequirement,
+        value: PlaceId,
         byte_offset: u32,
         /// Runtime traversals through `RuntimeIndex` segments, in path
         /// order, resolved like `StructuralLeafCopy::indices` — the spelled

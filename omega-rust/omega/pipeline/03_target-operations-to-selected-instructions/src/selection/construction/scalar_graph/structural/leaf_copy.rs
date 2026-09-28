@@ -2,7 +2,7 @@
 //! and reseat a borrowed window's vacated field with the inverse copy.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    SelectedInstructionKind, SelectedMemoryAccessRole, memory,
+    SelectedInstructionKind,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -68,10 +68,14 @@ pub(super) fn copy(
             _source,
             row,
             source,
-            result.place,
+            CopyEnd {
+                place: result.place,
+                pointer,
+                byte_offset: 0,
+                elements: &[],
+            },
             *byte_offset,
             *shape,
-            pointer,
             indices,
             builder,
         )?;
@@ -106,8 +110,8 @@ pub(super) fn copy(
 
 /// Reseat the field a borrowed-window move vacated: the inverse of `copy`.
 /// The move copied the field out through the root's referent pointer; the
-/// store reads the consumed value through its home's durable pointer and
-/// writes the same extent back at the field's offset. Legalization replay has
+/// store reads the consumed value through its durable pointer or incoming
+/// ABI fragments and writes the same extent back at the field's offset. Legalization replay has
 /// already rejoined the offset and extent to the declared field and the
 /// value's exact producer.
 pub(super) fn reseat(
@@ -161,7 +165,6 @@ pub(super) fn reseat(
             .ok_or_else(|| invalid())
     };
     let root = pointer_of(destination.place())?;
-    let home = pointer_of(*value)?;
     // The spelled path may end in a runtime element (`nodes[i] = node`): the
     // destination pointer scales each selector by its stride, in path order,
     // before the inverse copy lands the vacated extent.
@@ -173,6 +176,21 @@ pub(super) fn reseat(
         root,
         indices,
     )?;
+    let destination = CopyEnd {
+        place: destination.place(),
+        pointer: root,
+        byte_offset: *byte_offset,
+        elements: indices,
+    };
+    let home = builder
+        .transport
+        .pointers
+        .iter()
+        .find(|(place, _)| *place == *value)
+        .map(|(_, pointer)| *pointer);
+    let Some(home) = home else {
+        return copy_from_fragments(source, row, value, destination, 0, *shape, &[], builder);
+    };
     copy_bytes(
         builder,
         row,
@@ -182,12 +200,7 @@ pub(super) fn reseat(
             byte_offset: 0,
             elements: &[],
         },
-        CopyEnd {
-            place: destination.place(),
-            pointer: root,
-            byte_offset: *byte_offset,
-            elements: indices,
-        },
+        destination,
         u32::from(shape.byte_size),
     )
 }
@@ -310,20 +323,21 @@ fn chunk(remaining: u32) -> u8 {
 }
 
 /// Copy a leaf out of an owned parameter's inline ABI fragments: every
-/// fragment fully inside the leaf's span stores its register into the result
-/// slot at the leaf-relative offset — no loads, since the fragment already
+/// fragment fully inside the leaf's span stores its register into the destination
+/// at the leaf-relative offset — no loads, since the fragment already
 /// holds the bytes. A fragment cut by the leaf's bounds would need a
 /// sub-register read and stays honest-unsupported, as does any runtime-index
-/// traversal (a data register cannot seed the address chain).
+/// source traversal (a data register cannot seed the address chain). The
+/// destination may be an indexed window; its pointer is already scaled and
+/// each store retains the destination's original extent and index evidence.
 #[allow(clippy::too_many_arguments)]
 fn copy_from_fragments(
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
     place: &semantic_vocabulary::PlaceId,
-    result_place: semantic_vocabulary::PlaceId,
+    destination: CopyEnd<'_>,
     byte_offset: u32,
     shape: calling_conventions::ValueShape,
-    pointer: selected_instructions::VirtualRegisterId,
     indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     builder: &mut Builder<'_>,
 ) -> Result<(), SelectedInstructionError> {
@@ -378,18 +392,30 @@ fn copy_from_fragments(
             .find(|(stored, offset, _)| *stored == *place && *offset == fragment_offset)
             .map(|(_, _, value)| *value)
             .ok_or_else(|| invalid())?;
-        let offset = fragment_offset - byte_offset;
-        memory(
+        let offset = destination
+            .byte_offset
+            .checked_add(fragment_offset - byte_offset)
+            .ok_or_else(|| invalid())?;
+        let (pointer, displacement) = super::memory_pointer(
             builder,
             row,
-            result_place,
+            destination.place,
+            destination.pointer,
             offset,
             u32::from(width),
-            SelectedMemoryAccessRole::WritePlace,
+        )?;
+        super::runtime_address::footprint(
+            builder,
+            row,
+            destination.place,
+            offset,
+            u32::from(width),
+            destination.elements,
+            super::runtime_address::Written::Structural,
         )?;
         builder.emit(
             SelectedInstructionKind::Store {
-                byte_offset: offset,
+                byte_offset: displacement,
                 byte_size: u8::try_from(width).map_err(|_| invalid())?,
             },
             builder.constraints.keys.store.ok_or_else(|| invalid())?,

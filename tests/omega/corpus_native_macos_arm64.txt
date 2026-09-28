@@ -863,8 +863,7 @@ pass/structural/case_field_member_store rejected 479ms
 	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(2), node: 0 }))
 pass/structural/case_payload_record_member_read rejected 459ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(UnknownStructuralArgument { operation: OperationId(3), argument_index: 1, place: PlaceId(4) }))
-pass/structural/element_store rejected 523ms
-	native artifact canonical abstract optimization failed: explicit optimization pipeline failed: Run(InitialValidation(StructuralCallContractMismatch { machine: MachineId(1), block: BlockId(2), node: 1 }))
+pass/structural/element_store built 523ms exit:0
 pass/structural/local_record_receivers checked 201ms
 pass/structural/sum_attachment_receiver_compile checked 184ms
 pass/targets/aarch64_hfa_entry_argument checked 898ms
