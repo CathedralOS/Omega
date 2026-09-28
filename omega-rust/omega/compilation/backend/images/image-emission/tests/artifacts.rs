@@ -42,6 +42,8 @@ mod provider_and_call_plans;
 mod provider_execution;
 #[path = "artifacts/requested_executable_route.rs"]
 mod requested_executable_route;
+#[path = "artifacts/runtime_spill_stack_demand.rs"]
+mod runtime_spill_stack_demand;
 #[path = "artifacts/scalar_plans.rs"]
 mod scalar_plans;
 
