@@ -991,6 +991,100 @@ the complete product bar; focused successes below do not establish that baseline
   text/domain-provenance work, including
   `text/runtime_slice_indexed_string_guard_exit`; copies need no restoration window.
 
+- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Complete ordinary
+  consuming `drop<T>` under [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
+  Generic selection already admits hooks reading/writing `self` and calling
+  helpers. Preserve that route and reserved `T::drop` authored-call rejection.
+
+  - Reject reads through consumed owners in ordinary ownership checking:
+    both `drop(g); g.handle` and `consume(g); g.handle` currently check;
+    repeated consumption rejects and a pre-consumption scalar snapshot checks.
+    `04_typed-trees-to-checked-trees/src/flow/ownership/moves/observations.rs`
+    omits base-name reads; extend access validation alongside
+    `checks/multiplicity/linear_validation/recorded_events.rs`.
+    Cover both consumers with rejection fixtures and the snapshot with a
+    passing control; do not special-case the name `drop`.
+  - Carry nominal cleanup through Omega ownership replay and native calls.
+    With macOS ARM64 `ProgramEntry(Main::main)` bindings (e62553b906a),
+    `drops/core_drop_owner_hook_body` stops at `CurrentCleanupMismatch` in
+    canonical abstract optimization; `core_drop_owner_hook` reaches unsupported
+    target control flow. `abstract-operations/optimization-unit/semantics/src/current_ownership/cleanup.rs`
+    excludes runtime receivers/premises, and stage 02's
+    `lowering/control_flow/terminator.rs::plain_home_cleanup` rejects
+    `InvokeNominal`. Preserve receiver, contract, ordered actions, outgoing
+    result homes and continuation through executable calls on return and
+    successor edges. **CML4** owns residual partitions and mixed-root order.
+  - Compose contextual hooks and dying local owners beyond the isolated
+    scalar/Unit cases already encoded and independently verified by
+    `nominal_affine_source::{scalar_returns,unit_cleanup}`.
+    Stage 05's `unit/unit_cleanup.rs::patch_nominal_cleanup_member` excludes
+    caller/hook prerequisites; stage 04's
+    `execution/terminal_unit/control/checked_machine.rs` declines nominal
+    locals at return. Preserve exact-place premises without inventing demands.
+  - Finish erased-bearing construction: `core_drop_explicit_consume` with
+    the same entry stops at "erased record member has no runtime initializer".
+    Stage 05's Unit/scalar record emitters and codec
+    `value_foundations.rs::validate_establish_record` require runtime fields
+    for semantic declarations. Retain erased subjects, multiplicity, proof
+    custody and provenance without storage or disposal.
+    **PROOF-RELEVANCE-MIGRATION** owns erased formal/actual transport;
+    owned dynamic descriptors still clean their hidden runtime payloads.
+
+  Acceptance: bind entries for those three checked-only fixtures and execute
+  encoded, independently verified Terminal and native artifacts. Observe
+  nonempty hooks exactly once at early disposal and normal scope exit with
+  contextual prerequisites; erased fields cause no runtime cleanup. Reject
+  missing/forged hook identity or premises, duplicate consumption and dead
+  reads; retain helper-call and reserved-hook selection controls.
+
+- **CML4.** Complete edge-local residual cleanup under the
+  [ownership contract](wiki/spec/terminal-psi/ownership.md). Materialize outgoing
+  values before transfer/disposal; give every occurrence one disposition.
+  Clean dying roots in reverse declaration order and abandoned construction
+  prefixes in [reverse establishment order](wiki/spec/language/ownership.md#construction-and-disposal-order).
+  Crash/abort/process exit has no cleanup successor.
+
+  Bounded parameter/local/result moves already execute through encoded
+  Terminal. `partial_affine_result_source::anonymous_projected_operands_share_one_dying_continuation`
+  covers multiple ordinary/boundary-produced temporaries with an empty Unit
+  consumer; it establishes custody, not native payload or hook execution.
+
+  - Transport the existing stage 04
+    `execution/terminal_cleanup.rs::build_projected_edge_plan` through
+    `execution/terminal_unit/state_graph/` and stage 05's attached Unit graph.
+    `projected_transition_cleanup_retains_construction_local_residuals`
+    already reconstructs local-before-parameter residuals, but composed
+    `Pair.left` transition programs still lack admitted plans (parameter
+    transfer; with a consumed local projection, projected operand support).
+    Extend to partial construction, a second partial parameter and mixed
+    dying roots. Reuse exact complements and anonymous continuations; keep
+    machine parameter custody distinct from edge cleanup. No runtime liveness
+    flags, untouched-array leaf expansion or deferral to final return.
+  - Add residual evidence to conditional/structural-case successors and
+    structural returns: `SuccessorEdge`, `StructuralCaseSuccessorEdge` and
+    `ReturnStructural` only carry whole-root discards. `ReturnUnitPartialAffine`
+    exists. Change producer, representation/encoding, independent verification,
+    interpreter and native consumers together.
+  - Generalize temporary cleanup beyond empty effect-free Unit consumers:
+    other argument effects, non-Unit results, borrowed/owned mixtures and
+    claims/qualifications use **STATE-LOCAL-VALUE-FRONTIER**'s ordinary
+    evaluation path, retaining exact producers and dying continuations.
+  - Complete native result homes, projected results/copies and computed values
+    across calls/cycles. Stage 02's `lowering/unobserved_owned.rs::accepts`
+    suppresses arrival homes using a whole-function gate; replace that
+    dependency with per-place storage/action evidence. Existing no-code
+    Jump/scalar/Unit-return cleanup admission is not a native execution witness.
+    **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP** owns executable hooks.
+
+  Acceptance: source-produced artifacts reload and independently reconstruct
+  exact complements and complete transfer/cleanup partitions; native runs
+  preserve values and hook order/timing across composed edges. Reject missing,
+  duplicate, reordered, overlapping, wrong-root/type and post-transfer cleanup.
+  Fuel exhaustion commits no disposal; retry cannot repeat one. Preserve
+  `jump_edge_residual_discards_close_the_projected_argument_root_in_order` and
+  `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal` in
+  `terminal-verifier`. No affine occurrence outlives its required edge.
+
 - **SAMPLE-CORPUS.** Close every maintained `samples/cli|gui|uefi` project
   through checked semantics, native publication for its authored targets, and
   documented exit/output on matching hosts under the
@@ -4176,129 +4270,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   progress guarantee. Keep rejection controls
   until complete custody is implemented; Terminal execution does not establish
   native acceptance.
-
-- **CML4.** Complete edge-local residual cleanup under the
-  [ownership contract](wiki/spec/terminal-psi/ownership.md): outgoing values
-  materialize before transfer and disposal, every occurrence has one
-  disposition, and independent dying roots clean in reverse declaration order.
-  Abandoned partial construction/staging cleans its established prefix in
-  reverse establishment order, as the [language rule](wiki/spec/language/ownership.md#construction-and-disposal-order) requires.
-  Crash/abort/process-exit abandonment has no cleanup successor.
-  Owners: `04_typed-trees-to-checked-trees/src/execution/control_cleanup.rs`
-  and `execution/terminal_unit/cleanup/`, `05_checked-trees-to-lowered-psi/src/unit/unit_cleanup/`,
-  and Omega's `02_abstract-operations-to-target-operations/src/lowering/`.
-
-  Bounded parameter/local/result partial moves already reach encoded Terminal
-  execution. Multiple ordinary or boundary-produced projected temporaries can
-  share a Unit consumer (`partial_affine_result_source::anonymous_projected_operands_share_one_dying_continuation`).
-  Native target lowering admits no-code residual actions on Jump and
-  scalar/Unit-return edges; a lowering test is not native execution coverage.
-
-  Remaining work:
-
-  - Carry residual evidence through conditional and structural-case
-    successors and structural returns. `SuccessorEdge`,
-    `StructuralCaseSuccessorEdge` and `ReturnStructural` retain only
-    whole-root discard lists; `ReturnUnitPartialAffine` already exists.
-    Update the encoding contract and representation, producer, codec,
-    independent verifier/interpreter and native consumers together.
-  - Extend independently reconstructed residual scheduling to construction-local
-    roots, partial construction, a second partially moved parameter root, and
-    mixed dying roots beyond the supported parameter/temporary pair. Reuse
-    `execution/terminal_unit/cleanup/anonymous.rs::append_continuation` and
-    the partial-affine carrier's exact complements; keep machine-scoped
-    parameter custody distinct from continuation-edge cleanup. No runtime
-    liveness flags, expansion of untouched arrays into leaves, or cleanup
-    deferred until final return.
-  - Generalize projected temporary cleanup beyond empty, effect-free Unit
-    consumers: compose other argument effects, non-Unit consumers,
-    borrowed/owned temporary mixtures and retained claims/qualifications
-    through **STATE-LOCAL-VALUE-FRONTIER**'s ordinary evaluation path.
-    Each temporary retains its producer and exact dying continuation.
-  - Close source-to-native storage and replay for result homes, projected
-    results/copies, computed values across calls and cyclic control.
-    `lowering/unobserved_owned.rs::accepts` still recognizes whole functions
-    to suppress arrival homes; it no longer governs all return cleanup.
-    Retire that support dependency through per-place storage/action evidence,
-    not another allowlist. Executable nominal calls belong to
-    **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP** and must preserve this
-    schedule.
-
-  Acceptance: source-produced artifacts reload and independently reconstruct
-  exact complements and complete transfer/cleanup partitions; native runs
-  preserve values and observable hook order/timing across the composed edges.
-  Frontend admission or diagnostic ordering is not that runtime witness. Reject missing,
-  duplicate, reordered, overlapping, wrong-root/type and post-transfer cleanup.
-  Fuel exhaustion commits no disposal and retry cannot repeat one.
-  Preserve `terminal-verifier`'s `jump_edge_residual_discards_close_the_projected_argument_root_in_order`
-  and `owned_successors_reject_same_arity_aliases_and_transfer_after_disposal`
-  controls. No affine occurrence disappears or survives past its required edge.
-
-- **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Complete ordinary
-  consuming `drop<T>` and exact owner-attached hook execution under
-  [nominal cleanup](wiki/spec/terminal-psi/ownership.md#nominal-cleanup).
-  The generic consumer already selects and lowers eligible hooks, including
-  bodies that read/write `self` and call ordinary helpers. Do not restore a
-  cleanup-body recognizer or expose reserved `T::drop` as an authored call.
-
-  Remaining work:
-
-  - Realize executable cleanup in the common native graph:
-    `02_abstract-operations-to-target-operations/src/lowering/control_flow/terminator.rs::plain_home_cleanup`
-    rejects `InvokeNominal`. Preserve the exact receiver, hook contract,
-    action order, result homes and continuation across the real call;
-    no-code disposal is not a substitute. **CML4** owns residual partitions
-    and mixed dying-root schedules.
-
-    Two facts measured 3781c9e05c, before anyone plans this as a small edit.
-    Cleanup rides on the EDGE: `cleanup_actions` is a field of
-    `TargetControlSuccessor`, beside `bindings` and `target`, and an edge
-    executes no operations. A hook invocation therefore needs a synthesized
-    landing block that performs the call and jumps to the real target, with
-    the downstream consequences that carries through register allocation,
-    encoding and verification -- `plain_home_cleanup`'s `Ok(false)` is the
-    honest answer for the representation as it stands, not an oversight, and
-    its callers turn it into `unsupported_control_flow`.
-
-    The acceptance also has no customer yet. `drops/core_drop_owner_hook`,
-    `core_drop_owner_hook_body` and `core_drop_explicit_consume` carry no
-    `build.omg`, so native production refuses them with "requires one exact
-    selected program entry" before any cleanup lowering runs: they are
-    terminal-tier fixtures by construction. Adding entry bindings first would
-    only move them from checked-only to natively red, so bind them in the same
-    change that lands the landing block.
-  - Reject reads through consumed owners using ordinary ownership/access
-    checking, not a special case for `drop`: a read of `g.handle` after
-    `drop(g)` must reject.
-    `flow/ownership/moves/observations.rs` does not record a read of the base
-    name, while `linear_validation/recorded_events.rs` checks dead custody on
-    transfers/consumption. Witness the rejection with a `fail/drops` corpus
-    case, and an ordinary consuming helper and a valid snapshot copied before
-    consumption with `pass/drops` cases.
-  - Compose contextual requirements and dying local owners through ordinary
-    cleanup edges. `05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs::patch_nominal_cleanup_member`
-    still excludes nonempty caller/hook prerequisites, and
-    `04_typed-trees-to-checked-trees/src/execution/terminal_unit/control/checked_machine.rs`
-    rejects nominal-drop locals left owned at return. Retain independently
-    checked exact-place prerequisites; never infer new caller demands.
-  - Complete erased-bearing record construction without runtime evidence
-    storage or cleanup. Both Unit and scalar-graph record emitters reject
-    erased initializers, while
-    `terminal-codec/src/sections/semantic_module/module_foundation_validation/value_foundations.rs::validate_establish_record`
-    demands a relevant initializer for every declaration. Reconcile semantic
-    fields and proof custody with the physical roster, preserving erased
-    subjects, multiplicity and provenance. **PROOF-RELEVANCE-MIGRATION** owns
-    erased formal/actual transport. This is distinct from an owned dynamic
-    descriptor whose hidden runtime payload still requires cleanup.
-
-  Acceptance: `drops/core_drop_owner_hook{,_body}` and
-  `drops/core_drop_explicit_consume` reach encoded, independently checked
-  Terminal and native execution. Observe a nonempty hook's effect exactly
-  once at early disposal and normal scope exit, with valid contextual
-  prerequisites and an erased-field control producing no runtime cleanup.
-  Missing/forged hook identity or premises, duplicate consumption and reads
-  after consumption reject. Preserve ordinary helper calls and reserved-hook
-  selection rejection.
 
 - **TR3-TR8.** Connect activation planning and lifecycle accounting to a
   selected runtime executing ordinary named machines under the
