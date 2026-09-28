@@ -42,16 +42,29 @@
 //! representationally sound but unverifiable module — an `ensures` lane left
 //! without its matching `requires` — are named with the exact verification
 //! error independent replay raises.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `PropositionVocabularyCustodyFieldForTest` inventory in
+//! `proposition_vocabulary_custody_fields.rs`: each leg mutates one
+//! `TerminalModule` field, must still encode and round-trip canonically,
+//! diverges the honestly recomputed semantic and artifact identities, and is
+//! rejected by the two custody replays — the retained-manifest join and the
+//! sealed proof subject join — asserted inside the matrix's checker, while
+//! the per-leg verification verdict is asserted by the joined replay. The
+//! raw wire axes (count lies, closed tags, zero and non-dense identities,
+//! colliding or emptied names, double-joined strands, roster-order
+//! violations) and the producer-side encode rejections stay authored below.
 
 use std::ops::Range;
 
 use super::{
     block_id, canonical_artifact, contract_id, edge_id, evidence_term_id, machine_id,
-    proposition_id,
+    proposition_id, semantic_module,
 };
 use proof_admission::AdmissionProfile;
 use terminal_codec::{
-    ArtifactManifestError, CodecError, ProofCodecError, build_artifact_manifest,
+    CodecError, ProofCodecError, build_artifact_manifest,
     build_identity_optimization_execution_record, decode_module, decode_proof_section_for,
     encode_module, terminal_psi_identity, validate_artifact_manifest,
 };
@@ -63,7 +76,16 @@ use terminal_psi::{
     PropositionDeclaration, PropositionEvidence, TerminalMachine, TerminalMachineResult,
     TerminalModule, Terminator,
 };
-use terminal_verifier::{ModuleError, ProofBundle, VerificationError, verify_module};
+use terminal_verifier::{ModuleError, ProofBundle, verify_module};
+
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+
+#[path = "proposition_vocabulary_custody_fields.rs"]
+mod proposition_vocabulary_custody_fields;
+use proposition_vocabulary_custody_fields::{
+    PropositionVocabularyCustodyFieldForTest, proposition_vocabulary_custody_outcome,
+    proposition_vocabulary_verification, substitute_proposition_vocabulary_for_test,
+};
 
 /// Byte offsets of every wire field inside the four vocabulary rosters.
 /// Every `string` field records its u32 length prefix and its content bytes
@@ -729,110 +751,84 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
     let semantic_identity = terminal_psi_identity(&module).expect("semantic identity");
     assert_eq!(retained.semantic(), semantic_identity);
 
-    // A substitution that still forms a canonical module honestly
-    // recomputes a divergent semantic and artifact identity: the
-    // substituted module still verifies under the retained bundle (the
-    // vocabulary carries no proof obligations), while the retained custody
-    // replays — the manifest join and the sealed proof subject join —
-    // reject it.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
-        assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            terminal_psi_identity(&substituted).expect("substituted semantic identity"),
-            semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
-        );
-        verify_module(&substituted, &bundle, &AdmissionProfile::default()).unwrap_or_else(
-            |error| panic!("{name} must keep the substituted module verifiable: {error:?}"),
-        );
-        let recomputed_optimization =
-            build_identity_optimization_execution_record(&substituted, &bundle)
-                .expect("identity optimization over the substituted module");
-        let recomputed =
-            build_artifact_manifest(&substituted, &bundle, &recomputed_optimization, None, None)
-                .expect("honest manifest over the substituted module");
-        assert_ne!(
-            recomputed.identity(),
-            retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
+    // Every representable substitution still forms a canonical module that
+    // honestly recomputes a divergent semantic and artifact identity, and
+    // the retained custody replays — the manifest join and the sealed proof
+    // subject join — reject it, all asserted inside the matrix's checker.
+    // The vocabulary carries no proof obligations the verifier reconstructs,
+    // so every leg except `RequiresLaneDropped` must keep the substituted
+    // module verifiable under the retained bundle; that per-leg verification
+    // verdict is asserted by the joined replay. The donor is an authentic
+    // semantic module with empty vocabulary rosters.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "proposition vocabulary rosters",
+        fields: PropositionVocabularyCustodyFieldForTest::INVENTORY,
+        honest: &|| module.clone(),
+        donor: semantic_module(),
+        custody: &|record: &terminal_psi::TerminalModule| {
+            terminal_psi_identity(record).expect("semantic identity")
+        },
+        substitute: &substitute_proposition_vocabulary_for_test,
+        check: &|record: &terminal_psi::TerminalModule| {
+            let encoded = encode_module(record).expect("a declared leg must encode canonically");
+            assert_eq!(
+                decode_module(&encoded),
+                Ok(record.clone()),
+                "a declared leg must decode canonically under the same subject"
+            );
+            let recomputed_optimization =
+                build_identity_optimization_execution_record(record, &bundle)
+                    .expect("identity optimization over the substituted module");
+            let recomputed =
+                build_artifact_manifest(record, &bundle, &recomputed_optimization, None, None)
+                    .expect("honest manifest over the substituted module");
+            assert_ne!(
+                recomputed.identity(),
+                retained.identity(),
+                "a declared leg must diverge the recomputed artifact identity"
+            );
+            assert!(
+                matches!(
+                    decode_proof_section_for(record, artifact.proof_bytes()),
+                    Err(ProofCodecError::ProofSubjectMismatch { .. })
+                ),
+                "a declared leg must reject at the sealed proof subject join"
+            );
             validate_artifact_manifest(
-                &substituted,
+                record,
                 &bundle,
                 &recomputed_optimization,
                 None,
                 None,
                 retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        assert!(
-            matches!(
-                decode_proof_section_for(&substituted, artifact.proof_bytes()),
-                Err(ProofCodecError::ProofSubjectMismatch { .. })
-            ),
-            "{name} must reject at the sealed proof subject join"
-        );
-        substituted
-    };
-    // A substitution that decodes to a representationally sound module can
-    // still fail independent proof replay: an ensures lane divorced from its
-    // requires lane leaves the term unproduced. The canonical decode and the
-    // retained custody replays are asserted alongside the exact verification
-    // error.
-    let verify_rejected = |name: &'static str, mutated: &[u8], expected: VerificationError| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
-        assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            terminal_psi_identity(&substituted).expect("substituted semantic identity"),
-            semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
-        );
-        assert_eq!(
-            verify_module(&substituted, &bundle, &AdmissionProfile::default())
-                .err()
-                .unwrap_or_else(|| panic!("{name} must reject at independent verification")),
-            expected,
-            "{name} must reject with the named verification error"
-        );
-        let recomputed_optimization =
-            build_identity_optimization_execution_record(&substituted, &bundle)
-                .expect("identity optimization over the substituted module");
-        assert_eq!(
-            validate_artifact_manifest(
-                &substituted,
-                &bundle,
-                &recomputed_optimization,
-                None,
-                None,
-                retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        assert!(
-            matches!(
-                decode_proof_section_for(&substituted, artifact.proof_bytes()),
-                Err(ProofCodecError::ProofSubjectMismatch { .. })
-            ),
-            "{name} must reject at the sealed proof subject join"
-        );
-    };
+            )
+            .map(|()| terminal_psi_identity(record).expect("leg semantic identity"))
+        },
+        outcome: &proposition_vocabulary_custody_outcome,
+        joined_replay: Some(&|record: &terminal_psi::TerminalModule, field| {
+            match proposition_vocabulary_verification(field) {
+                Ok(()) => {
+                    verify_module(record, &bundle, &AdmissionProfile::default()).unwrap_or_else(
+                        |error| {
+                            panic!(
+                                "{field:?} must keep the substituted module verifiable: {error:?}"
+                            )
+                        },
+                    );
+                }
+                Err(expected) => assert_eq!(
+                    verify_module(record, &bundle, &AdmissionProfile::default())
+                        .err()
+                        .unwrap_or_else(|| {
+                            panic!("{field:?} must reject at independent verification")
+                        }),
+                    expected,
+                    "{field:?} must reject with the named verification error"
+                ),
+            }
+        }),
+    });
+
     // A substitution that cannot form a canonical module rejects inside the
     // canonical decoder with an exact error.
     let rejected = |name: &'static str, mutated: &[u8], expected: CodecError| {
@@ -1023,14 +1019,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
             actual: proposition_id(9),
         }),
     );
-    divergent(
-        "a renamed fact-only declaration",
-        &restring(&fact_declaration.name, "example::Arranged"),
-    );
-    divergent(
-        "a renamed witness declaration",
-        &restring(&witness_declaration.name, "example::Settled"),
-    );
+    // The `FactDeclarationRenamed` and `WitnessDeclarationRenamed`
+    // inventory legs exercise the free declaration names through the matrix.
     // Equal names keep the id-normalized rows strictly increasing — the
     // fact-only row's emptier shape still sorts first — so the collision
     // reaches the unique-name check.
@@ -1131,10 +1121,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
         ),
         CodecError::InvalidModule(ModuleError::InvalidPropositionBinder(proposition_id(2))),
     );
-    divergent(
-        "a renamed declaration binder",
-        &restring(&witness_declaration.binders[0].name, "U"),
-    );
+    // The `DeclarationBinderRenamed` inventory leg exercises the free
+    // binder name through the matrix.
     rejected(
         "a declaration binder name colliding with its peer",
         &restring(&witness_declaration.binders[0].name, "n"),
@@ -1187,13 +1175,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
         &put_u8(witness_declaration.binders[2].kind.clone(), 7),
         CodecError::InvalidTag("PropositionBinderKind", 7),
     );
-    divergent(
-        "a renamed const binder type",
-        &restring(
-            witness_declaration.binders[1].const_type.as_ref().unwrap(),
-            "example::Natural",
-        ),
-    );
+    // The `ConstBinderTypeRenamed` inventory leg exercises the free const
+    // binder type identity through the matrix.
     rejected(
         "an emptied const binder type",
         &restring(
@@ -1228,10 +1211,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
             proposition_id(2),
         )),
     );
-    divergent(
-        "a renamed declaration parameter type",
-        &restring(&witness_declaration.parameter_types[0], "example::Thing"),
-    );
+    // The `DeclarationParameterTypeRenamed` inventory leg exercises the
+    // free parameter type identity through the matrix.
     rejected(
         "an emptied declaration parameter type",
         &restring(&witness_declaration.parameter_types[0], ""),
@@ -1247,13 +1228,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
         &put_u8(witness_declaration.evidence_tag.clone(), 0),
         CodecError::InvalidTag("PropositionEvidence", 0),
     );
-    divergent(
-        "a renamed witness evidence type",
-        &restring(
-            witness_declaration.evidence_type.as_ref().unwrap(),
-            "example::HeldProof",
-        ),
-    );
+    // The `WitnessEvidenceTypeRenamed` inventory leg exercises the free
+    // evidence type identity through the matrix.
     rejected(
         "an emptied witness evidence type",
         &restring(witness_declaration.evidence_type.as_ref().unwrap(), ""),
@@ -1449,36 +1425,9 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
         &put_u8(witness_application.binder_arguments[1].kind.clone(), 9),
         CodecError::InvalidTag("PropositionBinderArgumentKind", 9),
     );
-    divergent(
-        "a renamed type binder argument",
-        &restring(
-            witness_application.binder_arguments[0]
-                .identity
-                .as_ref()
-                .unwrap(),
-            "example::Box",
-        ),
-    );
-    divergent(
-        "a renamed const binder argument",
-        &restring(
-            witness_application.binder_arguments[1]
-                .identity
-                .as_ref()
-                .unwrap(),
-            "example::four",
-        ),
-    );
-    divergent(
-        "a renamed machine binder argument",
-        &restring(
-            witness_application.binder_arguments[3]
-                .identity
-                .as_ref()
-                .unwrap(),
-            "example::worker",
-        ),
-    );
+    // The `TypeBinderArgumentRenamed`, `ConstBinderArgumentRenamed`, and
+    // `MachineBinderArgumentRenamed` inventory legs exercise the free
+    // ordinary binder-argument identities through the matrix.
     rejected(
         "an emptied binder argument identity",
         &restring(
@@ -1658,14 +1607,9 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
             proposition_id(2),
         )),
     );
-    divergent(
-        "a renamed application argument",
-        &restring(&witness_application.arguments[0], "example::Box"),
-    );
-    divergent(
-        "a renamed second application argument",
-        &restring(&witness_application.arguments[1], "example::four"),
-    );
+    // The `ApplicationArgumentRenamed` and `SecondApplicationArgumentRenamed`
+    // inventory legs exercise the free application arguments through the
+    // matrix.
     rejected(
         "an emptied application argument",
         &restring(&witness_application.arguments[0], ""),
@@ -1929,18 +1873,12 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
     );
     // Dropping the requires lane leaves the ensures lane unmatched: the
     // module is representationally sound, but independent verification
-    // reports the term with no producer.
-    verify_rejected(
-        "a dropped requires lane leaving its ensures unmatched",
-        &drop_row(spans.lane_count.clone(), requires_lane.row.clone()),
-        VerificationError::MissingEvidenceProducer(evidence_term_id(1)),
-    );
-    divergent(
-        "a dropped ensures lane",
-        &drop_row(spans.lane_count.clone(), ensures_lane.row.clone()),
-    );
-    // Clearing the lanes alone orphans the term; clearing the vocabulary
-    // wholesale stays representable.
+    // reports the term with no producer — the `RequiresLaneDropped`
+    // inventory leg exercises it through the matrix with its named
+    // `MissingEvidenceProducer` verdict, and `EnsuresLaneDropped` exercises
+    // the free drop. Clearing the lanes alone orphans the term; clearing
+    // the vocabulary wholesale stays representable — the `VocabularyCleared`
+    // leg exercises it through the matrix.
     rejected(
         "a cleared lane roster",
         &excise(
@@ -1950,15 +1888,6 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
         ),
         CodecError::InvalidModule(ModuleError::OrphanEvidenceTerm(evidence_term_id(1))),
     );
-    {
-        let mut cleared = module.clone();
-        cleared.proposition_declarations.clear();
-        cleared.proposition_applications.clear();
-        cleared.evidence_terms.clear();
-        cleared.evidence_contract_lanes.clear();
-        let cleared_bytes = encode_module(&cleared).expect("cleared vocabulary encodes");
-        divergent("a cleared proposition vocabulary", &cleared_bytes);
-    }
     rejected(
         "a duplicated lane row",
         &duplicate_row(spans.lane_count.clone(), requires_lane.row.clone()),
@@ -2055,10 +1984,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
         &put_u8(ensures_lane.output_flag.clone(), 2),
         CodecError::InvalidBoolean(2),
     );
-    divergent(
-        "a renamed ensures output field",
-        &restring(ensures_lane.output_field.as_ref().unwrap(), "finding"),
-    );
+    // The `EnsuresOutputFieldRenamed` inventory leg exercises the free
+    // ensures output field through the matrix.
     rejected(
         "an emptied ensures output field",
         &restring(ensures_lane.output_field.as_ref().unwrap(), ""),
@@ -2276,18 +2203,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
     );
     // The ordinary machine argument projected through the same term stays
     // representable end to end: it encodes, decodes, verifies, and diverges
-    // the identity.
-    let mut changed = module.clone();
-    changed.proposition_applications[1].binder_arguments[3]
-        .identity
-        .clear();
-    changed.proposition_applications[1].binder_arguments[3].evidence_projection =
-        Some(binder_projection());
-    let projected_bytes = encode_module(&changed).expect("projected argument encodes");
-    divergent(
-        "a producer-side machine binder argument projected through the term",
-        &projected_bytes,
-    );
+    // the identity — the `MachineBinderArgumentProjected` inventory leg
+    // exercises it through the matrix.
     let mut changed = module.clone();
     changed.proposition_applications[1].arguments.pop();
     encode_rejected(
@@ -2500,20 +2417,8 @@ fn terminal_proposition_vocabulary_rejects_every_one_field_substitution() {
     // A second ensures lane on the same machine and term is matched by the
     // existing requires lane — producer provenance keys the pair, not the
     // lane — so the row stays representable end to end and only the honest
-    // identities diverge.
-    let mut changed = module.clone();
-    changed.evidence_contract_lanes.push(EvidenceContractLane {
-        machine: machine_id(1),
-        kind: EvidenceContractLaneKind::Ensures,
-        position: 1,
-        term: evidence_term_id(1),
-        output_field: Some("finding".into()),
-    });
-    let matched_bytes = encode_module(&changed).expect("matched ensures encodes");
-    divergent(
-        "a producer-side second ensures lane matched by the requires lane",
-        &matched_bytes,
-    );
+    // identities diverge: the `SecondEnsuresLaneMatched` inventory leg
+    // exercises it through the matrix.
 
     // --- module envelope boundaries ---------------------------------------
 

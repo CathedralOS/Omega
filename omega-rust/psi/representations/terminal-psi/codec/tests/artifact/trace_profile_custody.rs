@@ -19,6 +19,18 @@
 //! parameters (including a projected qualification path), a port write, a
 //! boundary call returning a structural result, and a scalar return, while
 //! two further machines contribute terminator crash sites.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `TraceProfileCustodyFieldForTest` inventory in
+//! `trace_profile_custody_fields.rs`: each leg mutates one
+//! `TerminalTraceV1Profile` field, must still encode and round-trip
+//! canonically, and is rejected by the module-bound acceptance replay — the
+//! verifier's own reconstruction of the same canonical module — asserted
+//! inside the matrix's checker. The raw wire axes (domain, version and
+//! marker lies, count lies, closed tags, zero and order-breaking
+//! identities, empty route buckets, roster-order violations, truncation)
+//! and the producer-side encode rejections stay authored below.
 
 use std::ops::Range;
 
@@ -44,10 +56,17 @@ use terminal_psi::{
     StructuralFieldType, StructuralMultiplicity, StructuralOperationResult,
     StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
-    TerminalMachineResult, TerminalModule, TerminalTraceCrashSiteRow,
-    TerminalTraceOrdinaryEventKind, TerminalTraceResultSchema, TerminalTraceScalarSchema,
-    TerminalTraceStructuralSchema, TerminalTraceV1Profile, TerminalTraceValueComparison,
-    Terminator, ValueDeclaration, VocabularyMarker,
+    TerminalMachineResult, TerminalModule, TerminalTraceV1Profile, Terminator, ValueDeclaration,
+    VocabularyMarker,
+};
+
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+
+#[path = "trace_profile_custody_fields.rs"]
+mod trace_profile_custody_fields;
+use trace_profile_custody_fields::{
+    TraceProfileCustodyFieldForTest, substitute_trace_profile_for_test,
+    trace_profile_custody_outcome,
 };
 
 const DOMAIN: &[u8] = b"omega.terminal.observation-profile.v2";
@@ -132,7 +151,6 @@ struct StructuralSchemaSpan {
 struct ResultSchemaSpan {
     tag: Range<usize>,
     scalar: Option<ScalarSchemaSpan>,
-    structural: Option<StructuralSchemaSpan>,
 }
 
 struct RootSpan {
@@ -308,17 +326,16 @@ impl<'bytes> SpanWalker<'bytes> {
 
     fn walk_result_schema(&mut self) -> ResultSchemaSpan {
         let tag = self.take(1);
-        let (scalar, structural) = match self.bytes[tag.start] {
-            1 => (None, None),
-            2 => (Some(self.walk_scalar_schema()), None),
-            3 => (None, Some(self.walk_structural_schema())),
+        let scalar = match self.bytes[tag.start] {
+            1 => None,
+            2 => Some(self.walk_scalar_schema()),
+            3 => {
+                self.walk_structural_schema();
+                None
+            }
             tag => panic!("unexpected result schema tag {tag}"),
         };
-        ResultSchemaSpan {
-            tag,
-            scalar,
-            structural,
-        }
+        ResultSchemaSpan { tag, scalar }
     }
 
     fn walk_route_bucket(&mut self) -> (Range<usize>, Range<usize>, Vec<Range<usize>>) {
@@ -901,40 +918,38 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
     let identity = terminal_psi_identity(&module).expect("honest module identity");
     assert_eq!(profile.module_identity, identity);
 
-    // A substitution that still forms a canonical profile re-encodes, honestly
-    // retains (or recomputes) the containing module identity, decodes back to
-    // the substituted value, and is rejected by module-bound replay: the
-    // verifier's own reconstruction of the same module never yields the
-    // substituted row, identity or schema.
-    let representable = |name: &'static str, mutated: &TerminalTraceV1Profile| {
-        let mutated_bytes = encode_terminal_trace_v1_profile(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still encode: {error:?}"));
-        assert_ne!(mutated_bytes, bytes, "{name} must change the profile bytes");
-        assert_eq!(
-            decode_terminal_trace_v1_profile(&mutated_bytes)
-                .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}")),
-            *mutated,
-            "{name} must decode to the substituted profile"
-        );
-        assert_eq!(
-            accept_terminal_trace_v1_profile(&module, &mutated_bytes),
-            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
-            "{name} must reject at module-bound replay"
-        );
-    };
-    // A same-length wire substitution that still decodes canonically diverges
-    // the decoded value while the retained module identity stays honest;
-    // module-bound replay then rejects it.
-    let decode_accepted = |name: &'static str, mutated: &[u8]| {
-        let decoded = decode_terminal_trace_v1_profile(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(decoded, profile, "{name} must change the decoded profile");
-        assert_eq!(
-            accept_terminal_trace_v1_profile(&module, mutated),
-            Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
-            "{name} must reject at module-bound replay"
-        );
-    };
+    // Every representable substitution still forms a canonical profile that
+    // re-encodes, honestly retains (or recomputes) the containing module
+    // identity, decodes back to the substituted value, and is rejected by
+    // module-bound replay: the verifier's own reconstruction of the same
+    // module never yields the substituted row, identity or schema — all
+    // asserted inside the matrix's checker. The donor is the authentic
+    // profile of a sibling module whose reconstruction differs on every
+    // row.
+    let mut donor_module = module.clone();
+    donor_module.machines[2].id = machine_id(41);
+    let donor = reconstruct_canonical_terminal_trace_v1_profile(&donor_module)
+        .expect("the foreign module reconstructs a canonical profile");
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "TerminalTraceV1 observation profile",
+        fields: TraceProfileCustodyFieldForTest::INVENTORY,
+        honest: &|| profile.clone(),
+        donor,
+        custody: &|record: &TerminalTraceV1Profile| record.clone(),
+        substitute: &substitute_trace_profile_for_test,
+        check: &|record: &TerminalTraceV1Profile| {
+            let encoded = encode_terminal_trace_v1_profile(record)
+                .expect("a declared leg must encode canonically");
+            assert_eq!(
+                decode_terminal_trace_v1_profile(&encoded),
+                Ok(record.clone()),
+                "a declared leg must decode canonically under the same subject"
+            );
+            accept_terminal_trace_v1_profile(&module, &encoded)
+        },
+        outcome: &trace_profile_custody_outcome,
+        joined_replay: None,
+    });
     // A substitution that cannot be represented canonically rejects inside the
     // encoder's canonical-order validation.
     let encode_rejected = |name: &'static str,
@@ -1006,22 +1021,15 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::ZeroModuleCommitment,
     );
-    let mut mutated = bytes.clone();
-    mutated[spans.commitment.clone()].copy_from_slice(&[7; 32]);
-    decode_accepted("a foreign module commitment", &mutated);
-    let mut changed = profile.clone();
-    changed.module_identity.program_fingerprint =
-        terminal_psi::SemanticFingerprint::from_bytes([7; 32]);
-    representable("a profile carrying a foreign module identity", &changed);
+    // The `ModuleIdentitySubstituted` inventory leg exercises the foreign
+    // commitment through the matrix.
 
     // The module-side direction of the same join: replaying the retained bytes
     // against a module whose reconstruction differs also rejects. The
     // substitution keeps the machine roster canonical while changing the
     // identity the profile's crash rows were reconstructed from.
-    let mut foreign_module = module.clone();
-    foreign_module.machines[2].id = machine_id(41);
     assert_eq!(
-        accept_terminal_trace_v1_profile(&foreign_module, &bytes),
+        accept_terminal_trace_v1_profile(&donor_module, &bytes),
         Err(TerminalTraceV1ProfileAcceptanceError::ProfileMismatch),
         "a substituted module must reject at replay"
     );
@@ -1071,12 +1079,9 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::ZeroIdentity("trace root entry")),
     );
-    let mut mutated = bytes.clone();
-    mutated[spans.root.entry.clone()].copy_from_slice(&21_u64.to_le_bytes());
-    decode_accepted("a substituted root entry machine", &mutated);
-    let mut changed = profile.clone();
-    changed.root.entry = machine_id(7);
-    representable("a root entry naming another machine", &changed);
+    // The `RootEntryToModuleMachine` and `RootEntryForeign` inventory legs
+    // exercise the entry machine — a real module machine that is not the
+    // entry, and a foreign machine — through the matrix.
 
     // Scalar input roster shape and each schema's fields.
     let mut mutated = bytes.clone();
@@ -1086,21 +1091,12 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
     mutated[spans.root.scalar_count.clone()].copy_from_slice(&3_u32.to_le_bytes());
     rejected_unspecified("an over-counted root scalar roster", &mutated);
 
-    let mut changed = profile.clone();
-    changed.root.scalar_inputs.pop();
-    representable("a dropped root scalar input", &changed);
-    let mut changed = profile.clone();
-    changed.root.scalar_inputs.push(TerminalTraceScalarSchema {
-        scalar_type: u8_type(),
-        comparison: TerminalTraceValueComparison::ExactSemanticValue,
-    });
-    representable("an inserted root scalar input", &changed);
-
-    // The Boolean schema's only representable axis is its type; the u8 schema
-    // additionally carries a representable integer description on the wire.
-    let mut changed = profile.clone();
-    changed.root.scalar_inputs[0].scalar_type = u8_type();
-    representable("a Boolean input's scalar type", &changed);
+    // The `RootScalarInputDropped`, `RootScalarInputInserted`, and
+    // `RootScalarInputTypeSubstituted` inventory legs exercise the scalar
+    // input roster shape and the Boolean schema's free type axis through
+    // the matrix; `RootScalarIntegerWidthSubstituted` and
+    // `RootScalarIntegerSignSubstituted` exercise the u8 schema's integer
+    // description.
     let mut mutated = bytes.clone();
     mutated[spans.root.scalars[0].comparison.clone()].copy_from_slice(&[9]);
     rejected(
@@ -1115,7 +1111,7 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::InvalidTag("ScalarType", 9)),
     );
-    let (carrier, bits) = spans.root.scalars[1]
+    let (carrier, _) = spans.root.scalars[1]
         .integer
         .clone()
         .expect("the u8 input encodes an integer description");
@@ -1126,13 +1122,6 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::InvalidTag("IntegerSign", 9)),
     );
-    let mut mutated = bytes.clone();
-    mutated[bits.clone()].copy_from_slice(&16_u16.to_le_bytes());
-    decode_accepted("a scalar input's integer width", &mutated);
-    let mut changed = profile.clone();
-    changed.root.scalar_inputs[1].scalar_type =
-        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 8).expect("i8 test type"));
-    representable("a scalar input's integer sign", &changed);
 
     // Structural input roster shape and each schema's fields.
     let mut mutated = bytes.clone();
@@ -1142,22 +1131,9 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
     mutated[spans.root.structural_count.clone()].copy_from_slice(&3_u32.to_le_bytes());
     rejected_unspecified("an over-counted root structural roster", &mutated);
 
-    let mut changed = profile.clone();
-    changed.root.structural_inputs.pop();
-    representable("a dropped root structural input", &changed);
-    let mut changed = profile.clone();
-    changed
-        .root
-        .structural_inputs
-        .push(TerminalTraceStructuralSchema {
-            structural_type: first_type_id(&profile),
-            multiplicity: StructuralMultiplicity::Unrestricted,
-            access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            comparison: TerminalTraceValueComparison::ExactSemanticValue,
-        });
-    representable("an inserted root structural input", &changed);
+    // The `RootStructuralInputDropped` and `RootStructuralInputInserted`
+    // inventory legs exercise the structural input roster shape through the
+    // matrix.
 
     let first_input = &spans.root.structurals[0];
     let mut mutated = bytes.clone();
@@ -1174,9 +1150,10 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::ZeroIdentity("trace structural type")),
     );
-    let mut mutated = bytes.clone();
-    mutated[first_input.structural_type.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("a substituted structural input type", &mutated);
+    // The `RootStructuralInputTypeSubstituted`,
+    // `RootStructuralInputMultiplicitySubstituted`, and
+    // `RootStructuralInputAccessSubstituted` inventory legs exercise each
+    // free field through the matrix.
     let mut mutated = bytes.clone();
     mutated[first_input.multiplicity.clone()].copy_from_slice(&[9]);
     rejected(
@@ -1184,9 +1161,6 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidStructuralMultiplicity(9),
     );
-    let mut changed = profile.clone();
-    changed.root.structural_inputs[0].multiplicity = StructuralMultiplicity::Linear;
-    representable("a structural input's multiplicity", &changed);
     let mut mutated = bytes.clone();
     mutated[first_input.access.clone()].copy_from_slice(&[9]);
     rejected(
@@ -1194,9 +1168,6 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidStructuralAccess(9),
     );
-    let mut mutated = bytes.clone();
-    mutated[first_input.access.clone()].copy_from_slice(&[4]);
-    decode_accepted("a structural input's access", &mutated);
 
     // Direct qualifications: the roster count is order-bound, each identity is
     // independently bound, and duplicates are non-canonical at encoding.
@@ -1212,9 +1183,8 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
             "trace structural qualification",
         )),
     );
-    let mut mutated = bytes.clone();
-    mutated[first_input.qualifications[0].clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("a substituted direct qualification", &mutated);
+    // The `RootStructuralQualificationSubstituted` inventory leg exercises
+    // the free qualification identity through the matrix.
     let mut changed = profile.clone();
     changed.root.structural_inputs[0]
         .qualifications
@@ -1268,9 +1238,8 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
     let mut mutated = bytes.clone();
     mutated[field_value.clone()].copy_from_slice(&[0xFF; 6]);
     rejected_unspecified("a projected path's invalid field encoding", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[field_value.start] = b'R';
-    decode_accepted("a projected path's field identity", &mutated);
+    // The `ProjectedPathFieldRenamed` inventory leg exercises the free
+    // segment identity through the matrix.
     let mut mutated = bytes.clone();
     mutated[projection.domain.clone()].copy_from_slice(&0_u64.to_le_bytes());
     rejected(
@@ -1278,9 +1247,8 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::ZeroIdentity("StructuralDomainId")),
     );
-    let mut mutated = bytes.clone();
-    mutated[projection.domain.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("a substituted projected qualification domain", &mutated);
+    // The `ProjectedQualificationDomainSubstituted` inventory leg exercises
+    // the free domain identity through the matrix.
     let mut changed = profile.clone();
     let duplicated_projection =
         changed.root.structural_inputs[1].projected_qualifications[0].clone();
@@ -1301,21 +1269,9 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidResultTag(9),
     );
-    let mut changed = profile.clone();
-    changed.root.result = TerminalTraceResultSchema::Unit;
-    representable("a unit root result", &changed);
-    let mut changed = profile.clone();
-    changed.root.result = TerminalTraceResultSchema::Scalar(TerminalTraceScalarSchema {
-        scalar_type: ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, 16).expect("u16 test type"),
-        ),
-        comparison: TerminalTraceValueComparison::ExactSemanticValue,
-    });
-    representable("a differently typed scalar root result", &changed);
-    let mut changed = profile.clone();
-    changed.root.result =
-        TerminalTraceResultSchema::Structural(changed.root.structural_inputs[0].clone());
-    representable("a structural root result", &changed);
+    // The `RootResultUnit`, `RootResultScalarRetyped`, and
+    // `RootResultStructural` inventory legs exercise the result tag's
+    // representable variants through the matrix.
 
     // The scalar payload inside the root result binds its own fields.
     let result_scalar = spans.root.result.scalar.as_ref().expect("scalar result");
@@ -1333,7 +1289,7 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::InvalidTag("ScalarType", 9)),
     );
-    let (carrier, bits) = result_scalar
+    let (carrier, _) = result_scalar
         .integer
         .clone()
         .expect("the u8 result encodes an integer description");
@@ -1344,9 +1300,8 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::InvalidTag("IntegerSign", 9)),
     );
-    let mut mutated = bytes.clone();
-    mutated[bits.clone()].copy_from_slice(&64_u16.to_le_bytes());
-    decode_accepted("the root result's integer width", &mutated);
+    // The `RootResultIntegerWidthSubstituted` inventory leg exercises the
+    // result's free integer width through the matrix.
 
     // --- crash-site roster: sorted (machine, block, edge) rows bind the exact
     // terminator crash site and cause ---
@@ -1390,24 +1345,9 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
             TerminalTraceV1ProfileCodecError::Wire(CodecError::ZeroIdentity(label)),
         );
     }
-    for (name, span, raw) in [
-        ("a substituted crash machine", crash.machine.clone(), 31_u64),
-        ("a substituted crash block", crash.block.clone(), 31_u64),
-        ("a substituted crash edge", crash.edge.clone(), 31_u64),
-    ] {
-        let mut mutated = bytes.clone();
-        mutated[span].copy_from_slice(&raw.to_le_bytes());
-        decode_accepted(name, &mutated);
-    }
-    let mut changed = profile.clone();
-    changed.crash_sites[0].machine = machine_id(31);
-    representable("a crash site on a foreign machine", &changed);
-    let mut changed = profile.clone();
-    changed.crash_sites[0].block = block_id(31);
-    representable("a crash site on a foreign block", &changed);
-    let mut changed = profile.clone();
-    changed.crash_sites[0].edge = edge_id(31);
-    representable("a crash site on a foreign edge", &changed);
+    // The `CrashMachineSubstituted`, `CrashBlockSubstituted`, and
+    // `CrashEdgeSubstituted` inventory legs exercise each free coordinate of
+    // the first row through the matrix.
     let mut mutated = bytes.clone();
     mutated[crash.cause.clone()].copy_from_slice(&[9]);
     rejected(
@@ -1415,44 +1355,18 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidCrashCause(9),
     );
-    let mut mutated = bytes.clone();
-    mutated[crash.cause.clone()].copy_from_slice(&[2]);
-    decode_accepted("a crash site's substituted cause", &mutated);
-    let mut changed = profile.clone();
-    changed.crash_sites[0].cause = CrashCause::Abort;
-    representable("a crash site's cause", &changed);
+    // The `CrashCauseSubstituted` inventory leg exercises the cause through
+    // the matrix.
 
     // The second crash row's fields bind independently; the cause stays
-    // representable because it is not part of the site-order key.
-    let second_crash = &spans.crashes[1];
-    let mut mutated = bytes.clone();
-    mutated[second_crash.machine.clone()].copy_from_slice(&61_u64.to_le_bytes());
-    decode_accepted("the second crash site's machine", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[second_crash.block.clone()].copy_from_slice(&61_u64.to_le_bytes());
-    decode_accepted("the second crash site's block", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[second_crash.edge.clone()].copy_from_slice(&61_u64.to_le_bytes());
-    decode_accepted("the second crash site's edge", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[second_crash.cause.clone()].copy_from_slice(&[1]);
-    decode_accepted("the second crash site's cause", &mutated);
+    // representable because it is not part of the site-order key. The
+    // `SecondCrashMachineSubstituted`, `SecondCrashBlockSubstituted`,
+    // `SecondCrashEdgeSubstituted`, and `SecondCrashCauseSubstituted`
+    // inventory legs exercise all four through the matrix.
 
-    // Roster shape: dropped, inserted, duplicated and reordered rows.
-    let mut changed = profile.clone();
-    changed.crash_sites.clear();
-    representable("a dropped crash site roster", &changed);
-    let mut changed = profile.clone();
-    changed.crash_sites.remove(0);
-    representable("a dropped crash site row", &changed);
-    let mut changed = profile.clone();
-    changed.crash_sites.push(TerminalTraceCrashSiteRow {
-        machine: machine_id(51),
-        block: block_id(51),
-        edge: edge_id(51),
-        cause: CrashCause::Abort,
-    });
-    representable("an inserted crash site row", &changed);
+    // Roster shape: dropped, inserted, duplicated and reordered rows. The
+    // `CrashRosterCleared`, `CrashRowDropped`, and `CrashRowInserted`
+    // inventory legs exercise the representable shapes through the matrix.
     let mut changed = profile.clone();
     changed.crash_sites.swap(0, 1);
     encode_rejected(
@@ -1520,29 +1434,11 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         );
     }
     // The site coordinates are order-bound across the two rows: a larger
-    // value on the first row breaks canonical order while a smaller one stays
-    // representable and still rejects at replay.
-    for (name, span, raw) in [
-        (
-            "a foreign boundary crash block",
-            boundary_crash.block.clone(),
-            5_u64,
-        ),
-        (
-            "a foreign boundary crash operation",
-            boundary_crash.operation.clone(),
-            1_u64,
-        ),
-        (
-            "a foreign boundary crash boundary",
-            boundary_crash.boundary.clone(),
-            31_u64,
-        ),
-    ] {
-        let mut mutated = bytes.clone();
-        mutated[span].copy_from_slice(&raw.to_le_bytes());
-        decode_accepted(name, &mutated);
-    }
+    // value on the first row breaks canonical order while a smaller one
+    // stays representable and still rejects at replay — the
+    // `BoundaryCrashBlockSubstituted`, `BoundaryCrashOperationSubstituted`,
+    // and `BoundaryCrashBoundarySubstituted` inventory legs exercise the
+    // representable directions through the matrix.
     for (name, span, raw) in [
         (
             "a boundary crash machine breaking roster order",
@@ -1568,9 +1464,8 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
             TerminalTraceV1ProfileCodecError::NonCanonicalBoundaryCrashSiteOrder,
         );
     }
-    let mut mutated = bytes.clone();
-    mutated[boundary_crash.machine.clone()].copy_from_slice(&5_u64.to_le_bytes());
-    decode_accepted("a foreign boundary crash machine", &mutated);
+    // The `BoundaryCrashMachineSubstituted` inventory leg exercises the
+    // representable machine direction through the matrix.
 
     // The boundary identity string: length and bytes are independently bound.
     let mut mutated = bytes.clone();
@@ -1579,15 +1474,8 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
     let mut mutated = bytes.clone();
     mutated[boundary_crash.identity.clone()].copy_from_slice(&[0xFF; 16]);
     rejected_unspecified("an invalid boundary crash identity encoding", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[boundary_crash.identity.clone()].copy_from_slice(b"Xonsole::publish");
-    decode_accepted("a substituted boundary crash identity", &mutated);
-    let mut changed = profile.clone();
-    changed.boundary_crash_sites[0].boundary_identity = "Console::lookalike".into();
-    representable(
-        "a boundary crash identity of a lookalike boundary",
-        &changed,
-    );
+    // The `BoundaryCrashIdentitySubstituted` and `BoundaryCrashIdentityLookalike`
+    // inventory legs exercise the free identity string through the matrix.
 
     // The route bucket: the cause is order-bound between the two rows, the
     // alternatives cannot be empty, and the guard tag is closed.
@@ -1652,14 +1540,9 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &changed,
         TerminalTraceV1ProfileCodecError::NonCanonicalBoundaryCrashSiteOrder,
     );
-    let mut changed = profile.clone();
-    changed.boundary_crash_sites.remove(0);
-    representable("a dropped boundary crash row", &changed);
-    let mut changed = profile.clone();
-    let mut extra = changed.boundary_crash_sites[1].clone();
-    extra.operation = operation_id(9);
-    changed.boundary_crash_sites.push(extra);
-    representable("a boundary crash row on a foreign operation", &changed);
+    // The `BoundaryCrashRowDropped` and `BoundaryCrashRowOnForeignOperation`
+    // inventory legs exercise the representable roster shapes through the
+    // matrix.
     let mut changed = profile.clone();
     changed.boundary_crash_sites[1]
         .route
@@ -1741,18 +1624,9 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::NonCanonicalOrdinaryEventOrder,
     );
-    let mut mutated = bytes.clone();
-    mutated[boundary_call.operation.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("an event operation on a foreign site", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].operation = operation_id(9);
-    representable("an ordinary event on a foreign operation", &changed);
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].block = block_id(31);
-    representable("an ordinary event on a foreign block", &changed);
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].machine = machine_id(31);
-    representable("an ordinary event on a foreign machine", &changed);
+    // The `EventOperationForeign`, `EventBlockForeign`, and
+    // `EventMachineForeign` inventory legs exercise the last row's free
+    // coordinates through the matrix.
 
     // The event kind tag is closed; a kind reinterpretation still decodes but
     // binds a different declaration, and each kind's target and identity are
@@ -1764,18 +1638,9 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidOrdinaryEventKind(9),
     );
-    let mut mutated = bytes.clone();
-    mutated[port_write.kind_tag.clone()].copy_from_slice(&[BOUNDARY_CALL_EVENT_TAG]);
-    decode_accepted("a port write reinterpreted as a boundary call", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[boundary_call.kind_tag.clone()].copy_from_slice(&[PORT_WRITE_EVENT_TAG]);
-    decode_accepted("a boundary call reinterpreted as a port write", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[0].kind = TerminalTraceOrdinaryEventKind::BoundaryCall {
-        boundary: boundary_machine_id(1),
-        boundary_identity: "Console::publish".into(),
-    };
-    representable("a port write event's kind", &changed);
+    // The `PortWriteRecastAsBoundaryCall`, `PortWriteRecastToBoundaryIdentity`,
+    // and `BoundaryCallRecastAsPortWrite` inventory legs exercise the kind
+    // reinterpretations through the matrix.
     let mut mutated = bytes.clone();
     mutated[port_write.kind_target.clone()].copy_from_slice(&0_u64.to_le_bytes());
     rejected(
@@ -1783,42 +1648,25 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::ZeroIdentity("trace event service")),
     );
-    let mut mutated = bytes.clone();
-    mutated[port_write.kind_target.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("an event service on a foreign declaration", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[boundary_call.kind_target.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("an event boundary on a foreign declaration", &mutated);
+    // The `EventServiceForeign` and `EventBoundaryForeign` inventory legs
+    // exercise the free kind targets through the matrix.
     let mut mutated = bytes.clone();
     mutated[port_write.identity_len.clone()].copy_from_slice(&u32::MAX.to_le_bytes());
     rejected_unspecified("an over-long event service identity", &mutated);
     let mut mutated = bytes.clone();
     mutated[port_write.identity.clone()].copy_from_slice(&[0xFF; 18]);
     rejected_unspecified("an invalid event service identity encoding", &mutated);
-    let mut mutated = bytes.clone();
-    mutated[port_write.identity.clone()].copy_from_slice(b"XortIo::write-byte");
-    decode_accepted("a substituted event service identity", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[0].kind = TerminalTraceOrdinaryEventKind::PortWrite {
-        service: service_id(1),
-        service_identity: "PortIo::lookalike".into(),
-    };
-    representable("a port write event's service identity", &changed);
+    // The `EventServiceIdentitySubstituted` and
+    // `PortWriteServiceIdentityLookalike` inventory legs exercise the free
+    // service identity through the matrix.
 
     // Port-write argument schemas: the synthesized (port, value) pair is bound
     // field by field.
     let mut mutated = bytes.clone();
     mutated[port_write.scalar_count.clone()].copy_from_slice(&1_u32.to_le_bytes());
     rejected_unspecified("a shrunken event scalar roster", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[0].scalar_arguments.pop();
-    representable("a dropped event scalar argument", &changed);
-    let mut changed = profile.clone();
-    let inserted_argument = changed.ordinary_events[0].scalar_arguments[0];
-    changed.ordinary_events[0]
-        .scalar_arguments
-        .push(inserted_argument);
-    representable("an inserted event scalar argument", &changed);
+    // The `EventScalarArgumentDropped` and `EventScalarArgumentInserted`
+    // inventory legs exercise the argument roster shape through the matrix.
     let mut mutated = bytes.clone();
     mutated[port_write.scalars[0].comparison.clone()].copy_from_slice(&[9]);
     rejected(
@@ -1826,7 +1674,7 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidComparison(9),
     );
-    let (carrier, bits) = spans.events[0].scalars[0]
+    let (carrier, _) = spans.events[0].scalars[0]
         .integer
         .clone()
         .expect("the port argument encodes an integer description");
@@ -1837,22 +1685,18 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::InvalidTag("IntegerSign", 9)),
     );
-    let mut mutated = bytes.clone();
-    mutated[bits.clone()].copy_from_slice(&32_u16.to_le_bytes());
-    decode_accepted("an event scalar argument's integer width", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[0].scalar_arguments[0].scalar_type =
-        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).expect("i16 test type"));
-    representable("an event scalar argument's integer sign", &changed);
+    // The `EventScalarIntegerWidthSubstituted` and
+    // `EventScalarIntegerSignSubstituted` inventory legs exercise the port
+    // argument's integer description through the matrix.
 
     // Boundary-call argument schemas: both scalar arguments and both
     // structural arguments are bound field by field.
     let mut mutated = bytes.clone();
     mutated[boundary_call.scalar_count.clone()].copy_from_slice(&1_u32.to_le_bytes());
     rejected_unspecified("a shrunken boundary-call scalar roster", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].scalar_arguments.pop();
-    representable("a dropped boundary-call scalar argument", &changed);
+    // The `BoundaryCallScalarArgumentDropped` and
+    // `BoundaryCallScalarTypeSubstituted` inventory legs exercise the scalar
+    // argument roster and each schema's type through the matrix.
     let mut mutated = bytes.clone();
     mutated[boundary_call.scalars[0].type_tag.clone()].copy_from_slice(&[9]);
     rejected(
@@ -1860,33 +1704,23 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::Wire(CodecError::InvalidTag("ScalarType", 9)),
     );
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].scalar_arguments[0].scalar_type = u8_type();
-    representable("a boundary-call scalar argument's type", &changed);
 
     let mut mutated = bytes.clone();
     mutated[boundary_call.structural_count.clone()].copy_from_slice(&1_u32.to_le_bytes());
     rejected_unspecified("a shrunken boundary-call structural roster", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].structural_arguments.pop();
-    representable("a dropped boundary-call structural argument", &changed);
+    // The `BoundaryCallStructuralArgumentDropped`,
+    // `BoundaryCallStructuralTypeSubstituted`,
+    // `BoundaryCallStructuralMultiplicitySubstituted`, and
+    // `BoundaryCallStructuralAccessSubstituted` inventory legs exercise the
+    // structural argument roster and each free schema field through the
+    // matrix.
     let call_structural = &boundary_call.structurals[0];
-    let mut mutated = bytes.clone();
-    mutated[call_structural.structural_type.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("a boundary-call structural argument's type", &mutated);
     let mut mutated = bytes.clone();
     mutated[call_structural.multiplicity.clone()].copy_from_slice(&[9]);
     rejected(
         "a boundary-call structural argument's multiplicity",
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidStructuralMultiplicity(9),
-    );
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].structural_arguments[0].multiplicity =
-        StructuralMultiplicity::Affine;
-    representable(
-        "a boundary-call structural argument's multiplicity",
-        &changed,
     );
     let mut mutated = bytes.clone();
     mutated[call_structural.access.clone()].copy_from_slice(&[9]);
@@ -1895,18 +1729,10 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidStructuralAccess(9),
     );
-    let mut mutated = bytes.clone();
-    mutated[call_structural.access.clone()].copy_from_slice(&[3]);
-    decode_accepted("a boundary-call structural argument's access", &mutated);
-    // The first boundary structural argument declares a direct qualification.
-    let mut mutated = bytes.clone();
-    mutated[call_structural.qualifications[0].clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("a boundary-call argument's direct qualification", &mutated);
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].structural_arguments[0]
-        .qualifications
-        .clear();
-    representable("a cleared boundary-call argument qualification", &changed);
+    // The first boundary structural argument declares a direct
+    // qualification: the `BoundaryCallQualificationSubstituted` and
+    // `BoundaryCallQualificationCleared` inventory legs exercise it through
+    // the matrix.
 
     // Event result schemas: the port write observes Unit and the boundary call
     // observes a structural schema whose fields are bound.
@@ -1917,45 +1743,14 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
         &mutated,
         TerminalTraceV1ProfileCodecError::InvalidResultTag(9),
     );
-    let mut changed = profile.clone();
-    changed.ordinary_events[0].result =
-        TerminalTraceResultSchema::Scalar(changed.ordinary_events[0].scalar_arguments[0]);
-    representable("a port write event's result schema", &changed);
-    let mut changed = profile.clone();
-    changed.ordinary_events[1].result = TerminalTraceResultSchema::Unit;
-    representable("a boundary call event's result schema", &changed);
-    let call_result = spans.events[1]
-        .result
-        .structural
-        .as_ref()
-        .expect("the boundary call observes a structural result");
-    let mut mutated = bytes.clone();
-    mutated[call_result.structural_type.clone()].copy_from_slice(&9_u64.to_le_bytes());
-    decode_accepted("a boundary-call result's structural type", &mutated);
-    let mut changed = profile.clone();
-    let TerminalTraceResultSchema::Structural(result) = &mut changed.ordinary_events[1].result
-    else {
-        unreachable!()
-    };
-    result.access = StructuralAccess::MutableBorrow;
-    representable("a boundary-call result's access", &changed);
-    let mut changed = profile.clone();
-    let TerminalTraceResultSchema::Structural(result) = &mut changed.ordinary_events[1].result
-    else {
-        unreachable!()
-    };
-    result.multiplicity = StructuralMultiplicity::Linear;
-    representable("a boundary-call result's multiplicity", &changed);
+    // The `PortWriteResultSubstituted`, `BoundaryCallResultUnit`,
+    // `BoundaryCallResultTypeSubstituted`, `BoundaryCallResultAccessSubstituted`,
+    // and `BoundaryCallResultMultiplicitySubstituted` inventory legs
+    // exercise the event result schemas through the matrix.
 
     // Event roster shape: dropped, inserted, duplicated and reordered rows.
-    let mut changed = profile.clone();
-    changed.ordinary_events.remove(0);
-    representable("a dropped ordinary event row", &changed);
-    let mut changed = profile.clone();
-    let mut extra = changed.ordinary_events[1].clone();
-    extra.operation = operation_id(9);
-    changed.ordinary_events.push(extra);
-    representable("an inserted ordinary event row", &changed);
+    // The `EventRowDropped` and `EventRowInserted` inventory legs exercise
+    // the representable shapes through the matrix.
     let mut changed = profile.clone();
     changed.ordinary_events.swap(0, 1);
     encode_rejected(
@@ -2010,10 +1805,6 @@ fn terminal_trace_v1_profile_rejects_every_one_field_substitution() {
     ] {
         rejected_unspecified("a truncated profile", &bytes[..cut]);
     }
-}
-
-fn first_type_id(profile: &TerminalTraceV1Profile) -> StructuralTypeId {
-    profile.root.structural_inputs[0].structural_type
 }
 
 fn domain(profile: &TerminalTraceV1Profile) -> StructuralDomainId {
