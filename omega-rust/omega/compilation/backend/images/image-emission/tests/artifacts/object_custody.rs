@@ -1,3 +1,6 @@
+use super::installation_field_substitution_fields::{
+    foreign_stored_dynamic_call_record, installation_record_check, installation_record_custody,
+};
 use super::{
     WriteExitProvider, admitted_x86_fma_provider, edge_id, identity, integer_return,
     linux_write_line_exit_plan, machine_id, operation_id, refresh_x86_fma_identity,
@@ -17,6 +20,9 @@ use machine_code::{
     SemanticCodeSite, X86ScalarFmaFormat,
 };
 use object_file::{SectionKind, SymbolKind, object_symbol_name};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, PlaceId, ProfileDecisionId, StructuralTypeId,
 };
@@ -175,35 +181,12 @@ fn source_free_x86_fma_object_rejects_stripped_and_mutated_custody() {
         Err(ObjectError::MissingX86ScalarFmaFragment)
     );
 
+    // The byte-level substitution, the stale fragment identity and the
+    // duplicated fragment are not one-field replay legs: they stay authored
+    // explicitly.
     let mut candidates = Vec::new();
     let mut changed = baseline.clone();
     changed.functions[0].bytes[3] = 0x98;
-    candidates.push(changed);
-    let mut changed = baseline.clone();
-    changed.functions[0].x86_scalar_fma[0].format = X86ScalarFmaFormat::Binary64;
-    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
-    candidates.push(changed);
-    let mut changed = baseline.clone();
-    changed.functions[0].x86_scalar_fma[0].destination =
-        calling_conventions::MachineRegister::X86Xmm(3);
-    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
-    candidates.push(changed);
-    let mut changed = baseline.clone();
-    changed.functions[0].x86_scalar_fma[0].addend = calling_conventions::MachineRegister::X86Xmm(4);
-    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
-    candidates.push(changed);
-    let mut changed = baseline.clone();
-    changed.functions[0].x86_scalar_fma[0].multiplicand =
-        calling_conventions::MachineRegister::X86Xmm(5);
-    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
-    candidates.push(changed);
-    let mut changed = baseline.clone();
-    changed.functions[0].x86_scalar_fma[0].code_offset = 1;
-    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
-    candidates.push(changed);
-    let mut changed = baseline.clone();
-    changed.functions[0].x86_scalar_fma[0].byte_count = 4;
-    refresh_x86_fma_identity(&mut changed.functions[0].x86_scalar_fma[0]);
     candidates.push(changed);
     let mut changed = baseline.clone();
     changed.functions[0].x86_scalar_fma[0].identity = [0; 32];
@@ -219,6 +202,88 @@ fn source_free_x86_fma_object_rejects_stripped_and_mutated_custody() {
                 .is_err()
         );
     }
+
+    // Every representable fragment field, re-authenticated through
+    // `refresh_x86_fma_identity`, is rejected by the object builder's
+    // independent re-encoding of the retained instruction.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "x86 scalar FMA fragment",
+        fields: X86ScalarFmaFragmentFieldForTest::INVENTORY,
+        honest: &|| x86_fma_plan(TargetProfile::LinuxX64, X86ScalarFmaFormat::Binary32),
+        donor: x86_fma_plan(TargetProfile::LinuxX64, X86ScalarFmaFormat::Binary64),
+        custody: &|plan| plan.functions[0].x86_scalar_fma.clone(),
+        substitute: &substitute_x86_scalar_fma_fragment,
+        check: &|plan| {
+            build_feature_required_x86_fma_object_artifact(plan, TargetProfile::LinuxX64)
+                .map(|artifact| artifact.functions()[0].x86_scalar_fma.clone())
+        },
+        outcome: &x86_scalar_fma_fragment_outcome,
+        joined_replay: None,
+    });
+}
+
+optimization_core::custody_field_inventory! {
+    /// One representable field of the retained x86 scalar FMA fragment;
+    /// checked by `build_feature_required_x86_fma_object_artifact`, which
+    /// re-encodes the instruction from the fragment and compares it against
+    /// the function bytes.
+    pub enum X86ScalarFmaFragmentFieldForTest {
+        Format,
+        Destination,
+        Addend,
+        Multiplicand,
+        CodeOffset,
+        ByteCount,
+    }
+}
+
+/// Substitute one fragment field with a fixed alternate and recompute the
+/// fragment identity honestly, so only the instruction replay can expose it.
+fn substitute_x86_scalar_fma_fragment(
+    plan: &mut MachineCodePlan,
+    field: X86ScalarFmaFragmentFieldForTest,
+    _donor: &MachineCodePlan,
+) {
+    use X86ScalarFmaFragmentFieldForTest as Field;
+    let fragment = &mut plan.functions[0].x86_scalar_fma[0];
+    match field {
+        Field::Format => fragment.format = X86ScalarFmaFormat::Binary64,
+        Field::Destination => {
+            fragment.destination = calling_conventions::MachineRegister::X86Xmm(3);
+        }
+        Field::Addend => fragment.addend = calling_conventions::MachineRegister::X86Xmm(4),
+        Field::Multiplicand => {
+            fragment.multiplicand = calling_conventions::MachineRegister::X86Xmm(5);
+        }
+        Field::CodeOffset => fragment.code_offset = 1,
+        Field::ByteCount => fragment.byte_count = 4,
+    }
+    refresh_x86_fma_identity(fragment);
+}
+
+fn x86_scalar_fma_fragment_outcome(
+    field: X86ScalarFmaFragmentFieldForTest,
+) -> MutationOutcome<ObjectError> {
+    use X86ScalarFmaFragmentFieldForTest as Field;
+    let custody = |offset| ObjectError::InvalidX86ScalarFmaCustody {
+        machine: machine_id(1),
+        offset,
+    };
+    let encoding = |offset| ObjectError::InvalidX86ScalarFmaEncoding {
+        machine: machine_id(1),
+        offset,
+    };
+    MutationOutcome::ExactError(match field {
+        Field::Format | Field::Destination | Field::Addend | Field::Multiplicand => custody(0),
+        // A moved fragment no longer covers the encoded instruction at its
+        // claimed offset.
+        Field::CodeOffset => encoding(1),
+        // A shortened fragment no longer spans the encoded instruction.
+        Field::ByteCount => ObjectError::InvalidX86ScalarFmaInterval {
+            machine: machine_id(1),
+            offset: 0,
+        },
+    })
 }
 
 #[test]
@@ -559,105 +624,31 @@ fn installation_boundary_settlement_rejects_every_one_field_substitution() {
         operation: operation_id(operation),
     };
 
-    type ReplayMutation = (
-        &'static str,
-        usize,
-        Box<dyn Fn(&mut image_emission::ObjectBoundarySettlement)>,
-    );
     // Semantic identities no canonical record-shape join pins: the substituted
     // row still encodes and decodes, so rejection is the recomputed identity
-    // and the independent image replay.
-    let still_encodes: Vec<ReplayMutation> = vec![
-        (
-            "psi_operation",
-            0,
-            Box::new(|row| {
-                row.settlement.psi_operation = operation_id(999);
-            }),
-        ),
-        (
-            "boundary",
-            0,
-            Box::new(|row| {
-                row.settlement.boundary = BoundaryMachineId::new(999).unwrap();
-            }),
-        ),
-        (
-            "operation_ordinal",
-            0,
-            Box::new(|row| {
-                row.settlement.operation_ordinal = 7;
-            }),
-        ),
-        (
-            "execution::provider_identity",
-            0,
-            Box::new(|row| {
-                let machine_code::BoundaryExecutionRecord::AdmittedProvider(execution) =
-                    &mut row.settlement.execution
-                else {
-                    panic!("write settlement retains admitted provider execution");
-                };
-                execution.provider_execution_report_identity += 1;
-            }),
-        ),
-        (
-            "byte_sequence_arguments::literal_operation",
-            0,
-            Box::new(|row| {
-                row.settlement.byte_sequence_arguments[0].literal_operation = operation_id(999);
-            }),
-        ),
-        (
-            "byte_sequence_arguments::structural_type",
-            0,
-            Box::new(|row| {
-                row.settlement.byte_sequence_arguments[0]
-                    .structural_type
-                    .identity = "test::SubstitutedBytes".into();
-            }),
-        ),
-        (
-            "scalar_arguments::source_value",
-            1,
-            Box::new(|row| {
-                row.settlement.scalar_arguments[0].source_value =
-                    semantic_vocabulary::ValueId::new(99).unwrap();
-            }),
-        ),
-        (
-            "scalar_arguments::immediate",
-            1,
-            Box::new(|row| {
-                row.settlement.scalar_arguments[0].immediate =
-                    semantic_vocabulary::IntegerValue::Signed(38);
-            }),
-        ),
-    ];
-    for (field, index, mutate) in still_encodes {
-        let mut changed = record.clone();
-        mutate(&mut changed.boundary_settlements_mut_for_test()[index]);
-        assert_ne!(changed, record, "{field}: substitution changes the row");
-        let bytes = encode_installation_record(&changed)
-            .unwrap_or_else(|error| panic!("{field}: substituted row encodes: {error:?}"));
-        let replayed = decode_installation_record(&bytes)
-            .unwrap_or_else(|error| panic!("{field}: substituted row decodes: {error:?}"));
-        assert_eq!(
-            replayed, changed,
-            "{field}: codec preserves the substituted row"
-        );
-        assert_ne!(
-            installation_fingerprint(&replayed)
-                .unwrap_or_else(|error| panic!("{field}: substituted fingerprint: {error:?}")),
-            authentic_fingerprint,
-            "{field}: recomputed identity differs from the authentic record"
-        );
-        assert_eq!(
-            validate_installation_record(&replayed, &image),
-            Err(InstallationError::ImageBindingMismatch),
-            "{field}: independent replay rejects the substituted row"
-        );
-    }
+    // and the independent image replay. These legs run through the shared
+    // matrix driver over `BoundarySettlementFieldForTest`.
+    let check = installation_record_check(&image);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation boundary settlement",
+        fields: BoundarySettlementFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_stored_dynamic_call_record(),
+        custody: &installation_record_custody,
+        substitute: &substitute_boundary_settlement,
+        check: &check,
+        outcome: &|_| MutationOutcome::ExactError(InstallationError::ImageBindingMismatch),
+        // The recomputed installation identity must move with the row.
+        joined_replay: Some(&|substituted, field| {
+            assert_ne!(
+                installation_fingerprint(substituted).unwrap_or_else(|error| panic!(
+                    "{field:?}: substituted fingerprint: {error:?}"
+                )),
+                authentic_fingerprint,
+                "{field:?}: recomputed identity differs from the authentic record"
+            );
+        }),
+    });
 
     type RejectedMutation = (
         &'static str,
@@ -666,7 +657,9 @@ fn installation_boundary_settlement_rejects_every_one_field_substitution() {
         InstallationError,
     );
     // Canonical record-shape joins reject every other one-field substitution
-    // at encoding, before any identity or replay could accept it.
+    // at encoding, before any identity or replay could accept it. These are
+    // the row's unrepresentable fields; their encode refusals stay authored
+    // explicitly rather than as replay legs of the shared driver.
     let rejected: Vec<RejectedMutation> = vec![
         (
             "machine",
@@ -1126,4 +1119,67 @@ fn installation_boundary_settlement_rejects_every_one_field_substitution() {
         encode_installation_record(&reordered),
         Err(InstallationError::NonCanonicalBoundarySettlementOrder)
     );
+}
+
+optimization_core::custody_field_inventory! {
+    /// One representable axis of an installed boundary-settlement row of the
+    /// Linux write+exit fixture: the write row (index 0) or the exit row
+    /// (index 1). No canonical record-shape join pins these semantic
+    /// identities, so each substitution still encodes, recomputes a distinct
+    /// installation identity, and is rejected by `validate_installation_record`
+    /// against the unchanged image as `ImageBindingMismatch`.
+    pub enum BoundarySettlementFieldForTest {
+        PsiOperation,
+        Boundary,
+        OperationOrdinal,
+        ExecutionProviderIdentity,
+        ByteSequenceLiteralOperation,
+        ByteSequenceStructuralType,
+        ExitScalarSourceValue,
+        ExitScalarImmediate,
+    }
+}
+
+/// Substitute exactly one settlement axis with a fixed alternate. The
+/// installation record carries no stored containing identity: its
+/// fingerprint is recomputed from the rows, so nothing needs
+/// re-authentication here.
+fn substitute_boundary_settlement(
+    record: &mut image_emission::InstallationRecord,
+    field: BoundarySettlementFieldForTest,
+    _donor: &image_emission::InstallationRecord,
+) {
+    use BoundarySettlementFieldForTest as Field;
+    let rows = record.boundary_settlements_mut_for_test();
+    match field {
+        Field::PsiOperation => rows[0].settlement.psi_operation = operation_id(999),
+        Field::Boundary => {
+            rows[0].settlement.boundary = BoundaryMachineId::new(999).unwrap();
+        }
+        Field::OperationOrdinal => rows[0].settlement.operation_ordinal = 7,
+        Field::ExecutionProviderIdentity => {
+            let machine_code::BoundaryExecutionRecord::AdmittedProvider(execution) =
+                &mut rows[0].settlement.execution
+            else {
+                panic!("write settlement retains admitted provider execution");
+            };
+            execution.provider_execution_report_identity += 1;
+        }
+        Field::ByteSequenceLiteralOperation => {
+            rows[0].settlement.byte_sequence_arguments[0].literal_operation = operation_id(999);
+        }
+        Field::ByteSequenceStructuralType => {
+            rows[0].settlement.byte_sequence_arguments[0]
+                .structural_type
+                .identity = "test::SubstitutedBytes".into();
+        }
+        Field::ExitScalarSourceValue => {
+            rows[1].settlement.scalar_arguments[0].source_value =
+                semantic_vocabulary::ValueId::new(99).unwrap();
+        }
+        Field::ExitScalarImmediate => {
+            rows[1].settlement.scalar_arguments[0].immediate =
+                semantic_vocabulary::IntegerValue::Signed(38);
+        }
+    }
 }

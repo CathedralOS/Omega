@@ -14,6 +14,9 @@ use image_emission::{
     validate_installation_record,
 };
 use object_file::{ObjectSymbolHandle, RelocationKind, SectionKind};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
 use semantic_vocabulary::ProfileDecisionId;
 use symbols::SymbolHandle;
 use target::NativeTarget;
@@ -463,68 +466,14 @@ fn installed_artifact_join_requires_complete_placed_custody() {
     // Every retained placement row is required independently: removing or
     // substituting either executable or data custody must reject projection,
     // record validation, and the installed-artifact join.
-    let mutations: Vec<(&str, Box<dyn Fn(&mut ExecutableImage)>)> = vec![
-        (
-            "missing executable-region placement",
-            Box::new(|image| {
-                image.output_mut_for_test().executable_regions.regions.pop();
-            }),
-        ),
-        (
-            "missing data-region placement",
-            Box::new(|image| {
-                image.output_mut_for_test().data_regions.regions.pop();
-            }),
-        ),
-        (
-            "substituted executable-region placement",
-            Box::new(|image| {
-                image.output_mut_for_test().executable_regions.regions[0].address += 0x1000;
-            }),
-        ),
-        (
-            "substituted data-region placement",
-            Box::new(|image| {
-                image.output_mut_for_test().data_regions.regions[0].address += 8;
-            }),
-        ),
-        (
-            "inflated data extent",
-            Box::new(|image| {
-                image.output_mut_for_test().data_regions.data_byte_count += 8;
-            }),
-        ),
-        (
-            "final-byte drift",
-            Box::new(|image| {
-                image.output_mut_for_test().final_text_bytes[0] ^= 0xff;
-            }),
-        ),
-    ];
-    for (label, mutate) in mutations {
-        let mut drifted = image.clone();
-        mutate(&mut drifted);
-        assert!(
-            project_installed_artifact_memory_images(&object, &drifted).is_err(),
-            "{label}: complete-custody projection must reject it",
-        );
-        assert_eq!(
-            validate_installation_record(&record, &drifted),
-            Err(InstallationError::InvalidImagePlacementCustody),
-            "{label}: complete-custody replay must reject it",
-        );
-        assert!(
-            bind_installed_artifact(
-                object.clone(),
-                drifted,
-                record.clone(),
-                &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
-                install(memory.encoded().to_vec()),
-            )
-            .is_err(),
-            "{label}: the installed-artifact join must reject it",
-        );
-    }
+    run_placement_matrix(
+        "ELF placed image",
+        ImagePlacementFieldForTest::INVENTORY,
+        &object,
+        &image,
+        &record,
+        &|| install(memory.encoded().to_vec()),
+    );
 
     // By-value opaque custody is the record's claim, not a fingerprint: a
     // record claiming an edge the installed artifact's coverage does not
@@ -647,57 +596,126 @@ fn installed_artifact_join_replays_typed_relocation_over_complete_macho_image() 
         "a substituted callee resolution must not materialize the bound image"
     );
 
-    let mutations: Vec<(&str, Box<dyn Fn(&mut ExecutableImage)>)> = vec![
-        (
-            "missing executable-region placement",
-            Box::new(|image| {
-                image.output_mut_for_test().executable_regions.regions.pop();
-            }),
-        ),
-        (
-            "substituted executable-region placement",
-            Box::new(|image| {
-                image.output_mut_for_test().executable_regions.regions[0].address += 0x1000;
-            }),
-        ),
-        (
-            "final-byte drift",
-            Box::new(|image| {
-                image.output_mut_for_test().final_text_bytes[0] ^= 0xff;
-            }),
-        ),
-    ];
-    for (label, mutate) in mutations {
-        let mut drifted = image.clone();
-        mutate(&mut drifted);
-        assert!(
-            project_installed_artifact_memory_images(&object, &drifted).is_err(),
-            "{label}: complete-custody projection must reject it",
-        );
-        assert_eq!(
-            validate_installation_record(&record, &drifted),
-            Err(InstallationError::InvalidImagePlacementCustody),
-            "{label}: complete-custody replay must reject it",
-        );
-        assert!(
-            bind_installed_artifact(
-                object.clone(),
-                drifted,
-                record.clone(),
-                &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
-                install_flattened_image(
-                    object.target().architecture,
-                    memory.encoded().to_vec(),
-                    entries.clone(),
-                    relocations.clone(),
-                    base,
-                    resolver(stub_addresses.clone()),
-                ),
+    // The Mach-O fixture places no initialized data, so only the executable
+    // and final-text legs of the placement inventory apply to it.
+    assert!(image.output().data_regions.regions.is_empty());
+    run_placement_matrix(
+        "Mach-O placed image",
+        &[
+            ImagePlacementFieldForTest::MissingExecutableRegion,
+            ImagePlacementFieldForTest::SubstitutedExecutableRegion,
+            ImagePlacementFieldForTest::FinalTextByteDrift,
+        ],
+        &object,
+        &image,
+        &record,
+        &|| {
+            install_flattened_image(
+                object.target().architecture,
+                memory.encoded().to_vec(),
+                entries.clone(),
+                relocations.clone(),
+                base,
+                resolver(stub_addresses.clone()),
             )
-            .is_err(),
-            "{label}: the installed-artifact join must reject it",
-        );
+        },
+    );
+}
+
+optimization_core::custody_field_inventory! {
+    /// One retained placement axis of an emitted executable image; checked by
+    /// `validate_installation_record`, whose complete-custody replay rejects
+    /// it as `InvalidImagePlacementCustody`. The joined replay additionally
+    /// requires installed-memory projection and the installed-artifact join
+    /// to reject the same drift.
+    pub enum ImagePlacementFieldForTest {
+        MissingExecutableRegion,
+        MissingDataRegion,
+        SubstitutedExecutableRegion,
+        SubstitutedDataRegion,
+        InflatedDataExtent,
+        FinalTextByteDrift,
     }
+}
+
+/// Substitute exactly one placement axis with a fixed alternate. The image
+/// carries no containing identity to re-authenticate: its evidence is
+/// re-derived by every replay.
+fn substitute_image_placement(
+    image: &mut ExecutableImage,
+    field: ImagePlacementFieldForTest,
+    _donor: &ExecutableImage,
+) {
+    let output = image.output_mut_for_test();
+    match field {
+        ImagePlacementFieldForTest::MissingExecutableRegion => {
+            output.executable_regions.regions.pop();
+        }
+        ImagePlacementFieldForTest::MissingDataRegion => {
+            output.data_regions.regions.pop();
+        }
+        ImagePlacementFieldForTest::SubstitutedExecutableRegion => {
+            output.executable_regions.regions[0].address += 0x1000;
+        }
+        ImagePlacementFieldForTest::SubstitutedDataRegion => {
+            output.data_regions.regions[0].address += 8;
+        }
+        ImagePlacementFieldForTest::InflatedDataExtent => {
+            output.data_regions.data_byte_count += 8;
+        }
+        ImagePlacementFieldForTest::FinalTextByteDrift => {
+            output.final_text_bytes[0] ^= 0xff;
+        }
+    }
+}
+
+/// An authentic foreign placed image: the callback private-function fixture.
+/// The placement hooks draw no donor values; it only has to be genuinely
+/// emitted and distinct.
+fn foreign_placed_image() -> ExecutableImage {
+    let object = build_object_artifact_with_private_functions(&callback_private_plan())
+        .expect("callback private object");
+    emit_direct_executable_image(&object, 3).expect("callback private image")
+}
+
+/// Drive the placement inventory over one authentic object/image/record
+/// triple. `install` produces a fresh installed-code occurrence of the
+/// complete encoded image for each joined-replay leg.
+fn run_placement_matrix(
+    family: &str,
+    fields: &[ImagePlacementFieldForTest],
+    object: &ObjectArtifact,
+    image: &ExecutableImage,
+    record: &image_emission::InstallationRecord,
+    install: &dyn Fn() -> executable_installation::InstalledCode,
+) {
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family,
+        fields,
+        honest: &|| image.clone(),
+        donor: foreign_placed_image(),
+        custody: &Clone::clone,
+        substitute: &substitute_image_placement,
+        check: &|drifted| validate_installation_record(record, drifted).map(|()| drifted.clone()),
+        outcome: &|_| MutationOutcome::ExactError(InstallationError::InvalidImagePlacementCustody),
+        joined_replay: Some(&|drifted, field| {
+            assert!(
+                project_installed_artifact_memory_images(object, drifted).is_err(),
+                "{family} {field:?}: complete-custody projection must reject it",
+            );
+            assert!(
+                bind_installed_artifact(
+                    object.clone(),
+                    drifted.clone(),
+                    record.clone(),
+                    &boundary_applications::BoundaryOpaqueRepresentationApplications::EMPTY,
+                    install(),
+                )
+                .is_err(),
+                "{family} {field:?}: the installed-artifact join must reject it",
+            );
+        }),
+    });
 }
 
 /// The compiler-private entry-attribution gate replays the admitted artifact

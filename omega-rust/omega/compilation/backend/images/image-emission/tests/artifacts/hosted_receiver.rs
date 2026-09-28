@@ -16,6 +16,9 @@ use image_emission::{
     bind_hosted_receiver, derive_stack_demand, emit_direct_executable_image,
     validate_direct_executable_image,
 };
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
 use target::TargetProfile;
 
 /// A provisioned `&mut self` receiver with one zero-valid scalar field. The
@@ -252,55 +255,113 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
     );
 }
 
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of the sealed `HostedReceiverBinding`; checked
+    /// by `emit_direct_executable_image`, which re-derives the source
+    /// signature join, the entry stack demand and the receiver layout from
+    /// the object's current graph before any bridge byte exists.
+    ///
+    /// The physical contract, Fused service roster and receiver alignment
+    /// have no post-binding substitution hook: `bind_hosted_receiver` admits
+    /// them and the tests above pin their refusals at binding. Cleanup
+    /// occupancy is minted from checked eligibility and changes neither the
+    /// partitions nor the bridge bytes, so emission replay cannot observe it
+    /// (see `hosted_receiver_cleanup_occupancy_is_tracked_on_the_binding`).
+    pub enum HostedReceiverBindingFieldForTest {
+        Source,
+        StackCeiling,
+        ReceiverByteCount,
+    }
+}
+
+/// Substitute exactly one binding field with a fixed alternate. The binding
+/// carries no containing identity; emission re-derives every field.
+fn substitute_hosted_receiver_binding(
+    artifact: &mut image_emission::ObjectArtifact,
+    field: HostedReceiverBindingFieldForTest,
+    _donor: &image_emission::ObjectArtifact,
+) {
+    match field {
+        // A substituted receiver source after binding is a custody
+        // replacement, not an alias.
+        HostedReceiverBindingFieldForTest::Source => {
+            let source = artifact
+                .hosted_receiver_binding()
+                .expect("bound source")
+                .source()
+                .clone();
+            *artifact
+                .hosted_receiver_source_mut_for_test()
+                .expect("bound source") =
+                program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+                    source.target_slot(),
+                    source.machine_symbol(),
+                    source.state_symbol(),
+                    source.machine_name().into(),
+                    source.state_name().into(),
+                    source.normalized_callable_identity().into(),
+                    program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+                    source.visible_parameters().to_vec(),
+                )
+                .expect("free declaration is valid alone");
+        }
+        // A stack-ceiling substitution disagrees with the demand the object
+        // itself derives.
+        HostedReceiverBindingFieldForTest::StackCeiling => {
+            *artifact
+                .hosted_receiver_stack_ceiling_mut_for_test()
+                .expect("bound demand") += 16;
+        }
+        // A receiver-extent substitution disagrees with the layout the
+        // current graph derives.
+        HostedReceiverBindingFieldForTest::ReceiverByteCount => {
+            *artifact
+                .hosted_receiver_byte_count_mut_for_test()
+                .expect("bound receiver extent") += 8;
+        }
+    }
+}
+
 #[test]
 fn hosted_receiver_emission_replays_binding_custody_exactly() {
-    for (profile, mutate) in [
-        (TargetProfile::LinuxX64, "source"),
-        (TargetProfile::LinuxArm64, "demand"),
-        (TargetProfile::MacosArm64, "byte_count"),
+    for profile in [
+        TargetProfile::LinuxX64,
+        TargetProfile::LinuxArm64,
+        TargetProfile::MacosArm64,
     ] {
         let compiled = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile);
-        let mut artifact = compiled.artifact;
-        bind_receiver(&mut artifact, &compiled.signature, profile, false);
-        match mutate {
-            // A substituted receiver source after binding is a custody
-            // replacement, not an alias.
-            "source" => {
-                *artifact
-                    .hosted_receiver_source_mut_for_test()
-                    .expect("bound source") =
-                    program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
-                        compiled.signature.target_slot(),
-                        compiled.signature.machine_symbol(),
-                        compiled.signature.state_symbol(),
-                        compiled.signature.machine_name().into(),
-                        compiled.signature.state_name().into(),
-                        compiled.signature.normalized_callable_identity().into(),
-                        program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
-                        compiled.signature.visible_parameters().to_vec(),
-                    )
-                    .expect("free declaration is valid alone");
-            }
-            // A stack-ceiling substitution disagrees with the demand the
-            // object itself derives.
-            "demand" => {
-                *artifact
-                    .hosted_receiver_stack_ceiling_mut_for_test()
-                    .expect("bound demand") += 16;
-            }
-            // A receiver-extent substitution disagrees with the layout the
-            // current graph derives.
-            "byte_count" => {
-                *artifact
-                    .hosted_receiver_byte_count_mut_for_test()
-                    .expect("bound receiver extent") += 8;
-            }
-            _ => unreachable!(),
-        }
-        assert!(
-            emit_direct_executable_image(&artifact, 3).is_err(),
-            "{profile:?} a {mutate} substitution rejects before bridge bytes exist",
-        );
+        let bound = |cleanup_occupancy: bool| {
+            let mut artifact = compiled.artifact.clone();
+            bind_receiver(
+                &mut artifact,
+                &compiled.signature,
+                profile,
+                cleanup_occupancy,
+            );
+            artifact
+        };
+        run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+            family: "hosted receiver binding",
+            fields: HostedReceiverBindingFieldForTest::INVENTORY,
+            honest: &|| bound(false),
+            // An authentic binding of the same object under admitted cleanup
+            // occupancy: genuinely produced, distinct retained custody.
+            donor: bound(true),
+            custody: &|artifact| artifact.hosted_receiver_binding().cloned(),
+            substitute: &substitute_hosted_receiver_binding,
+            check: &|artifact| {
+                emit_direct_executable_image(artifact, 3)
+                    .map(|_| artifact.hosted_receiver_binding().cloned())
+            },
+            // Fragment replay re-validates the binding against the replayed
+            // object and reports one target-independent refusal.
+            outcome: &|_| {
+                MutationOutcome::ExactError(diagnostics::Diagnostic::error(
+                    "hosted receiver binding differs from replayed object",
+                ))
+            },
+            joined_replay: None,
+        });
     }
 }
 
