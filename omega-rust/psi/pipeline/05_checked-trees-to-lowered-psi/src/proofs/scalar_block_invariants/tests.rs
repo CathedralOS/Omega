@@ -1,5 +1,82 @@
 use crate::TerminalMachineSelection;
 
+const CONTRACTED_FIELD_LOOP: &str = "
+    data Grid where 0 <= bound, bound <= 2 { bound: u32; result: u32; }
+    machine Grid::run(&mut self) {
+        self.bound = 2;
+        transition { _ -> row(0) }
+        state row(&mut self, coordinate: u32)
+            requires 0 <= coordinate && coordinate <= self.bound
+        {
+            self.result = coordinate * 4;
+            transition coordinate + 1 <= self.bound {
+                true -> row(coordinate + 1)
+                false -> done()
+            }
+        }
+        state done(&mut self) { }
+    }";
+
+#[test]
+fn authored_arrival_contracts_compose_with_initialized_loop_storage() {
+    let checked = crate::front_end::checked_program(CONTRACTED_FIELD_LOOP);
+    let lowered = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Grid::run"),
+    )
+    .expect("the coordinate contract and retained storage jointly bound the product");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("independent replay checks every arrival and arithmetic operation");
+
+    let mut changed = lowered.clone();
+    let value = changed
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::IntegerConstant { value }
+                if *value == semantic_vocabulary::IntegerValue::Unsigned(2) =>
+            {
+                Some(value)
+            }
+            _ => None,
+        })
+        .expect("the bound initialization is explicit");
+    *value = semantic_vocabulary::IntegerValue::Unsigned(u32::MAX.into());
+    assert!(
+        terminal_verifier::verify_module(
+            &changed.semantic_module,
+            &changed.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a changed initialization cannot reuse the induction evidence"
+    );
+
+    for rounds in [0, super::MAX_ROSTER_ROUNDS] {
+        let mut changed = lowered.clone();
+        changed.proof_bundle = terminal_verifier::ProofBundle::default();
+        changed.semantic_module.scalar_block_invariants[0].predicate =
+            semantic_vocabulary::Proposition::Falsehood;
+        let mandatory = changed.semantic_module.scalar_block_invariants.clone();
+        super::retain_provable_bounded(&mut changed, rounds).unwrap();
+        assert!(
+            super::preserves_mandatory_roster(
+                &mandatory,
+                &changed.semantic_module.scalar_block_invariants,
+            ),
+            "failed inference never deletes an authored requirement"
+        );
+        assert!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err());
+    }
+}
+
 fn guarded_join_source(right_reason: i32) -> lowered_psi::LoweredPsi {
     let source = format!(
         "machine root(flag: bool, count: u64) -> i32 {{

@@ -56,6 +56,14 @@ pub(super) fn candidates(
             continue;
         }
         let predecessors = predecessors(machine);
+        candidates.extend(arrival_storage_candidates(
+            module,
+            machine,
+            questions,
+            &components,
+            remaining,
+            declines,
+        ));
         for site in questions.obligations().iter().filter(|site| {
             matches!(
                 site.owner,
@@ -193,6 +201,140 @@ pub(super) fn candidates(
                         arrivals: Vec::new(),
                     });
                 }
+            }
+        }
+    }
+    candidates
+}
+
+/// A loop's authored contracts need not repeat initialized storage that stays
+/// fixed through the loop. Propose the literal field equations observed on an
+/// external arrival at every authored header in that component. These are not
+/// declaration assumptions: the shared retention transaction proves each real
+/// arrival, and drops a proposal when a write or unknown call invalidates it.
+fn arrival_storage_candidates(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    questions: &ReconstructedTerminalObligationSet,
+    components: &[Vec<BlockId>],
+    remaining: &mut usize,
+    declines: &mut crate::proofs::ProofSearchDeclines,
+) -> Vec<ScalarBlockInvariant> {
+    if !module
+        .scalar_block_invariants
+        .iter()
+        .any(|invariant| invariant.machine == machine.id)
+    {
+        return Vec::new();
+    }
+    let Ok(validated) = terminal_verifier::validate_module(module) else {
+        return Vec::new();
+    };
+    let Ok(context) = validated.value_context(machine) else {
+        return Vec::new();
+    };
+    let mut candidates = Vec::new();
+    let mut proposed = BTreeSet::new();
+    for site in questions.obligations() {
+        let ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+            machine: owner,
+            header,
+            edge,
+        } = site.owner
+        else {
+            continue;
+        };
+        if owner != machine.id {
+            continue;
+        }
+        let Some(component) = components
+            .iter()
+            .find(|component| component.contains(&header))
+        else {
+            continue;
+        };
+        let external_arrival = machine.blocks.iter().any(|block| {
+            !component.contains(&block.id)
+                && match &block.terminator {
+                    Terminator::Jump { edge: arrival, .. } => *arrival == edge,
+                    Terminator::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => when_true.edge == edge || when_false.edge == edge,
+                    _ => false,
+                }
+        });
+        if !external_arrival {
+            continue;
+        }
+        for fact in &site.semantic_axioms {
+            let Some(next) = remaining.checked_sub(1) else {
+                declines.record(
+                    crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                );
+                return candidates;
+            };
+            *remaining = next;
+            let Proposition::Equal(left, right) = fact else {
+                continue;
+            };
+            if !matches!(left, ScalarTerm::IntegerField { .. })
+                && !matches!(right, ScalarTerm::IntegerField { .. })
+            {
+                continue;
+            }
+            let Ok(predicate) = proof_admission::check_value_equality_denotation(
+                &context,
+                fact,
+                site.semantic_axioms
+                    .iter()
+                    .filter(|fact| matches!(fact, Proposition::Equal(ScalarTerm::Value { .. }, _))),
+            ) else {
+                continue;
+            };
+            let Proposition::Equal(left, right) = &predicate else {
+                continue;
+            };
+            if !matches!(
+                (left, right),
+                (ScalarTerm::IntegerField { .. }, ScalarTerm::Integer { .. })
+                    | (ScalarTerm::Integer { .. }, ScalarTerm::IntegerField { .. })
+            ) {
+                continue;
+            }
+            for invariant in module.scalar_block_invariants.iter().filter(|invariant| {
+                invariant.machine == machine.id && component.contains(&invariant.header)
+            }) {
+                let Some(next) = remaining.checked_sub(1) else {
+                    declines.record(
+                        crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
+                    );
+                    return candidates;
+                };
+                *remaining = next;
+                let Some(block) = machine
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == invariant.header)
+                else {
+                    continue;
+                };
+                let Ok(scope) = terminal_verifier::scalar_block_invariant_scope(machine, block)
+                else {
+                    continue;
+                };
+                if scope.validate(&predicate).is_err()
+                    || !proposed.insert((invariant.header, predicate.clone()))
+                {
+                    continue;
+                }
+                candidates.push(ScalarBlockInvariant {
+                    machine: machine.id,
+                    header: invariant.header,
+                    predicate: predicate.clone(),
+                    arrivals: Vec::new(),
+                });
             }
         }
     }

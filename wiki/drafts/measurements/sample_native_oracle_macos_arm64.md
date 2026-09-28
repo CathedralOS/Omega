@@ -67,8 +67,18 @@ carries those chains into existing value-equality transport; proof admission and
 independent Terminal verification remain unchanged. After local package review,
 `omega run --both samples/cli/probes/nested_counters/main.omg < /dev/null`
 prints `PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)` and reports both
-native and interpreted exit 70. `heat_grid` and `substring_search` remain separate
-customers; this result does not close their proof failures or the other hosts.
+native and interpreted exit 70.
+
+`heat_grid` now reports native and interpreted exit **45** on macOS ARM64:
+`omega run --both samples/cli/collections/heat_grid/main.omg < /dev/null`.
+Its retired range suffixes became equivalent data `where` and state `requires`
+clauses; the row-major indexing, casts, arithmetic policies and algorithm stayed
+unchanged. Optional induction now composes initialized field facts with authored
+arrival contracts, and integer bound search uses cited endpoint equalities such
+as `y <= max_y` with `max_y == 2`. Every arrival still proves the strengthened
+predicate; failed inference cannot remove an authored requirement. Proof
+admission and independent Terminal verification are unchanged.
+`substring_search` and execution on the other hosts remain open.
 
 ### The whole corpus reconciles
 

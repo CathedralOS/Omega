@@ -55,28 +55,53 @@ pub(crate) fn retain_provable_bounded(
     roster_rounds: usize,
 ) -> Result<ProofSearchDeclines, LoweringError> {
     let mut declines = ProofSearchDeclines::default();
-    if !lowered.semantic_module.scalar_block_invariants.is_empty() {
-        return Ok(declines);
-    }
+    // Authored arrival contracts are mandatory, but they do not describe every
+    // fact needed by the body. Inference may strengthen them; its prove-or-drop
+    // transaction must never remove a clause or arrival supplied by the source.
+    let mandatory = lowered.semantic_module.scalar_block_invariants.clone();
     let original = terminal_verifier::reconstruct_terminal_obligations(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
     retain_provable_roster_bounded(lowered, &original, roster_rounds, &mut declines)?;
+    if !preserves_mandatory_roster(&mandatory, &lowered.semantic_module.scalar_block_invariants) {
+        lowered.semantic_module.scalar_block_invariants = mandatory;
+        return Ok(declines);
+    }
     // A cyclic machine's guarantee may still be open once the ordinary
     // roster is retained; its strengthening is a separate all-or-nothing
     // transaction that leaves this roster unchanged when it cannot help.
     //
-    // The roster pass writes nothing but `scalar_block_invariants`, and this
-    // entrance runs only on an empty roster, so an empty roster afterwards is
-    // the same module the reconstruction above was taken from and the
-    // strengthening reads that reconstruction instead of repeating it. A
-    // retained roster is a different module and reconstructs its own.
-    let retained_nothing = lowered.semantic_module.scalar_block_invariants.is_empty();
-    cyclic_guarantees::strengthen(
-        lowered,
-        retained_nothing.then_some(&original),
-        &mut declines,
-    )?;
+    // The roster pass writes only `scalar_block_invariants`. An unchanged
+    // roster reuses the original reconstruction; a strengthened one needs
+    // reconstruction against its new predicates.
+    let unchanged = lowered.semantic_module.scalar_block_invariants == mandatory;
+    cyclic_guarantees::strengthen(lowered, unchanged.then_some(&original), &mut declines)?;
     Ok(declines)
+}
+
+fn preserves_mandatory_roster(
+    mandatory: &[terminal_psi::ScalarBlockInvariant],
+    retained: &[terminal_psi::ScalarBlockInvariant],
+) -> bool {
+    fn members(predicate: &Proposition) -> BTreeSet<&Proposition> {
+        let mut pending = vec![predicate];
+        let mut members = BTreeSet::new();
+        while let Some(member) = pending.pop() {
+            if let Proposition::Conjunction(children) = member {
+                pending.extend(children);
+            } else {
+                members.insert(member);
+            }
+        }
+        members
+    }
+    mandatory.iter().all(|original| {
+        retained.iter().any(|candidate| {
+            original.machine == candidate.machine
+                && original.header == candidate.header
+                && original.arrivals == candidate.arrivals
+                && members(&original.predicate).is_subset(&members(&candidate.predicate))
+        })
+    })
 }
 
 /// Aggregate bound on the roster pass's repeated whole-module work: each
