@@ -177,7 +177,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
             coverage: boundary_application_coverage,
         },
         package_terminal_authority_permissions,
-        build_evaluation::authored_behavior_exclusion_set_in(
+        effects::authored_behavior_exclusion_set_in(
             checked.behavior_exclusions(),
             &terminal_module,
             &|symbol| effects::boundary_trait_identity(checked, symbol),
@@ -268,8 +268,10 @@ fn produce_callback_thunk_artifact(
     // The callback body is part of the admitted composition; the authored
     // exclusions apply to its unoptimized module exactly as to the program
     // entry's.
-    crate::terminal::terminal_artifact::behavior_exclusions::verify_entry_behavior_exclusions(
+    trust_model::verify_entry_behavior_exclusions(
         checked,
+        checked.behavior_exclusions(),
+        checked.selected_provider_plans(),
         produced.unoptimized(),
         placement.selected_machine,
     )?;

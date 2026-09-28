@@ -8,10 +8,8 @@
 //! optional optimization must never decide admissibility: an exclusion that
 //! only survives after dead-code removal or folding is not established.
 //!
-//! Callback thunk modules are checked at their own production site, where the
-//! unoptimized callback lowering is already in hand. Both paths feed one
-//! report-mapping helper so prohibited sites and evidence gaps read the same
-//! for every admitted composition.
+//! Entry products and callback thunks use the same admission operation with
+//! their own retained unoptimized lowering and authored entry symbol.
 //!
 //! A violated exclusion and an incomplete evidence account are different
 //! rejections: a witnessed prohibited site names possible behavior this
@@ -19,10 +17,10 @@
 //! certify absence at that site. Both fail admission; neither is silently
 //! converted into the other.
 
-use crate::checked::CheckedCompilation;
-use build_evaluation::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
+use checked_trees::CheckedTrees;
 use checked_trees_to_lowered_psi::LoweredMachineProvenance;
 use diagnostics::Diagnostic;
+use effects::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
 use effects::{
     BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions_with_owners,
 };
@@ -33,12 +31,14 @@ use effects::{
 /// published from. `unoptimized` is `None` only when production was not
 /// asked to retain it. With authored exclusions that is a production-request
 /// fault, not an admission; without exclusions no retained copy is needed.
-pub(crate) fn verify_entry_behavior_exclusions(
-    checked: &CheckedCompilation,
+pub fn verify_entry_behavior_exclusions(
+    checked: &CheckedTrees,
+    authored: &[AuthoredBehaviorExclusion],
+    selected_provider_plans: &effects::SelectedProviderPlanFacts,
     unoptimized: Option<&lowered_psi::LoweredPsi>,
     entry_machine_symbol: symbols::SymbolHandle,
 ) -> Result<(), Vec<Diagnostic>> {
-    if checked.behavior_exclusions().is_empty() {
+    if authored.is_empty() {
         return Ok(());
     }
     let lowered = unoptimized.ok_or_else(|| {
@@ -47,7 +47,6 @@ pub(crate) fn verify_entry_behavior_exclusions(
         )]
     })?;
     let module = &lowered.semantic_module;
-    let authored = checked.behavior_exclusions();
     let trait_identity = |symbol| effects::boundary_trait_identity(checked, symbol);
     let exclusions = authored_behavior_exclusion_set_in(authored, module, &trait_identity);
     if exclusions.is_empty() {
@@ -59,7 +58,7 @@ pub(crate) fn verify_entry_behavior_exclusions(
         module,
         &[module.entry],
         &exclusions,
-        checked.selected_provider_plans(),
+        selected_provider_plans,
         &effects::BoundaryServiceOwners::from_declared_traits(checked, module),
     );
     match report.verdict() {

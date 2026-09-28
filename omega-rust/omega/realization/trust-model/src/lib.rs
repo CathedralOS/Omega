@@ -18,6 +18,7 @@
 mod accepted_machine_grants;
 mod accepted_templates;
 mod admission_settlement;
+mod behavior_exclusions;
 use effects::provider_grants;
 mod root_grants;
 mod trust_admission;
@@ -29,6 +30,7 @@ pub use admission_settlement::{
     TrustAdmissionSettlement, reconstruct_trust_obligations, reconstruct_trust_settlement,
     settle_trust_admissions,
 };
+pub use behavior_exclusions::verify_entry_behavior_exclusions;
 pub use provider_grants::{
     AuthoredRootGrant, ProviderGrantSelectorKind, ResolvedAuthoredSelectedProviderGrant,
     ResolvedSelectedProviderGrant, resolve_authored_selected_provider_grants,

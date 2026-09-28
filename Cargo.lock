@@ -2292,14 +2292,17 @@ name = "trust-model"
 version = "0.1.0"
 dependencies = [
  "checked-trees",
+ "checked-trees-to-lowered-psi",
  "diagnostics",
  "effects",
  "language-semantics",
+ "lowered-psi",
  "semantic-vocabulary",
  "sha2",
  "source",
  "symbols",
  "target",
+ "terminal-psi",
  "typed-trees",
  "typed-trees-to-checked-trees",
 ]

@@ -65,10 +65,6 @@ pub mod sources;
 #[cfg(test)]
 mod tests;
 
-pub use admission::behavior_exclusions::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, authored_behavior_exclusion_set,
-    authored_behavior_exclusion_set_in,
-};
 pub use admission::component_assumptions::{
     AuthoredComponentAssumptionAcceptance, harvest_component_assumption_acceptances,
 };
@@ -93,6 +89,7 @@ pub use admitted_build_program::{
     RestrictedBuildRequest, admit_build_program,
 };
 pub use build_output::BuildStagedOutputEntryKind;
+pub use effects::AuthoredBehaviorExclusion;
 pub use evidence::filesystem_scope::preparation::prepare_filesystem_scope;
 pub use evidence::filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,

@@ -11,6 +11,9 @@ path = "src/lib.rs"
 [dependencies]
 effects = { path = "../../backend/plans/provider-evidence" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
+checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
+terminal-psi = { path = "../../../psi/representations/terminal-psi" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }

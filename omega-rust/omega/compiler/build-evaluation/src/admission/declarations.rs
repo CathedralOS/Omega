@@ -1,11 +1,9 @@
 //! Authored boundary grants, wire demands, and behavior
 //! exclusions.
 
-use crate::admission::behavior_exclusions::{
-    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind,
-};
 use build_time_evaluation::is_exact_toolchain_build_prelude_data;
 use diagnostics::Diagnostic;
+use effects::{AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind};
 use language_semantics::declaration_selection::BuildOperation;
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;

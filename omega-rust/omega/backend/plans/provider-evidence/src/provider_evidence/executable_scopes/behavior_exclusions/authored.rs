@@ -6,7 +6,7 @@
 //! checking. Closure traversal and physical authority verdicts belong there,
 //! not to the Build evaluator.
 
-use effects::{BehaviorExclusion, BehaviorExclusions, TerminalAuthorityClass};
+use crate::{BehaviorExclusion, BehaviorExclusions, TerminalAuthorityClass};
 use symbols::SymbolHandle;
 use terminal_psi::{CrashCause, TerminalModule};
 

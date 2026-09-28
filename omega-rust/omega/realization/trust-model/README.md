@@ -24,6 +24,12 @@ their own inputs. Their independent checking boundaries remain explicit.
 
 The other owners are meaningful siblings:
 
+- [behavior_exclusions.rs](src/behavior_exclusions.rs) admits authored exclusions
+  against the retained unoptimized Terminal composition, using backend provider
+  evidence. It owns source attribution for prohibited behavior and incomplete
+  evidence; both remain rejections. Optional optimization never establishes
+  absence. Authored exclusion records live beside the backend evidence checker,
+  so Build evaluation and admission share them without a compiler dependency.
 - [trust_admission.rs](src/trust_admission/mod.rs) defines admission values, strong
   subject digests, and identity comparison. Compact report identities are not
   admission authority.

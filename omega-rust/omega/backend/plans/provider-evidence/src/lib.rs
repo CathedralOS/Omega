@@ -16,10 +16,11 @@ mod provider_evidence;
 pub mod provider_grants;
 
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
-    BehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions,
-    BoundaryServiceOwners, EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
-    boundary_trait_identity, establish_behavior_exclusions,
-    establish_behavior_exclusions_with_owners,
+    AuthoredBehaviorExclusion, AuthoredBehaviorExclusionKind, BehaviorExclusion,
+    BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions, BoundaryServiceOwners,
+    EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
+    authored_behavior_exclusion_set, authored_behavior_exclusion_set_in, boundary_trait_identity,
+    establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
 };
 
 pub use provider_evidence::authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
