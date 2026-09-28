@@ -137,8 +137,8 @@ an independent package beside their Psi admission owner at
 ### Subsystem entrances and supporting packages
 
 `omega/compiler/` owns compilation orchestration. Its supporting crates are
-`build-declarations`, `build-evaluation`, `build-output`, `package-compilation`,
-`provider-planning` and `trust-model`.
+`build-declarations`, `build-evaluation`, `build-output`, `package-compilation`
+and `trust-model`.
 Each retains its own `Cargo.toml` and domain
 entrypoint. Nesting makes the compilation responsibilities discoverable; it
 does not make helpers depend on the coordinator. In particular,
@@ -150,10 +150,14 @@ package owns reading and explicitly replacing `omega.admissions`. Compile and
 run commands supply its in-memory admissions to the compiler; pipeline execution
 does not load or mutate project policy files.
 
-[`omega/realization/selected-dispatch/`](omega/realization/selected-dispatch/README.md)
-owns selected execution preparation and settlement. This remains a checked-tree
-realization seam; moving it out of the coordinator does not establish the intended
-Terminal-only handoff.
+[`omega/realization/provider-planning/`](omega/realization/provider-planning/README.md)
+owns provider choices and calling, component and task planning.
+[`selected-dispatch/`](omega/realization/selected-dispatch/README.md) owns selected
+execution preparation and settlement. Provider grants resolve through backend
+provider evidence, without depending on compiler trust-report reconstruction.
+These remain checked-tree realization seams with package-input custody;
+moving them out of the coordinator does not establish the intended Terminal-only
+handoff.
 
 `omega/package-manager/` owns package operations, with independent
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates beneath

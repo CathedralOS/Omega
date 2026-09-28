@@ -14,6 +14,7 @@ target = { path = "../../target" }
 installation-evidence = { path = "../../runtime/installation-evidence" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../../psi/foundation/symbols" }
+source = { path = "../../../../psi/foundation/source" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 language-core = { path = "../../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }

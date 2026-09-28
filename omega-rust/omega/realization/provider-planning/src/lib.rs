@@ -1,11 +1,14 @@
 #![forbid(unsafe_code)]
 
-//! Checked provider-plan derivation and realization.
+//! Omega provider-plan derivation and realization.
 //!
 //! This crate owns provider selection, calling-policy realization, component
 //! progress and task activation planning. The
 //! compiler coordinator supplies checked inputs and consumes the resulting
-//! plans; it does not define their domain model.
+//! plans; it does not define their domain model. Exact grants are resolved by
+//! backend provider evidence, independently of compiler trust reporting.
+//! Checked-tree and package-input custody dependencies remain a transitional
+//! realization bridge, not a completed Terminal-only handoff.
 //!
 //! Start at `provider_planning.rs` for selection and checked-program binding;
 //! every other folder is one public vocabulary the compiler consumes by path.

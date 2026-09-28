@@ -23,7 +23,7 @@ build-evaluation = { path = "build-evaluation" }
 build-output = { path = "build-output" }
 component-description = { path = "../backend/artifacts/component-description" }
 package-compilation = { path = "package-compilation" }
-provider-planning = { path = "provider-planning" }
+provider-planning = { path = "../realization/provider-planning" }
 representation-planning = { path = "../../psi/checking/representation-planning" }
 trust-model = { path = "trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }

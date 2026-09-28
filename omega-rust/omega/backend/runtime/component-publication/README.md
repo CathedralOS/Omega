@@ -31,7 +31,7 @@ successful reclamation.
 
 ## Source composition boundary
 
-[Provider planning](../../../compiler/provider-planning/src/provider_planning.rs) retains mode
+[Provider planning](../../../realization/provider-planning/src/provider_planning.rs) retains mode
 through selected-plan provenance but rejects Independent before publishing
 checked/package-review facts until the component closure and routed installation
 exist. The current Fused implementation recognizes the routed `Binding<R>`

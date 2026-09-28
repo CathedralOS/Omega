@@ -102,7 +102,7 @@ members = [
     "omega-rust/omega/compiler/build-declarations",
     "omega-rust/omega/compiler/build-evaluation",
     "omega-rust/omega/compiler/build-output",
-    "omega-rust/omega/compiler/provider-planning",
+    "omega-rust/omega/realization/provider-planning",
     "omega-rust/psi/checking/representation-planning",
     "omega-rust/omega/compiler/trust-model",
     "omega-rust/omega/omega/trust-ledger",

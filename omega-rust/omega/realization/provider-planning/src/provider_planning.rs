@@ -79,10 +79,10 @@ pub use selection_provenance::{
 };
 pub use synchronous_cycles::validate_selected_synchronous_invocation_cycles;
 
+use effects::provider_grants::AuthoredRootGrant;
+use effects::provider_grants::resolve_selected_provider_grants;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 use std::sync::Arc;
-use trust_model::AuthoredRootGrant;
-use trust_model::resolve_selected_provider_grants;
 use typed_trees::TypedTrees;
 
 use crate::provider_planning::selected_plan_bindings::SelectedProviderProgramUpdates;
@@ -107,12 +107,13 @@ pub fn bind_selected_provider_plan_facts(
     let checked = program.as_ref();
     let provider_grants = resolve_selected_provider_grants(candidates, &facts, root_grants)
         .map_err(|diagnostic| vec![diagnostic])?;
-    let authored_provider_grants = trust_model::resolve_authored_selected_provider_grants(
-        candidates,
-        &facts,
-        authored_root_grants,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
+    let authored_provider_grants =
+        effects::provider_grants::resolve_authored_selected_provider_grants(
+            candidates,
+            &facts,
+            authored_root_grants,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
     let receipt_updates =
         receipt_binding::plan_admitted_receipt_updates(checked, &facts, &provider_grants)?;
     operator_provider_evidence::validate_selected_operator_provider_evidence(

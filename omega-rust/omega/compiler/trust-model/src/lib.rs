@@ -15,7 +15,7 @@
 mod accepted_machine_grants;
 mod accepted_templates;
 mod admission_settlement;
-mod provider_grants;
+use effects::provider_grants;
 mod root_grants;
 mod trust_admission;
 mod trust_report;

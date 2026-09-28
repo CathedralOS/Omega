@@ -88,7 +88,6 @@ Consumers depend directly on the package whose contract they need.
 | --- | --- |
 | `build-declarations`, `build-evaluation`, `build-output` | Build inputs, evaluation and retained outputs |
 | `package-compilation` | Source package compilation inputs and results |
-| `provider-planning` | Provider choices and planning |
 | `trust-model` | Trust vocabulary and admission reconstruction |
 | `artifacts` | Output writing, retained trust records and measurement storage |
 
@@ -96,8 +95,9 @@ Target-neutral build evaluation remains in
 [Psi's compiler support](../../psi/interpreter/build-time-evaluation/README.md).
 Opaque representation admission belongs to
 [Psi checking](../../psi/checking/representation-planning/README.md);
-selected execution belongs to
-[Omega realization](../realization/selected-dispatch/README.md).
+provider selection and planning belong to
+[Omega provider realization](../realization/provider-planning/README.md), beside
+[selected execution](../realization/selected-dispatch/README.md).
 Project admission-policy files belong to the CLI's independent
 [trust ledger](../omega/trust-ledger/README.md), not compiler execution.
 Package installation and update belong to the separate

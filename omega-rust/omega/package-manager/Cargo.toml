@@ -10,7 +10,7 @@ name = "package_manager"
 path = "src/lib.rs"
 
 [dependencies]
-provider-planning = { path = "../compiler/provider-planning" }
+provider-planning = { path = "../realization/provider-planning" }
 build-declarations = { path = "../compiler/build-declarations" }
 build-evaluation = { path = "../compiler/build-evaluation" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
