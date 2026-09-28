@@ -31,6 +31,14 @@ mod native_admission;
 mod optimization;
 pub mod provider_admission;
 mod provider_installation;
+mod retained_terminal;
+
+pub use retained_terminal::{
+    RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
+    TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
+    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeRealizationInputs,
+    TerminalNativeRealizationProposal,
+};
 
 pub use native_admission::{
     AdmittedNativeRealization, NativeAdmissionRequest, admit_native_realization,

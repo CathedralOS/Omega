@@ -178,6 +178,20 @@ pub struct ValidatedNativeProgramEntrySettlement {
 }
 
 impl ValidatedNativeProgramEntrySettlement {
+    /// Borrow the exact replayed declaration and calling contracts for native
+    /// realization. Invocation-owned placed-view loans do not cross this view;
+    /// executable receiver admission must bind its own supplied input.
+    pub fn as_settlement(&self) -> NativeProgramEntrySettlement<'_> {
+        NativeProgramEntrySettlement {
+            checked_entry: Some(&self.checked_entry),
+            source: &self.source,
+            semantic_calling_application: self.semantic_calling_application.as_ref(),
+            physical_calling_application: self.physical_calling_application.as_ref(),
+            storage_entry: self.storage_entry.as_ref(),
+            fused_service_establishments: &self.fused_service_establishments,
+        }
+    }
+
     pub const fn checked_entry(&self) -> &CheckedProgramEntryTerminalReceipt {
         &self.checked_entry
     }

@@ -5,6 +5,12 @@ and [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md)
 
 The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
 
+- [retained_terminal.rs](src/retained_terminal.rs): the retained Terminal product
+  and its target-constrained native proposal. This owner rejoins canonical
+  semantics, entry custody, provider rows, callbacks, comparisons and exclusions;
+  compiler reports only retain and expose its products. Build selection closes
+  into the existing validated native entry settlement before retention, so no
+  build-evaluator object or duplicate entry receipt crosses that boundary.
 - [native_admission.rs](src/native_admission.rs): the complete native entrance.
   Canonical replay, entry and boundary custody, provider installation, and
   mechanism/exclusion review produce one admitted input before stage 01.

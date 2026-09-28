@@ -2191,6 +2191,7 @@ dependencies = [
  "lowered-psi",
  "lowered-psi-to-terminal-psi",
  "numerics",
+ "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
  "program-entry-plan",
