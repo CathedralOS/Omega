@@ -3,6 +3,9 @@
 //! nearest-FMA site - before native realization is allowed to begin.
 
 mod native_providers;
+mod proposal;
+
+pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realization_proposal};
 
 pub use backend_plan::{TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact};
 pub use native_providers::{PreparedRetainedNativeProviders, RetainedNativeProviderInputs};

@@ -128,7 +128,12 @@ Psi production, exclusion admission, proof verification and native-proposal
 construction. Callback placements stay in Omega rather than travelling through
 Psi as an opaque payload. The effective optimization selection flows from the
 entry to each callback thunk; thunk production does not reread authored choices
-and undo rollback.
+and undo rollback. The coordinator produces callback artifacts before asking
+[Omega stage 00](../pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal/proposal.rs)
+to construct the native proposal. Canonical semantic decoding, selected-provider
+demands, entry/comparison/boundary joins and callback placement replay belong to
+that stage, not to the compiler. Callback production errors therefore precede
+proposal-construction errors; neither step publishes or executes an artifact.
 
 Entry Terminal production retains the unoptimized lowering only for authored
 behavior exclusions. Callback production also needs it for the callback lowering
