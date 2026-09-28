@@ -17,7 +17,6 @@ use terminal_production::{
 
 pub(crate) mod behavior_exclusions;
 pub(crate) mod composition_modes;
-pub(crate) mod verification;
 
 /// Terminal production internally lowers, optimizes and publishes
 /// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
@@ -317,7 +316,14 @@ fn produce_retained_terminal_artifact(
         selected_integer_comparison_occurrences,
     ) = produced.into_parts();
     stage_timings.record_result(TERMINAL_VERIFICATION_STAGE, || {
-        verification::verify_terminal_artifact(&artifact, profile)
+        terminal_codec::verify_terminal_artifact_proof(&artifact, profile)
+            .map(|_| ())
+            .map_err(|error| {
+                vec![Diagnostic::error(format!(
+                    "terminal-artifact verification failed for {}: {}",
+                    error.subject, error.reason,
+                ))]
+            })
     })?;
     let native_realization_proposal =
         stage_timings.record_result(NATIVE_REALIZATION_PROPOSAL_STAGE, || {
