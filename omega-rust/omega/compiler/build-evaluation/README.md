@@ -5,10 +5,11 @@ configuration, declarations, target/root selection, optimization, observation,
 and output custody modules own their respective results and checks. The admitted
 machine executes once against its selected filesystem.
 
-Provider-plan settlement belongs to
+Target-declaration preparation, provider-selection decoding and settlement belong to
 [provider planning](../../realization/provider-planning/README.md), not this
-evaluator. Target declaration admission produces its exact typed defaults and
-origins; the compiler passes that result to the realization owner. The integration
+evaluator. The provider planner retains target-declaration custody and consumes
+it into exact typed defaults and origins. Build execution supplies executed
+selection receipts to that owner, and package review uses its replay. The integration
 tests here exercise that declaration-to-settlement boundary, including canonical
 host services and independent-component rejection.
 

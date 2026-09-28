@@ -15,9 +15,6 @@
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use build_evaluation::target_machines::{
-    SelectedTargetMachineDeclarations, filter_target_machines,
-};
 use component_description::test_support::{
     bare_module, describe_module, module_subject, provider_module,
 };
@@ -25,6 +22,9 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use package_compilation::{
     BuildDeclarationKind, IndependentComponentDescription, PackageCompilationInputs,
     PackageDependencyBinding, PackageSourceBinding,
+};
+use provider_planning::target_machines::{
+    SelectedTargetMachineDeclarations, filter_target_machines,
 };
 use provider_planning::{CheckedProviderSelection, settle_checked_providers};
 use provider_planning::{

@@ -36,8 +36,8 @@
 //! profile, so a build helper never carries the product target's row onto the
 //! host that executes it.
 
+use crate::SettledTargetMachineDeclarations;
 use diagnostics::Diagnostic;
-use provider_planning::SettledTargetMachineDeclarations;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::Item;
@@ -516,7 +516,7 @@ impl SelectedTargetMachineDeclarations {
                 )));
                 continue;
             };
-            origins.push(provider_planning::SelectedTargetMachineOrigin {
+            origins.push(crate::SelectedTargetMachineOrigin {
                 machine: machine.symbol,
                 target: target.clone(),
             });

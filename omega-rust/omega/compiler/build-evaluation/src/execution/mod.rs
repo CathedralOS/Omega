@@ -110,7 +110,7 @@ fn execute_admitted_build_occurrence(
     let output_receipts = measured.observations().build_output_receipts().to_vec();
     let root_bindings = collect_root_bindings(typed, measured.executed_root_bindings())?;
     let executed_exclusions = measured.executed_behavior_exclusions().to_vec();
-    let provider_selections = crate::admission::declarations::collect_executed_provider_selections(
+    let provider_selections = provider_planning::collect_executed_provider_selections(
         typed,
         measured.executed_provider_selections(),
     )?;

@@ -125,7 +125,7 @@ fn validate_authored_activation(
     for retained in provenance {
         if let ProviderSelectionProvenance::BuildOverride(declarations) = &retained.selected_by
             && declarations.iter().any(|declaration| {
-                !build_evaluation::validate_executed_provider_selection_declaration(
+                !provider_planning::validate_executed_provider_selection_declaration(
                     &compilation.typed,
                     declaration,
                 )
@@ -182,7 +182,7 @@ fn validate_target_defaults(compilation: &PackageReviewInput<'_>) -> Result<(), 
                 ));
             };
             let current =
-                build_evaluation::harvest_provider_selections(&compilation.typed, machine)?;
+                provider_planning::harvest_provider_selections(&compilation.typed, machine)?;
             if !current.contains(declaration) {
                 return Err(rejected(
                     "target default differs from its current authored selection",

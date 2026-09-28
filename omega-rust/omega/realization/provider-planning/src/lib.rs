@@ -18,9 +18,11 @@ pub mod calling_policy_plans;
 pub mod component_progress;
 pub mod evaluated_via_bindings;
 mod intrinsic_requirements;
+mod provider_declarations;
 mod provider_planning;
 mod provider_settlement;
 pub mod service_schema;
+pub mod target_machines;
 pub mod task_plans;
 pub mod x86_fma_plan_association;
 
@@ -32,6 +34,10 @@ pub use provider_settlement::{
 };
 
 pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind};
+pub use provider_declarations::{
+    collect_executed_provider_selections, harvest_provider_selections,
+    validate_executed_provider_selection_declaration,
+};
 pub use provider_planning::selection::{
     CompositionMode, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject,

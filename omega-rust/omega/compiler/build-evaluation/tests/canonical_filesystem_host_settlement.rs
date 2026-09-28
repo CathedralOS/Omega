@@ -10,15 +10,15 @@
 
 use std::path::PathBuf;
 
-use build_evaluation::target_machines::{
-    SelectedTargetMachineDeclarations, filter_target_machines,
-};
 use effects::provider_plan::ProviderBinding;
 use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use provider_planning::settle_checked_providers;
+use provider_planning::target_machines::{
+    SelectedTargetMachineDeclarations, filter_target_machines,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::atomic::{AtomicUsize, Ordering};
 

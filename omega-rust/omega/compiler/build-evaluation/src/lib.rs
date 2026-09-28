@@ -48,12 +48,13 @@
 //! Start at `admitted_build_program.rs`: the admission request, the
 //! admitted program and `admit_build_program`. `execution` runs an admitted
 //! program and assembles its checked result. `admission/` owns what the build
-//! program declares and selects (selection, target machines, vocabulary,
-//! declarations, wire protocol, behavior exclusions, configuration), and
+//! program declares and selects (entry selection, vocabulary, grants,
+//! wire protocol, behavior exclusions, configuration), and
 //! `evidence/` owns the evaluation evidence execution consults (observations
 //! and their identity, filesystem scope and output custody).
 //! `optimization` owns exact optimization selection admission. Provider planning
-//! and settlement belong to the independent `provider-planning` realization owner.
+//! including target declarations, selection decoding and settlement belongs to
+//! the independent `provider-planning` realization owner.
 
 mod admission;
 mod admitted_build_program;
@@ -75,8 +76,7 @@ pub use admission::configuration::{
     ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests,
 };
 pub use admission::declarations::{
-    WireCompatibilityDemand, harvest_behavior_exclusions, harvest_provider_selections,
-    harvest_root_grants, validate_executed_provider_selection_declaration,
+    WireCompatibilityDemand, harvest_behavior_exclusions, harvest_root_grants,
 };
 pub use admission::selection::root_bindings::RootBinding;
 pub use admission::selection::{
@@ -85,7 +85,6 @@ pub use admission::selection::{
     selected_program_entry_machine, validate_selected_program_entry_calling_plan,
     validate_selected_program_entry_shape,
 };
-pub use admission::target_machines;
 pub use admission::vocabulary::is_build_machine;
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,

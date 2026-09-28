@@ -16,7 +16,7 @@ use std::sync::Arc;
 pub(crate) struct BuiltCheckedProgram {
     pub(super) typed: typed_trees::TypedTrees,
     pub(super) selected_target_machine_declarations:
-        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
+        provider_planning::target_machines::SelectedTargetMachineDeclarations,
     pub(super) pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
     pub(super) computed_build_config: build_evaluation::ComputedBuildConfig,
     /// The normalized restricted build-host requests the admitted activation
@@ -448,7 +448,7 @@ pub(crate) fn evaluate_frontier_and_continue(
 struct CheckedFrontend {
     typing: CheckedFrontendTyping,
     selected_target_machine_declarations:
-        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
+        provider_planning::target_machines::SelectedTargetMachineDeclarations,
     build_source_id: Option<source::SourceId>,
     pending_pre_checks: Vec<build_time_evaluation::PreCheckEvaluation>,
 }
@@ -552,7 +552,7 @@ fn lower_checked_frontend(
     // `ConsoleNativeProvider::read_byte`) is inert and its callers fail.
     let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
     let selected_target_machine_declarations =
-        build_evaluation::target_machines::filter_target_machines_by_scope(
+        provider_planning::target_machines::filter_target_machines_by_scope(
             &mut syntax.syntax_trees,
             target_name,
             execution_profile_name,
@@ -602,14 +602,14 @@ fn try_seeded_extension(
     base_sources: &Arc<source::SourceMap>,
     extension: build_evaluation::sources::RetainedGeneratedSyntaxExtension,
     selected_target_machine_declarations:
-        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
+        provider_planning::target_machines::SelectedTargetMachineDeclarations,
     target_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<
     (
         typed_trees::TypedTrees,
-        build_evaluation::target_machines::SelectedTargetMachineDeclarations,
+        provider_planning::target_machines::SelectedTargetMachineDeclarations,
         Vec<build_time_evaluation::PreCheckEvaluation>,
     ),
     Vec<Diagnostic>,
