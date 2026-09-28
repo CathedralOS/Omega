@@ -154,6 +154,27 @@ pub(super) fn infer_hoist_temp_type(
                             })
                     });
             let Some(declared_return) = declared_return else {
+                // An unresolved call spelling a sibling internal state is not a
+                // missing return annotation: states are transition
+                // destinations, never callables (state_contracts.md).
+                let program = lowerer.source_trees;
+                let internal_state = program.roots.machines.iter().any(|machine| {
+                    let states = program.machine_state_handles(machine.states);
+                    states
+                        .iter()
+                        .any(|handle| program.machine_state(*handle).symbol == state.symbol)
+                        && states.iter().skip(1).any(|handle| {
+                            program.machine_state(*handle).name.as_str() == target_name
+                        })
+                });
+                if internal_state {
+                    return Err(Diagnostic::error(format!(
+                        "`{target_name}` is an internal state of this machine and cannot be \
+                         called; ordinary calls invoke machines, not states: enter it with \
+                         `transition {{ _ -> {target_name}(..) }}`, or make it a machine if \
+                         its result is used as a value"
+                    )));
+                }
                 return Err(Diagnostic::error(format!(
                     "a value-machine call in a guard comparison needs the callee's \
                          return type declared: annotate `{target_name}` with an explicit \

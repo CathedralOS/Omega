@@ -145,6 +145,26 @@ pub(super) fn validate_receiverless_call(
     let Some((callee_machine, state)) =
         attached_state.or_else(|| free_machine_entry_state(program, symbols, call.target.as_str()))
     else {
+        // Internal states are transition destinations, never callables
+        // (state_contracts.md: "Ordinary calls invoke machines, not internal
+        // states"). Name that directly: the old resolver accepted this form,
+        // so authors migrating code need the transition spelling, not a
+        // generic unresolved-name error.
+        if program
+            .machine_states(current_machine)
+            .iter()
+            .skip(1)
+            .any(|state| state.name.as_str() == call.target.as_str())
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` calls its internal state `{}` as an ordinary call; ordinary \
+                 calls invoke machines, not states: enter the state with \
+                 `transition {{ _ -> {}(..) }}`, or make it a machine if its result is used \
+                 as a value",
+                current_machine.name, call.target, call.target
+            )));
+            return;
+        }
         diagnostics.push(Diagnostic::error(format!(
             "machine `{}` cannot resolve ordinary call `{}` to a machine entry or requirement",
             current_machine.name, call.target
