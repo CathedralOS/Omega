@@ -117,8 +117,8 @@ fn restricted_field_rejects_unproved_indexed_mutation() {
         },
     ]);
     assert_eq!(
-        validate_module(&module),
-        Err(terminal_verifier::ModuleError::InvalidStructuralByteSequenceFieldAccess(id(7)))
+        validate_module(&module).err(),
+        Some(terminal_verifier::ModuleError::InvalidStructuralByteSequenceFieldAccess(id(7)))
     );
 }
 
@@ -128,8 +128,8 @@ fn zeroed_attachment_cannot_invent_nonempty_membership() {
     restrict_field(&mut module, ByteSequencePredicate::NonEmpty);
     module.machines[0].attachment = Some(id(1));
     assert_eq!(
-        validate_module(&module),
-        Err(
+        validate_module(&module).err(),
+        Some(
             terminal_verifier::ModuleError::InvalidStructuralFieldIdentity {
                 structural_type: id(1),
                 field: id(1),
