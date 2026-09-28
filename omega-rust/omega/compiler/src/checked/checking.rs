@@ -581,6 +581,25 @@ pub fn settled_check_totals() -> (u64, u64) {
     )
 }
 
+/// Monotonic count of pre-build declaration-authority checks that actually
+/// executed, excluding requests `lower_typed_trees` served from its
+/// exact-input check memo. A review pass's `preliminary_check_totals` call
+/// delta counts every request; this delta counts only the misses, so their
+/// difference names the memo-served repeats of an identical frozen program.
+#[doc(hidden)]
+pub fn executed_preliminary_check_count() -> u64 {
+    typed_trees_to_checked_trees::RepeatedCheckRetention::executed_preliminary_check_count()
+}
+
+/// Monotonic count of settled whole-program checks that actually executed,
+/// excluding requests the exact-input check memo served. A second review pass
+/// over an unchanged closure still issues its settled requests, but a delta of
+/// zero here witnesses that none of them ran the check again.
+#[doc(hidden)]
+pub fn executed_settled_check_count() -> u64 {
+    typed_trees_to_checked_trees::RepeatedCheckRetention::executed_settled_check_count()
+}
+
 /// Account one pre-build declaration-authority check's wall time.
 pub(crate) fn record_preliminary_check(elapsed: std::time::Duration) {
     PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

@@ -874,6 +874,193 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
     assert_eq!(bound.reviews.reviews().len(), occurrences);
 }
 
+/// The CLI check route over a real std-importing application runs a discovery
+/// pass and a bound pass, and each pass requests the pre-build
+/// declaration-authority check and the settled whole-program check for every
+/// occurrence while the candidate compilation holds check retention. The
+/// exact-input check memo serves the bound pass's identical frozen programs,
+/// so on a host-profile target each occurrence — the standard library
+/// included — executes each checkpoint once per invocation even though both
+/// passes request it.
+///
+/// linux_x86_64 is the one reviewed toolchain-settled host: the standard
+/// library's discovered FilesystemHost and TimeHost bindings let provider
+/// settlement mint the canonical per-target realization plans, and those
+/// plans stamp fused-service erasure authorizations into its typed program.
+/// `lower_typed_trees` reads the authorizations to erase `Binding<R>`
+/// carriers, so the bound program is a different check input and the library
+/// executes its settled check once per distinct input — the same reason the
+/// task forbids erasing changed bindings from reuse keys to manufacture a
+/// hit. Every preliminary program is stamped before provider settlement, so
+/// both targets' bound preliminary requests memo-hit exactly.
+///
+/// The preliminary/settled split inside one compile is BUILD-EVALUATES-ONCE's;
+/// this pins repeated-check closure across passes: request deltas count every
+/// request, executed deltas only the checks that actually ran.
+#[test]
+fn std_importing_check_executes_identical_checks_once_across_passes() {
+    for (profile, entry_contract, bound_settled_executed) in [
+        (
+            target::TargetProfile::MacosArm64,
+            "macos_arm64::ProgramEntry",
+            0_u64,
+        ),
+        (
+            target::TargetProfile::LinuxX64,
+            "linux_x86_64::ProgramEntry",
+            1_u64,
+        ),
+    ] {
+        let root = std::env::temp_dir().join(format!(
+            "omega-candidate-std-check-once-{}-{}",
+            std::process::id(),
+            NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed),
+        ));
+        let standard_library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .map(|ancestor| ancestor.join("source/library/std"))
+            .find(|candidate| candidate.join("build.omg").is_file())
+            .expect("repository source/library/std package")
+            .canonicalize()
+            .expect("canonical standard-library package root");
+        fs::create_dir_all(root.join("application")).unwrap();
+        fs::write(
+            root.join("application/build.omg"),
+            format!(
+                r#"machine build(builder: &mut Build) {{
+    builder.application("std_check_consumer");
+    builder.depend(Source::Path {{ location: "{}" }});
+    builder.roots.bind({entry_contract}, Main::main);
+}}
+"#,
+                standard_library.display().to_string().replace('\\', "/")
+            ),
+        )
+        .unwrap();
+        fs::write(
+            root.join("application/main.omg"),
+            r#"use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self)
+reaches Console
+{
+    self.console.write_line("std check once");
+}
+"#,
+        )
+        .unwrap();
+        let storage =
+            SourceResolver::for_hardened_base(root.join("resolved"), PrimaryGitChoices::default())
+                .unwrap();
+        let closure = resolve_external_local_project_closure(
+            root.join("application"),
+            ExternalSourceContext::derive(b"candidate-std-check-once"),
+            &storage,
+            LocalSourceLimits::default(),
+            PackageSourceClosureLimits::default(),
+            GitResolutionOptions::default(),
+        )
+        .unwrap();
+        let entry = closure
+            .source_root(closure.graph().root())
+            .unwrap()
+            .join("main.omg");
+        let exact = closure.for_exact_target(profile);
+        // The candidate route holds retention across both passes; the test
+        // drives them explicitly so each pass's deltas are visible.
+        let _retention = compiler::retain_repeated_checks();
+        let mut preparation = CandidateSourcePreparation::for_closure(&closure);
+        let preliminary_before = compiler::preliminary_check_totals();
+        let settled_before = compiler::settled_check_totals();
+        let preliminary_executed_before = compiler::executed_preliminary_check_count();
+        let settled_executed_before = compiler::executed_settled_check_count();
+        let discovery = compile_pass(
+            &exact,
+            &root.join("discovery"),
+            &[],
+            Some(&entry),
+            None,
+            None,
+            TargetEntryDiscovery::Dependencies,
+            None,
+            &mut preparation,
+        )
+        .expect("discovery pass");
+        let occurrences = discovery.reviews.reviews().len() as u64;
+        assert_eq!(occurrences, 2, "the consumer and the standard library");
+        let discovered =
+            candidate_semantic_binding_inputs(&discovery.reviews, closure.graph().root()).unwrap();
+        assert!(
+            !discovered.is_empty(),
+            "the fixture's discovery proposes bindings"
+        );
+        assert_eq!(
+            compiler::preliminary_check_totals().0 - preliminary_before.0,
+            occurrences,
+            "discovery requests each occurrence's preliminary check"
+        );
+        assert_eq!(
+            compiler::settled_check_totals().0 - settled_before.0,
+            occurrences,
+            "discovery requests each occurrence's settled check"
+        );
+        assert_eq!(
+            compiler::executed_preliminary_check_count() - preliminary_executed_before,
+            occurrences,
+            "first sight: discovery executes each preliminary check"
+        );
+        assert_eq!(
+            compiler::executed_settled_check_count() - settled_executed_before,
+            occurrences,
+            "first sight: discovery executes each settled check"
+        );
+        let preliminary_before = compiler::preliminary_check_totals();
+        let settled_before = compiler::settled_check_totals();
+        let preliminary_executed_before = compiler::executed_preliminary_check_count();
+        let settled_executed_before = compiler::executed_settled_check_count();
+        let bound = compile_pass(
+            &exact,
+            &root.join("bound"),
+            &discovered,
+            Some(&entry),
+            None,
+            None,
+            TargetEntryDiscovery::Disabled,
+            Some(&discovery),
+            &mut preparation,
+        )
+        .expect("bound pass");
+        assert_eq!(bound.reviews.reviews().len(), occurrences as usize);
+        assert_eq!(
+            compiler::preliminary_check_totals().0 - preliminary_before.0,
+            occurrences,
+            "the bound pass still requests every occurrence's preliminary check"
+        );
+        assert_eq!(
+            compiler::settled_check_totals().0 - settled_before.0,
+            occurrences,
+            "the bound pass still requests every occurrence's settled check"
+        );
+        assert_eq!(
+            compiler::executed_preliminary_check_count() - preliminary_executed_before,
+            0,
+            "every bound preliminary request repeats an identical frozen \
+             program, so the memo serves all of them"
+        );
+        assert_eq!(
+            compiler::executed_settled_check_count() - settled_executed_before,
+            bound_settled_executed,
+            "the memo serves every bound settled request whose program is \
+             unchanged; on linux_x86_64 the standard library's accepted host \
+             bindings mint toolchain plans that stamp fused-service erasures \
+             the check reads, so its changed program re-checks once"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+}
+
 /// A dependency package compiled as its own component: its build seals the
 /// `Pick` requirement with the fused vtable provider while the checked
 /// `PickProvider` adapter beside it is the realization a consumer may deploy

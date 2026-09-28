@@ -486,10 +486,12 @@ fn compile_candidate(
 /// compile carried forward untouched, how many typed frontiers a later
 /// occurrence reused instead of re-assembling identical source, and what the
 /// two whole-program checkpoints inside each compiled occurrence cost. The
-/// preliminary row is the pre-build declaration-authority check; a pass that
-/// repeats an identical frozen graph serves it from the exact-input memo in
-/// microseconds, so its per-pass micros name the residual
-/// preliminary-versus-settled duplication rather than just its call count.
+/// preliminary row is the pre-build declaration-authority check. The
+/// `*_checks` counts are requests to `lower_typed_trees`; the `*_executed`
+/// counts are only the checks that actually ran, so a pass whose identical
+/// frozen graphs the exact-input memo served shows requests without
+/// executions, and its remaining micros name the residual
+/// preliminary-versus-settled duplication rather than a repeated check.
 fn note_pass_accounting(
     pass: &'static str,
     run: impl FnOnce() -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError>,
@@ -498,6 +500,8 @@ fn note_pass_accounting(
     let frontiers_before = compiler::typed_frontier_reuse_count();
     let preliminary_before = compiler::preliminary_check_totals();
     let settled_before = compiler::settled_check_totals();
+    let preliminary_executed_before = compiler::executed_preliminary_check_count();
+    let settled_executed_before = compiler::executed_settled_check_count();
     let result = run()?;
     let occurrences = result.occurrences.len();
     let carried = result.carried;
@@ -505,12 +509,14 @@ fn note_pass_accounting(
         let (preliminary_calls, preliminary_micros) = compiler::preliminary_check_totals();
         let (settled_calls, settled_micros) = compiler::settled_check_totals();
         format!(
-            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={} preliminary_checks={} preliminary_micros={} settled_checks={} settled_micros={}",
+            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={} preliminary_checks={} preliminary_executed={} preliminary_micros={} settled_checks={} settled_executed={} settled_micros={}",
             compiler::checked_compilation_call_count() - compilations_before,
             compiler::typed_frontier_reuse_count() - frontiers_before,
             preliminary_calls - preliminary_before.0,
+            compiler::executed_preliminary_check_count() - preliminary_executed_before,
             preliminary_micros - preliminary_before.1,
             settled_calls - settled_before.0,
+            compiler::executed_settled_check_count() - settled_executed_before,
             settled_micros - settled_before.1,
         )
     });
