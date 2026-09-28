@@ -1101,16 +1101,16 @@ pub(super) fn validate_integer_structural_field(
         .filter_map(|producer| producer.result.structural())
         .find(|local| local.place == *source)
     {
-        let carrier = terminal_semantics::record_field_carrier(
+        // The observed field belongs to a record carrier or to the payload of
+        // the case a final `Case` step selects; which case is active is the
+        // verifier's reconstruction judgment, not a decode-time shape.
+        let matching = terminal_semantics::observed_field_declaration(
             module.structural_types.iter(),
             local.structural_type,
             path,
-        );
-        let matching = carrier.and_then(|carrier| module.structural_types.iter().find(|declaration|
-            declaration.id == carrier.structural_type)).is_some_and(|declaration|
-                matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                    if fields.iter().any(|candidate| candidate.id == *field && !candidate.relevance.is_erased()
-                            && candidate.field_type.scalar_type() == Some(result.scalar_type))));
+            *field,
+        )
+        .is_some_and(|candidate| candidate.field_type.scalar_type() == Some(result.scalar_type));
         if !matching
             || local.multiplicity == StructuralMultiplicity::Linear
             || !local.qualifications.is_empty()
@@ -1148,34 +1148,19 @@ pub(super) fn validate_integer_structural_field(
     else {
         return malformed("scalar structural field source is not a parameter");
     };
-    let carrier = terminal_semantics::record_field_carrier(
+    let matching = terminal_semantics::observed_field_declaration(
         module.structural_types.iter(),
         parameter.structural_type,
         path,
-    );
-    let matching = carrier
-        .and_then(|carrier| {
-            module
-                .structural_types
-                .iter()
-                .find(|declaration| declaration.id == carrier.structural_type)
-        })
-        .and_then(|declaration| match &declaration.shape {
-            StructuralTypeShape::Record { fields } => fields.iter().find(|candidate| {
-                candidate.id == *field
-                    && !candidate.relevance.is_erased()
-                    && match candidate.field_type {
-                        StructuralFieldType::Scalar(scalar_type) => {
-                            scalar_type == result.scalar_type
-                        }
-                        StructuralFieldType::BoundedInteger(bounded) => {
-                            ScalarType::Integer(bounded.integer_type()) == result.scalar_type
-                        }
-                        _ => false,
-                    }
-            }),
-            _ => None,
-        });
+        *field,
+    )
+    .filter(|candidate| match candidate.field_type {
+        StructuralFieldType::Scalar(scalar_type) => scalar_type == result.scalar_type,
+        StructuralFieldType::BoundedInteger(bounded) => {
+            ScalarType::Integer(bounded.integer_type()) == result.scalar_type
+        }
+        _ => false,
+    });
     if !matches!(
         parameter.multiplicity,
         StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine

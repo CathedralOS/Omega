@@ -52,10 +52,12 @@ fn encode_scalar_field_path(
                 writer.u8(2);
                 writer.u64(*index);
             }
-            _ => {
-                return Err(CodecError::MalformedStructuralFoundation(
-                    "scalar field carrier path is not a record path",
-                ));
+            // A final case step names the payload namespace a case-qualified
+            // observation reads; foundation validation and verification decide
+            // whether that carrier and its active case are admitted.
+            CanonicalStructuralPathSegment::Case(case) => {
+                writer.u8(3);
+                writer.id(*case);
             }
         }
     }
@@ -70,6 +72,9 @@ fn decode_scalar_field_path(
             reader.id("StructuralFieldId")?,
         )),
         2 => Ok(CanonicalStructuralPathSegment::FixedIndex(reader.u64()?)),
+        3 => Ok(CanonicalStructuralPathSegment::Case(
+            reader.id("StructuralCaseId")?,
+        )),
         tag => Err(CodecError::InvalidTag("scalar field carrier path", tag)),
     })
 }
@@ -1022,7 +1027,19 @@ mod tests {
         for length in 0..bytes.len() {
             assert!(decode_scalar_field_path(&mut Reader::new(&bytes[..length])).is_err());
         }
-        for tag in [0, 3, 255] {
+        // A case-qualified carrier round-trips with the canonical path's
+        // `Case` tag; admitting it is foundation validation's judgment.
+        let case_path = vec![
+            CanonicalStructuralPathSegment::Field(id::<StructuralFieldId>(7)),
+            CanonicalStructuralPathSegment::Case(id::<StructuralCaseId>(2)),
+        ];
+        let mut writer = Writer::default();
+        encode_scalar_field_path(&mut writer, &case_path).unwrap();
+        assert_eq!(
+            decode_scalar_field_path(&mut Reader::new(&writer.finish())),
+            Ok(case_path)
+        );
+        for tag in [0, 4, 255] {
             let mut invalid = bytes.clone();
             invalid[4] = tag;
             assert!(

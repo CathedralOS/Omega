@@ -59,6 +59,17 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::SaturatingIntegerDivide { .. }
                         | OperationKind::SaturatingIntegerRemainder { .. }
                 ) || !operation.kind.runtime_indexes().is_empty()
+                    // A case-qualified field read needs its dominating
+                    // membership fact, which only path facts carry.
+                    || matches!(
+                        &operation.kind,
+                        OperationKind::IntegerStructuralField { path, .. }
+                            | OperationKind::BooleanStructuralField { path, .. }
+                            if path.iter().any(|segment| matches!(
+                                segment,
+                                semantic_vocabulary::CanonicalStructuralPathSegment::Case(_)
+                            ))
+                    )
             })
         }) || (crash_facts && machine.blocks.iter().any(|block| {
             matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())

@@ -60,7 +60,10 @@ pub use proof_bearing_scalar::{
     proof_bearing_integer_policy_binding, proof_bearing_scalar_leaf_semantics,
     proof_bearing_scalar_semantic_row, validate_proof_bearing_scalar_semantic_rows,
 };
-pub use record_field::{RecordFieldCarrier, record_field_carrier};
+pub use record_field::{
+    CasePayloadCarrier, RecordFieldCarrier, case_payload_carrier, observed_field_declaration,
+    record_field_carrier,
+};
 pub use scalar_array::scalar_array_leaf_shape;
 pub use scalar_leaf_schema::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation, ScalarLeafFactShape,

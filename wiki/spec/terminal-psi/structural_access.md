@@ -238,10 +238,23 @@ root, and overlaps every element of the array it selects in.
 `IntegerStructuralField` and `BooleanStructuralField` retain the whole source
 place, an ordered canonical carrier path, and the final declaration-local field
 ID. The carrier path excludes the final field; an empty path is a direct read.
-Each admitted carrier step selects a relevant structural field of a record by
-its exact parent-local ID. Case and fixed-index steps are not admitted by these
-operations. Unknown, erased, truncated, and non-record carriers reject; consumers
-must not infer a path from names or layout offsets.
+Each record step selects a relevant structural field of a record by its exact
+parent-local ID. One literal fixed index may end the carrier when its element
+record owns the field. One `Case` step may end the carrier when the preceding
+record steps reach a sum. The final field is then a relevant scalar payload
+field of that exact declared case. A case payload is overlaid at the sum's own
+place, so the carrier's shape is no evidence that the overlay is live. Each
+`Case` step must hold as a `StructuralCaseMembership` fact for the same root and
+prefix in the read's incoming facts. A dominating membership test or dispatch
+supplies that fact. Otherwise the case holds when every other declared case of
+that sum is refuted. A refutation is a surviving membership observation of the
+same place and case whose Boolean result is known false. A sum holds exactly
+one declared case, so an exhaustive test chain's untested final arm may read
+its payload. A write to the sum or any prefix retires these facts, as it does
+for `StructuralCaseLeafCopy`. The rule is the same for a `Case` step directly on
+the root, though producers read a root sum's payload as parameters of its
+dispatch block. Unknown, erased, truncated, and non-record carriers reject;
+consumers must not infer a path from names or layout offsets.
 
 Reading a nested field observes the original backing below that root, not a
 copied child or a new borrow. Independent validation retains the root's readable

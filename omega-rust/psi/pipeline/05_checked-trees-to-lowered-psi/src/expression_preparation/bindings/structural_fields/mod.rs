@@ -23,11 +23,13 @@ pub(crate) struct StructuralScalarFieldBinding {
 
 /// Whether a read through a case segment may observe this root's payload.
 ///
-/// Terminal has no case-qualified place read: a payload is observable only as
-/// a parameter of the block a `StructuralCase` dispatch selected for that case,
-/// so the verifier's own tag dispatch is the case knowledge. A read therefore
+/// A whole root's payload is read as a parameter of the block its
+/// `StructuralCase` dispatch selected for that case, so the verifier's own tag
+/// dispatch is the case knowledge. A read of a root case payload therefore
 /// resolves to an established payload value, is deferred for the guard
-/// decision lowering that will introduce the dispatch, or is refused.
+/// decision lowering that will introduce the dispatch, or is refused. A sum
+/// below record fields has no dispatch terminator; `resolve_typed` reads its
+/// payload in place through a carrier ending in the `Case` step instead.
 #[derive(Clone, Default)]
 enum CasePayloadAccess {
     #[default]
@@ -222,8 +224,62 @@ pub(crate) fn resolve_typed(
             structural_type = *element;
             continue;
         }
+        if let checked_trees::CheckedStructuralPredicatePathSegment::Case(case_identity) = segment {
+            // A case of a sum reached through record fields: its payload is
+            // read in place as an ordinary scalar observation whose carrier
+            // ends in the `Case` step. Terminal verification admits that read
+            // only where dominating control flow proved this case of this
+            // exact place active (`case_hops`), so a guard's membership test
+            // is the read's authority and a write to the sum retires it. A
+            // root case keeps its dispatch route (`resolve_case_payload`),
+            // whose selected block binds the payload as parameters.
+            if ordinal == 0 {
+                return unsupported(
+                    "runtime field observation reads a root case payload outside its dispatch",
+                );
+            }
+            let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+                &declaration.shape
+            else {
+                return unsupported(
+                    "runtime field observation selects a case of a non-sum carrier",
+                );
+            };
+            let [checked_trees::CheckedStructuralPredicatePathSegment::Field(field_identity)] =
+                &path[ordinal + 1..]
+            else {
+                return unsupported(
+                    "runtime field observation requires one payload field after its case",
+                );
+            };
+            let mut selected = cases.iter().filter(|case| case.identity == *case_identity);
+            let (Some(case), None) = (selected.next(), selected.next()) else {
+                return unsupported("runtime field observation lost its declared case");
+            };
+            let mut payload = case
+                .fields
+                .iter()
+                .filter(|field| field.identity == *field_identity);
+            let (Some(field), None) = (payload.next(), payload.next()) else {
+                return unsupported("runtime field observation lost its declared payload field");
+            };
+            if field.relevance.is_erased() {
+                return unsupported("runtime field observation has an erased or ambiguous field");
+            }
+            let declared = match field.field_type {
+                StructuralFieldType::Scalar(scalar) => scalar,
+                StructuralFieldType::BoundedInteger(integer) => {
+                    ScalarType::Integer(integer.integer_type())
+                }
+                _ => return unsupported("runtime field observation requires a scalar leaf"),
+            };
+            carrier_path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Case(
+                case.id,
+            ));
+            return Ok((binding.source, carrier_path, field.id, declared));
+        }
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
-            return unsupported("runtime field observation requires a record-only field path");
+            unreachable!("fixed indices and cases return above");
         };
         let StructuralTypeShape::Record { fields } = &declaration.shape else {
             return unsupported("runtime field observation requires a record carrier");

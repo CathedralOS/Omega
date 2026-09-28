@@ -1242,6 +1242,46 @@ impl TerminalExecution {
         Ok(OperationFlow::Advance)
     }
 
+    /// The runtime place owning one observed scalar field: the record a
+    /// record-only path reaches, or the sum a final `Case` step qualifies. A
+    /// payload lives at its sum's own place, overlaid by case, so the stored
+    /// discriminator must name the observed case. Verification proves that
+    /// case active before the read; a mismatch here is a malformed module,
+    /// never a read of another case's overlay.
+    fn observed_field_parent(
+        &self,
+        source: semantic_vocabulary::PlaceId,
+        path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    ) -> Result<StructuralRuntimePlace, TerminalInterpretError> {
+        let structural_value = self.structural_values.get(&source).ok_or(
+            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
+        )?;
+        let mut parent = StructuralRuntimePlace::from(structural_value);
+        if let Some(carrier) = terminal_semantics::case_payload_carrier(
+            self.structural_types.values(),
+            structural_value.structural_type,
+            path,
+        ) {
+            parent.path.extend(carrier.path);
+            let contents = self
+                .structural_cases
+                .get(&parent)
+                .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+            if contents.structural_type != carrier.sum || contents.case != carrier.case {
+                return Err(TerminalInterpretError::VerifiedOperationMalformed);
+            }
+            return Ok(parent);
+        }
+        let carrier = terminal_semantics::record_field_carrier(
+            self.structural_types.values(),
+            structural_value.structural_type,
+            path,
+        )
+        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        parent.path.extend(carrier.path);
+        Ok(parent)
+    }
+
     pub(crate) fn execute_boolean_structural_field(
         &mut self,
         operation: &terminal_psi::Operation,
@@ -1257,17 +1297,7 @@ impl TerminalExecution {
         if operation.result.expect_scalar().scalar_type != ScalarType::Boolean {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let structural_value = self.structural_values.get(&source).ok_or(
-            TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
-        )?;
-        let carrier = terminal_semantics::record_field_carrier(
-            self.structural_types.values(),
-            structural_value.structural_type,
-            path,
-        )
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        let mut parent = StructuralRuntimePlace::from(structural_value);
-        parent.path.extend(carrier.path);
+        let parent = self.observed_field_parent(source, path)?;
         let value = self
             .structural_scalar_fields
             .get(&StructuralScalarRuntimeField { parent, field })
@@ -1302,19 +1332,18 @@ impl TerminalExecution {
         let structural_value = self.structural_values.get(&source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(source),
         )?;
-        let carrier = terminal_semantics::record_field_carrier(
+        if terminal_semantics::observed_field_declaration(
             self.structural_types.values(),
             structural_value.structural_type,
             path,
+            field,
         )
-        .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
-        if direct_scalar_field_type(&self.structural_types, carrier.structural_type, field)
+        .and_then(|declaration| declaration.field_type.scalar_type())
             != Some(result.scalar_type)
         {
             return Err(TerminalInterpretError::VerifiedOperationMalformed);
         }
-        let mut parent = StructuralRuntimePlace::from(structural_value);
-        parent.path.extend(carrier.path);
+        let parent = self.observed_field_parent(source, path)?;
         let value = self
             .structural_scalar_fields
             .get(&StructuralScalarRuntimeField { parent, field })
