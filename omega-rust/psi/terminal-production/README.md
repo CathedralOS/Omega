@@ -25,6 +25,13 @@ publication and rejoin the published semantic identity afterward. The
 `ProducedTerminalArtifact` returns the artifact beside that retained custody,
 and rejection returns the original opaque sidecar without cloning it.
 
+Terminal production owns its observation labels and failure classification.
+`TerminalProductionStage::observation_labels` supplies stable report names and
+input/output labels; the Omega caller only merges their measured rows.
+`TerminalArtifactProductionError::diagnostic_message` distinguishes missing
+implementation, incomplete proof search and ordinary rejection. Neither requires
+a dependency on the Omega reporting accumulator.
+
 The [entry receipt owner](src/terminal_production/entry_receipt.rs) checks the
 unique Unit entry, records its identity and delegates source receiver eligibility
 to its own child before publication.

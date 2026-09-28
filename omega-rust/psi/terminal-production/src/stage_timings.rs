@@ -24,17 +24,51 @@ pub enum TerminalProductionStage {
 }
 
 impl TerminalProductionStage {
-    pub const fn name(self) -> &'static str {
+    /// Stable name, input and output labels for this production leg. Consumers
+    /// merge measured rows without maintaining their own stage taxonomy.
+    pub const fn observation_labels(self) -> (&'static str, &'static str, &'static str) {
         match self {
-            Self::MachineSelection => "machine-selection",
-            Self::LedgerCheck => "ledger-check",
-            Self::Lowering => "lowering",
-            Self::Optimization => "optimization",
-            Self::EntryReceipt => "entry-receipt",
-            Self::TerminalIdentity => "terminal-identity",
-            Self::ReceiverEligibility => "receiver-eligibility",
-            Self::Publication => "publication",
-            Self::BoundaryOperatorScope => "boundary-scope",
+            Self::MachineSelection => (
+                "terminal-production/machine-selection",
+                "CheckedTrees",
+                "TerminalMachine",
+            ),
+            Self::LedgerCheck => (
+                "terminal-production/ledger-check",
+                "CheckedTrees",
+                "CheckedLedger",
+            ),
+            Self::Lowering => ("terminal-production/lowering", "CheckedTrees", "LoweredPsi"),
+            Self::Optimization => (
+                "terminal-production/optimization",
+                "LoweredPsi",
+                "OptimizedLoweredPsi",
+            ),
+            Self::EntryReceipt => (
+                "terminal-production/entry-receipt",
+                "OptimizedLoweredPsi",
+                "ProgramEntryReceipt",
+            ),
+            Self::TerminalIdentity => (
+                "terminal-production/terminal-identity",
+                "SemanticModule",
+                "TerminalPsiIdentity",
+            ),
+            Self::ReceiverEligibility => (
+                "terminal-production/receiver-eligibility",
+                "CheckedTrees+SemanticModule",
+                "ReceiverEligibility",
+            ),
+            Self::Publication => (
+                "terminal-production/publication",
+                "OptimizedLoweredPsi",
+                "CanonicalTerminalArtifact",
+            ),
+            Self::BoundaryOperatorScope => (
+                "terminal-production/boundary-scope",
+                "LoweredPsi+CanonicalTerminalArtifact",
+                "BoundaryOperatorScope",
+            ),
         }
     }
 }
@@ -116,7 +150,20 @@ mod tests {
                 TerminalProductionStage::Publication
             ]
         );
-        assert!(timings.rows()[0].1 > 0 || timings.rows()[0].1 == 0);
+        assert_eq!(
+            stages
+                .iter()
+                .map(|stage| stage.observation_labels())
+                .collect::<Vec<_>>(),
+            [
+                ("terminal-production/lowering", "CheckedTrees", "LoweredPsi"),
+                (
+                    "terminal-production/publication",
+                    "OptimizedLoweredPsi",
+                    "CanonicalTerminalArtifact"
+                ),
+            ],
+        );
     }
 
     #[test]

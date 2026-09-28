@@ -382,6 +382,26 @@ impl std::fmt::Display for ProgramEntryTerminalReceiptError {
 impl std::error::Error for ProgramEntryTerminalReceiptError {}
 
 impl TerminalArtifactProductionError {
+    /// Report the production verdict without making a consumer classify a
+    /// lowerer's private failures. Capacity exhaustion is incomplete evidence,
+    /// not a refutation; an absent compiler route retains its own report.
+    pub fn diagnostic_message(&self) -> String {
+        if let Some(report) = self.unimplemented_report() {
+            return report.to_owned();
+        }
+        if let Some((capacity, obligation)) = self.incomplete_capacity() {
+            return format!(
+                "incomplete: terminal-artifact production stopped at the private \
+                 `{}` proof-search capacity (provision {}) with obligation {} \
+                 unproved; the module is not shown invalid",
+                capacity.resource_name(),
+                capacity.limit(),
+                obligation,
+            );
+        }
+        format!("terminal-artifact production failed: {self}")
+    }
+
     /// The `unimplemented:` report of a refusal caused by a missing
     /// compiler route rather than by the program, when this is one.
     pub fn unimplemented_report(&self) -> Option<&str> {
@@ -494,12 +514,33 @@ mod tests {
             ProofSearchCapacity::ScalarInvariantRosterRounds.resource_name(),
             "proof_search_roster_rounds",
         );
+        assert_eq!(
+            refusal.diagnostic_message(),
+            "incomplete: terminal-artifact production stopped at the private \
+             `proof_search_roster_rounds` proof-search capacity (provision 128) with obligation \
+             41 unproved; the module is not shown invalid",
+        );
 
         let rejection = crate::terminal_production::TerminalArtifactProductionError::Lowering(
             LoweringError::OperationProofUnavailable(obligation),
         );
         assert!(rejection.incomplete_capacity().is_none());
         assert!(rejection.unimplemented_report().is_none());
+        assert_eq!(
+            rejection.diagnostic_message(),
+            format!("terminal-artifact production failed: {rejection}"),
+        );
+        let missing = crate::terminal_production::TerminalArtifactProductionError::Lowering(
+            LoweringError::InvalidUnitMachinePlan {
+                machine: "Main::run".into(),
+                reason: "no Unit plan",
+                omission: Some("unimplemented: missing lowering route".into()),
+            },
+        );
+        assert_eq!(
+            missing.diagnostic_message(),
+            "unimplemented: missing lowering route"
+        );
     }
 
     /// Every product shares the instrumented body: without an entry identity

@@ -9,9 +9,7 @@ use crate::terminal::native_proposal;
 use artifacts::allocations::AllocationDelta;
 use artifacts::compile_timings::{CompileTimings, StageMeta, TimingCategory};
 use diagnostics::Diagnostic;
-use terminal_production::{
-    TerminalProductionCustody, TerminalProductionStage, TerminalProductionTimings,
-};
+use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 /// Terminal production internally lowers, optimizes and publishes
 /// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
@@ -39,56 +37,6 @@ const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-/// The Omega-side ladder names each Psi production leg rows arrive under.
-fn terminal_production_stage_meta(stage: TerminalProductionStage) -> StageMeta {
-    let (name, input, output) = match stage {
-        TerminalProductionStage::MachineSelection => (
-            "terminal-production/machine-selection",
-            "CheckedTrees",
-            "TerminalMachine",
-        ),
-        TerminalProductionStage::LedgerCheck => (
-            "terminal-production/ledger-check",
-            "CheckedTrees",
-            "CheckedLedger",
-        ),
-        TerminalProductionStage::Lowering => {
-            ("terminal-production/lowering", "CheckedTrees", "LoweredPsi")
-        }
-        TerminalProductionStage::Optimization => (
-            "terminal-production/optimization",
-            "LoweredPsi",
-            "OptimizedLoweredPsi",
-        ),
-        TerminalProductionStage::EntryReceipt => (
-            "terminal-production/entry-receipt",
-            "OptimizedLoweredPsi",
-            "ProgramEntryReceipt",
-        ),
-        TerminalProductionStage::TerminalIdentity => (
-            "terminal-production/terminal-identity",
-            "SemanticModule",
-            "TerminalPsiIdentity",
-        ),
-        TerminalProductionStage::ReceiverEligibility => (
-            "terminal-production/receiver-eligibility",
-            "CheckedTrees+SemanticModule",
-            "ReceiverEligibility",
-        ),
-        TerminalProductionStage::Publication => (
-            "terminal-production/publication",
-            "OptimizedLoweredPsi",
-            "CanonicalTerminalArtifact",
-        ),
-        TerminalProductionStage::BoundaryOperatorScope => (
-            "terminal-production/boundary-scope",
-            "LoweredPsi+CanonicalTerminalArtifact",
-            "BoundaryOperatorScope",
-        ),
-    };
-    StageMeta::new(name, input, output, TimingCategory::Pipeline)
-}
-
 /// Merge the Psi-owned production rows under the boundary row the caller just
 /// recorded. Rows drop silently when the accumulator is disabled.
 fn merge_terminal_production_timings(
@@ -96,8 +44,9 @@ fn merge_terminal_production_timings(
     production_timings: &TerminalProductionTimings,
 ) {
     for (stage, microseconds) in production_timings.rows() {
+        let (name, input, output) = stage.observation_labels();
         stage_timings.add_completed(
-            terminal_production_stage_meta(*stage),
+            StageMeta::new(name, input, output, TimingCategory::Pipeline),
             *microseconds,
             AllocationDelta::default(),
         );
@@ -227,31 +176,7 @@ pub(crate) fn produce_retained_terminal_artifact(
                 timings: &mut production_timings,
             })
         })
-        .map_err(|error| {
-            vec![Diagnostic::error(
-                match error.error().unimplemented_report() {
-                    Some(report) => report.to_owned(),
-                    // A named proof-search capacity that declined during
-                    // optional inference is an `Incomplete` outcome, not a
-                    // defect of the program: name the resource and the
-                    // obligation left unproved instead of reporting the
-                    // module as rejected. The `incomplete:` prefix is the
-                    // outcome marker the corpus records against its
-                    // `incomplete` status.
-                    None => match error.error().incomplete_capacity() {
-                        Some((capacity, obligation)) => format!(
-                            "incomplete: terminal-artifact production stopped at the private \
-                             `{}` proof-search capacity (provision {}) with obligation {} \
-                             unproved; the module is not shown invalid",
-                            capacity.resource_name(),
-                            capacity.limit(),
-                            obligation,
-                        ),
-                        None => format!("terminal-artifact production failed: {error}"),
-                    },
-                },
-            )]
-        })?;
+        .map_err(|error| vec![Diagnostic::error(error.error().diagnostic_message())])?;
     merge_terminal_production_timings(&mut stage_timings, &production_timings);
     let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
         vec![Diagnostic::error(
