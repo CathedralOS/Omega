@@ -15,11 +15,13 @@ normalizes configurations, rejects staging collisions and incompatible rollback,
 and admits evaluated Build requirements. It returns immutable per-target inputs;
 the coordinator owns the loop, not those policy decisions.
 It prepares immutable source once, then drives each target's ordinary continuation.
-[Native input reuse](src/native/native_product/input_reuse.rs) retains exactly matching
-Terminal inputs as each target reaches realization. It does not retain every
-child's checked trees until a second scheduling pass. Product reports belong to
-their product owners; [package.rs](src/compiler/package.rs) owns package-custody
-checks without calling back into the coordinator.
+[Prepared Build products](../realization/compilation-products/src/prepared_build.rs)
+retain completed typed continuations by exact Build inputs. `compile_target`
+visibly handles reuse or executes the frontend and Build, then runs each target's
+checking; cache lookup never invokes a stage. Native production consumes each
+target's retained Terminal artifact without a second scheduling pass. Product
+reports belong to their product owners; [package.rs](src/compiler/package.rs)
+sequences package custody admission and Terminal production.
 
 Checked-only consumers supply one `CheckedCompileRequest` to `compile_to_checked`.
 Package inputs, build staging and session sponsors are request
@@ -90,8 +92,8 @@ than clone-rebuilding scratch. Any mutation does not reseal evidence, and
 downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
 evidence; compiler malformed-tree tests use that raw representation.
 
-Candidate discovery calls `CheckedCompileRequest::compile` for one owned
-`checked::CheckedCompileOutcome`: the verdict, optional reusable source, and
+Candidate discovery calls `compile_checked(request)` for one owned
+`CheckedCompileOutcome`: the verdict, optional reusable source, and
 independent-component discovery. The request contains inputs only, including
 an optional `prepared_source` and `retain_prepared_source` intent; there are no
 mutable output slots or separate prepared-compilation entrypoints. Reusable

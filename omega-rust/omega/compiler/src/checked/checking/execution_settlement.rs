@@ -1,9 +1,8 @@
 //! Settle build-selected execution against the final typed program.
 //! The resulting checked program and its sidecars remain one owned handoff.
 
-use super::build_continuation::BuiltCheckedProgram;
 use artifacts::compile_timings::CompileTimings;
-use compilation_products::CheckedCompilationInputs;
+use compilation_products::{BuiltTypedProgram, CheckedCompilationInputs};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use selected_dispatch::{
@@ -12,14 +11,14 @@ use selected_dispatch::{
 };
 
 pub(crate) fn check_selected_execution(
-    built: BuiltCheckedProgram,
+    built: BuiltTypedProgram,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     optimization_rollback: &crate::checked::OptimizationRollback,
     timings: &mut CompileTimings,
     permit_unsettled_fused_service_fields: bool,
 ) -> Result<CheckedCompilationInputs, Vec<Diagnostic>> {
-    let BuiltCheckedProgram {
+    let BuiltTypedProgram {
         mut typed,
         mut selected_target_machine_declarations,
         pending_pre_checks,
