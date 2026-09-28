@@ -166,19 +166,12 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
-    // Format 99 retains the by-value opaque boundary application's selected
-    // custody on top of format 98's referent path segments, reference
-    // structural type shapes, and result source rosters. The marker is checked
-    // before the body, so a relabeled payload cannot masquerade as a
-    // predecessor format.
-    // Reconstruct framing independently of the production helper and pin both
-    // identities. The pinned values move whenever the embedded terminal bytes
-    // do: the boundary-call requires lane took the semantic format marker to
-    // 107 and the vocabulary marker to 109, and these two digests are
-    // re-recorded from that. The shape tags themselves are
-    // explicit on both sides (`Record` 1 ... `ElementView` 8), so a variant
-    // added to `StructuralTypeShape` renumbers nothing -- only a real payload
-    // change reaches here.
+    // Format 100 retains byte-field predicates and carrier access. Even this
+    // field-free fixture carries the format and Terminal vocabulary in its
+    // header, so either marker changes its identity. Pin those inputs beside
+    // the digests and reconstruct fingerprint framing independently of the
+    // production helper. A header relabel is not a format conversion.
+    assert_eq!(&bytes[8..12], &[100, 0, 111, 0]);
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -191,7 +184,7 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     predecessor_payload[8..10].copy_from_slice(&95_u16.to_le_bytes());
     assert_eq!(
         independent_fingerprint(&predecessor_payload),
-        "c481565af61f5b75fa1f5a7493e00a29f81c21a3af9e32d0c3c2ed3c545a6705"
+        "0a5b452b2b990a5dd61a8603dc94a3e4e85e77e00cf4212ae1184fa5a5522caa"
     );
     assert_eq!(
         decode_installation_record(&predecessor_payload),
@@ -199,13 +192,19 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "527532a5200a2bc2a9502657746fad63b47b65bb4b87879b94a94a7431392e47"
+        "081ff2e40d15faf9914e628e49242132e5054877afc8b46abe5305bf216ee4e4"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "527532a5200a2bc2a9502657746fad63b47b65bb4b87879b94a94a7431392e47"
+        "081ff2e40d15faf9914e628e49242132e5054877afc8b46abe5305bf216ee4e4"
+    );
+    let mut previous_format = bytes.clone();
+    previous_format[8..10].copy_from_slice(&99_u16.to_le_bytes());
+    assert_eq!(
+        decode_installation_record(&previous_format),
+        Err(InstallationError::UnsupportedFormatMarker(99))
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a
