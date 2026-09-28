@@ -1,8 +1,21 @@
 # Compilation products
 
-Finished product custody and publication, independent of the compiler driver.
-This is not a pipeline phase: it consumes already produced artifacts and never
-parses source, evaluates Build, lowers a program or re-enters compilation.
+Product requests, retained outcomes and publication, independent of the compiler
+driver. This is not a pipeline phase: it validates invocation contracts and
+consumes produced artifacts, never parses source, evaluates Build, lowers a
+program or re-enters compilation.
+
+[compile_request.rs](src/compile_request.rs) owns request normalization:
+target-local policies, separate staging directories, package input joins, and
+rollback eligibility for the requested stop. Its validated target records expose
+read-only inputs to the coordinator. Evaluated Build requirements are admitted
+by the same product owner before production dispatch. Exact target-name set
+normalization belongs to the backend target catalog.
+
+[compile_outcomes.rs](src/compile_outcomes.rs) retains successful reports and
+rejections together, derives their batch commitments, and refuses single-report
+extraction when siblings exist. Neither a request nor an outcome grants trust,
+receiving authority, or evidence that a target is supported.
 
 Start at [compilation_products.rs](src/compilation_products.rs) for
 `CompileReport`: one check, build-only, Terminal, retained-native or published

@@ -1,34 +1,9 @@
 //! Native product preparation and realization after checked-Psi admission.
 
-use crate::checked::{CheckedCompilation, OptimizationRollback};
+use crate::checked::CheckedCompilation;
 use diagnostics::Diagnostic;
 
-/// One target's native product request: where the source root is, the
-/// admission profile the Terminal artifact is verified under, the receiving
-/// mechanism-classification policy, the optional service-permission admission
-/// policy, and the optimization rollback to settle.
-///
-/// The terminal-authority policy is the receiving authority's explicit
-/// mechanism table: the closed compiler-intrinsic inventory classifies itself,
-/// while every demanded normalized-foreign, syscall, or checked-physical leaf
-/// needs exactly one exact explicit row. It is an independent authority axis --
-/// trust admissions, service permissions, and provider execution custody
-/// never substitute for or widen its rows.
-///
-/// `terminal_authority_permission_policy` is the second, receiver-admission
-/// axis. `None` means ordinary production makes no receiver-admission claim:
-/// accepted package permissions are never projected into receiver rows, and
-/// the emitted artifact cannot satisfy an explicit admission replay. `Some`
-/// (including an explicit empty policy) adjudicates every closure leaf
-/// against exact supplied rows.
-pub struct NativeProductRequest {
-    pub root_path: std::path::PathBuf,
-    pub terminal_admission_profile: proof_admission::AdmissionProfile,
-    pub terminal_authority_policy: crate::native::TerminalAuthorityPolicy,
-    pub terminal_authority_permission_policy:
-        Option<crate::native::TerminalAuthorityPermissionPolicy>,
-    pub optimization_rollback: OptimizationRollback,
-}
+pub use compilation_products::NativeProductRequest;
 
 /// Produce the same retained Terminal product used by package re-entry, then
 /// consume it through the single source-free native pipeline.

@@ -9,45 +9,43 @@ use crate::checked::{
     BuiltCheckedProgram, CheckedChildExecution, CheckedCompilation, PreparedCheckedSource,
     check_selected_execution, evaluate_build_and_continue, run_on_compile_thread,
 };
-use crate::compiler::request::{SharedCompileInputs, ValidatedTargetCompilation};
 use crate::native::produce_native_report;
 use crate::terminal::produce_terminal_report;
 use crate::{
-    CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, OptimizationRollback,
-    RequestedCompileProduct, admit_checked_compilation,
+    CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
+    admit_checked_compilation,
 };
 use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta,
 };
+use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 
-pub(crate) mod options;
 pub(crate) mod package;
-pub(crate) mod request;
 
 /// Compile every requested target, retaining failures alongside successful products.
 /// Invalid requests reject before source acquisition. Shared preparation failures
 /// are reported for every target. Publication remains a separate operation.
 pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnostic>> {
     run_on_compile_thread(move || {
-        let request = request.validate_for_execution()?;
+        let (shared, targets) = request.validate_for_execution()?.into_parts();
         // Psi 00-01: read, tokenize and parse the root's source set once.
         let source = PreparedCheckedSource::prepare(
-            &request.shared.root_path,
-            request.shared.package_sources.clone(),
-            request.shared.timings,
+            &shared.root_path,
+            shared.package_sources.clone(),
+            shared.timings,
         );
-        let target_count = request.targets.len();
+        let target_count = targets.len();
         let mut builds = SharedBuilds::for_targets(target_count);
         let mut outcomes = Vec::with_capacity(target_count);
         // Checkpoint clones share immutable parsing. repeat_n moves the final
         // copy, so the last (and the only) target consumes the original arenas.
         let sources = std::iter::repeat_n(source, target_count);
-        for (target, source) in request.targets.into_iter().zip(sources) {
-            let profile = target.profile;
-            let outcome = source
-                .and_then(|source| compile_target(&request.shared, target, source, &mut builds));
+        for (target, source) in targets.into_iter().zip(sources) {
+            let profile = target.profile();
+            let outcome =
+                source.and_then(|source| compile_target(&shared, target, source, &mut builds));
             outcomes.push(CompileTargetOutcome::new(profile, outcome));
         }
         CompileOutcomes::new(outcomes)
@@ -66,11 +64,11 @@ fn compile_target(
     let root_path = target.options().root_path.clone();
     let build_dir = target.options().build_dir();
     let child = CheckedChildExecution::for_target(
-        target.profile,
+        target.profile(),
         target.package_inputs(),
         &build_dir,
-        &target.configuration.optimization_rollback,
-        target.configuration.build_snapshot.as_ref(),
+        target.optimization_rollback(),
+        target.build_snapshot(),
     );
     let selected_target_profile = child.selected_target_profile();
     let package_inputs = child.package_inputs();
@@ -113,10 +111,10 @@ fn compile_target(
     } else {
         None
     };
-    admit_requested_product(
-        &checked,
-        shared.requested_product,
-        &target.configuration.optimization_rollback,
+    shared.requested_product.admit_build_requirements(
+        checked.application_artifact_only(),
+        checked.pcc_requests(),
+        target.optimization_rollback(),
     )?;
     if checked.application_artifact_only()
         && shared.requested_product != RequestedCompileProduct::Check
@@ -146,8 +144,8 @@ fn compile_target(
         RequestedCompileProduct::TerminalArtifact => produce_terminal_report(
             root_path,
             checked,
-            &target.configuration.terminal_admission_profile,
-            &target.configuration.optimization_rollback,
+            target.terminal_admission_profile(),
+            target.optimization_rollback(),
         )?,
         // The same retained Terminal boundary, then Omega 00-09 and image emission.
         RequestedCompileProduct::NativeArtifact => {
@@ -236,43 +234,4 @@ fn timed<T>(
         artifacts::allocations::AllocationDelta::default(),
     );
     result
-}
-
-/// Refuse a requested product the checked compilation cannot satisfy, once
-/// per target and before the route dispatches production. These are product
-/// fences, not trust settlement, so they stay out of
-/// `admit_checked_compilation`: an artifact-only build executes no product
-/// optimization stages and publishes no proof companions, and a check or
-/// Terminal stop cannot satisfy proof-product requests. Evaluation order
-/// matches the fence order the product dispatch previously enforced.
-fn admit_requested_product(
-    checked: &CheckedCompilation,
-    requested_product: RequestedCompileProduct,
-    optimization_rollback: &OptimizationRollback,
-) -> Result<(), Vec<Diagnostic>> {
-    if checked.application_artifact_only() && requested_product != RequestedCompileProduct::Check {
-        if !optimization_rollback.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "artifact-only builds execute no product optimization stages to roll back",
-            )]);
-        }
-        if checked.pcc_requests().any() {
-            return Err(vec![Diagnostic::error(
-                "artifact-only builds cannot publish Psi or native proof products",
-            )]);
-        }
-    }
-    match requested_product {
-        RequestedCompileProduct::Check if checked.pcc_requests().any() => {
-            Err(vec![Diagnostic::error(
-                "a check-only stop cannot satisfy an optional proof-product request",
-            )])
-        }
-        RequestedCompileProduct::TerminalArtifact if checked.pcc_requests().native => {
-            Err(vec![Diagnostic::error(
-                "a Terminal stop cannot satisfy a native proof-product request",
-            )])
-        }
-        _ => Ok(()),
-    }
 }

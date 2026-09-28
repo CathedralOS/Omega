@@ -1,5 +1,7 @@
+//! Ordered target results and their batch commitment, without compilation authority.
+
 use crate::CompileReport;
-use crate::report::{
+use crate::{
     BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
     ProductionArtifactIdentity,
 };
@@ -15,7 +17,9 @@ pub struct CompileTargetOutcome {
 }
 
 impl CompileTargetOutcome {
-    pub(in crate::compiler) fn new(
+    /// Pair an observed result with its requested target. This is a result
+    /// record, not evidence that compilation ran or that the target is supported.
+    pub fn new(
         target: Option<TargetProfile>,
         result: Result<CompileReport, Vec<Diagnostic>>,
     ) -> Self {
@@ -38,8 +42,8 @@ impl CompileTargetOutcome {
     }
 }
 
-/// One outcome per configuration, in canonical target order, including
-/// failures, plus the optional batch manifest binding that explicit set and
+/// Outcomes in the order supplied by the coordinator, including failures,
+/// plus the batch manifest binding that explicit set and
 /// each child's commitment/outcome. The collection grants no deployment,
 /// platform-support, test, or audit claim.
 #[derive(Debug)]
@@ -49,9 +53,10 @@ pub struct CompileOutcomes {
 }
 
 impl CompileOutcomes {
-    pub(in crate::compiler) fn new(
-        outcomes: Vec<CompileTargetOutcome>,
-    ) -> Result<Self, Vec<Diagnostic>> {
+    /// Retain all supplied results and bind their exact order and diagnostics.
+    /// The request owner determines canonical configuration order; this owner
+    /// neither drops failed children nor invents missing target results.
+    pub fn new(outcomes: Vec<CompileTargetOutcome>) -> Result<Self, Vec<Diagnostic>> {
         let rows = outcomes
             .iter()
             .map(|outcome| {

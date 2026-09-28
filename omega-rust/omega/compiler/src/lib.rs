@@ -43,14 +43,14 @@ pub use crate::terminal::{
     validate_lowered_ieee_float_comparison_custody, validate_lowered_integer_comparison_custody,
 };
 pub use build_evaluation::BuildSnapshotRequest;
+pub use compilation_products::{
+    CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
+    TargetCompileConfiguration,
+};
 pub use compiler::compile;
-pub use compiler::options::CompileOptions;
 pub use compiler::package::{
     published_independent_component_description, retained_terminal_report_from_checked_package,
 };
-pub use compiler::request::{
-    CompileOutcomes, CompileRequest, CompileTargetOutcome, ExplicitTargetSet,
-    RequestedCompileProduct, TargetCompileConfiguration,
-};
+pub use target::ExplicitTargetSet;
 pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};
 pub use typed_trees_to_checked_trees::{RepeatedCheckRetention, retain_repeated_checks};
