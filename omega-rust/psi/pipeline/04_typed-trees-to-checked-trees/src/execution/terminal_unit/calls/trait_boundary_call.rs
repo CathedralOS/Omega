@@ -212,9 +212,6 @@ pub(super) fn build(
             continue;
         }
         let byte_sequence = byte_sequence_carrier(program, formal, substitutions.as_slice());
-        if validation::is_closed_primitive_array_type(program, formal) {
-            return None;
-        }
         let target_identity = if byte_sequence.is_some() {
             byte_sequence_type_identity(program, formal, &[], substitutions.as_slice())?
         } else {
@@ -243,17 +240,32 @@ pub(super) fn build(
             continue;
         }
 
-        let place = crate::flow::canonical_place_from_expression_in_state(
-            program,
-            state.symbol,
-            call.statement_index,
-            *argument,
-        )?;
+        // A copied field has already been materialized by the shared operand
+        // sequencer. Pass that independent owned value, not the borrowed
+        // receiver path which supplied its contents. Ordinary calls make the
+        // same distinction between evaluated operands and source storage.
+        let place = caller_structural_results
+            .iter()
+            .find(|(_, root)| *root == facts::PlaceRoot::Expression(*argument))
+            .map(|_| crate::flow::CanonicalPlace {
+                root: facts::PlaceRoot::Expression(*argument),
+                segments: Vec::new(),
+            })
+            .or_else(|| {
+                crate::flow::canonical_place_from_expression_in_state(
+                    program,
+                    state.symbol,
+                    call.statement_index,
+                    *argument,
+                )
+            })?;
         if let Some((result, _)) = caller_structural_results
             .iter()
             .find(|(_, root)| *root == place.root)
         {
-            if result.multiplicity == Multiplicity::Unrestricted {
+            if result.multiplicity == Multiplicity::Unrestricted
+                && !validation::is_closed_primitive_array_type(program, formal)
+            {
                 return None;
             }
             structural_arguments.push(result_arguments::argument(
@@ -281,9 +293,6 @@ pub(super) fn build(
             parameter_root_symbol(machine.symbol, candidate) == source_symbol
                 || candidate.symbol == source_symbol
         })?;
-        if validation::is_closed_primitive_array_type(program, source_parameter.type_reference) {
-            return None;
-        }
         let source_position = caller_source_parameters
             .iter()
             .position(|candidate| candidate.symbol == source_parameter.symbol)?;

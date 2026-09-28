@@ -158,8 +158,10 @@ pub(in crate::validation) fn validate_structural_argument(
                         ))
                     }
                     StructuralPlaceKind::OperationResult { structural_type, .. }
-                        if ordinary_call
-                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults
+                        if ((ordinary_call
+                            && source_policy == StructuralArgumentSourcePolicy::ParametersOrAffineLocalsAndCallResults)
+                            || (matches!(call_kind, Some(OperationKind::BoundaryCall { .. }))
+                                && source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals))
                             && argument.path.is_empty() && argument.access == StructuralAccess::Owned
                             && crate::validation::scalar::array::plain_return_source(module, caller, argument.place) =>
                     {

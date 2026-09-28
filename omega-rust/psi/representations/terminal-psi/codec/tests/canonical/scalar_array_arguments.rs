@@ -105,7 +105,7 @@ fn owned_array_argument_encoding_rejects_borrow_and_signature_forgery() {
     assert!(matches!(
         encode_module(&module),
         Err(CodecError::MalformedStructuralFoundation(
-            "primitive-array argument requires whole plain owned internal-call custody"
+            "primitive-array argument requires whole plain array call custody"
         ))
     ));
 
@@ -124,4 +124,135 @@ fn owned_array_argument_encoding_rejects_borrow_and_signature_forgery() {
     });
     module.machines[1].structural_parameters[0].structural_type = structural_type_id(3);
     assert!(encode_module(&module).is_err());
+}
+
+fn boundary_array_argument_module(length: u64, copied: bool) -> TerminalModule {
+    let mut module = array_argument_module(length);
+    let mut boundary = super::unused_provider_attachment_fixture()
+        .boundary_machines
+        .remove(0);
+    boundary.structural_parameters = module.machines[1].structural_parameters.clone();
+    boundary.parameter_order = vec![terminal_psi::BoundaryParameterKind::Structural];
+    module.machines.truncate(1);
+    let caller = &mut module.machines[0];
+    let source = caller.structural_parameters[0].place;
+    let actual = if copied { place_id(902) } else { source };
+    caller.blocks[0].operations[0].kind = OperationKind::BoundaryCall {
+        boundary: boundary.id,
+        arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place: actual,
+            path: Vec::new(),
+            access: StructuralAccess::Owned,
+        }],
+        completion_receipts: Vec::new(),
+        requirement_obligations: Vec::new(),
+    };
+    if copied {
+        caller.structural_places.push(StructuralPlaceDeclaration {
+            id: actual,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: operation_id(2),
+                structural_type: structural_type_id(1),
+            },
+        });
+        caller.blocks[0].operations.insert(
+            0,
+            Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: operation_id(2),
+                result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place: actual,
+                    structural_type: structural_type_id(1),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::StructuralLeafCopy {
+                    source,
+                    path: Vec::new(),
+                },
+            },
+        );
+    }
+    module.boundary_machines.push(boundary);
+    module
+}
+
+#[test]
+fn boundary_owned_array_parameters_and_copies_roundtrip_and_verify() {
+    for length in [0, 2] {
+        for copied in [false, true] {
+            let module = boundary_array_argument_module(length, copied);
+            let bytes = encode_module(&module).expect("whole owned boundary array encodes");
+            let decoded = decode_module(&bytes).expect("boundary array decodes");
+            assert_eq!(decoded, module);
+            terminal_verifier::verify_module(
+                &decoded,
+                &terminal_verifier::ProofBundle::default(),
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .expect("reloaded array custody verifies independently");
+            assert_eq!(encode_module(&decoded).unwrap(), bytes);
+        }
+    }
+}
+
+#[test]
+fn boundary_array_encoding_rejects_borrowed_presentation_and_changed_shape() {
+    let valid = boundary_array_argument_module(2, true);
+    encode_module(&valid).expect("unmutated copied boundary array encodes");
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        let mut changed = valid.clone();
+        let OperationKind::BoundaryCall {
+            structural_arguments,
+            ..
+        } = &mut changed.machines[0].blocks[0].operations[1].kind
+        else {
+            unreachable!()
+        };
+        // Even matching borrowed actual/formal annotations cannot change the
+        // admitted boundary value into an observation of the caller's home.
+        structural_arguments[0].access = access;
+        changed.boundary_machines[0].structural_parameters[0].access = access;
+        assert!(matches!(
+            encode_module(&changed),
+            Err(CodecError::MalformedStructuralFoundation(
+                "primitive-array argument requires whole plain array call custody"
+            ))
+        ));
+    }
+
+    let mut changed = valid.clone();
+    changed.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type_id(3),
+        identity: "different_boundary_length".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: structural_type_id(2),
+            length: 3,
+        },
+    });
+    changed.boundary_machines[0].structural_parameters[0].structural_type = structural_type_id(3);
+    assert!(matches!(
+        encode_module(&changed),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural argument has the wrong concrete type"
+        ))
+    ));
+
+    let mut changed = valid;
+    changed.boundary_machines[0].structural_parameters[0].multiplicity =
+        StructuralMultiplicity::Affine;
+    assert!(matches!(
+        encode_module(&changed),
+        Err(CodecError::MalformedStructuralFoundation(
+            "primitive-array argument requires whole plain array call custody"
+        ))
+    ));
 }

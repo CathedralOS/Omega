@@ -32,6 +32,65 @@ const ASSIGNMENT_WITNESS: &str = r#"
     }
 "#;
 
+const BOUNDARY_ARRAY_WITNESS: &str = r#"
+    boundary trait Reader {
+        machine read(&mut self, prefix: u32, first: [u8; 2], middle: u32, second: [u8; 2]) -> u32;
+    }
+    data Main<'a> {
+        reader: &'a mut Reader;
+        first: [u8; 2];
+        second: [u8; 2];
+        result: u32;
+    }
+    machine Main::main(&mut self) reaches Reader {
+        self.result = self.reader.read(11, self.first, 13, self.second);
+    }
+"#;
+
+#[test]
+fn copied_boundary_arrays_retain_authored_positions_across_receiver_erasure() {
+    let checked = crate::front_end::checked_program(BOUNDARY_ARRAY_WITNESS);
+    let artifact =
+        TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::main"))
+            .produce(TerminalProductionCustody::artifact_only(
+                &mut TerminalProductionTimings::default(),
+            ))
+            .expect("copied arrays preserve scalar interleave after the service receiver is erased")
+            .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let proof = terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap();
+    terminal_verifier::verify_module(
+        &module,
+        &proof,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("reloaded boundary operands preserve exact array custody");
+
+    let mut changed = checked;
+    let arguments = changed
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .flat_map(|plan| &mut plan.operations)
+        .find_map(|operation| match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .expect("one scalar-returning boundary call");
+    assert_eq!(arguments.len(), 2);
+    arguments.swap(0, 1);
+    checked_trees_to_lowered_psi::lower_machine(
+        &changed,
+        TerminalMachineSelection::Name("Main::main"),
+    )
+    .expect_err("equal array types cannot replace the exact authored operand occurrence");
+}
+
 #[test]
 fn copied_call_result_stores_compose_with_state_transitions() {
     let scalar = ASSIGNMENT_WITNESS.replace(

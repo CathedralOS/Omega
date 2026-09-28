@@ -509,6 +509,14 @@ pub(super) fn argument(
                     parameter.type_reference,
                 )
                 && source == value_expression
+                // A copied array is an ordinary retained structural value,
+                // not an element-by-element literal construction. Its exact
+                // copied-place root is rejoined by the following arm.
+                && facts.values.structural_values.root_for_expression(
+                    state,
+                    u32::try_from(call.statement_index).ok()?,
+                    source,
+                ).is_none()
                 && !matches!(
                     program.expression_table.expression(source),
                     ExpressionNode::Call(_)
