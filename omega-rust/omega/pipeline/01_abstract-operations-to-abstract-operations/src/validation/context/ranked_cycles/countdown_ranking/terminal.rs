@@ -86,13 +86,22 @@ fn project_one(
     else {
         return None;
     };
-    let guard = [when_true, when_false].into_iter().find(|successor| {
-        internal_edges.iter().any(|internal| {
-            internal.edge == successor.edge
-                && internal.source == header_id
-                && internal.target == successor.target
+    // An exact countdown enters its decrement directly on the positive arm
+    // and exits on the negative arm. Another test between them can exit early,
+    // so its initial rank is not an exact trip count. Such a component keeps
+    // its independently verified Natural ranking and frozen-body replay, but
+    // must not acquire this narrower optimization-analysis certificate.
+    let guard = when_true;
+    if guard.target != decrement_id
+        || component.members.contains(&when_false.target)
+        || !internal_edges.contains(&CycleComponentEdge {
+            edge: guard.edge,
+            source: header_id,
+            target: decrement_id,
         })
-    })?;
+    {
+        return None;
+    }
     let comparison = scalar_operation(header, *condition)?;
     let ::terminal_psi::OperationKind::IntegerLessThan { left: zero, right } = comparison.kind
     else {
