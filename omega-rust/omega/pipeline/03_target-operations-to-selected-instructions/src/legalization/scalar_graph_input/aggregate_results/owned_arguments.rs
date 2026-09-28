@@ -212,6 +212,8 @@ fn node_site(
 
 /// Whether the producer at `producer_site` runs before the call that passes
 /// `argument`: earlier in the call's block, or in a dominating block.
+/// Installed providers retain their boundary operation identity even though
+/// their argument placement uses the ordinary checked-provider call plan.
 fn precedes(
     caller: &PsiOptimizationFunction,
     producer_site: (semantic_vocabulary::BlockId, usize),
@@ -230,6 +232,11 @@ fn precedes(
             ..
         }
         | AbstractOperation::CallStructuralScalar {
+            psi_operation,
+            structural_arguments,
+            ..
+        }
+        | AbstractOperation::BoundaryCall {
             psi_operation,
             structural_arguments,
             ..
