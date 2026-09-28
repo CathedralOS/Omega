@@ -26,7 +26,10 @@
 //! and `text_placement::placement`.
 //!
 //! [`private_callback`] projects placed callback text into a private function
-//! record using the target ABI retained by that route. It is not another stage.
+//! record using the target ABI retained by that route. [`code_layout`]
+//! projects placed text into the per-application entry-and-region
+//! descriptions a retained `code_layout<Machine>()` query answers with.
+//! Neither is another stage.
 //!
 //! Realization joins three evidence owners, each with its own stage and
 //! independent replay: [`frame_layout`] (frame geometry and callee-save
@@ -152,6 +155,15 @@ mod private_callback;
 
 pub use private_callback::{
     PrivateCallbackMaterializationRequest, materialize_private_callback_function,
+};
+
+// `code_layout<Machine>()` descriptions projected from placed text.
+mod code_layout;
+
+pub use code_layout::{
+    CodeLayoutAddress, CodeLayoutError, PlacedCodeRegion, SelectedApplicationCodeLayout,
+    describe_code_layouts, describe_selected_application_code_layout,
+    validate_selected_application_code_layout,
 };
 
 // Target-owned x86-64 byte recipes outside the route.
