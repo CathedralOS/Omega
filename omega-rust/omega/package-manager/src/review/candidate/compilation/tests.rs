@@ -11,6 +11,7 @@ use crate::resolution::graph::GitResolutionOptions;
 use crate::resolution::graph::{
     PackageSourceClosureLimits, resolve_external_local_project_closure,
 };
+use artifacts::compile_timings::counters;
 use package_source::PrimaryGitChoices;
 use package_source::{ExternalSourceContext, LocalSourceLimits, SourceResolver};
 use std::fs;
@@ -39,8 +40,8 @@ fn multi_target_build_reuse_preserves_each_snapshot_output_obligation() {
         Vec::new(),
     )
     .unwrap();
-    let assemblies_before = compiler::source_assembly_invocation_count();
-    let frontier_reuses_before = compiler::typed_frontier_reuse_count();
+    let assemblies_before = counters::source_assembly_invocation_count();
+    let frontier_reuses_before = counters::typed_frontier_reuse_count();
     let outcomes = compiler::compile(
         compiler::CompileRequest::new(compiler::CompileOptions {
             root_path: source_root.join("main.omg"),
@@ -72,11 +73,11 @@ fn multi_target_build_reuse_preserves_each_snapshot_output_obligation() {
     // frontend before its own Build rejects. Disabling Build reuse would give
     // two frontier reuses; wrongly sharing the third Build would give none.
     assert_eq!(
-        compiler::source_assembly_invocation_count() - assemblies_before,
+        counters::source_assembly_invocation_count() - assemblies_before,
         1
     );
     assert_eq!(
-        compiler::typed_frontier_reuse_count() - frontier_reuses_before,
+        counters::typed_frontier_reuse_count() - frontier_reuses_before,
         1
     );
     let diagnostics = outcomes[2]
@@ -888,10 +889,10 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
         !discovered.is_empty(),
         "the fixture's discovery proposes root bindings"
     );
-    let compilations_before = compiler::checked_compilation_call_count();
-    let frontiers_before = compiler::typed_frontier_reuse_count();
-    let preliminary_before = compiler::preliminary_check_totals();
-    let settled_before = compiler::settled_check_totals();
+    let compilations_before = counters::checked_compilation_call_count();
+    let frontiers_before = counters::typed_frontier_reuse_count();
+    let preliminary_before = counters::preliminary_check_totals();
+    let settled_before = counters::settled_check_totals();
     let bound = compile_pass(
         &exact,
         &fixture.0.join("bound"),
@@ -904,7 +905,7 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
         &mut preparation,
     )
     .expect("bound pass");
-    let bound_compilations = compiler::checked_compilation_call_count() - compilations_before;
+    let bound_compilations = counters::checked_compilation_call_count() - compilations_before;
     assert_eq!(
         bound_compilations, 2,
         "the bound pass recompiled the two binding-consuming occurrences only"
@@ -916,15 +917,15 @@ fn bound_pass_compiles_only_the_occurrences_its_bindings_changed() {
          because every accepted binding reaches provider and execution \
          settlement"
     );
-    let bound_frontier_reuses = compiler::typed_frontier_reuse_count() - frontiers_before;
+    let bound_frontier_reuses = counters::typed_frontier_reuse_count() - frontiers_before;
     assert_eq!(
         bound_frontier_reuses, 2,
         "each recompiled occurrence still re-lowered no source: the discovered \
          bindings are all post-frontier service roles, so both typed frontiers \
          carried over from the discovery pass unchanged"
     );
-    let (preliminary_calls, _) = compiler::preliminary_check_totals();
-    let (settled_calls, _) = compiler::settled_check_totals();
+    let (preliminary_calls, _) = counters::preliminary_check_totals();
+    let (settled_calls, _) = counters::settled_check_totals();
     assert_eq!(
         preliminary_calls - preliminary_before.0,
         2,
@@ -1064,10 +1065,12 @@ reaches Console
         // drives them explicitly so each pass's deltas are visible.
         let _retention = compiler::retain_repeated_checks();
         let mut preparation = CandidateSourcePreparation::for_closure(&closure);
-        let preliminary_before = compiler::preliminary_check_totals();
-        let settled_before = compiler::settled_check_totals();
-        let preliminary_executed_before = compiler::executed_preliminary_check_count();
-        let settled_executed_before = compiler::executed_settled_check_count();
+        let preliminary_before = counters::preliminary_check_totals();
+        let settled_before = counters::settled_check_totals();
+        let preliminary_executed_before =
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count();
+        let settled_executed_before =
+            compiler::RepeatedCheckRetention::executed_settled_check_count();
         let discovery = compile_pass(
             &exact,
             &root.join("discovery"),
@@ -1089,29 +1092,33 @@ reaches Console
             "the fixture's discovery proposes bindings"
         );
         assert_eq!(
-            compiler::preliminary_check_totals().0 - preliminary_before.0,
+            counters::preliminary_check_totals().0 - preliminary_before.0,
             occurrences,
             "discovery requests each occurrence's preliminary check"
         );
         assert_eq!(
-            compiler::settled_check_totals().0 - settled_before.0,
+            counters::settled_check_totals().0 - settled_before.0,
             occurrences,
             "discovery requests each occurrence's settled check"
         );
         assert_eq!(
-            compiler::executed_preliminary_check_count() - preliminary_executed_before,
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count()
+                - preliminary_executed_before,
             occurrences,
             "first sight: discovery executes each preliminary check"
         );
         assert_eq!(
-            compiler::executed_settled_check_count() - settled_executed_before,
+            compiler::RepeatedCheckRetention::executed_settled_check_count()
+                - settled_executed_before,
             occurrences,
             "first sight: discovery executes each settled check"
         );
-        let preliminary_before = compiler::preliminary_check_totals();
-        let settled_before = compiler::settled_check_totals();
-        let preliminary_executed_before = compiler::executed_preliminary_check_count();
-        let settled_executed_before = compiler::executed_settled_check_count();
+        let preliminary_before = counters::preliminary_check_totals();
+        let settled_before = counters::settled_check_totals();
+        let preliminary_executed_before =
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count();
+        let settled_executed_before =
+            compiler::RepeatedCheckRetention::executed_settled_check_count();
         let bound = compile_pass(
             &exact,
             &root.join("bound"),
@@ -1126,23 +1133,25 @@ reaches Console
         .expect("bound pass");
         assert_eq!(bound.reviews.reviews().len(), occurrences as usize);
         assert_eq!(
-            compiler::preliminary_check_totals().0 - preliminary_before.0,
+            counters::preliminary_check_totals().0 - preliminary_before.0,
             occurrences,
             "the bound pass still requests every occurrence's preliminary check"
         );
         assert_eq!(
-            compiler::settled_check_totals().0 - settled_before.0,
+            counters::settled_check_totals().0 - settled_before.0,
             occurrences,
             "the bound pass still requests every occurrence's settled check"
         );
         assert_eq!(
-            compiler::executed_preliminary_check_count() - preliminary_executed_before,
+            compiler::RepeatedCheckRetention::executed_preliminary_check_count()
+                - preliminary_executed_before,
             0,
             "every bound preliminary request repeats an identical frozen \
              program, so the memo serves all of them"
         );
         assert_eq!(
-            compiler::executed_settled_check_count() - settled_executed_before,
+            compiler::RepeatedCheckRetention::executed_settled_check_count()
+                - settled_executed_before,
             bound_settled_executed,
             "the memo serves every bound settled request whose program is \
              unchanged; on linux_x86_64 the standard library's accepted host \

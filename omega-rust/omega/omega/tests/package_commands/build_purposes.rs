@@ -7,6 +7,7 @@
 //! `tests/omega/packages/build-purposes`.
 
 use super::fixture::{Fixture, assert_status};
+use artifacts::compile_timings::counters;
 
 const ALPHA_BUILD: &str =
     include_str!("../../../../../tests/omega/packages/build-purposes/alpha/build.omg");
@@ -754,17 +755,17 @@ fn two_target_check_assembles_the_source_union_once() {
         request
     };
 
-    let assemblies_before = compiler::source_assembly_invocation_count();
-    let compilations_before = compiler::checked_compilation_call_count();
-    let reuses_before = compiler::typed_frontier_reuse_count();
+    let assemblies_before = counters::source_assembly_invocation_count();
+    let compilations_before = counters::checked_compilation_call_count();
+    let reuses_before = counters::typed_frontier_reuse_count();
     let outcomes = compile_project_for_targets(check_request(), &target_names)
         .expect("a two-target request returns one outcome per target");
-    let union_assemblies = compiler::source_assembly_invocation_count() - assemblies_before;
-    let union_compilations = compiler::checked_compilation_call_count() - compilations_before;
-    let union_reuses = compiler::typed_frontier_reuse_count() - reuses_before;
+    let union_assemblies = counters::source_assembly_invocation_count() - assemblies_before;
+    let union_compilations = counters::checked_compilation_call_count() - compilations_before;
+    let union_reuses = counters::typed_frontier_reuse_count() - reuses_before;
 
     // Baseline: the same two targets as independent compilations.
-    let separate_assemblies_before = compiler::source_assembly_invocation_count();
+    let separate_assemblies_before = counters::source_assembly_invocation_count();
     for name in &target_names {
         let mut single = check_request();
         single.options.target_name = Some(name.clone());
@@ -772,7 +773,7 @@ fn two_target_check_assembles_the_source_union_once() {
             .unwrap_or_else(|error| panic!("single-target check for {name}: {error}"));
     }
     let separate_assemblies =
-        compiler::source_assembly_invocation_count() - separate_assemblies_before;
+        counters::source_assembly_invocation_count() - separate_assemblies_before;
 
     assert_eq!(outcomes.len(), 2);
     for outcome in &outcomes {

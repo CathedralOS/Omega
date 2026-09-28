@@ -1,6 +1,8 @@
 //! Compile timings: the phase ladder every stage records into, and the
 //! accumulator that carries those records to the timing report.
 
+pub mod counters;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TimingCategory {
     Pipeline,

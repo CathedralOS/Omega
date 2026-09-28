@@ -10,6 +10,7 @@ name = "package_manager"
 path = "src/lib.rs"
 
 [dependencies]
+artifacts = { path = "../foundation/artifacts" }
 provider-planning = { path = "../realization/provider-planning" }
 build-declarations = { path = "build-declarations" }
 build-evaluation = { path = "../realization/build-evaluation" }

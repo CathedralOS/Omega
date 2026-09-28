@@ -126,7 +126,7 @@ pub(crate) fn check_selected_execution(
         || {
             let started = std::time::Instant::now();
             let result = typed_trees_to_checked_trees::lower_typed_trees(typed, &checking);
-            super::record_settled_check(started.elapsed());
+            artifacts::compile_timings::counters::record_settled_check(started.elapsed());
             result
         },
     )?;
