@@ -291,6 +291,10 @@ clean on the main checkout — including untracked files under agent-owned
 paths, since agents occasionally write probe/scratch files into the
 coordinator checkout instead of their worktree — run `fill.py --manifest
 <file> close` so the ledger stops proposing refills, and save the wave tally to
-`tools/swarm/waves/<wave>.outcomes.json` (result, commits, `item_closed` per
-slot): commits landed per slot, verified-closed items, WIP branches
+`tools/swarm/waves/<wave>.outcomes.json`: its first field is
+`native_scoreboard`, the output of `python3 tools/corpus_scoreboard.py
+--base <wave base> --json` where `<wave base>` is `build/swarm/<wave>/base.txt`
+(HEAD when absent). The tally leads with the authored run-count delta and
+lists `lost` fixtures as regressions; then per-slot result, commits,
+`item_closed`, commits landed per slot, verified-closed items, WIP branches
 retained, and friction worth feeding back to the README runbook.

@@ -44,6 +44,7 @@ import urllib.request
 # Sibling-tool import; claims.py lives in tools/.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import claims
+import corpus_scoreboard
 
 DEFAULT_BASE_URL = "https://api.devin.ai/v3"
 BOARDS = ("TASKS.md", "TASKS_BOOTSTRAP.md", "TASKS_OPTIMIZER.md")
@@ -108,6 +109,36 @@ def repository_root(arguments):
 
 def build_directory(repository, wave):
     return repository / "build" / "swarm" / wave
+
+
+def persist_base(wave_directory, base):
+    """Pin the wave's launch base so `report` can diff the native
+    scoreboard against it. The first writer wins — relaunches and
+    backfills must not move the baseline."""
+    if not base or not re.fullmatch(r"[0-9a-f]{40}", base):
+        return
+    path = wave_directory / "base.txt"
+    if not path.exists():
+        wave_directory.mkdir(parents=True, exist_ok=True)
+        path.write_text(base + "\n", encoding="utf-8")
+
+
+def wave_base(wave_directory):
+    path = wave_directory / "base.txt"
+    if not path.is_file():
+        return None
+    base = path.read_text(encoding="utf-8").strip()
+    return base or None
+
+
+def wave_scoreboard(repository, wave_directory):
+    """This host's native scoreboard — the wave's headline number — diffed
+    against the pinned launch base when base.txt recorded one."""
+    try:
+        return corpus_scoreboard.collect(
+            repository, base_rev=wave_base(wave_directory))
+    except corpus_scoreboard.ScoreboardError as error:
+        return {"error": str(error)}
 
 
 def git(repository, *arguments):
@@ -792,6 +823,7 @@ def command_local(arguments, repository):
         try:
             git(repository, "fetch", "origin", "main")
             base = git(repository, "rev-parse", "--verify", "origin/main")
+            persist_base(wave_directory, base)
         except SwarmError as error:
             base = (f"origin/main fetch failed; new worktrees use the "
                     f"cached ref ({error})")
@@ -1005,8 +1037,18 @@ def command_launch(arguments, repository):
     wave_directory = build_directory(repository, manifest["wave"])
     receipts = read_receipts(wave_directory)
     organization = ""
+    base = None
     if not arguments.dry_run:
         _, organization = credentials()
+        # Pin the launch base for the report's native scoreboard; a failed
+        # fetch keeps the cached ref rather than blocking the wave.
+        try:
+            git(repository, "fetch", "origin", "main")
+            base = git(repository, "rev-parse", "--verify", "origin/main")
+            persist_base(wave_directory, base)
+        except SwarmError as error:
+            base = (f"origin/main fetch failed; scoreboard base unpinned "
+                    f"({error})")
     launched = []
     for session in sessions:
         name = session["name"]
@@ -1035,7 +1077,7 @@ def command_launch(arguments, repository):
         write_receipts(wave_directory, receipts)
         launched.append({"name": name, "session_id": session_id,
                          "url": receipts[name]["url"]})
-    emit({"command": "launch", "wave": manifest["wave"],
+    emit({"command": "launch", "wave": manifest["wave"], "base": base,
           "dry_run": bool(arguments.dry_run),
           "skipped_non_linux_sessions": skipped, "sessions": launched})
     return 0
@@ -1211,7 +1253,22 @@ def command_report(arguments, repository):
             if closed is not None:
                 row["item_closed"] = closed
         rows.append(row)
+    scoreboard = wave_scoreboard(repository, wave_directory)
     lines = [f"# Swarm wave {arguments.wave} report", ""]
+    if "head" in scoreboard:
+        lines.append(corpus_scoreboard.summary_line(scoreboard["head"],
+                                                    scoreboard["target"]))
+        if "authored_delta" in scoreboard:
+            lines.append(f"authored delta vs {scoreboard['base_rev']}: "
+                         f"{scoreboard['authored_delta']:+d} "
+                         f"(executed {scoreboard['executed_delta']:+d})")
+        if scoreboard.get("lost"):
+            lines.append("regressions (lost authored runs):")
+            lines.extend(f"- {fixture}" for fixture in scoreboard["lost"])
+    else:
+        lines.append(f"native scoreboard unavailable: "
+                     f"{scoreboard['error']}")
+    lines.append("")
     if missing:
         lines.append("Sessions without structured output: "
                      + ", ".join(missing) + ".")
@@ -1234,7 +1291,8 @@ def command_report(arguments, repository):
     report_path = wave_directory / "report.md"
     with open(report_path, "w", encoding="utf-8", newline="\n") as handle:
         handle.write("\n".join(lines))
-    summary = report_summary(repository, rows)
+    summary = {"native_scoreboard": scoreboard,
+               **report_summary(repository, rows)}
     record = {"command": "report", "wave": arguments.wave,
               "report": str(report_path.relative_to(repository)),
               "sessions_without_structured_output": missing,
