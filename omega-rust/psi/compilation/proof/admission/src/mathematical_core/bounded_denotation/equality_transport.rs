@@ -395,7 +395,7 @@ impl Denotation {
     /// it. `Ok(None)` keeps the caller's fallback for an open or
     /// non-reflexive relation and every other shape — the term is only
     /// ever built when the kernel would accept it.
-    fn closed_inhabitant(
+    pub(super) fn closed_inhabitant(
         &mut self,
         goal: TermHandle,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
@@ -722,7 +722,17 @@ impl Denotation {
                 // Boolean identity the kernel itself decides by `caseTwo`
                 // case analysis on each atom rather than an instance
                 // axiom for the whole judgment.
-                Ok(self.boolean_identity_transport(premise, goal, evidence))
+                self.boolean_identity_transport(premise, goal, evidence)
+            }
+            (Term::Id { ty, .. }, _) if self.arena.structurally_equal(ty, self.two) => {
+                // The open Boolean-equality expansion: an `Id Two`
+                // premise whose licensed goal is a connective
+                // denotation — the valuation disjunction the checker's
+                // Boolean normalization produces — still decides by
+                // `caseTwo` case analysis on each neutral Boolean atom
+                // rather than a conversion axiom. Identity goals keep
+                // the dedicated arm above.
+                self.boolean_goal_transport(premise, goal, evidence)
             }
             (
                 Term::Pi { domain, codomain },

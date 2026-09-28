@@ -126,167 +126,336 @@ impl Denotation {
         premise: TermHandle,
         goal: TermHandle,
         evidence: TermHandle,
-    ) -> Option<TermHandle> {
-        let (carrier, premise_left, premise_right) = self.identity_parts(premise)?;
-        let (goal_carrier, goal_left, goal_right) = self.identity_parts(goal)?;
-        if !self.arena.structurally_equal(carrier, self.two)
-            || !self.arena.structurally_equal(goal_carrier, self.two)
-        {
-            return None;
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Some((goal_carrier, _, _)) = self.identity_parts(goal) else {
+            return Ok(None);
+        };
+        if !self.arena.structurally_equal(goal_carrier, self.two) {
+            return Ok(None);
         }
-        let mut remaining = MAX_ELABORATION_NODES;
-        let function = self.boolean_case_function(
-            premise_left,
-            premise_right,
-            goal_left,
-            goal_right,
-            &mut remaining,
-        )?;
-        Some(self.arena.insert(Term::Apply {
-            function,
-            argument: evidence,
-        }))
+        self.boolean_goal_transport(premise, goal, evidence)
     }
 
-    /// `f : Π(_ : Id Two pl pr). Id Two gl gr` — the transport function
-    /// one `caseTwo` case split or leaf judgment supplies. Every endpoint
-    /// is evaluated in the Boolean fragment first: a literal-only leaf is
-    /// `refl` or a false-premise elimination, while a neutral atom splits
-    /// the conversion into its two constructor branches.
-    fn boolean_case_function(
+    /// `e : Id Two pl pr` re-presented as `⟦Q⟧` — the same neutral-atom
+    /// case analysis generalized past identity goals. A Boolean identity
+    /// premise crossing into a connective denotation — the disjunction an
+    /// open `Equal` expands into under the bounded checker's Boolean
+    /// normalization — is still decidable evidence: the atoms the
+    /// normalized goal names are the premise's own atoms, so eliminating
+    /// them reduces every leaf to a literal valuation that either
+    /// inhabits the expanded goal outright or refutes the premise through
+    /// the `J` discriminant. `Ok(None)` keeps the explicit rule-instance
+    /// route for a premise that is not a `Two` identity, an atom that is
+    /// not `Two`-typed, or a valuation where the premise holds but the
+    /// goal has no closed inhabitant.
+    pub(super) fn boolean_goal_transport(
+        &mut self,
+        premise: TermHandle,
+        goal: TermHandle,
+        evidence: TermHandle,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Some((carrier, premise_left, premise_right)) = self.identity_parts(premise) else {
+            return Ok(None);
+        };
+        if !self.arena.structurally_equal(carrier, self.two) {
+            return Ok(None);
+        }
+        let mut remaining = MAX_ELABORATION_NODES;
+        let Some(function) =
+            self.boolean_goal_case(premise_left, premise_right, goal, &mut remaining)?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(self.arena.insert(Term::Apply {
+            function,
+            argument: evidence,
+        })))
+    }
+
+    /// `f : Π(_ : Id Two pl pr). goal` — the transport function one
+    /// `caseTwo` case split or leaf judgment supplies. The premise
+    /// endpoints evaluate in the Boolean fragment first; a neutral atom
+    /// there, or anywhere inside `goal`, splits the conversion into its
+    /// two constructor branches. A literal valuation closes by the goal's
+    /// own inhabitant — an evaluated `refl` or the shared closed
+    /// inhabitant — when it exists, and by the `J` discriminant's
+    /// false-premise elimination otherwise.
+    fn boolean_goal_case(
         &mut self,
         premise_left: TermHandle,
         premise_right: TermHandle,
-        goal_left: TermHandle,
-        goal_right: TermHandle,
+        goal: TermHandle,
         remaining: &mut u64,
-    ) -> Option<TermHandle> {
-        let evaluations = [premise_left, premise_right, goal_left, goal_right]
-            .map(|term| self.boolean_eval(term, remaining));
-        if evaluations
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let premise_evaluations =
+            [premise_left, premise_right].map(|term| self.boolean_eval(term, remaining));
+        if premise_evaluations
             .iter()
             .any(|evaluation| matches!(evaluation, BooleanEval::Unsupported))
         {
-            return None;
+            return Ok(None);
         }
-        if let Some(atom) = evaluations.iter().find_map(|evaluation| match evaluation {
-            BooleanEval::Blocked(atom) => Some(*atom),
-            _ => None,
-        }) {
-            // `M = λ(x : Two). Π(_ : Id Two pl[x] pr[x]). Id Two gl[x]
-            // gr[x]` — the atom's occurrences move to the eliminator's
-            // binder, so each branch re-checks the conversion at one
-            // literal instantiation. The codomain sits under the branch
+        let mut atom = premise_evaluations
+            .iter()
+            .find_map(|evaluation| match evaluation {
+                BooleanEval::Blocked(atom) => Some(*atom),
+                _ => None,
+            });
+        if atom.is_none() {
+            atom = self.first_boolean_atom(goal, remaining);
+        }
+        if let Some(atom) = atom {
+            // `M = λ(x : Two). Π(_ : Id Two pl[x] pr[x]). goal[x]` — the
+            // atom's occurrences move to the eliminator's binder, so each
+            // branch re-checks the conversion at one literal
+            // instantiation. The codomain sits under the branch
             // hypothesis binder, so its atom abstracts to `Variable(1)`.
-            let abstracted_premise_left = self.abstract_atom(premise_left, atom, 0, remaining)?;
-            let abstracted_premise_right = self.abstract_atom(premise_right, atom, 0, remaining)?;
-            let abstracted_goal_left = self.abstract_atom(goal_left, atom, 1, remaining)?;
-            let abstracted_goal_right = self.abstract_atom(goal_right, atom, 1, remaining)?;
+            let Some(abstracted_premise_left) =
+                self.abstract_atom(premise_left, atom, 0, remaining)
+            else {
+                return Ok(None);
+            };
+            let Some(abstracted_premise_right) =
+                self.abstract_atom(premise_right, atom, 0, remaining)
+            else {
+                return Ok(None);
+            };
+            let Some(abstracted_goal) = self.abstract_atom(goal, atom, 1, remaining) else {
+                return Ok(None);
+            };
             let premise_type = self.arena.insert(Term::Id {
                 ty: self.two,
                 left: abstracted_premise_left,
                 right: abstracted_premise_right,
             });
-            let goal_type = self.arena.insert(Term::Id {
-                ty: self.two,
-                left: abstracted_goal_left,
-                right: abstracted_goal_right,
-            });
             let body = self.arena.insert(Term::Pi {
                 domain: premise_type,
-                codomain: goal_type,
+                codomain: abstracted_goal,
             });
             let motive = self.arena.insert(Term::Lambda {
                 domain: self.two,
                 body,
             });
-            let zero_branch = self.instantiated_case(
+            let Some(zero_branch) = self.instantiated_goal_case(
                 premise_left,
                 premise_right,
-                goal_left,
-                goal_right,
+                goal,
                 atom,
                 self.two_zero,
                 remaining,
-            )?;
-            let one_branch = self.instantiated_case(
+            )?
+            else {
+                return Ok(None);
+            };
+            let Some(one_branch) = self.instantiated_goal_case(
                 premise_left,
                 premise_right,
-                goal_left,
-                goal_right,
+                goal,
                 atom,
                 self.two_one,
                 remaining,
-            )?;
-            return Some(self.arena.insert(Term::CaseTwo {
+            )?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some(self.arena.insert(Term::CaseTwo {
                 motive,
                 zero_branch,
                 one_branch,
                 scrutinee: atom,
-            }));
+            })));
         }
         let (BooleanEval::Literal(premise_holds_left), BooleanEval::Literal(premise_holds_right)) =
-            (evaluations[0], evaluations[1])
+            (premise_evaluations[0], premise_evaluations[1])
         else {
-            return None;
-        };
-        let (BooleanEval::Literal(goal_holds_left), BooleanEval::Literal(goal_holds_right)) =
-            (evaluations[2], evaluations[3])
-        else {
-            return None;
+            return Ok(None);
         };
         let domain = self.arena.insert(Term::Id {
             ty: self.two,
             left: premise_left,
             right: premise_right,
         });
-        let body = if goal_holds_left == goal_holds_right {
-            // The goal endpoints compute to the same constructor: `refl`
-            // closes the branch by conversion, whatever the premise was.
-            self.arena.insert(Term::Refl {
-                ty: self.two,
-                value: goal_left,
-            })
-        } else if premise_holds_left == premise_holds_right {
-            // The premise holds while the goal fails at this valuation —
-            // the conversion is not a Boolean identity here, so no
-            // derivation exists to elaborate.
-            return None;
-        } else {
-            self.false_identity_elim(
-                premise_left,
-                premise_right,
-                goal_left,
-                goal_right,
-                premise_holds_left,
-            )
+        let body = match self.boolean_leaf_inhabitant(goal, remaining)? {
+            Some(inhabitant) => inhabitant,
+            None => {
+                if premise_holds_left == premise_holds_right {
+                    // The premise holds while the goal fails at this
+                    // valuation — the conversion is not licensed here.
+                    return Ok(None);
+                }
+                let proof = self.arena.insert(Term::Variable(0));
+                self.two_identity_discriminant(
+                    premise_left,
+                    premise_right,
+                    goal,
+                    premise_holds_left,
+                    proof,
+                )
+            }
         };
-        Some(self.arena.insert(Term::Lambda { domain, body }))
+        Ok(Some(self.arena.insert(Term::Lambda { domain, body })))
     }
 
-    /// The `zero`/`one` branch of the atom case split: instantiate every
-    /// endpoint at the literal and recurse.
-    fn instantiated_case(
+    /// An inhabitant of an instantiated leaf `goal`, or `None` when no
+    /// closed derivation exists: an `Id Two` goal evaluates its endpoints
+    /// and closes by `refl` when they agree — the leaf judgment the
+    /// identity crossing needs — while every other shape defers to the
+    /// shared closed inhabitant (`refl`, decided `IntLt`/`IntLe`, the
+    /// connective constructions). `Ok(None)` leaves the leaf to the
+    /// false-premise discriminant or the caller's fallback.
+    fn boolean_leaf_inhabitant(
+        &mut self,
+        goal: TermHandle,
+        remaining: &mut u64,
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        if let Some((ty, left, right)) = self.identity_parts(goal) {
+            if self.arena.structurally_equal(ty, self.two) {
+                let (BooleanEval::Literal(left_literal), BooleanEval::Literal(right_literal)) = (
+                    self.boolean_eval(left, remaining),
+                    self.boolean_eval(right, remaining),
+                ) else {
+                    return Ok(None);
+                };
+                return Ok(if left_literal == right_literal {
+                    // The goal endpoints compute to the same constructor:
+                    // `refl` closes the branch by conversion, whatever
+                    // the premise was.
+                    Some(self.arena.insert(Term::Refl {
+                        ty: self.two,
+                        value: left,
+                    }))
+                } else {
+                    None
+                });
+            }
+        }
+        self.closed_inhabitant(goal)
+    }
+
+    /// The `zero`/`one` branch of the atom case split: instantiate the
+    /// premise endpoints and the goal at the literal and recurse.
+    fn instantiated_goal_case(
         &mut self,
         premise_left: TermHandle,
         premise_right: TermHandle,
-        goal_left: TermHandle,
-        goal_right: TermHandle,
+        goal: TermHandle,
         atom: TermHandle,
         literal: TermHandle,
         remaining: &mut u64,
-    ) -> Option<TermHandle> {
-        let premise_left = self.instantiate_atom(premise_left, atom, literal, remaining)?;
-        let premise_right = self.instantiate_atom(premise_right, atom, literal, remaining)?;
-        let goal_left = self.instantiate_atom(goal_left, atom, literal, remaining)?;
-        let goal_right = self.instantiate_atom(goal_right, atom, literal, remaining)?;
-        self.boolean_case_function(
-            premise_left,
-            premise_right,
-            goal_left,
-            goal_right,
-            remaining,
-        )
+    ) -> Result<Option<TermHandle>, BoundedDenotationError> {
+        let Some(premise_left) = self.instantiate_atom(premise_left, atom, literal, remaining)
+        else {
+            return Ok(None);
+        };
+        let Some(premise_right) = self.instantiate_atom(premise_right, atom, literal, remaining)
+        else {
+            return Ok(None);
+        };
+        let Some(goal) = self.instantiate_atom(goal, atom, literal, remaining) else {
+            return Ok(None);
+        };
+        self.boolean_goal_case(premise_left, premise_right, goal, remaining)
+    }
+
+    /// The first `Two`-typed neutral subterm of `term` that `caseTwo`
+    /// can eliminate, in pre-order — the Boolean atoms a licensed
+    /// crossing goal may still name. `boolean_eval` finds an atom inside
+    /// any Boolean fragment position; the structural descent then reaches
+    /// atoms seated inside the connective denotations (`Id` endpoints,
+    /// `Σ` components, the disjunction family's branch payloads).
+    fn first_boolean_atom(&mut self, term: TermHandle, remaining: &mut u64) -> Option<TermHandle> {
+        if let BooleanEval::Blocked(atom) = self.boolean_eval(term, remaining) {
+            if self.neutral_atom_is_two(atom) {
+                return Some(atom);
+            }
+        }
+        match self.arena.get(term) {
+            Term::Apply { function, argument } => {
+                if let Some(atom) = self.first_boolean_atom(function, remaining) {
+                    return Some(atom);
+                }
+                self.first_boolean_atom(argument, remaining)
+            }
+            Term::Id { ty, left, right } => {
+                if let Some(atom) = self.first_boolean_atom(left, remaining) {
+                    return Some(atom);
+                }
+                if let Some(atom) = self.first_boolean_atom(right, remaining) {
+                    return Some(atom);
+                }
+                self.first_boolean_atom(ty, remaining)
+            }
+            Term::Pi { domain, codomain }
+            | Term::Sigma { domain, codomain }
+            | Term::Lambda {
+                domain,
+                body: codomain,
+            } => {
+                if let Some(atom) = self.first_boolean_atom(domain, remaining) {
+                    return Some(atom);
+                }
+                self.first_boolean_atom(codomain, remaining)
+            }
+            Term::CaseTwo {
+                motive,
+                zero_branch,
+                one_branch,
+                scrutinee,
+            } => {
+                if let Some(atom) = self.first_boolean_atom(scrutinee, remaining) {
+                    return Some(atom);
+                }
+                if let Some(atom) = self.first_boolean_atom(zero_branch, remaining) {
+                    return Some(atom);
+                }
+                if let Some(atom) = self.first_boolean_atom(one_branch, remaining) {
+                    return Some(atom);
+                }
+                self.first_boolean_atom(motive, remaining)
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether a `BooleanEval::Blocked` atom denotes a `Two` value — an
+    /// assumption constant of type `Two`, or a fully applied
+    /// uninterpreted operation whose `Π` telescope lands on `Two`.
+    /// `boolean_eval` reports a neutral spine whole, so an atom surfacing
+    /// from a non-`Two` position — `IntLt`'s own application inside a
+    /// denoted relation, say — declines here instead of becoming an
+    /// ill-typed `caseTwo` scrutinee.
+    fn neutral_atom_is_two(&self, mut atom: TermHandle) -> bool {
+        let mut applications = 0u32;
+        let head = loop {
+            match self.arena.get(atom) {
+                Term::Apply { function, .. } => {
+                    let Some(next) = applications.checked_add(1) else {
+                        return false;
+                    };
+                    applications = next;
+                    atom = function;
+                }
+                Term::Constant { declaration, .. } => break declaration,
+                _ => return false,
+            }
+        };
+        let Some(declaration) = self
+            .declarations
+            .get(usize::try_from(head).unwrap_or(usize::MAX))
+        else {
+            return false;
+        };
+        if !declaration.is_assumption() {
+            return false;
+        }
+        let mut ty = declaration.ty;
+        for _ in 0..applications {
+            let Term::Pi { codomain, .. } = self.arena.get(ty) else {
+                return false;
+            };
+            ty = codomain;
+        }
+        self.arena.structurally_equal(ty, self.two)
     }
 
     /// `J(λ(y : Two). λ(_ : Id Two pl y). F(y), refl pl, pr, h)` for
@@ -362,34 +531,6 @@ impl Denotation {
             endpoint: premise_right,
             proof,
         })
-    }
-
-    /// The discriminant landing on a goal identity — `h : Id Two pl pr`
-    /// re-presented as `Id Two gl gr`. The closed Falsehood crossing
-    /// supplies the same discriminant with the goal type itself at
-    /// `at_right`: the strict `Empty` is no `Type 0` branch, so a
-    /// refuted `Id Two` lands on its goal type directly.
-    fn false_identity_elim(
-        &mut self,
-        premise_left: TermHandle,
-        premise_right: TermHandle,
-        goal_left: TermHandle,
-        goal_right: TermHandle,
-        premise_left_literal: bool,
-    ) -> TermHandle {
-        let goal = self.arena.insert(Term::Id {
-            ty: self.two,
-            left: goal_left,
-            right: goal_right,
-        });
-        let proof = self.arena.insert(Term::Variable(0));
-        self.two_identity_discriminant(
-            premise_left,
-            premise_right,
-            goal,
-            premise_left_literal,
-            proof,
-        )
     }
 
     /// The denoted Boolean value `term` reduces to, the neutral subterm
@@ -652,7 +793,8 @@ mod tests {
         verify_mathematical_certificate,
     };
     use semantic_vocabulary::{
-        Proposition, PropositionContext, PropositionId, ScalarType, ValueId,
+        IntegerSign, IntegerType, Proposition, PropositionContext, PropositionId, ScalarType,
+        ValueId,
     };
 
     #[test]
@@ -1073,7 +1215,9 @@ mod tests {
         });
         let evidence = denotation.arena.insert(Term::Variable(0));
         assert_eq!(
-            denotation.boolean_identity_transport(premise, goal, evidence),
+            denotation
+                .boolean_identity_transport(premise, goal, evidence)
+                .expect("the declined transport reports no error"),
             None,
             "a premise-true, goal-false valuation must decline"
         );
@@ -1084,6 +1228,7 @@ mod tests {
         });
         let term = denotation
             .boolean_identity_transport(premise, goal, evidence)
+            .expect("the transport runs")
             .expect("the contrapositive identity is a case-analysis derivation");
         let certificate = MathematicalCertificate {
             signature: denotation.declarations.clone(),
@@ -1098,5 +1243,153 @@ mod tests {
             &mut Budget::default(),
         )
         .expect("the case-analysis derivation is a kernel judgment");
+    }
+
+    /// `a = a ⊢ x = zero` is not a licensed conversion — the `(x = one)`
+    /// valuation holds the premise while the goal fails — so the goal
+    /// transport declines and the caller keeps its rule-instance route.
+    /// The open `x = x` goal, by contrast, inhabits every valuation by
+    /// `refl` after `x`'s own split and the derived function is a kernel
+    /// judgment.
+    #[test]
+    fn boolean_goal_transport_declines_an_open_leaf_the_premise_does_not_cover() {
+        let mut denotation = Denotation::new();
+        let a = denotation
+            .scalar_term(&ScalarTerm::value(
+                ValueId::new(1).unwrap(),
+                ScalarType::Boolean,
+            ))
+            .unwrap();
+        let x = denotation
+            .scalar_term(&ScalarTerm::value(
+                ValueId::new(2).unwrap(),
+                ScalarType::Boolean,
+            ))
+            .unwrap();
+        let premise = denotation.arena.insert(Term::Id {
+            ty: denotation.two,
+            left: a,
+            right: a,
+        });
+        let failing_goal = denotation.arena.insert(Term::Id {
+            ty: denotation.two,
+            left: x,
+            right: denotation.two_zero,
+        });
+        let evidence = denotation.arena.insert(Term::Variable(0));
+        assert!(
+            denotation
+                .boolean_goal_transport(premise, failing_goal, evidence)
+                .expect("the declined transport reports no error")
+                .is_none(),
+            "a valuation holding the premise but not the goal must decline"
+        );
+        let reflexive_goal = denotation.arena.insert(Term::Id {
+            ty: denotation.two,
+            left: x,
+            right: x,
+        });
+        let term = denotation
+            .boolean_goal_transport(premise, reflexive_goal, evidence)
+            .expect("the transport runs")
+            .expect("an always-inhabited goal derives");
+        let certificate = MathematicalCertificate {
+            signature: denotation.declarations.clone(),
+            level_arity: 0,
+            context: vec![premise],
+            term,
+            expected: reflexive_goal,
+        };
+        verify_mathematical_certificate(
+            &mut denotation.arena,
+            &certificate,
+            &mut Budget::default(),
+        )
+        .expect("the goal-side case split is a kernel judgment");
+    }
+
+    /// The goal-side atom search must not treat a non-`Two` neutral as a
+    /// `caseTwo` scrutinee: `IntLt x y` is a `Type 0` application, so the
+    /// traversal declines it and still reaches the `Id Two a zero`
+    /// payload's atom — the disjunction inhabits through its second
+    /// branch once `a` splits.
+    #[test]
+    fn boolean_goal_transport_skips_non_boolean_neutrals() {
+        let mut denotation = Denotation::new();
+        let a = denotation
+            .scalar_term(&ScalarTerm::value(
+                ValueId::new(1).unwrap(),
+                ScalarType::Boolean,
+            ))
+            .unwrap();
+        let less_than = denotation.integer_less_than().unwrap();
+        let less_than = denotation.constant(less_than);
+        let x = denotation
+            .fixed_scalar_term(&ScalarTerm::value(
+                ValueId::new(2).unwrap(),
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            ))
+            .unwrap();
+        let y = denotation
+            .fixed_scalar_term(&ScalarTerm::value(
+                ValueId::new(3).unwrap(),
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+            ))
+            .unwrap();
+        let applied = denotation.arena.insert(Term::Apply {
+            function: less_than,
+            argument: x,
+        });
+        let relation = denotation.arena.insert(Term::Apply {
+            function: applied,
+            argument: y,
+        });
+        let identity = denotation.arena.insert(Term::Id {
+            ty: denotation.two,
+            left: a,
+            right: a,
+        });
+        let premise = denotation.arena.insert(Term::Id {
+            ty: denotation.two,
+            left: a,
+            right: a,
+        });
+        // `Σ(t : Two). caseTwo(λ(_ : Two). Type 0, IntLt x y, Id Two a
+        // a, t)` — the disjunction denotation shape with one open
+        // integer-relation branch; the `Id Two a a` branch inhabits at
+        // either `a` valuation.
+        let type_motive = denotation.arena.insert(Term::Lambda {
+            domain: denotation.two,
+            body: denotation.type_zero,
+        });
+        let tag = denotation.arena.insert(Term::Variable(0));
+        let family = denotation.arena.insert(Term::CaseTwo {
+            motive: type_motive,
+            zero_branch: relation,
+            one_branch: identity,
+            scrutinee: tag,
+        });
+        let goal = denotation.arena.insert(Term::Sigma {
+            domain: denotation.two,
+            codomain: family,
+        });
+        let evidence = denotation.arena.insert(Term::Variable(0));
+        let term = denotation
+            .boolean_goal_transport(premise, goal, evidence)
+            .expect("the transport runs")
+            .expect("the disjunction's second branch inhabits at each `a` valuation");
+        let certificate = MathematicalCertificate {
+            signature: denotation.declarations.clone(),
+            level_arity: 0,
+            context: vec![premise],
+            term,
+            expected: goal,
+        };
+        verify_mathematical_certificate(
+            &mut denotation.arena,
+            &certificate,
+            &mut Budget::default(),
+        )
+        .expect("the derivation never splits the `IntLt` spine");
     }
 }

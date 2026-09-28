@@ -424,7 +424,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation.rs",
-        sha256: Some("bc699188f9212be565ba2f424884192909f57d8a6a0a7dda14bb37ff5a2edcb7"),
+        sha256: Some("c61de331587b54df5a354f2de7a6ecec7367e0ea303cefe4edfab665a79a49c4"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -439,7 +439,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/booleans.rs",
-        sha256: Some("3f1b9560bd97d51dc83d7fa02336b66dcea6168248040a1c964eb33a66653c87"),
+        sha256: Some("46dd515b0be7114a6ac563809c9c2ca8101c122a86fa25043c7d900a94b56a34"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -449,7 +449,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/mathematical_core/bounded_denotation/equality_transport.rs",
-        sha256: Some("bdbec257dd9a2677537acecf3be2d0adaa3812c8c816a85fc81e3dc9f10f7712"),
+        sha256: Some("c961e43c97ffea0e29f1ac1ca6ac76775825ce75850f7d1721e7cd0631e9de2c"),
         inventory_machinery: false,
     },
     ImplementationSite {
