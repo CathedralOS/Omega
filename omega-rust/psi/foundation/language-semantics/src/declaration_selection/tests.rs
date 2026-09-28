@@ -341,6 +341,7 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
         BuildOperation::ALL.map(BuildOperation::authored_spelling),
         [
             "select_provider",
+            "assume_binding_contract",
             "select_representation",
             "exclude_service",
             "enable",
@@ -353,7 +354,9 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
     );
     assert_eq!(
         BuildOperation::ALL.map(BuildOperation::carries_marker_operands),
-        [false, false, false, false, false, true, true, false, false]
+        [
+            false, false, false, false, false, false, true, true, false, false
+        ]
     );
     assert_eq!(
         BuildOperation::from_call_target("accept_boundary#pkg::Console"),
@@ -372,6 +375,7 @@ fn build_operation_spellings_are_the_exact_authored_vocabulary() {
         "require_wire_compatibility",
         "accept_boundary::Console",
         "select_provider#Console",
+        "assume_binding_contract#WritableMemory::claim",
         "enable#Fast",
         // Neighbouring spellings from other vocabularies and near misses.
         "exclude_crash",
@@ -402,6 +406,7 @@ fn build_operations_map_onto_their_intrinsic_selection_targets() {
         BuildOperation::ALL.map(BuildOperation::intrinsic),
         [
             Intrinsic::BuildProviderSelection,
+            Intrinsic::BuildAssumedBindingContract,
             Intrinsic::BuildRepresentationSelection,
             Intrinsic::BuildServiceExclusion,
             Intrinsic::BuildOptimizationSelection,

@@ -133,5 +133,6 @@ const fn canonical_row_kind_tag(kind: PackageReviewCanonicalRowKind) -> u8 {
         PackageReviewCanonicalRowKind::BoundaryApplicationDemand => 20,
         PackageReviewCanonicalRowKind::ContractEntailmentAssumptionDischarge => 21,
         PackageReviewCanonicalRowKind::ContractEntailmentExitMembershipDischarge => 22,
+        PackageReviewCanonicalRowKind::AssumedBindingContract => 23,
     }
 }

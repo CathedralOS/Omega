@@ -140,6 +140,7 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         boundary_machines: BTreeMap::new(),
         provider_candidates: Default::default(),
         provider_installation: BTreeMap::new(),
+        assumed_bindings: Vec::new(),
         values: BTreeMap::from([
             (ValueId::new(1).unwrap(), TerminalScalarValue::Boolean(true)),
             (

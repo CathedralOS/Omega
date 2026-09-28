@@ -11,7 +11,9 @@ use crate::custody::{
     bind_affine_frontier, bind_arguments, bind_entry_claims, bind_structural_arguments,
     bind_structural_primitive_values,
 };
-use crate::effects::{AdmittedProviderInstallation, TerminalEffect, TerminalEffectHandler};
+use crate::effects::{
+    AdmittedAssumedBinding, AdmittedProviderInstallation, TerminalEffect, TerminalEffectHandler,
+};
 use crate::errors::TerminalInterpretError;
 use crate::results::meter_status;
 use crate::results::{TerminalCrash, TerminalExecutionResult, TerminalExecutionStatus};
@@ -83,6 +85,12 @@ pub struct TerminalExecution {
     pub(crate) boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
     pub(crate) provider_candidates: BTreeSet<BoundaryMachineId>,
     pub(crate) provider_installation: BTreeMap<BoundaryMachineId, MachineId>,
+    /// Root-authorized assumed binding contracts admitted with the provider
+    /// installation. They are conditional evidence on this execution, not
+    /// checked redirects: call custody keeps consulting only
+    /// `provider_candidates` and `provider_installation`, so a direct call of
+    /// either requirement gains no assumed facts.
+    pub(crate) assumed_bindings: Vec<AdmittedAssumedBinding>,
     pub(crate) values: BTreeMap<ValueId, TerminalScalarValue>,
     pub(crate) structural_values: BTreeMap<PlaceId, TerminalStructuralValue>,
     /// A reference carrier owns this descriptor, never the referent's backing.
@@ -445,6 +453,9 @@ impl TerminalExecution {
             provider_installation: installation
                 .map(|installation| installation.installed.clone())
                 .unwrap_or_default(),
+            assumed_bindings: installation
+                .map(|installation| installation.assumed_bindings.clone())
+                .unwrap_or_default(),
             values,
             structural_values,
             reference_referents: BTreeMap::new(),
@@ -474,6 +485,16 @@ impl TerminalExecution {
 
     pub fn effects(&self) -> &[TerminalEffect] {
         &self.effects
+    }
+
+    /// The root-authorized assumed binding contracts admitted with this
+    /// execution's provider installation, in authored policy order. These
+    /// are conditional evidence retained across the run: the artifact's
+    /// guarantees hold under each recorded assumption, and the
+    /// assumption's falsity invalidates them without producing any
+    /// unconditional claim.
+    pub fn assumed_bindings(&self) -> &[AdmittedAssumedBinding] {
+        &self.assumed_bindings
     }
 
     /// Final values of direct primitive structural entry arguments, ordered by

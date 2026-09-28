@@ -26,7 +26,9 @@ enum BuildOperationForm {
 
 fn build_operation_form(operation: BuildOperation) -> BuildOperationForm {
     match operation {
-        BuildOperation::ProviderSelection => BuildOperationForm::MutableBuildReceiver,
+        BuildOperation::ProviderSelection | BuildOperation::AssumedBindingContract => {
+            BuildOperationForm::MutableBuildReceiver
+        }
         BuildOperation::IncludedSourceHandoff => {
             BuildOperationForm::PreludeDataReceiver("BuildOutput")
         }

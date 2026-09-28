@@ -456,7 +456,13 @@ pub(in crate::symbols) fn assign_runtime_subject_argument_symbol(
 /// target and keeps ordinary operands. Representation selection and service
 /// exclusion are parser-carved markers with no declared target, so their
 /// spelling alone selects the route. The remaining build operations carry no
-/// static operands and route nothing here.
+/// static operands and route nothing here. `assume_binding_contract` also
+/// routes `None` for now: its two operands name exact requirement identities
+/// (`Required::operation`, `Supplied::operation`), which no declaration-path
+/// resolver can name yet, so they fall through to ordinary static-machine
+/// argument resolution and reject there — fail-closed until the
+/// relationship's compatibility admission owns their resolution
+/// (wiki/spec/build/assumed_binding_contracts.md).
 pub(in crate::symbols) fn build_operand_route(
     target: &str,
     target_symbol: SymbolHandle,
@@ -471,7 +477,8 @@ pub(in crate::symbols) fn build_operand_route(
         | BuildOperation::BoundaryAcceptance
         | BuildOperation::WireCompatibilityRequest
         | BuildOperation::IncludedSourceHandoff
-        | BuildOperation::LogWriteLine => None,
+        | BuildOperation::LogWriteLine
+        | BuildOperation::AssumedBindingContract => None,
     }
 }
 

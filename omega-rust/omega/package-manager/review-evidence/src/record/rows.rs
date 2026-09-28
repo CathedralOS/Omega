@@ -72,6 +72,16 @@ pub enum PackageReviewCanonicalRowKind {
     /// One exact consumer-supplied terminal-authority permission. This is a
     /// blocking policy grant, not evidence that a terminal leaf exercised it.
     TerminalAuthorityPermission,
+    /// One root-authorized assumed binding contract: a runtime link from one
+    /// boundary requirement to another requirement's selected implementation
+    /// whose semantic connection the consuming root assumes rather than
+    /// proves (wiki/spec/build/assumed_binding_contracts.md). This is the
+    /// "Extremely high risk - assumed binding contract" disclosure — a
+    /// blocking trust record committing to both contracts, the exact subject
+    /// mapping, and the implementation closure. A changed relationship or
+    /// implementation identity needs fresh acceptance, and a refuted
+    /// connection must never be reported as merely unproved.
+    AssumedBindingContract,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

@@ -45,11 +45,13 @@ mod values;
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
 pub use effects::results::TerminalEffectResult;
 pub use effects::{
-    AcceptTerminalEffects, AdmittedProviderInstallation, ProviderInstallationSelection,
-    TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
+    AcceptTerminalEffects, AdmittedAssumedBinding, AdmittedProviderInstallation,
+    AssumedBindingSelection, ProviderInstallationSelection, TerminalEffect, TerminalEffectHandler,
+    TerminalEffectRejection,
 };
 pub use errors::{
-    ProviderInstallationError, TerminalArtifactInterpretError, TerminalInterpretError,
+    AssumedBindingRejection, ProviderInstallationError, TerminalArtifactInterpretError,
+    TerminalInterpretError,
 };
 pub use execution::TerminalExecution;
 pub use results::{
@@ -68,8 +70,10 @@ pub use structural_inputs::case_membership::TerminalStructuralCaseValue;
 pub use structural_inputs::placed_views::TerminalPlacedViewEstablishment;
 pub use structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue;
 pub use terminal_interpreter::{
-    admit_provider_installation_from_artifact, interpret_serialized_terminal_artifact_measured,
-    interpret_terminal_artifact, interpret_terminal_artifact_measured,
+    admit_provider_installation_from_artifact,
+    admit_provider_installation_with_assumed_bindings_from_artifact,
+    interpret_serialized_terminal_artifact_measured, interpret_terminal_artifact,
+    interpret_terminal_artifact_measured,
 };
 pub use values::{
     TerminalScalarCaseValue, TerminalScalarValue, TerminalStructuralBooleanFieldValue,
