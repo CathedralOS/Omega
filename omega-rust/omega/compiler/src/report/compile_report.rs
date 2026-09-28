@@ -298,6 +298,10 @@ impl CompileReport {
         self.build_outputs.as_ref()
     }
 
+    pub(crate) fn build_outputs_mut(&mut self) -> Option<&mut crate::report::RetainedBuildOutputs> {
+        self.build_outputs.as_mut()
+    }
+
     pub const fn build_observation_identity(
         &self,
     ) -> Option<build_evaluation::BuildObservationIdentity> {
@@ -318,23 +322,26 @@ impl CompileReport {
         }
     }
 
-    /// Record installed companions; filesystem policy belongs to the publisher.
-    pub(crate) fn record_build_output_publication(
-        mut self,
-        directory: PathBuf,
-    ) -> Result<Self, String> {
-        if !self.has_consistent_executable_publication_custody()
-            || (!matches!(self.product, CompileProduct::BuildArtifacts) && !self.wrote_output)
-        {
+    /// Record companions after their package owner has published them.
+    pub(crate) fn record_build_output_publication(mut self) -> Result<Self, String> {
+        if !matches!(self.product, CompileProduct::BuildArtifacts) && !self.wrote_output {
             return Err(
                 "completed-output publication requires a checked, published primary product".into(),
             );
         }
-        self.build_outputs
-            .as_mut()
+        if self
+            .build_outputs
+            .as_ref()
             .ok_or("completed-output publication requires retained files")?
-            .record_publication(directory);
+            .published_directory()
+            .is_none()
+        {
+            return Err("completed-output publication requires installed files".into());
+        }
         self.wrote_output = true;
+        if !self.has_consistent_executable_publication_custody() {
+            return Err("completed-output publication retained inconsistent custody".into());
+        }
         Ok(self)
     }
 

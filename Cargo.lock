@@ -1298,6 +1298,7 @@ dependencies = [
  "diagnostics",
  "effects",
  "optimization-core",
+ "platform-custody",
  "semantic-vocabulary",
  "sha2",
  "source",

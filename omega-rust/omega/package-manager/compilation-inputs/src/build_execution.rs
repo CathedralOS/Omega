@@ -5,6 +5,7 @@
 //! these two operations separate preserves diagnostic order without exposing
 //! partially settled observation records to the compiler.
 
+mod completed_outputs;
 mod filesystem_scope;
 mod observation_identity;
 mod observation_projection;
@@ -12,6 +13,7 @@ mod observations;
 mod output_custody;
 mod snapshot_request;
 
+pub use completed_outputs::RetainedBuildOutputs;
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
 pub use filesystem_scope::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope,
