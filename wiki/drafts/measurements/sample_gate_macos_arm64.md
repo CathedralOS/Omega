@@ -5,6 +5,47 @@ project carrying a `build.omg`, except `apps/squalr`. This file records what
 it said and what MOVED, so the next reader does not re-derive the delta from
 a stale board.
 
+## 2026-09-27 at `695b5e05d07`, after the Clock provider wiring
+
+**119/148 check, 29 refuse. +14 against 105 earlier the same day, zero regressions.**
+
+| cluster | at 105 | now |
+| --- | --- | --- |
+| unit-plan omission | 18 | 15 |
+| nested value call | 5 | 5 |
+| other | 4 | 4 |
+| boundary provider route unimplemented | 3 | 3 |
+| provider absent on this host | 11 | **2** |
+| default-domain field requirement | 2 | **0** |
+
+Two clusters closed. **`default-domain field requirement` is empty**:
+`print_number` and `maze_flood` both stored a computed `u8` into a carrier
+whose domain requires `valid_utf8(self)`, and each computed write is now
+dominated by a guard proving the byte is ASCII. **`provider absent on this
+host` fell 11 -> 2**: all nine samples in SAMPLE-CORPUS's "Clock-bearing
+samples" row are wired to the declared-host darwin provider.
+
+The 14 gained are those 11 plus `text_greeting`, `status_report` and
+`string_catalog`, which moved under another lane's byte-carrier work.
+
+`elapsed_timer` and `file_journal` are what remain in `provider absent`: they
+want `TimeHost` and `Filesystem` bindings, not `Clock`.
+
+### The Clock row was NOT host-gated, and reading the board is what settled it
+
+Measured first, wrongly, as "correctly host-gated, implementation-blocked on a
+backend `sleep_poll` leg". `source/library/std/clock.omg` does decline the
+`darwin_poll` adapter, because `invokes DarwinClock` would leak into every
+consumer's `reaches` — but that is a decision about the PORTABLE `std` Clock.
+These nine declare package-local traits, where the board explicitly directs
+the `samples/gui/window_app` pattern and notes that "missing host selection is
+distinct from a lowering failure". The leak is real and is accepted per
+sample; `Main::main` now publishes `DarwinClock`.
+
+Their linux and windows legs remain unwired, exactly as before the change.
+Completing those wants `std::clock`'s `nanosleep`/`Sleep` closures rather than
+nine per-sample copies.
+
 ## 2026-09-27 at `f7cbf4e93375`, plus the toolchain-library recovery
 
 **105/148 check, 43 refuse.** Against 89/148 at `9246f32b305` earlier the same
