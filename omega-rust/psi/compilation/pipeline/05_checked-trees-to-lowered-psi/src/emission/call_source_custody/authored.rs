@@ -25,98 +25,6 @@ pub(crate) struct AuthoredCall {
     pub target_state: SymbolHandle,
 }
 
-#[cfg(test)]
-mod named_terminal_tests {
-    use super::*;
-
-    #[test]
-    fn named_terminal_call_retains_target_and_operand_coordinates() {
-        let checked = crate::front_end::checked_program(
-            r#"
-            data Counter { value: i32; }
-            machine first(left: i32, right: i32) -> i32 { left }
-            machine Counter::finish(&mut self, value: i32) { self.value = value; }
-            machine Counter::main(&mut self) {
-                self.value = 4;
-                transition { _ -> self.finish(first(1, 2)) }
-            }
-        "#,
-        );
-        let machine = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "Counter::main")
-            .unwrap();
-        let state = checked.typed.machine_states(machine)[0].symbol;
-        let coordinate = CheckedUnitCallCoordinate {
-            statement_index: 1,
-            call_ordinal: 0,
-        };
-        let outer = locate_source(&checked, state, coordinate).expect("named outer call");
-        let nested = locate_source(
-            &checked,
-            state,
-            CheckedUnitCallCoordinate {
-                call_ordinal: 1,
-                ..coordinate
-            },
-        )
-        .expect("operand keeps preorder one");
-        assert_ne!(outer.target_state, nested.target_state);
-        assert_eq!(outer.scalar_arguments.len(), 1);
-        assert_eq!(nested.scalar_arguments.len(), 2);
-        assert_eq!(
-            nested.source_site,
-            Some(NominalMachineUseSite::Expression(
-                outer.scalar_arguments[0].0
-            ))
-        );
-        for forged in [
-            CheckedUnitCallCoordinate {
-                statement_index: 0,
-                ..coordinate
-            },
-            CheckedUnitCallCoordinate {
-                call_ordinal: 2,
-                ..coordinate
-            },
-        ] {
-            assert!(locate_source(&checked, state, forged).is_err());
-        }
-    }
-
-    #[test]
-    fn internal_transfer_cannot_be_replayed_as_a_named_machine_call() {
-        let checked = crate::front_end::checked_program(
-            r#"
-            machine main() {
-                transition { _ -> done() }
-                state done() {}
-            }
-        "#,
-        );
-        let machine = checked
-            .typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "main")
-            .unwrap();
-        let state = checked.typed.machine_states(machine)[0].symbol;
-        assert!(
-            locate_source(
-                &checked,
-                state,
-                CheckedUnitCallCoordinate {
-                    statement_index: 0,
-                    call_ordinal: 0
-                }
-            )
-            .is_err()
-        );
-    }
-}
-
 impl AuthoredCall {
     /// The authored expression passed at formal `position`: the explicit
     /// argument, or for the receiver formal of a call spelled on a place
@@ -532,4 +440,96 @@ pub(crate) fn target_signature(
         machine: signature.symbol,
         state: signature.symbol,
     })
+}
+
+#[cfg(test)]
+mod named_terminal_tests {
+    use super::*;
+
+    #[test]
+    fn named_terminal_call_retains_target_and_operand_coordinates() {
+        let checked = crate::front_end::checked_program(
+            r#"
+            data Counter { value: i32; }
+            machine first(left: i32, right: i32) -> i32 { left }
+            machine Counter::finish(&mut self, value: i32) { self.value = value; }
+            machine Counter::main(&mut self) {
+                self.value = 4;
+                transition { _ -> self.finish(first(1, 2)) }
+            }
+        "#,
+        );
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Counter::main")
+            .unwrap();
+        let state = checked.typed.machine_states(machine)[0].symbol;
+        let coordinate = CheckedUnitCallCoordinate {
+            statement_index: 1,
+            call_ordinal: 0,
+        };
+        let outer = locate_source(&checked, state, coordinate).expect("named outer call");
+        let nested = locate_source(
+            &checked,
+            state,
+            CheckedUnitCallCoordinate {
+                call_ordinal: 1,
+                ..coordinate
+            },
+        )
+        .expect("operand keeps preorder one");
+        assert_ne!(outer.target_state, nested.target_state);
+        assert_eq!(outer.scalar_arguments.len(), 1);
+        assert_eq!(nested.scalar_arguments.len(), 2);
+        assert_eq!(
+            nested.source_site,
+            Some(NominalMachineUseSite::Expression(
+                outer.scalar_arguments[0].0
+            ))
+        );
+        for forged in [
+            CheckedUnitCallCoordinate {
+                statement_index: 0,
+                ..coordinate
+            },
+            CheckedUnitCallCoordinate {
+                call_ordinal: 2,
+                ..coordinate
+            },
+        ] {
+            assert!(locate_source(&checked, state, forged).is_err());
+        }
+    }
+
+    #[test]
+    fn internal_transfer_cannot_be_replayed_as_a_named_machine_call() {
+        let checked = crate::front_end::checked_program(
+            r#"
+            machine main() {
+                transition { _ -> done() }
+                state done() {}
+            }
+        "#,
+        );
+        let machine = checked
+            .typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap();
+        let state = checked.typed.machine_states(machine)[0].symbol;
+        assert!(
+            locate_source(
+                &checked,
+                state,
+                CheckedUnitCallCoordinate {
+                    statement_index: 0,
+                    call_ordinal: 0
+                }
+            )
+            .is_err()
+        );
+    }
 }
