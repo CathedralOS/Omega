@@ -982,20 +982,17 @@ fn assumed_boundary_keeps_host_effect_custody_without_a_checked_redirect() {
     }
 
     let mut host = BoundaryProbe::default();
-    loop {
-        match execution
-            .resume(&mut TerminalFuelMeter::unbounded(), &mut host)
-            .unwrap()
-        {
-            TerminalExecutionStatus::Complete(result) => {
-                assert_eq!(result, TerminalExecutionResult::Unit);
-                break;
-            }
-            TerminalExecutionStatus::SponsorExhausted(_) => {
-                unreachable!("unbounded fuel")
-            }
-            status => panic!("unexpected {status:?}"),
+    match execution
+        .resume(&mut TerminalFuelMeter::unbounded(), &mut host)
+        .unwrap()
+    {
+        TerminalExecutionStatus::Complete(result) => {
+            assert_eq!(result, TerminalExecutionResult::Unit);
         }
+        TerminalExecutionStatus::SponsorExhausted(_) => {
+            unreachable!("unbounded fuel")
+        }
+        status => panic!("unexpected {status:?}"),
     }
     // Only the uninstalled assumed boundary reached the host; the installed
     // provider dispatch for `forward` stayed on its ordinary checked route.
