@@ -1,0 +1,71 @@
+// A projected unit call inside a control cycle:
+// `self.cells[position].copy_from(&source.cells[position])` passes one
+// borrowed element per argument on every loop traversal. The terminal
+// verifier admits the shape once three bookkeeping lookups line up:
+// unrestricted subloans resolve an argument's root through block
+// parameters (the state-parameter rebinding channel) as well as machine
+// parameters, the block-parameter argument arm replays the selector's
+// published bound for runtime-indexed borrow paths, and a cyclic block's
+// unit-call eligibility treats an unrestricted subloan as the transient
+// per-traversal loan it is.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    value: u64;
+}
+
+machine Cell::copy_from(&mut self, source: &Cell) {
+    self.value = source.value;
+}
+
+data Holder {
+    cells: [Cell; 4];
+}
+
+machine Holder::copy_all(&mut self, source: &Holder) {
+    transition { _ -> copy(source, 0) }
+
+    state copy(&mut self, source: &Holder, position: u64) {
+        transition position < 4 {
+            true -> step(source, position)
+            false -> done()
+        }
+    }
+
+    state step(&mut self, source: &Holder, position: u64) {
+        self.cells[position].copy_from(&source.cells[position]);
+        transition { _ -> copy(source, position + 1) }
+    }
+
+    state done(&mut self) { }
+}
+
+data Main {
+    console: Binding<Console>;
+    source: Holder;
+    target: Holder;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.source.cells[0].value = 10;
+    self.source.cells[1].value = 20;
+    self.source.cells[2].value = 30;
+    self.source.cells[3].value = 40;
+
+    self.target.copy_all(&self.source);
+
+    transition self.target.cells[2].value == 30 {
+        true -> done()
+        _ -> missed()
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state missed(&mut self) {
+        self.console.exit_process(71);
+    }
+}

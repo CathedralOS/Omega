@@ -647,47 +647,75 @@ fn cycle_operation_eligible(
                 )
         }
         OperationKind::CallUnit {
+            callee,
             structural_arguments,
             claim_transfers,
             ..
         } => {
+            let callee_parameters = module
+                .machines
+                .iter()
+                .find(|candidate| candidate.id == *callee)
+                .map(|candidate| candidate.structural_parameters.as_slice())
+                .unwrap_or(&[]);
             operation.result == OperationResult::Unit
-                && structural_arguments.iter().all(|argument| {
-                    argument.path.is_empty()
-                        && ((argument.access == StructuralAccess::MutableBorrow
-                            && machine.structural_parameters.iter().any(|parameter| {
-                                parameter.place == argument.place
-                                    && parameter.access == StructuralAccess::MutableBorrow
-                                    && persistent_receiver(module, parameter)
-                            }))
-                            || (argument.access != StructuralAccess::Owned
-                                && primitive_storage::local_result(machine, argument.place)
-                                    .is_some())
-                            || (argument.access == StructuralAccess::SharedBorrow
-                                && (crate::validation::byte_sequence::length::validate_source(
-                                    module,
-                                    machine,
-                                    operation,
-                                    argument.place,
-                                    || ModuleError::InvalidByteSequenceLengthSource {
-                                        operation: operation.id,
-                                        source: argument.place,
-                                    },
-                                )
-                                .is_ok()
-                                    || crate::validation::element_view::length::validate_source(
+                && structural_arguments
+                    .iter()
+                    .enumerate()
+                    .all(|(index, argument)| {
+                        (argument.path.is_empty()
+                            && ((argument.access == StructuralAccess::MutableBorrow
+                                && machine.structural_parameters.iter().any(|parameter| {
+                                    parameter.place == argument.place
+                                        && parameter.access == StructuralAccess::MutableBorrow
+                                        && persistent_receiver(module, parameter)
+                                }))
+                                || (argument.access != StructuralAccess::Owned
+                                    && primitive_storage::local_result(machine, argument.place)
+                                        .is_some())
+                                || (argument.access == StructuralAccess::SharedBorrow
+                                    && (crate::validation::byte_sequence::length::validate_source(
                                         module,
                                         machine,
                                         operation,
                                         argument.place,
-                                        || ModuleError::InvalidElementViewLengthSource {
+                                        || ModuleError::InvalidByteSequenceLengthSource {
                                             operation: operation.id,
                                             source: argument.place,
                                         },
                                     )
-                                    .is_ok()))
-                            || owned_argument(module, machine, argument))
-                })
+                                    .is_ok()
+                                        || crate::validation::element_view::length::validate_source(
+                                            module,
+                                            machine,
+                                            operation,
+                                            argument.place,
+                                            || ModuleError::InvalidElementViewLengthSource {
+                                                operation: operation.id,
+                                                source: argument.place,
+                                            },
+                                        )
+                                        .is_ok()))
+                                || owned_argument(module, machine, argument)))
+                            // A borrowed projection loans one element for the
+                            // call's duration only: the loan is created and
+                            // released inside the operation on every traversal,
+                            // so loop-carried custody is identical on each
+                            // arrival. Reusing the acyclic path's unrestricted
+                            // subloan shape keeps the root's authority checks —
+                            // including the positional pairing — identical.
+                            // The non-empty path keeps the empty-path roster's
+                            // own admission rules in sole charge of whole-root
+                            // arguments.
+                            || (!argument.path.is_empty()
+                                && callee_parameters.get(index).is_some_and(|parameter| {
+                                    crate::validation::structural::operations::is_unrestricted_shared_subloan(
+                                        module, machine, parameter, argument,
+                                    ) || crate::validation::structural::operations::is_unrestricted_mutable_subloan(
+                                        module, machine, parameter, argument,
+                                    )
+                                }))
+                    })
                 && claim_transfers.is_empty()
         }
         OperationKind::ByteSequenceSubslice { .. } => {

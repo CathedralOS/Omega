@@ -495,10 +495,14 @@ pub(crate) fn is_unrestricted_shared_subloan(
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
 ) -> bool {
+    // The argument's root is the place the projection borrows from: a
+    // machine-level parameter or a block parameter that rebinder edges fill
+    // with it. Source signatures already resolve both channels.
     let Some(actual) = caller
         .structural_parameters
         .iter()
         .find(|actual| actual.place == argument.place)
+        .or_else(|| crate::validation::block_views::parameter(caller, argument.place))
     else {
         return false;
     };
@@ -542,10 +546,14 @@ pub(crate) fn is_unrestricted_mutable_subloan(
     expected: &StructuralParameterDeclaration,
     argument: &StructuralArgument,
 ) -> bool {
+    // The argument's root is the place the projection borrows from: a
+    // machine-level parameter or a block parameter that rebinder edges fill
+    // with it. Source signatures already resolve both channels.
     let Some(actual) = caller
         .structural_parameters
         .iter()
         .find(|actual| actual.place == argument.place)
+        .or_else(|| crate::validation::block_views::parameter(caller, argument.place))
     else {
         return false;
     };
