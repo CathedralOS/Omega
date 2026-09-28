@@ -129,13 +129,13 @@ fn closure(
 ) -> Vec<ProofNode> {
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut equalities: Vec<ProofNode> = Vec::new();
-    let mut proofs = seeds(context, integer_type, &facts, &mut equalities);
+    let exact = super::exact::session(context, assumptions, semantic_axioms);
+    let mut proofs = seeds(context, integer_type, &facts, &mut equalities, &exact);
     // A dependent bound may end at live storage rather than a literal:
     // `coordinate <= limit`, with a separately proved `limit == 2`.
     // Normalize that endpoint through its cited equality chain before the
     // literal-bound closure runs. The order substitution carries both proofs;
     // it does not rewrite the caller's assumptions or invent a field bound.
-    let exact = super::exact::session(context, assumptions, semantic_axioms);
     for fact in &facts {
         let Proposition::LessOrEqual(left, right) = fact.proposition else {
             continue;
@@ -248,6 +248,7 @@ fn seeds(
     integer_type: IntegerType,
     facts: &[ProjectedFact<'_>],
     equalities: &mut Vec<ProofNode>,
+    exact: &super::exact::Session,
 ) -> Vec<ProofNode> {
     let mut proofs = Vec::new();
     let mut terms = Vec::<&ScalarTerm>::new();
@@ -310,7 +311,29 @@ fn seeds(
     }
     terms.sort();
     terms.dedup();
+    let mut literal_candidates = MAX_PROOFS;
     for term in terms {
+        // Closed definitions may introduce a literal absent from the cited
+        // roster. Its equality carries every defining premise and a kernel
+        // decision, so both endpoints use the ordinary substitution rule.
+        let literal_equality = if literal_candidates > 0 && matches!(term, ScalarTerm::Value { .. })
+        {
+            literal_candidates -= 1;
+            exact.literal_equality(term)
+        } else {
+            None
+        };
+        if let Some(equality) = literal_equality
+            && let Proposition::Equal(_, literal) = &equality.conclusion
+        {
+            for lower in [true, false] {
+                if let Some(proof) =
+                    landed_literal_endpoint(integer_type, term, literal, lower, equality.clone())
+                {
+                    push_new(&mut proofs, proof);
+                }
+            }
+        }
         for (value, lower) in [
             (integer_type.minimum_value(), true),
             (integer_type.maximum_value(), false),

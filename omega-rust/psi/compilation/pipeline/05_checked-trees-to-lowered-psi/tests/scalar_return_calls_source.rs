@@ -25,6 +25,8 @@ mod integer_computations;
 mod parameter_result_contracts;
 #[path = "scalar_return_calls_source/pure_source_custody.rs"]
 mod pure_source_custody;
+#[path = "scalar_return_calls_source/result_relations.rs"]
+mod result_relations;
 
 fn encoded(source: &str) -> (Vec<u8>, Vec<u8>) {
     encoded_arms(source, false)

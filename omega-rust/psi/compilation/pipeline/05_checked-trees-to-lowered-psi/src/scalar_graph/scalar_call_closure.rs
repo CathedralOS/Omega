@@ -312,7 +312,7 @@ fn bounded_static_scalar_dispatch_edge(
                 return None;
             };
             (state.state == *target_state && state.parameter_types.is_empty())
-                .then(|| state.result_type)
+                .then_some(state.result_type)
                 .flatten()
         })
         .filter(|result| matches!(result, PrimitiveType::I32 | PrimitiveType::Bool));

@@ -31,7 +31,7 @@ mod entry_ranges;
 mod field_bounds;
 mod joins;
 mod lockstep;
-mod retained_evidence;
+use super::retained_evidence;
 
 #[cfg(test)]
 mod tests;
