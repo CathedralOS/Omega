@@ -181,6 +181,9 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::ElementViewLength { .. }
             | LegalizedScalarInstructionKind::BoundarySettlement(_)
             | LegalizedScalarInstructionKind::DynamicParameterCall(_) => {}
+            LegalizedScalarInstructionKind::AtomicAccess { event, .. } => {
+                event.operands().into_iter().for_each(visit);
+            }
             LegalizedScalarInstructionKind::NormalizedForeignCall(call) => call
                 .scalar_arguments
                 .iter()
@@ -243,6 +246,15 @@ impl LegalizedScalarInstruction {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarInstructionKind {
+    /// One indivisible access. Result custody names the resident this event
+    /// observed; an RMW must never be split into a separate load and store.
+    AtomicAccess {
+        location: terminal_psi::StructuralArgument,
+        field: semantic_vocabulary::StructuralFieldId,
+        scalar_type: semantic_vocabulary::IntegerType,
+        field_byte_offset: u32,
+        event: terminal_psi::AtomicAccessEvent,
+    },
     IeeeFloatCompare {
         comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
         format: semantic_vocabulary::IeeeFloatFormat,

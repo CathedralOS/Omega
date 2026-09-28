@@ -182,6 +182,9 @@ pub(in crate::selection) fn validate_with_environment(
                 boolean_value::validate(operation, &mut replay)?
             } else {
                 match &operation.kind {
+                    LegalizedScalarInstructionKind::AtomicAccess { .. } => {
+                        return Err(invalid());
+                    }
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
                         ieee_comparison::validate(operation, &mut replay)?
                     }

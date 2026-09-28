@@ -21,6 +21,7 @@ mod custody;
 pub(super) use custody::validate_unit_custody;
 pub(super) mod address_joins;
 pub(super) mod aggregate_results;
+pub(super) mod atomic_access;
 pub(super) mod borrowed_windows;
 pub(super) mod byte_views;
 mod header;
