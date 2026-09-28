@@ -15,20 +15,20 @@ use typed_trees::TypedTrees;
 use vocabulary::OptimizationBuildVocabulary;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct BuildOptimizationAdmission {
+pub(crate) struct BuildOptimizationAdmission {
     vocabulary: OptimizationBuildVocabulary,
 }
 
 impl BuildOptimizationAdmission {
-    pub(super) fn admit(typed: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
+    pub(crate) fn admit(typed: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
         vocabulary::classify(typed).map(|vocabulary| Self { vocabulary })
     }
 
-    pub(super) fn zero_build_field(self) -> Option<(String, BuildTimeValue)> {
+    pub(crate) fn zero_build_field(self) -> Option<(String, BuildTimeValue)> {
         selection::zero_build_field(self.vocabulary)
     }
 
-    pub(super) fn extract(
+    pub(crate) fn extract(
         self,
         build: &BuildTimeValue,
     ) -> Result<

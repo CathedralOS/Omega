@@ -1,7 +1,7 @@
 //! Executes one admitted build activation and settles its captured outputs.
 mod machine_evaluation;
 
-use crate::admission::configuration::{BuildConfig, extract_build_config};
+use crate::admission::configuration::BuildConfig;
 use crate::admission::selection::root_bindings::collect_root_bindings;
 use crate::admitted_build_program::{AdmittedBuildMachine, SelectedAdmittedBuildMachine};
 use crate::{AdmittedBuildProgram, ComputedBuildConfig};
@@ -61,8 +61,7 @@ fn execute_admitted_build_occurrence(
         symbol: machine_symbol,
         name: machine_name,
         normalized_callable_identity: _,
-        optimization_admission,
-        has_toolchain_build_activation,
+        value_admission,
         filesystem_reachable,
         execution_mode,
         initial_build,
@@ -109,16 +108,16 @@ fn execute_admitted_build_occurrence(
         ))]
     })?;
 
-    let (mut config, optimization_report) = extract_build_config(
-        &augmented,
-        optimization_admission,
-        has_toolchain_build_activation,
-    )
-    .map_err(|reason| {
-        vec![Diagnostic::error(format!(
-            "`{machine_name}` produced an invalid Build: {reason}"
-        ))]
-    })?;
+    let (settings, optimization_report) =
+        value_admission.extract(&augmented).map_err(|reason| {
+            vec![Diagnostic::error(format!(
+                "`{machine_name}` produced an invalid Build: {reason}"
+            ))]
+        })?;
+    let mut config = BuildConfig {
+        settings,
+        ..Default::default()
+    };
     config.grants = harvest_root_grants(typed, machine).map_err(|diagnostic| vec![diagnostic])?;
     config.provider_selections = provider_selections;
     config.opaque_representation_selections =

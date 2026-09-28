@@ -546,7 +546,7 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
     assert!(!publication.exists(), "compilation does not publish files");
     let terminal = compiler::artifact_publication::publish_compilation(
         terminal.with_pcc_context(
-            build_evaluation::PccRequests {
+            package_compilation::build_execution::build_value::PccRequests {
                 psi: true,
                 native: false,
             },

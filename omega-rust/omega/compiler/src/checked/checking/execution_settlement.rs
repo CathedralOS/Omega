@@ -92,10 +92,11 @@ pub(crate) fn check_selected_execution(
         )?;
     let opaque_representation_selections = &build_config.opaque_representation_selections;
     let x86_scalar_fma_provider = build_config
+        .settings
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let optimization_selection_identity = build_config.optimizations.identity();
+    let optimization_selection_identity = build_config.settings.optimizations.identity();
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
@@ -181,11 +182,11 @@ pub(crate) fn check_selected_execution(
         .checking_request()
         .with_asm_authority(
             typed_trees_to_checked_trees::AsmAuthorityAdmission::from_freestanding(
-                build_config.freestanding,
+                build_config.settings.freestanding,
             )
             .with_grants(
-                build_config.privileged_services.port_io,
-                build_config.privileged_services.interrupt_table,
+                build_config.settings.privileged_services.port_io,
+                build_config.settings.privileged_services.interrupt_table,
             ),
         )
         .with_declaration_authority(
@@ -229,7 +230,8 @@ pub(crate) fn check_selected_execution(
     // or every authored root binding for a targetless shared product. The
     // release rollback settles before the phase so the effective selection is
     // what executes.
-    let effective_optimizations = optimization_rollback.settle(&build_config.optimizations);
+    let effective_optimizations =
+        optimization_rollback.settle(&build_config.settings.optimizations);
     let product_root_machines = effective_optimizations
         .effective()
         .contains(optimization_core::Optimization::CheckedTreeProductPruning)

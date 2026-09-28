@@ -226,7 +226,7 @@ pub struct CompileReport {
     trust_admission_settlement: trust_model::TrustAdmissionSettlement,
     /// The normalized Build's two independent optional proof-product
     /// requests. Both are off by default; neither grants receiving authority.
-    pcc_requests: build_evaluation::PccRequests,
+    pcc_requests: package_compilation::build_execution::build_value::PccRequests,
     /// The admission profile under which the retained artifact's evidence was
     /// produced. Publication names it as the sidecar's checker profile and
     /// uses it for the producer-side pair validation.
@@ -251,7 +251,7 @@ impl CompileReport {
             wrote_output: false,
             production_manifest: None,
             trust_admission_settlement: Default::default(),
-            pcc_requests: build_evaluation::PccRequests::default(),
+            pcc_requests: package_compilation::build_execution::build_value::PccRequests::default(),
             terminal_admission_profile: proof_admission::AdmissionProfile::default(),
             pcc_publications: Vec::new(),
             timings: Vec::new(),
@@ -557,7 +557,7 @@ impl CompileReport {
     /// no receiving authority.
     pub fn with_pcc_context(
         mut self,
-        pcc_requests: build_evaluation::PccRequests,
+        pcc_requests: package_compilation::build_execution::build_value::PccRequests,
         terminal_admission_profile: proof_admission::AdmissionProfile,
     ) -> Self {
         self.pcc_requests = pcc_requests;
@@ -620,7 +620,9 @@ impl CompileReport {
 
     /// The normalized Build's two independent optional proof-product
     /// requests retained on this report.
-    pub const fn pcc_requests(&self) -> build_evaluation::PccRequests {
+    pub const fn pcc_requests(
+        &self,
+    ) -> package_compilation::build_execution::build_value::PccRequests {
         self.pcc_requests
     }
 

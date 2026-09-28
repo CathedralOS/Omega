@@ -12,6 +12,9 @@ path = "src/lib.rs"
 test-support = []
 
 [dependencies]
+typed-trees = { path = "../../../psi/representations/typed-trees" }
+flow-effects = { path = "../../../psi/foundation/flow-effects" }
+optimization-core = { path = "../../foundation/optimization-core" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }

@@ -116,9 +116,15 @@ impl CheckedCompilation {
                 .application
                 .as_ref()
                 .map(|application| application.name.as_str().to_owned()),
-            intent: self.execution.build.config.application_intent,
-            identifier: self.execution.build.config.application_identifier.clone(),
-            subsystem: self.execution.build.config.subsystem,
+            intent: self.execution.build.config.settings.application_intent,
+            identifier: self
+                .execution
+                .build
+                .config
+                .settings
+                .application_identifier
+                .clone(),
+            subsystem: self.execution.build.config.settings.subsystem,
         }
     }
 
@@ -135,13 +141,13 @@ impl CheckedCompilation {
 
     /// Exact image subsystem selected by the owning build configuration.
     pub fn subsystem(&self) -> u16 {
-        self.execution.build.config.subsystem
+        self.execution.build.config.settings.subsystem
     }
 
     /// The two independent optional proof-product requests retained from the
     /// authoritative build machine. Off by default; they never change checking.
-    pub fn pcc_requests(&self) -> build_evaluation::PccRequests {
-        self.execution.build.config.pcc
+    pub fn pcc_requests(&self) -> package_compilation::build_execution::build_value::PccRequests {
+        self.execution.build.config.settings.pcc
     }
 
     /// Behavior exclusions authored by the authoritative build machine
@@ -450,7 +456,7 @@ impl CheckedCompilation {
     /// Empty executes each applicable optimization phase as a validated
     /// identity transformation; it does not select an optimizer-free path.
     pub fn optimization_selections(&self) -> &optimization_core::OptimizationSelections {
-        &self.execution.build.config.optimizations
+        &self.execution.build.config.settings.optimizations
     }
 
     /// Domain-separated identity of the exact canonical selected set. This is
