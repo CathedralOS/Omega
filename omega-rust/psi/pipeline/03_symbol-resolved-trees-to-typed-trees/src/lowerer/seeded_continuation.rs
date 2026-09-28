@@ -278,6 +278,9 @@ pub fn lower_seeded_extension(
             SeededContinuationError::AuthoredSelectionPrefixChangedDuringLowering,
         ));
     }
+    if let Err(error) = super::bind_dynamic_call_targets(&mut lowerer.typed_trees) {
+        return Err((retained, SeededContinuationError::Lowering(error)));
+    }
     if !retained_typed_base_is_exact_prefix(&retained.typed, &lowerer.typed_trees) {
         return Err((retained, SeededContinuationError::RetainedTypedBaseChanged));
     }

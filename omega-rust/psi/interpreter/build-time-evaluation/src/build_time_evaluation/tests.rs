@@ -6,6 +6,89 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceMap, SourceOrigin};
 use std::path::PathBuf;
 use std::sync::Arc;
+
+#[test]
+fn completed_precheck_binds_accessors_after_installing_placed_plans() {
+    let texts = [
+        (
+            source::SourceId(0),
+            include_str!("../../../../../../source/library/core/option.omg"),
+        ),
+        (
+            source::SourceId(1),
+            include_str!("../../../../../../source/library/core/layout.omg"),
+        ),
+        (
+            source::SourceId(2),
+            include_str!(
+                "../../../../../../tests/omega/pass/layouts/placed_view_source_access_compile/main.omg"
+            ),
+        ),
+    ];
+    let mut sources = SourceMap::default();
+    for (source_id, text) in &texts {
+        let registered = sources.add(
+            PathBuf::from(format!("source{}.omg", source_id.0)),
+            (*text).to_owned(),
+        );
+        assert_eq!(registered.source_id, *source_id);
+    }
+    let sources = Arc::new(sources);
+    let syntax = crate::front_end::syntax_program_from_texts(&texts);
+    let evaluated = super::evaluate_pre_resolution(super::BuildTimeEvaluationRequest {
+        syntax_trees: syntax,
+        source_context: Some(BuildTimeSourceContext {
+            sources: sources.clone(),
+            source_scoped_top_level_bindings: &[],
+            selection_authority: None,
+            retained_base: None,
+        }),
+    })
+    .expect("elaborate the placed-view canary");
+    let (syntax, precheck) = evaluated.into_syntax_and_pre_check();
+    let mut typed = crate::front_end::typed_program_from_evaluated_syntax(&syntax, Some(sources));
+    let write_target = |typed: &typed_trees::TypedTrees| {
+        let machine = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "inspect")
+            .expect("the authored inspect machine");
+        let state = &typed.machine_states(machine)[0];
+        typed
+            .statement_table
+            .iter_statements(state.statement_nodes)
+            .find_map(|(_, statement)| match statement {
+                typed_trees::statement::StatementNode::Call(call)
+                    if call.target.as_str() == "write" =>
+                {
+                    Some(call.target_symbol)
+                }
+                _ => None,
+            })
+            .expect("the authored placed write")
+    };
+    assert!(typed.placed_view_plans.is_empty());
+    assert!(!write_target(&typed).is_valid());
+    assert!(
+        precheck
+            .evaluate_or_defer(&mut typed)
+            .expect("install placed plans")
+            .is_none()
+    );
+    let expected = typed
+        .placed_view_plans
+        .iter()
+        .flat_map(|view| &view.fields)
+        .find(|field| field.field_name == "transmit")
+        .expect("placed transmit field")
+        .accessor_targets
+        .iter()
+        .find(|accessor| accessor.operation == "write")
+        .expect("admitted write accessor")
+        .state_symbol;
+    assert!(expected.is_valid());
+    assert_eq!(write_target(&typed), expected);
+}
 use typed_trees::domain::ProofFact;
 use typed_trees::expression::ExpressionNode;
 

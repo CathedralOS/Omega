@@ -233,6 +233,7 @@ impl PreCheckEvaluation {
         {
             range_endpoints::defer_pending_endpoint_calls(typed)?;
             const_applications::defer_pending_const_applications(typed)?;
+            validation::resolve_dynamic_call_targets(typed)?;
             return Ok(Some(self));
         }
         self.evaluate(typed)?;
@@ -335,7 +336,11 @@ impl PreCheckEvaluation {
             &self.placed_view_records,
             self.selection_authority.clone(),
         )?;
-        wire_plans::compute_wire_plans(typed, self.selection_authority, self.wire_schema_frontier)
+        wire_plans::compute_wire_plans(typed, self.selection_authority, self.wire_schema_frontier)?;
+        // Placed-field accessor targets become available with their evaluated
+        // plans. Publish the elaborated program with those calls already bound,
+        // including for Build execution before the final checked-tree pass.
+        validation::resolve_dynamic_call_targets(typed)
     }
 }
 
