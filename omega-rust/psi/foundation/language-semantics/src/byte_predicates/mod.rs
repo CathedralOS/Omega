@@ -123,8 +123,12 @@ impl ByteSequencePredicateSet {
         (bits & !0x0f == 0).then_some(Self(bits))
     }
 
-    pub const fn bits(self) -> u8 { self.0 }
-    pub const fn is_empty(self) -> bool { self.0 == 0 }
+    pub const fn bits(self) -> u8 {
+        self.0
+    }
+    pub const fn is_empty(self) -> bool {
+        self.0 == 0
+    }
 
     pub fn insert(&mut self, predicate: ByteSequencePredicate) {
         self.0 |= predicate.mask_bit();
@@ -135,11 +139,14 @@ impl ByteSequencePredicateSet {
     }
 
     pub fn holds_for(self, bytes: &[u8]) -> bool {
-        self.predicates().all(|predicate| predicate.holds_for(bytes))
+        self.predicates()
+            .all(|predicate| predicate.holds_for(bytes))
     }
 
     pub fn implies(self, required: Self) -> bool {
-        required.predicates().all(|target| self.predicates().any(|source| source.implies(target)))
+        required
+            .predicates()
+            .all(|target| self.predicates().any(|source| source.implies(target)))
     }
 
     pub fn concatenation(self, right: Self) -> Self {
@@ -147,7 +154,8 @@ impl ByteSequencePredicateSet {
         for predicate in ByteSequencePredicate::ALL {
             let mut required = Self::EMPTY;
             required.insert(predicate);
-            if predicate.is_concat_preserving() && self.implies(required) && right.implies(required) {
+            if predicate.is_concat_preserving() && self.implies(required) && right.implies(required)
+            {
                 result.insert(predicate);
             }
         }

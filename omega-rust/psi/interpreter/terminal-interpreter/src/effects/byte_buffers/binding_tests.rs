@@ -1,10 +1,9 @@
 use crate::effects::AcceptTerminalEffects;
 use crate::effects::byte_buffers::{
     BTreeMap, ByteSequenceBinding, ByteSequenceCarrier, ByteSequenceView, StructuralAccess,
-    StructuralArgument, StructuralByteSequenceRuntimeField, StructuralFieldType,
-    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralRuntimePlace, StructuralTypeShape, TerminalExecution, TerminalStructuralValue,
-    resolve_structural_arguments,
+    StructuralArgument, StructuralByteSequenceRuntimeField, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralRuntimePlace,
+    StructuralTypeShape, TerminalExecution, TerminalStructuralValue, resolve_structural_arguments,
 };
 use crate::execution::ExecutableMachine;
 use crate::results::{TerminalExecutionResult, TerminalExecutionStatus};
@@ -25,7 +24,7 @@ use terminal_psi::StructuralOperationResult;
 use terminal_psi::StructuralTypeDeclaration;
 use terminal_psi::TerminalMachineResult;
 use terminal_psi::Terminator;
-use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
+use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
 
 mod array_tests;
 #[cfg(test)]
@@ -528,6 +527,88 @@ fn mutable_field_reborrow_rejects_absent_or_mismatched_binding_and_immutable_use
                 &[actual],
                 &[execution.structural_values[&place(2)].clone()]
             )
+            .is_err()
+    );
+}
+
+#[test]
+fn shared_bounded_owner_preserves_qualification_and_snapshot_when_forwarded() {
+    let mut execution = execution();
+    execution
+        .structural_types
+        .get_mut(&structural_type(3))
+        .unwrap()
+        .shape =
+        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 });
+    let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    predicates.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
+    let StructuralTypeShape::Record { fields } = &mut execution
+        .structural_types
+        .get_mut(&structural_type(1))
+        .unwrap()
+        .shape
+    else {
+        unreachable!();
+    };
+    fields[0].field_type = StructuralFieldType::PredicateByteSequence {
+        carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+        predicates,
+    };
+    let qualification = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
+    let mut formal = parameter(2);
+    formal.access = StructuralAccess::SharedBorrow;
+    formal.qualifications.push(qualification);
+    let mut actual = argument(1);
+    actual.access = StructuralAccess::SharedBorrow;
+    actual.path = vec![
+        StructuralPathSegment::FixedIndex(1),
+        StructuralPathSegment::Field("bytes".into()),
+    ];
+    let prepared = execution
+        .prepare_boundary_arguments(std::slice::from_ref(&formal), &[actual])
+        .unwrap()
+        .into_call_arguments(std::slice::from_ref(&formal))
+        .unwrap();
+    assert_eq!(
+        prepared.values[&place(2)].qualifications,
+        vec![qualification]
+    );
+    execution.structural_values.extend(prepared.values);
+    execution
+        .byte_sequence_values
+        .extend(prepared.byte_sequences);
+    execution
+        .structural_byte_sequence_fields
+        .insert(field(1), ByteSequenceView::new(vec![42, 43]));
+    let mut forwarded = formal.clone();
+    forwarded.place = place(3);
+    let mut actual = argument(2);
+    actual.access = StructuralAccess::SharedBorrow;
+    let prepared = execution
+        .prepare_boundary_arguments(
+            std::slice::from_ref(&forwarded),
+            std::slice::from_ref(&actual),
+        )
+        .unwrap()
+        .into_call_arguments(std::slice::from_ref(&forwarded))
+        .unwrap();
+    assert_eq!(
+        prepared.values[&place(3)].qualifications,
+        vec![qualification]
+    );
+    assert_eq!(
+        prepared.byte_sequences[&place(3)]
+            .immutable()
+            .unwrap()
+            .bytes(),
+        &[10]
+    );
+    forwarded
+        .qualifications
+        .push(semantic_vocabulary::StructuralDomainId::new(2).unwrap());
+    assert!(
+        execution
+            .prepare_boundary_arguments(&[forwarded], &[actual])
             .is_err()
     );
 }

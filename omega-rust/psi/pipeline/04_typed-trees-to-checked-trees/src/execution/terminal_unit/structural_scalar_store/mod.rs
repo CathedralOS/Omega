@@ -298,8 +298,17 @@ fn plan_assignment(
         )
         .map(|write| vec![write]);
     }
-    if destination.place.segments.is_empty() && destination.dynamic_index.is_none()
-        && let Some(store) = byte_stores::whole_store(program, facts, state, &destination, statement_index, assignment, source)
+    if destination.place.segments.is_empty()
+        && destination.dynamic_index.is_none()
+        && let Some(store) = byte_stores::whole_store(
+            program,
+            facts,
+            state,
+            &destination,
+            statement_index,
+            assignment,
+            source,
+        )
     {
         return Some(vec![store]);
     }

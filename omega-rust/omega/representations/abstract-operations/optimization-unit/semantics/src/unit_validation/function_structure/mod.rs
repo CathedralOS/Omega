@@ -18,10 +18,10 @@ use semantic_vocabulary::{
 };
 use std::collections::BTreeMap;
 
-mod byte_field_freshness;
 mod byte_concatenation;
-mod byte_views;
+mod byte_field_freshness;
 mod byte_predicates;
+mod byte_views;
 pub(crate) use byte_predicates::replacement_preserves_predicates;
 pub(crate) use byte_views::byte_field_store_capacity;
 mod control_flow;

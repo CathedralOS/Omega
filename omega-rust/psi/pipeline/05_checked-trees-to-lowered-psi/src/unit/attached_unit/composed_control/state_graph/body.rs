@@ -886,9 +886,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. } => {
             Some(coordinate.statement_index)
         }
-        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-            Some(store.statement_index)
-        }
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store.statement_index),
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
             Some(store.statement_index)
         }

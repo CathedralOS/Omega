@@ -565,6 +565,9 @@ fn bounded_byte_field_borrow(
             ) | (
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::SharedBorrow
+            ) | (
+                StructuralAccess::WriteOnlyBorrow,
+                StructuralAccess::WriteOnlyBorrow
             )
         )
         || source.multiplicity != StructuralMultiplicity::Unrestricted

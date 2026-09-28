@@ -103,7 +103,17 @@ impl ByteSequenceBinding {
         if value != referent
             || field.parent.opaque_identity != referent.opaque_identity
             || field.parent.path != prefix
-            || (!referent.qualifications.is_empty() && !structural_types.get(&referent.structural_type).is_some_and(|declaration| matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))))
+            || (!referent.qualifications.is_empty()
+                && !structural_types
+                    .get(&referent.structural_type)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            )
+                        )
+                    }))
         {
             return Err(invalid());
         }
@@ -119,11 +129,9 @@ impl ByteSequenceBinding {
                 && declaration.identity == *identity
                 && !declaration.relevance.is_erased()
                 && declaration.field_type.byte_sequence_carrier()
-                    == Some(
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned {
-                            capacity: *capacity,
-                        },
-                    )
+                    == Some(terminal_psi::ByteSequenceCarrier::BoundedOwned {
+                        capacity: *capacity,
+                    })
         }) {
             return Err(invalid());
         }
@@ -222,12 +230,22 @@ impl TerminalExecution {
             .zip(&opaque_arguments)
             .any(|(parameter, _argument)| {
                 (parameter.access == StructuralAccess::SharedBorrow
-                    || (parameter.access == StructuralAccess::MutableBorrow
-                        && (machine.result == TerminalMachineResult::Unit || scalar_case_result)))
+                    || (matches!(
+                        parameter.access,
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+                    ) && (machine.result == TerminalMachineResult::Unit || scalar_case_result)))
                     && self
                         .structural_types
                         .get(&parameter.structural_type)
-                        .is_some_and(|declaration| declaration.shape.is_borrowed_byte_carrier() || matches!(declaration.shape, StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })))
+                        .is_some_and(|declaration| {
+                            declaration.shape.is_borrowed_byte_carrier()
+                                || matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::ByteSequence(
+                                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                                    )
+                                )
+                        })
             })
         {
             // Share only exact referent preparation. External buffer staging and

@@ -19,14 +19,38 @@ pub(crate) fn byte_field_store_capacity(
     operation: &AbstractOperation,
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<u64> {
-    if let AbstractOperation::ByteSequenceStore { destination, source, .. } = operation {
-        let parameter = function.structural_parameters.iter().find(|parameter| parameter.place == *destination)?;
-        if destination == source || !matches!(parameter.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
-            || parameter.multiplicity != StructuralMultiplicity::Unrestricted || !parameter.projected_qualifications.is_empty()
-            || function.entry_claim_declarations.iter().any(|claim| claim.input == *destination)
-            || function.content_entry_claims.iter().any(|claim| claim.input.root == *destination) { return None; }
+    if let AbstractOperation::ByteSequenceStore {
+        destination,
+        source,
+        ..
+    } = operation
+    {
+        let parameter = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *destination)?;
+        if destination == source
+            || !matches!(
+                parameter.access,
+                StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+            )
+            || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            || !parameter.projected_qualifications.is_empty()
+            || function
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == *destination)
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == *destination)
+        {
+            return None;
+        }
         return match structural_types.get(&parameter.structural_type)?.shape {
-            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => Some(capacity),
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
+                Some(capacity)
+            }
             _ => None,
         };
     }
@@ -89,6 +113,15 @@ pub(crate) fn byte_field_store_capacity(
     let selected = fields
         .iter()
         .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())?;
+    // A byte index bound proves address safety, not preservation of a whole
+    // carrier predicate such as UTF-8. Qualified replacement has its own proof.
+    if matches!(
+        operation,
+        AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
+    ) && !selected.field_type.byte_predicates().is_empty()
+    {
+        return None;
+    }
     match selected.field_type.byte_sequence_carrier() {
         Some(ByteSequenceCarrier::BoundedOwned { capacity }) => Some(capacity),
         _ => None,
@@ -110,7 +143,8 @@ pub(super) fn validate_byte_view_source(
             ..
         } => (*destination, Some(*length)),
         AbstractOperation::ByteSequenceLength { source, .. } => (*source, None),
-        AbstractOperation::ByteSequenceStore { source, length, .. } | AbstractOperation::StructuralByteSequenceFieldStore { source, length, .. }
+        AbstractOperation::ByteSequenceStore { source, length, .. }
+        | AbstractOperation::StructuralByteSequenceFieldStore { source, length, .. }
         | AbstractOperation::ByteSequenceRead { source, length, .. }
         | AbstractOperation::ByteSequenceSubslice { source, length, .. } => {
             (*source, Some(*length))

@@ -223,7 +223,8 @@ pub(crate) fn expected_uses(
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]
         }
-        O::ByteSequenceStore { length, .. } | O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
+        O::ByteSequenceStore { length, .. }
+        | O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,
             value,

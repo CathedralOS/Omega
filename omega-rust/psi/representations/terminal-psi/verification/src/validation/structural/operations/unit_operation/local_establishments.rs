@@ -11,7 +11,12 @@ pub(in crate::validation) fn validate_establish_byte_sequence_literal(
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
 ) -> Result<(), ModuleError> {
-    let OperationKind::EstablishByteSequenceLiteral { destination, .. } = &operation.kind else {
+    let OperationKind::EstablishByteSequenceLiteral {
+        destination,
+        bytes,
+        qualifications,
+    } = &operation.kind
+    else {
         unreachable!("dispatched validate_establish_byte_sequence_literal")
     };
     let Some(place) = machine
@@ -48,6 +53,16 @@ pub(in crate::validation) fn validate_establish_byte_sequence_literal(
             operation: operation.id,
             place: *destination,
         });
+    }
+    if !terminal_semantics::byte_literal_qualifications_hold(
+        &module.structural_domains,
+        structural_type,
+        qualifications,
+        bytes,
+    ) {
+        return Err(ModuleError::InvalidByteSequenceLiteralQualifications(
+            operation.id,
+        ));
     }
     Ok(())
 }

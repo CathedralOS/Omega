@@ -614,6 +614,7 @@ pub(crate) fn direct_scalar_field_type(
                     Some(ScalarType::IeeeFloat(*format))
                 }
                 terminal_psi::StructuralFieldType::ByteSequence(_)
+                | terminal_psi::StructuralFieldType::PredicateByteSequence { .. }
                 | terminal_psi::StructuralFieldType::Structural(_)
                 | terminal_psi::StructuralFieldType::Erased { .. } => None,
             })

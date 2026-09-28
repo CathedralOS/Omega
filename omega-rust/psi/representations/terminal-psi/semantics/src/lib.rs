@@ -34,16 +34,18 @@ pub use byte_sequence_concatenation::{
     byte_sequence_concatenation_capacity_goal, byte_sequence_concatenation_length_equation,
 };
 pub use byte_sequence_predicates::{
-    byte_literal_qualifications_hold, byte_parameter_predicates, byte_parameter_predicates_from_domains,
-    byte_sequence_source_predicates,
+    byte_literal_qualifications_hold, byte_literal_qualifications_hold_in,
+    byte_parameter_predicates, byte_parameter_predicates_from_domains,
+    byte_parameter_predicates_in, byte_sequence_source_predicates,
 };
 pub use call_composition::{
     CallArgumentRule, CallCompositionSchema, CallCompositionSemanticRow, CallCrashRule,
     CallEvidenceRule, CallFrontierRule, CallFuelPolicy, CallOutcomeRule, CallRequirementRule,
     CallResultRule, CallTargetRule, CallTransferRule, FixedByteArrayWindow,
-    boundary_buffer_capacity, bounded_byte_owner_capacity, call_composition_semantic_row,
-    exact_call_composition_semantic_row_in, fixed_byte_array_extent, fixed_byte_array_window,
-    fixed_element_array_extent, shared_boundary_buffer_capacity,
+    boundary_buffer_capacity, bounded_byte_owner_capacity,
+    bounded_byte_owner_capacity_from_catalogs, bounded_byte_owner_capacity_in,
+    call_composition_semantic_row, exact_call_composition_semantic_row_in, fixed_byte_array_extent,
+    fixed_byte_array_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
     validate_call_composition_semantic_rows,
 };
 pub use placed_view_referent::{PlacedViewReferentError, validate_placed_view_referent};

@@ -148,7 +148,9 @@ pub enum CheckedUnitStructuralFieldType {
 impl CheckedUnitStructuralFieldType {
     pub fn byte_sequence_carrier(&self) -> Option<CheckedByteSequenceCarrier> {
         match self {
-            Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => Some(*carrier),
+            Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => {
+                Some(*carrier)
+            }
             _ => None,
         }
     }

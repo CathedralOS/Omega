@@ -71,27 +71,58 @@ pub(super) fn whole_store(
     assignment: &typed_trees::statement::TableAssignment,
     source: AssignmentSource,
 ) -> Option<CheckedUnitEffectOperationPlan> {
-    let Root::Parameter { plan, parameter } = destination.root else { return None; };
-    if !destination.place.segments.is_empty() || destination.dynamic_index.is_some()
+    let Root::Parameter { plan, parameter } = destination.root else {
+        return None;
+    };
+    if !destination.place.segments.is_empty()
+        || destination.dynamic_index.is_some()
         || !matches!(source, AssignmentSource::Authored)
-        || !matches!(plan.access, CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow)
-        || plan.multiplicity != Multiplicity::Unrestricted || plan.fused_service_erasure.is_some()
-    { return None; }
+        || !matches!(
+            plan.access,
+            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+        )
+        || plan.multiplicity != Multiplicity::Unrestricted
+        || plan.fused_service_erasure.is_some()
+    {
+        return None;
+    }
     let checked_trees::CheckedByteSequenceCarrier::BoundedOwned { capacity } =
-        byte_sequence_carrier(program, parameter.type_reference, &[])? else { return None; };
-    let domains = crate::facts::field_domain::domain_constraint_symbols(program, parameter.type_reference);
-    if !domains.iter().all(|symbol| typed_trees::byte_predicates::domain_byte_predicate(program, *symbol).is_some()) { return None; }
+        byte_sequence_carrier(program, parameter.type_reference, &[])?
+    else {
+        return None;
+    };
+    let domains =
+        crate::facts::field_domain::domain_constraint_symbols(program, parameter.type_reference);
+    if !domains.iter().all(|symbol| {
+        typed_trees::byte_predicates::domain_byte_predicate(program, *symbol).is_some()
+    }) {
+        return None;
+    }
     let mut value = checked_trees::CheckedByteSequenceValuePlan::default();
-    let (root, _) = byte_value_plan(program, facts, state, statement_index, assignment.value, &domains, &mut value, 0)?;
+    let (root, _) = byte_value_plan(
+        program,
+        facts,
+        state,
+        statement_index,
+        assignment.value,
+        &domains,
+        &mut value,
+        0,
+    )?;
     value.root = root;
     if let checked_trees::CheckedByteSequenceValue::Literal(bytes) = value.nodes.get(root)
-        && u64::try_from(bytes.len()).ok()? > capacity { return None; }
-    Some(CheckedUnitEffectOperationPlan::ByteSequenceStore(checked_trees::CheckedByteSequenceStorePlan {
-        statement_index,
-        destination_parameter_position: plan.position,
-        destination: checked_trees::CheckedByteSequenceStoreDestination::Whole,
-        value,
-    }))
+        && u64::try_from(bytes.len()).ok()? > capacity
+    {
+        return None;
+    }
+    Some(CheckedUnitEffectOperationPlan::ByteSequenceStore(
+        checked_trees::CheckedByteSequenceStorePlan {
+            statement_index,
+            destination_parameter_position: plan.position,
+            destination: checked_trees::CheckedByteSequenceStoreDestination::Whole,
+            value,
+        },
+    ))
 }
 
 /// A byte field leaf: `field[index] = byte` replaces one live byte of a
@@ -188,19 +219,17 @@ pub(super) fn field_store(
     {
         return None;
     }
-    Some(
-        CheckedUnitEffectOperationPlan::ByteSequenceStore(
-            checked_trees::CheckedByteSequenceStorePlan {
-                statement_index,
-                destination_parameter_position,
-                destination: checked_trees::CheckedByteSequenceStoreDestination::Field {
-                    carrier_path,
-                    field_identity: terminal_field_identity(program, field.symbol)?,
-                },
-                value,
+    Some(CheckedUnitEffectOperationPlan::ByteSequenceStore(
+        checked_trees::CheckedByteSequenceStorePlan {
+            statement_index,
+            destination_parameter_position,
+            destination: checked_trees::CheckedByteSequenceStoreDestination::Field {
+                carrier_path,
+                field_identity: terminal_field_identity(program, field.symbol)?,
             },
-        ),
-    )
+            value,
+        },
+    ))
 }
 
 /// Preserve only the selected built-in byte law. Leaves are immutable literals

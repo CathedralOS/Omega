@@ -174,3 +174,30 @@ pub(in crate::validation) fn validate_source(
     }
     Ok(())
 }
+
+/// Replacement consumes an immutable payload. Readable owner metadata and
+/// concatenation inputs do not authorize a mutable owner as a copy source.
+pub(in crate::validation) fn validate_replacement_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    source: PlaceId,
+    invalid: impl Fn() -> ModuleError,
+) -> Result<(), ModuleError> {
+    if machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .any(|parameter| {
+            parameter.place == source && parameter.access != StructuralAccess::SharedBorrow
+        })
+    {
+        return Err(invalid());
+    }
+    validate_source(module, machine, operation, source, invalid)
+}

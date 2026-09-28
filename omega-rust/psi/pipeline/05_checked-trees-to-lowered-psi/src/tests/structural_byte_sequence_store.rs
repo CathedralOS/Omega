@@ -143,8 +143,7 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
         } else if mutation == 4 {
             plan.operations.remove(0);
         } else {
-            let CheckedUnitEffectOperationPlan::ByteSequenceStore(store) =
-                &mut plan.operations[0]
+            let CheckedUnitEffectOperationPlan::ByteSequenceStore(store) = &mut plan.operations[0]
             else {
                 panic!("byte store");
             };
@@ -154,7 +153,10 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
                         checked_trees::CheckedByteSequenceValue::Literal(b"YYY".to_vec())
                 }
                 1 => match &mut store.destination {
-                    checked_trees::CheckedByteSequenceStoreDestination::Field { field_identity, .. } => *field_identity = "Record::other".into(),
+                    checked_trees::CheckedByteSequenceStoreDestination::Field {
+                        field_identity,
+                        ..
+                    } => *field_identity = "Record::other".into(),
                     _ => unreachable!(),
                 },
                 2 => store

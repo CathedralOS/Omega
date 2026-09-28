@@ -75,7 +75,6 @@ pub(crate) fn structural_domain(
     semantic_raw: u64,
     carrier: StructuralTypeId,
 ) -> terminal_psi::StructuralDomainDeclaration {
-    byte_predicate: None,
     terminal_psi::StructuralDomainDeclaration {
         byte_predicate: None,
         establishment_routes: Vec::new(),

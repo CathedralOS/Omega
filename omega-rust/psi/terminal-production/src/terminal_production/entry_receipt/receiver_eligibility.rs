@@ -537,8 +537,16 @@ fn zero_valid_fields(
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
                 ) => zero_valid_byte_field(checked, field_reference(field), capacity),
+                StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                    predicates,
+                } => {
+                    predicates.holds_for(&[])
+                        && zero_valid_byte_field(checked, field_reference(field), capacity)
+                }
                 StructuralFieldType::Erased { .. } => is_receiver || nested_erased_service,
-                StructuralFieldType::ByteSequence(_) => false,
+                StructuralFieldType::ByteSequence(_)
+                | StructuralFieldType::PredicateByteSequence { .. } => false,
             }
     })
 }

@@ -112,10 +112,8 @@ pub(super) fn readable_byte_field(
     if matching.next().is_some()
         || selected.relevance.is_erased()
         || !matches!(
-            selected.field_type,
-            StructuralFieldType::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-            )
+            selected.field_type.byte_sequence_carrier(),
+            Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. })
         )
     {
         return Err(unsupported());

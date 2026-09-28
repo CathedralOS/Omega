@@ -127,7 +127,9 @@ pub enum StructuralFieldType {
 impl StructuralFieldType {
     pub const fn byte_sequence_carrier(&self) -> Option<ByteSequenceCarrier> {
         match self {
-            Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => Some(*carrier),
+            Self::ByteSequence(carrier) | Self::PredicateByteSequence { carrier, .. } => {
+                Some(*carrier)
+            }
             _ => None,
         }
     }
@@ -146,7 +148,10 @@ impl StructuralFieldType {
             Self::Scalar(scalar_type) => Some(*scalar_type),
             Self::BoundedInteger(integer) => Some(ScalarType::Integer(integer.integer_type())),
             Self::IeeeFloat(format) => Some(ScalarType::IeeeFloat(*format)),
-            Self::ByteSequence(_) | Self::PredicateByteSequence { .. } | Self::Structural(_) | Self::Erased { .. } => None,
+            Self::ByteSequence(_)
+            | Self::PredicateByteSequence { .. }
+            | Self::Structural(_)
+            | Self::Erased { .. } => None,
         }
     }
 

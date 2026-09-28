@@ -831,6 +831,20 @@ pub(super) fn lower_unit_structural_domains_including(
     let declarations = selected_plans
         .into_iter()
         .map(|plan| {
+            let expected_predicate = checked
+                .typed
+                .domain_definitions()
+                .iter()
+                .find(|definition| definition.semantic_id == plan.domain)
+                .and_then(|definition| {
+                    checked_trees::byte_predicates::domain_byte_predicate(
+                        &checked.typed,
+                        definition.symbol,
+                    )
+                });
+            if plan.byte_predicate != expected_predicate {
+                return unsupported("byte domain definition differs from checked source");
+            }
             let content_projection = content_conservation::lower_structural_content_projection(
                 checked,
                 plan.domain,

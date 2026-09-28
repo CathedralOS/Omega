@@ -129,6 +129,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
+                domains,
                 StructuralProjectionPolicy::Unit,
                 true,
             ) && validate_internal_claim_transfers(
@@ -149,6 +150,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
+                domains,
                 StructuralProjectionPolicy::Unit,
                 false,
             ) && validate_internal_claim_transfers(
@@ -169,6 +171,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
+                domains,
                 StructuralProjectionPolicy::Projected,
                 true,
             ) && validate_internal_claim_transfers(
@@ -189,6 +192,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
+                domains,
                 StructuralProjectionPolicy::Projected,
                 false,
             ) && validate_internal_claim_transfers(
@@ -211,6 +215,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                     std::slice::from_ref(&dynamic_dispatch.initial.source),
                     &callee.structural_parameters,
                     types,
+                    domains,
                     StructuralProjectionPolicy::Projected,
                     false,
                 ) && structural_arguments_match(
@@ -218,6 +223,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                     std::slice::from_ref(&dynamic_dispatch.rebound.source),
                     &callee.structural_parameters,
                     types,
+                    domains,
                     StructuralProjectionPolicy::Projected,
                     false,
                 )
@@ -232,6 +238,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                     std::slice::from_ref(&dynamic_dispatch.stored.selection.source),
                     &callee.structural_parameters,
                     types,
+                    domains,
                     StructuralProjectionPolicy::Projected,
                     false,
                 )
@@ -253,13 +260,14 @@ pub(crate) fn operation_structural_call_contract_matches(
                     signature.structural_type,
                 )
             }) {
-                return reference_call_matches(caller, operation, callee, types);
+                return reference_call_matches(caller, operation, callee, types, domains);
             }
             structural_arguments_match(
                 caller,
                 structural_arguments,
                 &callee.structural_parameters,
                 types,
+                domains,
                 if plain_scalar_sum_call(operation, callee, types)
                     || plain_record_call(operation, callee, types)
                 {
@@ -300,6 +308,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 structural_arguments,
                 &boundary.structural_parameters,
                 types,
+                domains,
                 StructuralProjectionPolicy::Boundary,
                 true,
             ) && boundary_requirements_match(caller, structural_arguments, boundary, domains)
@@ -348,6 +357,7 @@ fn reference_call_matches(
     operation: &O,
     callee: &PsiOptimizationFunction,
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> bool {
     let O::CallStructural {
         psi_operation,
@@ -403,6 +413,7 @@ fn reference_call_matches(
             structural_arguments,
             &callee.structural_parameters,
             types,
+            domains,
             StructuralProjectionPolicy::Unit,
             true,
         )

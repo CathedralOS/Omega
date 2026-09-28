@@ -3459,35 +3459,52 @@ fn matches_bounded_byte_field(
     ) else {
         return false;
     };
-    matches!(
+    let is_owner = declarations.iter().any(|declaration| {
+        declaration.id == actual.structural_type
+            && matches!(
+                declaration.shape,
+                StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                )
+            )
+    });
+    (matches!(
         actual.access,
         StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-    ) && matches!(
-        (root.access, actual.access),
-        (
-            StructuralAccess::MutableBorrow,
-            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
-        ) | (
-            StructuralAccess::SharedBorrow,
-            StructuralAccess::SharedBorrow
+    ) || is_owner && actual.access == StructuralAccess::WriteOnlyBorrow)
+        && matches!(
+            (root.access, actual.access),
+            (
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow,
+            ) | (
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow
+            ) | (
+                StructuralAccess::WriteOnlyBorrow,
+                StructuralAccess::WriteOnlyBorrow
+            )
         )
-    ) && declarations.iter().any(|declaration| {
-        declaration.id == actual.structural_type
-            && match &declaration.shape {
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                ) => true,
-                // A bounded view borrows the whole field: the declared
-                // capacity must equal the field's fixed extent.
-                StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-                )
-                | StructuralTypeShape::ByteSequence(
-                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
-                ) => *capacity == field_capacity,
-                _ => false,
-            }
-    }) && actual.source_byte_offset == field_offset
+        && declarations.iter().any(|declaration| {
+            declaration.id == actual.structural_type
+                && match &declaration.shape {
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
+                    ) => true,
+                    // A bounded view borrows the whole field: the declared
+                    // capacity must equal the field's fixed extent.
+                    StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                    )
+                    | StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
+                    ) => *capacity == field_capacity,
+                    _ => false,
+                }
+        })
+        && actual.source_byte_offset == field_offset
         && actual.fixed_array_length.is_none()
         && actual.element_stride.is_none()
 }

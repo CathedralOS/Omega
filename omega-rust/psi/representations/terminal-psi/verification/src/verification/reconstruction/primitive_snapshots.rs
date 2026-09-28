@@ -231,6 +231,7 @@ impl<'a> PrimitiveSnapshots<'a> {
                 StructuralEffectAction::EstablishPrimitiveLocal
                 | StructuralEffectAction::StorePrimitive
                 | StructuralEffectAction::StoreScalarField
+                | StructuralEffectAction::StoreByteSequence
                 | StructuralEffectAction::StoreByteSequenceField
                 | StructuralEffectAction::StoreByteSequenceFieldByte
                 | StructuralEffectAction::WriteByteSequence => ReachingEffect::Unknown,

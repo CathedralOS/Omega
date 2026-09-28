@@ -65,7 +65,9 @@ pub(super) fn encode_structural_domain(
     writer.id(declaration.semantic_domain);
     writer.string("structural domain identity", &declaration.identity)?;
     writer.id(declaration.carrier);
-    writer.u8(declaration.byte_predicate.map_or(0, |predicate| predicate.mask_bit()));
+    writer.u8(declaration
+        .byte_predicate
+        .map_or(0, |predicate| predicate.mask_bit()));
     writer.boolean(declaration.content_projection.is_some());
     if let Some(projection) = &declaration.content_projection {
         writer.id(projection.identity.domain);

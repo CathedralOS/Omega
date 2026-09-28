@@ -4,6 +4,7 @@ mod bounded_byte_owner;
 mod fixed_byte_view;
 pub use bounded_byte_owner::{
     bounded_byte_owner_capacity, bounded_byte_owner_capacity_from_catalogs,
+    bounded_byte_owner_capacity_in,
 };
 pub use fixed_byte_view::{
     FixedByteArrayWindow, fixed_byte_array_extent, fixed_byte_array_window,
@@ -12,7 +13,7 @@ pub use fixed_byte_view::{
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
+    ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
     StructuralTypeShape,
 };

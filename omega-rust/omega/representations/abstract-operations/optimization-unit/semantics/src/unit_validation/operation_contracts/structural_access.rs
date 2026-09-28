@@ -51,6 +51,7 @@ pub(crate) fn structural_arguments_match(
     arguments: &[terminal_psi::StructuralArgument],
     parameters: &[terminal_psi::StructuralParameterDeclaration],
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
     projection: StructuralProjectionPolicy,
     allow_byte_literal: bool,
 ) -> bool {
@@ -58,6 +59,32 @@ pub(crate) fn structural_arguments_match(
         return false;
     }
     for (argument, parameter) in arguments.iter().zip(parameters) {
+        if let Some((carrier, qualifications, bytes)) = caller
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .find_map(|node| match &node.operation {
+                O::EstablishByteSequenceLiteral {
+                    place,
+                    structural_type,
+                    qualifications,
+                    bytes,
+                    ..
+                } if place.id == argument.place => {
+                    Some((structural_type.id, qualifications, bytes))
+                }
+                _ => None,
+            })
+            && !terminal_semantics::byte_literal_qualifications_hold_in(
+                domains.values().copied(),
+                carrier,
+                qualifications,
+                bytes,
+            )
+        {
+            return false;
+        }
+
         // A projection through a reference carrier names the carrier's exact
         // primitive referent, never a byte of the carrier itself. This mirrors
         // the verified call rule: internal calls only, exact parameter match.
@@ -207,8 +234,50 @@ pub(crate) fn structural_arguments_match(
                 .content_entry_claims
                 .iter()
                 .any(|claim| claim.input.root == argument.place);
+        let borrowed_owner_expected = matches!(
+            parameter.access,
+            terminal_psi::StructuralAccess::SharedBorrow
+                | terminal_psi::StructuralAccess::MutableBorrow
+                | terminal_psi::StructuralAccess::WriteOnlyBorrow
+        ) && types.get(&parameter.structural_type).is_some_and(
+            |declaration| {
+                matches!(
+                    declaration.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+            },
+        );
+        let bounded_owner_presentation = projection != StructuralProjectionPolicy::Boundary
+            && caller.structural_parameters.iter().any(|actual| {
+                terminal_semantics::bounded_byte_owner_capacity_in(
+                    types.values().copied(),
+                    domains.values().copied(),
+                    actual,
+                    argument,
+                    parameter,
+                )
+                .is_some()
+            })
+            && !caller
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == argument.place)
+            && !caller
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place);
+        // Raw carrier equality cannot weaken a qualified owner's exclusive loan.
+        if borrowed_owner_expected && !bounded_owner_presentation {
+            return false;
+        }
         let actual_type = resolve_structural_path(types, source.structural_type, &argument.path);
-        if actual_type.is_none() && !byte_field_presentation && !fixed_array_presentation {
+        if actual_type.is_none()
+            && !byte_field_presentation
+            && !fixed_array_presentation
+            && !bounded_owner_presentation
+        {
             return false;
         }
         // The owned parent of an exclusive mutable subloan suspends the same
@@ -225,7 +294,8 @@ pub(crate) fn structural_arguments_match(
         if (!path_shape_matches && !fixed_array_presentation)
             || (actual_type != Some(parameter.structural_type)
                 && !fixed_array_presentation
-                && !byte_field_presentation)
+                && !byte_field_presentation
+                && !bounded_owner_presentation)
             || argument.access != parameter.access
             || !structural_access_can_supply(source.access, argument.access)
         {
@@ -302,6 +372,7 @@ pub(crate) fn structural_arguments_match(
                 source.multiplicity
             } else if unrestricted_write_only_subloan
                 || fixed_array_presentation
+                || bounded_owner_presentation
                 || unrestricted_mutable_subloan
                 || unrestricted_owned_mutable_subloan
                 || unrestricted_shared_subloan
@@ -320,10 +391,10 @@ pub(crate) fn structural_arguments_match(
                 terminal_psi::StructuralMultiplicity::Linear
             };
         if actual_multiplicity != parameter.multiplicity
-            || parameter
-                .qualifications
-                .iter()
-                .any(|qualification| !source.carries_qualification(&argument.path, *qualification))
+            || (!bounded_owner_presentation
+                && parameter.qualifications.iter().any(|qualification| {
+                    !source.carries_qualification(&argument.path, *qualification)
+                }))
             || parameter
                 .projected_qualifications
                 .iter()
@@ -333,6 +404,7 @@ pub(crate) fn structural_arguments_match(
                     !source.carries_qualification(&path, qualification.domain)
                 })
             || (projection == StructuralProjectionPolicy::Unit
+                && !bounded_owner_presentation
                 && !argument.path.is_empty()
                 && (!source.qualifications.is_empty()
                     || ((unrestricted_write_only_subloan
@@ -395,6 +467,7 @@ fn is_material_write_only_type(
                         StructuralFieldType::Scalar(_) | StructuralFieldType::IeeeFloat(_) => {}
                         StructuralFieldType::Structural(child) => pending.push(child),
                         StructuralFieldType::ByteSequence(_)
+                        | StructuralFieldType::PredicateByteSequence { .. }
                         | StructuralFieldType::BoundedInteger(_)
                         | StructuralFieldType::Erased { .. } => return false,
                     }

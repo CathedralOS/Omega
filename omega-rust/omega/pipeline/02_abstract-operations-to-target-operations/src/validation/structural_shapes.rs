@@ -410,7 +410,7 @@ fn byte_sequence_field_geometry(
         let field_shape = field_shape(&field.field_type, declarations, cache, active)?;
         local_offset = align(local_offset, u32::from(field_shape.alignment))?;
         if field.identity == *identity {
-            let StructuralFieldType::ByteSequence(carrier) = field.field_type else {
+            let Some(carrier) = field.field_type.byte_sequence_carrier() else {
                 return Err(InvalidStructuralShape);
             };
             let field_offset = parent_offset
@@ -620,11 +620,20 @@ fn collect_field_leaves(
         }
         StructuralFieldType::ByteSequence(
             ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
-        ) => {
+        )
+        | StructuralFieldType::PredicateByteSequence {
+            carrier:
+                ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
+            ..
+        } => {
             let leaf = field_shape(field, declarations, cache, active)?;
             leaves.push((base_offset, u32::from(leaf.byte_size), false));
         }
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => {
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
+        | StructuralFieldType::PredicateByteSequence {
+            carrier: ByteSequenceCarrier::BoundedOwned { .. },
+            ..
+        } => {
             let leaf = field_shape(field, declarations, cache, active)?;
             for index in 0..u32::from(leaf.byte_size) {
                 leaves.push((
@@ -1024,15 +1033,23 @@ fn field_shape(
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary64) => Ok(ValueShape::float(8)),
         StructuralFieldType::Structural(nested) => shape(*nested, declarations, cache, active),
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { .. }) => {
-            Ok(ValueShape::integer(16, 8))
-        }
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
+        | StructuralFieldType::PredicateByteSequence {
+            carrier: ByteSequenceCarrier::BorrowedView { .. },
+            ..
+        } => Ok(ValueShape::integer(16, 8)),
         // The bound lives in the declaration; the stored descriptor is the
         // bare referent pointer.
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedView { .. }) => {
-            Ok(ValueShape::integer(8, 8))
-        }
-        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedView { .. })
+        | StructuralFieldType::PredicateByteSequence {
+            carrier: ByteSequenceCarrier::BoundedView { .. },
+            ..
+        } => Ok(ValueShape::integer(8, 8)),
+        StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity })
+        | StructuralFieldType::PredicateByteSequence {
+            carrier: ByteSequenceCarrier::BoundedOwned { capacity },
+            ..
+        } => {
             let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;
             Ok(ValueShape::integer(
                 u16::try_from(bytes).map_err(|_| InvalidStructuralShape)?,

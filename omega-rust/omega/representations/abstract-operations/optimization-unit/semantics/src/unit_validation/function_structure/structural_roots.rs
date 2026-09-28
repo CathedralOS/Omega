@@ -107,7 +107,8 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     }
                 }
-                O::ByteSequenceStore { source, .. } | O::StructuralByteSequenceFieldStore { source, .. } => {
+                O::ByteSequenceStore { source, .. }
+                | O::StructuralByteSequenceFieldStore { source, .. } => {
                     super::byte_views::validate_byte_view_source(
                         function,
                         block.id,
@@ -163,7 +164,7 @@ pub(crate) fn validate_structural_root_operations(
                             .is_some_and(|declaration| match &declaration.shape {
                                 terminal_psi::StructuralTypeShape::Record { fields } => fields.iter().any(|candidate|
                                     candidate.id == *field && !candidate.relevance.is_erased()
-                                    && matches!(candidate.field_type, terminal_psi::StructuralFieldType::ByteSequence(
+                                    && matches!(candidate.field_type.byte_sequence_carrier(), Some(
                                         terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }))),
                                 _ => false,
                             })

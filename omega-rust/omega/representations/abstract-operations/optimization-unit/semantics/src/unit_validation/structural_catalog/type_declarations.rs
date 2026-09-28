@@ -34,6 +34,16 @@ pub(crate) fn validate_structural_fields(
             field: field.id,
         };
         match (&field.field_type, field.relevance) {
+            (
+                terminal_psi::StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    predicates,
+                },
+                terminal_psi::BindingRelevance::Relevant,
+            ) if !predicates.is_empty() => {}
+            (terminal_psi::StructuralFieldType::PredicateByteSequence { .. }, _) => {
+                return Err(invalid_erased());
+            }
             (terminal_psi::StructuralFieldType::Erased { type_identity }, _)
                 if type_identity.is_empty() =>
             {

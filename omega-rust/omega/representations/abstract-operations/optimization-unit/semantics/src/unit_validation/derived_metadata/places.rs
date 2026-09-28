@@ -227,7 +227,8 @@ pub(crate) fn validate_operation_places(
             destination,
             source,
             ..
-        } | O::StructuralByteSequenceFieldStore {
+        }
+        | O::StructuralByteSequenceFieldStore {
             destination,
             source,
             ..
