@@ -1,0 +1,56 @@
+// A layout-policy application that only a `size_of` query mentions is never
+// desugared into an installed instance, so no validated plan layout exists to
+// measure. The query must reject rather than answer the policy data's own
+// (empty) record layout.
+use omega::language::std::console;
+use omega::language::core::binding;
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField {
+    key: u64;
+    size: u64 [0..=4096];
+    align: u64 [1..=16];
+    number: i64;
+    kind: FieldKind;
+}
+data Schema {
+    fields: [SchemaField; 32];
+    field_count: u64 [0..=32];
+}
+data FieldPlan { case At(offset: u64); }
+data FieldEntry { key: u64; placement: FieldPlan; }
+data Plan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}
+
+data CompactBits { }
+machine CompactBits::plan(&mut self, schema: Schema) -> Plan {
+    let mut entries: [FieldEntry; 64];
+    entries[0] = FieldEntry {
+        key: schema.fields[0].key,
+        placement: FieldPlan::At { offset: 0 },
+    };
+    Plan {
+        entries: entries,
+        entry_count: 1,
+        size_fixed: 1,
+        size_is_dynamic: false,
+        align: 1,
+    }
+}
+
+data Flags { present: bool; }
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}
+
+const NEVER_INSTANTIATED: u64 = size_of<CompactBits<Flags>>();

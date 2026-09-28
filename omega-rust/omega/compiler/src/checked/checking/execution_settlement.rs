@@ -148,6 +148,24 @@ pub(crate) fn check_selected_execution(
     let selected_native_target = selected_target_profile.map(target::TargetProfile::native_target);
     let provider_selection_target =
         selected_native_target.unwrap_or_else(target::NativeTarget::host);
+    // `size_of<T>`/`align_of<T>` survive Psi lowering as retained typed
+    // requests; only this realization's selected target can answer them. Fold
+    // every query to an ordinary `u64` literal before checked-tree
+    // construction so statement, scalar, and unit-plan building see the
+    // settled constant rather than a call without a callee. The layout
+    // authority reads only the typed program, so staging it in a
+    // `CheckedTrees` with an empty fact table supplies the same data the
+    // checker will own. The same target custody the rest of this settlement
+    // uses applies: the native target the build selected, or the host for a
+    // targetless shared product.
+    let mut layout_staging =
+        checked_trees::CheckedTrees::with_roots(typed, checked_trees::CheckFacts::default());
+    provider_planning::data_layout_queries::fold_data_layout_queries(
+        &mut layout_staging,
+        provider_selection_target,
+        opaque_representation_selections,
+    )?;
+    let mut typed = layout_staging.typed;
     let const_evaluation = SelectedConstantEvaluation::evaluate_pending(
         &mut typed,
         &selected_provider_plan_facts,
@@ -202,17 +220,6 @@ pub(crate) fn check_selected_execution(
         },
     )?;
     let mut checked = prepared.bind(program, provider_request)?;
-    // `size_of<T>`/`align_of<T>` survive Psi as retained typed requests; only
-    // this realization's selected target can answer them. Fold every query to
-    // an ordinary `u64` literal before the const replay validator, checked
-    // optimization, and codegen see the program. The same target custody the
-    // rest of this settlement uses applies: the native target the build
-    // selected, or the host for a targetless shared product.
-    provider_planning::data_layout_queries::fold_data_layout_queries(
-        std::sync::Arc::make_mut(&mut checked.program),
-        provider_selection_target,
-        opaque_representation_selections,
-    )?;
     // Every sibling was checked before realizing this target. Only the
     // selected bodies remain in its executable product.
     checked.program = std::sync::Arc::new(typed_trees_to_checked_trees::prune_target_siblings(
