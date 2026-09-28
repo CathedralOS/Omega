@@ -456,8 +456,21 @@ impl Lowerer<'_> {
         crate::type_reference::validate_range_arguments(self.source_trees, &trees)?;
         crate::declarations::provider_defaults::finalize_provider_default_calls(&mut trees)?;
         target_machine_families::append(self.source_trees, &mut trees, 0)?;
+        bind_dynamic_call_targets(&mut trees)?;
         Ok(trees)
     }
+}
+
+/// Receiver types are available only after typing. Publish requirement handles
+/// now so direct stage consumers need no compiler-owned repair pass. Later
+/// elaboration and specialization must bind any calls they introduce themselves.
+fn bind_dynamic_call_targets(trees: &mut TypedTrees) -> Result<(), Diagnostic> {
+    validation::resolve_dynamic_call_targets(trees).map_err(|diagnostics| {
+        // This stage reports its first failure, like its other typing rules.
+        diagnostics.into_iter().next().unwrap_or_else(|| {
+            Diagnostic::error("dynamic call target binding failed without a diagnostic")
+        })
+    })
 }
 
 #[cfg(test)]

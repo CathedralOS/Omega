@@ -20,6 +20,69 @@ use syntax_trees_to_symbol_resolved_trees::{
     ExtensionRequest, RebasedSeededSymbolResolvedTrees, resolve_extension,
 };
 
+#[test]
+fn typed_stage_binds_dynamic_calls_without_compiler_intervention() {
+    let typed = crate::front_end::typed_program(
+        "trait Shape { machine code(&self) -> i32; }
+         trait Decoy { machine code(&self) -> i32; }
+         data Holder { receiver: &dyn Shape; }
+         machine dispatch(holder: &Holder) -> i32 { holder.receiver.code() }",
+    );
+    let requirement = typed.trait_machine_signatures(&typed.traits()[0])[0].symbol;
+    let calls = typed
+        .expression_table
+        .expression_nodes()
+        .filter_map(|expression| match expression {
+            typed_trees::expression::ExpressionNode::Call(call) => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].target_symbol, requirement);
+}
+
+#[test]
+fn seeded_typing_binds_new_dynamic_calls_without_changing_the_base() {
+    let (base, extension) = seeded_plain_data_inputs(
+        "trait Shape { machine code(&self) -> i32; }
+         trait Decoy { machine code(&self) -> i32; }
+         data Holder { receiver: &dyn Shape; }
+         machine authored(holder: &Holder) -> i32 { holder.receiver.code() }",
+        "machine generated(holder: &Holder) -> i32 { holder.receiver.code() }",
+    );
+    let retained = base.typed().clone();
+    let typed = super::seeded_continuation::lower_seeded_extension(extension, base)
+        .expect("bind the appended cohort");
+    assert!(super::seeded_continuation::retained_typed_base_is_exact_prefix(&retained, &typed));
+    let requirement = typed.trait_machine_signatures(&typed.traits()[0])[0].symbol;
+    let targets = typed
+        .expression_table
+        .expression_nodes()
+        .filter_map(|expression| match expression {
+            typed_trees::expression::ExpressionNode::Call(call) => Some(call.target_symbol),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(targets, [requirement, requirement]);
+}
+
+#[test]
+fn typed_stage_rejects_ambiguous_inherited_dynamic_calls() {
+    let error = crate::front_end::typed_program_result(
+        "trait Left { machine code(&self) -> i32; }
+         trait Right { machine code(&self) -> i32; }
+         trait Both: Left + Right {}
+         machine dispatch(receiver: &dyn Both) -> i32 { receiver.code() }",
+    )
+    .expect_err("a typed dynamic call needs an unambiguous requirement");
+    assert!(
+        error
+            .message
+            .contains("ambiguous across inherited requirements"),
+        "{error:?}"
+    );
+}
+
 fn seeded_plain_data_inputs(
     base_source: &str,
     extension_source: &str,

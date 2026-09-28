@@ -258,11 +258,6 @@ pub(super) fn lower_typed_frontier(
         .evaluate_or_defer(typing_base.typed_mut())?
         .into_iter()
         .collect();
-    // Build evaluation consumes this coherent private typed stage before the
-    // final checked-tree lowering. Bind trait-valued parameter-field calls now
-    // so the evaluator receives the same exact requirement identity that the
-    // checker will subsequently validate and retain.
-    validation::resolve_dynamic_call_targets(typing_base.typed_mut())?;
     Ok(TypedFrontier {
         frontend: CheckedFrontend {
             typing: typing_base,

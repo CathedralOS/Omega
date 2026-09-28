@@ -1976,6 +1976,7 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "tokens-to-syntax-trees",
  "typed-trees",
+ "validation",
 ]
 
 [[package]]
