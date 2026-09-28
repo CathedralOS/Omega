@@ -40,7 +40,6 @@ struct CheckedSourceCustody {
         Option<package_compilation::PackageSourceConsumptionCommitment>,
     exact_toolchain_sources: Vec<(source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
-    own_generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
 
 // Measurements are observations, not checked semantic identity. Each retained
@@ -90,7 +89,6 @@ impl CheckedCompilation {
                 base_source_consumption_commitment: sources.base_source_consumption_commitment,
                 exact_toolchain_sources,
                 generated_source_custody: sources.generated_source_custody,
-                own_generated_sources: sources.own_generated_sources,
             },
             timings,
         })
@@ -118,9 +116,9 @@ impl CheckedCompilation {
                 .application
                 .as_ref()
                 .map(|application| application.name.as_str().to_owned()),
-            intent: self.execution.application_intent,
-            identifier: self.execution.application_identifier.clone(),
-            subsystem: self.execution.subsystem,
+            intent: self.execution.build.config.application_intent,
+            identifier: self.execution.build.config.application_identifier.clone(),
+            subsystem: self.execution.build.config.subsystem,
         }
     }
 
@@ -136,14 +134,14 @@ impl CheckedCompilation {
     }
 
     /// Exact image subsystem selected by the owning build configuration.
-    pub const fn subsystem(&self) -> u16 {
-        self.execution.subsystem
+    pub fn subsystem(&self) -> u16 {
+        self.execution.build.config.subsystem
     }
 
     /// The two independent optional proof-product requests retained from the
     /// authoritative build machine. Off by default; they never change checking.
-    pub const fn pcc_requests(&self) -> build_evaluation::PccRequests {
-        self.execution.pcc_requests
+    pub fn pcc_requests(&self) -> build_evaluation::PccRequests {
+        self.execution.build.config.pcc
     }
 
     /// Behavior exclusions authored by the authoritative build machine
@@ -152,7 +150,7 @@ impl CheckedCompilation {
     /// retains the exact toolchain `CrashCause` case symbol it named, the
     /// typed machine that spelled it, and its authored source span.
     pub fn behavior_exclusions(&self) -> &[build_evaluation::AuthoredBehaviorExclusion] {
-        &self.execution.behavior_exclusions
+        &self.execution.build.config.behavior_exclusions
     }
 
     /// Reconciled root package identity for package-aware compilation.
@@ -341,7 +339,7 @@ impl CheckedCompilation {
                 self.sources.build_execution_profile,
                 dependency_closure,
                 source_consumption_commitment,
-                self.sources.own_generated_sources.clone(),
+                self.execution.build.generated_sources.clone(),
             ),
         )
     }
@@ -417,8 +415,8 @@ impl CheckedCompilation {
 
     /// Exact symbol of the uniquely selected build machine. No build machine
     /// is represented by `None`; callers must not rediscover one by name.
-    pub const fn selected_build_machine_symbol(&self) -> Option<symbols::SymbolHandle> {
-        self.execution.selected_build_machine_symbol
+    pub fn selected_build_machine_symbol(&self) -> Option<symbols::SymbolHandle> {
+        self.execution.build.selected_build_machine_symbol
     }
 
     /// Canonical semantic identity of the build machine actually evaluated.
@@ -435,7 +433,7 @@ impl CheckedCompilation {
     pub fn opaque_representation_selections(
         &self,
     ) -> &[representation_planning::OpaqueRepresentationSelection] {
-        &self.execution.opaque_representation_selections
+        &self.execution.build.config.opaque_representation_selections
     }
 
     /// Exact validated boundary calling-plan realizations retained while the
@@ -451,8 +449,8 @@ impl CheckedCompilation {
     /// Exact named optimizations selected by the authoritative root build.
     /// Empty executes each applicable optimization phase as a validated
     /// identity transformation; it does not select an optimizer-free path.
-    pub const fn optimization_selections(&self) -> &optimization_core::OptimizationSelections {
-        self.execution.optimization.selections()
+    pub fn optimization_selections(&self) -> &optimization_core::OptimizationSelections {
+        &self.execution.build.config.optimizations
     }
 
     /// Domain-separated identity of the exact canonical selected set. This is
@@ -461,15 +459,13 @@ impl CheckedCompilation {
     pub const fn optimization_selection_identity(
         &self,
     ) -> optimization_core::OptimizationSelectionIdentity {
-        self.execution.optimization.selection_identity()
+        self.execution.optimization_selection_identity
     }
 
     /// Auxiliary report projection requested by the authoritative root build.
     /// This remains independent of the exact transformation selection.
-    pub const fn optimization_report_request(
-        &self,
-    ) -> optimization_core::OptimizationReportRequest {
-        self.execution.optimization.report()
+    pub fn optimization_report_request(&self) -> optimization_core::OptimizationReportRequest {
+        self.execution.build.optimization_report_request
     }
 
     /// Identity-bearing evidence of the checked-tree product selection this
@@ -553,17 +549,15 @@ impl CheckedCompilation {
         &self.execution.settled.callback_placements
     }
 
-    pub const fn build_evaluation_usage(&self) -> Option<build_evaluation::BuildEvaluationUsage> {
-        self.execution.build_evaluation_usage
+    pub fn build_evaluation_usage(&self) -> Option<build_evaluation::BuildEvaluationUsage> {
+        self.execution.build.evaluation_usage
     }
 
     /// Exact selected build-machine observation ceiling and realized class.
     /// This execution evidence remains separate from package capability/API
     /// comparison bytes.
-    pub const fn build_observation_summary(
-        &self,
-    ) -> Option<&build_evaluation::BuildObservationSummary> {
-        self.execution.build_observation_summary.as_ref()
+    pub fn build_observation_summary(&self) -> Option<&build_evaluation::BuildObservationSummary> {
+        self.execution.build.observation_summary.as_ref()
     }
 
     pub fn build_observation_identity(&self) -> Option<build_evaluation::BuildObservationIdentity> {

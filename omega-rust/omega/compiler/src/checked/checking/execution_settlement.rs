@@ -14,14 +14,13 @@ use selected_dispatch::{
 pub(crate) struct CheckedExecution {
     pub(super) settled: SelectedExecution,
     pub(super) const_evaluation: SelectedConstantEvaluation,
-    pub(super) subsystem: u16,
-    pub(super) application_intent: Option<build_evaluation::HostedApplicationIntent>,
-    pub(super) application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+    /// One immutable evaluated Build shared by target products and review clones.
+    /// Authored choices stay distinct from the realized settlements below.
+    pub(super) build: std::sync::Arc<build_evaluation::ComputedBuildConfig>,
     /// The validated authored `builder.application` declaration; its name
     /// supplies the `.app` basename and inner executable leaf at publication
     /// and its artifact-only intent narrows the admitted route.
     pub(super) application: Option<build_declarations::ApplicationDeclaration>,
-    pub(super) pcc_requests: build_evaluation::PccRequests,
     pub(super) selected_target_profile: Option<target::TargetProfile>,
     pub(super) selected_native_target: Option<target::NativeTarget>,
     pub(super) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
@@ -29,14 +28,10 @@ pub(crate) struct CheckedExecution {
         Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
     pub(super) selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
-    pub(super) selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub(super) selected_build_machine_identity: Option<String>,
-    pub(super) opaque_representation_selections:
-        Vec<representation_planning::OpaqueRepresentationSelection>,
     pub(super) boundary_calling_plan_realizations:
         Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
-    pub(super) optimization:
-        crate::checked::optimization::checked_handoff::CheckedOptimizationHandoff,
+    pub(super) optimization_selection_identity: optimization_core::OptimizationSelectionIdentity,
     /// Identity-bearing checked-tree product selection evidence, present only
     /// when the effective build selection named `CheckedTreeProductPruning`.
     pub(super) product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
@@ -45,13 +40,6 @@ pub(crate) struct CheckedExecution {
         provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
     pub(super) external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
     pub(super) root_grants: Vec<String>,
-    /// Behavior exclusions authored by the authoritative build machine
-    /// (wiki/spec/build/behavior_exclusions.md): product-admission
-    /// requirements over the exact selected executable composition, each
-    /// retaining its exact toolchain case identity and authored span.
-    pub(super) behavior_exclusions: Vec<build_evaluation::AuthoredBehaviorExclusion>,
-    pub(super) build_evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
-    pub(super) build_observation_summary: Option<build_evaluation::BuildObservationSummary>,
     /// The normalized restricted build-host requests the admitted build
     /// activation asked of the host before it executed.
     pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
@@ -83,13 +71,10 @@ pub(crate) fn check_selected_execution(
         computed_build_config,
         restricted_build_requests,
         application,
-        selected_build_machine_symbol,
         selected_build_machine_identity,
     } = built;
-    let build_evaluation_usage = computed_build_config.evaluation_usage;
-    let build_observation_summary = computed_build_config.observation_summary;
-    let optimization_report = computed_build_config.optimization_report_request;
-    let build_config = computed_build_config.config;
+    let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
+    let build_config = &computed_build_config.config;
     let selected_native_target = selected_target_profile
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
@@ -104,19 +89,12 @@ pub(crate) fn check_selected_execution(
             &build_config.opaque_representation_selections,
             package_inputs,
         )?;
-    let opaque_representation_selections = build_config.opaque_representation_selections.clone();
+    let opaque_representation_selections = &build_config.opaque_representation_selections;
     let x86_scalar_fma_provider = build_config
         .x86_deployment_claim
         .admit_for(selected_target_profile)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let subsystem = build_config.subsystem;
-    let application_intent = build_config.application_intent;
-    let application_identifier = build_config.application_identifier.clone();
-    let optimization =
-        crate::checked::optimization::checked_handoff::CheckedOptimizationHandoff::retain(
-            build_config.optimizations.clone(),
-            optimization_report,
-        );
+    let optimization_selection_identity = build_config.optimizations.identity();
     // Compatibility demands are semantic checks, not report-mode behavior.
     // Validate them on the canonical checked route even when no auxiliary
     // artifact writer is requested by the outer compiler coordinator.
@@ -191,7 +169,7 @@ pub(crate) fn check_selected_execution(
         package_inputs,
         selected_build_machine: selected_build_machine_symbol,
         boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
-        opaque_representation_selections: &opaque_representation_selections,
+        opaque_representation_selections,
         provider_plans: &provider_plans,
         selected_provider_plan_facts,
         root_grants: &root_grants,
@@ -231,7 +209,7 @@ pub(crate) fn check_selected_execution(
     provider_planning::data_layout_queries::fold_data_layout_queries(
         std::sync::Arc::make_mut(&mut checked.program),
         provider_selection_target,
-        &opaque_representation_selections,
+        opaque_representation_selections,
     )?;
     // Every sibling was checked before realizing this target. Only the
     // selected bodies remain in its executable product.
@@ -283,7 +261,7 @@ pub(crate) fn check_selected_execution(
             provider_selection_target,
             selected_target_profile,
             selected_provider_provenance,
-            opaque_representation_selections: &opaque_representation_selections,
+            opaque_representation_selections,
             accepted_console_binding: package_inputs.and_then(|inputs| {
                 inputs.accepted_semantic_binding(
                     package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
@@ -332,30 +310,22 @@ pub(crate) fn check_selected_execution(
 
     Ok(CheckedExecution {
         settled: selected_execution_settlement,
+        build: computed_build_config,
+        optimization_selection_identity,
         const_evaluation,
-        subsystem,
-        application_intent,
-        application_identifier,
         application,
-        pcc_requests: build_config.pcc,
         selected_target_profile,
         selected_native_target,
         x86_scalar_fma_provider,
         x86_scalar_fma_plan_associations,
         selected_program_entry,
-        selected_build_machine_symbol,
         selected_build_machine_identity,
-        opaque_representation_selections,
         boundary_calling_plan_realizations,
-        optimization,
         product_selection,
         provider_plans,
         evaluated_via_bindings,
         external_binding_rows,
         root_grants,
-        behavior_exclusions: build_config.behavior_exclusions,
-        build_evaluation_usage,
-        build_observation_summary,
         // The Build evaluated once for every target; this target's
         // compilation records the requests as its own.
         restricted_build_requests: restricted_build_requests
