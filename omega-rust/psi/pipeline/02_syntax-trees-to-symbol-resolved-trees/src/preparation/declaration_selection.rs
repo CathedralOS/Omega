@@ -606,6 +606,40 @@ impl<'base> ConstantSelection<'base> {
             )
     }
 
+    /// Whether one authored call-target name selects any visible declaration
+    /// in its source context. The compiler's `size_of`/`align_of` layout
+    /// spellings stay compiler-owned only when no authored declaration binds
+    /// them; this lookup owns that distinction before resolution assigns
+    /// symbols.
+    pub(crate) fn names_declaration(&self, name: &Identifier) -> bool {
+        !matches!(
+            self.symbols
+                .lookup_top_level_by_name_and_kinds_from_source_matching(
+                    name.as_str(),
+                    &[
+                        SymbolKind::Module,
+                        SymbolKind::BuiltinType,
+                        SymbolKind::BuiltinFunction,
+                        SymbolKind::Data,
+                        SymbolKind::Domain,
+                        SymbolKind::Machine,
+                        SymbolKind::Operator,
+                        SymbolKind::Measure,
+                        SymbolKind::Proposition,
+                        SymbolKind::MathematicalDefinition,
+                        SymbolKind::Trait,
+                        SymbolKind::Conformance,
+                        SymbolKind::Const,
+                        SymbolKind::ConformanceParameter,
+                        SymbolKind::WireSchema,
+                    ],
+                    name.source_span(),
+                    |_| true,
+                ),
+            symbols::SymbolLookup::NotFound
+        )
+    }
+
     /// Select one data header in the authored occurrence's source context.
     /// Absent and ambiguous selections both return `None`; the declaring
     /// stage that owns the subject emits the exact diagnostic.

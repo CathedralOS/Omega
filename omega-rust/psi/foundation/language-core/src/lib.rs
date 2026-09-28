@@ -6,12 +6,15 @@
 //! and typing consult (its `receiver_binding` area owns the `self` receiver
 //! spelling); `atomic`, `cast_form`, `inline_assembly` and
 //! `operator_spelling` hold the orderings, cast forms, inline-assembly
-//! spelling and operator spellings the stages share. The crate
+//! spelling and operator spellings the stages share;
+//! `data_layout_queries` names the compiler-owned `size_of`/`align_of`
+//! call spellings. The crate
 //! defines vocabulary that several stages must agree on; it neither parses nor
 //! judges a program, and it depends on no representation crate.
 
 pub mod atomic;
 pub mod cast_form;
+pub mod data_layout_queries;
 pub mod inline_assembly;
 pub mod operator_spelling;
 mod source_semantics;

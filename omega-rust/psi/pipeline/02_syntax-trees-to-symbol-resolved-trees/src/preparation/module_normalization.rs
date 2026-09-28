@@ -126,8 +126,8 @@ pub(crate) fn validate_with_const_resolution_mode(
                     ]
                 })?;
             } else {
-                crate::constant::validate_scalar_initializer(syntax, constant).map_err(
-                    |reason| {
+                crate::constant::validate_scalar_initializer(syntax, constant, Some(selection))
+                    .map_err(|reason| {
                         vec![
                             Diagnostic::error(format!(
                                 "module scalar constant `{}` is invalid: {reason}",
@@ -135,8 +135,7 @@ pub(crate) fn validate_with_const_resolution_mode(
                             ))
                             .with_source_span(constant.name.source_span()),
                         ]
-                    },
-                )?;
+                    })?;
             }
         } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
             // A `Box<u64>`-style carrier cannot hold a canonical

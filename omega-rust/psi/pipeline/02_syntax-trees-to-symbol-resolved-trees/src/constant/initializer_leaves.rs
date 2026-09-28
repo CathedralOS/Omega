@@ -198,6 +198,17 @@ pub(crate) fn pending_const_initializer_leaves(
                     // floating declaration's literal validation owns its suffix.
                     ExpressionNode::Float(_) => matches!(selection.builtin_type(name),
                         Some(symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)),
+                    // `size_of<T>()`/`align_of<T>()` are answered from the
+                    // selected target's validated layout after settlement, not
+                    // by a Psi-stage probe: the leaf retains its authored call
+                    // and Omega materializes the `u64` literal there. An
+                    // authored declaration bearing the same name keeps the
+                    // ordinary call leaf.
+                    ExpressionNode::Call(call)
+                        if deferred_layout_query(Some(selection), call) =>
+                    {
+                        return Ok(());
+                    }
                     _ => false,
                 };
                 if !materialized {
@@ -764,4 +775,24 @@ fn nominal_placeholder_literal(
         constructor_name: syntax_trees::identifier::Identifier::new(constructor, constructor_span),
         fields,
     }))
+}
+
+/// `size_of<T>()`/`align_of<T>()` name no declaration the Psi stage can call:
+/// the selected target's validated layout answers them after settlement, so
+/// the leaf retains its authored call and Omega materializes the `u64`
+/// literal there. An authored declaration bearing the same name keeps the
+/// ordinary call leaf.
+pub(crate) fn deferred_layout_query(
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
+    call: &syntax_trees::expression::TableCallExpression,
+) -> bool {
+    if call.receiver.is_valid()
+        || language_core::data_layout_queries::DataLayoutQueryKind::from_target_name(
+            call.target.as_str(),
+        )
+        .is_none()
+    {
+        return false;
+    }
+    selection.is_none_or(|selection| !selection.names_declaration(&call.target))
 }

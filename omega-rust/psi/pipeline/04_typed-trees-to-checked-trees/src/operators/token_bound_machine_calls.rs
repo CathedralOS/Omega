@@ -287,6 +287,7 @@ pub(crate) fn bind_token_bound_machine_calls(
                 machine_arguments: Box::default(),
                 quotient_operation: None,
                 private_layout_operation: None,
+                    layout_query: None,
                 arguments,
                 evidence_arguments: Box::default(),
                 operational_acknowledgement: language_semantics::CallOperationalAcknowledgement {

@@ -118,6 +118,7 @@ pub(crate) fn public_declaration_value_encoding(
 pub(crate) fn validate_scalar_initializer(
     syntax: &SyntaxTrees,
     constant: &syntax_trees::item::ConstDefinition,
+    selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
 ) -> Result<(), String> {
     use numerics::literals::{FloatFormat, FloatLiteral};
     use syntax_trees::expression::ExpressionNode;
@@ -150,6 +151,13 @@ pub(crate) fn validate_scalar_initializer(
         return Ok(());
     }
     let initializer = syntax.expressions.expression(constant.value);
+    // A deferred `size_of`/`align_of` leaf lands only after target selection;
+    // Psi cannot literal-validate it, and Omega materializes the `u64` there.
+    if let ExpressionNode::Call(call) = initializer
+        && crate::constant::initializer_leaves::deferred_layout_query(selection, call)
+    {
+        return Ok(());
+    }
     match carrier.as_str() {
         "f32" | "f64" => {
             let format = if carrier.as_str() == "f32" {
@@ -234,13 +242,22 @@ pub(crate) fn validate_const_definition(
             .with_source_span(definition.name.source_span())
         })?;
     }
-    validate_scalar_initializer(syntax, definition).map_err(|reason| {
+    validate_scalar_initializer(syntax, definition, selection).map_err(|reason| {
         Diagnostic::error(format!(
             "scalar constant `{}` is invalid: {reason}",
             definition.name.as_str()
         ))
         .with_source_span(definition.name.source_span())
     })?;
+    // A deferred `size_of`/`align_of` leaf is not a literal yet; its `u64`
+    // materializes from the selected target's layout in Omega.
+    if matches!(
+        syntax.expressions.expression(definition.value),
+        syntax_trees::expression::ExpressionNode::Call(call)
+            if crate::constant::initializer_leaves::deferred_layout_query(selection, call)
+    ) {
+        return Ok(());
+    }
     validate_literal_initializer(syntax, definition, definition.value)
 }
 
@@ -266,7 +283,19 @@ pub(crate) fn retain_const_initializer(
                 .with_source_span(definition.name.source_span())
             })?;
         } else {
-            validate_literal_initializer(syntax, definition, definition.value)?;
+            // A deferred `size_of`/`align_of` leaf is not a literal yet; its
+            // `u64` materializes from the selected target's layout in Omega.
+            let deferred = matches!(
+                syntax.expressions.expression(definition.value),
+                syntax_trees::expression::ExpressionNode::Call(call)
+                    if crate::constant::initializer_leaves::deferred_layout_query(
+                        lowerer.constant_selection.as_ref(),
+                        call,
+                    )
+            );
+            if !deferred {
+                validate_literal_initializer(syntax, definition, definition.value)?;
+            }
         }
     }
     let initializer = crate::lowering::expression::lower_expression_into_table(

@@ -70,6 +70,19 @@ pub(super) fn infer_hoist_temp_type(
                     .copied(),
             )
         }
+        // A `size_of<T>()`/`align_of<T>()` query hoisted out of a guard
+        // comparison (`let __hoist = size_of<Row>()`): the compiler-owned
+        // query has no callee signature to read a return type from, but its
+        // result is always the builtin `u64`.
+        ExpressionNode::Call(call)
+            if language_core::data_layout_queries::is_data_layout_query_spelling(
+                call.target.as_str(),
+                call.target_symbol.is_valid(),
+                call.receiver.is_valid(),
+            ) =>
+        {
+            return builtin_u64_type(lowerer);
+        }
         // A USER value-machine call hoisted out of a guard comparison
         // (`let __hoist = self.dbl(5)`, syntax->symbol-resolved
         // `hoist_scalar_value_call_comparison`): the temp's type is the
@@ -1261,4 +1274,29 @@ fn resolved_primitive_type(
         ),
         other => other.primitive_type(),
     }
+}
+
+/// The builtin `u64` as a typed named reference -- the fixed result type of
+/// `size_of`/`align_of` data-layout queries, which carry no callee signature
+/// to infer a return type from.
+fn builtin_u64_type(
+    lowerer: &mut Lowerer,
+) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
+    let symbols = &lowerer.source_trees.symbols;
+    let Some(symbol) = symbols
+        .child_handles(symbols.root())
+        .and_then(|mut children| {
+            children.find(|symbol| {
+                symbols.builtin_type_atom(*symbol) == Some(symbols::BuiltinTypeAtom::U64)
+            })
+        })
+    else {
+        return Ok(None);
+    };
+    Ok(Some(lowerer.typed_trees.type_reference_table.insert(
+        typed::types::TypeReferenceNode::Named {
+            symbol,
+            name: typed::name::Identifier::generated_static("u64"),
+        },
+    )))
 }

@@ -549,6 +549,7 @@ impl ExpressionTable {
                     machine_arguments: call.machine_arguments.clone(),
                     quotient_operation: call.quotient_operation.clone(),
                     private_layout_operation: call.private_layout_operation.clone(),
+                    layout_query: call.layout_query.clone(),
                     arguments,
                     evidence_arguments: call.evidence_arguments.clone(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -1575,6 +1576,7 @@ impl ExpressionTable {
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
                     private_layout_operation: call.private_layout_operation,
+                    layout_query: call.layout_query,
                     arguments,
                     evidence_arguments: call.evidence_arguments,
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -1841,6 +1843,7 @@ impl ExpressionTable {
                     machine_arguments: Box::default(),
                     quotient_operation: None,
                     private_layout_operation: None,
+                    layout_query: None,
                     arguments,
                     evidence_arguments: call.evidence_arguments.to_vec().into_boxed_slice(),
                     operational_acknowledgement: call.operational_acknowledgement,
@@ -2365,6 +2368,12 @@ pub struct TableCallExpression {
     /// conformance is proof-static identity; ordinary generic dispatch never
     /// sees it and source code never receives the resulting private place.
     pub private_layout_operation: Option<PrivateLayoutOperationRequest>,
+    /// Exact compiler-known `size_of<T>`/`align_of<T>` request. The operand's
+    /// lowered static argument keeps the queried type's authored selection
+    /// custody. The answer needs the selected target's validated layout, so
+    /// Psi retains the request and Omega settlement folds it to an ordinary
+    /// `u64` literal before checking produces call evidence for it.
+    pub layout_query: Option<DataLayoutQueryRequest>,
     pub arguments: HandleSpan<ExpressionHandle>,
     pub evidence_arguments: Box<[Identifier]>,
     pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
@@ -2373,6 +2382,16 @@ pub struct TableCallExpression {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PrivateLayoutOperationRequest {
     pub selected_slot: StaticMachineArgument,
+}
+
+/// An authored `size_of<T>`/`align_of<T>` query over the selected target's
+/// validated layout of `operand`. The operand retains its complete static
+/// argument (type reference, path and resolved symbol) so the settlement fold
+/// can rejoin the exact authored selection instead of re-parsing a name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DataLayoutQueryRequest {
+    pub kind: language_core::data_layout_queries::DataLayoutQueryKind,
+    pub operand: StaticMachineArgument,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
