@@ -9,6 +9,7 @@ name = "build_evaluation"
 path = "src/lib.rs"
 
 [dependencies]
+compilation-products = { path = "../../realization/compilation-products" }
 arena = { path = "../../../psi/foundation/arena" }
 artifacts = { path = "../../foundation/artifacts" }
 language-core = { path = "../../../psi/foundation/language-core" }

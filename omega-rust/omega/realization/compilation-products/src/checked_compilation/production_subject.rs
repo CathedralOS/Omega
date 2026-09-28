@@ -9,7 +9,7 @@ impl CheckedCompilation {
     /// consumes this projection rather than reconstructing its parts.
     pub fn production_subject(
         &self,
-    ) -> Result<Option<crate::report::ProductionCompilationSubject>, Vec<Diagnostic>> {
+    ) -> Result<Option<crate::ProductionCompilationSubject>, Vec<Diagnostic>> {
         let Some(package) = self.package_compilation_subject() else {
             return Ok(None);
         };
@@ -38,7 +38,7 @@ impl CheckedCompilation {
                 "package production requires one selected native target",
             )]
         })?;
-        crate::report::ProductionCompilationSubject::from_checked(
+        crate::ProductionCompilationSubject::from_checked(
             package.clone(),
             build_machine.to_owned(),
             usage,

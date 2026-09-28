@@ -5,6 +5,17 @@ driver. This is not a pipeline phase: it validates invocation contracts and
 consumes produced artifacts, never parses source, evaluates Build, lowers a
 program or re-enters compilation.
 
+[`checked_compilation.rs`](src/checked_compilation.rs) owns the immutable checked
+product: whole selected-execution results, source-custody sealing, metadata,
+generated-source handoffs and the production-report subject. The coordinator
+supplies completed stage products through `CheckedCompilationInputs`; sealing
+rejoins source custody but does not grant package admission or native authority.
+Package review consumes this product directly, without a production dependency
+on compiler orchestration, and still independently reconstructs evidence.
+[`evaluated_build.rs`](src/evaluated_build.rs) owns the shared retained Build
+configuration and execution-result records. Build evaluation produces them;
+product consumers do not depend on the evaluator.
+
 [compile_request.rs](src/compile_request.rs) owns request normalization:
 target-local policies, separate staging directories, package input joins, and
 rollback eligibility for the requested stop. Its validated target records expose

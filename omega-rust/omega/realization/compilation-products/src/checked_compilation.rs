@@ -1,15 +1,57 @@
 //! Checked compilation and the source custody sealed against it.
 
-use super::execution_settlement::CheckedExecution;
 use artifacts::compile_timings::CompileTimings;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
 use package_compilation::CheckedSourceCustody;
 use package_compilation::PackageCompilationInputs;
+use selected_dispatch::{SelectedConstantEvaluation, SelectedExecution};
 use std::sync::Arc;
 
 mod production_subject;
+
+/// Whole stage products supplied when sealing a checked compilation.
+/// These inputs are not an admission receipt. Sealing retains them immutably;
+/// downstream consumers still independently reconstruct their evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedCompilationInputs {
+    pub settled: SelectedExecution,
+    pub const_evaluation: SelectedConstantEvaluation,
+    /// One immutable evaluated Build shared by target products and review clones.
+    /// Authored choices stay distinct from the realized settlements below.
+    pub build: std::sync::Arc<crate::ComputedBuildConfig>,
+    /// The validated authored `builder.application` declaration; its name
+    /// supplies the `.app` basename and inner executable leaf at publication
+    /// and its artifact-only intent narrows the admitted route.
+    pub application: Option<build_declarations::ApplicationDeclaration>,
+    pub selected_build_machine_identity: Option<String>,
+    pub boundary_calling_plan_realizations:
+        Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
+    pub optimization_selection_identity: optimization_core::OptimizationSelectionIdentity,
+    /// Identity-bearing checked-tree product selection evidence, present only
+    /// when the effective build selection named `CheckedTreeProductPruning`.
+    pub product_selection: Option<typed_trees_to_checked_trees::CheckedTreeProductSelection>,
+    pub provider_plans: Vec<effects::provider_plan::ProviderPlan>,
+    pub evaluated_via_bindings: provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable,
+    pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+    pub root_grants: Vec<String>,
+    /// The normalized restricted build-host requests the admitted build
+    /// activation asked of the host before it executed.
+    pub restricted_build_requests:
+        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
+    /// The component descriptions this package compilation attached and
+    /// provider settlement verified, in package-identity order. Retained as
+    /// custody so consumers replaying the selected-provider join can re-verify
+    /// the same admission instead of rediscovering unattached inputs.
+    pub independent_component_descriptions:
+        Vec<package_compilation::IndependentComponentDescription>,
+    /// The component-assumption digests the authoritative build machine
+    /// accepted through `builder.accept_component_assumption`. Retained
+    /// beside the admitted descriptions so a replay re-verifies them under
+    /// the same acceptance set the original settlement applied.
+    pub accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]>,
+}
 
 /// Psi-checked semantics paired with the Omega-owned provider realization
 /// selected for one engine run. The semantic program deliberately does not
@@ -20,13 +62,13 @@ mod production_subject;
 /// perform their independent reconstruction.
 ///
 /// ```compile_fail
-/// fn replace_program(checked: &mut compiler::CheckedCompilation) {
-///     checked.typed = typed_trees::TypedTrees::default();
+/// fn replace_program(checked: &mut compilation_products::CheckedCompilation) {
+///     checked.typed = Default::default();
 /// }
 /// ```
 #[derive(Debug, Clone)]
 pub struct CheckedCompilation {
-    execution: CheckedExecution,
+    execution: CheckedCompilationInputs,
     sources: CheckedSourceCustody,
     timings: CompileTimings,
 }
@@ -42,8 +84,11 @@ impl PartialEq for CheckedCompilation {
 impl Eq for CheckedCompilation {}
 
 impl CheckedCompilation {
-    pub(crate) fn seal(
-        execution: CheckedExecution,
+    /// Seal supplied stage products against their exact consumed source closure.
+    /// This binds custody, not package admission or native publication authority;
+    /// consumers still independently reconstruct the supplied evidence.
+    pub fn seal(
+        execution: CheckedCompilationInputs,
         sources: BuildSourceCustody,
         package_inputs: Option<&PackageCompilationInputs>,
         timings: CompileTimings,
@@ -117,7 +162,7 @@ impl CheckedCompilation {
     /// requirements over the exact selected executable composition. Each row
     /// retains the exact toolchain `CrashCause` case symbol it named, the
     /// typed machine that spelled it, and its authored source span.
-    pub fn behavior_exclusions(&self) -> &[build_evaluation::AuthoredBehaviorExclusion] {
+    pub fn behavior_exclusions(&self) -> &[effects::AuthoredBehaviorExclusion] {
         &self.execution.build.config.behavior_exclusions
     }
 
@@ -496,20 +541,24 @@ impl CheckedCompilation {
         &self.execution.settled.callback_placements
     }
 
-    pub fn build_evaluation_usage(&self) -> Option<build_evaluation::BuildEvaluationUsage> {
+    pub fn build_evaluation_usage(&self) -> Option<package_compilation::BuildEvaluationUsage> {
         self.execution.build.evaluation_usage
     }
 
     /// Exact selected build-machine observation ceiling and realized class.
     /// This execution evidence remains separate from package capability/API
     /// comparison bytes.
-    pub fn build_observation_summary(&self) -> Option<&build_evaluation::BuildObservationSummary> {
+    pub fn build_observation_summary(
+        &self,
+    ) -> Option<&package_compilation::BuildObservationSummary> {
         self.execution.build.observation_summary.as_ref()
     }
 
-    pub fn build_observation_identity(&self) -> Option<build_evaluation::BuildObservationIdentity> {
+    pub fn build_observation_identity(
+        &self,
+    ) -> Option<package_compilation::BuildObservationIdentity> {
         self.build_observation_summary()
-            .map(build_evaluation::BuildObservationSummary::identity)
+            .map(package_compilation::BuildObservationSummary::identity)
     }
 
     /// Select the completed-file product from this checked execution. Compiler
@@ -517,9 +566,9 @@ impl CheckedCompilation {
     /// settlement roster or stages the build again.
     pub fn completed_build_outputs(
         &self,
-    ) -> Result<Option<crate::report::RetainedBuildOutputs>, Vec<Diagnostic>> {
+    ) -> Result<Option<crate::RetainedBuildOutputs>, Vec<Diagnostic>> {
         self.build_observation_summary()
-            .map(crate::report::RetainedBuildOutputs::from_observation)
+            .map(crate::RetainedBuildOutputs::from_observation)
             .transpose()
             .map(Option::flatten)
             .map_err(|message| vec![Diagnostic::error(message)])

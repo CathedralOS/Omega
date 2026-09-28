@@ -5,6 +5,10 @@
 //! `compile_request` validates target configurations and product eligibility
 //! without executing a compiler phase. `compile_outcomes` retains every result
 //! and binds its batch commitment; the compiler owns the target execution loop.
+//! `evaluated_build` retains Build settings and observation results without
+//! depending on their evaluator. `checked_compilation` seals whole checked
+//! stage products against package source custody and supplies their projections;
+//! it does not execute stages or confer package/native admission.
 //!
 //! `CompileReport` records which payload a compilation produced and validates
 //! its custody joins. It does not choose output paths or install files;
@@ -18,9 +22,11 @@
 //! with `native_artifact`; filesystem mechanics remain with `platform_custody`.
 
 mod batch_manifest;
+mod checked_compilation;
 mod compilation_products;
 mod compile_outcomes;
 pub mod compile_request;
+mod evaluated_build;
 mod pcc;
 mod production_manifest;
 pub mod publication;
@@ -29,12 +35,14 @@ pub use batch_manifest::{
     BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
     BatchCompilationManifestIdentity,
 };
+pub use checked_compilation::{CheckedCompilation, CheckedCompilationInputs};
 pub use compilation_products::{CompileOutputKind, CompileReport};
 pub use compile_outcomes::{CompileOutcomes, CompileTargetOutcome};
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
     CompileRequest, NativeProductRequest, RequestedCompileProduct, TargetCompileConfiguration,
 };
+pub use evaluated_build::{BuildConfig, ComputedBuildConfig};
 pub use native_artifact::{
     ExecutableContainerDigest, ExecutableInstallationEvidenceDigest, ExecutablePublicationReceipt,
     NativePublicationCertificateDigest, NativePublicationEvidenceDigest,

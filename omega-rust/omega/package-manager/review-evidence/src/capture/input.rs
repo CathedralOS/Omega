@@ -1,7 +1,7 @@
 //! Semantic review candidates remain separate from compiler-issued custody.
 
 use checked_trees::CheckedTrees;
-use compiler::CheckedCompilation;
+use compilation_products::CheckedCompilation;
 
 /// Read-only inputs for producing inert package-review evidence.
 ///

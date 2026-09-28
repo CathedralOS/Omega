@@ -5,6 +5,21 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
+build-declarations = { path = "../../package-manager/build-declarations" }
+build-output = { path = "../../package-manager/build-output" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+checked-trees = { path = "../../../psi/representations/checked-trees" }
+effects = { path = "../../backend/plans/provider-evidence" }
+provider-planning = { path = "../provider-planning" }
+representation-planning = { path = "../../../psi/checking/representation-planning" }
+selected-dispatch = { path = "../selected-dispatch" }
+semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
+source = { path = "../../../psi/foundation/source" }
+symbols = { path = "../../../psi/foundation/symbols" }
+task-plans = { path = "../../backend/runtime/task-plans" }
+typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
+validation = { path = "../../../psi/checking" }
 artifacts = { path = "../../foundation/artifacts" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
