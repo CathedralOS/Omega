@@ -777,6 +777,69 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
     assert_unprovided_registrar_diagnostic(&native, "WindowRegistrar::register");
 }
 
+/// Rollback is settled once for the entry and every emitted callback body.
+#[test]
+fn callback_thunks_follow_the_entrys_effective_optimization_selection() {
+    let fixture = Fixture::reachable_with_import();
+    let build_path = fixture.root.join("build.omg");
+    let build = fs::read_to_string(&build_path).expect("read callback build");
+    let build = build.replacen(
+        "builder.roots.bind(",
+        "builder.optimizations.enable(Optimization::ControlFlowCleanup);\n    builder.roots.bind(",
+        1,
+    );
+    fs::write(build_path, build).expect("select callback optimization");
+    let selected = optimization_core::OptimizationSelections::new([
+        optimization_core::Optimization::ControlFlowCleanup,
+    ])
+    .expect("one optimization");
+    for disabled in [false, true] {
+        let rollback = if disabled {
+            compiler::OptimizationRollback::new([
+                optimization_core::Optimization::ControlFlowCleanup,
+            ])
+            .expect("one disabled optimization")
+        } else {
+            compiler::OptimizationRollback::default()
+        };
+        let effective = rollback.settle(&selected);
+        let expected = effective.effective().project_psi();
+        let retained = compile(
+            fixture
+                .request(
+                    RequestedCompileProduct::TerminalArtifact,
+                    if disabled { "rollback" } else { "selected" },
+                )
+                .with_optimization_rollback(rollback),
+        )
+        .and_then(compiler::CompileOutcomes::into_single_report)
+        .unwrap_or_else(|diagnostics| panic!("callback selection must compile: {diagnostics:#?}"))
+        .into_retained_terminal_artifact()
+        .expect("retained callback product");
+        assert_eq!(
+            retained.artifact().optimization().selections(),
+            expected.selections()
+        );
+        let occurrences = &retained
+            .native_realization_proposal()
+            .expect("native callback proposal")
+            .occurrences()
+            .callbacks;
+        assert_eq!(occurrences.len(), 2);
+        for occurrence in occurrences {
+            assert_eq!(
+                occurrence
+                    .callback_thunk_artifact()
+                    .artifact()
+                    .optimization()
+                    .selections(),
+                expected.selections(),
+                "callback thunk must use the same effective selection as its entry (rollback={disabled})",
+            );
+        }
+    }
+}
+
 /// The two-slot closure registrar with its provider bound to an import
 /// produces a native image: both private callback materializations transport
 /// through object emission and final-text replay binds each record-field

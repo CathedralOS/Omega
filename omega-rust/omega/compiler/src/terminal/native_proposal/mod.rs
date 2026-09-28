@@ -105,6 +105,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
         profile,
         callback_placements,
         source_call_occurrences,
+        selections,
     )?;
     let ieee_float_comparison_occurrences =
         terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
@@ -187,13 +188,13 @@ pub(crate) fn project_terminal_native_realization_proposal(
 }
 
 /// Rejoin retained callback placements to their exact Terminal registrar
-/// occurrences and produce each occurrence's thunk artifact. Both native
-/// routes — retained product and direct program-entry — admit the same rows.
-pub(crate) fn project_callback_occurrences(
+/// occurrences and produce each occurrence's thunk artifact.
+fn project_callback_occurrences(
     checked: &CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     callback_placements: &[backend_plan::BoundNominalCallbackPlacement],
     source_call_occurrences: &[lowered_psi::LoweredSourceCallOccurrence],
+    selections: &optimization_core::OptimizationSelections,
 ) -> Result<Vec<crate::report::TerminalCallbackOccurrenceProposal>, Vec<Diagnostic>> {
     let callback_source_calls = backend_plan::CallbackRegistrarOccurrences::new(
         callback_placements
@@ -218,7 +219,7 @@ pub(crate) fn project_callback_occurrences(
                         ))]
                     })?;
             let callback_thunk_artifact =
-                produce_callback_thunk_artifact(checked, profile, placement)?;
+                produce_callback_thunk_artifact(checked, profile, placement, selections)?;
             Ok(crate::report::TerminalCallbackOccurrenceProposal::new(
                 placement_index,
                 occurrence.terminal_operation,
@@ -239,13 +240,14 @@ fn produce_callback_thunk_artifact(
     checked: &CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     placement: &backend_plan::BoundNominalCallbackPlacement,
+    selections: &optimization_core::OptimizationSelections,
 ) -> Result<crate::report::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
     // The thunk body leaves through the same production body as the program
     // entry: one lowering, the selected Psi optimization, canonical
     // publication. It carries no entry identity, so no `ProgramEntry`
     // receipt is minted; the callback placement binds its own evidence to
     // the lowering receipt instead.
-    let psi_optimizations = checked.optimization_selections().project_psi();
+    let psi_optimizations = selections.project_psi();
     let mut production_timings = TerminalProductionTimings::default();
     let produced = terminal_production::TerminalProductionRequest {
         checked: checked.terminal_production_trees(),

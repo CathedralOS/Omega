@@ -91,14 +91,6 @@ fn terminal_production_stage_meta(stage: TerminalProductionStage) -> StageMeta {
     StageMeta::new(name, input, output, TimingCategory::Pipeline)
 }
 
-/// The production-row collector inherits the request's own collection state:
-/// a disabled `CompileTimings` produces a disabled collector, so untimed
-/// production runs the same legs without inner clock reads or retained rows.
-/// Both production paths build their collector through this one seam.
-fn production_timings_for(stage_timings: &CompileTimings) -> TerminalProductionTimings {
-    TerminalProductionTimings::enabled_if(stage_timings.is_enabled())
-}
-
 /// Merge the Psi-owned production rows under the boundary row the caller just
 /// recorded. Rows drop silently when the accumulator is disabled.
 fn merge_terminal_production_timings(
@@ -112,91 +104,6 @@ fn merge_terminal_production_timings(
             AllocationDelta::default(),
         );
     }
-}
-
-/// Produce the retained Terminal product and its ordinary compiler report.
-/// The admitted entry product both routes leave through. Terminal production
-/// is keyed on the selected entry's exact machine symbol and retains the
-/// unoptimized module beside the artifact when exclusions need it. Production
-/// must hand back the checked entry receipt, and authored exclusions are judged on
-/// that unoptimized composition before either route continues. The routes
-/// differ only in the callback custody they carry through production, the
-/// product label their diagnostics wear, and what they do with the admitted
-/// product afterwards.
-fn produce_admitted_entry_artifact<C>(
-    checked: &CheckedCompilation,
-    stage_timings: &mut CompileTimings,
-    entry_machine_symbol: symbols::SymbolHandle,
-    source_signature_identity: [u8; 32],
-    selections: &optimization_core::OptimizationSelections,
-    callback_custody: C,
-    product_label: &str,
-) -> Result<
-    (
-        terminal_production::ProducedTerminalArtifact<C>,
-        terminal_psi::CheckedProgramEntryTerminalReceipt,
-    ),
-    Vec<Diagnostic>,
-> {
-    let psi_optimizations = selections.project_psi();
-    let mut production_timings = production_timings_for(stage_timings);
-    let produced = stage_timings
-        .record_result(TERMINAL_PRODUCTION_STAGE, || {
-            terminal_production::TerminalProductionRequest {
-                checked: checked.terminal_production_trees(),
-                machine: terminal_production::TerminalMachineSelection::Symbol(
-                    entry_machine_symbol,
-                ),
-                optimization_selections: psi_optimizations.selections().clone(),
-            }
-            .produce(TerminalProductionCustody {
-                entry_identity: Some(source_signature_identity),
-                callback_custody,
-                // The authored behavior exclusions are judged against the
-                // unoptimized composition the artifact was published from.
-                retain_unoptimized: !checked.behavior_exclusions().is_empty(),
-                timings: &mut production_timings,
-            })
-        })
-        .map_err(|error| {
-            vec![Diagnostic::error(
-                match error.error().unimplemented_report() {
-                    Some(report) => report.to_owned(),
-                    // A named proof-search capacity that declined during
-                    // optional inference is an `Incomplete` outcome, not a
-                    // defect of the program: name the resource and the
-                    // obligation left unproved instead of reporting the
-                    // module as rejected. The `incomplete:` prefix is the
-                    // outcome marker the corpus records against its
-                    // `incomplete` status.
-                    None => match error.error().incomplete_capacity() {
-                        Some((capacity, obligation)) => format!(
-                            "incomplete: {product_label} production stopped at the private \
-                             `{}` proof-search capacity (provision {}) with obligation {} \
-                             unproved; the module is not shown invalid",
-                            capacity.resource_name(),
-                            capacity.limit(),
-                            obligation,
-                        ),
-                        None => format!("{product_label} production failed: {error}"),
-                    },
-                },
-            )]
-        })?;
-    merge_terminal_production_timings(stage_timings, &production_timings);
-    let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "{product_label} production retained no checked ProgramEntry receipt"
-        ))]
-    })?;
-    trust_model::verify_entry_behavior_exclusions(
-        checked,
-        checked.behavior_exclusions(),
-        checked.selected_provider_plans(),
-        produced.unoptimized(),
-        entry_machine_symbol,
-    )?;
-    Ok((produced, checked_program_entry))
 }
 
 pub fn produce_terminal_report(
@@ -295,21 +202,70 @@ pub(crate) fn produce_retained_terminal_artifact(
     // legs below so each closure may borrow the record while it is timed; it
     // rejoins the record once the product is produced and admitted.
     let mut stage_timings = std::mem::take(checked.timings_mut());
-    let (produced, checked_program_entry) = produce_admitted_entry_artifact(
+    let psi_optimizations = selections.project_psi();
+    let mut production_timings = TerminalProductionTimings::enabled_if(stage_timings.is_enabled());
+    let produced = stage_timings
+        .record_result(TERMINAL_PRODUCTION_STAGE, || {
+            terminal_production::TerminalProductionRequest {
+                checked: checked.terminal_production_trees(),
+                machine: terminal_production::TerminalMachineSelection::Symbol(
+                    entry_machine_symbol,
+                ),
+                optimization_selections: psi_optimizations.selections().clone(),
+            }
+            .produce(TerminalProductionCustody {
+                entry_identity: Some(source_signature_identity),
+                callback_custody: (),
+                // The authored behavior exclusions are judged against the
+                // unoptimized composition the artifact was published from.
+                retain_unoptimized: !checked.behavior_exclusions().is_empty(),
+                timings: &mut production_timings,
+            })
+        })
+        .map_err(|error| {
+            vec![Diagnostic::error(
+                match error.error().unimplemented_report() {
+                    Some(report) => report.to_owned(),
+                    // A named proof-search capacity that declined during
+                    // optional inference is an `Incomplete` outcome, not a
+                    // defect of the program: name the resource and the
+                    // obligation left unproved instead of reporting the
+                    // module as rejected. The `incomplete:` prefix is the
+                    // outcome marker the corpus records against its
+                    // `incomplete` status.
+                    None => match error.error().incomplete_capacity() {
+                        Some((capacity, obligation)) => format!(
+                            "incomplete: terminal-artifact production stopped at the private \
+                             `{}` proof-search capacity (provision {}) with obligation {} \
+                             unproved; the module is not shown invalid",
+                            capacity.resource_name(),
+                            capacity.limit(),
+                            obligation,
+                        ),
+                        None => format!("terminal-artifact production failed: {error}"),
+                    },
+                },
+            )]
+        })?;
+    merge_terminal_production_timings(&mut stage_timings, &production_timings);
+    let checked_program_entry = produced.receipt().cloned().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "terminal-artifact production retained no checked ProgramEntry receipt",
+        )]
+    })?;
+    trust_model::verify_entry_behavior_exclusions(
         checked,
-        &mut stage_timings,
+        checked.behavior_exclusions(),
+        checked.selected_provider_plans(),
+        produced.unoptimized(),
         entry_machine_symbol,
-        source_signature_identity,
-        selections,
-        callback_placements,
-        "terminal-artifact",
     )?;
     let (
         artifact,
         _,
         _,
         checked_boundary_operator_scope,
-        callback_placements,
+        _,
         source_call_occurrences,
         selected_ieee_float_comparison_occurrences,
         selected_integer_comparison_occurrences,
