@@ -47,6 +47,54 @@ fn prove(source: &str, machine_name: &str) -> (usize, usize) {
     )
 }
 
+fn accumulator_source(guard: &str, step: &str) -> String {
+    format!(
+        "machine climb(remaining: u64, acc: u64) -> u64
+         requires remaining <= 1000 && acc <= 1000
+         terminates by remaining -> Nat::Descending;
+         ensures result == acc + remaining
+         {{
+             transition {guard} {{
+                 true -> climb(remaining - 1, {step})
+                 false -> (acc + remaining)
+             }}
+         }}"
+    )
+}
+
+#[test]
+fn conjunctive_guards_discharge_the_exact_recursive_induction_step() {
+    for guard in [
+        "remaining > 0 && acc < 1000",
+        "acc < 1000 && remaining > 0",
+        "!(remaining == 0 || acc >= 1000)",
+    ] {
+        let source = accumulator_source(guard, "acc + 1");
+        assert_eq!(prove(&source, "climb"), (1, 0), "{guard}");
+    }
+}
+
+#[test]
+fn conjunctive_guard_does_not_admit_a_wrong_accumulator_step() {
+    let source = accumulator_source("remaining > 0 && acc < 1000", "acc");
+    let typed = crate::front_end::typed_program(&source);
+    let diagnostics = crate::validate_program(&typed).expect_err("the sum decreases by one");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("ensures contract proof fact")
+                && diagnostic.message.contains("disproved")
+        }),
+        "{diagnostics:?}",
+    );
+    assert_eq!(prove(&source, "climb").0, 0);
+}
+
+#[test]
+fn a_disjunction_cannot_supply_both_induction_premises() {
+    let source = accumulator_source("remaining > 0 || acc < 1000", "acc + 1");
+    assert_eq!(prove(&source, "climb"), (0, 1));
+}
+
 #[test]
 fn a_foreign_machine_named_stay_outside_the_inductive_shape() {
     // `-> other(...)` names a different machine's entry, not this machine's:

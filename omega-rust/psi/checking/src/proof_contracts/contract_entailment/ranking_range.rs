@@ -1463,13 +1463,17 @@ type Comparison = (BinaryOperator, Polynomial, Polynomial);
 /// Project already meaning-checked hypotheses into integer comparisons.
 /// Unreadable Boolean facts contribute nothing; they cannot strengthen a rank
 /// proof, but need not prevent an independently proven forwarding edge.
-fn collect_guard(
+/// The result records whether every fact was readable, so inductive contract
+/// checking can use the same projection without treating partial facts as a
+/// complete context for rejection. False conjunctions and true disjunctions
+/// cannot contribute their individual operands.
+pub(super) fn collect_guard(
     engine: &mut Engine<'_>,
     expression: ExpressionHandle,
     holds: bool,
     comparisons: &mut Vec<Comparison>,
     depth: usize,
-) -> Option<()> {
+) -> Option<bool> {
     if depth >= 128 {
         return None;
     }
@@ -1486,8 +1490,9 @@ fn collect_guard(
             if (binary.operator == BinaryOperator::And && holds)
                 || (binary.operator == BinaryOperator::Or && !holds) =>
         {
-            collect_guard(engine, binary.left, holds, comparisons, depth + 1)?;
-            collect_guard(engine, binary.right, holds, comparisons, depth + 1)
+            let left = collect_guard(engine, binary.left, holds, comparisons, depth + 1)?;
+            let right = collect_guard(engine, binary.right, holds, comparisons, depth + 1)?;
+            Some(left && right)
         }
         ExpressionNode::Binary(binary)
             if matches!(
@@ -1512,16 +1517,20 @@ fn collect_guard(
                 inductive_judgment::guard_arm_comparison(engine, expression, holds)
             {
                 comparisons.push(comparison);
+                Some(true)
+            } else {
+                Some(false)
             }
-            Some(())
         }
         _ => {
             if let Some(comparison) =
                 inductive_judgment::guard_arm_comparison(engine, expression, holds)
             {
                 comparisons.push(comparison);
+                Some(true)
+            } else {
+                Some(false)
             }
-            Some(())
         }
     }
 }

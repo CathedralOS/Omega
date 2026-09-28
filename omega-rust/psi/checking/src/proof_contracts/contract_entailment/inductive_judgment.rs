@@ -333,10 +333,9 @@ fn prepare_arm<'program>(
         .chain(arm.guard.map(|guard| (guard, true)))
         .collect::<Vec<_>>();
     for &(guard, polarity) in &guards {
-        match guard_arm_comparison(&mut engine, guard, polarity) {
-            Some(comparison) => comparisons.push(comparison),
-            None => fully_visible = false,
-        }
+        fully_visible &=
+            super::ranking_range::collect_guard(&mut engine, guard, polarity, &mut comparisons, 0)
+                .unwrap_or(false);
     }
 
     let value = match &arm.kind {
@@ -357,9 +356,13 @@ fn prepare_arm<'program>(
             gate_engine.collect_comparisons(requires, &mut gate_comparisons);
             gate_engine.collect_entry_range_hypotheses(&mut gate_comparisons);
             for &(guard, polarity) in &guards {
-                if let Some(comparison) = guard_arm_comparison(&mut gate_engine, guard, polarity) {
-                    gate_comparisons.push(comparison);
-                }
+                super::ranking_range::collect_guard(
+                    &mut gate_engine,
+                    guard,
+                    polarity,
+                    &mut gate_comparisons,
+                    0,
+                );
             }
             gate_engine.install_hypotheses(gate_comparisons);
 
