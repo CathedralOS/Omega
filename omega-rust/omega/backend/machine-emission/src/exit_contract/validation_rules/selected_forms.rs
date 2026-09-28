@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 #[cfg(test)]
+mod atomic_tests;
+#[cfg(test)]
 mod floating_control_tests;
 
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
@@ -220,6 +222,30 @@ pub(in crate::exit_contract) fn validate_non_return(
     }
     let memory_matches = match (kind, effects.memory, encoding.address) {
         (
+            SelectedInstructionKind::AtomicAccess { form },
+            MachineEncodedMemoryEffect::AtomicPointerV1 {
+                pointer_operand: 0,
+                form: encoded_form,
+            },
+            None,
+        ) => {
+            // Like CopyBytes, the complete pointer is an explicit register
+            // operand. Offset staging has already happened; there is no
+            // deferred frame/displacement address to resolve here.
+            form == encoded_form
+                && effects.trap == MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+                && effects
+                    .external_operand_reads
+                    .iter()
+                    .copied()
+                    .eq(0..form.operation.input_count())
+                && effects
+                    .external_operand_writes
+                    .iter()
+                    .copied()
+                    .eq(form.observed_operand())
+        }
+        (
             SelectedInstructionKind::SaveFloatingControl { slot },
             MachineEncodedMemoryEffect::WriteFrameStorageV1 {
                 byte_count: 4 | 8, ..
@@ -422,6 +448,7 @@ pub(in crate::exit_contract) fn validate_non_return(
         (_, MachineEncodedMemoryEffect::NoneV1, _) => !matches!(
             kind,
             SelectedInstructionKind::CopyBytes
+                | SelectedInstructionKind::AtomicAccess { .. }
                 | SelectedInstructionKind::SaveFloatingControl { .. }
                 | SelectedInstructionKind::RestoreFloatingControl { .. }
         ),

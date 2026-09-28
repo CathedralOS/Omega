@@ -23,6 +23,7 @@ use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType, ValueId};
 mod aggregate_argument;
 mod aggregate_memory;
 mod aggregate_return;
+mod atomic_access;
 mod boolean_value;
 mod byte_input;
 mod byte_output;
@@ -292,6 +293,9 @@ fn select_function(
                 .is_some())
                 && control::branch_suffix(source, block, operation_index + 1)
             {
+                continue;
+            }
+            if atomic_access::emit(source, operation, &mut builder)? {
                 continue;
             }
             if structural::operation(

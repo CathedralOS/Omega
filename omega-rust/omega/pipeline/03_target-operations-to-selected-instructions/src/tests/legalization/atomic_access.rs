@@ -220,6 +220,95 @@ fn legalized_fetch(
 }
 
 #[test]
+fn atomic_selection_preserves_observed_result_and_rejects_changed_memory_custody() {
+    use selected_instructions::{AtomicOperation, SelectedInstructionKind};
+    for native in [
+        NativeTarget::macos_arm64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::linux_x64(),
+    ] {
+        let (source, target, unit) = fixture(native, true);
+        let legal = crate::legalize_target_operations(&target, &source, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        );
+        if native != NativeTarget::macos_arm64() {
+            assert!(
+                selected.is_err(),
+                "target has no admitted atomic realization"
+            );
+            continue;
+        }
+        let selected = selected.unwrap();
+        let function = &selected.plan().functions[0];
+        let position = function.blocks[0].instructions.iter().position(|instruction| matches!(instruction.kind, SelectedInstructionKind::AtomicAccess { form } if form.operation == AtomicOperation::FetchAdd)).unwrap();
+        let instruction = &function.blocks[0].instructions[position];
+        let footprints = function
+            .memory_accesses
+            .iter()
+            .filter(|access| access.instruction == instruction.id)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            footprints.len(),
+            2,
+            "one event has both read and write reach"
+        );
+        assert!(
+            footprints
+                .iter()
+                .all(|access| access.byte_offset == 4 && access.byte_count == 4)
+        );
+        for mutation in 0..5 {
+            let mut changed = selected.plan().clone();
+            let function = &mut changed.functions[0];
+            let instruction = &mut function.blocks[0].instructions[position];
+            match mutation {
+                0 => {
+                    let SelectedInstructionKind::AtomicAccess { form } = &mut instruction.kind
+                    else {
+                        unreachable!()
+                    };
+                    form.operation = AtomicOperation::Swap;
+                }
+                1 => {
+                    instruction.operands[2].virtual_register =
+                        instruction.operands[1].virtual_register
+                }
+                2 => {
+                    function
+                        .memory_accesses
+                        .iter_mut()
+                        .find(|access| access.instruction == instruction.id)
+                        .unwrap()
+                        .byte_count = 8
+                }
+                3 => function
+                    .memory_accesses
+                    .retain(|access| access.instruction != instruction.id),
+                _ => instruction.kind = SelectedInstructionKind::Load32 { byte_offset: 4 },
+            }
+            assert!(
+                crate::validate_selected_instructions(
+                    &legal,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed
+                )
+                .is_err(),
+                "mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn atomic_replay_rejects_location_order_operand_and_observed_result_substitution() {
     let (source, target, unit) = fixture(NativeTarget::macos_arm64(), true);
     let legal = crate::legalize_target_operations(&target, &source, &unit).unwrap();
