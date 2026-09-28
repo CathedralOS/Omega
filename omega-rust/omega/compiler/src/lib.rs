@@ -48,9 +48,7 @@ pub use compilation_products::{
     TargetCompileConfiguration,
 };
 pub use compiler::compile;
-pub use compiler::package::{
-    published_independent_component_description, retained_terminal_artifact_from_checked_package,
-};
+pub use compiler::package::retained_terminal_artifact_from_checked_package;
 pub use target::ExplicitTargetSet;
 pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};
 pub use typed_trees_to_checked_trees::{RepeatedCheckRetention, retain_repeated_checks};
