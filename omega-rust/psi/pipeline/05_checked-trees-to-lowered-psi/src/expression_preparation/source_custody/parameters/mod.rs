@@ -258,29 +258,11 @@ fn validate_structural_parameter(
         else {
             return unsupported("scalar graph slice view shape differs from its source");
         };
-        // The element's own catalog row must be the primitive its constrained
-        // handle resolves to — the authored `[i32 in Wrapping]` element joins
-        // as `PrimitiveScalar(I32)`, not as a domain-carrying structural type.
-        let primitive =
-            checked
-                .primitive_type_reference(*element_type)
-                .ok_or(LoweringError::Unsupported(
-                    "scalar graph slice element is not primitive",
-                ))?;
-        let mut elements = checked
-            .facts
-            .flow
-            .terminal_scalar_graphs
-            .structural_types
-            .iter()
-            .filter(|candidate| candidate.identity == *element_type_identity);
-        if elements.next().map(|candidate| &candidate.shape)
-            != Some(&checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(primitive))
-            || elements.next().is_some()
-        {
-            return unsupported("scalar graph slice element shape differs from its source");
-        }
-        return Ok(());
+        // Views retain the same element declaration as owned storage. Rebuild
+        // its complete shape from source, including record fields and their
+        // numeric restrictions; checking only primitive leaves excludes record
+        // views, while trusting the retained identity alone permits substitution.
+        return owned_types::validate_slice_element(checked, *element_type, element_type_identity);
     }
     if retained.is_self
         || retained.position as usize != position
