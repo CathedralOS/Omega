@@ -1046,13 +1046,21 @@ name = "lowered-psi-to-terminal-psi"
 version = "0.1.0"
 dependencies = [
  "checked-trees",
+ "checked-trees-to-lowered-psi",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "proof-admission",
  "semantic-vocabulary",
+ "source-files-to-tokens",
+ "symbol-resolved-trees-to-typed-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
+ "terminal-production",
  "terminal-psi",
+ "tokens-to-syntax-trees",
+ "typed-trees-to-checked-trees",
+ "validation",
 ]
 
 [[package]]
@@ -1231,7 +1239,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "terminal-fixed-fuel",
- "terminal-production",
  "terminal-psi",
  "terminal-verifier",
  "trust-ledger",
@@ -2158,7 +2165,6 @@ version = "0.1.0"
 dependencies = [
  "checked-trees",
  "checked-trees-to-lowered-psi",
- "language-semantics",
  "lowered-psi",
  "lowered-psi-to-lowered-psi",
  "lowered-psi-to-terminal-psi",
@@ -2166,14 +2172,11 @@ dependencies = [
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
- "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-codec",
  "terminal-psi",
- "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
- "validation",
 ]
 
 [[package]]

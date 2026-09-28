@@ -15,7 +15,6 @@ mimalloc = { version = "0.1", default-features = false }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
 lowered-psi-to-lowered-psi = { path = "../../../psi/compilation/pipeline/06_lowered-psi-to-lowered-psi" }
 lowered-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi" }
-terminal-production = { path = "../../../psi/compilation/pipeline/terminal-production" }
 compiler = { path = "../../compilation/driver" }
 compilation-products = { path = "../../compilation/products" }
 artifacts = { path = "../../foundation/artifacts" }

@@ -693,10 +693,10 @@ mod tests {
         CheckedProgramEntryFusedServiceField, CheckedProgramEntryReceiverProjection, CheckedTrees,
         StructuralFieldType, StructuralTypeShape, admit_fused_service_field, derive,
     };
-    use crate::TerminalProductionCustody;
-    use crate::TerminalProductionRequest;
-    use crate::TerminalProductionTimings;
     use checked_trees_to_lowered_psi::TerminalMachineSelection;
+    use terminal_production::TerminalProductionCustody;
+    use terminal_production::TerminalProductionRequest;
+    use terminal_production::TerminalProductionTimings;
 
     fn check_source(source: &str) -> CheckedTrees {
         let tokens = source_files_to_tokens::Lexer::new(source)

@@ -22,7 +22,7 @@
       "host": "local",
       "owning_paths": [
         "omega-rust/omega/compilation/driver/src/checked",
-        "omega-rust/psi/compilation/pipeline/terminal-production"
+        "omega-rust/omega/compilation/driver/terminal-production"
       ],
       "suggested_first_slice": "reproduce the 41.2 s double-check on samples/cli/basics/print_squares, then carry the checked library under its exact identity instead of rechecking",
       "host_gates": ["which mbx || which cargo"],
@@ -233,7 +233,7 @@
       "owning_paths": [
         "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
         "omega-rust/psi/compilation/representations/typed-trees",
-        "omega-rust/psi/compilation/pipeline/terminal-production"
+        "omega-rust/omega/compilation/driver/terminal-production"
       ],
       "suggested_first_slice": "the item's remaining work is the family record (one path, bodies keyed by target) carried through lowering and Terminal Psi — land it with the selection move; terminal-production may be claimed by another lane",
       "host_gates": ["which mbx || which cargo"],

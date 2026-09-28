@@ -21,8 +21,8 @@ libraries, but must not depend on producing stages in their production dependenc
 graph. Compile-time elaboration can invoke an interpreter; it cannot be placed
 inside that interpreter merely because it evaluates a machine.
 
-The existing [Terminal production service](pipeline/terminal-production/README.md)
-coordinates stages 05–07 and retains source correspondence receipts. It is not a
-new IR stage. Its sequencing must remain consistent with the single-driver route
-in the [pipeline contract](../../pipeline.md); publication and receipt checking
-must not disappear when that coordination is simplified.
+The product driver's [Terminal production sequence](../../omega/compilation/driver/terminal-production/README.md)
+coordinates stages 05–07. Stage 05 validates checked permission ledgers at its
+own entrance; stage 07 owns publication and source-correspondence judgments.
+The coordinator carries those results without deciding language rules. It is
+not another Psi stage or compiler driver; see the [pipeline contract](../../pipeline.md).

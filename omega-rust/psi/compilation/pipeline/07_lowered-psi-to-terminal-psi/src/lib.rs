@@ -6,9 +6,11 @@
 //! It seals source-free semantics with their proof and debug companions, and
 //! accepts only the output of the explicit pre-Terminal optimization stage.
 //! `boundary_operator_custody` supplies the checked boundary-operator scope
-//! that publication rejoins.
+//! that publication rejoins; `entry_receipt` checks source-entry correspondence
+//! separately from canonical sealing.
 
 mod boundary_operator_custody;
+mod entry_receipt;
 mod publish_artifact;
 
 pub use boundary_operator_custody::{
@@ -17,4 +19,8 @@ pub use boundary_operator_custody::{
 };
 pub use publish_artifact::{
     finalize_terminal_artifact, finalize_terminal_artifact_with_mathematical_signature,
+};
+
+pub use entry_receipt::{
+    ProgramEntryTerminalReceiptError, prepare_program_entry_receipt, rejoin_program_entry_receipt,
 };

@@ -132,7 +132,7 @@
       "host": "linux",
       "owning_paths": [
         "omega-rust/omega/compilation/driver/provider-planning",
-        "omega-rust/psi/compilation/pipeline/terminal-production"
+        "omega-rust/omega/compilation/driver/terminal-production"
       ],
       "suggested_first_slice": "Plan-side slice: target-owned private callback slots through exact conformances and validated layout paths \u2014 callback_layout_catalog under provider-planning is the seam. backend/runtime/component-publication is claimed by EXTERNAL-ENTRY-STACK-EPOCHS until ~04:32Z; keep to planning/terminal-production writes or report blocked."
     },

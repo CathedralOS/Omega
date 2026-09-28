@@ -13,9 +13,9 @@ use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 /// Terminal production internally lowers, optimizes and publishes
 /// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
-/// keeps this coarse row as the boundary total; the Psi-side crate cannot
-/// name the shared tooling accumulator, so its per-leg rows arrive through
-/// `TerminalProductionTimings` and merge below it.
+/// keeps this coarse row as the boundary total; the production sequence's
+/// per-leg rows arrive through `TerminalProductionTimings` and merge below it.
+/// Psi's semantic stages have no reporting dependency.
 const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "terminal-production",
     "CheckedTrees",
@@ -37,7 +37,7 @@ const NATIVE_REALIZATION_PROPOSAL_STAGE: StageMeta = StageMeta::new(
     TimingCategory::Pipeline,
 );
 
-/// Merge the Psi-owned production rows under the boundary row the caller just
+/// Merge the production sequence's rows under the boundary row the caller just
 /// recorded. Rows drop silently when the accumulator is disabled.
 fn merge_terminal_production_timings(
     stage_timings: &mut CompileTimings,

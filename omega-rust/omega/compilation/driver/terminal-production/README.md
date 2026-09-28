@@ -1,7 +1,9 @@
 # Terminal production
 
 Public contract: [Terminal Psi product](../../../../../wiki/spec/terminal-psi/product.md).
-This crate sequences production; it does not own another executable IR.
+This product-driver package sequences Psi stages; it owns neither language
+judgments nor another executable IR. Both ordinary compilation and package
+compilation use this sequence.
 
 Enter [terminal_production.rs](src/terminal_production.rs). The sequence is
 `checked-trees-to-lowered-psi` -> `lowered-psi-to-lowered-psi` ->
@@ -9,9 +11,13 @@ Enter [terminal_production.rs](src/terminal_production.rs). The sequence is
 Publication consumes the validated optimization-stage result, not an unoptimized
 producer-private shortcut.
 
-[Optimization ownership](../06_lowered-psi-to-lowered-psi/README.md)
+[custody.rs](src/custody.rs) owns retained products and the callback sidecar's
+success/rejection contract; [stage_timings.rs](src/stage_timings.rs) owns sequence
+observations. Neither implements Psi judgments.
+
+[Optimization ownership](../../../../psi/compilation/pipeline/06_lowered-psi-to-lowered-psi/README.md)
 keeps shared retention policy separate from pass execution.
-[Publication ownership](../07_lowered-psi-to-terminal-psi/README.md)
+[Publication ownership](../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/README.md)
 separates canonical sealing from checked boundary-operator occurrence replay.
 
 `TerminalProductionRequest` carries the checked trees, the
@@ -36,7 +42,7 @@ input/output labels; the Omega caller only merges their measured rows.
 implementation, incomplete proof search and ordinary rejection. Neither requires
 a dependency on the Omega reporting accumulator.
 
-The [entry receipt owner](src/terminal_production/entry_receipt.rs) checks the
+The [stage-07 entry receipt owner](../../../../psi/compilation/pipeline/07_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
 unique Unit entry, records its identity and delegates source receiver eligibility
 to its own child before publication.
 
@@ -59,16 +65,16 @@ must rejoin the exact source/build receipts under its own authority.
 ## Lowering owners
 
 This coordinator does not own the lowerers' feature dispatch. Start with
-[checked execution selection](../04_typed-trees-to-checked-trees/src/execution/terminal_unit/mod.rs),
-then [machine lowering](../05_checked-trees-to-lowered-psi/src/machine_lowering.rs).
-[Source custody](../05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/mod.rs)
+[checked execution selection](../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/mod.rs),
+then [machine lowering](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering.rs).
+[Source custody](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/mod.rs)
 prepares expressions and places; the
-[call catalog](../05_checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs)
+[call catalog](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs)
 owns shared call lowering.
 
 ### Partial ownership and cleanup
 
-[Cleanup lowering](../05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs)
+[Cleanup lowering](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs)
 and its partial-cleanup children own residual destruction.
 The [ownership contract](../../../../../wiki/spec/terminal-psi/ownership.md) defines
 what must survive into Terminal Psi; successful helper tests do not establish
@@ -76,23 +82,23 @@ every source ownership shape's end-to-end coverage.
 
 ### Structural predicate production
 
-[Contract predicates](../05_checked-trees-to-lowered-psi/src/proofs/contract_predicates.rs)
+[Contract predicates](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/proofs/contract_predicates.rs)
 lower checked facts under the
 [structural-predicate contract](../../../../../wiki/spec/terminal-psi/structural_predicates.md).
 Claim identity, projection path, and equal scalar values are not interchangeable.
 
 ### Structural access and stores
 
-[Structural source custody](../05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/structural/mod.rs)
-prepares accesses; [store emission](../05_checked-trees-to-lowered-psi/src/emission/structural_scalar_store.rs)
+[Structural source custody](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/source_custody/structural/mod.rs)
+prepares accesses; [store emission](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/emission/structural_scalar_store.rs)
 consumes prepared subjects.
 The [structural-access contract](../../../../../wiki/spec/terminal-psi/structural_access.md)
 is authoritative, not the current bounded producer vocabulary.
 
 ### Structural results and suspension
 
-[Structural returns](../05_checked-trees-to-lowered-psi/src/returns/structural_return.rs)
-and [suspension retention](../05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs)
+[Structural returns](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/returns/structural_return.rs)
+and [suspension retention](../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs)
 own these lowering responsibilities. Native task planning remains downstream;
 a retained call plan alone does not establish native execution coverage.
 

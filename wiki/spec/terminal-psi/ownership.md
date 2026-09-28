@@ -196,7 +196,7 @@ requirement, never permission to accept an invalid transfer. An address-stabilit
 a soundness obligation, whether realized by coalescing or another valid plan.
 
 Current producer and ABI limits are documented beside
-[Terminal production](../../../omega-rust/psi/compilation/pipeline/terminal-production/README.md#partial-ownership-and-cleanup)
+[Terminal production](../../../omega-rust/omega/compilation/driver/terminal-production/README.md#partial-ownership-and-cleanup)
 and [native lowering](../../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#structural-results-and-residual-cleanup).
 Admitting a Terminal claim or result does not establish native storage or cleanup
 support.

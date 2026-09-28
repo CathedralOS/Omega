@@ -5,6 +5,12 @@ interface for any supplied target count. The coordinator sequences typed owner r
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
+[Terminal production](terminal-production/README.md) is the shared stage-05–07
+sequence used by ordinary and package compilation. It is a narrow coordinator
+package under this driver, not a Psi transform. Permission-ledger validation
+belongs to stage 05; entry eligibility, source receipt joins and publication
+belong to stage 07. Their language rules do not live in the coordinator.
+
 The public `native` module exposes realization sequences and their orchestration
 errors, not a façade for backend artifacts or provider authority. Consumers use
 `native-artifact`, `image-emission`, and stage 00's `provider_admission` directly

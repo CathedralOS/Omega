@@ -111,7 +111,7 @@ library APIs; they do not introduce another compiler driver.
 | Source acquisition, package operations and review | Omega `packages/` |
 | Checked and Terminal Psi execution | Psi `interpreter/` |
 | Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
-| Checked program → published Terminal artifact | Psi `compilation/pipeline/terminal-production/` |
+| Checked program → published Terminal artifact | Omega `compilation/driver/terminal-production/`, sequencing Psi stages 05–07 |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
@@ -205,8 +205,10 @@ Shared process and filesystem utilities remain under `omega/foundation/`.
 `psi/interpreter/` contains the independent `checked-interpreter` and
 `terminal-interpreter` engines. `psi/compilation/compile-time/` admits execution
 through the checked interpreter and elaborates results into source and typed trees.
-`psi/compilation/pipeline/terminal-production/` sequences checked-program lowering, optimization and
-publication. These are named services, not a second complete compiler driver;
+`omega/compilation/driver/terminal-production/` sequences Psi's checked-program
+lowering, optimization and publication. Stage 05 owns input-ledger validation;
+stage 07 owns entry receipts and source-correspondence judgments. Sequencing is
+product-driver work, not an extra Psi stage or a second complete compiler driver;
 there is no `psi/compiler/` umbrella.
 
 `psi/compilation/checking/` owns reusable source-program judgments. Its independent
@@ -387,7 +389,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/`, `verification/`, `fuel/` and `fuel/certification/`.
   Representation data and candidate production remain independent of checking.
-- Psi `compilation/pipeline/terminal-production/` — checked-program lowering through publication.
+- Omega `compilation/driver/terminal-production/` — sequences Psi stages 05–07 through publication.
 - Psi `compilation/compile-time/` — evaluation admission and result elaboration.
 - Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.
