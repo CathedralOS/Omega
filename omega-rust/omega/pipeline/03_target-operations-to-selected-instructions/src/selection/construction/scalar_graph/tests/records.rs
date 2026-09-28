@@ -518,3 +518,92 @@ fn nested_fixture(target: target::NativeTarget, child_count: u16) -> LegalizedSc
 
 #[path = "records/parameters.rs"]
 mod parameters;
+
+#[test]
+fn nested_record_copy_uses_encodable_offsets_after_a_narrow_prefix() {
+    for target in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::windows_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        for prefixed in [false, true] {
+            let mut source = nested_fixture(target, 9);
+            if prefixed {
+                let LegalizedScalarInstructionKind::EstablishRecord { fields, .. } =
+                    &mut source.blocks[0].instructions.last_mut().unwrap().kind
+                else {
+                    panic!("parent record");
+                };
+                fields.swap(0, 1);
+                let signature = source.structural.as_mut().unwrap();
+                let mut declarations = signature.structural_types.to_vec();
+                let terminal_psi::StructuralTypeShape::Record { fields } =
+                    &mut declarations.last_mut().unwrap().shape
+                else {
+                    panic!("parent declaration");
+                };
+                fields.swap(0, 1);
+                signature.structural_types = declarations.into();
+            }
+            let environment =
+                register_environment::baseline_target_register_environment(target).unwrap();
+            let constraints = SelectedSelectionConstraints {
+                keys: environment.selected_keys(),
+                fixed_inputs: Vec::new(),
+            };
+            let selected = build(
+                0,
+                &source,
+                target,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            let validate = |selected: &SelectedFunction| {
+                crate::selection::validation::scalar_graph::validate(
+                    0,
+                    &source,
+                    selected,
+                    target,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                )
+            };
+            validate(&selected).unwrap();
+            for instruction in &selected.blocks[0].instructions {
+                if let SelectedInstructionKind::Store {
+                    byte_offset,
+                    byte_size,
+                } = instruction.kind
+                {
+                    assert!(
+                        byte_offset.is_multiple_of(u32::from(byte_size)),
+                        "{target:?}, prefixed={prefixed}: {:?}",
+                        instruction.kind
+                    );
+                }
+            }
+            // The field has nine live bytes, not a rounded-up sixteen-byte
+            // extent. Replay must reject widening its final byte store.
+            let mut changed = selected.clone();
+            let store = changed.blocks[0]
+                .instructions
+                .iter_mut()
+                .rfind(|instruction| {
+                    matches!(
+                        instruction.kind,
+                        SelectedInstructionKind::Store { byte_size: 1, .. }
+                    )
+                })
+                .unwrap();
+            let SelectedInstructionKind::Store { byte_size, .. } = &mut store.kind else {
+                unreachable!();
+            };
+            *byte_size = 8;
+            assert!(validate(&changed).is_err());
+        }
+    }
+}
