@@ -24,10 +24,8 @@ use build_evaluation::{AuthoredBehaviorExclusion, authored_behavior_exclusion_se
 use checked_trees_to_lowered_psi::LoweredMachineProvenance;
 use diagnostics::Diagnostic;
 use effects::{
-    BehaviorExclusionReport, BehaviorExclusionVerdict, EvidenceGapKind, ProhibitedSite,
-    establish_behavior_exclusions_with_owners,
+    BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions_with_owners,
 };
-use std::collections::BTreeMap;
 
 /// Verify the authored exclusions against the selected program entry's
 /// unoptimized composition: the lowered module Terminal production retained
@@ -50,7 +48,7 @@ pub(crate) fn verify_entry_behavior_exclusions(
     })?;
     let module = &lowered.semantic_module;
     let authored = checked.behavior_exclusions();
-    let trait_identity = boundary_trait_identity(checked);
+    let trait_identity = |symbol| effects::boundary_trait_identity(checked, symbol);
     let exclusions = authored_behavior_exclusion_set_in(authored, module, &trait_identity);
     if exclusions.is_empty() {
         // Every authored row named a service this composition never
@@ -62,7 +60,7 @@ pub(crate) fn verify_entry_behavior_exclusions(
         &[module.entry],
         &exclusions,
         checked.selected_provider_plans(),
-        &boundary_service_owners(checked, module),
+        &effects::BoundaryServiceOwners::from_declared_traits(checked, module),
     );
     match report.verdict() {
         BehaviorExclusionVerdict::Satisfied => Ok(()),
@@ -77,51 +75,6 @@ pub(crate) fn verify_entry_behavior_exclusions(
                 &report,
             ))
         }
-    }
-}
-
-/// Join each boundary declaration of `module` to the service its trait
-/// owns: the boundary's canonical identity is the trait requirement's
-/// normalized overload identity, and the owning service identity is the
-/// boundary trait's declared name.
-pub(crate) fn boundary_service_owners(
-    checked: &CheckedCompilation,
-    module: &terminal_psi::TerminalModule,
-) -> effects::BoundaryServiceOwners {
-    let mut owning_service: BTreeMap<String, String> = BTreeMap::new();
-    for definition in checked
-        .typed
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-    {
-        for signature in checked.typed.trait_machine_signatures(definition) {
-            owning_service.insert(
-                checked
-                    .typed
-                    .normalized_trait_requirement_overload_identity(definition, signature)
-                    .identity(),
-                definition.name.as_str().to_owned(),
-            );
-        }
-    }
-    effects::BoundaryServiceOwners::from_module(module, &|boundary_identity| {
-        owning_service.get(boundary_identity).cloned()
-    })
-}
-
-/// Map a checked boundary-trait symbol to the identity Terminal service
-/// declarations carry for it: the trait's declared name.
-pub(crate) fn boundary_trait_identity(
-    checked: &CheckedCompilation,
-) -> impl Fn(symbols::SymbolHandle) -> Option<String> + '_ {
-    move |symbol| {
-        checked
-            .typed
-            .traits()
-            .iter()
-            .find(|definition| definition.symbol == symbol && definition.is_boundary)
-            .map(|definition| definition.name.as_str().to_owned())
     }
 }
 
@@ -140,9 +93,9 @@ fn behavior_exclusion_diagnostics(
     for prohibited in &report.prohibited {
         let mut diagnostic = Diagnostic::error(format!(
             "behavior exclusion violated: {} is reachable in {} at {}",
-            describe_exclusion(module, prohibited.exclusion),
+            prohibited.exclusion.describe(module),
             provenance.label(prohibited.machine),
-            describe_site(module, &prohibited.site),
+            prohibited.site.describe(module),
         ));
         // The rejection points at the authored `exclude_*` selection that
         // named the requirement, not an internal Terminal coordinate.
@@ -160,7 +113,7 @@ fn behavior_exclusion_diagnostics(
             diagnostics.push(
                 Diagnostic::error(format!(
                     "the selected composition retains {} through {} declared here",
-                    describe_exclusion(module, prohibited.exclusion),
+                    prohibited.exclusion.describe(module),
                     provenance.label(prohibited.machine),
                 ))
                 .with_source_span(span),
@@ -170,7 +123,7 @@ fn behavior_exclusion_diagnostics(
     for gap in &report.gaps {
         let mut diagnostic = Diagnostic::error(format!(
             "behavior exclusion evidence is insufficient: {} at {}",
-            describe_gap(&gap.kind),
+            gap.kind.describe(),
             describe_location(provenance, gap.machine, gap.block, gap.operation),
         ));
         if let Some(first) = authored.first() {
@@ -188,77 +141,6 @@ fn behavior_exclusion_diagnostics(
         }
     }
     diagnostics
-}
-
-fn describe_exclusion(
-    module: &terminal_psi::TerminalModule,
-    exclusion: effects::BehaviorExclusion,
-) -> String {
-    match exclusion {
-        effects::BehaviorExclusion::CrashCause(cause) => {
-            format!("crash cause {cause:?}")
-        }
-        effects::BehaviorExclusion::Service(service) => {
-            match module
-                .services
-                .iter()
-                .find(|declaration| declaration.id == service)
-            {
-                Some(declaration) => format!("service `{}`", declaration.identity),
-                None => format!("service {service}"),
-            }
-        }
-        // A physical-class selection is a demand on the mechanism closure:
-        // this walk never yields a prohibited site for it, but the arm keeps
-        // the description total if one is ever named.
-        effects::BehaviorExclusion::PhysicalAuthorityClass(class) => {
-            format!("physical authority class {class:?}")
-        }
-    }
-}
-
-fn describe_site(module: &terminal_psi::TerminalModule, site: &ProhibitedSite) -> String {
-    match site {
-        ProhibitedSite::CrashTerminator { block } => {
-            format!("crash terminator in block {block}")
-        }
-        ProhibitedSite::BoundaryCall {
-            block,
-            operation,
-            boundary,
-        } => {
-            let identity = module
-                .boundary_machines
-                .iter()
-                .find(|declaration| declaration.id == *boundary)
-                .map(|declaration| declaration.identity.as_str())
-                .unwrap_or("<undeclared boundary>");
-            format!("call to boundary `{identity}` (block {block}, operation {operation})")
-        }
-        ProhibitedSite::DynamicCall { block, operation } => {
-            format!("dynamic call (block {block}, operation {operation})")
-        }
-        ProhibitedSite::PortWrite { block, operation } => {
-            format!("port write (block {block}, operation {operation})")
-        }
-    }
-}
-
-fn describe_gap(kind: &EvidenceGapKind) -> String {
-    match kind {
-        EvidenceGapKind::DynamicCall => {
-            "a dynamic call has no bounded retained realization".to_owned()
-        }
-        EvidenceGapKind::UnknownCallee(callee) => {
-            format!("call target machine {callee} is not retained in the module")
-        }
-        EvidenceGapKind::UnknownBoundary(boundary) => {
-            format!("boundary {boundary} has no retained declaration")
-        }
-        EvidenceGapKind::UnknownEntry => {
-            "the selected entry is not retained in the module".to_owned()
-        }
-    }
 }
 
 fn describe_location(

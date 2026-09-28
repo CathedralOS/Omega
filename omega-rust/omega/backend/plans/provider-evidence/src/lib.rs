@@ -17,7 +17,8 @@ mod provider_evidence;
 pub use provider_evidence::executable_scopes::behavior_exclusions::{
     BehaviorExclusion, BehaviorExclusionReport, BehaviorExclusionVerdict, BehaviorExclusions,
     BoundaryServiceOwners, EvidenceGap, EvidenceGapKind, ProhibitedBehavior, ProhibitedSite,
-    establish_behavior_exclusions, establish_behavior_exclusions_with_owners,
+    boundary_trait_identity, establish_behavior_exclusions,
+    establish_behavior_exclusions_with_owners,
 };
 
 pub use provider_evidence::authority::service_terminal_authority_permission::ServiceTerminalAuthorityPermission;
