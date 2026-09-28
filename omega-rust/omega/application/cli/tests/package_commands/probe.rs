@@ -1,5 +1,80 @@
 use super::{Fixture, assert_status};
 
+fn console_input_application() -> Fixture {
+    let fixture = Fixture::new();
+    let standard_library = std::fs::canonicalize(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library/std"),
+    )
+    .unwrap();
+    let build = include_str!(
+        "../../../../../../tests/omega/pass/host/runtime_console_byte_echo_exit/build.omg"
+    )
+    .replace(
+        "\"../../../../../source/library/std\"",
+        &format!("{:?}", standard_library.to_str().unwrap()),
+    );
+    fixture.write("root/build.omg", &build);
+    fixture.write(
+        "root/main.omg",
+        include_str!(
+            "../../../../../../tests/omega/pass/host/runtime_console_byte_echo_exit/main.omg"
+        ),
+    );
+    fixture
+}
+
+fn run_with_input(fixture: &Fixture, compare: bool, input: &[u8]) -> std::process::Output {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+    command.current_dir(fixture.path("root")).arg("run");
+    if compare {
+        command.arg("--both");
+    }
+    let mut child = command
+        .arg("main.omg")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(input).unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn native_probe_preserves_stdin_and_replays_it_for_interpreter_comparison() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping: stdin regression executes a host artifact");
+        return;
+    };
+    let fixture = console_input_application();
+    accept(&fixture, host.target_name());
+    let before = fixture.accepted_files();
+    for compare in [false, true] {
+        for (input, expected_exit) in [(&b"AB"[..], 201), (&b""[..], 70), (&b"\0\x01"[..], 71)] {
+            let output = run_with_input(&fixture, compare, input);
+            assert_status(&output, expected_exit);
+            assert_eq!(output.stdout, input, "compare={compare}, input={input:?}");
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                stderr.contains(&format!("native exit {expected_exit}")),
+                "{stderr}"
+            );
+            if compare {
+                assert!(
+                    stderr.contains(&format!("interp exit: {expected_exit}")),
+                    "{stderr}"
+                );
+                assert!(!stderr.contains("DIVERGENCE"), "{stderr}");
+                assert!(!stderr.contains("DECLINED"), "{stderr}");
+            }
+        }
+    }
+    assert_eq!(fixture.accepted_files(), before);
+}
+
 /// The target `accept` settles so a targetless `run` finds its resolved
 /// profile already reviewed: the catalogued host profile on catalogued
 /// hosts. Every supported development host owns one; a host outside the
