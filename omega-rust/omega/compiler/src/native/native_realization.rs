@@ -6,7 +6,6 @@
 
 mod callback_thunks;
 mod object_emission;
-mod optimization_stage;
 pub(crate) mod realization_diagnostics;
 mod realization_request;
 pub use terminal_psi_to_abstract_operations::provider_admission::terminal_authority_permissions;
@@ -49,6 +48,13 @@ use native_artifact::{
 };
 use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 use terminal_psi_to_abstract_operations::{AdmittedNativeRealization, admit_native_realization};
+
+/// Product-owned per-pass ceilings shared by program and callback realization.
+/// Identity staging meters input traversal as well as optimizer iterations.
+fn native_optimization_budget() -> optimization_core::OptimizationWorkBudget {
+    optimization_core::OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 100_000)
+        .expect("compiler baseline optimizer ceilings are nonzero")
+}
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union

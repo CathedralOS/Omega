@@ -846,7 +846,44 @@ fn callback_thunks_follow_the_entrys_effective_optimization_selection() {
 /// store's rel32 to the exact private thunk function.
 #[test]
 fn reachable_two_slot_registrar_realizes_its_private_native_image() {
+    assert_two_slot_native_image(optimization_core::OptimizationSelections::default());
+}
+
+#[test]
+fn optimized_two_slot_registrar_preserves_private_callback_custody() {
+    assert_two_slot_native_image(
+        optimization_core::OptimizationSelections::new([
+            optimization_core::Optimization::SelectedIncomingU12ExactAddImmediate,
+            optimization_core::Optimization::X86RelaxConditionalBranchesToRel8V1,
+        ])
+        .expect("selected physical phases"),
+    );
+}
+
+fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelections) {
     let fixture = Fixture::reachable_with_import();
+    let build_path = fixture.root.join("build.omg");
+    let build = fs::read_to_string(&build_path).expect("read callback build");
+    let selected = selections
+        .as_slice()
+        .iter()
+        .map(|optimization| {
+            format!(
+                "builder.optimizations.enable(Optimization::{});\n    ",
+                optimization.build_case_name()
+            )
+        })
+        .collect::<String>();
+    fs::write(
+        build_path,
+        build.replacen(
+            "builder.roots.bind(",
+            &format!("{selected}builder.roots.bind("),
+            1,
+        ),
+    )
+    .expect("select native callback optimizations");
+    let post_terminal = selections.project_post_terminal();
     let retained = compile(fixture.request(RequestedCompileProduct::TerminalArtifact, "native"))
         .and_then(compiler::CompileOutcomes::into_single_report)
         .unwrap_or_else(|diagnostics| {
@@ -1007,8 +1044,7 @@ fn reachable_two_slot_registrar_realizes_its_private_native_image() {
             retained,
             RetainedNativeRealizationRequest {
                 profile: &proof_admission::AdmissionProfile::default(),
-                optimization_selections:
-                    &optimization_core::PostTerminalOptimizationSelections::default(),
+                optimization_selections: post_terminal.selections(),
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
                     compiler::native::current_terminal_authority_permission_policy(),
