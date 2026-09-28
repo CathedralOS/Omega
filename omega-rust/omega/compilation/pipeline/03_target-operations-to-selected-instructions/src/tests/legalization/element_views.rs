@@ -217,9 +217,34 @@ fn element_field_reads_replay_leaf_geometry_and_reject_substitution() {
             [(8, 2)],
             "{native:?}: leaf bytes, not the 16-byte stride"
         );
-        for mutation in 0..3 {
+        // The exact-width load zero-extends; the signed leaf is restored to
+        // its sign-extended register carrier before any consumer compares it.
+        let rows = selected.plan().functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .collect::<Vec<_>>();
+        let load = rows
+            .iter()
+            .position(|row| matches!(row.kind, I::Load16 { byte_offset: 8 }))
+            .unwrap();
+        assert_eq!(rows[load + 1].kind, I::SignExtendI16, "{native:?}");
+        assert_eq!(
+            rows[load + 1].operands[0].virtual_register,
+            rows[load].operands[1].virtual_register,
+            "{native:?}: the extension consumes the loaded leaf"
+        );
+        for mutation in 0..4 {
             let mut changed = selected.plan().clone();
-            if mutation == 2 {
+            if mutation == 3 {
+                changed.functions[0]
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.instructions)
+                    .find(|row| row.kind == I::SignExtendI16)
+                    .unwrap()
+                    .kind = I::ZeroExtendU16;
+            } else if mutation == 2 {
                 changed.functions[0]
                     .memory_accesses
                     .iter_mut()
