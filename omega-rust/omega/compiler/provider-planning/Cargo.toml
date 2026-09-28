@@ -36,7 +36,6 @@ arena = { path = "../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 terminal-psi = { path = "../../../psi/representations/terminal-psi" }
-target-operations = { path = "../../representations/target-operations" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../psi/foundation/flow-effects" }

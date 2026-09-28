@@ -11,15 +11,15 @@
 //! every other folder is one public vocabulary the compiler consumes by path.
 
 pub mod calling_policy_plans;
-pub mod compiler_intrinsics;
 pub mod component_progress;
 pub mod evaluated_via_bindings;
+mod intrinsic_requirements;
 mod provider_planning;
 pub mod service_schema;
 pub mod task_plans;
 pub mod x86_fma_plan_association;
 
-pub use compiler_intrinsics::requirement_view::{IntrinsicRequirement, IntrinsicRequirementKind};
+pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind};
 pub use provider_planning::selection::{
     CompositionMode, ProviderOperatorFamilyCoordinate, ProviderOperatorFamilySelection,
     ProviderSelection, ProviderSelectionIdentity, ProviderSelectionSubject,

@@ -56,8 +56,8 @@ The board row's count (208 at its measurement base) drifts to 212 at
   requirement` via **TOP-LEVEL-BOUNDARY-REQUIREMENTS**, which today
   executes only public nongeneric receiver-free requirements. The 29
   generic rows (`slice`/`vec`/`array`/`fixed_vec`/`ptr`) wait on that
-  item's generic-requirement leg. `compiler_intrinsics/
-  requirement_view.rs`, plan stamping, call-row retirement, D29
+  item's generic-requirement leg. `intrinsic_requirements.rs`,
+  plan stamping, call-row retirement, D29
   coverage, and review policy rows already key on either spelling.
 - **18 test `boundary operator` rows** → `boundary requirement`,
   same gate; several are `fail` fixtures whose expected diagnostics

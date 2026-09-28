@@ -98,11 +98,18 @@ pub(super) fn realize(
         )
         .map_err(|message| vec![Diagnostic::error(message)])?;
     let demanded_intrinsics =
-        provider_planning::compiler_intrinsics::demanded_boundary_identities(&terminal_module)?;
+        abstract_operations_to_target_operations::provider_admission::demanded_boundary_identities(
+            &terminal_module,
+        )?;
     let intrinsic_proposals =
-        provider_planning::compiler_intrinsics::derive_selected_intrinsic_settlement_proposals(
+        abstract_operations_to_target_operations::provider_admission::derive_selected_intrinsic_settlement_proposals(
             checked.selected_provider_plans().plans(),
-            checked.selected_provider_provenance(),
+            checked.selected_provider_provenance().iter().map(|retained| {
+                abstract_operations_to_target_operations::provider_admission::CompilerIntrinsicPlanProvenance {
+                    plan: &retained.plan,
+                    row_executions: &retained.row_compiler_intrinsic_executions,
+                }
+            }),
             &demanded_intrinsics,
         )?;
     let selected_plans = checked.selected_provider_plans().plans();
