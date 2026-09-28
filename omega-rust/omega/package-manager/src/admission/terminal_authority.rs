@@ -233,18 +233,16 @@ pub fn realize_accepted_native_report(
         .ok_or_else(|| {
             diagnostics("retained Terminal product: source-evaluated import realization requires one native proposal")
         })?;
-    let subsystem = proposal.subsystem();
+    let mut application = proposal.application().clone();
     // Publication metadata crosses invocations with the artifact through the
     // retained proposal; the receiving report binds exactly that custody,
     // never re-deriving it from the live project
     // (wiki/spec/build/macos_application.md). A consumer-supplied signing
     // identity stands in only when the proposal authored none — it is the
     // identity actually bound into the signed bytes.
-    let application_name = proposal.application_name().map(str::to_owned);
-    let application_intent = proposal.application_intent();
-    let retained_identifier = proposal.application_identifier().cloned();
-    let image_request = compiler::native::ExecutableImageEmissionRequest::direct(subsystem);
-    let application_identifier = retained_identifier.or_else(|| {
+    let image_request =
+        compiler::native::ExecutableImageEmissionRequest::direct(application.subsystem);
+    application.identifier = application.identifier.or_else(|| {
         image_request
             .code_signature_identifier()
             .and_then(|spelling| {
@@ -279,13 +277,7 @@ pub fn realize_accepted_native_report(
     .map(|report| report.with_trust_admission_settlement(trust_settlement))
     .map(|report| report.with_pcc_context(pcc_requests, pcc_admission_profile))
     .and_then(|report| report.with_build_outputs(build_outputs, build_observation))
-    .and_then(|report| {
-        report.with_application_metadata(
-            application_name,
-            application_intent,
-            application_identifier,
-        )
-    })
+    .and_then(|report| report.with_application_metadata(application))
     .map_err(|message| vec![Diagnostic::error(message)])
 }
 

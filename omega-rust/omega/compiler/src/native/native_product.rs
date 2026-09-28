@@ -101,13 +101,7 @@ pub fn produce_native_report(
     )
     .map(|report| report.with_pcc_context(pcc_requests, request.terminal_admission_profile))
     .and_then(|report| {
-        report.with_application_metadata(
-            checked
-                .application_name()
-                .map(|name| name.as_str().to_owned()),
-            checked.application_intent(),
-            checked.application_identifier().cloned(),
-        )
+        report.with_application_metadata(checked.project_native_application_metadata())
     })
     .map_err(|message| vec![Diagnostic::error(message)])?;
     receipt::NativeCompilationWithCheckedReceipt::new(checked, report)

@@ -22,7 +22,7 @@ mod uefi_loaded_image;
 mod uefi_system_table;
 mod x86_features;
 
-pub use application::{ApplicationIdentifier, HostedApplicationIntent};
+pub use application::{ApplicationIdentifier, HostedApplicationIntent, NativeApplicationMetadata};
 pub use elf_loader::{
     ElfInterpreterPlanValidationError, NormalizedElfInterpreterPlan, normalize_elf_interpreter_plan,
 };

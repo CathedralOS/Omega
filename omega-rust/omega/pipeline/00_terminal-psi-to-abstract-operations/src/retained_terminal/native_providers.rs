@@ -67,11 +67,11 @@ impl TerminalNativeRealizationProposal {
         }
         let native_callbacks = crate::provider_admission::admit_native_callback_arguments(
             callback_placements,
-            self.callback_occurrences(),
+            self.occurrences().callbacks.as_slice(),
         )?;
         let callback_thunks = backend_plan::admitted_native_callback_thunks(
             callback_placements,
-            self.callback_occurrences(),
+            self.occurrences().callbacks.as_slice(),
         )
         .map_err(|error| diagnostic("Terminal callback thunk custody", error))?;
         debug_assert_eq!(callback_placements.len(), native_callbacks.len());
@@ -85,14 +85,14 @@ impl TerminalNativeRealizationProposal {
         })?;
         let demanded = crate::provider_admission::demanded_boundary_identities(&module)?;
         let prepared_imports = prepare_source_evaluated_imports(
-            self.selected_provider_plans().plans(),
+            self.providers().selection.plans(),
             &demanded,
             inputs.imports,
         )?;
 
         let compiler_builtins = crate::provider_admission::prepare_retained_compiler_builtins(
-            self.compiler_builtins(),
-            self.selected_provider_plans().plans(),
+            self.providers().compiler_builtins.as_slice(),
+            self.providers().selection.plans(),
         )?;
 
         Ok(PreparedRetainedNativeProviders {

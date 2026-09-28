@@ -3,6 +3,6 @@
 pub use terminal_psi_to_abstract_operations::{
     RetainedTerminalArtifact, TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
-    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeRealizationInputs,
-    TerminalNativeRealizationProposal,
+    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
+    TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
 };

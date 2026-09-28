@@ -10,6 +10,20 @@ pub enum HostedApplicationIntent {
     Gui,
 }
 
+/// Authored application and loader metadata shared by build selection,
+/// retained proposals and publication. Presentation intent is independent of
+/// the numeric PE subsystem; one must never be inferred from the other.
+/// These values describe a requested image, not permission to publish it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct NativeApplicationMetadata {
+    /// Validated authored application name; absent for other project roles.
+    pub name: Option<String>,
+    pub intent: Option<HostedApplicationIntent>,
+    /// Identity bound into signing and application-package publication.
+    pub identifier: Option<ApplicationIdentifier>,
+    pub subsystem: u16,
+}
+
 /// The authored application identifier: it supplies the GUI CodeDirectory
 /// signing identity and `CFBundleIdentifier`
 /// (wiki/spec/build/macos_application.md). Validation is deliberately

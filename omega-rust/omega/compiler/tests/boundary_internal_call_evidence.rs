@@ -75,7 +75,8 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
             .cloned()
             .chain(
                 proposal
-                    .selected_provider_plans()
+                    .providers()
+                    .selection
                     .plans()
                     .iter()
                     .flat_map(|plan| {
@@ -103,7 +104,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
     )
     .expect("permission policy");
     let image_request =
-        compiler::native::ExecutableImageEmissionRequest::direct(proposal.subsystem());
+        compiler::native::ExecutableImageEmissionRequest::direct(proposal.application().subsystem);
     let replay_image_request = image_request.clone();
     let product = realize_retained_native_artifact(
         retained,

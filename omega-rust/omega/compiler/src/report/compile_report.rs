@@ -8,6 +8,8 @@
 //! product can hold, so custody checks are joins over present fields rather
 //! than negative-space assertions that unrelated `Option`s stayed `None`.
 
+use target::NativeApplicationMetadata;
+
 use crate::report::{
     FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
     ProductionArtifactIdentity, ProductionCompilationManifest, ProductionCompilationSubject,
@@ -25,24 +27,6 @@ pub enum CompileOutputKind {
     NativeExecutable,
     ObjectContainer,
     BuildArtifacts,
-}
-
-/// The authored `builder.application` metadata retained with a native
-/// product. Publication uses the name for the `.app` basename and inner
-/// executable leaf, the intent to select whole-package versus flat output,
-/// and the identifier for `CFBundleIdentifier` — checked against the
-/// CodeDirectory identity already bound into the signed bytes.
-#[derive(Debug, Default)]
-struct NativeApplicationMetadata {
-    /// The validated authored application name; `None` means the build
-    /// declared a non-application role.
-    name: Option<String>,
-    /// The authored hosted intent. `Gui` selects whole-package publication
-    /// for a Mach-O target; it is semantic data, never a PE loader word.
-    intent: Option<build_evaluation::HostedApplicationIntent>,
-    /// The authored identifier; it must agree with the identity already
-    /// bound into the signed executable bytes.
-    identifier: Option<build_evaluation::ApplicationIdentifier>,
 }
 
 /// The retained Terminal product and the subtractive build overlay whose
@@ -583,21 +567,20 @@ impl CompileReport {
     /// can carry them.
     pub fn with_application_metadata(
         mut self,
-        application_name: Option<String>,
-        application_intent: Option<build_evaluation::HostedApplicationIntent>,
-        application_identifier: Option<build_evaluation::ApplicationIdentifier>,
+        application: NativeApplicationMetadata,
     ) -> Result<Self, &'static str> {
         let CompileProduct::RetainedNativeArtifact(product) = &mut self.product else {
             return Err("application publication metadata requires a retained native artifact");
         };
-        product.application = NativeApplicationMetadata {
-            name: application_name,
-            intent: application_intent,
-            identifier: application_identifier,
-        };
+        product.application = application;
         self.has_consistent_executable_publication_custody()
             .then_some(self)
             .ok_or("application publication metadata left inconsistent report custody")
+    }
+
+    /// Complete publication metadata of the retained or published native product.
+    pub fn application_metadata(&self) -> Option<&NativeApplicationMetadata> {
+        self.product.application()
     }
 
     /// The retained authored `builder.application` name, when the build

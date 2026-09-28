@@ -5,6 +5,10 @@
 use crate::checked::CheckedCompilation;
 use diagnostics::Diagnostic;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
+use terminal_psi_to_abstract_operations::{
+    TerminalNativeBoundaryApplications, TerminalNativeOccurrences, TerminalNativeProviders,
+    TerminalNativeRealizationProposal,
+};
 
 pub(crate) fn project_terminal_native_realization_proposal(
     checked: &CheckedCompilation,
@@ -17,7 +21,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
     selected_ieee_float_comparison_occurrences: &[lowered_psi::LoweredSelectedIeeeFloatComparisonOccurrence],
     selected_integer_comparison_occurrences: &[lowered_psi::LoweredSelectedIntegerComparisonOccurrence],
     selections: &optimization_core::OptimizationSelections,
-) -> Result<crate::report::TerminalNativeRealizationProposal, Vec<Diagnostic>> {
+) -> Result<TerminalNativeRealizationProposal, Vec<Diagnostic>> {
     let target_profile = checked.selected_target_profile().ok_or_else(|| {
         vec![Diagnostic::error(
             "Terminal native proposal requires one selected target profile",
@@ -33,6 +37,11 @@ pub(crate) fn project_terminal_native_realization_proposal(
             "Terminal native proposal requires one exact selected ProgramEntry",
         )]
     })?;
+    if program_entry.source_signature().target_slot().owner != target_profile {
+        return Err(vec![Diagnostic::error(
+            "Terminal native proposal target, profile, and ProgramEntry disagree",
+        )]);
+    }
     // Close the build-owned entry selection into the existing independently
     // replayed native settlement. Retention carries this pipeline product,
     // never the Build evaluator's selection object or a second entry receipt.
@@ -129,11 +138,6 @@ pub(crate) fn project_terminal_native_realization_proposal(
             calling_plan_realizations: checked.boundary_calling_plan_realizations(),
         }
         .settle(artifact, &checked_boundary_operator_scope)?;
-    let (
-        boundary_application_demands,
-        boundary_application_realizations,
-        boundary_opaque_applications,
-    ) = boundary_application_coverage.into_parts();
     let external_binding_rows =
         terminal_psi_to_abstract_operations::settle_callback_registrar_imports(
             &terminal_module,
@@ -153,40 +157,31 @@ pub(crate) fn project_terminal_native_realization_proposal(
         .flat_map(|binding| binding.terminal_authority_permissions())
         .cloned()
         .collect();
-    crate::report::TerminalNativeRealizationProposal::new(
+    TerminalNativeRealizationProposal::new(
         artifact,
-        crate::report::TerminalNativeRealizationInputs {
-            target_profile,
-            native_target,
-            subsystem: checked.subsystem(),
-            application_intent: checked.application_intent(),
-            application_identifier: checked.application_identifier().cloned(),
-            application_name: checked
-                .application_name()
-                .map(|name| name.as_str().to_owned()),
-            post_terminal_optimizations: selections.project_post_terminal(),
-            program_entry,
-            selected_provider_plans: checked.selected_provider_plans().clone(),
-            external_binding_rows,
-            // The proposal retains the exact selected-application commitment
-            // at each by-value opaque edge while the checked signature custody
-            // still exists; artifacts compared across an exchange must carry
-            // the same set.
-            boundary_opaque_applications,
-            package_terminal_authority_permissions,
+        checked.project_native_application_metadata(),
+        program_entry,
+        selections.project_post_terminal(),
+        TerminalNativeProviders {
+            selection: checked.selected_provider_plans().clone(),
+            external_bindings: external_binding_rows,
             compiler_builtins: builtin_proposals,
-            callback_occurrences,
-            ieee_float_comparison_occurrences,
-            integer_comparison_occurrences,
-            boundary_application_demands,
-            boundary_application_realizations,
-            checked_boundary_operator_scope,
-            behavior_exclusions: build_evaluation::authored_behavior_exclusion_set_in(
-                checked.behavior_exclusions(),
-                &terminal_module,
-                &|symbol| effects::boundary_trait_identity(checked, symbol),
-            ),
         },
+        TerminalNativeOccurrences {
+            callbacks: callback_occurrences,
+            ieee_float_comparisons: ieee_float_comparison_occurrences,
+            integer_comparisons: integer_comparison_occurrences,
+        },
+        TerminalNativeBoundaryApplications {
+            scope: checked_boundary_operator_scope,
+            coverage: boundary_application_coverage,
+        },
+        package_terminal_authority_permissions,
+        build_evaluation::authored_behavior_exclusion_set_in(
+            checked.behavior_exclusions(),
+            &terminal_module,
+            &|symbol| effects::boundary_trait_identity(checked, symbol),
+        ),
     )
     .map_err(|message| vec![Diagnostic::error(message)])
 }

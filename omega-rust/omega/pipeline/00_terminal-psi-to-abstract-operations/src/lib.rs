@@ -37,8 +37,8 @@ pub use retained_terminal::{
     PreparedRetainedNativeProviders, RetainedNativeProviderInputs, RetainedTerminalArtifact,
     TerminalCallbackOccurrenceProposal, TerminalCallbackThunkArtifact,
     TerminalCompilerBuiltinProposal, TerminalIeeeFloatComparisonOccurrenceProposal,
-    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeRealizationInputs,
-    TerminalNativeRealizationProposal,
+    TerminalIntegerComparisonOccurrenceProposal, TerminalNativeBoundaryApplications,
+    TerminalNativeOccurrences, TerminalNativeProviders, TerminalNativeRealizationProposal,
 };
 
 pub use native_admission::{
