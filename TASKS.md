@@ -1693,59 +1693,56 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
 
 - **BUILD-PRODUCT-REFERENCES.** Finish executable follow-through for
   [non-executing product selection](wiki/spec/build/scoped_execution.md#selecting-product-declarations-without-executing-them).
-  Product descriptions, visibility checks, and exact-symbol admission exist.
-  Preserve the [separate build/product checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts)
-  and BUILD-ADMISSION-CHECKPOINT source custody; names and evaluator indices
-  are not durable selection authority.
+  `checked-interpreter`'s `build_machine/product_entries.rs` already enforces
+  lexical product visibility and slot compatibility; `build-evaluation`'s
+  `admission/selection/root_bindings.rs` retains the selected symbol and slot.
+  Preserve [separate checked contexts](wiki/spec/build/scoped_execution.md#two-checked-contexts)
+  and **BUILD-ADMISSION-CHECKPOINT** source custody, never durable authority from
+  names or evaluator indices.
 
-  The remaining customer is the scalar/multi-state `Runner` in
-  `compiler/tests/build_target_activation/qualified_provider_selection.rs`.
-  Bind each module's `Runner::run` as ProgramEntry and execute its computed-result
-  branch. Scalar/provider and state-call closure belongs to **TR3-TR8** /
-  **STATE-LOCAL-VALUE-FRONTIER**; exact receiver attachment belongs to
-  **ENTRY-CONTENT-ROOTS**. Unit Console forwarding does not complete computed
-  result execution.
+  Register the missing scalar/multi-state customer in `tests/omega`: the cited
+  `build_target_activation` Rust suite was removed. Select each module's
+  `Runner::run` as ProgramEntry and observe its provider's computed result
+  (**11** versus **37**) through ordinary calls and the state branch. Selected
+  identity must survive product descriptions, helper returns, Terminal production
+  and native execution with explicit exit oracles. **STATE-LOCAL-VALUE-FRONTIER**
+  owns scalar/provider and state-call closure; **ENTRY-CONTENT-ROOTS** owns receiver
+  attachment.
 
-  Acceptance: selected module identity survives product descriptions, ordinary
-  helper returns, Terminal production, and native execution. Preserve
-  `foreign_helper_product_queries`, `qualified_root_bindings`,
-  `product_query_paths`, `product_entry_signatures`, and
-  `qualified_provider_selection` controls in the same suite, including computed
-  receivers, named lifetimes, parent loans, and conflicting later operands.
-  Reject unauthorized private/sibling enumeration, stale or forged descriptions,
-  wrong scope/target/slot, swapped or ambiguous declarations, description-to-callable
-  conversion, and same-build generated/layout cycles. Delegated private entry
-  descriptions remain usable without granting enumeration authority.
+  Retain source controls for qualified paths, computed receivers, named lifetimes,
+  parent loans and conflicting later operands. Reject unauthorized private/sibling
+  enumeration, stale/forged descriptions, wrong scope/target/slot, swapped or
+  ambiguous declarations, description-to-callable conversion and same-build
+  generated/layout cycles. Explicitly delegated private entry descriptions remain
+  usable without enumeration authority.
 
-- **BUILD-SNAPSHOT-OUTPUTS.** Complete the
+- **BUILD-SNAPSHOT-OUTPUTS.** Finish coherent capture and host acceptance under the
   [captured-input and committed-output contract](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
-  across ordinary compilation. Extend existing snapshot reads, required-output
-  settlement, private staging, and publication rather than adding an executor.
+  across ordinary compilation. `package-compilation/src/source_snapshot.rs`'s
+  `require_stable_recapture` and `source-acquisition/src/tree/capture/` recheck
+  observed trees; matching observations do not make a mutable tree atomic. Establish
+  the exact capture/staging/cleanup isolation premise or refuse. Cover directory
+  membership/link races and edits restoring observations, preserving logical path
+  distinctions, inert links, retained parents and failure cleanup. Planted-alias
+  controls do not cover every mutation interval. `FilesystemSponsor::create_private`
+  relies on inherited directory isolation on Windows; Unix-only identity controls
+  leave that host's behavior unverified.
 
-  Owners: `package-compilation/src/source_snapshot/`,
-  `omega-rust/omega/package-manager/source-acquisition/src/tree/filesystem.rs`, build-output,
-  build-evaluation, and compiler publication. Per-file observations and later
-  live-tree comparisons do not establish coherent whole-tree capture. Cover
-  directory membership/link races and edits restoring compared observations
-  under the exact isolation premise; fail when that premise cannot be supplied.
-  Preserve logical path distinctions, inert links, retained-parent controls,
-  and failure cleanup. Existing planted-alias regressions are controls, not proof
-  of confinement across every check/use interval during mutation and cleanup.
-  Reuse BUILD-ADMISSION-CHECKPOINT and PackageCheckedContext
-  for source custody and occurrence identity; no live-host grant extension or
-  persistent writable cache.
+  Reuse `build-evaluation::execution::output_custody` settlement, `build-output`
+  custody and compiler publication, with **BUILD-ADMISSION-CHECKPOINT** and
+  `PackageCheckedContext` source/occurrence identity. The acquired-generator test
+  in `omega/tests/completed_build_outputs.rs` already exercises narrowed template
+  reads, exact artifact/companion output, native invocation, retries and distinct
+  package/target output sets. Re-run that customer on macOS and Windows; preserve
+  `omega/tests/{build_input_inventory,package_commands/snapshot_outputs}.rs` and
+  package-manager's `suite` filter `build_named_inputs::`. The cited compiler
+  snapshot/named-input test targets were removed.
 
-  Acceptance: an acquired generator reads a narrowed template and publishes a
-  required file through artifact-only and companion builds. Preserve
-  `compiler/tests/{build_snapshot_outputs,build_named_inputs}.rs`,
-  `omega/tests/package_commands/snapshot_outputs.rs`,
-  `omega/tests/{completed_build_outputs,build_input_inventory}.rs`, and
-  package-manager's `suite` filter `build_named_inputs::`.
-  Cover negative lookups/metadata, substitution/link escapes, sealed mutation,
-  cross-occurrence receipts, retry, omitted outputs, interruption, final-check
-  failure, and identical logical names across packages/targets. Exercise Windows
-  runtime behavior; source inspection and cross-compilation do not establish it.
-  Measure retained state and compare the spec's separate-tool route.
+  Acceptance also covers negative lookups/metadata, substitution/link escapes,
+  sealed mutation, cross-occurrence receipts, omitted outputs, interruption and
+  final-check failure without publishing a partial set. Measure retained state
+  and compare the spec's separate-tool route. No new executor, live-host grant
+  extension or persistent writable cache.
 
 ## Embedding and interpreted components
 
