@@ -13,114 +13,68 @@ pub use boundary_applications::{
     TerminalIeeeFloatComparisonOccurrenceProposal, TerminalIntegerComparisonOccurrenceProposal,
 };
 
-/// Exact target-constrained proposal retained beside a target-neutral
-/// Terminal artifact.
-///
-/// This owns full selected plans and external-binding rows rather than a
-/// compact report fingerprint. It grants no provider execution, installation,
-/// proof admission, optimization, or publication authority. It does retain the
-/// build's exact pending physical-optimization proposal; a later consumer must
-/// accept that proposal exactly and independently replay it, or reject native
-/// realization.
+/// Selected provider inputs retained together, without execution or permission
+/// authority. Package permissions remain a separate independently joined input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalNativeProviders {
+    pub selection: effects::SelectedProviderPlanFacts,
+    pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
+    pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
+}
+
+/// Exact occurrence catalogs produced while checked source custody exists.
+/// Native replay independently rejoins each catalog to canonical operations.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalNativeOccurrences {
+    pub callbacks: Vec<TerminalCallbackOccurrenceProposal>,
+    pub ieee_float_comparisons: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
+    pub integer_comparisons: Vec<TerminalIntegerComparisonOccurrenceProposal>,
+}
+
+/// Keep the producer's complete coverage and its sealed checked scope intact.
+/// Splitting coverage into demands, realizations and opaque applications would
+/// discard its already-constructed identity references only to rebuild them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalNativeBoundaryApplications {
+    pub scope: lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
+    pub coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+}
+
+/// Target-constrained native inputs beside one canonical Terminal artifact.
+/// Each producing owner transfers a complete unit. The validated entry owns
+/// target identity; no independently mutable target/profile pair is retained.
+/// Construction and later replay join every unit to the exact artifact. This
+/// product grants no execution, installation, proof or publication authority.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeRealizationProposal {
     terminal_artifact_identity: terminal_codec::TerminalArtifactIdentity,
-    target_profile: target::TargetProfile,
-    native_target: target::NativeTarget,
-    subsystem: u16,
-    application_intent: Option<target::HostedApplicationIntent>,
-    application_identifier: Option<target::ApplicationIdentifier>,
-    /// The validated authored `builder.application` name, retained beside the
-    /// intent and identifier. It supplies the publication `.app` basename and
-    /// inner executable leaf; `None` means the build declared no application.
-    application_name: Option<String>,
-    post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+    application: target::NativeApplicationMetadata,
     program_entry: crate::ValidatedNativeProgramEntrySettlement,
-    selected_provider_plans: effects::SelectedProviderPlanFacts,
-    external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
+    post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+    providers: TerminalNativeProviders,
+    occurrences: TerminalNativeOccurrences,
+    boundary_applications: TerminalNativeBoundaryApplications,
     package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
-    compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
-    callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
-    ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
-    integer_comparison_occurrences: Vec<TerminalIntegerComparisonOccurrenceProposal>,
-    boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
-    checked_boundary_operator_scope:
-        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-    /// Canonical union of the authored `builder.exclude_*` selections the
-    /// producing build required. It is retained beside the artifact so a
-    /// source-free consumer replays the identical absence policy against the
-    /// committed semantic subject; it grants no exclusion authority itself.
     behavior_exclusions: effects::BehaviorExclusions,
 }
 
-/// Everything a Terminal native realization proposal is built from besides
-/// the artifact itself: the selected target, entry, plans, rows and occurrences
-/// the proposal validates against the artifact's closure.
-#[derive(Debug)]
-pub struct TerminalNativeRealizationInputs {
-    pub target_profile: target::TargetProfile,
-    pub native_target: target::NativeTarget,
-    pub subsystem: u16,
-    pub application_intent: Option<target::HostedApplicationIntent>,
-    pub application_identifier: Option<target::ApplicationIdentifier>,
-    pub application_name: Option<String>,
-    pub post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
-    pub program_entry: crate::ValidatedNativeProgramEntrySettlement,
-    pub selected_provider_plans: effects::SelectedProviderPlanFacts,
-    pub external_binding_rows: Vec<calling_conventions::ExternalBindingRow>,
-    /// Exact selected opaque applications used by value across the retained
-    /// signatures, canonicalized by the producing checked compilation.
-    pub boundary_opaque_applications:
-        boundary_applications::BoundaryOpaqueRepresentationApplications,
-    pub package_terminal_authority_permissions: Vec<effects::ServiceTerminalAuthorityPermission>,
-    pub compiler_builtins: Vec<TerminalCompilerBuiltinProposal>,
-    pub callback_occurrences: Vec<TerminalCallbackOccurrenceProposal>,
-    pub ieee_float_comparison_occurrences: Vec<TerminalIeeeFloatComparisonOccurrenceProposal>,
-    pub integer_comparison_occurrences: Vec<TerminalIntegerComparisonOccurrenceProposal>,
-    pub boundary_application_demands: boundary_applications::TerminalBoundaryApplicationDemands,
-    pub boundary_application_realizations:
-        boundary_applications::TerminalBoundaryApplicationRealizations,
-    pub checked_boundary_operator_scope:
-        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-    pub behavior_exclusions: effects::BehaviorExclusions,
-}
-
 impl TerminalNativeRealizationProposal {
+    /// Retain complete producer units, canonicalize permission order and replay
+    /// their artifact-bound joins. Neither permissions nor exclusions are
+    /// derived from the provider selection.
     pub fn new(
         artifact: &terminal_codec::CanonicalTerminalArtifact,
-        inputs: TerminalNativeRealizationInputs,
+        application: target::NativeApplicationMetadata,
+        program_entry: crate::ValidatedNativeProgramEntrySettlement,
+        post_terminal_optimizations: optimization_core::PostTerminalOptimizationSelectionProjection,
+        providers: TerminalNativeProviders,
+        occurrences: TerminalNativeOccurrences,
+        boundary_applications: TerminalNativeBoundaryApplications,
+        mut package_terminal_authority_permissions: Vec<
+            effects::ServiceTerminalAuthorityPermission,
+        >,
+        behavior_exclusions: effects::BehaviorExclusions,
     ) -> Result<Self, &'static str> {
-        let TerminalNativeRealizationInputs {
-            target_profile,
-            native_target,
-            subsystem,
-            application_intent,
-            application_identifier,
-            application_name,
-            post_terminal_optimizations,
-            program_entry,
-            selected_provider_plans,
-            external_binding_rows,
-            boundary_opaque_applications,
-            mut package_terminal_authority_permissions,
-            compiler_builtins,
-            callback_occurrences,
-            ieee_float_comparison_occurrences,
-            integer_comparison_occurrences,
-            boundary_application_demands,
-            boundary_application_realizations,
-            checked_boundary_operator_scope,
-            behavior_exclusions,
-        } = inputs;
-        let boundary_application_coverage =
-            boundary_applications::TerminalBoundaryApplicationCoverage::new(
-                boundary_application_demands,
-                boundary_application_realizations,
-            )?
-            // Opaque custody rejoins coverage so every artifact, replay, and
-            // install record built from this coverage carries the identical
-            // selected-application set.
-            .with_opaque_applications(boundary_opaque_applications);
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
@@ -132,23 +86,13 @@ impl TerminalNativeRealizationProposal {
         });
         let proposal = Self {
             terminal_artifact_identity: artifact.manifest().identity(),
-            target_profile,
-            native_target,
-            subsystem,
-            application_intent,
-            application_identifier,
-            application_name,
-            post_terminal_optimizations,
+            application,
             program_entry,
-            selected_provider_plans,
-            external_binding_rows,
+            post_terminal_optimizations,
+            providers,
+            occurrences,
+            boundary_applications,
             package_terminal_authority_permissions,
-            compiler_builtins,
-            callback_occurrences,
-            ieee_float_comparison_occurrences,
-            integer_comparison_occurrences,
-            boundary_application_coverage,
-            checked_boundary_operator_scope,
             behavior_exclusions,
         };
         proposal.validate_for_artifact(artifact)?;
@@ -189,15 +133,9 @@ impl TerminalNativeRealizationProposal {
         }
         crate::validate_terminal_boundary_application_coverage(
             artifact,
-            &self.checked_boundary_operator_scope,
-            &self.boundary_application_coverage,
+            &self.boundary_applications.scope,
+            &self.boundary_applications.coverage,
         )?;
-        if self.target_profile.native_target() != self.native_target
-            || self.program_entry.target() != self.native_target
-            || self.program_entry.source().target_slot().owner != self.target_profile
-        {
-            return Err("Terminal native proposal target, profile, and ProgramEntry disagree");
-        }
         if self
             .program_entry
             .checked_entry()
@@ -218,14 +156,14 @@ impl TerminalNativeRealizationProposal {
             );
         }
         crate::provider_admission::validate_evaluated_import_rows(
-            self.target_profile,
-            self.selected_provider_plans.plans(),
-            &self.external_binding_rows,
+            self.target_profile(),
+            self.providers.selection.plans(),
+            &self.providers.external_bindings,
         )?;
         self.validate_package_terminal_authority_permissions()?;
         crate::provider_admission::validate_retained_compiler_builtins(
-            &self.compiler_builtins,
-            self.selected_provider_plans.plans(),
+            &self.providers.compiler_builtins,
+            self.providers.selection.plans(),
         )?;
         let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(
             |_| "Terminal callback occurrence replay could not decode canonical semantics",
@@ -239,7 +177,7 @@ impl TerminalNativeRealizationProposal {
             &module,
             self.program_entry.source(),
             self.program_entry.fused_service_establishments(),
-            self.selected_provider_plans.plans(),
+            self.providers.selection.plans(),
         )?;
         // The retained exclusion union is a source-free admission policy over
         // this artifact's committed semantics: a consumer replays the same
@@ -259,7 +197,7 @@ impl TerminalNativeRealizationProposal {
             &module,
             &[module.entry],
             &self.behavior_exclusions,
-            &self.selected_provider_plans,
+            &self.providers.selection,
         )
         .verdict()
         {
@@ -275,7 +213,7 @@ impl TerminalNativeRealizationProposal {
                 );
             }
         }
-        for demand in self.boundary_application_coverage.demands().rows() {
+        for demand in self.boundary_applications.coverage.demands().rows() {
             let matching_operations = module
                 .machines
                 .iter()
@@ -291,15 +229,15 @@ impl TerminalNativeRealizationProposal {
         }
         backend_plan::validate_callback_occurrences_for_module(
             &module,
-            &self.callback_occurrences,
+            &self.occurrences.callbacks,
         )?;
         crate::validate_terminal_comparison_coverage(
             &module,
-            self.selected_provider_plans.plans(),
-            &self.ieee_float_comparison_occurrences,
-            &self.integer_comparison_occurrences,
-            self.boundary_application_coverage.realizations(),
-            &self.checked_boundary_operator_scope,
+            self.providers.selection.plans(),
+            &self.occurrences.ieee_float_comparisons,
+            &self.occurrences.integer_comparisons,
+            self.boundary_applications.coverage.realizations(),
+            &self.boundary_applications.scope,
         )?;
         Ok(())
     }
@@ -336,37 +274,19 @@ impl TerminalNativeRealizationProposal {
     }
 
     pub const fn target_profile(&self) -> target::TargetProfile {
-        self.target_profile
+        self.program_entry.source().target_slot().owner
     }
 
     pub const fn native_target(&self) -> target::NativeTarget {
-        self.native_target
+        self.program_entry.target()
     }
 
-    pub const fn subsystem(&self) -> u16 {
-        self.subsystem
+    pub const fn application(&self) -> &target::NativeApplicationMetadata {
+        &self.application
     }
 
-    /// The authored hosted application intent retained from the checked build,
-    /// kept separate from the PE loader word so a raw `Unspecified` value can
-    /// never impersonate `Gui` at native realization.
-    pub const fn application_intent(&self) -> Option<target::HostedApplicationIntent> {
-        self.application_intent
-    }
-
-    /// The build-validated authored application identifier retained for
-    /// native realization. Signed macOS GUI emission requires it; console
-    /// output may fall back to the executable leaf as its ad-hoc label.
-    pub const fn application_identifier(&self) -> Option<&target::ApplicationIdentifier> {
-        self.application_identifier.as_ref()
-    }
-
-    /// The validated authored `builder.application` name retained for
-    /// publication. It supplies the `.app` basename and inner executable leaf
-    /// for a retained proposal realized on a later machine; `None` means the
-    /// build declared a non-application role.
-    pub fn application_name(&self) -> Option<&str> {
-        self.application_name.as_deref()
+    pub const fn program_entry(&self) -> &crate::ValidatedNativeProgramEntrySettlement {
+        &self.program_entry
     }
 
     pub const fn post_terminal_optimizations(
@@ -375,99 +295,30 @@ impl TerminalNativeRealizationProposal {
         &self.post_terminal_optimizations
     }
 
-    pub const fn program_entry(&self) -> &crate::ValidatedNativeProgramEntrySettlement {
-        &self.program_entry
+    pub const fn providers(&self) -> &TerminalNativeProviders {
+        &self.providers
     }
 
-    /// The checked-source ProgramEntry-to-Terminal receipt retained for native
-    /// re-entry. Validation binds it to this proposal's selected source
-    /// signature and canonical Terminal identity; settlement independently
-    /// re-derives the complete join before trusting it.
-    pub const fn checked_program_entry(&self) -> &terminal_psi::CheckedProgramEntryTerminalReceipt {
-        self.program_entry.checked_entry()
+    pub const fn occurrences(&self) -> &TerminalNativeOccurrences {
+        &self.occurrences
     }
 
-    pub const fn selected_provider_plans(&self) -> &effects::SelectedProviderPlanFacts {
-        &self.selected_provider_plans
+    pub const fn boundary_applications(&self) -> &TerminalNativeBoundaryApplications {
+        &self.boundary_applications
     }
 
-    pub fn external_binding_rows(&self) -> &[calling_conventions::ExternalBindingRow] {
-        &self.external_binding_rows
-    }
-
-    /// Consumer-supplied package permission rows retained before the checked
-    /// frontend was destroyed. These rows grant nothing by themselves; native
-    /// re-entry must first match them to independently accepted package
-    /// evidence and then rejoin that accepted set to the receiving policy.
+    /// Accepted package rows do not grant receiver permission. Re-entry must
+    /// match independent package evidence and any explicit receiving policy.
     pub fn package_terminal_authority_permissions(
         &self,
     ) -> &[effects::ServiceTerminalAuthorityPermission] {
         &self.package_terminal_authority_permissions
     }
 
-    pub fn compiler_builtins(&self) -> &[TerminalCompilerBuiltinProposal] {
-        &self.compiler_builtins
-    }
-
-    pub fn callback_occurrences(&self) -> &[TerminalCallbackOccurrenceProposal] {
-        &self.callback_occurrences
-    }
-
-    pub fn ieee_float_comparison_occurrences(
-        &self,
-    ) -> &[TerminalIeeeFloatComparisonOccurrenceProposal] {
-        &self.ieee_float_comparison_occurrences
-    }
-
-    pub fn integer_comparison_occurrences(&self) -> &[TerminalIntegerComparisonOccurrenceProposal] {
-        &self.integer_comparison_occurrences
-    }
-
-    /// Canonical union of the authored behavior exclusions this artifact's
-    /// build required. The producing admission gate enforced it over the
-    /// unoptimized selected-entry closure; consumers replay it against the
-    /// retained artifact semantics through `validate_for_artifact`.
-    /// Physical-authority-class rows are retained for realization: native
-    /// realization adjudicates them against the mechanism-closure review
-    /// even when the request supplies no receiving permission policy.
+    /// Authored exclusions constrain canonical semantics and native mechanism
+    /// use, even when no receiving permission policy is supplied.
     pub const fn behavior_exclusions(&self) -> &effects::BehaviorExclusions {
         &self.behavior_exclusions
-    }
-
-    /// Non-caller-authored checked D29 scope retained before the checked
-    /// frontend was destroyed.
-    pub const fn checked_boundary_operator_scope(
-        &self,
-    ) -> &lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope {
-        &self.checked_boundary_operator_scope
-    }
-
-    pub const fn boundary_application_demands(
-        &self,
-    ) -> &boundary_applications::TerminalBoundaryApplicationDemands {
-        self.boundary_application_coverage.demands()
-    }
-
-    pub const fn boundary_application_realizations(
-        &self,
-    ) -> &boundary_applications::TerminalBoundaryApplicationRealizations {
-        self.boundary_application_coverage.realizations()
-    }
-
-    pub const fn boundary_application_coverage(
-        &self,
-    ) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
-        &self.boundary_application_coverage
-    }
-
-    /// Strong selected-application custody for every by-value opaque boundary
-    /// edge this artifact's signatures carry. Native realization binds the
-    /// identical set into the native artifact; a consumer artifact must carry
-    /// the same commitments at the same edges for an exchange to agree.
-    pub const fn boundary_opaque_applications(
-        &self,
-    ) -> &boundary_applications::BoundaryOpaqueRepresentationApplications {
-        self.boundary_application_coverage.opaque_applications()
     }
 }
 
@@ -555,7 +406,7 @@ impl RetainedTerminalArtifact {
             proposal.validate_for_artifact(&self.artifact)?;
             backend_plan::validate_callback_occurrence_placements(
                 &self.callback_placements,
-                &proposal.callback_occurrences,
+                &proposal.occurrences.callbacks,
             )?;
         }
         Ok(())

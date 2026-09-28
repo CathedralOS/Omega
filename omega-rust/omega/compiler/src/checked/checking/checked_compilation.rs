@@ -108,26 +108,19 @@ impl CheckedCompilation {
         self.sources.source_file_count
     }
 
-    /// Authored hosted presentation intent; never inferred from a PE word.
-    pub const fn application_intent(&self) -> Option<build_evaluation::HostedApplicationIntent> {
-        self.execution.application_intent
-    }
-
-    /// The build-validated authored application identifier retained beside
-    /// [`Self::application_intent`]. It supplies the GUI CodeDirectory signing
-    /// identity and `CFBundleIdentifier`; `None` means the build authored no
-    /// `identifier` and console output falls back to the executable leaf.
-    pub const fn application_identifier(&self) -> Option<&build_evaluation::ApplicationIdentifier> {
-        self.execution.application_identifier.as_ref()
-    }
-
-    /// The validated authored `builder.application` name retained at source
-    /// custody. It supplies the `.app` basename and inner executable leaf at
-    /// publication; `None` for package/workspace build roles.
-    pub const fn application_name(&self) -> Option<&build_declarations::ProjectName> {
-        match self.execution.application.as_ref() {
-            Some(application) => Some(&application.name),
-            None => None,
+    /// Project the build-owned image metadata as one retention unit. The name
+    /// comes from the application declaration; intent, signing identity and
+    /// subsystem come from evaluated configuration and remain distinct facts.
+    pub fn project_native_application_metadata(&self) -> target::NativeApplicationMetadata {
+        target::NativeApplicationMetadata {
+            name: self
+                .execution
+                .application
+                .as_ref()
+                .map(|application| application.name.as_str().to_owned()),
+            intent: self.execution.application_intent,
+            identifier: self.execution.application_identifier.clone(),
+            subsystem: self.execution.subsystem,
         }
     }
 

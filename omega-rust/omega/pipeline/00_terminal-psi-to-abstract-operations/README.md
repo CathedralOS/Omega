@@ -11,6 +11,12 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   compiler reports only retain and expose its products. Build selection closes
   into the existing validated native entry settlement before retention, so no
   build-evaluator object or duplicate entry receipt crosses that boundary.
+  Providers, occurrences and boundary applications cross as complete units;
+  boundary coverage is retained without decomposing and rebuilding its rows.
+  Target identity comes from the validated entry. Application metadata belongs
+  to the backend target owner and is shared with native reports; application
+  intent remains independent of the image subsystem. Package permissions and
+  behavior exclusions remain independent inputs, never inferred from providers.
   Its [native provider preparation](src/retained_terminal/native_providers.rs)
   rejoins receiving policies and prepares callbacks, imports and builtins in
   one operation. Derived import evidence remains invocation-owned through

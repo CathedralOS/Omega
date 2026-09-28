@@ -76,9 +76,9 @@ pub fn realize_retained_native_artifact(
         image_request
             .settle_application_metadata(
                 proposal.native_target(),
-                proposal.application_intent(),
-                proposal.subsystem(),
-                proposal.application_identifier(),
+                proposal.application().intent,
+                proposal.application().subsystem,
+                proposal.application().identifier.as_ref(),
             )
             .map_err(|error| {
                 use image_emission::ImageApplicationMetadataError;
@@ -110,16 +110,16 @@ pub fn realize_retained_native_artifact(
             artifact,
             crate::native::NativeRealizationRequest {
                 admission: NativeAdmissionRequest {
-                    checked_scope: Some(proposal.checked_boundary_operator_scope()),
+                    checked_scope: Some(&proposal.boundary_applications().scope),
                     prepared_input: None,
-                    boundary_application_coverage: Some(proposal.boundary_application_coverage()),
+                    boundary_application_coverage: Some(&proposal.boundary_applications().coverage),
                     behavior_exclusions: proposal.behavior_exclusions(),
                     providers: ProviderAdmissionRequest {
                         target: proposal.native_target(),
                         profile,
                         program_entry: proposal.program_entry().as_settlement(),
-                        selected_provider_plans: proposal.selected_provider_plans(),
-                        external_binding_rows: proposal.external_binding_rows(),
+                        selected_provider_plans: &proposal.providers().selection,
+                        external_binding_rows: proposal.providers().external_bindings.as_slice(),
                         settlements: &native_settlements,
                         compiler_builtins: &prepared.compiler_builtins,
                         native_callbacks: &prepared.callbacks,
