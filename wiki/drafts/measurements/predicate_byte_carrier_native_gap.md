@@ -54,15 +54,17 @@ of them untouched by this session: `games/dice_histogram`,
 `text/caesar_cipher`, `basics/print_number`. All three check and all three
 fail identically.
 
-A grep over the 119 checking samples for a sized `[u8; N]` domain plus an
-indexed byte write returns **21**. That is an upper estimate, not a
-measurement — only the three above were run:
+**MEASURED, replacing the estimate this file first carried.** A full native
+sweep with `tools/sample_native_gate.py` puts **10** samples on this exact
+refusal, not the 21 a grep suggested. The grep counted any sized `[u8; N]`
+domain beside any indexed write; several of those samples never reach
+lowering, and several index a carrier that is not domain-bearing. The ten:
 
-`binary_search_viz`, `maze_flood`, `sort_visualizer`, `prime_sieve`,
-`multiplication_table`, `print_number`, `print_squares`, `dice_histogram`,
-`calculator`, `direction_command`, `bouncing_console`, `ripple_field`,
-`tick_marquee`, `calendar`, `cellular_automaton`, `game_of_life_glider`,
-`langtons_ant`, `random_walk`, `caesar_cipher`, `format_number`, `hex_dump`.
+`print_number`, `dice_histogram`, `caesar_cipher`, `format_number`,
+`hex_dump`, `maze_flood`, `prime_sieve`, `multiplication_table`,
+`print_squares`, `calendar`.
+
+That is still the single largest realization refusal in the corpus.
 
 ## Why this matters for SAMPLE-CORPUS
 
