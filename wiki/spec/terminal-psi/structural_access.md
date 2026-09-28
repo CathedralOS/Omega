@@ -324,7 +324,12 @@ aliases. The store costs one logical operation unit, invalidates destination
 observations, and creates no new ownership frontier entry.
 
 A `PredicateByteSequence` field retains a nonempty set of primitive byte
-predicates alongside its bounded-owned carrier. The supported predicates are
+predicates alongside its bounded-owned carrier or immutable shared byte view.
+Equality contracts observe either carrier without discharging or erasing those
+predicates. Qualified shared-view declarations do not grant record construction,
+owned-return, or byte-mutation authority; those operations retain their separate
+custody and predicate checks. Qualified mutable, write-only, and access-unspecified
+view fields remain unsupported. The supported predicates are
 valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
 invariants independently of source checking and repeats the check after
 optimization. Zero-initialized attachment storage requires every contained byte

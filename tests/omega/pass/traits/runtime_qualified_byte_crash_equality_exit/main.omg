@@ -1,0 +1,26 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+// Byte predicates remain on record fields through a borrowed crash-contract call.
+domain [u8; 8]::Utf8
+requires
+    valid_utf8(self);
+
+trait Equatable {
+    machine equals(&self, rhs: &Self) -> bool;
+}
+data Message { active: bool; text: [u8; 8] in Utf8; }
+MessageEquatable: Message satisfies Equatable;
+
+data Main { console: Binding<Console>; left: Message; right: Message; }
+machine Main::inspect(&self)
+crashes Abort
+    self.left == self.right
+{}
+
+machine Main::main(&mut self) reaches Console
+crashes Abort
+{
+    self.inspect();
+    self.console.exit_process(70);
+}

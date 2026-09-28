@@ -36,11 +36,11 @@ pub(crate) fn validate_structural_fields(
         match (&field.field_type, field.relevance) {
             (
                 terminal_psi::StructuralFieldType::PredicateByteSequence {
-                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    carrier,
                     predicates,
                 },
                 terminal_psi::BindingRelevance::Relevant,
-            ) if !predicates.is_empty() => {}
+            ) if !predicates.is_empty() && carrier.supports_field_predicates() => {}
             (terminal_psi::StructuralFieldType::PredicateByteSequence { .. }, _) => {
                 return Err(invalid_erased());
             }
@@ -229,4 +229,73 @@ pub(super) fn attachment_storage_types(
         }
     }
     storage
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_structural_fields;
+    use crate::OptimizationUnitValidationError;
+    use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+    use terminal_psi::{
+        BindingRelevance, ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet,
+        StructuralAccess, StructuralFieldDeclaration, StructuralFieldType,
+    };
+
+    #[test]
+    fn qualified_byte_fields_require_supported_carriers_and_relevant_predicates() {
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        let field_id = StructuralFieldId::new(1).unwrap();
+        let mut predicates = ByteSequencePredicateSet::EMPTY;
+        predicates.insert(ByteSequencePredicate::ValidUtf8);
+        let field = |carrier, predicates, relevance| StructuralFieldDeclaration {
+            id: field_id,
+            identity: "text".into(),
+            relevance,
+            field_type: StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            },
+        };
+        let rejected = |field: StructuralFieldDeclaration| {
+            assert!(matches!(
+                validate_structural_fields(structural_type, None, &[field], false),
+                Err(OptimizationUnitValidationError::InvalidErasedStructuralField {
+                    structural_type: actual_type,
+                    field: actual_field,
+                }) if actual_type == structural_type && actual_field == field_id
+            ));
+        };
+
+        for carrier in [
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            },
+            ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+        ] {
+            validate_structural_fields(
+                structural_type,
+                None,
+                &[field(carrier, predicates, BindingRelevance::Relevant)],
+                false,
+            )
+            .unwrap_or_else(|error| panic!("qualified byte field {carrier:?}: {error:?}"));
+            rejected(field(
+                carrier,
+                ByteSequencePredicateSet::EMPTY,
+                BindingRelevance::Relevant,
+            ));
+            rejected(field(carrier, predicates, BindingRelevance::Erased));
+        }
+        for access in [
+            Some(StructuralAccess::MutableBorrow),
+            Some(StructuralAccess::WriteOnlyBorrow),
+            None,
+        ] {
+            rejected(field(
+                ByteSequenceCarrier::BorrowedView { access },
+                predicates,
+                BindingRelevance::Relevant,
+            ));
+        }
+    }
 }

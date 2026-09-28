@@ -177,7 +177,8 @@ pub(crate) fn lower_byte_sequence_field(
         parameters,
         structural_types,
     )?;
-    if !matches!(actual, StructuralFieldType::ByteSequence(_)) {
+    // Content predicates constrain the bytes, not their equality carrier.
+    if actual.byte_sequence_carrier().is_none() {
         return unsupported("structural byte-sequence predicate leaf has the wrong retained type");
     }
     ByteSequenceStructuralField::new(root, path).map_err(LoweringError::InvalidCrashPredicate)

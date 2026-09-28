@@ -52,10 +52,7 @@ pub(super) fn register_structural_types(
             } = field.field_type
                 && (field.relevance.is_erased()
                     || predicates.is_empty()
-                    || !matches!(
-                        carrier,
-                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
-                    )
+                    || !carrier.supports_field_predicates()
                     || (attachment_storage.contains(&declaration.id) && !predicates.holds_for(&[])))
             {
                 return Err(ModuleError::InvalidStructuralFieldIdentity {

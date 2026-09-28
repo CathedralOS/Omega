@@ -8,6 +8,7 @@ use super::{
 use semantic_vocabulary::{
     ByteSequenceStructuralField, IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField,
 };
+use terminal_psi::{ByteSequenceCarrier, ByteSequencePredicate, ByteSequencePredicateSet};
 
 #[derive(Clone, Copy, Debug)]
 enum Clause {
@@ -289,5 +290,128 @@ fn boolean_ieee_and_byte_contract_fields_retain_their_own_leaf_kind() {
                 ));
             }
         }
+    }
+}
+
+#[test]
+fn qualified_byte_equality_requires_exact_field_paths_and_byte_carriers() {
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    for clause in [Clause::Requires, Clause::Ensures] {
+        for carrier in [
+            ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow),
+            },
+            ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+        ] {
+            let mut original = module();
+            field_mut(&mut original).field_type = StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            };
+            let root = original.machines[0].structural_parameters[0].place;
+            let field = ByteSequenceStructuralField::new(root, path()).unwrap();
+            install(
+                &mut original,
+                clause,
+                Proposition::ByteSequenceEqual {
+                    left: field.clone(),
+                    right: field,
+                },
+            );
+            validate_module(&original).unwrap_or_else(|error| {
+                panic!("qualified byte field in {clause:?}, {carrier:?}: {error:?}")
+            });
+
+            let mut wrong_carrier = original.clone();
+            field_mut(&mut wrong_carrier).field_type =
+                StructuralFieldType::Scalar(ScalarType::Boolean);
+            assert!(
+                matches!(
+                    validate_module(&wrong_carrier),
+                    Err(ModuleError::InvalidByteSequenceFieldTerm { .. })
+                ),
+                "qualified byte equality cannot name a Boolean field: {clause:?}, {carrier:?}"
+            );
+
+            let mut missing_field = original;
+            field_mut(&mut missing_field).id = id::<StructuralFieldId>(2);
+            assert!(
+                matches!(
+                    validate_module(&missing_field),
+                    Err(ModuleError::InvalidByteSequenceFieldTerm { .. })
+                ),
+                "qualified byte equality must retain its exact nested field: {clause:?}, {carrier:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn qualified_byte_declarations_preserve_access_relevance_and_initialization_fences() {
+    let mut predicates = ByteSequencePredicateSet::EMPTY;
+    predicates.insert(ByteSequencePredicate::ValidUtf8);
+    let mut original = module();
+    field_mut(&mut original).field_type = StructuralFieldType::PredicateByteSequence {
+        carrier: ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        },
+        predicates,
+    };
+    validate_module(&original).expect("shared qualified byte declaration");
+    let expected = Some(ModuleError::InvalidStructuralFieldIdentity {
+        structural_type: id::<StructuralTypeId>(2),
+        field: id::<StructuralFieldId>(1),
+    });
+
+    for access in [
+        Some(StructuralAccess::MutableBorrow),
+        Some(StructuralAccess::WriteOnlyBorrow),
+        Some(StructuralAccess::Owned),
+        None,
+    ] {
+        let mut invalid = original.clone();
+        field_mut(&mut invalid).field_type = StructuralFieldType::PredicateByteSequence {
+            carrier: ByteSequenceCarrier::BorrowedView { access },
+            predicates,
+        };
+        assert_eq!(
+            validate_module(&invalid).err(),
+            expected,
+            "a qualified borrowed field requires exact shared access: {access:?}"
+        );
+    }
+
+    let mut empty_predicates = original.clone();
+    field_mut(&mut empty_predicates).field_type = StructuralFieldType::PredicateByteSequence {
+        carrier: ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        },
+        predicates: ByteSequencePredicateSet::EMPTY,
+    };
+    assert_eq!(validate_module(&empty_predicates).err(), expected);
+
+    let mut erased = original.clone();
+    field_mut(&mut erased).relevance = terminal_psi::BindingRelevance::Erased;
+    assert_eq!(validate_module(&erased).err(), expected);
+
+    let mut nonempty = ByteSequencePredicateSet::EMPTY;
+    nonempty.insert(ByteSequencePredicate::NonEmpty);
+    for carrier in [
+        ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        },
+        ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+    ] {
+        let mut invalid = original.clone();
+        field_mut(&mut invalid).field_type = StructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates: nonempty,
+        };
+        assert_eq!(
+            validate_module(&invalid).err(),
+            expected,
+            "zero-initialized nested attachment storage cannot promise nonempty bytes: {carrier:?}"
+        );
     }
 }

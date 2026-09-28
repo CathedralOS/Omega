@@ -984,10 +984,10 @@ fn validate_boolean_field_terms(
         }
         Proposition::ByteSequenceEqual { left, right } => {
             for field in [left, right] {
-                if !matches!(
-                    structural_leaf_type(module, machine, field.root(), field.path()),
-                    Some(StructuralFieldType::ByteSequence(_))
-                ) {
+                if structural_leaf_type(module, machine, field.root(), field.path())
+                    .and_then(StructuralFieldType::byte_sequence_carrier)
+                    .is_none()
+                {
                     return Err(ModuleError::InvalidByteSequenceFieldTerm {
                         machine: machine.id,
                         root: field.root(),

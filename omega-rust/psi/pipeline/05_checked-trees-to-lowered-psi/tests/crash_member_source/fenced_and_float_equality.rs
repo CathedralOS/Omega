@@ -803,7 +803,68 @@ fn ieee_float_aggregate_equality_is_atomic_and_canonical_end_to_end() {
 
 #[test]
 fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
-    let checked = crate::front_end::checked_program(BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE);
+    let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    predicates.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
+    assert_byte_sequence_aggregate_equality(BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE, predicates);
+}
+
+#[test]
+fn plain_borrowed_byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
+    assert_byte_sequence_aggregate_equality(
+        &BYTE_SEQUENCE_AGGREGATE_EQUALITY_SOURCE.replace("text: &[u8] in Utf8", "text: &[u8]"),
+        terminal_psi::ByteSequencePredicateSet::EMPTY,
+    );
+}
+
+#[test]
+fn qualified_byte_field_declarations_do_not_authorize_unchecked_record_construction() {
+    let checked = crate::front_end::checked_program(
+        "data Message<'a> { text: &'a [u8]; }
+         machine inspect<'a>(bytes: &'a [u8]) {
+             let message: Message<'a> = Message { text: bytes };
+         }",
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("inspect"),
+    )
+    .expect("plain shared descriptor construction lowers");
+    assert!(lowered.semantic_module.machines.iter().any(|machine| {
+        machine.blocks.iter().any(|block| {
+            block
+                .operations
+                .iter()
+                .any(|operation| matches!(operation.kind, OperationKind::EstablishRecord { .. }))
+        })
+    }));
+    let mut forged = lowered.semantic_module;
+    let field = forged
+        .structural_types
+        .iter_mut()
+        .find_map(|declaration| match &mut declaration.shape {
+            StructuralTypeShape::Record { fields } => fields
+                .iter_mut()
+                .find(|field| field.field_type.byte_sequence_carrier().is_some()),
+            _ => None,
+        })
+        .expect("record byte view");
+    let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
+    predicates.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
+    field.field_type = StructuralFieldType::PredicateByteSequence {
+        carrier: field.field_type.byte_sequence_carrier().unwrap(),
+        predicates,
+    };
+    assert!(matches!(
+        terminal_verifier::validate_module(&forged),
+        Err(terminal_verifier::ModuleError::RecordResultMismatch(_))
+    ));
+}
+
+fn assert_byte_sequence_aggregate_equality(
+    source: &str,
+    predicates: terminal_psi::ByteSequencePredicateSet,
+) {
+    let checked = crate::front_end::checked_program(source);
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         &checked,
         TerminalMachineSelection::Name("Root::enter"),
@@ -876,10 +937,13 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
             .iter()
             .any(|declaration| {
                 matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                if fields.iter().any(|field| matches!(
-                    field.field_type,
-                    StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView { .. })
-                )))
+                if fields.iter().any(|field|
+                    field.field_type.byte_sequence_carrier() == Some(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                        }
+                    ) && field.field_type.byte_predicates() == predicates
+                ))
             })
     );
     terminal_verifier::verify_module(
@@ -912,12 +976,13 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
             .iter()
             .any(|declaration| {
                 matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                if fields.iter().any(|field| matches!(
-                    field.field_type,
-                    StructuralFieldType::ByteSequence(
+                if fields.iter().any(|field|
+                    field.field_type.byte_sequence_carrier() == Some(
                         terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity: 8 }
-                    )
-                )))
+                    ) && field.field_type.byte_predicates().predicates().eq([
+                        terminal_psi::ByteSequencePredicate::ValidUtf8,
+                    ])
+                ))
             })
     );
     terminal_verifier::verify_module(
@@ -936,7 +1001,7 @@ fn byte_sequence_aggregate_equality_is_content_atomic_end_to_end() {
         .find_map(|declaration| match &mut declaration.shape {
             StructuralTypeShape::Record { fields } => fields
                 .iter_mut()
-                .find(|field| matches!(field.field_type, StructuralFieldType::ByteSequence(_))),
+                .find(|field| field.field_type.byte_sequence_carrier().is_some()),
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::PrimitiveScalar(_)
             | StructuralTypeShape::ByteSequence(_)

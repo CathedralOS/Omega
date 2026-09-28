@@ -1002,6 +1002,7 @@ pass/traits/runtime_local_named_dyn_devirtualized_exit rejected 814ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 0)
 pass/traits/runtime_local_named_dyn_pass_through_exit rejected 770ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: target place` (state 0, statement 3)
+pass/traits/runtime_qualified_byte_crash_equality_exit checked 539ms @8bd51016873be5f442446f3e2fff2f682806bca6
 pass/traits/trait_generic_bound_static_dispatch checked 1681ms
 pass/traits/transparent_refinement_declaration checked 431ms
 pass/types/runtime_addr_algebra_exit rejected 750ms
