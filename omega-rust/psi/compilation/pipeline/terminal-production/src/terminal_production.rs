@@ -206,7 +206,7 @@ impl<'a> TerminalProductionRequest<'a> {
     /// Produce the canonical Terminal artifact beside the custody the caller
     /// asked to retain.
     ///
-    /// Every product shares one instrumented body: ledger check, lowering,
+    /// Every product shares one instrumented body: checked-input lowering,
     /// selected optimization, the `ProgramEntry` receipt legs when an entry
     /// identity is supplied, publication, and the checked boundary-operator
     /// scope. The source-signature digest remains opaque; later Omega
@@ -315,11 +315,6 @@ impl<'a> TerminalProductionRequest<'a> {
         timings: &mut TerminalProductionTimings,
     ) -> Result<(Option<LoweredPsi>, PsiOptimizationStageResult), TerminalArtifactProductionError>
     {
-        timings
-            .record_result(TerminalProductionStage::LedgerCheck, || {
-                crate::checked_ledger::verify(self.checked)
-            })
-            .map_err(TerminalArtifactProductionError::Lowering)?;
         let lowered = timings
             .record_result(TerminalProductionStage::Lowering, || {
                 lower_machine(self.checked, self.machine)
@@ -545,7 +540,7 @@ mod tests {
 
     /// Every product shares the instrumented body: without an entry identity
     /// an enabled carrier records the
-    /// ledger/lowering/optimization/publication/boundary-scope ladder and no
+    /// lowering/optimization/publication/boundary-scope ladder and no
     /// receipt, and a callback sidecar rides the same ladder back to the
     /// caller. An entry identity adds the machine-selection and receipt legs
     /// in their run positions.
@@ -566,7 +561,6 @@ mod tests {
         assert_eq!(
             stages,
             [
-                TerminalProductionStage::LedgerCheck,
                 TerminalProductionStage::Lowering,
                 TerminalProductionStage::Optimization,
                 TerminalProductionStage::Publication,
@@ -617,7 +611,6 @@ mod tests {
             entry_stages,
             [
                 TerminalProductionStage::MachineSelection,
-                TerminalProductionStage::LedgerCheck,
                 TerminalProductionStage::Lowering,
                 TerminalProductionStage::Optimization,
                 TerminalProductionStage::EntryReceipt,
@@ -626,6 +619,47 @@ mod tests {
                 TerminalProductionStage::Publication,
                 TerminalProductionStage::BoundaryOperatorScope,
             ]
+        );
+    }
+
+    #[test]
+    fn production_returns_callback_custody_on_ledger_rejection() {
+        let mut checked = check_source("machine run() { }");
+        checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .insert(checked_trees::flow::FlowPermissionEventFact::default());
+        let callback_custody = Box::new(19u64);
+        let original = &*callback_custody as *const u64;
+        let mut timings = TerminalProductionTimings::enabled();
+        let failure =
+            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("run"))
+                .produce(TerminalProductionCustody {
+                    entry_identity: None,
+                    callback_custody,
+                    retain_unoptimized: false,
+                    timings: &mut timings,
+                })
+                .unwrap_err();
+        let (error, returned_custody) = failure.into_parts();
+        assert!(matches!(
+            error,
+            super::TerminalArtifactProductionError::Lowering(
+                checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                    "checked permission event names no declared machine"
+                )
+            )
+        ));
+        assert_eq!(&*returned_custody as *const u64, original);
+        assert_eq!(
+            timings
+                .rows()
+                .iter()
+                .map(|(stage, _)| *stage)
+                .collect::<Vec<_>>(),
+            [TerminalProductionStage::Lowering],
         );
     }
 

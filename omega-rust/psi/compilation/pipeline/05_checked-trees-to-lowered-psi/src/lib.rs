@@ -12,7 +12,8 @@
 //! and [`callback_lowering_receipt`] joins the checked callback coordinate
 //! onto the module's entry machine afterward.
 //!
-//! 1. `machine_lowering` selects the checked machine named by a
+//! 1. `machine_lowering` validates the checked permission ledger before any
+//!    consumer uses its evidence, then selects the checked machine named by a
 //!    [`TerminalMachineSelection`], gates its guarded exits, then dispatches
 //!    through `machine_lowering::machine_dispatch` to the plan family that
 //!    owns the machine's shape.
