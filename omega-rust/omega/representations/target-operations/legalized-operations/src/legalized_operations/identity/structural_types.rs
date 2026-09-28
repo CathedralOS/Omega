@@ -298,6 +298,14 @@ pub(super) fn encode_structural_fields(bytes: &mut Vec<u8>, fields: &[Structural
                     IeeeFloatFormat::Binary64 => 2,
                 });
             }
+            StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            } => {
+                bytes.push(7);
+                encode_byte_sequence_carrier(bytes, *carrier);
+                bytes.push(predicates.bits());
+            }
             StructuralFieldType::ByteSequence(carrier) => {
                 bytes.push(3);
                 encode_byte_sequence_carrier(bytes, *carrier);

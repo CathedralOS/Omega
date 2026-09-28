@@ -155,6 +155,7 @@ fn linear_provider_module() -> TerminalModule {
     module
         .structural_domains
         .push(terminal_psi::StructuralDomainDeclaration {
+            byte_predicate: None,
             id: live,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),
             identity: "test::Live".into(),
@@ -176,6 +177,7 @@ fn linear_provider_module() -> TerminalModule {
     module
         .structural_domains
         .push(terminal_psi::StructuralDomainDeclaration {
+            byte_predicate: None,
             id: member_domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(2).unwrap(),
             identity: "test::MemberLive".into(),

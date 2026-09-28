@@ -6,7 +6,7 @@ use crate::checked_trees::flow::terminal::{
     CheckedBoundaryMachinePlan, CheckedByteSequenceWritePlan, CheckedCallScalarArgument,
     CheckedComposedUnitControlMachinePlan, CheckedPrimitiveStoreDestination,
     CheckedProviderAttachmentRequirementPlan, CheckedScalarStateTerminator,
-    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralByteSequenceFieldStorePlan,
+    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedByteSequenceStorePlan,
     CheckedStructuralCallCustodyPlan, CheckedStructuralScalarParameterPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate,
     CheckedUnitClaimTransferPlan, CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
@@ -336,7 +336,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// no erased or payload custody, so the write copies whole and consumes
     /// nothing.
     StructuralCaseFieldStore(CheckedStructuralCaseFieldStorePlan),
-    StructuralByteSequenceFieldStore(CheckedStructuralByteSequenceFieldStorePlan),
+    ByteSequenceStore(CheckedByteSequenceStorePlan),
     /// One normalized atomic event on an exact primitive leaf, joining the
     /// source carrier's placeholder local and carrier assignment into one
     /// operation (see `atomic_plans.rs`).

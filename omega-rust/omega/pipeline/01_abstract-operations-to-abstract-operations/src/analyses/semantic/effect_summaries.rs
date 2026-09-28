@@ -380,7 +380,7 @@ fn operation_effect(
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
-        | O::StructuralByteSequenceFieldStore { .. }
+        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralScalarFieldStore { .. }
         // A restoration window extracts and reseats storage beneath a

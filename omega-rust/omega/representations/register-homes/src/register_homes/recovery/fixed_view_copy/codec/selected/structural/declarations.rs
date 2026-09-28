@@ -170,6 +170,14 @@ fn encode_fields(bytes: &mut Vec<u8>, fields: &[StructuralFieldDeclaration]) {
                     IeeeFloatFormat::Binary64 => 2,
                 });
             }
+            StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            } => {
+                bytes.push(7);
+                encode_byte_sequence_carrier(bytes, *carrier);
+                bytes.push(predicates.bits());
+            }
             StructuralFieldType::ByteSequence(carrier) => {
                 bytes.push(3);
                 encode_byte_sequence_carrier(bytes, *carrier);
@@ -208,6 +216,17 @@ fn decode_fields(
                 tag => return Err(FixedViewCopyDecodeError::UnknownIeeeFloatFormat(tag)),
             }),
             3 => StructuralFieldType::ByteSequence(decode_byte_sequence_carrier(cursor)?),
+            7 => {
+                let carrier = decode_byte_sequence_carrier(cursor)?;
+                let bits = cursor.byte()?;
+                let predicates = terminal_psi::ByteSequencePredicateSet::from_bits(bits)
+                    .filter(|predicates| !predicates.is_empty())
+                    .ok_or(FixedViewCopyDecodeError::InvalidVocabulary(u16::from(bits)))?;
+                StructuralFieldType::PredicateByteSequence {
+                    carrier,
+                    predicates,
+                }
+            }
             4 => StructuralFieldType::Structural(decode_id(cursor, StructuralTypeId::new)?),
             5 => StructuralFieldType::Erased {
                 type_identity: decode_string(cursor)?,

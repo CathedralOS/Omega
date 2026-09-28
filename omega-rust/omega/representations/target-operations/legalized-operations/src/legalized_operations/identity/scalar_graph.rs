@@ -349,6 +349,20 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     }
                     bytes.extend_from_slice(&accepted_fact.bytes());
                 }
+                LegalizedScalarInstructionKind::ByteSequenceStore {
+                    destination,
+                    source,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(241);
+                    bytes.extend_from_slice(&destination.get().to_le_bytes());
+                    bytes.extend_from_slice(&source.get().to_le_bytes());
+                    bytes.extend_from_slice(&length.get().to_le_bytes());
+                    bytes.extend_from_slice(&obligation.get().to_le_bytes());
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore {
                     destination,
                     field,

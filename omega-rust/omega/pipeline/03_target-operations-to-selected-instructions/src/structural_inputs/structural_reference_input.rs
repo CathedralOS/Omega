@@ -531,6 +531,25 @@ pub(crate) fn bounded_byte_field_view(
     view_type: StructuralTypeId,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u64)> {
+    bounded_byte_field_borrow(source, argument, view_type, declarations, false)
+}
+
+pub(crate) fn bounded_byte_field_owner(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u64)> {
+    bounded_byte_field_borrow(source, argument, view_type, declarations, true)
+}
+
+fn bounded_byte_field_borrow(
+    source: &terminal_psi::StructuralParameterDeclaration,
+    argument: &terminal_psi::StructuralArgument,
+    view_type: StructuralTypeId,
+    declarations: &[StructuralTypeDeclaration],
+    owned: bool,
+) -> Option<(u32, u64)> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
     let Some((StructuralPathSegment::Field(name), prefix)) = argument.path.split_last() else {
         return None;
@@ -540,7 +559,9 @@ pub(crate) fn bounded_byte_field_view(
             (source.access, argument.access),
             (
                 StructuralAccess::MutableBorrow,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow,
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow,
             ) | (
                 StructuralAccess::SharedBorrow,
                 StructuralAccess::SharedBorrow
@@ -550,9 +571,22 @@ pub(crate) fn bounded_byte_field_view(
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
         || !declarations.iter().any(|declaration| {
-            declaration.id == view_type && declaration.shape.is_borrowed_byte_carrier()
+            declaration.id == view_type
+                && if owned {
+                    matches!(
+                        declaration.shape,
+                        StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+                } else {
+                    declaration.shape.is_borrowed_byte_carrier()
+                }
         })
     {
+        return None;
+    }
+    if !owned && argument.access == StructuralAccess::WriteOnlyBorrow {
         return None;
     }
     let (carrier, carrier_offset) = if prefix.is_empty() {
@@ -575,12 +609,22 @@ pub(crate) fn bounded_byte_field_view(
         let layout = field_shape(&candidate.field_type, declarations, &mut Vec::new())?;
         local_offset = align(local_offset, layout.alignment)?;
         if candidate.identity == *name {
-            let StructuralFieldType::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
-            ) = candidate.field_type
+            let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
+                candidate.field_type.byte_sequence_carrier()
             else {
                 return None;
             };
+            if owned
+                && !declarations.iter().any(|declaration| {
+                    declaration.id == view_type
+                        && declaration.shape
+                            == StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                            )
+                })
+            {
+                return None;
+            }
             let field_offset = carrier_offset.checked_add(local_offset)?;
             return (u64::from(field_offset)
                 .checked_add(8)?
@@ -706,7 +750,8 @@ pub(crate) fn field_shape(
             scalar_shape(ScalarType::Integer(bounds.integer_type()))
         }
         StructuralFieldType::IeeeFloat(format) => scalar_shape(ScalarType::IeeeFloat(*format)),
-        StructuralFieldType::ByteSequence(carrier) => {
+        StructuralFieldType::ByteSequence(carrier)
+        | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
             // Match target layout: an inline bounded buffer retains capacity
             // bytes and a length word; a borrowed view retains two words. This
             // supplies sibling offsets only, not byte access or replacement.
@@ -1057,7 +1102,11 @@ fn scalar_field_geometry(
             let matches_type = match candidate.field_type {
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
-                ) => {
+                )
+                | StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    ..
+                } => {
                     observes_byte_length
                         && matches!(scalar, ScalarType::Integer(integer)
                         if Ok(integer) == semantic_vocabulary::IntegerType::new(
@@ -1157,9 +1206,8 @@ pub(crate) fn byte_field_storage(
     if matching.next().is_some() {
         return None;
     }
-    let StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-        capacity,
-    }) = selected.field_type
+    let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
+        selected.field_type.byte_sequence_carrier()
     else {
         return None;
     };

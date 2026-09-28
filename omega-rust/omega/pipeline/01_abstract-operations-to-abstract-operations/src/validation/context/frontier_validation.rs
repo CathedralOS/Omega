@@ -144,6 +144,11 @@ fn validate_surviving_byte_operations(
                 obligation,
                 ..
             }
+            | O::ByteSequenceStore {
+                psi_operation,
+                obligation,
+                ..
+            }
             | O::StructuralByteSequenceFieldStore {
                 psi_operation,
                 obligation,

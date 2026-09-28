@@ -95,6 +95,11 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             obligation,
             ..
         }
+        | O::ByteSequenceStore {
+            psi_operation,
+            obligation,
+            ..
+        }
         | O::StructuralByteSequenceFieldStore {
             psi_operation,
             obligation,

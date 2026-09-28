@@ -403,6 +403,7 @@ fn select_function(
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
                         ..
                     }
+                    | LegalizedScalarInstructionKind::ByteSequenceStore { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. }
                     | LegalizedScalarInstructionKind::BoundarySettlement(_)
                     | LegalizedScalarInstructionKind::NormalizedForeignCall(_)

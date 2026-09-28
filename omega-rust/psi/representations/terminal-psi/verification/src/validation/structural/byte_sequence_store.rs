@@ -1,9 +1,9 @@
 //! Exact non-observing replacement of an inline bounded byte field.
 
 use crate::validation::{
-    ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralFieldType,
-    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
-    TerminalModule, resolve_structural_path,
+    ModuleError, OperationKind, OperationResult, StructuralAccess, StructuralMultiplicity,
+    StructuralPlaceKind, StructuralTypeShape, TerminalMachine, TerminalModule,
+    resolve_structural_path,
 };
 /// Resolve capacity from the destination declaration, never an operation's
 /// asserted bound. Proof reconstruction repeats this same semantic join.
@@ -64,7 +64,9 @@ pub(crate) fn capacity(
     crate::validation::byte_sequence::length::validate_source(
         module, machine, operation, *source, invalid,
     )?;
-    if !crate::validation::byte_sequence::read::is_exact_length(machine, *source, *length) {
+    if !crate::validation::byte_sequence::read::is_current_length(
+        module, machine, operation, *source, *length,
+    ) {
         return Err(invalid());
     }
     let parent_type =
@@ -81,11 +83,16 @@ pub(crate) fn capacity(
         .iter()
         .find(|candidate| candidate.id == *field && !candidate.relevance.is_erased())
         .ok_or_else(invalid)?;
-    let StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
-        capacity,
-    }) = field.field_type
+    let Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity }) =
+        field.field_type.byte_sequence_carrier()
     else {
         return Err(invalid());
     };
+    if !field.field_type.byte_predicates().is_empty()
+        && !terminal_semantics::byte_sequence_source_predicates(module, machine, *source)
+            .is_some_and(|predicates| predicates.implies(field.field_type.byte_predicates()))
+    {
+        return Err(invalid());
+    }
     Ok(capacity)
 }

@@ -567,6 +567,7 @@ fn structural_effect_fixture() -> TerminalModule {
             },
         ],
         structural_domains: vec![StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(1).unwrap(),

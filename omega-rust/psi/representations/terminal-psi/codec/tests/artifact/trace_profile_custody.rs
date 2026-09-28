@@ -548,6 +548,7 @@ fn custody_module() -> TerminalModule {
             },
         ],
         structural_domains: vec![StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: domain,
             semantic_domain: DomainSemanticId::new(1).expect("nonzero domain semantic identity"),

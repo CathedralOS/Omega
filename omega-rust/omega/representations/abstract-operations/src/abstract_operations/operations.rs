@@ -102,6 +102,13 @@ pub enum AbstractOperation {
         obligation: semantic_vocabulary::ObligationId,
     },
     /// Replace exactly the source's live bytes and length under verified capacity bounds.
+    ByteSequenceStore {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        source: PlaceId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     StructuralByteSequenceFieldStore {
         psi_operation: OperationId,
         destination: PlaceId,
@@ -926,6 +933,7 @@ impl AbstractOperation {
             Self::WriteOnlyPrimitiveStore { psi_operation, .. }
             | Self::ByteSequenceWrite { psi_operation, .. }
             | Self::StructuralByteSequenceFieldByteStore { psi_operation, .. }
+            | Self::ByteSequenceStore { psi_operation, .. }
             | Self::StructuralByteSequenceFieldStore { psi_operation, .. }
             | Self::EstablishPrimitiveLocal { psi_operation, .. }
             | Self::PrimitiveLocalStore { psi_operation, .. }

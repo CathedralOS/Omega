@@ -219,7 +219,8 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         O::EstablishByteSequenceConcatenation { left, right, .. } => {
             vec![left.length(), right.length()]
         }
-        O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
+        O::ByteSequenceStore { length, .. }
+        | O::StructuralByteSequenceFieldStore { length, .. } => vec![*length],
         O::ByteSequenceWrite {
             index,
             value,

@@ -401,7 +401,7 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::StructuralCall { .. }
                 | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }

@@ -209,10 +209,17 @@ fn field_path(
     // and the carrier now states it: the exclusive accesses admit one, a
     // shared view does not. This is read from the field declaration rather
     // than taken from a producer's mint gate, which is not verifier authority.
+    if writing && !field.field_type.byte_predicates().is_empty() {
+        return None;
+    }
     let carrier_admitted = match field.field_type {
         StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BoundedOwned {
             ..
-        }) => true,
+        })
+        | StructuralFieldType::PredicateByteSequence {
+            carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+            ..
+        } => true,
         StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
             access,
         }) => {

@@ -492,6 +492,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
     module
         .structural_domains
         .push(terminal_psi::StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: live,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(9)
@@ -664,6 +665,7 @@ fn installed_boundary_result_claims_require_linear_custody() {
     module
         .structural_domains
         .push(terminal_psi::StructuralDomainDeclaration {
+            byte_predicate: None,
             establishment_routes: Vec::new(),
             id: live,
             semantic_domain: semantic_vocabulary::DomainSemanticId::new(9)

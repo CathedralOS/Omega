@@ -156,6 +156,18 @@ pub(super) fn validate_borrowed_argument(
                 &signature.structural_types,
             )
         });
+    let byte_owner = signature
+        .parameters
+        .iter()
+        .find(|parameter| parameter.semantic.place == semantic.place)
+        .and_then(|parameter| {
+            crate::structural_inputs::structural_reference_input::bounded_byte_field_owner(
+                &parameter.semantic,
+                semantic,
+                target.structural_type,
+                &signature.structural_types,
+            )
+        });
     let element_view = signature
         .parameters
         .iter()
@@ -192,6 +204,11 @@ pub(super) fn validate_borrowed_argument(
             return None;
         }
         ValueShape::borrowed_reference(16, 8)
+    } else if let Some((offset, capacity)) = byte_owner {
+        if offset != target.source_byte_offset {
+            return None;
+        }
+        ValueShape::borrowed_reference(u16::try_from(capacity.checked_add(8)?).ok()?, 8)
     } else if let Some((offset, _)) = byte_field {
         if offset != target.source_byte_offset {
             return None;
@@ -284,6 +301,7 @@ pub(super) fn validate_borrowed_argument(
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
+            && byte_owner.is_none()
             && element_view.is_none()
             && (semantic.access != StructuralAccess::SharedBorrow || !semantic.path.is_empty()))
         || target.place != semantic.place
@@ -293,6 +311,7 @@ pub(super) fn validate_borrowed_argument(
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
+            && byte_owner.is_none()
             && element_view.is_none()
             && target.root_structural_type != target.structural_type)
         || target.shape != shape
@@ -300,6 +319,7 @@ pub(super) fn validate_borrowed_argument(
             && aggregate.is_none()
             && byte_view.is_none()
             && byte_field.is_none()
+            && byte_owner.is_none()
             && element_view.is_none()
             && target.source_byte_offset != 0)
         || target.fixed_array_length

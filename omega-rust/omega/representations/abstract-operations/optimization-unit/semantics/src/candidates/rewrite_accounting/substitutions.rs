@@ -156,7 +156,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::StructuralCaseMembership { .. }
         | O::ByteSequenceRead { .. }
         | O::ByteSequenceWrite { .. }
-        | O::StructuralByteSequenceFieldStore { .. }
+        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::ByteSequenceSubslice { .. }
         | O::ByteSequenceLength { .. }

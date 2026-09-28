@@ -425,7 +425,7 @@ pub(super) fn match_input(
         | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, obligation, .. }
         | AbstractOperation::StructuralByteSequenceFieldRead { psi_operation, obligation, .. }
         | AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, capacity_obligation: obligation, .. }
-        | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, obligation, .. }
+        | AbstractOperation::ByteSequenceStore { psi_operation, obligation, .. } | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, obligation, .. }
         | AbstractOperation::ByteSequenceRead {
             psi_operation,
             obligation,

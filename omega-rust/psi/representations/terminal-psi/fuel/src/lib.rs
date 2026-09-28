@@ -71,6 +71,7 @@ impl TerminalFuelSchedule {
             | OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::MoveStructuralField { .. }
             | OperationKind::StoreStructuralField { .. }
+            | OperationKind::ByteSequenceStore { .. }
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldLength { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }

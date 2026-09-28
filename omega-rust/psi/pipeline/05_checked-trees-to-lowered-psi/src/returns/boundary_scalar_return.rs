@@ -236,6 +236,7 @@ fn lower_boundary_scalar_domains(
         .into_iter()
         .map(|plan| {
             Ok(StructuralDomainDeclaration {
+                byte_predicate: plan.byte_predicate,
                 establishment_routes: Vec::new(),
                 id: lookup_domain_id(&domain_ids, plan.domain)?,
                 semantic_domain: DomainSemanticId::new(u64::from(plan.domain.0))

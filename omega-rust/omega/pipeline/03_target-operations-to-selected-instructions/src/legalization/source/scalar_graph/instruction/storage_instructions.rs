@@ -649,3 +649,42 @@ pub(super) fn project_byte_sequence_concatenation(
         },
     )
 }
+
+pub(super) fn project_byte_sequence_store(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::ByteSequenceStore {
+        psi_operation,
+        destination,
+        source,
+        length,
+        obligation,
+    } = &node.operation
+    else {
+        return Err(Error::custody());
+    };
+    scalar_graph_input::structural_fields::replacement(
+        optimized,
+        &node.operation,
+        &unit.structural_types,
+    )
+    .ok_or(Error::custody())?;
+    let fact = unit
+        .accepted_obligation_facts
+        .iter()
+        .find(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == *psi_operation
+                && fact.obligation == *obligation
+        })
+        .ok_or(Error::custody())?;
+    Ok(LegalizedScalarInstructionKind::ByteSequenceStore {
+        destination: *destination,
+        source: *source,
+        length: *length,
+        obligation: *obligation,
+        accepted_fact: fact.identity,
+    })
+}

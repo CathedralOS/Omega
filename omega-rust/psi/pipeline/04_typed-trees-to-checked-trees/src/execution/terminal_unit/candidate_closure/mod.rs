@@ -241,7 +241,7 @@ pub(super) fn retain_available(
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
@@ -351,7 +351,7 @@ pub(super) fn retain_available(
                             ),
                         }
                     }
-                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                    CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)

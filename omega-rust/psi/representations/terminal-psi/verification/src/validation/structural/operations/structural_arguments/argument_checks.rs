@@ -447,7 +447,43 @@ pub(in crate::validation) fn validate_structural_argument(
                     .iter()
                     .any(|claim| claim.input.root == argument.place)
         });
-    if !buffer_presentation && !shared_buffer_presentation && !fixed_array_presentation {
+    let bounded_owner_presentation = ordinary_call
+        && caller.structural_parameters.iter().any(|actual| {
+            terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
+                .is_some()
+                && !caller
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == argument.place)
+                && !caller
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == argument.place)
+        });
+    // A whole owner cannot bypass its predicate-preserving loan contract by
+    // falling through to raw type equality for an unprojected argument.
+    if ordinary_call
+        && module.structural_types.iter().any(|row| {
+            row.id == expected.structural_type
+                && matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                    )
+                )
+        })
+        && !bounded_owner_presentation
+    {
+        return Err(ModuleError::InvalidStructuralArgumentPath {
+            operation,
+            argument_index: index as u32,
+        });
+    }
+    if !buffer_presentation
+        && !shared_buffer_presentation
+        && !fixed_array_presentation
+        && !bounded_owner_presentation
+    {
         let Some(actual_type) = crate::validation::foundation::resolve_runtime_projection(
             module,
             root_type,
@@ -521,6 +557,7 @@ pub(in crate::validation) fn validate_structural_argument(
             || unrestricted_shared_field_subloan
             || unrestricted_mutable_field_subloan
             || shared_buffer_presentation
+            || bounded_owner_presentation
             || (buffer_presentation
                 && actual_access == StructuralAccess::MutableBorrow
                 && actual_multiplicity == StructuralMultiplicity::Unrestricted)
@@ -543,12 +580,14 @@ pub(in crate::validation) fn validate_structural_argument(
         });
     }
     for qualification in &expected.qualifications {
-        if !structural_occurrence_carries_qualification(
-            actual_qualifications,
-            actual_projected_qualifications,
-            &argument.path,
-            *qualification,
-        ) {
+        if !bounded_owner_presentation
+            && !structural_occurrence_carries_qualification(
+                actual_qualifications,
+                actual_projected_qualifications,
+                &argument.path,
+                *qualification,
+            )
+        {
             return Err(ModuleError::StructuralArgumentMissingQualification {
                 operation,
                 argument_index: index as u32,

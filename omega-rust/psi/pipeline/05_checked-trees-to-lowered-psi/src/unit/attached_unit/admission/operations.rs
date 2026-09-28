@@ -89,7 +89,7 @@ pub(super) fn validate<'a>(
             | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
             | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)

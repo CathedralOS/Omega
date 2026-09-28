@@ -235,7 +235,12 @@ fn validate_structural_field_range_authority(
                     return Err(invalid);
                 }
             }
-            O::StructuralByteSequenceFieldStore {
+            O::ByteSequenceStore {
+                psi_operation,
+                length,
+                obligation,
+                ..
+            } | O::StructuralByteSequenceFieldStore {
                 psi_operation,
                 length,
                 obligation,
@@ -248,6 +253,7 @@ fn validate_structural_field_range_authority(
                 let capacity =
                     function_structure::byte_field_store_capacity(function, &node.operation, types)
                         .ok_or(invalid.clone())?;
+                if !function_structure::replacement_preserves_predicates(unit, function, &node.operation) { return Err(invalid); }
                 let integer =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid.clone())?;
                 let proposition =

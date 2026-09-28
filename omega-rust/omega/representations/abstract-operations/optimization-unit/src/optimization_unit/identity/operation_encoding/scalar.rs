@@ -35,6 +35,20 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*length);
             bytes.id(*obligation);
         }
+        O::ByteSequenceStore {
+            psi_operation,
+            destination,
+            source,
+            length,
+            obligation,
+        } => {
+            bytes.u8(241);
+            bytes.id(*psi_operation);
+            bytes.id(*destination);
+            bytes.id(*source);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
         O::StructuralByteSequenceFieldStore {
             psi_operation,
             destination,

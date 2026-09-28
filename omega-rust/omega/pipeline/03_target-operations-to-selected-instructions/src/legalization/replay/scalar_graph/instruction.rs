@@ -644,6 +644,12 @@ pub(super) fn validate(
             actual, node, optimized, unit,
         )?,
         (
+            LegalizedScalarInstructionKind::ByteSequenceStore { .. },
+            AbstractOperation::ByteSequenceStore { .. },
+        ) => storage_instructions::validate_byte_sequence_store(
+            actual, node, optimized, plan, unit, operation,
+        )?,
+        (
             LegalizedScalarInstructionKind::StructuralByteSequenceFieldStore { .. },
             AbstractOperation::StructuralByteSequenceFieldStore { .. },
         ) => storage_instructions::validate_structural_byte_sequence_field_store(

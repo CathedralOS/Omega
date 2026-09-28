@@ -32,7 +32,7 @@ pub(in crate::validation) fn validate(
     )?;
     // The operand pass separately checks dominance and exact u64 types. A
     // parameter, alias, or merely equal integer cannot replace this producer.
-    if !is_exact_length(machine, source, length) {
+    if !is_current_length(module, machine, operation, source, length) {
         return Err(ModuleError::InvalidByteSequenceReadLength {
             operation: operation.id,
             source,
@@ -59,4 +59,26 @@ pub(in crate::validation) fn is_exact_length(
                 && matches!(candidate.kind,
                     OperationKind::ByteSequenceLength { source: measured } if measured == source)
         })
+}
+
+/// A matching measurement producer is insufficient after an owner replacement.
+/// Reuse the all-path mutation fence rather than treating capacity as extent.
+pub(in crate::validation) fn is_current_length(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+    source: PlaceId,
+    length: ValueId,
+) -> bool {
+    let Some(producer) = machine.blocks.iter().flat_map(|block| &block.operations).find(|candidate| {
+        candidate.result.scalar().is_some_and(|result| result.id == length)
+            && matches!(candidate.kind, OperationKind::ByteSequenceLength { source: measured } if measured == source)
+    }) else { return false; };
+    crate::validation::structural::byte_sequence_fields::view_length_is_current(
+        module,
+        machine,
+        producer.id,
+        operation.id,
+        source,
+    )
 }

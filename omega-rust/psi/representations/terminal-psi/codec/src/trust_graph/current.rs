@@ -619,6 +619,7 @@ fn operation_semantics_nodes() -> Vec<TrustDependencyNode> {
                 | terminal_semantics::OperationSemanticTag::ByteSequenceWrite
                 | terminal_semantics::OperationSemanticTag::ByteSequenceLength
                 | terminal_semantics::OperationSemanticTag::ByteSequenceSubslice
+                | terminal_semantics::OperationSemanticTag::ByteSequenceStore
                 | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldStore
                 | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldLength
                 | terminal_semantics::OperationSemanticTag::StructuralByteSequenceFieldByteStore

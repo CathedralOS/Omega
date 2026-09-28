@@ -431,7 +431,7 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::PortWrite { .. }
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
@@ -464,7 +464,7 @@ impl OperationFrame<'_, '_> {
                 path,
                 value,
             } => self.write_only_primitive_store(*statement_index, destination, path, value),
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
                 self.structural_byte_sequence_field_store(store)
             }
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
@@ -660,7 +660,7 @@ impl OperationFrame<'_, '_> {
 
     fn structural_byte_sequence_field_store(
         &mut self,
-        store: &checked_trees::CheckedStructuralByteSequenceFieldStorePlan,
+        store: &checked_trees::CheckedByteSequenceStorePlan,
     ) -> Result<(), LoweringError> {
         // Only a roster this body owns may gain the generated literal-view
         // carrier; the store below rejects a published roster without it.

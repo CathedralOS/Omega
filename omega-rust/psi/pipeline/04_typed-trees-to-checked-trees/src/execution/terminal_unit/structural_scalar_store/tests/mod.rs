@@ -88,7 +88,7 @@ fn byte_field_sequence_rejects_missing_extra_and_opaque_write_frames() {
     assert!(matches!(
         stores.as_slice(),
         [
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_),
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(_),
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
         ]
     ));

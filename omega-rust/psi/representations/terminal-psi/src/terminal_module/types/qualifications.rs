@@ -19,6 +19,9 @@ pub struct StructuralDomainDeclaration {
     /// boundary route that may introduce a program-local occurrence; those
     /// routes must replay this exact definition rather than restating one.
     pub content_projection: Option<StructuralContentProjection>,
+    /// Exact plain primitive definition. Routed, indexed and content domains
+    /// cannot acquire this authority merely from a matching byte sequence.
+    pub byte_predicate: Option<crate::ByteSequencePredicate>,
     /// Domain-owned catalog of routes authorized to establish this
     /// qualification, strictly ordered. Consumers can neither append routes
     /// nor substitute a same-spelled issuer, and private issuer identities

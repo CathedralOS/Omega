@@ -421,7 +421,7 @@ fn operation_observations(
         | O::StructuralCaseMembership { .. }
         | O::WriteOnlyPrimitiveStore { .. }
         | O::ByteSequenceWrite { .. }
-        | O::StructuralByteSequenceFieldStore { .. }
+        | O::ByteSequenceStore { .. } | O::StructuralByteSequenceFieldStore { .. }
         | O::StructuralByteSequenceFieldByteStore { .. }
         | O::StructuralScalarFieldStore { .. }
         // Atomic events observe or publish atomic memory and carry

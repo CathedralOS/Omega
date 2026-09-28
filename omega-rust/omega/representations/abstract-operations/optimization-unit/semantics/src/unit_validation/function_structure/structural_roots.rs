@@ -107,7 +107,7 @@ pub(crate) fn validate_structural_root_operations(
                         });
                     }
                 }
-                O::StructuralByteSequenceFieldStore { source, .. } => {
+                O::ByteSequenceStore { source, .. } | O::StructuralByteSequenceFieldStore { source, .. } => {
                     super::byte_views::validate_byte_view_source(
                         function,
                         block.id,

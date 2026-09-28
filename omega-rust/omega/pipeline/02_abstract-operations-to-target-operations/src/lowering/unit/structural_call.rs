@@ -680,7 +680,7 @@ pub(in crate::lowering) fn lower_structural_argument(
                             source.access,
                             StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
                         ),
-                        StructuralAccess::MutableBorrow => {
+                        StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {
                             source.access == StructuralAccess::MutableBorrow
                         }
                         _ => false,
@@ -694,17 +694,33 @@ pub(in crate::lowering) fn lower_structural_argument(
                 terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             ))
         );
-        if !presented_is_byte_view
+        let presented_is_owner = structural_types
+            .get(&callee_parameter.structural_type)
+            .is_some_and(|declaration| {
+                declaration.shape
+                    == StructuralTypeShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity },
+                    )
+            });
+        let expected_shape = if presented_is_owner {
+            structural_parameter_shape(projected_shape, callee_parameter.access)
+        } else {
+            ValueShape::borrowed_reference(16, 8)
+        };
+        if !(presented_is_byte_view || presented_is_owner)
             || argument.access != callee_parameter.access
             || !matches!(
                 argument.access,
-                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                StructuralAccess::SharedBorrow
+                    | StructuralAccess::MutableBorrow
+                    | StructuralAccess::WriteOnlyBorrow
             )
             || callee_parameter.multiplicity != StructuralMultiplicity::Unrestricted
-            || !callee_parameter.qualifications.is_empty()
+            || (!presented_is_owner && !callee_parameter.qualifications.is_empty())
             || !callee_parameter.projected_qualifications.is_empty()
             || !source_is_subloan
-            || shape != ValueShape::borrowed_reference(16, 8)
+            || (!presented_is_owner && argument.access == StructuralAccess::WriteOnlyBorrow)
+            || shape != expected_shape
             || u64::from(source_byte_offset)
                 .checked_add(8)
                 .and_then(|end| end.checked_add(capacity))

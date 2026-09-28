@@ -70,6 +70,12 @@ pub(super) fn argument(
         destination.structural_type,
         types,
     );
+    let byte_owner = crate::structural_inputs::structural_reference_input::bounded_byte_field_owner(
+        source,
+        semantic,
+        destination.structural_type,
+        types,
+    );
     let projection = crate::structural_inputs::structural_reference_input::project(
         source.structural_type,
         &semantic.path,
@@ -93,12 +99,12 @@ pub(super) fn argument(
     // borrowed-view type the descriptor presents. The same holds for a fixed
     // array loaned through an element view.
     let (structural_type, source_byte_offset) =
-        match (projection, byte_field, byte_view, element_view) {
-            (_, None, Some((offset, _)), None) | (_, None, None, Some((offset, _, _))) => {
-                (destination.structural_type, offset)
-            }
-            (Some((projected, offset)), None, None, None) => (projected, offset),
-            (None, Some((offset, _)), None, None) => (destination.structural_type, offset),
+        match (projection, byte_field, byte_view, element_view, byte_owner) {
+            (None, None, None, None, Some((offset, _))) => (destination.structural_type, offset),
+            (_, None, Some((offset, _)), None, None)
+            | (_, None, None, Some((offset, _, _)), None) => (destination.structural_type, offset),
+            (Some((projected, offset)), None, None, None, None) => (projected, offset),
+            (None, Some((offset, _)), None, None, None) => (destination.structural_type, offset),
             _ => return Err(LegalizationError::custody()),
         };
     let referent =
@@ -131,7 +137,7 @@ pub(super) fn argument(
         || destination.multiplicity != StructuralMultiplicity::Unrestricted
         || !source.qualifications.is_empty()
         || !source.projected_qualifications.is_empty()
-        || !destination.qualifications.is_empty()
+        || (byte_owner.is_none() && !destination.qualifications.is_empty())
         || !destination.projected_qualifications.is_empty()
         || (structural_type != destination.structural_type && !descriptor)
         || parameter.place != source.place

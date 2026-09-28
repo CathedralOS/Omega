@@ -51,7 +51,7 @@ pub(crate) fn validate(
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                     store.statement_index == statement_index
                 }
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
                     store.statement_index == statement_index
                 }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
@@ -91,7 +91,7 @@ pub(crate) fn validate(
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                     store.statement_index == statement_index
                 }
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => {
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
                     store.statement_index == statement_index
                 }
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
@@ -132,7 +132,7 @@ pub(crate) fn validate(
             .operations
             .iter()
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store)
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
                     if store.statement_index == statement_index =>
                 {
                     Some(store)
@@ -303,7 +303,7 @@ pub(crate) fn validate(
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(store) => Some(store),
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store),
             _ => None,
         })
         .collect::<Vec<_>>();

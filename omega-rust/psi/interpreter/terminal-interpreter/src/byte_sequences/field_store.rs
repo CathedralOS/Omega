@@ -158,8 +158,8 @@ impl TerminalExecution {
             .iter()
             .find(|candidate| candidate.id == field && !candidate.relevance.is_erased())
             .ok_or_else(invalid)?;
-        let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
-            field_declaration.field_type
+        let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
+            field_declaration.field_type.byte_sequence_carrier()
         else {
             return Err(invalid());
         };

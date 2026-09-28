@@ -88,6 +88,7 @@ fn changes_length(
     operation: &terminal_psi::Operation,
 ) -> bool {
     match &operation.kind {
+        OperationKind::ByteSequenceStore { destination, .. } => *destination == root,
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path: written,

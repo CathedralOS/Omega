@@ -337,6 +337,34 @@ pub(super) fn validate_operation(
             && right == expected_right
             && capacity_obligation == expected_obligation => {}
         (
+            TargetUnitOperation::ByteSequenceStore {
+                psi_operation,
+                destination,
+                source,
+                length,
+                obligation,
+            },
+            AbstractOperation::ByteSequenceStore {
+                psi_operation: expected_operation,
+                destination: expected_destination,
+                source: expected_source,
+                length: expected_length,
+                obligation: expected_obligation,
+            },
+        ) if psi_operation == expected_operation
+            && destination == expected_destination
+            && source == expected_source
+            && obligation == expected_obligation
+            && super::super::structural_fields::replacement(
+                optimized,
+                abstracted,
+                &plan.structural_types,
+            )
+            .is_some()
+            && sources
+                .iter()
+                .any(|(value, actual)| value == expected_length && actual == length) => {}
+        (
             TargetUnitOperation::StructuralByteSequenceFieldStore {
                 psi_operation,
                 destination,

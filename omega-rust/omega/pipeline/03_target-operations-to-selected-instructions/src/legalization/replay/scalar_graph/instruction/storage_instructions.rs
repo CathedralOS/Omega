@@ -633,3 +633,53 @@ pub(super) fn validate_byte_sequence_concatenation(
     }
     Ok(())
 }
+
+pub(super) fn validate_byte_sequence_store(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::ByteSequenceStore {
+            destination,
+            source,
+            length,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::ByteSequenceStore {
+            psi_operation,
+            destination: expected_destination,
+            source: expected_source,
+            length: expected_length,
+            obligation: expected_obligation,
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    };
+    if operation != *psi_operation
+        || destination != expected_destination
+        || source != expected_source
+        || length != expected_length
+        || obligation != expected_obligation
+        || scalar_graph_input::structural_fields::replacement(
+            optimized,
+            &node.operation,
+            &plan.structural_types,
+        )
+        .is_none()
+        || !unit.accepted_obligation_facts.iter().any(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == operation
+                && fact.obligation == *obligation
+                && fact.identity == *accepted_fact
+        })
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    Ok(())
+}

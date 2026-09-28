@@ -37,6 +37,7 @@ impl<'a> MachineReconstructionContext<'a> {
                         | OperationKind::ElementViewLength { .. }
                         | OperationKind::ElementViewRead { .. }
                         | OperationKind::ElementViewSubslice { .. }
+                        | OperationKind::ByteSequenceStore { .. }
                         | OperationKind::StructuralByteSequenceFieldStore { .. }
                         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
                         | OperationKind::StructuralByteSequenceFieldRead { .. }

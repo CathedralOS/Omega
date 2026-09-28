@@ -4,6 +4,51 @@ pub(in crate::legalization) fn replacement(
     operation: &AbstractOperation,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Option<terminal_psi::StructuralArgument> {
+    if let AbstractOperation::ByteSequenceStore {
+        destination,
+        source,
+        ..
+    } = operation
+    {
+        let parameter = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == *destination)?;
+        if source == destination
+            || !matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::MutableBorrow
+                    | terminal_psi::StructuralAccess::WriteOnlyBorrow
+            )
+            || parameter.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            || !parameter.projected_qualifications.is_empty()
+            || !types.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && matches!(
+                        declaration.shape,
+                        terminal_psi::StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                        )
+                    )
+            })
+            || !super::byte_views::contains_readable_bytes(function, *source)
+            || function
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == *destination || claim.input == *source)
+            || function
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == *destination || claim.input.root == *source)
+        {
+            return None;
+        }
+        return Some(terminal_psi::StructuralArgument {
+            place: *destination,
+            access: parameter.access,
+            path: Vec::new(),
+        });
+    }
     let (destination, path, field, source) = match operation {
         AbstractOperation::StructuralByteSequenceFieldStore {
             destination,

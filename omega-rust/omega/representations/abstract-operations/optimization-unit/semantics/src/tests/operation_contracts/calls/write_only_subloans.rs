@@ -145,6 +145,7 @@ fn composed_projected_qualifications_require_the_exact_subloan_suffix() {
     arguments(&mut unit)[0].path = vec![StructuralPathSegment::FixedIndex(1)];
     let domain = id(9_020, semantic_vocabulary::StructuralDomainId::new);
     unit.structural_domains = vec![terminal_psi::StructuralDomainDeclaration {
+        byte_predicate: None,
         establishment_routes: Vec::new(),
         id: domain,
         semantic_domain: id(9_021, semantic_vocabulary::DomainSemanticId::new),

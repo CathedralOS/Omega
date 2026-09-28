@@ -164,7 +164,7 @@ pub(super) fn admit(
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {}
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldStore(_)
+            CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
             // The ordinary sequencer has already rejoined the primitive

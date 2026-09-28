@@ -90,7 +90,7 @@ fn operation_rewrites_place(operation: &O, place: PlaceId) -> bool {
         O::PrimitiveLocalStore { destination, .. }
         | O::ByteSequenceWrite { destination, .. }
         | O::StructuralByteSequenceFieldByteStore { destination, .. }
-        | O::StructuralByteSequenceFieldStore { destination, .. }
+        | O::ByteSequenceStore { destination, .. } | O::StructuralByteSequenceFieldStore { destination, .. }
         | O::EstablishElementView { destination, .. } => *destination == place,
         // Parameter-row destinations and vacating move sources.
         O::WriteOnlyPrimitiveStore { destination, .. } => destination.place == place,

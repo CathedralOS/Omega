@@ -29,14 +29,22 @@ pub struct CheckedUnitStructuralResultBindingPlan {
     pub multiplicity: Multiplicity,
 }
 
-/// Exact source occurrence of a whole bounded byte-field replacement.
+/// Exact source occurrence of bounded byte-owner replacement.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckedStructuralByteSequenceFieldStorePlan {
+pub struct CheckedByteSequenceStorePlan {
     pub statement_index: u32,
     pub destination_parameter_position: u32,
-    pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
-    pub field_identity: String,
+    pub destination: CheckedByteSequenceStoreDestination,
     pub value: CheckedByteSequenceValuePlan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckedByteSequenceStoreDestination {
+    Whole,
+    Field {
+        carrier_path: Vec<CheckedUnitStructuralPathSegment>,
+        field_identity: String,
+    },
 }
 
 /// Pure byte values retain authored evaluation order through arena children.

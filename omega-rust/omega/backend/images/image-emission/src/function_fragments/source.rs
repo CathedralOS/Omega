@@ -52,6 +52,7 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::IntegerStructuralField { .. }
                 | AbstractOperation::StructuralByteSequenceFieldLength { .. }
                 | AbstractOperation::StructuralByteSequenceFieldRead { .. }
+                | AbstractOperation::ByteSequenceStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldStore { .. }
                 | AbstractOperation::StructuralByteSequenceFieldByteStore { .. }
                 | AbstractOperation::BooleanStructuralField { .. }
@@ -239,7 +240,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                     structural_fields::indexed_read_retained(abstracted, operation, targeted)
                         && structural_fields::indexed_read_footprint_retained(operation, &selected.memory_accesses)
                 }
-                AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
+                AbstractOperation::ByteSequenceStore { .. } | AbstractOperation::StructuralByteSequenceFieldStore { .. } => {
                     structural_fields::replacement_retained(abstracted, operation, targeted)
                         && structural_fields::replacement_footprints_retained(abstracted, operation, &selected.memory_accesses)
                 }

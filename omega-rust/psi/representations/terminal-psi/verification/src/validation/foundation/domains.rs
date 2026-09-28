@@ -29,6 +29,16 @@ pub(super) fn register_structural_domains<'m>(
         if !types.contains_key(&declaration.carrier) {
             return Err(ModuleError::UnknownStructuralType(declaration.carrier));
         }
+        if declaration.byte_predicate.is_some()
+            && (declaration.content_projection.is_some()
+                || !declaration.establishment_routes.is_empty()
+                || !matches!(
+                    types[&declaration.carrier].shape,
+                    terminal_psi::StructuralTypeShape::ByteSequence(_)
+                ))
+        {
+            return Err(ModuleError::InvalidStructuralDomainIdentity(declaration.id));
+        }
         if declaration
             .content_projection
             .as_ref()

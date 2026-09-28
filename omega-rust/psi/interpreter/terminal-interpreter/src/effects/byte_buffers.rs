@@ -111,8 +111,11 @@ impl BoundaryArguments {
             };
             if parameter.access != access
                 || parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
+                || match &binding {
+                    ByteSequenceBinding::MutableField { referent, .. } => referent.qualifications != parameter.qualifications,
+                    _ => !parameter.qualifications.is_empty(),
+                }
                 || byte_sequences.insert(parameter.place, binding).is_some()
             {
                 return Err(invalid());
@@ -225,7 +228,16 @@ impl TerminalExecution {
                 .structural_types
                 .get(&parameter.structural_type)
                 .ok_or_else(invalid)?;
-            if parameter.access == StructuralAccess::SharedBorrow
+            if matches!(declaration.shape, StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }))
+                && matches!(parameter.access, StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow)
+            {
+                if argument.access != parameter.access || parameter.multiplicity != StructuralMultiplicity::Unrestricted || !parameter.projected_qualifications.is_empty() { return Err(invalid()); }
+                let binding = self.resolve_mutable_boundary_binding(parameter, argument)?;
+                let ByteSequenceBinding::MutableField { referent, .. } = &binding else { return Err(invalid()); };
+                resolved.values.push(referent.clone());
+                resolved.byte_sequences.push(Some(binding));
+                resolved.element_views.push(None);
+            } else if parameter.access == StructuralAccess::SharedBorrow
                 && declaration.shape.is_borrowed_byte_view()
                 && !argument.path.is_empty()
             {
@@ -350,8 +362,8 @@ impl TerminalExecution {
             .iter()
             .find(|field| field.identity == *identity && !field.relevance.is_erased())
             .ok_or_else(invalid)?;
-        let StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
-            field.field_type
+        let Some(ByteSequenceCarrier::BoundedOwned { capacity }) =
+            field.field_type.byte_sequence_carrier()
         else {
             return Err(invalid());
         };
@@ -364,7 +376,7 @@ impl TerminalExecution {
         // Present the callee parameter type, retaining the original
         // referent and full field path for alias/custody checks.
         parent.structural_type = parameter.structural_type;
-        parent.qualifications.clear();
+        parent.qualifications = parameter.qualifications.clone();
         parent
             .path
             .push(StructuralPathSegment::Field(identity.clone()));

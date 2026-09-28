@@ -9,7 +9,7 @@
 /// A compiler-recognized comptime byte-predicate primitive over a byte
 /// sequence. These are reusable building blocks (like `+`/`==`), NOT
 /// domain-specific.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ByteSequencePredicate {
     /// `valid_utf8(self)`: the bytes are well-formed UTF-8.
     ValidUtf8,
@@ -108,5 +108,49 @@ impl ByteSequencePredicate {
         Self::ALL
             .into_iter()
             .filter(move |predicate| mask & predicate.mask_bit() != 0)
+    }
+}
+
+/// A closed set of primitive byte predicates. Zero is the unconstrained set;
+/// decoding rejects unknown bits instead of forgetting an unknown restriction.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ByteSequencePredicateSet(u8);
+
+impl ByteSequencePredicateSet {
+    pub const EMPTY: Self = Self(0);
+
+    pub fn from_bits(bits: u8) -> Option<Self> {
+        (bits & !0x0f == 0).then_some(Self(bits))
+    }
+
+    pub const fn bits(self) -> u8 { self.0 }
+    pub const fn is_empty(self) -> bool { self.0 == 0 }
+
+    pub fn insert(&mut self, predicate: ByteSequencePredicate) {
+        self.0 |= predicate.mask_bit();
+    }
+
+    pub fn predicates(self) -> impl Iterator<Item = ByteSequencePredicate> {
+        ByteSequencePredicate::in_mask(self.0)
+    }
+
+    pub fn holds_for(self, bytes: &[u8]) -> bool {
+        self.predicates().all(|predicate| predicate.holds_for(bytes))
+    }
+
+    pub fn implies(self, required: Self) -> bool {
+        required.predicates().all(|target| self.predicates().any(|source| source.implies(target)))
+    }
+
+    pub fn concatenation(self, right: Self) -> Self {
+        let mut result = Self::EMPTY;
+        for predicate in ByteSequencePredicate::ALL {
+            let mut required = Self::EMPTY;
+            required.insert(predicate);
+            if predicate.is_concat_preserving() && self.implies(required) && right.implies(required) {
+                result.insert(predicate);
+            }
+        }
+        result
     }
 }

@@ -188,3 +188,6 @@ pub(super) const ESTABLISH_ZEROED_STRUCTURAL: u8 = 94;
 
 /// `OperationKind::EstablishByteSequenceConcatenation`.
 pub(super) const ESTABLISH_BYTE_SEQUENCE_CONCATENATION: u8 = 95;
+
+/// Whole borrowed bounded-owner content replacement.
+pub(super) const BYTE_SEQUENCE_STORE: u8 = 96;

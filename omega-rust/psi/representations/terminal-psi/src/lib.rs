@@ -8,6 +8,8 @@
 
 mod artifacts;
 pub mod terminal_module;
+pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
+
 pub use artifacts::{
     AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryFusedServiceField,
     CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
