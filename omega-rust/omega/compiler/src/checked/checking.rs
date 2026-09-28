@@ -4,7 +4,6 @@ pub(crate) mod build_continuation;
 pub(crate) mod checked_compilation;
 pub(crate) mod compile_thread;
 pub(crate) mod execution_settlement;
-pub(crate) mod phase_transitions;
 
 pub use checked_compilation::CheckedCompilation;
 

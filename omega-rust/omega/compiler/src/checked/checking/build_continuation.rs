@@ -1,10 +1,6 @@
 //! Admit and execute the build machine, then type its generated-source continuation.
 
 use super::CheckedChildExecution;
-use crate::checked::checking::phase_transitions::{
-    resolve_seeded_syntax_extension, symbol_resolved_trees_to_seeded_base,
-    syntax_trees_to_symbol_resolved_trees, type_seeded_extension,
-};
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -519,8 +515,27 @@ fn lower_checked_frontend(
     selected_target_machine_declarations
         .release_provider_default_declarations(&mut syntax.syntax_trees);
     let build_source_id = syntax.build_source_id;
-    let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
-    let mut typing_base = symbol_resolved_trees_to_seeded_base(resolved, timings)?;
+    let resolved = timings.record(
+        artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
+        || {
+            syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax: &syntax.syntax_trees,
+                    sources: Some(syntax.sources),
+                    top_level_bindings: syntax.source_scoped_top_level_bindings,
+                },
+            )
+        },
+    )?;
+    let mut typing_base = timings.record(
+        artifacts::compile_timings::SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
+        || {
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees_to_seeded_base(
+                resolved,
+            )
+            .map_err(|diagnostic| vec![diagnostic])
+        },
+    )?;
     selected_target_machine_declarations.admit_provider_default_calls(typing_base.typed())?;
     let pending_pre_checks = pre_check
         .evaluate_or_defer(typing_base.typed_mut())?
@@ -588,8 +603,19 @@ fn try_seeded_extension(
     }
     let selected_target_machine_declarations = selected_target_machine_declarations
         .filter_generated_extension(&mut extension_syntax, target_name)?;
-    let seeded =
-        resolve_seeded_syntax_extension(resolved_base, &extension_syntax, sources, timings)?;
+    let seeded = timings.record(
+        artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
+        || {
+            syntax_trees_to_symbol_resolved_trees::resolve_extension(
+                syntax_trees_to_symbol_resolved_trees::ExtensionRequest {
+                    base: resolved_base,
+                    syntax: &extension_syntax,
+                    sources,
+                    top_level_bindings: Vec::new(),
+                },
+            )
+        },
+    )?;
     let rebased = seeded
         .rebase_authored_selections_for_typed_continuation(
             base.typed().authored_declaration_selections(),
@@ -599,7 +625,10 @@ fn try_seeded_extension(
                 "generated-source authored-selection suffix could not join the retained typed base: {error:?}"
             ))]
         })?;
-    let mut typed = match type_seeded_extension(rebased, base, timings) {
+    let mut typed = match timings.record_result(
+        artifacts::compile_timings::SYMBOL_RESOLVED_TREES_TO_TYPED_TREES,
+        || symbol_resolved_trees_to_typed_trees::lower_seeded_extension(rebased, base),
+    ) {
         Ok(typed) => Ok(typed),
         Err((
             _,

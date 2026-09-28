@@ -68,6 +68,7 @@
 //! references a pruned one.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
@@ -196,6 +197,35 @@ impl CheckedTreeProductSelection {
 pub struct CheckedTreeProductPruningOutcome {
     pub checked: CheckedTrees,
     pub selection: CheckedTreeProductSelection,
+}
+
+/// Execute the optional checked-product selection after authored checking.
+///
+/// An absent root selection is the identity operation, retaining the same
+/// shared program and no selection evidence. A requested selection must name
+/// at least one canonical root; it cannot silently prune the whole product.
+/// The lower-level pruning transform also supports interface-only products,
+/// but that is not an executable product selection.
+pub fn select_checked_tree_product(
+    checked: Arc<CheckedTrees>,
+    product_root_machines: Option<Vec<SymbolHandle>>,
+) -> Result<(Arc<CheckedTrees>, Option<CheckedTreeProductSelection>), Vec<Diagnostic>> {
+    let Some(product_root_machines) = product_root_machines else {
+        return Ok((checked, None));
+    };
+    let roots = CheckedTreeProductRoots::new(product_root_machines).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "checked-tree product root selection is not canonical: {error:?}"
+        ))]
+    })?;
+    if roots.machines().is_empty() {
+        return Err(vec![Diagnostic::error(
+            "CheckedTreeProductPruning requires at least one bound product root; this compilation's build bound none",
+        )]);
+    }
+    let program = Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
+    let outcome = prune_checked_tree_product(program, &CheckedTreeProductPruning::new(roots))?;
+    Ok((Arc::new(outcome.checked), Some(outcome.selection)))
 }
 
 /// Run the checked-tree product-pruning phase.
@@ -502,6 +532,43 @@ mod tests {
             .iter()
             .find(|machine| machine.name.as_str() == name)
             .unwrap_or_else(|| panic!("machine {name} must exist"))
+    }
+
+    #[test]
+    fn product_selection_is_opt_in_and_preserves_the_shared_input() {
+        let program = std::sync::Arc::new(checked(
+            "machine unused() -> u64 { 2u64 } pub machine main() -> u64 { 7u64 }",
+        ));
+        let root = machine_named(&program.typed, "main").symbol;
+        let (unchanged, selection) =
+            super::select_checked_tree_product(program.clone(), None).expect("identity phase");
+        assert!(std::sync::Arc::ptr_eq(&program, &unchanged));
+        assert!(selection.is_none());
+
+        let (selected, selection) = super::select_checked_tree_product(unchanged, Some(vec![root]))
+            .expect("explicit product selection");
+        assert_eq!(selected.typed.machines().len(), 1);
+        assert_eq!(program.typed.machines().len(), 2);
+        assert_eq!(
+            selection.expect("selected evidence").roots().machines(),
+            &[root]
+        );
+    }
+
+    #[test]
+    fn requested_product_selection_rejects_empty_and_duplicate_roots() {
+        let program = std::sync::Arc::new(checked("pub machine main() -> u64 { 7u64 }"));
+        let root = machine_named(&program.typed, "main").symbol;
+        let errors = super::select_checked_tree_product(program.clone(), Some(Vec::new()))
+            .expect_err("an explicit empty selection is not the identity operation");
+        assert!(
+            errors[0]
+                .message
+                .contains("requires at least one bound product root")
+        );
+        let errors = super::select_checked_tree_product(program, Some(vec![root, root]))
+            .expect_err("duplicate roots cannot silently change the selection identity");
+        assert!(errors[0].message.contains("not canonical"));
     }
 
     #[test]

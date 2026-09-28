@@ -40,6 +40,14 @@ The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [admit and execute the build, then continue generated source](src/checked/checking/build_continuation.rs),
 [check selected execution](src/checked/checking/execution_settlement.rs),
 then [seal the result against current source custody](src/checked/checking/checked_compilation.rs).
+The continuation calls resolution and typing directly, including generated-source
+extension, with timing around those actual calls rather than another transition
+module. The package gate likewise shows its preliminary check and sibling pruning.
+Checked-product selection belongs to
+[Psi stage 04](../../psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
+the coordinator supplies the requested roots after rollback; the stage owns the
+identity case, root validation, pruning and selection evidence. It consumes only
+checked trees, not the Omega provider-settlement carrier.
 The result retains the selected-execution settlement intact. Its evaluated Build
 is one shared immutable product: configuration, observations, usage, optimization
 report intent and generated outputs are not dismantled into parallel fields.

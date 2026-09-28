@@ -229,23 +229,29 @@ pub(crate) fn check_selected_execution(
     // release rollback settles before the phase so the effective selection is
     // what executes.
     let effective_optimizations = optimization_rollback.settle(&build_config.optimizations);
-    let product_root_machines: std::collections::HashSet<symbols::SymbolHandle> =
-        match selected_target_profile {
-            Some(_) => selected_program_entry
-                .iter()
-                .map(|entry| entry.source_signature().machine_symbol())
-                .collect(),
-            None => build_config
-                .root_bindings
-                .iter()
-                .map(|binding| binding.implementation_symbol)
-                .collect(),
-        };
-    let (checked, product_selection) = crate::checked::optimization::checked_trees::execute(
-        checked,
-        effective_optimizations.effective(),
-        product_root_machines.into_iter().collect(),
+    let product_root_machines = effective_optimizations
+        .effective()
+        .contains(optimization_core::Optimization::CheckedTreeProductPruning)
+        .then(|| {
+            let roots: std::collections::HashSet<symbols::SymbolHandle> =
+                match selected_target_profile {
+                    Some(_) => selected_program_entry
+                        .iter()
+                        .map(|entry| entry.source_signature().machine_symbol())
+                        .collect(),
+                    None => build_config
+                        .root_bindings
+                        .iter()
+                        .map(|binding| binding.implementation_symbol)
+                        .collect(),
+                };
+            roots.into_iter().collect()
+        });
+    let (program, product_selection) = typed_trees_to_checked_trees::select_checked_tree_product(
+        checked.program,
+        product_root_machines,
     )?;
+    checked.program = program;
     let exact_component_progress_root = selected_program_entry.as_ref().map(|entry| {
         let source = entry.source_signature();
         provider_planning::component_progress::ExactComponentProgressRoot::new(

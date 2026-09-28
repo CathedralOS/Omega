@@ -85,7 +85,7 @@ pub use product_pruning::{
     CheckedTreeProductPruning, CheckedTreeProductPruningOutcome, CheckedTreeProductRoots,
     CheckedTreeProductRootsError, CheckedTreeProductSelection, CheckedTreeProductSelectionIdentity,
     prune_checked_tree_product, prune_target_siblings, prune_target_siblings_typed,
-    target_sibling_selection_occurrences,
+    select_checked_tree_product, target_sibling_selection_occurrences,
 };
 
 /// Build inputs to Psi's instruction-authority check. The checking entrance

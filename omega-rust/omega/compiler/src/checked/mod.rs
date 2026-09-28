@@ -5,16 +5,15 @@
 //! against the retained base, settles providers, dispatch, entry bindings and
 //! task activations, admits package declarations, checks, and seals the
 //! result with its source custody. The `checking` folder holds the build
-//! continuation, the phase transitions into the Psi stages, execution
+//! continuation, direct calls into the Psi stages, execution
 //! settlement, and the sealed carrier; `admission` settles the checked
 //! program's trust obligations against the owner's admissions and writes the
-//! optional observations; `package` owns declaration admission;
-//! `optimization` owns the checked optimization handoff. Exact-rule rollback
+//! optional observations; `package` owns declaration admission.
+//! Checked-product selection executes in Psi stage 04. Exact-rule rollback
 //! settlement is owned by `optimization_core`.
 
 mod admission;
 mod checking;
-mod optimization;
 mod package;
 
 pub use admission::{CheckedAdmission, admit_checked_compilation};
@@ -27,7 +26,7 @@ pub(crate) use checking::{AssembledSource, CheckedChildExecution};
 pub use checking::{
     CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
     IndependentComponentSelection, PreparedCheckedSource, RestrictedBuildGrants,
-checked_compilation_call_count, compile_to_checked, executed_preliminary_check_count,
+    checked_compilation_call_count, compile_to_checked, executed_preliminary_check_count,
     executed_settled_check_count, preliminary_check_totals, settled_check_totals,
     source_assembly_invocation_count, typed_frontier_reuse_count,
 };
