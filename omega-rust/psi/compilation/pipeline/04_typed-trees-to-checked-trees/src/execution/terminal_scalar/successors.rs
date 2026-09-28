@@ -177,12 +177,11 @@ fn arguments<'a>(
         // multi-state machine belongs to the Unit state graph, and a fused
         // graph carries scalar formals only (see `build_machine_graph`). The
         // retained roster must still be exactly the admitted signature, the
-        // whole mixed one for an attached machine whose receiver is not
-        // mutably borrowed and the ordinary free one otherwise.
+        // whole mixed one for an attached machine that retains its borrowed
+        // receiver (or has none), and the ordinary free one otherwise.
         let (structural, scalar, _) = if machine.attached_data.is_some()
-            && !source_parameters
-                .iter()
-                .any(|parameter| parameter.is_self && parameter.is_mutable)
+            && (super::retains_borrowed_receiver(program, source_state, states.len())
+                || !source_parameters.iter().any(|parameter| parameter.is_self))
         {
             super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(
                 program,

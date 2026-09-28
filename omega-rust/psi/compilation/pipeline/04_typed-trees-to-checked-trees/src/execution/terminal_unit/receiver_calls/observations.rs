@@ -64,28 +64,16 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
                     return true;
                 }
             }
-            CheckedScalarComputationKind::CaseMembership { subject, .. } => match subject {
-                checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
-                    if place.source_parameter_index() == Some(receiver_source) {
-                        return true;
-                    }
+            CheckedScalarComputationKind::CaseMembership { subject, .. } => {
+                if structural_argument_reads_receiver(
+                    computations,
+                    subject,
+                    receiver_source,
+                    &mut pending,
+                ) {
+                    return true;
                 }
-                checked_trees::CheckedScalarComputationStructuralArgument::Array {
-                    elements,
-                    ..
-                } => {
-                    pending.extend_from_slice(computations.operands.span_or_empty(*elements));
-                }
-                checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
-                    pending.extend(
-                        computations
-                            .case_fields
-                            .span_or_empty(subject.fields)
-                            .iter()
-                            .map(|field| field.value),
-                    );
-                }
-            },
+            }
             CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                 pending.extend([*left, *right])
             }
@@ -97,8 +85,27 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
             CheckedScalarComputationKind::Apply { operands, .. } => {
                 pending.extend_from_slice(computations.operands.span_or_empty(*operands));
             }
-            CheckedScalarComputationKind::Call { arguments, .. } => {
+            CheckedScalarComputationKind::Call {
+                arguments,
+                structural_arguments,
+                ..
+            } => {
                 pending.extend_from_slice(computations.operands.span_or_empty(*arguments));
+                // The implicit receiver and explicit nominal loans are uses of
+                // their storage even when none of the scalar operands reads it.
+                for argument in computations
+                    .structural_arguments
+                    .span_or_empty(*structural_arguments)
+                {
+                    if structural_argument_reads_receiver(
+                        computations,
+                        argument,
+                        receiver_source,
+                        &mut pending,
+                    ) {
+                        return true;
+                    }
+                }
             }
             CheckedScalarComputationKind::Select {
                 condition,
@@ -125,6 +132,35 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
         }
     }
     false
+}
+
+/// Retain the receiver when a structural operand borrows it, or when producing
+/// an owned aggregate evaluates a receiver read among its scalar leaves.
+fn structural_argument_reads_receiver(
+    computations: &checked_trees::CheckedScalarComputationPlans,
+    argument: &checked_trees::CheckedScalarComputationStructuralArgument,
+    receiver_source: u32,
+    pending: &mut Vec<checked_trees::CheckedScalarComputationHandle>,
+) -> bool {
+    match argument {
+        checked_trees::CheckedScalarComputationStructuralArgument::Place(place) => {
+            place.source_parameter_index() == Some(receiver_source)
+        }
+        checked_trees::CheckedScalarComputationStructuralArgument::Array { elements, .. } => {
+            pending.extend_from_slice(computations.operands.span_or_empty(*elements));
+            false
+        }
+        checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
+            pending.extend(
+                computations
+                    .case_fields
+                    .span_or_empty(subject.fields)
+                    .iter()
+                    .map(|field| field.value),
+            );
+            false
+        }
+    }
 }
 
 fn scalar_reads(expression: &CheckedScalarExpression, receiver: u32) -> bool {

@@ -72,3 +72,31 @@ fn unread_receiver_keeps_a_receiver_free_graph_its_unit_callers_reach() {
         })
     ));
 }
+
+#[test]
+fn single_state_unread_mutable_receiver_keeps_its_declared_signature() {
+    let checked = checked_program_result(
+        r#"
+        data Main { count: u64; }
+        machine Main::value(&mut self, input: u64) -> u64 { input }
+    "#,
+    )
+    .unwrap();
+    let graph = checked
+        .facts
+        .flow
+        .terminal_scalar_graphs
+        .for_machine(machine(&checked, "::value"))
+        .expect("ordinary scalar body");
+    let [state] = graph.states.as_slice() else {
+        panic!("one state");
+    };
+    let [receiver] = state.structural_parameters.as_slice() else {
+        panic!("the unread receiver remains a call operand");
+    };
+    assert!(receiver.is_self);
+    assert_eq!(
+        receiver.access,
+        checked_trees::CheckedStructuralAccess::MutableBorrow
+    );
+}

@@ -77,6 +77,7 @@ pass/calls/case_scrutinee_self_dispatch_exit rejected 493ms
 pass/calls/guarded_value_call_arm_exit built 718ms exit:70
 pass/calls/machine_self_call_recursion_compile built 353ms
 pass/calls/mutable_output_host_call built 1130ms
+pass/calls/mutable_receiver_computation_exit built 794ms exit:70 @7886524fee80+wt
 pass/calls/mutual_cycle_tail_admitted_exit built 732ms exit:70
 pass/calls/nested_call_tail_roots_exit rejected 456ms
 	native-artifact Terminal production failed: Lowering(Unsupported("nested structural arguments contain unsupported syntax"))
@@ -146,13 +147,13 @@ pass/calls/runtime_value_call_terminal_exit rejected 1563ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 2)
 pass/calls/serviceful_borrowed_scalar_exit built 933ms exit:70 stdout:match @f9a8ced78a89
 pass/calls/statement_call_recursive_overload_compile checked 181ms
-pass/calls/transition_arg_local_from_embedded_call_exit rejected 459ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
+pass/calls/transition_arg_local_from_embedded_call_exit rejected 395ms @7886524fee80+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(5)))
 pass/calls/value_call_as_host_arg_exit rejected 428ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a call statement`
 pass/calls/value_call_element_view_arg_compile checked 169ms
-pass/calls/value_call_embedded_in_binary_exit rejected 530ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
+pass/calls/value_call_embedded_in_binary_exit rejected 393ms @7886524fee80+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(5)))
 pass/calls/value_call_param_effect_arm built 652ms exit:1
 pass/capabilities/aarch64_hfa_import_compile checked 819ms
 pass/capabilities/acquires_through_helper_return built 301ms

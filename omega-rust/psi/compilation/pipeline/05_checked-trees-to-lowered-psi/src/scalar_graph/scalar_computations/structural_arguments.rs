@@ -195,12 +195,12 @@ pub(super) fn lower(
                 .type_reference_table
                 .type_reference(source_parameter.type_reference)
             else {
-                return unsupported("computed structural operand is not a primitive reference");
+                return unsupported("computed structural operand is not a reference");
             };
-            if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                && checked.primitive_type_reference(*referee).is_none()
-            {
-                if let Some((_, expression, _, _, _)) = subslices::range(argument) {
+            if checked.primitive_type_reference(*referee).is_none() {
+                if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                    && let Some((_, expression, _, _, _)) = subslices::range(argument)
+                {
                     let slot = subslices
                         .iter()
                         .find(|slot| slot.expression == expression)
@@ -216,7 +216,9 @@ pub(super) fn lower(
                         access: StructuralAccess::SharedBorrow,
                     });
                 }
-                if let Some(bytes) = literals::source_bytes(argument) {
+                if parameter.access == checked_trees::CheckedStructuralAccess::SharedBorrow
+                    && let Some(bytes) = literals::source_bytes(argument)
+                {
                     let slot = literals
                         .iter()
                         .find(|slot| {
@@ -236,7 +238,7 @@ pub(super) fn lower(
                         access: StructuralAccess::SharedBorrow,
                     });
                 }
-                return bindings.shared_structural_argument(
+                return bindings.borrowed_structural_argument(
                     argument,
                     caller_machine,
                     caller_parameters,

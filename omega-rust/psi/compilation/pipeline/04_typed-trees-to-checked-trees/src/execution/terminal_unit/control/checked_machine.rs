@@ -145,13 +145,13 @@ pub(crate) fn build_checked_machine_residual_parts(
     // crash predicates: both need the invocation's actual receiver. Contextual
     // cleanup requirements retain their separate receipt-bound environment.
     let retain_reference_self = retain_reference_self
-        // Scalar computation calls retain their declared shared receiver as an
+        // Scalar computation calls retain their declared borrowed receiver as an
         // operand even when the body does not read it. Body specialization must
         // not change the producer/consumer signature of that ordinary call.
         || (program.primitive_type_reference(state.return_type).is_some()
             && program.state_parameters(state).iter().any(|parameter| parameter.is_self
                 && matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                    TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared, .. })))
+                    TypeReferenceNode::Reference { access: language_semantics::ReferenceAccess::Shared | language_semantics::ReferenceAccess::Mutable, .. })))
         // A `&'a V` named-view return borrows the receiver's storage through
         // its declared result — the shared `&self` operand is retained
         // exactly as the scalar-return clause above keeps it.

@@ -1,4 +1,4 @@
-//! Structural parameters, projected shared operands, and primitive referents
+//! Structural parameters, projected borrowed operands, and primitive referents
 //! in scalar computations. Parameter projections reuse established storage;
 //! local construction remains independently restricted to supported whole values.
 use super::super::CheckedUnitStructuralFieldPlan;
@@ -69,9 +69,11 @@ pub(crate) fn structural_computation_argument(
     crate::flow::normalize_attached_place_root(program, machine, state.symbol, &mut place);
     rejoin_computation_accesses(program, borrow, machine, state.symbol, call)?;
     exact_actual(program, call, expression, target)?;
-    if target_access == CheckedStructuralAccess::SharedBorrow
-        && let Some(argument) =
-            shared_nominal_argument(program, borrow, machine, state, call, &place, target)
+    if matches!(
+        target_access,
+        CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+    ) && let Some(argument) =
+        borrowed_nominal_argument(program, borrow, machine, state, call, &place, target)
     {
         return Some(argument);
     }
@@ -339,10 +341,10 @@ fn exact_actual(
     Some(())
 }
 
-/// A readable nominal argument borrows its existing parameter or local result
+/// A nominal argument borrows its existing parameter or local result
 /// home. Initializer spelling does not select custody; publication independently
 /// rejoins this symbol to its dominating structural establishment.
-fn shared_nominal_argument(
+fn borrowed_nominal_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
@@ -383,11 +385,11 @@ fn shared_nominal_argument(
             .iter()
             .find(|data| data.symbol == owner.attached_data_symbol)
     });
-    // A shared formal borrows the selected record at its existing root/path.
+    // A borrowed formal retains the selected record at its existing root/path.
     // Receiver syntax does not confer additional projection authority; both
     // lanes rejoin exact source type and the captured access occurrence below.
     let TypeReferenceNode::Reference {
-        access: language_semantics::ReferenceAccess::Shared,
+        access: target_reference_access,
         referee,
         ..
     } = program
@@ -395,6 +397,11 @@ fn shared_nominal_argument(
         .type_reference(target.type_reference)
     else {
         return None;
+    };
+    let target_access = match target_reference_access {
+        language_semantics::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
+        language_semantics::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        _ => return None,
     };
     if !matches!(
         program.type_reference_table.type_reference(*referee),
@@ -436,13 +443,23 @@ fn shared_nominal_argument(
             .type_reference(parameter.type_reference)
         {
             TypeReferenceNode::Reference {
-                access:
-                    language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable,
-                referee,
-                ..
-            } => *referee,
-            TypeReferenceNode::Named { .. } => parameter.type_reference,
+                access, referee, ..
+            } if matches!(
+                access,
+                language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable
+            ) && (target_access == CheckedStructuralAccess::SharedBorrow
+                || *access == language_semantics::ReferenceAccess::Mutable) =>
+            {
+                *referee
+            }
+            TypeReferenceNode::Named { .. }
+                if target_access == CheckedStructuralAccess::SharedBorrow
+                    || parameter.is_mutable
+                    || parameter.is_self =>
+            {
+                parameter.type_reference
+            }
             _ => return None,
         };
         if parameter.is_self {
@@ -515,8 +532,8 @@ fn shared_nominal_argument(
                 _ => None,
             });
         let local = (locals.next())?;
-        // A shared invocation observes the current local home; mutability of
-        // that home does not turn this call-local loan into a copied snapshot.
+        // A mutable loan needs authority from the source binding. Filling an
+        // owned local field does not by itself authorize lending the whole local.
         if locals.next().is_some() || !local.initial_value.is_valid() {
             return None;
         }
@@ -532,13 +549,20 @@ fn shared_nominal_argument(
             .type_reference(local.type_reference)
         {
             TypeReferenceNode::Reference {
-                access:
-                    language_semantics::ReferenceAccess::Shared
-                    | language_semantics::ReferenceAccess::Mutable,
-                referee,
-                ..
-            } => (*referee, true),
-            TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. } => {
+                access, referee, ..
+            } if matches!(
+                access,
+                language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable
+            ) && (target_access == CheckedStructuralAccess::SharedBorrow
+                || (*access == language_semantics::ReferenceAccess::Mutable
+                    && !local.is_mutable)) =>
+            {
+                (*referee, true)
+            }
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::FixedArray { .. }
+                if target_access == CheckedStructuralAccess::SharedBorrow || local.is_mutable =>
+            {
                 (local.type_reference, false)
             }
             _ => return None,
@@ -674,8 +698,8 @@ fn shared_nominal_argument(
             )
         });
     // A whole-attachment receiver loan forwards the caller's `self` as the
-    // callee's `&self`: custody stays with the machine's own storage and the
-    // statement lane performs the same receiver-to-receiver binding without
+    // callee's borrowed receiver: custody stays with the machine's storage.
+    // The statement lane performs the same receiver-to-receiver binding without
     // reading a plain-field closure. The is_self tail below still verifies
     // the authored receiver place and rules out an overlapping exclusive
     // actual, so capability (non-plain) members of the attachment do not
@@ -738,12 +762,17 @@ fn shared_nominal_argument(
             return None;
         }
         // The receiver is retained separately from the explicit access roster.
-        // Its shared loan cannot overlap an exclusive explicit actual.
+        // Shared loans exclude exclusive actuals; mutable loans exclude every
+        // simultaneous observation of the same root.
         if borrow
             .argument_accesses
             .span(call.accesses)?
             .iter()
-            .any(|access| access.root_symbol == symbol && access.kind.is_exclusive())
+            .any(|access| {
+                access.root_symbol == symbol
+                    && (target_access == CheckedStructuralAccess::MutableBorrow
+                        || access.kind.is_exclusive())
+            })
         {
             return None;
         }
@@ -754,9 +783,9 @@ fn shared_nominal_argument(
         state.symbol,
         call,
         place,
-        CheckedStructuralAccess::SharedBorrow,
+        target_access,
         &[],
-    )? != CheckedStructuralAccess::SharedBorrow
+    )? != target_access
     {
         return None;
     }
@@ -764,7 +793,7 @@ fn shared_nominal_argument(
         source,
         path,
         type_identity: identity,
-        access: CheckedStructuralAccess::SharedBorrow,
+        access: target_access,
     })
 }
 

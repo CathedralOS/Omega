@@ -9,7 +9,7 @@ use checked_trees::{
 use symbols::SymbolHandle;
 
 use super::{
-    borrow_rows, owned_arguments, primitive_arguments, shared_nominal_arguments,
+    borrow_rows, borrowed_nominal_arguments, owned_arguments, primitive_arguments,
     shared_view_arguments,
 };
 use crate::lowering_error::LoweringError;
@@ -194,6 +194,7 @@ pub(crate) fn rejoin_computation_call_arguments(
         CheckedScalarComputationStructuralArgument::Place(argument) => matches!(
             argument.access,
             checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow
                 | checked_trees::CheckedStructuralAccess::Owned
         ),
     }) {
@@ -222,7 +223,7 @@ pub(crate) fn rejoin_computation_call_arguments(
         else {
             return unsupported("computed receiver lost its structural operand");
         };
-        shared_nominal_arguments::validate(
+        borrowed_nominal_arguments::validate(
             checked,
             caller_state,
             statement,
@@ -421,7 +422,7 @@ pub(crate) fn rejoin_computation_call_arguments(
                     .ok_or(LoweringError::Unsupported(
                         "record argument lost its observation position",
                     ))?;
-                shared_nominal_arguments::validate(
+                borrowed_nominal_arguments::validate(
                     checked,
                     caller_state,
                     statement,

@@ -10,13 +10,13 @@ use super::{
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
 use crate::expression_preparation::source_custody::borrow_occurrences as borrow_rows;
+mod borrowed_nominal_arguments;
 mod dispatch;
 mod mixed_arguments;
 mod operand_scopes;
 mod owned_arguments;
 pub(crate) mod primitive_arguments;
 mod qualifications;
-mod shared_nominal_arguments;
 mod shared_view_arguments;
 
 pub(crate) use mixed_arguments::access_occurrences::rejoin as rejoin_call_accesses;

@@ -544,3 +544,96 @@ fn storage_mapping_rejects_missing_duplicate_and_wrong_type_custody() {
             .is_err()
     );
 }
+
+#[test]
+fn borrowed_structural_operands_cannot_upgrade_emitted_source_access() {
+    use checked_trees::{
+        CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
+        CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
+    };
+    use semantic_vocabulary::StructuralTypeId;
+    let checked = crate::front_end::checked_program("machine value() -> bool { true }");
+    let machine = &checked.machines()[0];
+    let symbol = symbols::SymbolHandle::from_arena_index(1);
+    let place = PlaceId::new(41).unwrap();
+    for local in [false, true] {
+        for access in [
+            StructuralAccess::Owned,
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::WriteOnlyBorrow,
+        ] {
+            let bindings = if local {
+                ScalarBindings::new(0).with_structural_locals(&[(
+                    symbol,
+                    StructuralArgument {
+                        place,
+                        path: Vec::new(),
+                        access,
+                    },
+                )])
+            } else {
+                ScalarBindings::new(0).with_structural_parameters(&[(
+                    0,
+                    super::StructuralParameterDeclaration {
+                        place,
+                        position: 0,
+                        is_self: false,
+                        structural_type: StructuralTypeId::new(1).unwrap(),
+                        multiplicity: super::StructuralMultiplicity::Unrestricted,
+                        access,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    },
+                )])
+            };
+            let mut argument = CheckedUnitStructuralArgumentPlan {
+                source: if local {
+                    CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+                } else {
+                    CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 }
+                },
+                path: vec![CheckedUnitStructuralPathSegment::Field("child".into())],
+                access: CheckedStructuralAccess::MutableBorrow,
+                ..Default::default()
+            };
+            let lowered = bindings.borrowed_structural_argument(&argument, machine, &[]);
+            if matches!(
+                access,
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+            ) {
+                assert_eq!(
+                    lowered.unwrap(),
+                    StructuralArgument {
+                        place,
+                        path: vec![terminal_psi::StructuralPathSegment::Field("child".into())],
+                        access: StructuralAccess::MutableBorrow,
+                    }
+                );
+            } else {
+                assert!(
+                    lowered.is_err(),
+                    "mutable borrow cannot use {access:?}, local={local}"
+                );
+            }
+            assert!(
+                bindings
+                    .shared_structural_place(&argument, machine, &[])
+                    .is_err()
+            );
+            assert!(
+                bindings
+                    .shared_structural_argument(&argument, machine, &[])
+                    .is_err()
+            );
+            argument.access = CheckedStructuralAccess::SharedBorrow;
+            assert_eq!(
+                bindings
+                    .shared_structural_argument(&argument, machine, &[])
+                    .is_ok(),
+                access != StructuralAccess::WriteOnlyBorrow,
+                "shared observation preserves stored access, local={local}"
+            );
+        }
+    }
+}

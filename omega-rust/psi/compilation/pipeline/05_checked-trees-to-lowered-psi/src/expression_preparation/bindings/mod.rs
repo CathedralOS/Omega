@@ -96,6 +96,32 @@ impl ScalarBindings {
         if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
             return unsupported("computed shared argument changes its access");
         }
+        self.borrowed_structural_place(argument, machine, parameters)
+    }
+
+    /// Resolve an established home under the requested loan. Source replay owns
+    /// the authored permission; this join independently bounds it by the access
+    /// retained on the emitted storage itself.
+    fn borrowed_structural_place(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        machine: &checked_trees::machine::Machine,
+        parameters: &[checked_trees::signature::StateParameter],
+    ) -> Result<PlaceId, LoweringError> {
+        if !matches!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+                | checked_trees::CheckedStructuralAccess::MutableBorrow
+        ) {
+            return unsupported("computed argument requires readable borrowed access");
+        }
+        let supports_borrow = |source| {
+            matches!(
+                source,
+                StructuralAccess::Owned | StructuralAccess::MutableBorrow
+            ) || (source == StructuralAccess::SharedBorrow
+                && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
+        };
         let place = match argument.source {
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 let mut locals = self.structural_locals.iter().filter(|row| row.0 == symbol);
@@ -107,15 +133,10 @@ impl ScalarBindings {
                         // than fabricating ownership.
                         if !symbol.is_valid()
                             || locals.next().is_some()
-                            || !matches!(
-                                source.1.access,
-                                StructuralAccess::Owned | StructuralAccess::SharedBorrow
-                            )
+                            || !supports_borrow(source.1.access)
                             || !source.1.path.is_empty()
                         {
-                            return unsupported(
-                                "computed shared argument changes its local custody",
-                            );
+                            return unsupported("computed borrow changes its local custody");
                         }
                         source.1.place
                     }
@@ -129,26 +150,20 @@ impl ScalarBindings {
                                 })?
                             })
                             .ok_or(LoweringError::Unsupported(
-                                "computed shared argument lost its established local",
+                                "computed borrow lost its established local",
                             ))?;
                         let (_, source) = self
                             .structural_parameters
                             .iter()
                             .find(|(place_position, _)| *place_position as usize == position)
                             .ok_or(LoweringError::Unsupported(
-                                "computed shared argument lost its parameter",
+                                "computed borrow lost its parameter",
                             ))?;
-                        if !matches!(
-                            source.access,
-                            StructuralAccess::Owned
-                                | StructuralAccess::SharedBorrow
-                                | StructuralAccess::MutableBorrow
-                        ) || !source.qualifications.is_empty()
+                        if !supports_borrow(source.access)
+                            || !source.qualifications.is_empty()
                             || !source.projected_qualifications.is_empty()
                         {
-                            return unsupported(
-                                "computed shared argument widens its parameter custody",
-                            );
+                            return unsupported("computed borrow widens its parameter custody");
                         }
                         source.place
                     }
@@ -161,21 +176,17 @@ impl ScalarBindings {
                     .structural_parameters
                     .get(parameter_index as usize)
                     .ok_or(LoweringError::Unsupported(
-                        "computed shared argument lost its parameter",
+                        "computed borrow lost its parameter",
                     ))?;
-                if !matches!(
-                    source.access,
-                    StructuralAccess::Owned
-                        | StructuralAccess::SharedBorrow
-                        | StructuralAccess::MutableBorrow
-                ) || !source.qualifications.is_empty()
+                if !supports_borrow(source.access)
+                    || !source.qualifications.is_empty()
                     || !source.projected_qualifications.is_empty()
                 {
-                    return unsupported("computed shared argument widens its parameter custody");
+                    return unsupported("computed borrow widens its parameter custody");
                 }
                 source.place
             }
-            _ => return unsupported("computed shared argument has no established source"),
+            _ => return unsupported("computed borrow has no established source"),
         };
         Ok(place)
     }
@@ -193,12 +204,30 @@ impl ScalarBindings {
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
+        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+            return unsupported("computed shared argument changes its access");
+        }
+        self.borrowed_structural_argument(argument, machine, parameters)
+    }
+
+    /// Bind an exact shared or mutable loan to its existing structural home.
+    pub(crate) fn borrowed_structural_argument(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        machine: &checked_trees::machine::Machine,
+        parameters: &[checked_trees::signature::StateParameter],
+    ) -> Result<StructuralArgument, LoweringError> {
+        let access = match argument.access {
+            checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+            checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                StructuralAccess::MutableBorrow
+            }
+            _ => return unsupported("computed argument requires readable borrowed access"),
+        };
         Ok(StructuralArgument {
-            place: self.shared_structural_place(argument, machine, parameters)?,
-            path: crate::expression_preparation::bindings::structural_paths::lower_structural_path(
-                &argument.path,
-            )?,
-            access: StructuralAccess::SharedBorrow,
+            place: self.borrowed_structural_place(argument, machine, parameters)?,
+            path: structural_paths::lower_structural_path(&argument.path)?,
+            access,
         })
     }
 

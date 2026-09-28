@@ -99,6 +99,7 @@ pass/calls/guard_call_scalar_argument_exit checked 292ms
 pass/calls/guarded_value_call_arm_exit checked 1768ms
 pass/calls/machine_self_call_recursion_compile checked 442ms
 pass/calls/mutable_output_host_call checked 2265ms
+pass/calls/mutable_receiver_computation_exit checked 659ms @7886524fee80+wt
 pass/calls/mutual_cycle_tail_admitted_exit checked 1797ms
 pass/calls/named_target_payload_dispatch checked 1934ms
 pass/calls/nested_call_init_transition checked 1482ms
@@ -170,14 +171,14 @@ pass/calls/serviceful_borrowed_scalar_exit checked 883ms @f9a8ced78a89
 pass/calls/statement_call_recursive_overload_compile checked 341ms
 pass/calls/structural_mut_to_shared_argument checked 458ms
 pass/calls/structural_self_rooted_argument checked 477ms
-pass/calls/transition_arg_local_from_embedded_call_exit rejected 747ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
+pass/calls/transition_arg_local_from_embedded_call_exit rejected 399ms @7886524fee80+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(5)))
 pass/calls/state_and_machine_names_exit checked 546ms @0f14a853dd22504c15fa85132ed4eb1e6d7f2ab7+wt
 pass/calls/value_call_as_host_arg_exit rejected 1622ms
 	native-artifact Terminal production failed: Lowering(Unsupported("computed shared argument lost its parameter"))
 pass/calls/value_call_element_view_arg_compile checked 294ms
-pass/calls/value_call_embedded_in_binary_exit rejected 782ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: scalar local: pure initializer` (state 0, statement 1)
+pass/calls/value_call_embedded_in_binary_exit rejected 397ms @7886524fee80+wt
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(5)))
 pass/calls/value_call_param_effect_arm checked 1698ms
 pass/capabilities/aarch64_hfa_import_compile checked 1350ms
 pass/capabilities/acquires_through_helper_return checked 460ms
