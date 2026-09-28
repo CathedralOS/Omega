@@ -54,6 +54,15 @@ erasure and typed construction, then rejoin those typed machines before plan
 selection. Do not replace the consuming carrier with a raw machine-name channel.
 Authored selection identity/order and build-over-default precedence remain intact.
 
+[Program-entry planning](src/program_entry.rs) owns target-slot selection,
+source-signature admission, paired semantic/physical calling contracts, package
+provenance and receiver-establishment custody. It consumes root-binding rows,
+not a Build configuration. Build evaluation extracts those rows and asks this
+owner about product-entry query compatibility; the compiler consumes its settled
+entry directly. Backend `program-entry-plan` retains storage and ABI evidence.
+The focused planner tests run with
+`cargo nextest run -p provider-planning --lib program_entry::tests`.
+
 [Calling-policy planning](src/calling_policy_plans/mod.rs) consumes closed plans.
 Its [opaque-use records](src/calling_policy_plans/opaque_representations.rs)
 retain exact source joins, shape roots, application commitments, and explicit

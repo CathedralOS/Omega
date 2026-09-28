@@ -19,6 +19,7 @@ pub mod component_progress;
 pub mod data_layout_queries;
 pub mod evaluated_via_bindings;
 mod intrinsic_requirements;
+pub mod program_entry;
 mod provider_declarations;
 mod provider_planning;
 mod provider_settlement;

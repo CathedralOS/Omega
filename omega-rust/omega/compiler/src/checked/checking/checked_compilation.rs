@@ -383,7 +383,7 @@ impl CheckedCompilation {
         self.execution
             .selected_program_entry
             .as_ref()
-            .map(build_evaluation::SelectedCompilerProgramEntry::machine_name)
+            .map(provider_planning::program_entry::SelectedCompilerProgramEntry::machine_name)
     }
 
     /// Complete build-owned `ProgramEntry` settlement captured while typed
@@ -393,7 +393,7 @@ impl CheckedCompilation {
     /// machine name.
     pub const fn selected_program_entry(
         &self,
-    ) -> Option<&build_evaluation::SelectedCompilerProgramEntry> {
+    ) -> Option<&provider_planning::program_entry::SelectedCompilerProgramEntry> {
         self.execution.selected_program_entry.as_ref()
     }
 

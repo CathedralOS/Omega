@@ -27,7 +27,8 @@ pub(crate) struct CheckedExecution {
     pub(super) x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
     pub(super) x86_scalar_fma_plan_associations:
         Vec<provider_planning::x86_fma_plan_association::CheckedX86ScalarFmaPlanAssociation>,
-    pub(super) selected_program_entry: Option<build_evaluation::SelectedCompilerProgramEntry>,
+    pub(super) selected_program_entry:
+        Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub(super) selected_build_machine_symbol: Option<symbols::SymbolHandle>,
     pub(super) selected_build_machine_identity: Option<String>,
     pub(super) opaque_representation_selections:
@@ -131,15 +132,16 @@ pub(crate) fn check_selected_execution(
         .map(|profile| profile.program_entry_slot())
         .and_then(|slot| slot.physical_contract_package)
         .map(build_evaluation::program_entry_semantic_binding_role);
-    let mut selected_program_entry = build_evaluation::select_compiler_program_entry(
-        &typed,
-        &build_config,
-        selected_target_profile,
-        &boundary_calling_plan_realizations,
-        package_inputs.and_then(|inputs| {
-            program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
-        }),
-    )?;
+    let mut selected_program_entry =
+        provider_planning::program_entry::select_compiler_program_entry(
+            &typed,
+            &build_config.root_bindings,
+            selected_target_profile,
+            &boundary_calling_plan_realizations,
+            package_inputs.and_then(|inputs| {
+                program_entry_binding_role.and_then(|role| inputs.accepted_semantic_binding(role))
+            }),
+        )?;
     let accepted_component_assumptions: std::collections::BTreeSet<[u8; 32]> = build_config
         .accepted_component_assumptions
         .iter()
