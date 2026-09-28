@@ -872,7 +872,7 @@ fn publish_independent_component_descriptions(
     key: &PackageKey,
     purpose: DependencyPurpose,
     inputs: package_compilation::PackageCompilationInputs,
-    independent_component_selections: &[compiler::IndependentComponentSelection],
+    independent_component_selections: &[compilation_products::IndependentComponentSelection],
     component_candidates: &BTreeMap<
         (semantic_vocabulary::PackageKeyIdentity, DependencyPurpose),
         compiler::CheckedCompilation,
