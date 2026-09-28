@@ -69,23 +69,6 @@ pub fn validate_retained_package_terminal_authority_permissions(
 pub fn validate_package_terminal_authority_permission_custody<'a>(
     permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
 ) -> Result<(), Vec<Diagnostic>> {
-    validate_permission_custody(permissions, None)
-}
-
-/// Rejoin every package-approved permission to the independently supplied
-/// receiving policy. The receiving policy may contain rows for other
-/// artifacts, but it may neither omit nor alter an approved row.
-pub fn validate_package_terminal_authority_permissions<'a>(
-    permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
-    policy: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
-) -> Result<(), Vec<Diagnostic>> {
-    validate_permission_custody(permissions, Some(policy))
-}
-
-fn validate_permission_custody<'a>(
-    permissions: impl Iterator<Item = &'a ServiceTerminalAuthorityPermission>,
-    policy: Option<&crate::provider_admission::TerminalAuthorityPermissionPolicy>,
-) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();
     for permission in permissions {
@@ -98,29 +81,53 @@ fn validate_permission_custody<'a>(
                 "package permission custody repeats terminal-authority permission `{}` for one exact service schema",
                 permission.requirement_identity(),
             )));
-            continue;
-        }
-        let Some(policy) = policy else {
-            continue;
-        };
-        match policy.permission_for(
-            permission.service_schema(),
-            permission.requirement_identity(),
-        ) {
-            Ok(permitted) if &permitted == permission.permitted() => {}
-            Ok(_) => diagnostics.push(Diagnostic::error(format!(
-                "receiving terminal-authority policy substitutes the accepted permission for `{}`",
-                permission.requirement_identity(),
-            ))),
-            Err(_) => diagnostics.push(Diagnostic::error(format!(
-                "receiving terminal-authority policy omits the accepted permission for `{}`",
-                permission.requirement_identity(),
-            ))),
         }
     }
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::provider_admission::terminal_authority_permission_policy_with_rows;
+    use effects::{TerminalAuthorityClass, TerminalAuthorityDisposition};
+
+    #[test]
+    fn retained_package_permissions_still_require_exact_acceptance() {
+        let permission = ServiceTerminalAuthorityPermission::new(
+            effects::provider_plan::ServiceSchemaDigest::from_digest([1; 32]),
+            "Console::exit_process",
+            TerminalAuthorityDisposition::from_classes([
+                TerminalAuthorityClass::ProcessTermination,
+            ]),
+        );
+        let accepted = terminal_authority_permission_policy_with_rows(vec![permission.clone()])
+            .expect("one accepted permission");
+        let exact = std::slice::from_ref(&permission);
+        validate_retained_package_terminal_authority_permissions(exact, &accepted).unwrap();
+        validate_package_terminal_authority_permission_custody(exact.iter()).unwrap();
+        assert!(validate_retained_package_terminal_authority_permissions(&[], &accepted).is_err());
+
+        let empty = terminal_authority_permission_policy_with_rows(Vec::new()).unwrap();
+        assert!(validate_retained_package_terminal_authority_permissions(exact, &empty).is_err());
+        let altered = ServiceTerminalAuthorityPermission::new(
+            permission.service_schema(),
+            permission.requirement_identity(),
+            TerminalAuthorityDisposition::from_classes([]),
+        );
+        assert!(
+            validate_retained_package_terminal_authority_permissions(&[altered], &accepted)
+                .is_err()
+        );
+
+        let repeated = [permission.clone(), permission];
+        assert!(
+            validate_retained_package_terminal_authority_permissions(&repeated, &accepted).is_err()
+        );
+        assert!(validate_package_terminal_authority_permission_custody(repeated.iter()).is_err());
     }
 }

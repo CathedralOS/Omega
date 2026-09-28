@@ -28,7 +28,6 @@ pub fn realize_retained_native_artifact(
                 optimization_selections: request.optimization_selections,
                 accepted_package_permissions: &request
                     .accepted_package_terminal_authority_permission_policy,
-                receiving_permissions: request.terminal_authority_permission_policy.as_ref(),
                 imports: request.imports,
             },
         )?;
