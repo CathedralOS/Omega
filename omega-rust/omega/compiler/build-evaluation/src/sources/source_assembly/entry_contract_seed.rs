@@ -5,8 +5,8 @@
 //! contract realizes the program entry remains a per-target selection made
 //! later, from the target catalog's slot.
 
-use crate::sources::source::SourceStorage;
 use package_compilation::PackageCompilationInputs;
+use package_compilation::source_imports::SourceStorage;
 use std::path::PathBuf;
 
 pub struct EntryContractSeed {
@@ -21,7 +21,7 @@ pub(super) fn entry_contract_seeds(
     package_inputs: Option<&PackageCompilationInputs>,
     source_storage: &SourceStorage,
 ) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {
-    let bundled_root = crate::sources::frontend::bundled_omega_root()?.join("std");
+    let bundled_root = package_compilation::source_imports::bundled_omega_root()?.join("std");
     let mut seeds = Vec::new();
     for profile in target::TargetProfile::ALL {
         let slot = profile.program_entry_slot();

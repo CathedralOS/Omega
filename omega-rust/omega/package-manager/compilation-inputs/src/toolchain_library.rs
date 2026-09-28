@@ -56,10 +56,10 @@ pub fn root() -> Result<PathBuf, String> {
 /// Release builds never reach this: their caller passes no development root,
 /// keeping "a release carries a digest and no checkout fallback" intact.
 fn recover_development_root(executable: &Path, recorded: Option<PathBuf>) -> Option<PathBuf> {
-    if let Some(recorded) = &recorded {
-        if recorded.join("core").is_dir() {
-            return Some(recorded.clone());
-        }
+    if let Some(recorded) = &recorded
+        && recorded.join("core").is_dir()
+    {
+        return Some(recorded.clone());
     }
     executable
         .ancestors()

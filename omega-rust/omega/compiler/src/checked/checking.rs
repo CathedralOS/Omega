@@ -410,7 +410,7 @@ impl PreparedCheckedSource {
                 if let Some(inputs) = child.package_inputs {
                     inputs.validate_for_compilation(
                         &root_path,
-                        &build_evaluation::sources::frontend::bundled_core_root()?,
+                        &package_compilation::source_imports::bundled_core_root()?,
                     )?;
                 }
                 TYPED_FRONTIER_REUSES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);

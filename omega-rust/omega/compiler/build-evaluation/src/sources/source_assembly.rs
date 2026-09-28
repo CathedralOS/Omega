@@ -1,12 +1,11 @@
-use crate::sources::frontend::{
-    discover_imports, discover_imports_with_packages, load_package_generated_source,
-};
-use crate::sources::source::{ImportQueue, SourceStorage};
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use source_files_to_tokens::{lex_sources, load_sources};
+use package_compilation::source_imports::{SourceStorage, validate_package_source_frontier};
+use package_compilation::source_imports::{discover_imports, discover_imports_with_packages};
+use source_files_to_tokens::ImportQueue;
+use source_files_to_tokens::{lex_sources, load_package_generated_source, load_sources};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -332,37 +331,6 @@ fn generated_source_logical_path(
     Ok(logical_path)
 }
 
-/// Require the exact selected free build root to declare its project role
-/// through the same compiler-neutral grammar used by package orchestration.
-/// An application declaration is retained whole for admission and
-/// publication: its one authored name supplies the `.app` basename and
-/// executable leaf, and its `artifact_only` modifier narrows the admitted
-/// route (wiki/spec/build/macos_application.md).
-fn validate_selected_build_role(
-    source_storage: &SourceStorage,
-    build_source_id: Option<source::SourceId>,
-) -> Result<Option<build_declarations::ApplicationDeclaration>, Vec<Diagnostic>> {
-    let Some(build_source_id) = build_source_id else {
-        return Ok(None);
-    };
-    let source = source_storage.sources.get(build_source_id).ok_or_else(|| {
-        vec![Diagnostic::error(
-            "selected build source has no retained source text",
-        )]
-    })?;
-    build_declarations::project_build_declaration_from_source(&source.source)
-        .map(|declaration| match declaration {
-            build_declarations::BuildDeclaration::Application(application) => Some(application),
-            _ => None,
-        })
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "{}: invalid project build declaration: {error}",
-                source.path.display()
-            ))]
-        })
-}
-
 fn load_pending_imports(
     source_storage: &mut SourceStorage,
     imports: &mut ImportQueue,
@@ -409,59 +377,6 @@ fn load_pending_imports(
     }
 
     Ok(())
-}
-
-fn validate_package_source_frontier(
-    frontier: Vec<(PathBuf, source::DependencyScope)>,
-    package_inputs: &PackageCompilationInputs,
-    source_storage: &SourceStorage,
-) -> Result<Vec<(PathBuf, source::DependencyScope)>, Vec<Diagnostic>> {
-    let toolchain_root = crate::sources::frontend::bundled_core_root()?;
-    let mut validated = Vec::with_capacity(frontier.len());
-    let mut diagnostics = Vec::new();
-
-    for (source, scope) in frontier {
-        let canonical = match source.canonicalize() {
-            Ok(canonical) => canonical,
-            Err(error) => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "failed to canonicalize package source {} before loading: {error}",
-                    source.display()
-                )));
-                continue;
-            }
-        };
-        if canonical.starts_with(&toolchain_root)
-            || source_storage.is_toolchain_contract_source(&canonical)
-        {
-            validated.push((canonical, scope));
-            continue;
-        }
-
-        let Some(owner) = package_inputs.package_for_source(&canonical) else {
-            diagnostics.push(Diagnostic::error(format!(
-                "package source {} escapes every reconciled source root",
-                canonical.display()
-            )));
-            continue;
-        };
-        if owner != package_inputs.root()
-            && canonical.file_name().and_then(|name| name.to_str()) == Some("build.omg")
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "dependency build file {} may not join the compiled program",
-                canonical.display()
-            )));
-            continue;
-        }
-        validated.push((canonical, scope));
-    }
-
-    if diagnostics.is_empty() {
-        Ok(validated)
-    } else {
-        Err(diagnostics)
-    }
 }
 
 fn assemble_syntax(

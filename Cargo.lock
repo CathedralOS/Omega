@@ -1289,6 +1289,7 @@ dependencies = [
 name = "package-compilation"
 version = "0.1.0"
 dependencies = [
+ "arena",
  "build-declarations",
  "build-output",
  "build-time-evaluation",
@@ -1301,8 +1302,12 @@ dependencies = [
  "semantic-vocabulary",
  "sha2",
  "source",
+ "source-files-to-tokens",
+ "symbols",
+ "syntax-trees",
  "target",
  "terminal-psi",
+ "tokens",
 ]
 
 [[package]]

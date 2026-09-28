@@ -4,10 +4,10 @@
 //! beside `build_vocabulary`, not sequencing in the assembly entry file.
 
 use super::build_vocabulary;
-use crate::sources::source::SourceStorage;
 use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
+use package_compilation::source_imports::SourceStorage;
 use source_files_to_tokens::lex_sources;
 use tokens_to_syntax_trees::parse_sources;
 
@@ -379,7 +379,7 @@ pub(super) fn inject_build_prelude(
 
     let first_source_id = source_storage.next_source_id();
     let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-        let sources = crate::sources::frontend::load_injected_source(
+        let sources = source_files_to_tokens::load_injected_source(
             "<build-prelude>",
             &prelude,
             first_source_id,

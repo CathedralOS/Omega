@@ -1,9 +1,10 @@
 //! Import occurrence custody and an I/O-free join to the loaded source frontier.
 
-use super::{ReconciledPackageImportRequest, identifier_path_text, source_path_candidates};
-use crate::sources::source::SourceStorage;
+use super::ReconciledPackageImportRequest;
+use super::SourceStorage;
+use super::paths::{identifier_path_text, source_path_candidates};
+use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
-use package_compilation::PackageCompilationInputs;
 use source::{DependencyScope, SourceId};
 use std::path::{Path, PathBuf};
 use syntax_trees::identifier::Identifier;
