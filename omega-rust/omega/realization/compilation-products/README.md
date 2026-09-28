@@ -11,6 +11,12 @@ transitions validate artifact, rollback, application-package and build-observati
 joins. Compiler and package-admission routes retain this same type; reports do
 not manufacture lower-level evidence or grant receiving authority.
 
+`CompileReport::verify_native_source_metadata` checks a retained native result
+against the originating compilation's source count, target profile, native
+target and application metadata. Compiler orchestration supplies those facts;
+the product owner checks their joins without retaining the checked frontend or
+introducing another receipt carrier.
+
 [publication.rs](src/publication.rs) is the installation entrance. It refuses
 check-only, repeated or inconsistent publication before dispatching to
 `publication/native.rs` or `publication/terminal.rs`, then publishes completed

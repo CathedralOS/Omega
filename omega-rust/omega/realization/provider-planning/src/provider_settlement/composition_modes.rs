@@ -22,19 +22,17 @@
 //! Revisit this fence when the product gains a real substrate for a deployed
 //! component; until then it must reject, never degrade to Fused.
 
-use crate::checked::CheckedCompilation;
+use crate::{CompositionMode, SelectedProviderReviewProvenance};
 use diagnostics::Diagnostic;
-use provider_planning::CompositionMode;
 
 /// Reject production while any selected provider plan settled with an
 /// `Independent` composition edge the product cannot carry. A provenance row
 /// whose composition mode is incoherent rejects as well: settlement owns
 /// that rejection, but the checked result is never a license to emit.
-pub(crate) fn verify_selected_compositions_are_realized(
-    checked: &CheckedCompilation,
+pub fn verify_selected_compositions_are_realized(
+    provenance: &[SelectedProviderReviewProvenance],
 ) -> Result<(), Vec<Diagnostic>> {
-    let diagnostics = checked
-        .selected_provider_provenance()
+    let diagnostics = provenance
         .iter()
         .filter_map(|row| match row.selected_by.composition_mode() {
             Ok(CompositionMode::Fused) => None,

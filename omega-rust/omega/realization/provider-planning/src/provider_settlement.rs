@@ -20,12 +20,14 @@
 
 mod canonical_filesystem_host;
 mod canonical_time_host;
+mod composition_modes;
 mod independent_components;
 
 pub use canonical_filesystem_host::{
     MintedFilesystemHostPlan, mint_canonical_filesystem_host_plan,
 };
 pub use canonical_time_host::{MintedTimeHostPlan, mint_canonical_time_host_plan};
+pub use composition_modes::verify_selected_compositions_are_realized;
 pub use independent_components::verify_independent_component_descriptions;
 
 use crate::ProviderSelection;

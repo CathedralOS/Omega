@@ -1,7 +1,5 @@
 //! Native product preparation and realization after checked-Psi admission.
 
-mod receipt;
-
 use crate::checked::{CheckedCompilation, OptimizationRollback};
 use diagnostics::Diagnostic;
 
@@ -104,7 +102,13 @@ pub fn produce_native_report(
         report.with_application_metadata(checked.project_native_application_metadata())
     })
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    receipt::NativeCompilationWithCheckedReceipt::new(checked, report)
-        .map(receipt::NativeCompilationWithCheckedReceipt::into_report)
-        .map_err(|message| vec![Diagnostic::error(message)])
+    report
+        .verify_native_source_metadata(
+            checked.source_file_count(),
+            checked.selected_target_profile(),
+            checked.selected_native_target(),
+            &checked.project_native_application_metadata(),
+        )
+        .map_err(|message| vec![Diagnostic::error(message)])?;
+    Ok(report)
 }

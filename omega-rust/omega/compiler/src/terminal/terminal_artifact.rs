@@ -13,8 +13,6 @@ use terminal_production::{
     TerminalProductionCustody, TerminalProductionStage, TerminalProductionTimings,
 };
 
-pub(crate) mod composition_modes;
-
 /// Terminal production internally lowers, optimizes and publishes
 /// (checked-trees -> lowered-psi -> lowered-psi -> terminal-psi). The request
 /// keeps this coarse row as the boundary total; the Psi-side crate cannot
@@ -179,7 +177,9 @@ pub(crate) fn produce_retained_terminal_artifact(
 ) -> Result<crate::report::RetainedTerminalArtifact, Vec<Diagnostic>> {
     // A settled `Independent` edge has no product carrier: the composition
     // fence rejects before any fused artifact can be produced or admitted.
-    composition_modes::verify_selected_compositions_are_realized(checked)?;
+    provider_planning::verify_selected_compositions_are_realized(
+        checked.selected_provider_provenance(),
+    )?;
     let callback_placements = checked.callback_placements().to_vec();
     // The selected entry rejoins Terminal production by its exact checked
     // machine symbol: the build product operand's lexical package choice must
