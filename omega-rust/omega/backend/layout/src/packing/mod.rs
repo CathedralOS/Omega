@@ -9,10 +9,10 @@
 
 use crate::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use arena::{Arena, HandleSpan};
-use checked_trees::name::Identifier;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
 
 #[cfg(test)]
 mod tests;

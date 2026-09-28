@@ -1,8 +1,8 @@
 //! Generic layout bindings and the const arguments they resolve.
 
-use checked_trees::CheckedTrees;
-use checked_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use symbols::SymbolHandle;
+use typed_trees::TypedTrees;
+use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct GenericLayoutBinding<'program> {
@@ -29,7 +29,7 @@ pub(crate) fn binding_for_type<'program>(
 }
 
 pub(crate) fn fixed_array_length(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     length: &FixedArrayLength,
     bindings: &[GenericLayoutBinding<'_>],
 ) -> Option<usize> {
@@ -44,7 +44,7 @@ pub(crate) fn fixed_array_length(
 }
 
 fn const_argument_value(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     argument: TypeReferenceHandle,
     bindings: &[GenericLayoutBinding<'_>],
     depth: usize,

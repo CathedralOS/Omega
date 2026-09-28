@@ -9,12 +9,12 @@ use arena::Arena;
 use calling_conventions::{
     callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
 };
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use target::NativeTarget;
+use typed_trees::TypedTrees;
 
 pub(crate) fn close_two_hop_private_callback_paths(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     data_layouts: &Arena<DataLayout>,
     fields: &Arena<FieldLayout>,
     layout_identities: &[TargetClosedPlanLaidDataLayoutIdentity],

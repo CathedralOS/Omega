@@ -7,7 +7,7 @@
 
 use crate::{DataShape, FieldLayout, LayoutPlan, MachineLayout};
 use arena::HandleSpan;
-use checked_trees::name::Identifier;
+use typed_trees::name::Identifier;
 
 /// The byte offset of a spelled field path (`["sum"]`, `["p", "second"]`)
 /// within `fields_span`, descending contained machines and plain data

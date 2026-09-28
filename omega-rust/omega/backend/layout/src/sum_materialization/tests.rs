@@ -16,7 +16,6 @@ use build_time_evaluation::{
     validate_const_materializable_record_with_nested_sum_record,
     validate_const_materializable_record_with_nested_sum_records,
 };
-use checked_trees::{CheckFacts, CheckedTrees};
 use layout_plans::{ByteOrder, normalized_conventional_sum_layout_report_fingerprint};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -26,32 +25,31 @@ use syntax_trees_to_symbol_resolved_trees::pre_resolution::{
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees::TypedTrees;
 
 mod recursive;
 
-fn checked(source: &str) -> CheckedTrees {
+fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    CheckedTrees::with_roots(typed, CheckFacts::default())
+    lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
-/// The same check path with generic instance synthesis enabled: authored
+/// The same typing path with generic instance synthesis enabled: authored
 /// `T<args>` spellings materialize their closed instance declarations before
 /// resolution, exactly as the connected pipeline does.
-fn checked_generic(source: &str) -> CheckedTrees {
+fn typed_generic_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let syntax =
         normalize_generic_data(GenericDataRequest::new(syntax)).expect("synthesize instances");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    CheckedTrees::with_roots(typed, CheckFacts::default())
+    lower_symbol_resolved_trees(&resolved).expect("type")
 }
 #[test]
 fn projects_exact_authored_case_order_and_overlay_geometry() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] {
             case Empty;
@@ -60,15 +58,14 @@ fn projects_exact_authored_case_order_and_overlay_geometry() {
         }
         "#,
     );
-    let definition = checked
+    let definition = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Choice")
         .unwrap();
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let report =
-        project_conventional_sum_materialization_layout(&checked, &plan, definition.symbol)
-            .unwrap();
+        project_conventional_sum_materialization_layout(&typed, &plan, definition.symbol).unwrap();
 
     assert_eq!(report.tag_offset, 0);
     assert_eq!(report.tag_size, 4);
@@ -106,7 +103,7 @@ fn projects_exact_authored_case_order_and_overlay_geometry() {
         ],
     };
     let materialized = validate_const_materializable_conventional_sum(
-        &checked,
+        &typed,
         "Choice",
         &report,
         &value,
@@ -121,26 +118,26 @@ fn projects_exact_authored_case_order_and_overlay_geometry() {
 
 #[test]
 fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u8); }
         data Inner [copy] { #1 first: Choice; #2 marker: u16; #3 second: Choice; }
         data Outer [copy] { #1 prefix: u8; #2 inner: Inner; #3 suffix: u16; }
         "#,
     );
-    let outer = checked
+    let outer = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .unwrap();
-    let inner = checked
+    let inner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Inner")
         .unwrap();
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let path = project_conventional_record_with_nested_sum_record_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         outer.symbol,
     )
@@ -188,7 +185,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
         ],
     };
     let carrier = validate_const_materializable_record_with_nested_sum_record(
-        &checked,
+        &typed,
         "Outer",
         &path,
         &value,
@@ -219,7 +216,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
         ]
     );
     carrier
-        .replay_against(&checked, "Outer", &path, &value, ByteOrder::LittleEndian)
+        .replay_against(&typed, "Outer", &path, &value, ByteOrder::LittleEndian)
         .expect("the complete path should replay exactly");
 
     let mut renamed_reports = path.clone();
@@ -229,7 +226,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     renamed_reports.child_sum_layouts[0].field = "renamed_first".into();
     carrier
         .replay_against(
-            &checked,
+            &typed,
             "Outer",
             &renamed_reports,
             &value,
@@ -242,7 +239,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &wrong_outer_identity,
                 &value,
@@ -255,7 +252,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &wrong_inner_layout,
                 &value,
@@ -268,7 +265,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &missing_child,
                 &value,
@@ -283,7 +280,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &extra_child,
                 &value,
@@ -296,7 +293,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &duplicate_child,
                 &value,
@@ -310,7 +307,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &wrong_child_identity,
                 &value,
@@ -323,7 +320,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &reordered_children,
                 &value,
@@ -336,7 +333,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &wrong_child_geometry,
                 &value,
@@ -345,7 +342,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
             .is_err()
     );
     let mut short = [0xa5; 27];
-    assert!(carrier.apply(&checked, &mut short).is_err());
+    assert!(carrier.apply(&typed, &mut short).is_err());
     assert_eq!(short, [0xa5; 27]);
 
     let inner_layout = unique_data_layout(&plan, inner.symbol, "Inner").unwrap();
@@ -362,7 +359,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
         .type_descriptor = TypeLayoutDescriptor::Unit;
     assert!(
         project_conventional_record_with_nested_sum_record_materialization_layout(
-            &checked,
+            &typed,
             &substituted_child_plan,
             outer.symbol,
         )
@@ -384,7 +381,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
         .type_descriptor = TypeLayoutDescriptor::Unit;
     assert!(
         project_conventional_record_with_nested_sum_record_materialization_layout(
-            &checked,
+            &typed,
             &substituted_outer_plan,
             outer.symbol,
         )
@@ -402,7 +399,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
         });
     assert!(
         project_conventional_record_with_nested_sum_record_materialization_layout(
-            &checked,
+            &typed,
             &repeated_outer_plan,
             outer.symbol,
         )
@@ -419,7 +416,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
         });
     assert!(
         project_conventional_record_with_nested_sum_record_materialization_layout(
-            &checked,
+            &typed,
             &repeated_inner_plan,
             outer.symbol,
         )
@@ -430,7 +427,7 @@ fn target_path_projects_and_replays_one_inner_record_with_complete_direct_sums()
 
 #[test]
 fn nested_record_path_projection_fences_competing_and_deeper_sum_shapes() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] { case Empty; case Number(value: u8); }
         data Inner [copy] { choice: Choice; }
@@ -443,7 +440,7 @@ fn nested_record_path_projection_fences_competing_and_deeper_sum_shapes() {
         data OuterArraySibling [copy] { inner: Inner; sibling: [Choice; 1]; }
         "#,
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     for name in [
         "DirectOuter",
         "TwoInner",
@@ -451,14 +448,14 @@ fn nested_record_path_projection_fences_competing_and_deeper_sum_shapes() {
         "DeeperChild",
         "OuterArraySibling",
     ] {
-        let definition = checked
+        let definition = typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
             .unwrap();
         assert!(
             project_conventional_record_with_nested_sum_record_materialization_layout(
-                &checked,
+                &typed,
                 &plan,
                 definition.symbol,
             )
@@ -467,14 +464,14 @@ fn nested_record_path_projection_fences_competing_and_deeper_sum_shapes() {
         );
     }
 
-    let outer = checked
+    let outer = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "ArrayInner")
         .unwrap();
     assert!(
         project_conventional_record_with_nested_sum_record_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             outer.symbol,
         )
@@ -484,7 +481,7 @@ fn nested_record_path_projection_fences_competing_and_deeper_sum_shapes() {
 
 #[test]
 fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_atomically() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u8); }
         data Inner [copy] {
@@ -501,14 +498,14 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
         }
         "#,
     );
-    let outer = checked
+    let outer = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .unwrap();
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let paths = project_conventional_record_with_nested_sum_records_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         outer.symbol,
     )
@@ -528,7 +525,7 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
     assert_eq!(paths.paths[1].child_sum_layouts.len(), 2);
     assert!(
         project_conventional_record_with_nested_sum_record_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             outer.symbol,
         )
@@ -583,7 +580,7 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
     };
     assert!(
         validate_const_materializable_record_with_nested_sum_record(
-            &checked,
+            &typed,
             "Outer",
             &singular_first,
             &value,
@@ -593,7 +590,7 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
         "the singular consumer must not discard the second qualifying occurrence"
     );
     let carrier = validate_const_materializable_record_with_nested_sum_records(
-        &checked,
+        &typed,
         "Outer",
         &paths,
         &value,
@@ -628,16 +625,16 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
         ]
     );
     carrier
-        .replay_against(&checked, "Outer", &paths, &value, ByteOrder::LittleEndian)
+        .replay_against(&typed, "Outer", &paths, &value, ByteOrder::LittleEndian)
         .expect("the complete plural path report should replay");
     let mut destination = [0xa5; 56];
     carrier
-        .apply(&checked, &mut destination)
+        .apply(&typed, &mut destination)
         .expect("all occurrences replay before one outer copy");
     assert_eq!(&destination[..52], carrier.bytes());
     assert_eq!(&destination[52..], &[0xa5; 4]);
     let mut short = [0x5a; 51];
-    assert!(carrier.apply(&checked, &mut short).is_err());
+    assert!(carrier.apply(&typed, &mut short).is_err());
     assert_eq!(short, [0x5a; 51]);
 
     let mut renamed = paths.clone();
@@ -648,13 +645,13 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
     renamed.paths[0].inner_layout.entries[0].field = "renamed_choice".into();
     renamed.paths[0].child_sum_layouts[0].field = "renamed_choice".into();
     carrier
-        .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
+        .replay_against(&typed, "Outer", &renamed, &value, ByteOrder::LittleEndian)
         .expect("stable-numbered outer and child names remain presentation-only");
 
     let rejects = |mutated: &layout_plans::ConventionalNestedRecordSumPathsLayoutReport| {
         assert!(
             carrier
-                .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian,)
+                .replay_against(&typed, "Outer", mutated, &value, ByteOrder::LittleEndian,)
                 .is_err()
         );
     };
@@ -707,7 +704,7 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
     rejects(&wrong_child_geometry);
     assert!(
         carrier
-            .replay_against(&checked, "Outer", &paths, &value, ByteOrder::BigEndian,)
+            .replay_against(&typed, "Outer", &paths, &value, ByteOrder::BigEndian,)
             .is_err()
     );
     let mut wrong_value = value.clone();
@@ -721,7 +718,7 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
     assert!(
         carrier
             .replay_against(
-                &checked,
+                &typed,
                 "Outer",
                 &paths,
                 &wrong_value,
@@ -733,7 +730,7 @@ fn plural_nested_record_paths_retain_complete_ordered_occurrences_and_replay_ato
 
 #[test]
 fn nested_record_path_keeps_erased_values_semantic_but_nonphysical() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] { case Empty; case Number(value: u8); }
         data Inner [copy] { choice: Choice; proof [erased]: u64; }
@@ -745,14 +742,14 @@ fn nested_record_path_keeps_erased_values_semantic_but_nonphysical() {
         }
         "#,
     );
-    let outer = checked
+    let outer = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .unwrap();
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let path = project_conventional_record_with_nested_sum_record_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         outer.symbol,
     )
@@ -786,7 +783,7 @@ fn nested_record_path_keeps_erased_values_semantic_but_nonphysical() {
         ],
     };
     let carrier = validate_const_materializable_record_with_nested_sum_record(
-        &checked,
+        &typed,
         "Outer",
         &path,
         &value,
@@ -805,7 +802,7 @@ fn nested_record_path_keeps_erased_values_semantic_but_nonphysical() {
     fields[2].1 = BuildTimeValue::Bool(true);
     assert!(
         validate_const_materializable_record_with_nested_sum_record(
-            &checked,
+            &typed,
             "Outer",
             &path,
             &malformed_erased,
@@ -818,7 +815,7 @@ fn nested_record_path_keeps_erased_values_semantic_but_nonphysical() {
 
 #[test]
 fn target_layout_projects_one_live_record_with_sum_materialization_pair() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] {
             case Empty;
@@ -831,14 +828,14 @@ fn target_layout_projects_one_live_record_with_sum_materialization_pair() {
         }
         "#,
     );
-    let definition = checked
+    let definition = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Envelope")
         .unwrap();
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let (outer, nested_rows) = project_conventional_record_with_sum_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         definition.symbol,
     )
@@ -869,7 +866,7 @@ fn target_layout_projects_one_live_record_with_sum_materialization_pair() {
         ],
     };
     let materialized = validate_const_materializable_record_with_conventional_sum(
-        &checked,
+        &typed,
         "Envelope",
         &outer,
         &nested_rows[0].layout,
@@ -887,7 +884,7 @@ fn target_layout_projects_one_live_record_with_sum_materialization_pair() {
 
 #[test]
 fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_fenced() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] { case Empty; case Number(value: u8); }
         data Multiple [copy] { first: Choice; second: Choice; }
@@ -907,18 +904,15 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         data MixedArray [copy] { mixed: [Mixed; 2]; }
         "#,
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let multiple = checked
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+    let multiple = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Multiple")
         .unwrap();
-    let (outer, nested_rows) = project_conventional_record_with_sum_materialization_layout(
-        &checked,
-        &plan,
-        multiple.symbol,
-    )
-    .expect("all direct runtime sum occurrences should project in authored order");
+    let (outer, nested_rows) =
+        project_conventional_record_with_sum_materialization_layout(&typed, &plan, multiple.symbol)
+            .expect("all direct runtime sum occurrences should project in authored order");
     assert_eq!(outer.offsets.as_deref(), Some(&[0, 8][..]));
     assert_eq!(
         nested_rows
@@ -931,13 +925,13 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
     assert_eq!(nested_rows[1].member_identity, None);
     assert_eq!(nested_rows[0].layout, nested_rows[1].layout);
 
-    let erased_also = checked
+    let erased_also = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "ErasedAlso")
         .unwrap();
     let (erased_outer, erased_rows) = project_conventional_record_with_sum_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         erased_also.symbol,
     )
@@ -951,14 +945,14 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         ["live"]
     );
 
-    let array_owner = checked
+    let array_owner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "ArrayOwner")
         .unwrap();
     let (array_outer, array_row) =
         project_conventional_record_with_sum_array_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             array_owner.symbol,
         )
@@ -970,14 +964,14 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
     assert_eq!(array_row.element_stride, array_row.element_layout.size);
     assert_eq!(array_row.element_stride, 8);
 
-    let two_array_owner = checked
+    let two_array_owner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "TwoArrayOwner")
         .unwrap();
     let (two_array_outer, two_array_rows) =
         project_conventional_record_with_sum_arrays_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             two_array_owner.symbol,
         )
@@ -1017,7 +1011,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         ],
     };
     let two_array_materialized = validate_const_materializable_record_with_conventional_sum_arrays(
-        &checked,
+        &typed,
         "TwoArrayOwner",
         &two_array_outer,
         &two_array_rows,
@@ -1049,7 +1043,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         });
     assert!(
         project_conventional_record_with_sum_arrays_materialization_layout(
-            &checked,
+            &typed,
             &repeated_second_array_plan,
             two_array_owner.symbol,
         )
@@ -1069,7 +1063,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         });
     let (packed_outer, packed_rows) =
         project_conventional_record_with_sum_arrays_materialization_layout(
-            &checked,
+            &typed,
             &packed_second_array_plan,
             two_array_owner.symbol,
         )
@@ -1103,7 +1097,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         SymbolHandle::invalid();
     assert!(
         project_conventional_record_with_sum_array_materialization_layout(
-            &checked,
+            &typed,
             &substituted_plan,
             array_owner.symbol,
         )
@@ -1111,20 +1105,20 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         "an inconsistent laid array element symbol must reject"
     );
 
-    let neighbor_owner = checked
+    let neighbor_owner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "ArrayWithNeighbor")
         .unwrap();
     let (neighbor_outer, neighbor_row) =
         project_conventional_record_with_sum_array_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             neighbor_owner.symbol,
         )
         .expect("the compact target report should preserve ordinary sibling fields");
     let materialized = validate_const_materializable_record_with_conventional_sum_array(
-        &checked,
+        &typed,
         "ArrayWithNeighbor",
         &neighbor_outer,
         &neighbor_row,
@@ -1181,7 +1175,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
             element_stride: 2,
         });
     let (repeated_outer, _) = project_conventional_record_with_sum_array_materialization_layout(
-        &checked,
+        &typed,
         &repeated_neighbor_plan,
         neighbor_owner.symbol,
     )
@@ -1220,7 +1214,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
             write_is_total: false,
         });
     let (integer_outer, _) = project_conventional_record_with_sum_array_materialization_layout(
-        &checked,
+        &typed,
         &integer_neighbor_plan,
         neighbor_owner.symbol,
     )
@@ -1267,7 +1261,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         ],
     });
     let (bits_outer, _) = project_conventional_record_with_sum_array_materialization_layout(
-        &checked,
+        &typed,
         &bits_neighbor_plan,
         neighbor_owner.symbol,
     )
@@ -1322,7 +1316,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         });
     assert!(
         project_conventional_record_with_sum_materialization_layout(
-            &checked,
+            &typed,
             &repeated_direct_plan,
             multiple.symbol,
         )
@@ -1336,14 +1330,14 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         "RecursiveOwner",
         "MixedOwner",
     ] {
-        let definition = checked
+        let definition = typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
             .unwrap();
         assert!(
             project_conventional_record_with_sum_array_materialization_layout(
-                &checked,
+                &typed,
                 &plan,
                 definition.symbol,
             )
@@ -1358,14 +1352,14 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
         "RecursiveOwner",
         "MixedOwner",
     ] {
-        let definition = checked
+        let definition = typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
             .unwrap();
         assert!(
             project_conventional_record_with_sum_arrays_materialization_layout(
-                &checked,
+                &typed,
                 &plan,
                 definition.symbol,
             )
@@ -1375,14 +1369,14 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
     }
 
     for name in ["ArrayOwner", "RecursiveOwner"] {
-        let definition = checked
+        let definition = typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
             .unwrap();
         assert!(
             project_conventional_record_with_sum_materialization_layout(
-                &checked,
+                &typed,
                 &plan,
                 definition.symbol,
             )
@@ -1393,13 +1387,13 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
 
     // A direct mixed member is one case-bearing child of the level: the same
     // compact row carries it, and its report spells the common fields.
-    let mixed_owner = checked
+    let mixed_owner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "MixedOwner")
         .unwrap();
     let (mixed_outer, mixed_rows) = project_conventional_record_with_sum_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         mixed_owner.symbol,
     )
@@ -1416,7 +1410,7 @@ fn target_layout_projects_every_direct_sum_occurrence_and_keeps_broader_shapes_f
 
 #[test]
 fn mixed_sum_array_elements_project_with_common_fields_beside_the_overlay() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Event [copy] {
             sequence: u8;
@@ -1426,14 +1420,14 @@ fn mixed_sum_array_elements_project_with_common_fields_beside_the_overlay() {
         data Log [copy] { events: [Event; 2]; }
         "#,
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let owner = checked
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+    let owner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Log")
         .unwrap();
     let (outer, row) = project_conventional_record_with_sum_array_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         owner.symbol,
     )
@@ -1479,7 +1473,7 @@ fn mixed_sum_array_elements_project_with_common_fields_beside_the_overlay() {
         )],
     };
     let materialized = validate_const_materializable_record_with_conventional_sum_array(
-        &checked,
+        &typed,
         "Log",
         &outer,
         &row,
@@ -1503,21 +1497,21 @@ fn closed_generic_instance_sum_array_projects_its_substituted_literal_length() {
     // synthesized `Log<2>` instance arrives with `Literal(2)` members and a
     // retained closed application origin, so the same compact sum-array row
     // carries it. The open template itself stays fenced.
-    let checked = checked_generic(
+    let typed = typed_generic_fixture(
         r#"
         data Event [copy] { case Idle; case Hit(code: u64); }
         data Log<const N: u64> [copy] { events: [Event; N]; }
         data Root [copy] { log: Log<2>; }
         "#,
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let template = checked
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+    let template = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Log")
         .expect("the open template");
     let error = project_conventional_record_with_sum_array_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         template.symbol,
     )
@@ -1527,13 +1521,13 @@ fn closed_generic_instance_sum_array_projects_its_substituted_literal_length() {
         "{error}"
     );
 
-    let instance = checked
+    let instance = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Log<2>")
         .expect("the synthesized closed instance");
     let (outer, row) = project_conventional_record_with_sum_array_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         instance.symbol,
     )
@@ -1583,7 +1577,7 @@ fn closed_generic_instance_sum_array_projects_its_substituted_literal_length() {
         )],
     };
     let materialized = validate_const_materializable_record_with_conventional_sum_array(
-        &checked,
+        &typed,
         "Log<2>",
         &outer,
         &row,

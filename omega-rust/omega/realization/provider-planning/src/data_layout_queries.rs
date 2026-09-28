@@ -21,32 +21,31 @@
 //! already rejected at lowering, where the operand was admitted as a data
 //! type.
 
-use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use language_core::data_layout_queries::DataLayoutQueryKind;
 use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
+use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 
-/// Fold every retained `size_of`/`align_of` query in the checked program to
+/// Fold every retained `size_of`/`align_of` query in the typed program to
 /// its `u64` literal under `target`. Also stamps the canonical `u64` encoding
 /// on a `const` whose materialized initializer root was the query node, so
 /// the folded declaration joins ordinary constant identity.
 pub fn fold_data_layout_queries(
-    program: &mut CheckedTrees,
+    program: &mut TypedTrees,
     target: target::NativeTarget,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
 ) -> Result<(), Vec<Diagnostic>> {
-    // The proof-only classification is computed over the same frozen program
-    // the checker used; a `size_of<Nat>` over recursive data must name the
+    // The proof-only classification is computed over the typed program;
+    // a `size_of<Nat>` over recursive data must name the
     // classification instead of reporting the layout builder's zero default.
-    let proof_only = validation::proof_only_classification(&program.typed);
+    let proof_only = validation::proof_only_classification(program);
     let queries: Vec<(
         typed_trees::expression::ExpressionHandle,
         typed_trees::expression::DataLayoutQueryRequest,
         source::SourceSpan,
     )> = program
-        .typed
         .expression_table
         .iter_expressions()
         .filter_map(|(handle, node)| match node {
@@ -54,7 +53,7 @@ pub fn fold_data_layout_queries(
                 (
                     handle,
                     query.clone(),
-                    program.typed.expression_table.source_span(handle),
+                    program.expression_table.source_span(handle),
                 )
             }),
             _ => None,
@@ -63,7 +62,7 @@ pub fn fold_data_layout_queries(
     for (handle, query, reference) in queries {
         let operand = query.operand.type_reference;
         let spelling = query.kind.target_name();
-        if let Some(held) = proof_only.proof_only_mention(&program.typed, operand) {
+        if let Some(held) = proof_only.proof_only_mention(program, operand) {
             return Err(vec![
                 Diagnostic::error(format!(
                     "`{spelling}` cannot measure a proof-only carrier: `{held}` has no runtime layout"
@@ -71,7 +70,7 @@ pub fn fold_data_layout_queries(
                 .with_source_span(reference),
             ]);
         }
-        reject_unresolved_layout_operands(&program.typed, operand)
+        reject_unresolved_layout_operands(program, operand)
             .map_err(|reason| vec![Diagnostic::error(reason).with_source_span(reference)])?;
         let layout = layout::layout_type_reference(
             program,
@@ -98,13 +97,12 @@ pub fn fold_data_layout_queries(
                 landed_type: LandedIntegerType::U64,
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
             });
-        *program.typed.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
+        *program.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
         // A `const N: u64 = size_of<T>()` declaration carries the query node
         // as its materialized root; folding the node in place materializes the
         // constant, so stamp the same canonical `u64` encoding the scalar
         // evaluator would have produced.
         program
-            .typed
             .tables
             .const_declarations
             .for_each_mut(|_, declaration| {
@@ -195,6 +193,7 @@ fn reject_unresolved_layout_operands(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use checked_trees::CheckedTrees;
     use numerics::arithmetic::ArithmeticDomain;
 
     fn typed_fixture(source: &str) -> typed_trees::TypedTrees {
@@ -267,7 +266,7 @@ mod tests {
         // runtime uses are eight retained occurrences.
         let handles = query_handles(&checked);
         assert_eq!(handles.len(), 8);
-        fold_data_layout_queries(&mut checked, target::NativeTarget::host(), &[])
+        fold_data_layout_queries(&mut checked.typed, target::NativeTarget::host(), &[])
             .expect("host fold");
         for handle in &handles {
             let (_, landing) = folded_value(&checked, *handle);
@@ -320,7 +319,7 @@ mod tests {
         .expect("reference query fixture checks");
         let handles = query_handles(&checked);
         assert_eq!(handles.len(), 2, "authored plus materialized copy");
-        fold_data_layout_queries(&mut checked, target::NativeTarget::host(), &[])
+        fold_data_layout_queries(&mut checked.typed, target::NativeTarget::host(), &[])
             .expect("host fold");
         for handle in handles {
             // A host reference is one pointer slot, not `Row`'s 16 bytes.
@@ -337,8 +336,9 @@ mod tests {
             "#,
         )
         .expect("proof-only fixture checks");
-        let diagnostics = fold_data_layout_queries(&mut checked, target::NativeTarget::host(), &[])
-            .expect_err("proof-only carrier must not fold");
+        let diagnostics =
+            fold_data_layout_queries(&mut checked.typed, target::NativeTarget::host(), &[])
+                .expect_err("proof-only carrier must not fold");
         assert!(
             diagnostics
                 .iter()

@@ -1,7 +1,7 @@
 //! Recursive record/sum projection and replay, including hostile geometry and custody.
 use super::{
     BuildTimeValue, ByteOrder, DataMember, DataShape, LayoutPlacementReport, NativeTarget,
-    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode, checked, checked_generic,
+    SymbolHandle, TypeLayoutDescriptor, TypeReferenceNode, typed_fixture, typed_generic_fixture,
     unique_data_layout,
 };
 use crate::project_conventional_record_with_recursive_nested_sums_materialization_layout;
@@ -22,7 +22,7 @@ use layout_plans::{
 #[cfg(target_pointer_width = "64")]
 fn recursive_empty_arrays_follow_inside_out_extent_arithmetic() {
     for element in ["Choice", "Cell"] {
-        let program = checked(&format!(
+        let program = typed_fixture(&format!(
             "data Choice [copy] {{ case Empty; case Number(value: u64); }}
              data Cell [copy] {{ choice: Choice; }}
              data Outer [copy] {{ empty: [[[{element}; 0]; 4294967296]; 4294967296]; }}"
@@ -47,7 +47,7 @@ fn recursive_empty_arrays_follow_inside_out_extent_arithmetic() {
             }
         ));
 
-        let overflowing = checked(&format!(
+        let overflowing = typed_fixture(&format!(
             "data Choice [copy] {{ case Empty; case Number(value: u64); }}
              data Cell [copy] {{ choice: Choice; }}
              data Outer [copy] {{ empty: [[[{element}; 4294967296]; 4294967296]; 0]; }}"
@@ -61,13 +61,13 @@ fn recursive_empty_arrays_follow_inside_out_extent_arithmetic() {
 
 #[test]
 fn recursive_empty_array_rows_reject_substituted_element_geometry() {
-    let checked = checked(
+    let typed = typed_fixture(
         "data Choice [copy] { case Empty; case Number(value: u64); }
          data Cell [copy] { choice: Choice; }
          data Outer [copy] { choices: [Choice; 0]; cells: [Cell; 0]; live: u64; }",
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let outer = checked
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+    let outer = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
@@ -79,7 +79,7 @@ fn recursive_empty_array_rows_reject_substituted_element_geometry() {
         panic!("Outer is a record");
     };
     project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         outer.symbol,
     )
@@ -108,7 +108,7 @@ fn recursive_empty_array_rows_reject_substituted_element_geometry() {
             }
             assert!(
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
-                    &checked,
+                    &typed,
                     &malformed,
                     outer.symbol,
                 )
@@ -212,15 +212,15 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
     // One edge, recursive composition, and the last admitted depth exercise
     // the general walker; the adjacent rejection boundary has its own test.
     for depth in [1, 2, 63] {
-        let checked = checked(&recursive_source(depth));
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-        let outer = checked
+        let typed = typed_fixture(&recursive_source(depth));
+        let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+        let outer = typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == "Outer")
             .unwrap();
         let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             outer.symbol,
         )
@@ -240,7 +240,7 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
             ],
         };
         let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-            &checked,
+            &typed,
             "Outer",
             &paths,
             &value,
@@ -278,7 +278,7 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
             "depth {depth}, including all padding"
         );
         let big = validate_const_materializable_record_with_recursive_nested_sums(
-            &checked,
+            &typed,
             "Outer",
             &paths,
             &value,
@@ -293,23 +293,23 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
             big.non_authoritative_materialization_report_fingerprint()
         );
         let mut destination = [0x5a; 36];
-        carrier.apply(&checked, &mut destination).unwrap();
+        carrier.apply(&typed, &mut destination).unwrap();
         assert_eq!(&destination[..32], carrier.bytes());
         assert_eq!(&destination[32..], &[0x5a; 4]);
         let mut short = [0x6b; 31];
-        assert!(carrier.apply(&checked, &mut short).is_err());
+        assert!(carrier.apply(&typed, &mut short).is_err());
         assert_eq!(short, [0x6b; 31]);
 
         let mut renamed = paths.clone();
         numbered_rename(&mut renamed);
         carrier
-            .replay_against(&checked, "Outer", &renamed, &value, ByteOrder::LittleEndian)
+            .replay_against(&typed, "Outer", &renamed, &value, ByteOrder::LittleEndian)
             .expect("numbered member spelling is presentation-only at every layer");
 
         let rejects = |mutated: &ConventionalRecursiveRecordSumPathsLayoutReport| {
             assert!(
                 carrier
-                    .replay_against(&checked, "Outer", mutated, &value, ByteOrder::LittleEndian)
+                    .replay_against(&typed, "Outer", mutated, &value, ByteOrder::LittleEndian)
                     .is_err(),
                 "depth {depth}: mutated report must reject"
             );
@@ -340,7 +340,7 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
                 if matches!(mutation, 0 | 1 | 2 | 6) {
                     assert!(
                         validate_const_materializable_record_with_recursive_nested_sums(
-                            &checked,
+                            &typed,
                             "Outer",
                             &changed,
                             &value,
@@ -390,7 +390,7 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
         rejects(&wrong_variant);
         assert!(
             carrier
-                .replay_against(&checked, "Outer", &paths, &value, ByteOrder::BigEndian)
+                .replay_against(&typed, "Outer", &paths, &value, ByteOrder::BigEndian)
                 .is_err()
         );
         for mutation in 0..3 {
@@ -409,7 +409,7 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
             assert!(
                 carrier
                     .replay_against(
-                        &checked,
+                        &typed,
                         "Outer",
                         &paths,
                         &changed_value,
@@ -424,10 +424,10 @@ fn recursive_depths_preserve_bytes_ordered_occurrences_and_atomic_replay() {
 #[test]
 fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
     for depth in [1, 2, 63] {
-        let checked = checked(&recursive_source(depth));
-        let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+        let typed = typed_fixture(&recursive_source(depth));
+        let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
         let definition = |name: &str| {
-            checked
+            typed
                 .data_definitions()
                 .iter()
                 .find(|definition| definition.name.as_str() == name)
@@ -435,7 +435,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
         };
         let outer = definition("Outer");
         let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             outer.symbol,
         )
@@ -448,7 +448,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
             ],
         };
         let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-            &checked,
+            &typed,
             "Outer",
             &paths,
             &value,
@@ -474,7 +474,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
         ] {
             let result =
                 project_conventional_record_with_recursive_nested_sums_materialization_layout(
-                    &checked,
+                    &typed,
                     &plan,
                     definition(name).symbol,
                 );
@@ -543,7 +543,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                 }
                 assert!(
                     project_conventional_record_with_recursive_nested_sums_materialization_layout(
-                        &checked,
+                        &typed,
                         &changed_plan,
                         outer.symbol,
                     )
@@ -551,7 +551,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                     "depth {depth}, {owner_name}, mutation {mutation}"
                 );
             }
-            let field_type = checked
+            let field_type = typed
                 .data_members(owner)
                 .iter()
                 .find_map(|member| match member {
@@ -560,8 +560,8 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                 })
                 .unwrap();
             for malformed in [false, true] {
-                let mut changed_checked = checked.clone();
-                changed_checked.typed.type_reference_table.substitute_node(
+                let mut changed_typed = typed.clone();
+                changed_typed.type_reference_table.substitute_node(
                     field_type,
                     TypeReferenceNode::Named {
                         symbol: if malformed {
@@ -574,7 +574,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                 );
                 assert!(
                     project_conventional_record_with_recursive_nested_sums_materialization_layout(
-                        &changed_checked,
+                        &changed_typed,
                         &plan,
                         outer.symbol,
                     )
@@ -583,7 +583,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                 );
                 assert!(
                     validate_const_materializable_record_with_recursive_nested_sums(
-                        &changed_checked,
+                        &changed_typed,
                         "Outer",
                         &paths,
                         &value,
@@ -592,7 +592,7 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
                     .is_err()
                 );
                 let mut destination = [0x5a; 36];
-                assert!(carrier.apply(&changed_checked, &mut destination).is_err());
+                assert!(carrier.apply(&changed_typed, &mut destination).is_err());
                 assert_eq!(
                     destination, [0x5a; 36],
                     "failed typed replay must not mutate"
@@ -604,15 +604,15 @@ fn recursive_projection_rejects_semantic_and_placement_drift_at_every_layer() {
 
 #[test]
 fn recursive_projection_reports_its_resource_depth_limit() {
-    let checked = checked(&recursive_source(64));
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let outer = checked
+    let typed = typed_fixture(&recursive_source(64));
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+    let outer = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Outer")
         .unwrap();
     let error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         outer.symbol,
     )
@@ -622,7 +622,7 @@ fn recursive_projection_reports_its_resource_depth_limit() {
 
 #[test]
 fn recursive_scalar_siblings_preserve_exact_padding_and_bytes() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u16); }
         data Leaf [copy] {
@@ -647,9 +647,9 @@ fn recursive_scalar_siblings_preserve_exact_padding_and_bytes() {
         data OuterArray [copy] { middle: Middle; choices: [Choice; 1]; }
         "#,
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let definition = |name: &str| {
-        checked
+        typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
@@ -657,7 +657,7 @@ fn recursive_scalar_siblings_preserve_exact_padding_and_bytes() {
     };
     let outer = definition("Outer");
     let path = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         outer.symbol,
     )
@@ -701,7 +701,7 @@ fn recursive_scalar_siblings_preserve_exact_padding_and_bytes() {
         ],
     };
     let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "Outer",
         &path,
         &value,
@@ -718,12 +718,12 @@ fn recursive_scalar_siblings_preserve_exact_padding_and_bytes() {
 
     let mut destination = [0x5a; 48];
     carrier
-        .apply(&checked, &mut destination)
+        .apply(&typed, &mut destination)
         .expect("the complete outer image should copy atomically");
     assert_eq!(&destination[..44], carrier.bytes());
     assert_eq!(&destination[44..], &[0x5a; 4]);
     let mut short = [0x6b; 43];
-    assert!(carrier.apply(&checked, &mut short).is_err());
+    assert!(carrier.apply(&typed, &mut short).is_err());
     assert_eq!(short, [0x6b; 43]);
 }
 
@@ -733,15 +733,15 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
     // direct sum beside it, `BothBranch` carries all three child kinds, and
     // `InnerArray` reaches `Arrays` one record edge down. The same level rule
     // admits every one of them.
-    let checked = checked(
+    let typed = typed_fixture(
         &(recursive_source(2)
             + "data PickLeaf [copy] { #1 picks: [Choice; 2]; #2 tail: u16; }
                data BothLeaf [copy] { #1 choice: Choice; #2 picks: [Choice; 2]; }
                data BothBranch [copy] { #1 inner: Layer1; #2 choice: Choice; #3 picks: [Choice; 2]; }"),
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let definition = |name: &str| {
-        checked
+        typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
@@ -758,7 +758,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
 
     // Leaf level: one compact array row, no direct sum, no record path.
     let pick_paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         definition("PickLeaf").symbol,
     )
@@ -793,7 +793,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
         ],
     };
     let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "PickLeaf",
         &pick_paths,
         &pick_value,
@@ -823,17 +823,17 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
     // The leaf level's own `apply` replays its retained array rows before the
     // one atomic copy.
     let mut leaf_destination = [0x5a; 24];
-    carrier.apply(&checked, &mut leaf_destination).unwrap();
+    carrier.apply(&typed, &mut leaf_destination).unwrap();
     assert_eq!(&leaf_destination[..20], carrier.bytes());
     assert_eq!(&leaf_destination[20..], &[0x5a; 4]);
     let mut leaf_short = [0x6b; 19];
-    assert!(carrier.apply(&checked, &mut leaf_short).is_err());
+    assert!(carrier.apply(&typed, &mut leaf_short).is_err());
     assert_eq!(leaf_short, [0x6b; 19]);
 
     // Leaf level: a direct sum and a direct sum array coexist.
     let both_leaf_paths =
         project_conventional_record_with_recursive_nested_sums_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             definition("BothLeaf").symbol,
         )
@@ -865,7 +865,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
     // Branch level: the deeper record path, the level's own direct sum, and
     // its sum array all retain authored-order rows on one report.
     let both_paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         definition("BothBranch").symbol,
     )
@@ -919,7 +919,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
         ],
     };
     let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "BothBranch",
         &both_paths,
         &both_value,
@@ -953,7 +953,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
         ]
     );
     let mut destination = [0x5a; 44];
-    carrier.apply(&checked, &mut destination).unwrap();
+    carrier.apply(&typed, &mut destination).unwrap();
     assert_eq!(&destination[..40], carrier.bytes());
     assert_eq!(&destination[40..], &[0x5a; 4]);
 
@@ -961,7 +961,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
     // path, and `InnerArray` reaches `Arrays` one edge further down.
     let arrays_paths =
         project_conventional_record_with_recursive_nested_sums_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             definition("Arrays").symbol,
         )
@@ -994,7 +994,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
         ],
     };
     let arrays_carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "Arrays",
         &arrays_paths,
         &arrays_value,
@@ -1011,7 +1011,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
     );
     let inner_paths =
         project_conventional_record_with_recursive_nested_sums_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             definition("InnerArray").symbol,
         )
@@ -1021,7 +1021,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
         fields: vec![("child".into(), arrays_value.clone())],
     };
     let inner_carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "InnerArray",
         &inner_paths,
         &inner_value,
@@ -1036,7 +1036,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
         assert!(
             carrier
                 .replay_against(
-                    &checked,
+                    &typed,
                     "BothBranch",
                     mutated,
                     &both_value,
@@ -1047,7 +1047,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
         );
         assert!(
             validate_const_materializable_record_with_recursive_nested_sums(
-                &checked,
+                &typed,
                 "BothBranch",
                 mutated,
                 &both_value,
@@ -1095,7 +1095,7 @@ fn recursive_sum_arrays_compose_beside_direct_sums_and_deeper_paths() {
     numbered_rename(&mut renamed);
     carrier
         .replay_against(
-            &checked,
+            &typed,
             "BothBranch",
             &renamed,
             &both_value,
@@ -1112,13 +1112,13 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
     // general level rule admits every one of them: each row retains the
     // literal count and stride plus the element record's shared recursive
     // report, and every index carries its own recursive custody.
-    let checked = checked(
+    let typed = typed_fixture(
         &(recursive_source(2)
             + "data NeighborLeaf [copy] { #1 neighbors: [Layer0; 2]; #2 tail: u16; }"),
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let definition = |name: &str| {
-        checked
+        typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
@@ -1140,7 +1140,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
     // Leaf level: one compact record-array row, no direct sum, no record
     // path — a record ending on `[R; N]` alone still ends the recursion.
     let leaf_paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         definition("NeighborLeaf").symbol,
     )
@@ -1188,7 +1188,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
         ],
     };
     let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "NeighborLeaf",
         &leaf_paths,
         &leaf_value,
@@ -1219,18 +1219,18 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
     // The leaf level's own `apply` replays its retained record-array rows
     // before the one atomic copy.
     let mut leaf_destination = [0x5a; 40];
-    carrier.apply(&checked, &mut leaf_destination).unwrap();
+    carrier.apply(&typed, &mut leaf_destination).unwrap();
     assert_eq!(&leaf_destination[..36], carrier.bytes());
     assert_eq!(&leaf_destination[36..], &[0x5a; 4]);
     let mut leaf_short = [0x6b; 35];
-    assert!(carrier.apply(&checked, &mut leaf_short).is_err());
+    assert!(carrier.apply(&typed, &mut leaf_short).is_err());
     assert_eq!(leaf_short, [0x6b; 35]);
 
     // Branch level: the deeper record path and the record array retain
     // authored-order rows on one report.
     let record_paths =
         project_conventional_record_with_recursive_nested_sums_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             definition("RecordArrays").symbol,
         )
@@ -1268,7 +1268,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
         ],
     };
     let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "RecordArrays",
         &record_paths,
         &record_value,
@@ -1299,14 +1299,14 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
         ]
     );
     let mut destination = [0x5a; 36];
-    carrier.apply(&checked, &mut destination).unwrap();
+    carrier.apply(&typed, &mut destination).unwrap();
     assert_eq!(&destination[..32], carrier.bytes());
     assert_eq!(&destination[32..], &[0x5a; 4]);
 
     // `InnerRecordArrays` reaches the record-array level one edge deeper.
     let inner_paths =
         project_conventional_record_with_recursive_nested_sums_materialization_layout(
-            &checked,
+            &typed,
             &plan,
             definition("InnerRecordArrays").symbol,
         )
@@ -1316,7 +1316,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
         fields: vec![("child".into(), record_value.clone())],
     };
     let inner_carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "InnerRecordArrays",
         &inner_paths,
         &inner_value,
@@ -1332,7 +1332,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
         assert!(
             carrier
                 .replay_against(
-                    &checked,
+                    &typed,
                     "RecordArrays",
                     mutated,
                     &record_value,
@@ -1343,7 +1343,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
         );
         assert!(
             validate_const_materializable_record_with_recursive_nested_sums(
-                &checked,
+                &typed,
                 "RecordArrays",
                 mutated,
                 &record_value,
@@ -1413,7 +1413,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
         }
         assert!(
             validate_const_materializable_record_with_recursive_nested_sums(
-                &checked,
+                &typed,
                 "RecordArrays",
                 &record_paths,
                 &changed_value,
@@ -1430,7 +1430,7 @@ fn recursive_record_arrays_compose_beside_direct_sums_and_deeper_paths() {
     numbered_rename(&mut renamed);
     carrier
         .replay_against(
-            &checked,
+            &typed,
             "RecordArrays",
             &renamed,
             &record_value,
@@ -1448,22 +1448,22 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
     // `[[Layer0; 2]; 2]` flattens the same way with the record element's own
     // leaf report retained once beside the packed row. Zero-length hops
     // retain their element geometry; per-level value arity must still agree.
-    let checked = checked(
+    let typed = typed_fixture(
         "data Choice [copy] { case #1 Empty; case #2 Number(#1 value: u16); }
          data Layer0 [copy] { #1 first: Choice; #2 second: Choice; }
          data Packed [copy] { #1 head: u16; #2 matrix: [[Choice; 2]; 3]; #3 rows: [[Layer0; 2]; 2]; #4 tail: Choice; }
          data ZeroNested [copy] { #1 dead: [[Choice; 0]; 2]; }",
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let definition = |name: &str| {
-        checked
+        typed
             .data_definitions()
             .iter()
             .find(|definition| definition.name.as_str() == name)
             .unwrap()
     };
     let zero = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         definition("ZeroNested").symbol,
     )
@@ -1478,7 +1478,7 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
     ));
 
     let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         definition("Packed").symbol,
     )
@@ -1575,7 +1575,7 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
         ],
     };
     let carrier = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "Packed",
         &paths,
         &value,
@@ -1633,7 +1633,7 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
     expected[120..122].copy_from_slice(&0xddee_u16.to_le_bytes());
     assert_eq!(carrier.bytes(), &expected);
     let mut destination = [0x5a; 128];
-    carrier.apply(&checked, &mut destination).unwrap();
+    carrier.apply(&typed, &mut destination).unwrap();
     assert_eq!(&destination[..124], carrier.bytes());
     assert_eq!(&destination[124..], &[0x5a; 4]);
 
@@ -1675,7 +1675,7 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
         }
         assert!(
             validate_const_materializable_record_with_recursive_nested_sums(
-                &checked,
+                &typed,
                 "Packed",
                 &paths,
                 &changed_value,
@@ -1689,26 +1689,26 @@ fn recursive_nested_literal_arrays_flatten_into_packed_rows() {
 
 #[test]
 fn symbolic_length_spelling_fences_the_owner_until_checking_substitutes_it() {
-    // The crate-local `checked()` path skips the orchestration const-eval
+    // The crate-local `typed_fixture()` path skips the orchestration const-eval
     // pass, so a machine-call array length stays `ConstCall` here — exactly
     // the shape the non-literal-length fence exists for. On the connected
     // pipeline the same program arrives already substituted (the compiler
     // test spells `Neighbor<two()>` into the closed `Neighbor<2>` instance).
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         machine two() -> u64 { 2 }
         data Choice [copy] { case Empty; case Number(value: u8); }
         data CallLen [copy] { items: [Choice; two()]; }
         "#,
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let owner = checked
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+    let owner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "CallLen")
         .unwrap();
     let error = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         owner.symbol,
     )
@@ -1728,19 +1728,19 @@ fn recursive_record_path_carries_a_closed_generic_instance_interior() {
     // synthesized record whose substituted members are already literal. The
     // record path retains the instance's leaf level — count, stride, and
     // element interior — once, exactly as a directly-authored literal array.
-    let checked = checked_generic(
+    let typed = typed_generic_fixture(
         "data Event [copy] { case Idle; case Hit(code: u64); }
          data Log<const N: u64> [copy] { events: [Event; N]; }
          data Root [copy] { log: Log<2>; marker: u64; }",
     );
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
-    let owner = checked
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
+    let owner = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Root")
         .unwrap();
     let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         owner.symbol,
     )
@@ -1803,7 +1803,7 @@ fn recursive_record_path_carries_a_closed_generic_instance_interior() {
         ],
     };
     let custody = validate_const_materializable_record_with_recursive_nested_sums(
-        &checked,
+        &typed,
         "Root",
         &paths,
         &value,
@@ -1820,7 +1820,7 @@ fn recursive_record_path_carries_a_closed_generic_instance_interior() {
 
     let mut destination = [0xa5_u8; 40];
     custody
-        .apply(&checked, &mut destination)
+        .apply(&typed, &mut destination)
         .expect("retained custody replays into a destination");
     assert_eq!(destination.as_slice(), custody.bytes());
 }
@@ -1830,26 +1830,26 @@ fn non_closed_member_applications_stay_fenced_under_the_recursive_owner() {
     // The sibling shape of the open-template pin: a member typed by a
     // non-closed generic application (`Log<two()>` — `two()` never
     // substitutes because the crate-local check path skips orchestration
-    // const-eval) names no closed checked identity, so no `Log<two()>`
+    // const-eval) names no closed typed identity, so no `Log<two()>`
     // definition exists for a carrier to describe. The member joins the
     // ordinary fields and a symbolic path into it finds no inner layout.
     // On the connected pipeline the same spelling either substitutes to a
     // closed instance (`Log<2>`) or rejects at synthesis, so the residual
     // fence covers exactly this unapplied remainder.
-    let checked = checked(
+    let typed = typed_fixture(
         "machine two() -> u64 { 2 }
          data Event [copy] { case Idle; case Hit(code: u64); }
          data Log<const N: u64> [copy] { events: [Event; N]; }
          data Root [copy] { log: Log<two()>; direct: Event; marker: u64; }",
     );
-    let root = checked
+    let root = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Root")
         .unwrap();
     // Witness the non-closed spelling surviving as an unapplied `Generic`
     // member: no synthesized `Log<two()>` definition exists.
-    let TypeReferenceNode::Generic { .. } = checked
+    let TypeReferenceNode::Generic { .. } = typed
         .data_members(root)
         .iter()
         .filter_map(|member| match member {
@@ -1858,7 +1858,7 @@ fn non_closed_member_applications_stay_fenced_under_the_recursive_owner() {
         })
         .find(|field| field.name.as_str() == "log")
         .map(|field| {
-            checked
+            typed
                 .type_reference_table
                 .type_reference(field.type_reference)
         })
@@ -1867,23 +1867,23 @@ fn non_closed_member_applications_stay_fenced_under_the_recursive_owner() {
         panic!("the non-closed member stays an unapplied `Generic` reference")
     };
     assert!(
-        checked
+        typed
             .data_definitions()
             .iter()
             .all(|definition| definition.name.as_str() != "Log<two()>"),
         "no closed instance exists for the non-closed member"
     );
 
-    let plan = crate::build_layout_plan(&checked, NativeTarget::host(), &[]).unwrap();
+    let plan = crate::build_layout_plan(&typed, NativeTarget::host(), &[]).unwrap();
     let paths = project_conventional_record_with_recursive_nested_sums_materialization_layout(
-        &checked,
+        &typed,
         &plan,
         root.symbol,
     )
     .expect("an ordinary sibling field still projects the record");
     // `direct` is the level's one sum child; `log` transcribes only its
     // outer placement entries — the fence's boundary for a member no closed
-    // checked identity can name.
+    // typed identity can name.
     let [direct_row] = paths.children.as_slice() else {
         panic!("the authored sum field is the level's one child")
     };

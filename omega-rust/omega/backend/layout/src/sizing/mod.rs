@@ -1,7 +1,7 @@
 use crate::TypeLayout;
-use checked_trees::types::PrimitiveType;
 use runtime_abi::build_runtime_abi_plan;
 use target::NativeTarget;
+use typed_trees::types::PrimitiveType;
 
 /// Canonical fat-descriptor layout (`{ptr, len}`) for slices and text windows.
 ///

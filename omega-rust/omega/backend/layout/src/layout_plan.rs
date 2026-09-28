@@ -1,15 +1,15 @@
 //! The layout-plan vocabulary: `LayoutPlan` and the descriptors, field
 //! layouts, shapes, and target-closed callback demands it carries.
 //!
-//! `builder.rs` produces a `LayoutPlan` from a checked type reference;
+//! `builder.rs` produces a `LayoutPlan` from typed declarations;
 //! `field_paths`, `packing`, `sizing`, and `sum_materialization` read or
 //! project these types. Layout never authorizes an access; it only fixes
 //! where a value's bytes live.
 
 use arena::{Arena, HandleSpan};
-use checked_trees::name::Identifier;
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use typed_trees::name::Identifier;
 
 /// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
 /// data value. Comparing an enum value against a case constant compares ONLY

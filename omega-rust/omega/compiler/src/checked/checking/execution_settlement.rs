@@ -144,20 +144,15 @@ pub(crate) fn check_selected_execution(
     // requests; only this realization's selected target can answer them. Fold
     // every query to an ordinary `u64` literal before checked-tree
     // construction so statement, scalar, and unit-plan building see the
-    // settled constant rather than a call without a callee. The layout
-    // authority reads only the typed program, so staging it in a
-    // `CheckedTrees` with an empty fact table supplies the same data the
-    // checker will own. The same target custody the rest of this settlement
-    // uses applies: the native target the build selected, or the host for a
-    // targetless shared product.
-    let mut layout_staging =
-        checked_trees::CheckedTrees::with_roots(typed, checked_trees::CheckFacts::default());
+    // settled constant rather than a call without a callee. Layout consumes
+    // the typed program directly, under the same target custody as the rest
+    // of settlement: the selected native target, or the host for a targetless
+    // shared product.
     provider_planning::data_layout_queries::fold_data_layout_queries(
-        &mut layout_staging,
+        &mut typed,
         provider_selection_target,
         opaque_representation_selections,
     )?;
-    let mut typed = layout_staging.typed;
     let const_evaluation = SelectedConstantEvaluation::evaluate_pending(
         &mut typed,
         &selected_provider_plan_facts,

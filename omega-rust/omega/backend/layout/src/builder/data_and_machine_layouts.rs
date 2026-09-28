@@ -13,9 +13,9 @@ use crate::{
     StoredIntegerLayout, TargetClosedPlanLaidDataLayoutIdentity, TypeLayout, VariantLayout,
 };
 use calling_conventions::{callback_layout_plan_id, callback_plan_laid_layout_id};
-use checked_trees::data::{DataDefinition, DataMember, DataShapeKind};
-use checked_trees::machine::Machine;
 use diagnostics::Diagnostic;
+use typed_trees::data::{DataDefinition, DataMember, DataShapeKind};
+use typed_trees::machine::Machine;
 
 impl<'program> LayoutBuilder<'program> {
     pub(crate) fn compute_data_layout(
@@ -209,7 +209,6 @@ impl<'program> LayoutBuilder<'program> {
                 .or_else(|| {
                     let mut retained = self
                         .program
-                        .typed
                         .plan_laid_layouts
                         .iter()
                         .filter(|candidate| candidate.policy_symbol == plan.policy_symbol)

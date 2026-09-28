@@ -2,19 +2,18 @@
 
 use super::build_layout_plan;
 use crate::{DataShape, FieldLayout, TypeLayout};
-use checked_trees::{CheckFacts, CheckedTrees};
 use source_files_to_tokens::Lexer;
 use symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use syntax_trees_to_symbol_resolved_trees::{ResolutionRequest, resolve};
 use target::NativeTarget;
 use tokens_to_syntax_trees::parse_syntax_trees;
+use typed_trees::TypedTrees;
 
-fn checked(source: &str) -> CheckedTrees {
+fn typed_fixture(source: &str) -> TypedTrees {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
     let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
-    CheckedTrees::with_roots(typed, CheckFacts::default())
+    lower_symbol_resolved_trees(&resolved).expect("type")
 }
 
 fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees::PlanLaidLayout {
@@ -73,7 +72,7 @@ fn private_callback_layout(offset: u64, size: usize) -> typed_trees::typed_trees
 fn private_callback_fields() -> [FieldLayout; 1] {
     [FieldLayout {
         symbol: symbols::SymbolHandle::from_arena_index(2),
-        name: checked_trees::name::Identifier::from("payload"),
+        name: typed_trees::name::Identifier::from("payload"),
         offset: 0,
         layout: TypeLayout {
             size: 8,
@@ -236,7 +235,7 @@ fn target_closes_private_callback_geometry_and_rejects_exact_mutations() {
 
 #[test]
 fn attached_machine_layout_excludes_erased_record_fields() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Packed {
             head: u8;
@@ -247,7 +246,7 @@ fn attached_machine_layout_excludes_erased_record_fields() {
         "#,
     );
 
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    let plan = build_layout_plan(&typed, NativeTarget::host(), &[]).expect("layout");
     let data = plan
         .data_layouts
         .iter()
@@ -276,7 +275,7 @@ fn attached_machine_layout_excludes_erased_record_fields() {
 
 #[test]
 fn pure_sum_layout_excludes_erased_payloads_without_changing_variants() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Message {
             case Empty;
@@ -285,7 +284,7 @@ fn pure_sum_layout_excludes_erased_payloads_without_changing_variants() {
         }
         "#,
     );
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    let plan = build_layout_plan(&typed, NativeTarget::host(), &[]).expect("layout");
     let message = plan
         .data_layouts
         .iter()
@@ -327,7 +326,7 @@ fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
     // The witnessed defect: `Capacity` bound to `u64::MAX` gives `storage` a
     // full-width extent, so aligning the following `length` field wraps. The
     // layout must reject the placement through its diagnostic vocabulary.
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data TinyBytes<Length, const Capacity: u64> {
             storage: [u8; Capacity];
@@ -339,7 +338,7 @@ fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
         "#,
     );
 
-    let error = build_layout_plan(&checked, NativeTarget::host(), &[])
+    let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a full-width capacity cannot place the trailing length field");
     assert!(
         error.message.contains("overflows the addressable size")
@@ -353,7 +352,7 @@ fn full_width_generic_capacity_rejects_placement_instead_of_panicking() {
 fn full_width_case_payload_rejects_placement_instead_of_panicking() {
     // The payload overlay starts after the 4-byte tag, so a full-width array
     // payload ends past the addressable size.
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Slab<const Capacity: u64> {
             case Empty;
@@ -365,7 +364,7 @@ fn full_width_case_payload_rejects_placement_instead_of_panicking() {
         "#,
     );
 
-    let error = build_layout_plan(&checked, NativeTarget::host(), &[])
+    let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a full-width payload cannot end within the addressable size");
     assert!(
         error.message.contains("overflows the addressable size")
@@ -380,7 +379,7 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
     // `2^61 - 1` eight-byte elements occupy `usize::MAX - 7` bytes; the
     // trailing byte then ends at `usize::MAX - 6`, and rounding the record
     // extent up to its 8-byte alignment wraps.
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Wide {
             words: [u64; 2305843009213693951];
@@ -389,7 +388,7 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
         "#,
     );
 
-    let error = build_layout_plan(&checked, NativeTarget::host(), &[])
+    let error = build_layout_plan(&typed, NativeTarget::host(), &[])
         .expect_err("a record extent past usize::MAX must be rejected");
     assert!(
         error.message.contains("overflows the addressable size")
@@ -401,7 +400,7 @@ fn literal_array_extent_that_wraps_the_record_end_is_rejected() {
 
 #[test]
 fn quotient_over_proof_only_carrier_stays_proof_only() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Infinite {
             next: Infinite;
@@ -411,7 +410,7 @@ fn quotient_over_proof_only_carrier_stays_proof_only() {
         "#,
     );
 
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    let plan = build_layout_plan(&typed, NativeTarget::host(), &[]).expect("layout");
     assert!(
         plan.data_layouts
             .iter()
@@ -420,23 +419,22 @@ fn quotient_over_proof_only_carrier_stays_proof_only() {
         "a quotient whose carrier has no layout stays proof-only"
     );
 
-    let quotient_symbol = checked
-        .typed
+    let quotient_symbol = typed
         .data_definitions()
         .iter()
         .find(|definition| definition.name.as_str() == "Quotient")
         .expect("Quotient definition")
         .symbol;
-    let classification = checked_trees::proof_only::classify(&checked.typed);
+    let classification = typed_trees::proof_only::classify(&typed);
     assert!(matches!(
         classification.reason(quotient_symbol),
-        Some(checked_trees::proof_only::ProofOnlyReason::Quotient { .. })
+        Some(typed_trees::proof_only::ProofOnlyReason::Quotient { .. })
     ));
 }
 
 #[test]
 fn quotient_of_quotient_realizes_through_the_root_carrier() {
-    let checked = checked(
+    let typed = typed_fixture(
         r#"
         data Carrier {
             value: u64;
@@ -449,7 +447,7 @@ fn quotient_of_quotient_realizes_through_the_root_carrier() {
         "#,
     );
 
-    let plan = build_layout_plan(&checked, NativeTarget::host(), &[]).expect("layout");
+    let plan = build_layout_plan(&typed, NativeTarget::host(), &[]).expect("layout");
     let carrier = plan
         .data_layouts
         .iter()

@@ -1,12 +1,12 @@
 //! Plan-laid semantic ranges and the canonical plan-laid data identity.
 
 use crate::FieldLayout;
-use checked_trees::CheckedTrees;
-use checked_trees::data::DataDefinition;
 use diagnostics::Diagnostic;
+use typed_trees::TypedTrees;
+use typed_trees::data::DataDefinition;
 
 pub(crate) fn canonical_plan_laid_data_identity(
-    program: &CheckedTrees,
+    program: &TypedTrees,
     plan: &typed_trees::typed_trees::PlanLaidLayout,
     definition: &DataDefinition,
     canonical_layout_subject: &str,
