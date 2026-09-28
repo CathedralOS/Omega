@@ -57,8 +57,8 @@ fn validate_call(
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let signature = CallSignature {
         parameters: vec![
-            ValueShape::integer(pointer_size, pointer_alignment),
-            ValueShape::integer(pointer_size, pointer_alignment),
+            ValueShape::integer(u32::from(pointer_size), pointer_alignment),
+            ValueShape::integer(u32::from(pointer_size), pointer_alignment),
         ],
         result: result_shape,
     };
@@ -174,7 +174,7 @@ fn scalar_shape(scalar_type: semantic_vocabulary::ScalarType) -> ValueShape {
     match scalar_type {
         semantic_vocabulary::ScalarType::Boolean => ValueShape::integer(1, 1),
         semantic_vocabulary::ScalarType::Integer(integer) => ValueShape::integer(
-            integer.bits().div_ceil(8),
+            u32::from(integer.bits().div_ceil(8)),
             integer.bits().div_ceil(8).next_power_of_two().min(8),
         ),
         semantic_vocabulary::ScalarType::IeeeFloat(

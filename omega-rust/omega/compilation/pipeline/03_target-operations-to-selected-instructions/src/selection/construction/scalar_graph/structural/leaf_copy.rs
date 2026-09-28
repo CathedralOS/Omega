@@ -57,10 +57,10 @@ pub(super) fn copy(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: u32::from(shape.byte_size),
+            byte_size: shape.byte_size,
             alignment: shape.alignment,
         });
-    let pointer = local_storage::address(builder, row, slot, 0, u32::from(shape.byte_size), true)?;
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
     // An owned parameter can reach a leaf copy without addressable storage —
     // its payload lives in ABI fragments rather than behind a pointer.
     let Some(input) = input else {
@@ -102,7 +102,7 @@ pub(super) fn copy(
             byte_offset: 0,
             elements: &[],
         },
-        u32::from(shape.byte_size),
+        shape.byte_size,
     )?;
     builder.transport.pointers.push((result.place, pointer));
     Ok(())
@@ -201,7 +201,7 @@ pub(super) fn reseat(
             elements: &[],
         },
         destination,
-        u32::from(shape.byte_size),
+        shape.byte_size,
     )
 }
 
@@ -360,7 +360,7 @@ fn copy_from_fragments(
         return Err(invalid());
     }
     let leaf_end = byte_offset
-        .checked_add(u32::from(shape.byte_size))
+        .checked_add(shape.byte_size)
         .ok_or_else(|| invalid())?;
     for location in &parameter.target.placement.locations {
         let (fragment_offset, width) = match location {
@@ -373,11 +373,11 @@ fn copy_from_fragments(
                 value_byte_offset,
                 byte_size,
                 ..
-            } => (u32::from(*value_byte_offset), *byte_size),
+            } => ((*value_byte_offset), *byte_size),
             _ => return Err(invalid()),
         };
         let fragment_end = fragment_offset
-            .checked_add(u32::from(width))
+            .checked_add(width)
             .ok_or_else(|| invalid())?;
         if fragment_end <= byte_offset || fragment_offset >= leaf_end {
             continue;
@@ -402,14 +402,14 @@ fn copy_from_fragments(
             destination.place,
             destination.pointer,
             offset,
-            u32::from(width),
+            width,
         )?;
         super::runtime_address::footprint(
             builder,
             row,
             destination.place,
             offset,
-            u32::from(width),
+            width,
             destination.elements,
             super::runtime_address::Written::Structural,
         )?;

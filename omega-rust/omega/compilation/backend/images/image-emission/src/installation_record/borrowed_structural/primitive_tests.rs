@@ -7,7 +7,7 @@ use terminal_psi::{StructuralAccess, StructuralPathSegment};
 #[test]
 fn primitive_local_installation_keeps_exact_referent_extent_and_borrowed_access() {
     for size in [1, 2, 4, 8] {
-        let shape = ValueShape::borrowed_reference(size, size);
+        let shape = ValueShape::borrowed_reference(u32::from(size), size);
         let plan = evaluate_call_plan(
             CallingPolicy::native_for_target(target::NativeTarget::linux_x64()),
             &CallSignature {
@@ -48,7 +48,7 @@ fn primitive_local_installation_keeps_exact_referent_extent_and_borrowed_access(
             let mut changed = argument.clone();
             match mutation {
                 0 => changed.access = StructuralAccess::Owned,
-                1 => changed.shape = ValueShape::integer(size, size),
+                1 => changed.shape = ValueShape::integer(u32::from(size), size),
                 2 => changed.source_byte_offset = 1,
                 3 => changed.path.push(StructuralPathSegment::FixedIndex(0)),
                 4 => {

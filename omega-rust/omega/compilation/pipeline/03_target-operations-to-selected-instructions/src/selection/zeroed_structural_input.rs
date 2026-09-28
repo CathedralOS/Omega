@@ -123,7 +123,7 @@ pub(super) fn storage<'a>(
                     return None;
                 }
                 (
-                    base.checked_add(u32::from(layout.tag_byte_offset))?,
+                    base.checked_add(layout.tag_byte_offset)?,
                     u8::try_from(layout.tag_shape.byte_size).ok()?,
                     elements,
                 )
@@ -195,5 +195,5 @@ fn case_payload_geometry(
     if packed.shape.byte_size != width {
         return None;
     }
-    Some((u32::from(packed.byte_offset), u8::try_from(width).ok()?))
+    Some((packed.byte_offset, u8::try_from(width).ok()?))
 }

@@ -615,5 +615,5 @@ fn bounded_nominal_receiver_shape(shape: ValueShape) -> bool {
         || shape.class == ValueClass::Integer
             && shape.byte_size != 0
             && matches!(shape.alignment, 1 | 2 | 4 | 8)
-            && shape.byte_size.is_multiple_of(shape.alignment)
+            && shape.byte_size.is_multiple_of(u32::from(shape.alignment))
 }

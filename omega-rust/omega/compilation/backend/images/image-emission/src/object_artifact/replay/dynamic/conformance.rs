@@ -419,8 +419,8 @@ fn validate_stored_instance(
         || record
             .source
             .source_byte_offset
-            .checked_add(u32::from(record.source.shape.byte_size))
-            .is_none_or(|end| end > u32::from(home.shape.byte_size))
+            .checked_add(record.source.shape.byte_size)
+            .is_none_or(|end| end > home.shape.byte_size)
     {
         return Err(invalid());
     }
@@ -701,8 +701,8 @@ fn validate_instance(
         || record
             .source
             .source_byte_offset
-            .checked_add(u32::from(record.source.shape.byte_size))
-            .is_none_or(|end| end > u32::from(home.shape.byte_size))
+            .checked_add(record.source.shape.byte_size)
+            .is_none_or(|end| end > home.shape.byte_size)
     {
         return Err(invalid());
     }
@@ -967,9 +967,7 @@ fn expected_argument_bytes(
                     Some(register) => x86_terminal_register(register)?,
                     None => 0,
                 };
-                let source_offset = argument
-                    .source_byte_offset
-                    .checked_add(u32::from(value_offset))?;
+                let source_offset = argument.source_byte_offset.checked_add(value_offset)?;
                 expected_x86_memory_load(&mut bytes, destination, 11, source_offset, width)?;
                 if let Some(stack_offset) = stack {
                     expected_x86_stack_store(&mut bytes, destination, stack_offset, width)?;
@@ -988,9 +986,7 @@ fn expected_argument_bytes(
                     true,
                     destination,
                     9,
-                    argument
-                        .source_byte_offset
-                        .checked_add(u32::from(value_offset))?,
+                    argument.source_byte_offset.checked_add(value_offset)?,
                     width,
                 )?);
                 if let Some(stack_offset) = stack {
@@ -1095,7 +1091,7 @@ fn expected_x86_stack_load(
     bytes: &mut Vec<u8>,
     register: u8,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<()> {
     expected_x86_load_prefix(bytes, register, None, byte_size)?;
     expected_x86_rsp_modrm(bytes, register, byte_offset);
@@ -1107,7 +1103,7 @@ fn expected_x86_memory_load(
     destination: u8,
     base: u8,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<()> {
     expected_x86_load_prefix(bytes, destination, Some(base), byte_size)?;
     if byte_offset == 0 && (base & 7) != 5 {
@@ -1128,7 +1124,7 @@ fn expected_x86_load_prefix(
     bytes: &mut Vec<u8>,
     destination: u8,
     base: Option<u8>,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<()> {
     let rex = 0x40 | (((destination >> 3) & 1) << 2) | base.map_or(0, |base| (base >> 3) & 1);
     match byte_size {
@@ -1145,7 +1141,7 @@ fn expected_x86_stack_store(
     bytes: &mut Vec<u8>,
     register: u8,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<()> {
     match byte_size {
         1 => bytes.push(0x40 | (((register >> 3) & 1) << 2)),
@@ -1172,7 +1168,7 @@ fn expected_aarch64_stack_access(
     load: bool,
     register: u8,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<u32> {
     expected_aarch64_memory_access(load, register, 31, byte_offset, byte_size)
 }
@@ -1182,9 +1178,9 @@ fn expected_aarch64_memory_access(
     register: u8,
     base: u8,
     byte_offset: u32,
-    byte_size: u16,
+    byte_size: u32,
 ) -> Option<u32> {
-    let scale = u32::from(byte_size);
+    let scale = byte_size;
     let base_instruction = match (load, byte_size) {
         (false, 1) => 0x3900_0000,
         (true, 1) => 0x3940_0000,

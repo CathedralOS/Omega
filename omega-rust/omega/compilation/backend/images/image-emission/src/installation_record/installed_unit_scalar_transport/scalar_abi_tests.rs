@@ -69,7 +69,7 @@ fn floating_scalar_abi_rejects_wrong_class_and_width_even_when_rows_agree() {
             let abi = fixture(target, format);
             let width = abi.result.placement.shape.byte_size;
             for shape in [
-                ValueShape::integer(width, width),
+                ValueShape::integer(width, width as u16),
                 ValueShape::float(if width == 4 { 8 } else { 4 }),
             ] {
                 let mut wrong_parameter = abi.clone();

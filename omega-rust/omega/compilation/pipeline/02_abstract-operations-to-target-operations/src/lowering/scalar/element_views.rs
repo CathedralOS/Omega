@@ -474,12 +474,12 @@ fn established_source(
     if array_element != element || length == 0 {
         return Err(invalid());
     }
-    let element_stride = u64::from(u32::from(projected_shape.byte_size))
+    let element_stride = u64::from(projected_shape.byte_size)
         .checked_div(length)
         .filter(|stride| *stride > 0)
         .and_then(|stride| u32::try_from(stride).ok())
         .ok_or_else(invalid)?;
-    if u64::from(element_stride) * length != u64::from(u32::from(projected_shape.byte_size)) {
+    if u64::from(element_stride) * length != u64::from(projected_shape.byte_size) {
         return Err(invalid());
     }
     Ok((

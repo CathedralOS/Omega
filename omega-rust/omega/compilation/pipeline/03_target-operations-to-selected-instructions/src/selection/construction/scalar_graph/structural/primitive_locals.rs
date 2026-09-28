@@ -47,11 +47,10 @@ pub(super) fn write(
             .local_slots
             .push(SelectedLocalStorageSlot {
                 id: slot,
-                byte_size: u32::from(shape.byte_size),
+                byte_size: shape.byte_size,
                 alignment: shape.alignment,
             });
-        let pointer =
-            local_storage::address(builder, row, slot, 0, u32::from(shape.byte_size), false)?;
+        let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, false)?;
         builder.transport.pointers.push((place, pointer));
         pointer
     } else {
@@ -117,14 +116,8 @@ pub(in crate::selection) fn read(
         super::runtime_address::scale(builder, row, place, byte_offset, pointer, indices)?;
     let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
         .ok_or_else(|| invalid())?;
-    let (pointer, displacement) = super::memory_pointer(
-        builder,
-        row,
-        place,
-        pointer,
-        byte_offset,
-        u32::from(shape.byte_size),
-    )?;
+    let (pointer, displacement) =
+        super::memory_pointer(builder, row, place, pointer, byte_offset, shape.byte_size)?;
     let output = builder.register(
         definition.value,
         definition.definition_site,
@@ -162,7 +155,7 @@ pub(in crate::selection) fn read(
         row,
         place,
         byte_offset,
-        u32::from(shape.byte_size),
+        shape.byte_size,
         indices,
         super::runtime_address::Written::None,
     )?;

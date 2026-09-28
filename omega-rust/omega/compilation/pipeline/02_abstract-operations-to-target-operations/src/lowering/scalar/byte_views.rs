@@ -91,7 +91,7 @@ pub(in crate::lowering) fn is_byte_parameter(
 pub(in crate::lowering) fn byte_view_referent_size(
     parameter: &terminal_psi::StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
-) -> Option<u16> {
+) -> Option<u32> {
     match structural_types.get(&parameter.structural_type)?.shape {
         StructuralTypeShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
             ..

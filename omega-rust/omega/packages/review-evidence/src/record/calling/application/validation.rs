@@ -92,7 +92,9 @@ impl PackagePolicyCallingPlan {
                     (byte_size, alignment)
                 }
             };
-            if placement.shape.byte_size != byte_size || placement.shape.alignment != alignment {
+            if placement.shape.byte_size != u32::from(byte_size)
+                || placement.shape.alignment != alignment
+            {
                 return Err("calling native origin differs from its physical placement");
             }
         }
@@ -106,7 +108,7 @@ impl PackagePolicyCallingPlan {
         }
         if let (Some(root), Some(placement)) = (self.shape_graph.result, &self.physical.result) {
             let shape = &self.shape_graph.shapes[usize::from(root)];
-            if shape.byte_size != placement.shape.byte_size
+            if u32::from(shape.byte_size) != placement.shape.byte_size
                 || shape.alignment != placement.shape.alignment
             {
                 return Err("calling result shape differs from its physical placement");

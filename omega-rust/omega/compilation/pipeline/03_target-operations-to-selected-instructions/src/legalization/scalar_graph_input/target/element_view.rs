@@ -191,7 +191,7 @@ impl Checker<'_> {
         crate::structural_inputs::structural_reference_input::shape(element, self.types)
             .and_then(|shape| {
                 crate::structural_inputs::structural_reference_input::align(
-                    u32::from(shape.byte_size),
+                    shape.byte_size,
                     shape.alignment,
                 )
             })

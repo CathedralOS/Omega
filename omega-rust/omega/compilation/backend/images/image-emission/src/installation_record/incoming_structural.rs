@@ -353,7 +353,7 @@ fn outgoing_fits(placement: &calling_conventions::ValuePlacement, frame_bytes: u
         && alignment.is_power_of_two()
         && offset.is_multiple_of(u32::from(*alignment))
         && offset
-            .checked_add(u32::from(*byte_size))
+            .checked_add(*byte_size)
             .is_some_and(|end| end <= frame_bytes)
 }
 

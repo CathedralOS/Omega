@@ -31,7 +31,10 @@ pub(in crate::function_fragments::structural) fn location(
                 | StructuralAccess::WriteOnlyBorrow
         )
         || argument.shape
-            != calling_conventions::ValueShape::borrowed_reference(u16::from(size), u16::from(size))
+            != calling_conventions::ValueShape::borrowed_reference(
+                u32::from(u16::from(size)),
+                u16::from(size),
+            )
         || argument.fixed_array_length.is_some()
         || argument.element_stride.is_some()
     {

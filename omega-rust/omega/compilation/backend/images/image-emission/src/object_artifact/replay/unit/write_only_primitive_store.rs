@@ -105,7 +105,7 @@ fn validate_store(
                     && scalar_parameter.value == source_value
                     && scalar_parameter.scalar_type == scalar_type
                     && scalar_parameter.placement.shape == scalar_shape
-                    && placed_byte_size == byte_size
+                    && placed_byte_size == u32::from(byte_size)
                     && location == expected_location
                     && abi.call_plan == expected_plan
                     && abi.call_plan.parameters.get(scalar_parameter_index)
@@ -246,7 +246,7 @@ fn validate_store(
     {
         return None;
     }
-    let expected_shape = ValueShape::borrowed_reference(byte_size, byte_size.min(8));
+    let expected_shape = ValueShape::borrowed_reference(u32::from(byte_size), byte_size.min(8));
     let [
         ValueLocation::Indirect {
             copy_stack_byte_offset: None,
@@ -290,7 +290,7 @@ fn validate_store(
         || home.source.shape != expected_shape
         || home.source != store.destination_placement
         || !home.indirect
-        || *placement_byte_size != byte_size
+        || *placement_byte_size != u32::from(byte_size)
         || *placement_alignment != byte_size.min(8)
         || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
         || !store.parameter_home_indirect
@@ -344,7 +344,10 @@ pub(crate) fn native_scalar_shape(scalar_type: ScalarType) -> Option<(ValueShape
                 && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
         {
             let byte_size = integer.bits().checked_div(8)?;
-            Some((ValueShape::integer(byte_size, byte_size.min(8)), byte_size))
+            Some((
+                ValueShape::integer(u32::from(byte_size), byte_size.min(8)),
+                byte_size,
+            ))
         }
         _ => None,
     }

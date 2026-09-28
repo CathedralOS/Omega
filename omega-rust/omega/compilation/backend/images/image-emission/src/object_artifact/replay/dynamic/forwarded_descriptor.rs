@@ -155,7 +155,7 @@ fn validate_call_result(
         )
     });
     let pointer = ValueShape::integer(
-        u16::try_from(target.pointer_size).ok()?,
+        u32::try_from(target.pointer_size).ok()?,
         u16::try_from(target.pointer_alignment).ok()?,
     );
     let expected_call_plan = evaluate_call_plan(
@@ -229,7 +229,7 @@ fn validate_parameter_dispatches(
             _ => return Err(invalid()),
         };
         let pointer = ValueShape::integer(
-            u16::try_from(target.pointer_size).map_err(|_| invalid())?,
+            u32::try_from(target.pointer_size).map_err(|_| invalid())?,
             u16::try_from(target.pointer_alignment).map_err(|_| invalid())?,
         );
         let expected_function_plan = evaluate_call_plan(
@@ -372,7 +372,7 @@ fn validate_adapter(
         .find(|callable| callable.source_callable_identity == callable_identity)?;
     machine_functions.get(&callable.machine)?;
     let pointer = ValueShape::integer(
-        u16::try_from(target.pointer_size).ok()?,
+        u32::try_from(target.pointer_size).ok()?,
         u16::try_from(target.pointer_alignment).ok()?,
     );
     let result = match callable.result {
@@ -546,7 +546,7 @@ fn x86_argument(
     Some(())
 }
 
-fn x86_memory_load(bytes: &mut Vec<u8>, destination: u8, base: u8, width: u16) -> Option<()> {
+fn x86_memory_load(bytes: &mut Vec<u8>, destination: u8, base: u8, width: u32) -> Option<()> {
     let rex = 0x40 | (((destination >> 3) & 1) << 2) | ((base >> 3) & 1);
     match width {
         1 => bytes.extend_from_slice(&[rex, 0x0f, 0xb6]),

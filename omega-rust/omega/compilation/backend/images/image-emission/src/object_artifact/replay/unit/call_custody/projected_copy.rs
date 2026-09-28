@@ -23,8 +23,8 @@ pub(super) fn expected_owned_projected_copy_bytes(
         || argument.shape.alignment == 0
         || argument
             .source_byte_offset
-            .checked_add(u32::from(argument.shape.byte_size))?
-            > u32::from(source_placement.shape.byte_size)
+            .checked_add(argument.shape.byte_size)?
+            > source_placement.shape.byte_size
     {
         return None;
     }
@@ -56,11 +56,11 @@ pub(super) fn expected_owned_projected_copy_bytes(
         if *byte_size != argument.shape.byte_size
             || *alignment != argument.shape.alignment
             || !temporary.is_multiple_of(u32::from(*alignment))
-            || temporary.checked_add(u32::from(*byte_size))? > argument.call_stack_bytes
+            || temporary.checked_add(*byte_size)? > argument.call_stack_bytes
         {
             return None;
         }
-        let mut copied = 0_u16;
+        let mut copied = 0_u32;
         while copied < *byte_size {
             let remaining = byte_size.checked_sub(copied)?;
             let width = [8, 4, 2, 1].into_iter().find(|width| *width <= remaining)?;
@@ -69,10 +69,10 @@ pub(super) fn expected_owned_projected_copy_bytes(
                 argument,
                 &mut bytes,
                 ValueLocation::Stack {
-                    stack_byte_offset: temporary.checked_add(u32::from(copied))?,
+                    stack_byte_offset: temporary.checked_add(copied)?,
                     value_byte_offset: copied,
                     byte_size: width,
-                    alignment: width,
+                    alignment: width as u16,
                 },
             )?;
             copied = copied.checked_add(width)?;
@@ -84,8 +84,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
             } => {
                 let end = stack_byte_offset.checked_add(8)?;
                 if end > argument.call_stack_bytes
-                    || (*stack_byte_offset < temporary.checked_add(u32::from(*byte_size))?
-                        && *temporary < end)
+                    || (*stack_byte_offset < temporary.checked_add(*byte_size)? && *temporary < end)
                 {
                     return None;
                 }
@@ -132,7 +131,7 @@ pub(super) fn expected_owned_projected_copy_bytes(
             }
         }
     } else {
-        let mut copied = 0_u16;
+        let mut copied = 0_u32;
         for destination in &argument.destination.locations {
             let (offset, width) = match destination {
                 ValueLocation::Register {
@@ -182,16 +181,14 @@ fn append_fragment(
             byte_size,
             ..
         } => {
-            if stack_byte_offset.checked_add(u32::from(byte_size))? > argument.call_stack_bytes {
+            if stack_byte_offset.checked_add(byte_size)? > argument.call_stack_bytes {
                 return None;
             }
             (value_byte_offset, byte_size, Some(stack_byte_offset))
         }
         ValueLocation::Indirect { .. } => return None,
     };
-    let source_offset = argument
-        .source_byte_offset
-        .checked_add(u32::from(value_offset))?;
+    let source_offset = argument.source_byte_offset.checked_add(value_offset)?;
     let indirect = matches!(
         source_placement.locations.as_slice(),
         [ValueLocation::Indirect { .. }]
@@ -258,7 +255,7 @@ pub(super) fn x86_pointer_load(
     bytes: &mut Vec<u8>,
     register: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<()> {
     let prefix = 0x41 | (((register >> 3) & 1) << 2);
     match width {
@@ -284,7 +281,7 @@ pub(super) fn x86_stack_store(
     bytes: &mut Vec<u8>,
     register: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<()> {
     let prefix = 0x40 | (((register >> 3) & 1) << 2);
     match width {
@@ -303,7 +300,7 @@ pub(super) fn x86_stack_store(
     Some(())
 }
 
-pub(super) fn aarch64_stack_store(register: u8, offset: u32, width: u16) -> Option<u32> {
+pub(super) fn aarch64_stack_store(register: u8, offset: u32, width: u32) -> Option<u32> {
     // The scaled load and store encodings differ only in the load bit.
     expected_aarch64_stack_load(register, offset, width).map(|load| load & !0x0040_0000)
 }

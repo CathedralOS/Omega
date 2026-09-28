@@ -290,7 +290,7 @@ fn mixed_parameter_target(
         &[Vec::new(), vec![i32_shape]],
     )
     .unwrap();
-    let payload_offset = u32::from(layout.cases[1].fields[0].byte_offset);
+    let payload_offset = layout.cases[1].fields[0].byte_offset;
     let policy = calling_conventions::CallingPolicy::native_for_target(native);
     let call_plan = calling_conventions::evaluate_call_plan(
         policy,

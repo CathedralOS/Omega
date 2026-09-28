@@ -47,7 +47,7 @@ pub(super) fn build(
             .iter()
             .filter(|home| {
                 home.id == slot
-                    && home.byte_size == u32::from(placement.shape.byte_size)
+                    && home.byte_size == placement.shape.byte_size
                     && home.alignment == placement.shape.alignment
             })
             .count()
@@ -65,7 +65,7 @@ pub(super) fn build(
             block.id,
             place,
             0,
-            u32::from(placement.shape.byte_size),
+            placement.shape.byte_size,
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         builder.emit(
@@ -146,14 +146,14 @@ pub(super) fn build(
             else {
                 return Err(SelectedInstructionError::custody());
             };
-            let offset = u32::from(*value_byte_offset);
+            let offset = *value_byte_offset;
             let register = super::structural_case::register(builder, place, offset, 64, false)?;
             super::structural_case::memory(
                 builder,
                 block.id,
                 place,
                 offset,
-                u32::from(*byte_size),
+                *byte_size,
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
             super::aggregate_memory::load(builder, pointer, register, offset, *byte_size)?;
@@ -167,7 +167,7 @@ pub(super) fn build(
             else {
                 return Err(SelectedInstructionError::custody());
             };
-            let offset = u32::from(*value_byte_offset);
+            let offset = *value_byte_offset;
             let input = builder
                 .transport
                 .fragments

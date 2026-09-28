@@ -335,7 +335,7 @@ impl<'a> CallInputs<'a> {
                             calling_conventions::ValueShape::float(bytes)
                         }
                         _ => calling_conventions::ValueShape::integer(
-                            bytes,
+                            u32::from(bytes),
                             bytes.next_power_of_two().min(8),
                         ),
                     })
@@ -471,7 +471,7 @@ impl<'a> CallInputs<'a> {
             let stored_bytes = if home.indirect {
                 8
             } else {
-                u32::from(home.shape.byte_size)
+                home.shape.byte_size
             };
             let expected_frame_bytes = match target.architecture {
                 Architecture::X86_64 => stored_bytes.next_multiple_of(16),

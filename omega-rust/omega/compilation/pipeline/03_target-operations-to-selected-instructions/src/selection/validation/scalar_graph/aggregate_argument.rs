@@ -61,7 +61,7 @@ pub(super) fn argument(
             .iter()
             .filter(|home| {
                 home.id == slot
-                    && home.byte_size == u32::from(root_shape.byte_size)
+                    && home.byte_size == root_shape.byte_size
                     && home.alignment == root_shape.alignment
             })
             .count()
@@ -75,7 +75,7 @@ pub(super) fn argument(
             block,
             place,
             0,
-            u32::from(root_shape.byte_size),
+            root_shape.byte_size,
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         replay.check_instruction(
@@ -154,7 +154,7 @@ pub(super) fn argument(
             .slots
             .push(selected_instructions::SelectedOutgoingArgumentSlot {
                 id: slot,
-                byte_size: u32::from(target.shape.byte_size),
+                byte_size: target.shape.byte_size,
                 alignment,
                 abi_stack_byte_offset: stack_byte_offset,
             });
@@ -164,7 +164,7 @@ pub(super) fn argument(
             operation.operation,
             place,
             0,
-            u32::from(target.shape.byte_size),
+            target.shape.byte_size,
             SelectedMemoryAccessRole::AddressOutgoing { slot },
         )?;
         replay.check_instruction(
@@ -211,7 +211,7 @@ pub(super) fn argument(
             .collect::<Result<Vec<_>, _>>()?
     };
     for (value_byte_offset, byte_size) in fragments {
-        let offset = u32::from(value_byte_offset);
+        let offset = value_byte_offset;
         // Read the selected subtree at its root-relative offset, while the
         // callee's ABI fragments and outgoing copy remain zero-based.
         let source_offset = target
@@ -225,7 +225,7 @@ pub(super) fn argument(
                 block,
                 place,
                 source_offset,
-                u32::from(byte_size),
+                byte_size,
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
             super::aggregate_memory::load(replay, pointer, output, source_offset, byte_size)?;
@@ -250,7 +250,7 @@ pub(super) fn argument(
                 operation.operation,
                 place,
                 offset,
-                u32::from(byte_size),
+                byte_size,
                 SelectedMemoryAccessRole::WriteOutgoing { slot },
             )?;
             super::aggregate_memory::store(replay, address, output, offset, byte_size)?;

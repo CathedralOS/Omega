@@ -108,7 +108,7 @@ fn validate_signature_shapes(
             ValueClass::HomogeneousFloatAggregate { members }
                 if !matches!(policy, CallingPolicy::Aapcs64 | CallingPolicy::SystemVAMD64)
                     || !(1..=4).contains(&members)
-                    || shape.byte_size % u16::from(members.max(1)) != 0 =>
+                    || shape.byte_size % u32::from(members.max(1)) != 0 =>
             {
                 return Err(PlanDiagnostic(
                     "homogeneous float aggregates require a supported native policy and equal members"
@@ -120,7 +120,7 @@ fn validate_signature_shapes(
                     && !(matches!(members, 2..=4)
                         && shape.byte_size <= 16
                         && matches!(shape.alignment, 4 | 8)
-                        && shape.byte_size == u16::from(members) * shape.alignment) =>
+                        && shape.byte_size == u32::from(members) * u32::from(shape.alignment)) =>
             {
                 return Err(PlanDiagnostic(
                     "SysV AMD64 homogeneous-float normalization requires two to four f32/f64 members totaling at most two eightbytes"
@@ -221,7 +221,7 @@ pub(crate) fn validate_call_plan_structure(
                     byte_size,
                     ..
                 } => {
-                    let end = stack_byte_offset + u32::from(byte_size);
+                    let end = stack_end(stack_byte_offset, byte_size)?;
                     if occupied_stack_ranges
                         .iter()
                         .any(|(start, prior_end)| stack_byte_offset < *prior_end && *start < end)
@@ -256,7 +256,7 @@ pub(crate) fn validate_call_plan_structure(
                         IndirectPointerLocation::Stack {
                             stack_byte_offset, ..
                         } => {
-                            let end = stack_byte_offset + 8;
+                            let end = stack_end(stack_byte_offset, 8)?;
                             if occupied_stack_ranges.iter().any(|(start, prior_end)| {
                                 stack_byte_offset < *prior_end && *start < end
                             }) {
@@ -268,7 +268,7 @@ pub(crate) fn validate_call_plan_structure(
                         }
                     }
                     if let Some(copy_stack_byte_offset) = copy_stack_byte_offset {
-                        let end = copy_stack_byte_offset + u32::from(byte_size);
+                        let end = stack_end(copy_stack_byte_offset, byte_size)?;
                         if occupied_stack_ranges.iter().any(|(start, prior_end)| {
                             copy_stack_byte_offset < *prior_end && *start < end
                         }) {
@@ -322,7 +322,10 @@ fn validate_value_placement(
             "borrowed-reference value {value_index} must retain one direct pointer to caller storage"
         )));
     }
-    let mut covered = vec![false; usize::from(placement.shape.byte_size)];
+    // Validate the placement fragments, not every byte of a potentially large
+    // referent. Sorting these scratch intervals accepts any authored fragment
+    // order while checking exact coverage, gaps and overlap independently.
+    let mut ranges = Vec::with_capacity(placement.locations.len());
     for location in &placement.locations {
         let (value_byte_offset, byte_size) = match *location {
             ValueLocation::Register {
@@ -400,24 +403,36 @@ fn validate_value_placement(
                 (0, byte_size)
             }
         };
-        let end = usize::from(value_byte_offset) + usize::from(byte_size);
+        let end = value_byte_offset.checked_add(byte_size).ok_or_else(|| {
+            PlanDiagnostic(format!(
+                "value {value_index} placement exceeds its declared shape"
+            ))
+        })?;
         if (byte_size == 0 && placement.shape.class != ValueClass::BorrowedReference)
-            || end > covered.len()
+            || end > placement.shape.byte_size
         {
             return Err(PlanDiagnostic(format!(
                 "value {value_index} placement exceeds its declared shape"
             )));
         }
-        for byte in &mut covered[usize::from(value_byte_offset)..end] {
-            if *byte {
-                return Err(PlanDiagnostic(format!(
-                    "value {value_index} placement writes one source byte more than once"
-                )));
-            }
-            *byte = true;
-        }
+        ranges.push((value_byte_offset, end));
     }
-    if covered.iter().any(|covered| !covered) {
+    ranges.sort_unstable();
+    let mut covered_end = 0;
+    for (start, end) in ranges {
+        if start < covered_end {
+            return Err(PlanDiagnostic(format!(
+                "value {value_index} placement writes one source byte more than once"
+            )));
+        }
+        if start != covered_end {
+            return Err(PlanDiagnostic(format!(
+                "value {value_index} placement does not cover every source byte"
+            )));
+        }
+        covered_end = end;
+    }
+    if covered_end != placement.shape.byte_size {
         return Err(PlanDiagnostic(format!(
             "value {value_index} placement does not cover every source byte"
         )));
@@ -494,10 +509,10 @@ fn evaluate_microsoft_x64(signature: &CallSignature) -> Result<CallPlan, PlanDia
             // Microsoft requires caller-owned temporaries for indirectly
             // passed aggregates to be 16-byte aligned, even when the source
             // type itself has a smaller natural alignment.
-            copy_stack_offset = align_up(copy_stack_offset, 16);
+            copy_stack_offset = align_up(copy_stack_offset, 16)?;
             if !matches!(placement.shape.class, ValueClass::BorrowedReference) {
                 *copy_stack_byte_offset = Some(copy_stack_offset);
-                copy_stack_offset += u32::from(*byte_size).next_multiple_of(8);
+                copy_stack_offset = stack_end(copy_stack_offset, align_up(*byte_size, 8)?)?;
             }
         }
     }
@@ -658,7 +673,7 @@ pub fn evaluate_darwin_aapcs64_variadic_call_plan(
     };
     validate_signature_shapes(CallingPolicy::Aapcs64, &signature.flattened())?;
     let mut plan = evaluate_aapcs64(&fixed_signature)?;
-    let mut stack_offset = call_plan_stack_extent(&plan);
+    let mut stack_offset = call_plan_stack_extent(&plan)?;
     for (index, shape) in signature.variadic_parameters.iter().copied().enumerate() {
         if !matches!(shape.class, ValueClass::Integer | ValueClass::Float) || shape.byte_size > 8 {
             return Err(PlanDiagnostic(format!(
@@ -666,7 +681,7 @@ pub fn evaluate_darwin_aapcs64_variadic_call_plan(
             )));
         }
         let alignment = shape.alignment.clamp(8, 16);
-        stack_offset = align_up(stack_offset, u32::from(alignment));
+        stack_offset = align_up(stack_offset, u32::from(alignment))?;
         plan.parameters.push(ValuePlacement {
             shape,
             locations: vec![ValueLocation::Stack {
@@ -676,24 +691,24 @@ pub fn evaluate_darwin_aapcs64_variadic_call_plan(
                 alignment,
             }],
         });
-        stack_offset += u32::from(shape.byte_size.max(8));
+        stack_offset = stack_end(stack_offset, shape.byte_size.max(8))?;
     }
     validate_call_plan(&plan, &signature.flattened())?;
     Ok(plan)
 }
 
-fn call_plan_stack_extent(plan: &CallPlan) -> u32 {
+fn call_plan_stack_extent(plan: &CallPlan) -> Result<u32, PlanDiagnostic> {
     plan.parameters
         .iter()
         .flat_map(|placement| &placement.locations)
-        .fold(0, |extent, location| {
+        .try_fold(0, |extent, location| {
             let end = match *location {
                 ValueLocation::Register { .. } => 0,
                 ValueLocation::Stack {
                     stack_byte_offset,
                     byte_size,
                     ..
-                } => stack_byte_offset + u32::from(byte_size.max(8)),
+                } => stack_end(stack_byte_offset, byte_size.max(8))?,
                 ValueLocation::Indirect {
                     pointer,
                     copy_stack_byte_offset,
@@ -704,14 +719,16 @@ fn call_plan_stack_extent(plan: &CallPlan) -> u32 {
                         IndirectPointerLocation::Register(_) => 0,
                         IndirectPointerLocation::Stack {
                             stack_byte_offset, ..
-                        } => stack_byte_offset + 8,
+                        } => stack_end(stack_byte_offset, 8)?,
                     };
-                    pointer_end.max(copy_stack_byte_offset.map_or(0, |offset| {
-                        offset + u32::from(byte_size).next_multiple_of(8)
-                    }))
+                    let copy_end = match copy_stack_byte_offset {
+                        Some(offset) => stack_end(offset, align_up(byte_size, 8)?)?,
+                        None => 0,
+                    };
+                    pointer_end.max(copy_end)
                 }
             };
-            extent.max(end)
+            Ok(extent.max(end))
         })
 }
 
@@ -744,12 +761,12 @@ fn evaluate_split_bank_call(
                 integer_index += 1;
                 IndirectPointerLocation::Register(register)
             } else {
-                stack_offset = align_up(stack_offset, 8);
+                stack_offset = align_up(stack_offset, 8)?;
                 let pointer = IndirectPointerLocation::Stack {
                     stack_byte_offset: stack_offset,
                     alignment: 8,
                 };
-                stack_offset += 8;
+                stack_offset = stack_end(stack_offset, 8)?;
                 pointer
             };
             locations.push(ValueLocation::Indirect {
@@ -790,7 +807,7 @@ fn evaluate_split_bank_call(
                             register
                         }
                     };
-                    let value_byte_offset = fragment as u16 * 8;
+                    let value_byte_offset = fragment as u32 * 8;
                     locations.push(ValueLocation::Register {
                         register,
                         value_byte_offset,
@@ -800,9 +817,9 @@ fn evaluate_split_bank_call(
                 integer_index = aggregate_integer_index;
                 float_index = aggregate_float_index;
             } else {
-                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
-                locations.extend(integer_stack_fragment_locations(shape, stack_offset));
-                stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
+                locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
+                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
             }
             parameters.push(ValuePlacement { shape, locations });
             continue;
@@ -832,11 +849,11 @@ fn evaluate_split_bank_call(
                 locations.extend(sysv_sse_fragment_locations(shape, float_index));
             } else {
                 let members = float_members.expect("float register count came from members");
-                let member_size = shape.byte_size / u16::from(members);
+                let member_size = shape.byte_size / u32::from(members);
                 for member in 0..members {
                     locations.push(ValueLocation::Register {
                         register: float_register(float_index + member),
-                        value_byte_offset: u16::from(member) * member_size,
+                        value_byte_offset: u32::from(member) * member_size,
                         byte_size: member_size,
                     });
                 }
@@ -849,12 +866,12 @@ fn evaluate_split_bank_call(
                     integer_index += 1;
                     IndirectPointerLocation::Register(register)
                 } else {
-                    stack_offset = align_up(stack_offset, 8);
+                    stack_offset = align_up(stack_offset, 8)?;
                     let pointer = IndirectPointerLocation::Stack {
                         stack_byte_offset: stack_offset,
                         alignment: 8,
                     };
-                    stack_offset += 8;
+                    stack_offset = stack_end(stack_offset, 8)?;
                     pointer
                 };
                 locations.push(ValueLocation::Indirect {
@@ -865,15 +882,15 @@ fn evaluate_split_bank_call(
                 });
             } else {
                 debug_assert_eq!(policy, CallingPolicy::SystemVAMD64);
-                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
-                locations.extend(integer_stack_fragment_locations(shape, stack_offset));
-                stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
+                locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
+                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
             }
         } else if float_members.is_none() && shape.byte_size > 8 {
             // Integer-class aggregates up to two eightbytes stay whole: use
             // consecutive integer registers only when the complete value
             // fits, otherwise place every fragment on the stack.
-            let register_count = usize::from(shape.byte_size.div_ceil(8));
+            let register_count = shape.byte_size.div_ceil(8) as usize;
             if policy == CallingPolicy::Aapcs64 && shape.alignment >= 16 {
                 integer_index = integer_index.next_multiple_of(2);
             }
@@ -891,21 +908,21 @@ fn evaluate_split_bank_call(
                 if policy == CallingPolicy::Aapcs64 {
                     integer_index = integer_registers.len();
                 }
-                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
-                locations.extend(integer_stack_fragment_locations(shape, stack_offset));
-                stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
+                stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
+                locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
+                stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
             }
         } else if float_members.is_some() && policy == CallingPolicy::SystemVAMD64 {
-            stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)));
-            locations.extend(integer_stack_fragment_locations(shape, stack_offset));
-            stack_offset += u32::from(shape.byte_size).next_multiple_of(8);
+            stack_offset = align_up(stack_offset, u32::from(shape.alignment.clamp(8, 16)))?;
+            locations.extend(integer_stack_fragment_locations(shape, stack_offset)?);
+            stack_offset = stack_end(stack_offset, align_up(shape.byte_size, 8)?)?;
         } else if float_members.is_none() && integer_index < integer_registers.len() {
             locations.push(register_location(integer_registers[integer_index], shape));
             integer_index += 1;
         } else {
-            stack_offset = align_up(stack_offset, u32::from(shape.alignment));
+            stack_offset = align_up(stack_offset, u32::from(shape.alignment))?;
             locations.push(stack_location(stack_offset, shape));
-            stack_offset += u32::from(shape.byte_size.max(8));
+            stack_offset = stack_end(stack_offset, shape.byte_size.max(8))?;
         }
         parameters.push(ValuePlacement { shape, locations });
     }
@@ -919,10 +936,10 @@ fn evaluate_split_bank_call(
             },
         ] = placement.locations.as_mut_slice()
         {
-            stack_offset = align_up(stack_offset, u32::from((*alignment).clamp(8, 16)));
+            stack_offset = align_up(stack_offset, u32::from((*alignment).clamp(8, 16)))?;
             if !matches!(placement.shape.class, ValueClass::BorrowedReference) {
                 *copy_stack_byte_offset = Some(stack_offset);
-                stack_offset += u32::from(*byte_size).next_multiple_of(8);
+                stack_offset = stack_end(stack_offset, align_up(*byte_size, 8)?)?;
             }
         }
     }
@@ -943,13 +960,13 @@ fn integer_register_fragment_locations(
     registers: &[MachineRegister],
     first_register: usize,
 ) -> Vec<ValueLocation> {
-    (0..usize::from(shape.byte_size.div_ceil(8)))
+    (0..(shape.byte_size.div_ceil(8) as usize))
         .map(|fragment| {
             let value_byte_offset = fragment * 8;
             ValueLocation::Register {
                 register: registers[first_register + fragment],
-                value_byte_offset: value_byte_offset as u16,
-                byte_size: (usize::from(shape.byte_size) - value_byte_offset).min(8) as u16,
+                value_byte_offset: value_byte_offset as u32,
+                byte_size: ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
             }
         })
         .collect()
@@ -958,18 +975,19 @@ fn integer_register_fragment_locations(
 fn integer_stack_fragment_locations(
     shape: ValueShape,
     first_stack_byte_offset: u32,
-) -> Vec<ValueLocation> {
-    (0..usize::from(shape.byte_size.div_ceil(8)))
+) -> Result<Vec<ValueLocation>, PlanDiagnostic> {
+    stack_end(first_stack_byte_offset, align_up(shape.byte_size, 8)?)?;
+    Ok((0..(shape.byte_size.div_ceil(8) as usize))
         .map(|fragment| {
             let value_byte_offset = fragment * 8;
             ValueLocation::Stack {
                 stack_byte_offset: first_stack_byte_offset + value_byte_offset as u32,
-                value_byte_offset: value_byte_offset as u16,
-                byte_size: (usize::from(shape.byte_size) - value_byte_offset).min(8) as u16,
+                value_byte_offset: value_byte_offset as u32,
+                byte_size: ((shape.byte_size as usize) - value_byte_offset).min(8) as u32,
                 alignment: 8,
             }
         })
-        .collect()
+        .collect())
 }
 
 fn sysv_sse_fragment_locations(shape: ValueShape, first_register: u8) -> Vec<ValueLocation> {
@@ -1110,11 +1128,11 @@ fn result_placement(
             ));
         }
         ValueClass::HomogeneousFloatAggregate { members } => {
-            let member_size = shape.byte_size / u16::from(members);
+            let member_size = shape.byte_size / u32::from(members);
             (0..members)
                 .map(|member| ValueLocation::Register {
                     register: float_register(member),
-                    value_byte_offset: u16::from(member) * member_size,
+                    value_byte_offset: u32::from(member) * member_size,
                     byte_size: member_size,
                 })
                 .collect()
@@ -1145,7 +1163,7 @@ fn result_placement(
                             register
                         }
                     };
-                    let value_byte_offset = fragment as u16 * 8;
+                    let value_byte_offset = fragment as u32 * 8;
                     Ok(ValueLocation::Register {
                         register,
                         value_byte_offset,
@@ -1175,7 +1193,14 @@ fn stack_location(stack_byte_offset: u32, shape: ValueShape) -> ValueLocation {
     }
 }
 
-fn align_up(value: u32, alignment: u32) -> u32 {
-    let mask = alignment - 1;
-    (value + mask) & !mask
+fn align_up(value: u32, alignment: u32) -> Result<u32, PlanDiagnostic> {
+    value
+        .checked_next_multiple_of(alignment)
+        .ok_or_else(|| PlanDiagnostic("call-plan stack extent exceeds 32-bit storage".into()))
+}
+
+fn stack_end(offset: u32, byte_size: u32) -> Result<u32, PlanDiagnostic> {
+    offset
+        .checked_add(byte_size)
+        .ok_or_else(|| PlanDiagnostic("call-plan stack extent exceeds 32-bit storage".into()))
 }

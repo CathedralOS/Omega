@@ -282,9 +282,10 @@ pub(super) fn argument(
                 projected_shape,
                 declaration.access,
             ) != destination.shape
-            || u32::from(projected_shape.byte_size)
+            || projected_shape
+                .byte_size
                 .checked_add(source_byte_offset)
-                .is_none_or(|end| end > u32::from(home.layout.shape().byte_size))
+                .is_none_or(|end| end > home.layout.shape().byte_size)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -347,9 +348,10 @@ pub(super) fn argument(
                 projected_shape,
                 declaration.access,
             ) != destination.shape
-            || u32::from(projected_shape.byte_size)
+            || projected_shape
+                .byte_size
                 .checked_add(source_byte_offset)
-                .is_none_or(|end| end > u32::from(source.shape.byte_size))
+                .is_none_or(|end| end > source.shape.byte_size)
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }

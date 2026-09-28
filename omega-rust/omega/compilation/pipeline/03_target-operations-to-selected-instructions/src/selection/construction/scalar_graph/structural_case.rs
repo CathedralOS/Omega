@@ -86,7 +86,7 @@ pub(super) fn build(
             selected_instructions::SelectedCaseDispatchSource::Borrowed {
                 place: declaration.place,
                 pointer,
-                byte_size: u32::from(layout.shape.byte_size),
+                byte_size: layout.shape.byte_size,
             }
         }
     };
@@ -98,7 +98,7 @@ pub(super) fn build(
                 .iter()
                 .filter(|candidate| {
                     candidate.id == slot
-                        && candidate.byte_size == u32::from(layout.shape.byte_size)
+                        && candidate.byte_size == layout.shape.byte_size
                         && candidate.alignment == layout.shape.alignment
                 })
                 .count()
@@ -112,7 +112,7 @@ pub(super) fn build(
                 block.id,
                 subject.place(),
                 0,
-                u32::from(layout.shape.byte_size),
+                layout.shape.byte_size,
                 SelectedMemoryAccessRole::AddressLocal { slot },
             )?;
             builder.emit(

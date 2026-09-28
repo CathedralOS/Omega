@@ -4,7 +4,7 @@
 //! ABI registers. Every memory access is one byte; alignment padding is never
 //! loaded or stored, and existing single-instruction widths stay unchanged.
 
-pub(super) fn is_packed(width: u16) -> bool {
+pub(super) fn is_packed(width: u32) -> bool {
     matches!(width, 3 | 5 | 6 | 7)
 }
 
@@ -12,7 +12,7 @@ pub(super) fn x86_load(
     bytes: &mut Vec<u8>,
     destination: u8,
     offset: u32,
-    width: u16,
+    width: u32,
     indirect: bool,
 ) -> Option<()> {
     if !is_packed(width) || destination == 10 || (indirect && destination == 11) {
@@ -20,7 +20,7 @@ pub(super) fn x86_load(
     }
     for index in 0..width {
         let register = if index == 0 { destination } else { 10 };
-        let byte_offset = offset.checked_add(u32::from(index))?;
+        let byte_offset = offset.checked_add(index)?;
         if indirect {
             super::projected_copy::x86_pointer_load(bytes, register, byte_offset, 1)?;
         } else {
@@ -38,7 +38,7 @@ pub(super) fn x86_load(
     Some(())
 }
 
-pub(super) fn x86_store(bytes: &mut Vec<u8>, source: u8, offset: u32, width: u16) -> Option<()> {
+pub(super) fn x86_store(bytes: &mut Vec<u8>, source: u8, offset: u32, width: u32) -> Option<()> {
     if !is_packed(width) || source == 10 {
         return None;
     }
@@ -48,12 +48,7 @@ pub(super) fn x86_store(bytes: &mut Vec<u8>, source: u8, offset: u32, width: u16
         0xc2 | ((source & 7) << 3),
     ]);
     for index in 0..width {
-        super::projected_copy::x86_stack_store(
-            bytes,
-            10,
-            offset.checked_add(u32::from(index))?,
-            1,
-        )?;
+        super::projected_copy::x86_stack_store(bytes, 10, offset.checked_add(index)?, 1)?;
         if index + 1 != width {
             bytes.extend_from_slice(&[0x49, 0xc1, 0xea, 8]);
         }
@@ -65,7 +60,7 @@ pub(super) fn aarch64_load(
     bytes: &mut Vec<u8>,
     destination: u8,
     offset: u32,
-    width: u16,
+    width: u32,
     indirect: bool,
 ) -> Option<()> {
     if !is_packed(width) || destination == 16 || (indirect && destination == 9) {
@@ -73,8 +68,7 @@ pub(super) fn aarch64_load(
     }
     for index in 0..width {
         let register = if index == 0 { destination } else { 16 };
-        let mut load =
-            super::expected_aarch64_stack_load(register, offset.checked_add(u32::from(index))?, 1)?;
+        let mut load = super::expected_aarch64_stack_load(register, offset.checked_add(index)?, 1)?;
         if indirect {
             load = (load & !(31 << 5)) | (9 << 5);
         }
@@ -82,7 +76,7 @@ pub(super) fn aarch64_load(
         if index != 0 {
             let combine = 0xaa00_0000
                 | (16 << 16)
-                | (u32::from(index * 8) << 10)
+                | ((index * 8) << 10)
                 | (u32::from(destination) << 5)
                 | u32::from(destination);
             bytes.extend_from_slice(&combine.to_le_bytes());
@@ -95,7 +89,7 @@ pub(super) fn aarch64_store(
     bytes: &mut Vec<u8>,
     source: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<()> {
     if !is_packed(width) || source == 16 {
         return None;
@@ -104,12 +98,8 @@ pub(super) fn aarch64_store(
     bytes.extend_from_slice(&copy.to_le_bytes());
     for index in 0..width {
         bytes.extend_from_slice(
-            &super::projected_copy::aarch64_stack_store(
-                16,
-                offset.checked_add(u32::from(index))?,
-                1,
-            )?
-            .to_le_bytes(),
+            &super::projected_copy::aarch64_stack_store(16, offset.checked_add(index)?, 1)?
+                .to_le_bytes(),
         );
         if index + 1 != width {
             bytes.extend_from_slice(&(0xd340_fc00_u32 | (8 << 16) | (16 << 5) | 16).to_le_bytes());

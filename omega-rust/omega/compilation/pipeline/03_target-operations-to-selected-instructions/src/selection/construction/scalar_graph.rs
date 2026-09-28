@@ -136,7 +136,7 @@ fn select_function(
                 ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => 4,
                 ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => 8,
                 ScalarType::Integer(integer) if matches!(integer.bits(), 8 | 16 | 32 | 64) => {
-                    integer.bits() / 8
+                    u32::from(integer.bits() / 8)
                 }
                 _ => return Err(invalid()),
             }

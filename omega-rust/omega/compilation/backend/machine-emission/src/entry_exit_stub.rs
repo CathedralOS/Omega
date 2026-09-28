@@ -458,7 +458,7 @@ fn project_encoding_plan(
         .zip(member_call.parameter_operands.iter())
         .enumerate()
     {
-        if operand.len() != usize::from(placement.shape.byte_size) {
+        if operand.len() != placement.shape.byte_size as usize {
             return Err(
                 X86_64DeriverStubEmissionError::ParameterOperandSizeMismatch {
                     parameter,
@@ -497,7 +497,7 @@ fn project_encoding_plan(
                     // then a 4/2/1-byte tail decomposition when the declared
                     // piece is not a multiple of eight bytes.
                     let mut consumed = 0_u32;
-                    let mut remaining = u32::from(byte_size);
+                    let mut remaining = byte_size;
                     while remaining > 0 {
                         let width = if remaining >= 8 {
                             8_u32
@@ -508,13 +508,12 @@ fn project_encoding_plan(
                         } else {
                             1
                         };
-                        let value_offset = u32::from(value_byte_offset)
-                            .checked_add(consumed)
-                            .and_then(|offset| u16::try_from(offset).ok())
-                            .ok_or(X86_64DeriverStubEmissionError::ParameterOperandOutOfRange {
+                        let value_offset = value_byte_offset.checked_add(consumed).ok_or(
+                            X86_64DeriverStubEmissionError::ParameterOperandOutOfRange {
                                 parameter,
-                            })?;
-                        let word = operand_word(operand, value_offset, width as u16, parameter)?;
+                            },
+                        )?;
+                        let word = operand_word(operand, value_offset, width, parameter)?;
                         let outgoing_byte_offset = stack_byte_offset
                             .checked_add(consumed)
                             .ok_or(X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
@@ -547,7 +546,7 @@ fn project_encoding_plan(
                     // copy area the contract reserved, then materialize the
                     // copy's runtime address into the pointer location.
                     let mut consumed = 0_u32;
-                    let mut remaining = u32::from(byte_size);
+                    let mut remaining = byte_size;
                     while remaining > 0 {
                         let width = if remaining >= 8 {
                             8_u32
@@ -558,10 +557,7 @@ fn project_encoding_plan(
                         } else {
                             1
                         };
-                        let value_offset = u16::try_from(consumed).map_err(|_| {
-                            X86_64DeriverStubEmissionError::ParameterOperandOutOfRange { parameter }
-                        })?;
-                        let word = operand_word(operand, value_offset, width as u16, parameter)?;
+                        let word = operand_word(operand, consumed, width, parameter)?;
                         let outgoing_byte_offset = copy_stack_byte_offset
                             .checked_add(consumed)
                             .ok_or(X86_64DeriverStubEmissionError::StagingRangeOverflow)?;
@@ -631,13 +627,13 @@ fn project_encoding_plan(
 
 fn operand_word(
     operand: &[u8],
-    value_byte_offset: u16,
-    byte_size: u16,
+    value_byte_offset: u32,
+    byte_size: u32,
     parameter: usize,
 ) -> Result<u64, X86_64DeriverStubEmissionError> {
-    let start = usize::from(value_byte_offset);
+    let start = value_byte_offset as usize;
     let end = start
-        .checked_add(usize::from(byte_size))
+        .checked_add(byte_size as usize)
         .ok_or(X86_64DeriverStubEmissionError::ParameterOperandOutOfRange { parameter })?;
     let bytes = operand
         .get(start..end)

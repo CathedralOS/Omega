@@ -350,11 +350,11 @@ fn decode_successor(
             2 => {
                 let argument = VirtualRegisterId(cursor.u32()?);
                 let destination = super::structural::decode_local_slot(cursor)?;
-                let byte_size = cursor.u16()?;
+                let byte_size = cursor.u32()?;
                 let alignment = cursor.u16()?;
                 if byte_size == 0
                     || !alignment.is_power_of_two()
-                    || byte_size % alignment != 0
+                    || byte_size % u32::from(alignment) != 0
                     || !matches!(
                         destination,
                         selected_instructions::LocalStorageSlotId::StructuralBlockParameter { .. }

@@ -38,9 +38,12 @@ pub(super) fn local_primitive_source_is_exact(
         && argument.root_structural_type == argument.structural_type
         && matches!(argument.shape.byte_size, 1 | 2 | 4 | 8)
         && argument.shape
-            == ValueShape::borrowed_reference(argument.shape.byte_size, argument.shape.byte_size)
+            == ValueShape::borrowed_reference(
+                argument.shape.byte_size,
+                argument.shape.byte_size as u16,
+            )
         && byte_offset.is_multiple_of(u32::from(argument.shape.alignment))
         && byte_offset
-            .checked_add(u32::from(argument.shape.byte_size))
+            .checked_add(argument.shape.byte_size)
             .is_some_and(|end| end <= frame_bytes)
 }

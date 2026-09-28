@@ -207,7 +207,7 @@ fn fixed_integer_shape(integer: semantic_vocabulary::IntegerType) -> Option<Valu
         return None;
     }
     let bytes = integer.bits() / 8;
-    Some(ValueShape::integer(bytes, bytes))
+    Some(ValueShape::integer(u32::from(bytes), bytes))
 }
 
 fn fixed_integer_abi_shape(scalar: semantic_vocabulary::ScalarType) -> Option<ValueShape> {

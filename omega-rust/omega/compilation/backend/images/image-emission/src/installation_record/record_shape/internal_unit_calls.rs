@@ -340,7 +340,7 @@ fn call_span_and_plan(
                             ));
                         }
                         let bytes = integer.bits() / 8;
-                        Ok(ValueShape::integer(bytes, bytes))
+                        Ok(ValueShape::integer(u32::from(bytes), bytes))
                     })
                     .chain(
                         abi.structural_parameters
@@ -366,7 +366,7 @@ fn call_span_and_plan(
                             ));
                         }
                         let bytes = integer.bits() / 8;
-                        Ok(ValueShape::integer(bytes, bytes))
+                        Ok(ValueShape::integer(u32::from(bytes), bytes))
                     })
                     .chain(
                         returned
@@ -395,7 +395,7 @@ fn call_span_and_plan(
                 };
                 Some(match result {
                     semantic_vocabulary::ScalarType::IeeeFloat(_) => ValueShape::float(bytes),
-                    _ => ValueShape::integer(bytes, bytes.next_power_of_two().min(8)),
+                    _ => ValueShape::integer(u32::from(bytes), bytes.next_power_of_two().min(8)),
                 })
             } else if custody.structural_result.is_some() {
                 target_structural_return.map(|returned| returned.shape)

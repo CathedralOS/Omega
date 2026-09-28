@@ -135,7 +135,7 @@ fn bind_thunk_machine_interface(
                         Class::Float => calling_conventions::ValueClass::Float,
                         _ => calling_conventions::ValueClass::Integer,
                     },
-                    byte_size: shape.byte_size(),
+                    byte_size: u32::from(shape.byte_size()),
                     alignment: shape.alignment(),
                 };
                 if scalar_value_shape(parameter.scalar_type) != Some(expected) {
@@ -177,7 +177,7 @@ fn bind_thunk_machine_interface(
                             Class::Float => calling_conventions::ValueClass::Float,
                             _ => calling_conventions::ValueClass::Integer,
                         },
-                        byte_size: shape.byte_size(),
+                        byte_size: u32::from(shape.byte_size()),
                         alignment: shape.alignment(),
                     };
                     if scalar_value_shape(result.scalar_type) != Some(expected) {
@@ -228,7 +228,7 @@ fn scalar_value_shape(
                 return None;
             }
             let bytes = bits / 8;
-            Some(ValueShape::integer(bytes, bytes))
+            Some(ValueShape::integer(u32::from(bytes), bytes))
         }
     }
 }

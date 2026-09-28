@@ -233,7 +233,10 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                         value: immediate,
                     }
                 };
-                (ValueShape::borrowed_reference(byte_size, byte_size), source)
+                (
+                    ValueShape::borrowed_reference(u32::from(byte_size), byte_size),
+                    source,
+                )
             }
         }
     };

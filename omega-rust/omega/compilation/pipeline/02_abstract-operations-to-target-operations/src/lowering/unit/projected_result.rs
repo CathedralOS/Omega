@@ -14,7 +14,7 @@ pub(super) fn has_store_fragments(placement: &ValuePlacement) -> bool {
         && placement
             .locations
             .iter()
-            .try_fold(0_u16, |cursor, location| {
+            .try_fold(0_u32, |cursor, location| {
                 let ValueLocation::Register {
                     value_byte_offset,
                     byte_size,

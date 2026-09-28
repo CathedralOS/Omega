@@ -189,7 +189,7 @@ pub fn receiver_layout(
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     }
     Ok(Some(OptimizedProgramStorageSemanticReceiverLayout::new(
-        u32::from(shape.byte_size),
+        shape.byte_size,
         u32::from(shape.alignment),
     )))
 }

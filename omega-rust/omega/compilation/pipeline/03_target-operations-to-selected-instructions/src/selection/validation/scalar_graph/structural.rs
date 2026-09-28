@@ -493,7 +493,7 @@ pub(super) fn operation(
         };
         replay.transport.slots.push(SelectedOutgoingArgumentSlot {
             id: slot,
-            byte_size: u32::from(*byte_size),
+            byte_size: (*byte_size),
             alignment: *alignment,
             abi_stack_byte_offset: *offset,
         });
@@ -559,7 +559,7 @@ pub(super) fn operation(
                 node,
                 place,
                 0,
-                u32::from(byte_size),
+                byte_size,
                 SelectedMemoryAccessRole::AddressOutgoing { slot },
             )?;
             replay.check_instruction(

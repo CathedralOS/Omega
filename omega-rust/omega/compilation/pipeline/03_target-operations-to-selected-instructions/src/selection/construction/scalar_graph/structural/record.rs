@@ -42,10 +42,10 @@ pub(super) fn establish(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: u32::from(shape.byte_size),
+            byte_size: shape.byte_size,
             alignment: shape.alignment,
         });
-    let pointer = local_storage::address(builder, row, slot, 0, u32::from(shape.byte_size), true)?;
+    let pointer = local_storage::address(builder, row, slot, 0, shape.byte_size, true)?;
     // Initialize padding too: a later whole-value copy may transport every byte.
     let zero = transport_register(builder, result.place, 0)?;
     builder.emit(
@@ -57,8 +57,8 @@ pub(super) fn establish(
         provenance(row),
     )?;
     let mut offset = 0u32;
-    while offset < u32::from(shape.byte_size) {
-        let width = chunk(u32::from(shape.byte_size) - offset, offset, offset);
+    while offset < shape.byte_size {
+        let width = chunk(shape.byte_size - offset, offset, offset);
         store(
             builder,
             row,
@@ -169,7 +169,7 @@ pub(super) fn write_fields(
                                 value_byte_offset,
                                 byte_size,
                                 ..
-                            } => (u32::from(*value_byte_offset), *byte_size),
+                            } => ((*value_byte_offset), *byte_size),
                             _ => return Err(invalid()),
                         };
                         let value = builder
@@ -186,7 +186,7 @@ pub(super) fn write_fields(
                             row,
                             destination,
                             offset + fragment_offset,
-                            u32::from(width),
+                            width,
                             SelectedMemoryAccessRole::WritePlace,
                         )?;
                         super::super::aggregate_memory::store(
@@ -207,12 +207,8 @@ pub(super) fn write_fields(
                     .map(|(_, pointer)| *pointer)
                     .ok_or_else(|| invalid())?;
                 let mut cursor = 0u32;
-                while cursor < u32::from(field_shape.byte_size) {
-                    let width = chunk(
-                        u32::from(field_shape.byte_size) - cursor,
-                        cursor,
-                        offset + cursor,
-                    );
+                while cursor < field_shape.byte_size {
+                    let width = chunk(field_shape.byte_size - cursor, cursor, offset + cursor);
                     let (input, displacement) = super::memory_pointer(
                         builder,
                         row,

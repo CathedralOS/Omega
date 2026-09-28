@@ -76,10 +76,10 @@ pub(super) fn decode(
 ) -> Result<(StructuralOperationResult, ConventionalSumLayout), FixedViewCopyDecodeError> {
     let result = decode_result(cursor)?;
     let shape = decode_shape(cursor)?;
-    let tag_byte_offset = cursor.u16()?;
+    let tag_byte_offset = cursor.u32()?;
     let tag_shape = decode_shape(cursor)?;
     let common_fields = decode_fields(cursor)?;
-    let payload_byte_offset = cursor.u16()?;
+    let payload_byte_offset = cursor.u32()?;
     let count = cursor.length()?;
     let mut cases = Vec::with_capacity(count.min(cursor.remaining()));
     for _ in 0..count {
@@ -116,7 +116,7 @@ fn decode_fields(
     for _ in 0..count {
         fields.push(PackedFieldLayout {
             shape: decode_shape(cursor)?,
-            byte_offset: cursor.u16()?,
+            byte_offset: cursor.u32()?,
         });
     }
     Ok(fields)

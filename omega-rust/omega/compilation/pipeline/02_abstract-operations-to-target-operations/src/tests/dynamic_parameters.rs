@@ -134,7 +134,7 @@ fn descriptor_parameter_signature_binds_two_trailing_pointer_words() {
         let pointer = u16::try_from(native.pointer_size).unwrap();
         for placement in [&abi.instance, &abi.table] {
             assert_eq!(placement.shape.class, ValueClass::Integer);
-            assert_eq!(placement.shape.byte_size, pointer);
+            assert_eq!(placement.shape.byte_size, u32::from(pointer));
             assert_eq!(placement.shape.alignment, pointer);
         }
         assert_ne!(
@@ -499,7 +499,10 @@ fn unit_parameter_dispatch_lowers_indirect_call_and_validates() {
         assert_eq!(table_slot_byte_offset, 0);
         let pointer = u16::try_from(native.pointer_size).unwrap();
         assert_eq!(dispatch_call_plan.parameters.len(), 1);
-        assert_eq!(dispatch_call_plan.parameters[0].shape.byte_size, pointer);
+        assert_eq!(
+            dispatch_call_plan.parameters[0].shape.byte_size,
+            u32::from(pointer)
+        );
         assert!(
             dispatch_call_plan.result.is_none(),
             "unit call has no result"

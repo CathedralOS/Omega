@@ -369,7 +369,7 @@ pub(super) fn decode_shape(
         return Err(OptimizedOrdinaryCallableEntryDecodeError::InvalidScalarType);
     }
     Ok(ValueShape::integer(
-        u16::from_le_bytes(cursor.array()?),
+        u32::from_le_bytes(cursor.array()?),
         u16::from_le_bytes(cursor.array()?),
     ))
 }

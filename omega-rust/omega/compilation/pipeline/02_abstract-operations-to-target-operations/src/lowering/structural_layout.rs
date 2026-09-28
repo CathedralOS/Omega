@@ -50,7 +50,7 @@ pub(super) fn root_array_projection_metadata(
         return Ok((None, None));
     };
     let shape = structural_shape(element, declarations, cache, active)?;
-    let stride = checked_align_up_u32(u32::from(shape.byte_size), u32::from(shape.alignment))
+    let stride = checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))
         .ok_or(LoweringError::StructuralTypeTooLarge(root))?;
     Ok((Some(length), Some(stride)))
 }
@@ -83,7 +83,7 @@ pub(crate) fn structural_shape(
             StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) => {
                 let byte_size = integer.bits().div_ceil(8);
                 Ok(ValueShape::integer(
-                    byte_size,
+                    u32::from(byte_size),
                     byte_size.next_power_of_two().min(8),
                 ))
             }
@@ -132,13 +132,11 @@ pub(crate) fn structural_shape(
                     byte_size = checked_align_up_u32(byte_size, u32::from(field_shape.alignment))
                         .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
                     byte_size = byte_size
-                        .checked_add(u32::from(field_shape.byte_size))
+                        .checked_add(field_shape.byte_size)
                         .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
                 }
                 byte_size = checked_align_up_u32(byte_size, u32::from(alignment))
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
-                let byte_size = u16::try_from(byte_size)
-                    .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?;
                 Ok(ValueShape::integer(byte_size, alignment))
             }
             StructuralTypeShape::FixedArray { element, length } => {
@@ -154,14 +152,11 @@ pub(crate) fn structural_shape(
                     return Err(LoweringError::EmptyStructuralType(structural_type));
                 }
                 let element = structural_shape(*element, declarations, cache, active)?;
-                let stride = checked_align_up_u32(
-                    u32::from(element.byte_size),
-                    u32::from(element.alignment),
-                )
-                .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+                let stride = checked_align_up_u32(element.byte_size, u32::from(element.alignment))
+                    .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
                 let byte_size = u64::from(stride)
                     .checked_mul(*length)
-                    .and_then(|size| u16::try_from(size).ok())
+                    .and_then(|size| u32::try_from(size).ok())
                     .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
                 Ok(ValueShape::integer(byte_size, element.alignment))
             }
@@ -293,12 +288,18 @@ fn structural_field_shape(
         StructuralFieldType::Scalar(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
             let size = integer.bits().div_ceil(8);
-            Ok(ValueShape::integer(size, size.next_power_of_two().min(16)))
+            Ok(ValueShape::integer(
+                u32::from(size),
+                size.next_power_of_two().min(16),
+            ))
         }
         StructuralFieldType::BoundedInteger(bounds) => {
             let integer = bounds.integer_type();
             let size = integer.bits().div_ceil(8);
-            Ok(ValueShape::integer(size, size.next_power_of_two().min(16)))
+            Ok(ValueShape::integer(
+                u32::from(size),
+                size.next_power_of_two().min(16),
+            ))
         }
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
@@ -346,12 +347,12 @@ pub(super) fn resolve_structural_field_path(
                 StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
                 StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                     let size = integer.bits().div_ceil(8);
-                    ValueShape::integer(size, size.next_power_of_two().min(16))
+                    ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
                 }
                 StructuralFieldType::BoundedInteger(bounds) => {
                     let integer = bounds.integer_type();
                     let size = integer.bits().div_ceil(8);
-                    ValueShape::integer(size, size.next_power_of_two().min(16))
+                    ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
                 }
                 StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
                     ValueShape::float(4)
@@ -390,7 +391,7 @@ pub(super) fn resolve_structural_field_path(
                 break;
             }
             local_offset = local_offset
-                .checked_add(u32::from(field_shape.byte_size))
+                .checked_add(field_shape.byte_size)
                 .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
         }
         let (field_type, field_shape, field_offset) =
@@ -466,7 +467,7 @@ fn byte_sequence_field_geometry(
             };
         }
         local_offset = local_offset
-            .checked_add(u32::from(field_shape.byte_size))
+            .checked_add(field_shape.byte_size)
             .ok_or(LoweringError::StructuralTypeTooLarge(parent_type))?;
     }
     Ok(None)
@@ -567,7 +568,7 @@ pub(super) fn case_projection(
                 let layout = structural_sum_layout(current, declarations, cache, active)?;
                 (
                     next,
-                    u32::from(layout.cases[case_position].fields[field_position].byte_offset),
+                    layout.cases[case_position].fields[field_position].byte_offset,
                 )
             }
             Segment::Field(identity) => {
@@ -586,11 +587,9 @@ pub(super) fn case_projection(
                     return Err(invalid());
                 };
                 let displacement = if matches!(shape, StructuralTypeShape::Mixed { .. }) {
-                    u32::from(
-                        structural_sum_layout(current, declarations, cache, active)?.common_fields
-                            [field_position]
-                            .byte_offset,
-                    )
+                    structural_sum_layout(current, declarations, cache, active)?.common_fields
+                        [field_position]
+                        .byte_offset
                 } else {
                     resolve_structural_field_path(
                         current,
@@ -665,9 +664,8 @@ pub(super) fn resolve_structural_projection_path(
                     return Err(LoweringError::UnknownStructuralType(structural_type));
                 }
                 let shape = structural_shape(element, declarations, cache, active)?;
-                let stride =
-                    checked_align_up_u32(u32::from(shape.byte_size), u32::from(shape.alignment))
-                        .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
+                let stride = checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))
+                    .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
                 let offset = u64::from(stride)
                     .checked_mul(*index)
                     .and_then(|offset| u32::try_from(offset).ok())
@@ -740,11 +738,9 @@ pub(super) fn runtime_projection(
             ));
         };
         let element_shape = structural_shape(element, declarations, cache, active)?;
-        let stride = checked_align_up_u32(
-            u32::from(element_shape.byte_size),
-            u32::from(element_shape.alignment),
-        )
-        .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
+        let stride =
+            checked_align_up_u32(element_shape.byte_size, u32::from(element_shape.alignment))
+                .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
         indices.push((*index, stride));
         structural_type = element;
         segment_start = position + 1;
@@ -783,7 +779,7 @@ pub(super) fn byte_sequence_shape(
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?,
     };
     Ok(ValueShape::integer(
-        u16::try_from(byte_size)
+        u32::try_from(byte_size)
             .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
         8,
     ))
@@ -799,4 +795,35 @@ pub(super) fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    #[test]
+    fn array_extents_above_64k_remain_exact_and_u32_overflow_rejects() {
+        let element = StructuralTypeId::new(1).unwrap();
+        let array = StructuralTypeId::new(2).unwrap();
+        for (length, expected) in [(65_536, Some(65_536)), (u64::from(u32::MAX) + 1, None)] {
+            let declarations = [
+                StructuralTypeDeclaration {
+                    id: element,
+                    identity: "Byte".into(),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                },
+                StructuralTypeDeclaration {
+                    id: array,
+                    identity: "Array".into(),
+                    shape: StructuralTypeShape::FixedArray { element, length },
+                },
+            ];
+            let indexed = declarations.iter().map(|value| (value.id, value)).collect();
+            let result =
+                structural_shape(array, &indexed, &mut BTreeMap::new(), &mut BTreeSet::new());
+            match expected {
+                Some(size) => assert_eq!(result.unwrap(), ValueShape::integer(size, 1)),
+                None => assert!(
+                    matches!(result, Err(LoweringError::StructuralTypeTooLarge(value)) if value == array)
+                ),
+            }
+        }
+    }
+}

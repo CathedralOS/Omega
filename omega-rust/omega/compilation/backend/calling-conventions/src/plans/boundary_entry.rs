@@ -71,7 +71,7 @@ impl ValidatedBoundaryEntryPlan {
 
     /// Domain-separated commitment to the complete canonical boundary plan.
     pub fn contract_commitment_digest(&self) -> [u8; 32] {
-        let mut hash = Fnv1a::with_strong_domain(b"omega.boundary-calling-plan.v1");
+        let mut hash = Fnv1a::with_strong_domain(b"omega.boundary-calling-plan.v2");
         hash.call_plan(&self.0.call);
         hash.state_plan(&self.0.state);
         hash.finish_strong()
@@ -255,7 +255,7 @@ fn canonicalize_boundary_entry_plan(plan: &mut BoundaryEntryPlan) {
         .sort_by_key(|row| row.binder);
 }
 
-fn value_location_byte_offset(location: &ValueLocation) -> u16 {
+fn value_location_byte_offset(location: &ValueLocation) -> u32 {
     match location {
         ValueLocation::Register {
             value_byte_offset, ..

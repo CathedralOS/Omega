@@ -318,7 +318,7 @@ fn durable_home_offsets(
         };
         cursor = aligned;
         offsets.push((operation, cursor));
-        let Some(next) = cursor.checked_add(u32::from(byte_size)) else {
+        let Some(next) = cursor.checked_add(byte_size) else {
             return Vec::new();
         };
         cursor = next;
@@ -811,7 +811,10 @@ fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueSha
             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                 && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
         {
-            Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
+            Some(ValueShape::integer(
+                u32::from(integer.bits() / 8),
+                integer.bits() / 8,
+            ))
         }
         _ => None,
     }
@@ -882,7 +885,7 @@ where
                 return None;
             };
             if outgoing.abi_stack_byte_offset != *stack_byte_offset
-                || outgoing.byte_size != u32::from(*byte_size)
+                || outgoing.byte_size != (*byte_size)
                 || outgoing.alignment != *alignment
             {
                 return None;

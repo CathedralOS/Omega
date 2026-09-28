@@ -450,7 +450,8 @@ pub fn materialized_boundary_signature_from_abi(
                     ValueClass::Float => BoundaryValueClass::Float,
                     _ => BoundaryValueClass::Integer,
                 },
-                byte_size: shape.byte_size,
+                byte_size: u16::try_from(shape.byte_size)
+                    .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                 alignment: shape.alignment,
             },
         )?;
@@ -480,7 +481,8 @@ pub fn materialized_boundary_signature_from_abi(
                         ValueClass::Float => BoundaryValueClass::Float,
                         _ => BoundaryValueClass::Integer,
                     },
-                    byte_size: shape.byte_size,
+                    byte_size: u16::try_from(shape.byte_size)
+                        .map_err(|_| "boundary shape exceeds 65535 bytes".to_owned())?,
                     alignment: shape.alignment,
                 },
             )
@@ -865,7 +867,7 @@ pub(crate) fn validate_materialized_boundary_plan_result(
                 byte_size,
                 alignment,
             } => {
-                let expected = ValueShape::integer(byte_size, alignment);
+                let expected = ValueShape::integer(u32::from(byte_size), alignment);
                 if placement.shape == expected {
                     Ok(())
                 } else {

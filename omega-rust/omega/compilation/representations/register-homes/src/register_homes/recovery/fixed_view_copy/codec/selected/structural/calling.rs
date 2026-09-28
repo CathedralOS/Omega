@@ -9,6 +9,45 @@ use crate::FixedViewCopyDecodeError;
 
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{Cursor, length};
 
+#[cfg(test)]
+#[test]
+fn wide_shape_and_fragment_offsets_round_trip_without_truncation() {
+    for placement in [
+        ValuePlacement {
+            shape: ValueShape::borrowed_reference(u32::MAX, 8),
+            locations: vec![ValueLocation::Indirect {
+                pointer: IndirectPointerLocation::Register(MachineRegister::Aarch64X(0)),
+                copy_stack_byte_offset: None,
+                byte_size: u32::MAX,
+                alignment: 8,
+            }],
+        },
+        ValuePlacement {
+            shape: ValueShape::integer(131_072, 8),
+            locations: vec![
+                ValueLocation::Stack {
+                    stack_byte_offset: 0,
+                    value_byte_offset: 0,
+                    byte_size: 65_536,
+                    alignment: 8,
+                },
+                ValueLocation::Stack {
+                    stack_byte_offset: 65_536,
+                    value_byte_offset: 65_536,
+                    byte_size: 65_536,
+                    alignment: 8,
+                },
+            ],
+        },
+    ] {
+        let mut encoded = Vec::new();
+        encode_placement(&mut encoded, &placement);
+        let mut cursor = Cursor::new(&encoded);
+        assert_eq!(decode_placement(&mut cursor).unwrap(), placement);
+        assert_eq!(cursor.remaining(), 0);
+    }
+}
+
 pub(super) fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
     bytes.push(match plan.policy {
         CallingPolicy::MicrosoftX64 => 1,
@@ -228,13 +267,13 @@ pub(super) fn decode_placement(
         locations.push(match cursor.byte()? {
             1 => ValueLocation::Register {
                 register: decode_machine_register(cursor)?,
-                value_byte_offset: cursor.u16()?,
-                byte_size: cursor.u16()?,
+                value_byte_offset: cursor.u32()?,
+                byte_size: cursor.u32()?,
             },
             2 => ValueLocation::Stack {
                 stack_byte_offset: cursor.u32()?,
-                value_byte_offset: cursor.u16()?,
-                byte_size: cursor.u16()?,
+                value_byte_offset: cursor.u32()?,
+                byte_size: cursor.u32()?,
                 alignment: cursor.u16()?,
             },
             3 => ValueLocation::Indirect {
@@ -244,7 +283,7 @@ pub(super) fn decode_placement(
                     1 => Some(cursor.u32()?),
                     tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
                 },
-                byte_size: cursor.u16()?,
+                byte_size: cursor.u32()?,
                 alignment: cursor.u16()?,
             },
             tag => return Err(FixedViewCopyDecodeError::UnknownValueLocation(tag)),
@@ -322,7 +361,7 @@ pub(super) fn decode_shape(
     };
     Ok(ValueShape {
         class,
-        byte_size: cursor.u16()?,
+        byte_size: cursor.u32()?,
         alignment: cursor.u16()?,
     })
 }

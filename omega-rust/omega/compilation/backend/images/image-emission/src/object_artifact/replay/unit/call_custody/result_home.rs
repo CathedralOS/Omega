@@ -36,7 +36,7 @@ pub(crate) fn expected_store_bytes(
         return None;
     }
     let mut bytes = Vec::new();
-    let mut cursor = 0_u16;
+    let mut cursor = 0_u32;
     for location in &result.caller_result_placement.locations {
         let ValueLocation::Register {
             register,
@@ -49,7 +49,7 @@ pub(crate) fn expected_store_bytes(
         if value_byte_offset != cursor || !(1..=8).contains(&byte_size) {
             return None;
         }
-        let offset = home.home_byte_offset.checked_add(u32::from(cursor))?;
+        let offset = home.home_byte_offset.checked_add(cursor)?;
         match target.architecture {
             Architecture::X86_64 if super::packed_fragment::is_packed(byte_size) => {
                 super::packed_fragment::x86_store(
@@ -148,7 +148,7 @@ pub(crate) fn parameter_storage_end(
         let end = offset.checked_add(if parameter.indirect {
             8
         } else {
-            u32::from(parameter.shape.byte_size)
+            parameter.shape.byte_size
         })?;
         parameter_cursor = end;
     }
@@ -207,7 +207,7 @@ pub(crate) fn exact_storage(
     };
     let Some(end) = home
         .home_byte_offset
-        .checked_add(u32::from(home.requirement.layout.shape().byte_size))
+        .checked_add(home.requirement.layout.shape().byte_size)
     else {
         return false;
     };
@@ -225,7 +225,7 @@ pub(crate) fn exact_storage(
                 .checked_add(if parameter.indirect {
                     8
                 } else {
-                    u32::from(parameter.shape.byte_size)
+                    parameter.shape.byte_size
                 })
         })
         .collect::<Option<Vec<_>>>();
@@ -255,10 +255,7 @@ pub(crate) fn exact_storage(
         {
             return false;
         }
-        let Some(end) = stored
-            .home_byte_offset
-            .checked_add(u32::from(shape.byte_size))
-        else {
+        let Some(end) = stored.home_byte_offset.checked_add(shape.byte_size) else {
             return false;
         };
         result_end = end;
@@ -274,11 +271,7 @@ pub(crate) fn exact_storage(
     }
     let scalar_end = scalar_homes
         .iter()
-        .map(|scalar| {
-            scalar
-                .byte_offset
-                .checked_add(u32::from(scalar.shape.byte_size))
-        })
+        .map(|scalar| scalar.byte_offset.checked_add(scalar.shape.byte_size))
         .collect::<Option<Vec<_>>>();
     let Some(scalar_end) = scalar_end else {
         return false;
@@ -306,13 +299,13 @@ pub(crate) fn exact_storage(
                         if parameter.indirect {
                             8
                         } else {
-                            u32::from(parameter.shape.byte_size)
+                            parameter.shape.byte_size
                         },
                     )
                 })
         })
         && scalar_homes
             .iter()
-            .all(|scalar| !overlaps(scalar.byte_offset, u32::from(scalar.shape.byte_size)))
+            .all(|scalar| !overlaps(scalar.byte_offset, scalar.shape.byte_size))
         && return_link.is_none_or(|offset| !overlaps(offset, 8))
 }

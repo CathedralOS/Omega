@@ -554,7 +554,7 @@ fn bound_private_callback_materialization(
                         .to_owned(),
                 );
             };
-            let shape = ValueShape::integer(byte_size, alignment);
+            let shape = ValueShape::integer(u32::from(byte_size), alignment);
             let placement = usize::try_from(native_parameter.native_ordinal)
                 .ok()
                 .and_then(|ordinal| validated.plan().call.parameters.get(ordinal))

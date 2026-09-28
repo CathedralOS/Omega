@@ -112,7 +112,10 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
             if integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
                 && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
         {
-            Some(ValueShape::integer(integer.bits() / 8, integer.bits() / 8))
+            Some(ValueShape::integer(
+                u32::from(integer.bits() / 8),
+                integer.bits() / 8,
+            ))
         }
         _ => None,
     }

@@ -99,7 +99,10 @@ pub(in crate::legalization) fn parameter_call_contract(
     let dispatch_call_plan = calling_conventions::evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
-            parameters: vec![ValueShape::integer(pointer_size, pointer_alignment)],
+            parameters: vec![ValueShape::integer(
+                u32::from(pointer_size),
+                pointer_alignment,
+            )],
             result: result_shape,
         },
     )

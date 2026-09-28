@@ -177,7 +177,7 @@ fn exact_owned_projection_from_root(
         StructuralTypeShape::FixedArray { element, length } => {
             crate::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(element, declarations)
                 .and_then(|shape| {
-                    u32::from(shape.byte_size).checked_next_multiple_of(u32::from(shape.alignment))
+                    shape.byte_size.checked_next_multiple_of(u32::from(shape.alignment))
                 })
                 .is_some_and(|stride| {
                     argument.fixed_array_length == Some(length)

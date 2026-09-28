@@ -107,7 +107,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
     }
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
-    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
     let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
     if !matches!(
         result.scalar_type,
@@ -254,7 +254,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
     }
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
-    let pointer_shape = ValueShape::integer(pointer_size, pointer_alignment);
+    let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
     let descriptor_parameter_count = dynamic_arguments.len().checked_mul(2).ok_or_else(invalid)?;
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
@@ -369,8 +369,8 @@ fn prepare_dynamic_arguments(
                 )
                 .map_err(|_| invalid())?;
             if source_byte_offset
-                .checked_add(u32::from(projected_shape.byte_size))
-                .is_none_or(|end| end > u32::from(root.shape.byte_size))
+                .checked_add(projected_shape.byte_size)
+                .is_none_or(|end| end > root.shape.byte_size)
             {
                 return Err(invalid());
             }

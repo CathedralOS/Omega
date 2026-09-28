@@ -149,7 +149,7 @@ pub(super) fn emit(
             let register = super::structural_case::register(
                 builder,
                 result.place,
-                u32::from(*value_byte_offset),
+                *value_byte_offset,
                 64,
                 false,
             )?;
@@ -223,7 +223,7 @@ pub(super) fn emit(
             .local_slots
             .push(SelectedLocalStorageSlot {
                 id: slot,
-                byte_size: u32::from(placement.shape.byte_size),
+                byte_size: placement.shape.byte_size,
                 alignment: placement.shape.alignment,
             });
         let block = source
@@ -243,7 +243,7 @@ pub(super) fn emit(
             block,
             result.place,
             0,
-            u32::from(placement.shape.byte_size),
+            placement.shape.byte_size,
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         builder.emit(
@@ -272,15 +272,15 @@ pub(super) fn emit(
                 builder,
                 block,
                 result.place,
-                u32::from(*value_byte_offset),
-                u32::from(*byte_size),
+                *value_byte_offset,
+                *byte_size,
                 SelectedMemoryAccessRole::WritePlace,
             )?;
             super::aggregate_memory::store(
                 builder,
                 pointer,
                 value,
-                u32::from(*value_byte_offset),
+                *value_byte_offset,
                 *byte_size,
             )?;
         }

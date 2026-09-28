@@ -254,7 +254,7 @@ pub(super) fn lower(
             }
             payloads.push(TargetControlCasePayload {
                 field: payload.field,
-                field_byte_offset: u32::from(field_layout.byte_offset),
+                field_byte_offset: field_layout.byte_offset,
                 parameter: TargetScalarBlockValue {
                     block: target.block,
                     value: parameter.value,

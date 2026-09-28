@@ -39,7 +39,7 @@ pub(super) fn emit(
         .local_slots
         .push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: u32::from(layout.shape.byte_size),
+            byte_size: layout.shape.byte_size,
             alignment: layout.shape.alignment,
         });
     let instruction_index = builder

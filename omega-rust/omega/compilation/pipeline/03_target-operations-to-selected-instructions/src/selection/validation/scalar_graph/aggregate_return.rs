@@ -48,7 +48,7 @@ pub(super) fn validate(
             .iter()
             .filter(|home| {
                 home.id == slot
-                    && home.byte_size == u32::from(placement.shape.byte_size)
+                    && home.byte_size == placement.shape.byte_size
                     && home.alignment == placement.shape.alignment
             })
             .count()
@@ -66,7 +66,7 @@ pub(super) fn validate(
             block.id,
             place,
             0,
-            u32::from(placement.shape.byte_size),
+            placement.shape.byte_size,
             SelectedMemoryAccessRole::AddressLocal { slot },
         )?;
         replay.check_instruction(
@@ -140,14 +140,14 @@ pub(super) fn validate(
             else {
                 return Err(SelectedInstructionError::custody());
             };
-            let offset = u32::from(*value_byte_offset);
+            let offset = *value_byte_offset;
             let register = super::structural_case::temporary(replay, place, offset, false)?;
             super::structural_case::memory(
                 replay,
                 block.id,
                 place,
                 offset,
-                u32::from(*byte_size),
+                *byte_size,
                 SelectedMemoryAccessRole::ReadPlace,
             )?;
             super::aggregate_memory::load(replay, pointer, register, offset, *byte_size)?;
@@ -161,7 +161,7 @@ pub(super) fn validate(
             else {
                 return Err(SelectedInstructionError::custody());
             };
-            let offset = u32::from(*value_byte_offset);
+            let offset = *value_byte_offset;
             let input = replay
                 .transport
                 .fragments

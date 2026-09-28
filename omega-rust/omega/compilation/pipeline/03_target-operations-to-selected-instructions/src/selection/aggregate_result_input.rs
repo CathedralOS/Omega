@@ -336,7 +336,7 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
     if !base.is_multiple_of(u32::from(placement.shape.alignment)) {
         return false;
     }
-    let mut offset = 0u16;
+    let mut offset = 0u32;
     for location in &placement.locations {
         let calling_conventions::ValueLocation::Stack {
             stack_byte_offset,
@@ -351,7 +351,7 @@ pub(super) fn inline_argument_fragments(placement: &calling_conventions::ValuePl
             || !(1..=8).contains(byte_size)
             || !alignment.is_power_of_two()
             || !stack_byte_offset.is_multiple_of(u32::from(*alignment))
-            || base.checked_add(u32::from(offset)) != Some(*stack_byte_offset)
+            || base.checked_add(offset) != Some(*stack_byte_offset)
         {
             return false;
         }
@@ -392,7 +392,7 @@ pub(super) fn indirect_argument(
     {
         return None;
     }
-    copy_offset.checked_add(u32::from(*byte_size))?;
+    copy_offset.checked_add(*byte_size)?;
     Some((*pointer, *copy_offset))
 }
 
@@ -610,7 +610,7 @@ pub(super) fn fields(
         .map(|((field, declaration), placed)| {
             let shape = super::record_input::field_shape(source, result, field, declaration)?;
             (shape == placed.shape).then_some((
-                u32::from(placed.byte_offset),
+                placed.byte_offset,
                 shape,
                 declaration.field_type.scalar_type(),
             ))

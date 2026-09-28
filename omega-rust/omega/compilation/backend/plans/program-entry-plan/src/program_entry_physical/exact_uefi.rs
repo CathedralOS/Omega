@@ -50,14 +50,13 @@ pub fn exact_uefi_x64_physical_contract_package_source_digest()
 /// Domain-separated commitment to the canonical boundary-entry plan the
 /// bundled closed package's authored `UefiX86_64::plan` machine produces for
 /// `UefiPhysicalEntry::enter`'s exact signature. This is the
-/// `contract_commitment_digest` of the plan the source evaluation mints; the
-/// compiler replay
-/// (`entry_and_abi::program_entries_and_image_validation`) keeps it honest
-/// against live evaluation, so it changes only when that authored policy
-/// changes.
+/// `contract_commitment_digest` of the plan the source evaluation mints.
+/// Physical-entry replay checks the retained plan against this commitment.
+/// A change to that policy or the canonical
+/// calling-plan encoding requires recording its new commitment.
 pub const UEFI_X64_PHYSICAL_CALLING_PLAN_COMMITMENT: [u8; 32] = [
-    10, 172, 212, 105, 61, 70, 186, 33, 243, 129, 223, 176, 113, 147, 97, 164, 49, 60, 230, 159,
-    253, 121, 213, 251, 126, 106, 127, 144, 31, 84, 13, 130,
+    93, 215, 198, 244, 134, 45, 215, 214, 168, 250, 172, 114, 227, 233, 145, 103, 20, 89, 121, 37,
+    75, 65, 230, 111, 27, 124, 230, 128, 171, 181, 106, 135,
 ];
 
 /// Replay independent validation of `plan` under the signature its own

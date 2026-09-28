@@ -178,7 +178,7 @@ impl ProgramEntrySourceExtentValueLayout {
         let layout::DataShape::Record { fields } = layout.shape else {
             return Err("selected source Extent backend layout is not a record".into());
         };
-        if layout.layout.size != usize::from(self.shape.byte_size)
+        if layout.layout.size != (self.shape.byte_size as usize)
             || layout.layout.alignment != usize::from(self.shape.alignment)
         {
             return Err(
@@ -207,7 +207,7 @@ impl ProgramEntrySourceExtentValueLayout {
                 || actual.name.as_str() != expected_name
                 || actual.offset != usize::from(expected.byte_offset)
                 || actual.type_name.as_ref() != expected_type
-                || actual.layout.size != usize::from(expected.shape.byte_size)
+                || actual.layout.size != (expected.shape.byte_size as usize)
                 || actual.layout.alignment != usize::from(expected.shape.alignment)
                 || layouts.bit_field(actual.symbol).is_some()
                 || layouts.stored_integer(actual.symbol).is_some()

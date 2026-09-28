@@ -171,7 +171,7 @@ fn narrow_unsigned_stack_fragments_preserve_payload_and_reject_substitutions() {
                 .position(|slot| slot.id.argument_index == 8)
                 .expect("ninth outgoing scalar");
             let slot = &selected.outgoing_arguments[outgoing];
-            assert_eq!(slot.byte_size, u32::from(shape.byte_size));
+            assert_eq!(slot.byte_size, shape.byte_size);
             let ValueLocation::Stack {
                 stack_byte_offset: outgoing_offset,
                 alignment,

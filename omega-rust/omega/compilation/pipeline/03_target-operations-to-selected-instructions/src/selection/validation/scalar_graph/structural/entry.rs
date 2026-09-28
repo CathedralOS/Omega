@@ -115,7 +115,7 @@ pub(in crate::selection) fn entry(
                     else {
                         return Err(replay.invalid());
                     };
-                    let offset = u32::from(*value_byte_offset);
+                    let offset = *value_byte_offset;
                     if stack_byte_offset.checked_sub(*base) != Some(offset) {
                         return Err(replay.invalid());
                     }
@@ -143,7 +143,7 @@ pub(in crate::selection) fn entry(
                     },
                     Some(fixed),
                 )?;
-                let offset = u32::from(*value_byte_offset);
+                let offset = *value_byte_offset;
                 let output = result(replay, place, offset)?;
                 replay.check_instruction(
                     SelectedInstructionKind::CopyI64,
@@ -276,7 +276,7 @@ fn retain_owned_home(
         .local_slots
         .push(selected_instructions::SelectedLocalStorageSlot {
             id: slot,
-            byte_size: u32::from(shape.byte_size),
+            byte_size: shape.byte_size,
             alignment: shape.alignment,
         });
     let pointer = result(replay, place, 0)?;
@@ -285,7 +285,7 @@ fn retain_owned_home(
         source.entry_block,
         place,
         0,
-        u32::from(shape.byte_size),
+        shape.byte_size,
         selected_instructions::SelectedMemoryAccessRole::AddressLocal { slot },
     )?;
     replay.check_instruction(
@@ -312,7 +312,7 @@ fn retain_owned_home(
                 value_byte_offset,
                 byte_size,
                 ..
-            } => (u32::from(*value_byte_offset), *byte_size),
+            } => ((*value_byte_offset), *byte_size),
             _ => return Err(replay.invalid()),
         };
         let value = replay
@@ -327,7 +327,7 @@ fn retain_owned_home(
             source.entry_block,
             place,
             offset,
-            u32::from(width),
+            width,
             selected_instructions::SelectedMemoryAccessRole::WritePlace,
         )?;
         super::super::aggregate_memory::store(replay, pointer, value, offset, width)?;

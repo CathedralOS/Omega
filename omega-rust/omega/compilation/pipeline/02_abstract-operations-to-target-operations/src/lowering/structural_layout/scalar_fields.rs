@@ -53,12 +53,12 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
             StructuralFieldType::Scalar(ScalarType::Boolean) => ValueShape::integer(1, 1),
             StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                 let size = integer.bits().div_ceil(8);
-                ValueShape::integer(size, size.next_power_of_two().min(16))
+                ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
             }
             StructuralFieldType::BoundedInteger(bounds) => {
                 let integer = bounds.integer_type();
                 let size = integer.bits().div_ceil(8);
-                ValueShape::integer(size, size.next_power_of_two().min(16))
+                ValueShape::integer(u32::from(size), size.next_power_of_two().min(16))
             }
             StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)) => {
                 ValueShape::float(4)
@@ -87,7 +87,7 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
                 .ok_or(LoweringError::UnknownStructuralType(structural_type));
         }
         offset = offset
-            .checked_add(u32::from(shape.byte_size))
+            .checked_add(shape.byte_size)
             .ok_or(LoweringError::StructuralTypeTooLarge(structural_type))?;
     }
     Err(LoweringError::UnknownStructuralType(structural_type))

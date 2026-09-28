@@ -28,7 +28,8 @@ fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
         (3, Some((16, 12))),
         (9, Some((24, 20))),
         (65_520, Some((65_536, 65_528))),
-        (65_528, None),
+        (65_528, Some((65_544, 65_536))),
+        (u64::from(u32::MAX) - 8, None),
         (u64::MAX, None),
     ] {
         let declarations = [StructuralTypeDeclaration {
@@ -53,10 +54,9 @@ fn scalar_geometry_preserves_bounded_byte_siblings_without_owning_them() {
                 ],
             },
         }];
-        let expected = expected.filter(|(size, _)| *size <= u32::from(u16::MAX));
         assert_eq!(
             shape(root, &declarations),
-            expected.map(|(size, _)| ValueShape::integer(size as u16, 8)),
+            expected.map(|(size, _)| ValueShape::integer(size, 8)),
         );
         let expected_access = expected.map(|(_, offset)| (offset, 4));
         assert_eq!(
@@ -142,8 +142,10 @@ fn owned_byte_roots_have_bounded_geometry_without_plain_aggregate_admission() {
     for (capacity, expected_size) in [
         (0, Some(8)),
         (3, Some(11)),
-        (65_527, Some(u16::MAX)),
-        (65_528, None),
+        (65_527, Some(65_535)),
+        (65_528, Some(65_536)),
+        (u64::from(u32::MAX) - 8, Some(u32::MAX)),
+        (u64::from(u32::MAX) - 7, None),
         (u64::MAX, None),
     ] {
         let declarations = [StructuralTypeDeclaration {

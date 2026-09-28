@@ -21,7 +21,7 @@ fn fixed_integer_shape(integer: semantic_vocabulary::IntegerType) -> Option<Valu
         return None;
     }
     let bytes = integer.bits() / 8;
-    Some(ValueShape::integer(bytes, bytes))
+    Some(ValueShape::integer(u32::from(bytes), bytes))
 }
 
 fn scalar_home_shape(scalar: semantic_vocabulary::ScalarType) -> Option<ValueShape> {
@@ -49,7 +49,7 @@ pub(super) fn installed_forwarded_dynamic_scalar_result_is_canonical(
     let Ok(pointer_alignment) = u16::try_from(target.pointer_alignment) else {
         return false;
     };
-    let pointer = ValueShape::integer(pointer_bytes, pointer_alignment);
+    let pointer = ValueShape::integer(u32::from(pointer_bytes), pointer_alignment);
     let Ok(expected_plan) = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
@@ -504,7 +504,7 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                             && scalar_parameter.value == source_value
                             && scalar_parameter.scalar_type == scalar_type
                             && scalar_parameter.placement.shape == scalar_shape
-                            && placed_byte_size == width
+                            && placed_byte_size == u32::from(width)
                             && location == expected_location
                             && abi.call_plan == expected_plan
                             && abi.call_plan.parameters.get(scalar_parameter_index)
@@ -702,7 +702,7 @@ pub(super) fn validate_installed_unit_structural_scalar_field_stores(
                 || store
                     .field_byte_offset
                     .checked_add(u32::from(width))
-                    .is_none_or(|field_end| field_end > u32::from(parameter.shape.byte_size))
+                    .is_none_or(|field_end| field_end > parameter.shape.byte_size)
                 || store.byte_count == 0
                 || store.byte_count != store.bytes.len()
                 || store.bytes != expected_bytes
@@ -836,7 +836,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                             && scalar_parameter.value == source_value
                             && scalar_parameter.scalar_type == scalar_type
                             && scalar_parameter.placement.shape == scalar_shape
-                            && placed_byte_size == width
+                            && placed_byte_size == u32::from(width)
                             && location == expected_location
                             && abi.call_plan == expected_plan
                             && abi.call_plan.parameters.get(scalar_parameter_index)
@@ -996,7 +996,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
             {
                 return Err(invalid());
             }
-            let expected_shape = ValueShape::borrowed_reference(width, width.min(8));
+            let expected_shape = ValueShape::borrowed_reference(u32::from(width), width.min(8));
             let [
                 ValueLocation::Indirect {
                     copy_stack_byte_offset: None,
@@ -1105,7 +1105,7 @@ pub(super) fn validate_installed_unit_write_only_primitive_stores(
                 || home.source.shape != expected_shape
                 || home.source != store.destination_placement
                 || !home.indirect
-                || *placement_byte_size != width
+                || *placement_byte_size != u32::from(width)
                 || *placement_alignment != width.min(8)
                 || Some(store.parameter_home_byte_offset) != home.location.stack_byte_offset()
                 || !store.parameter_home_indirect
@@ -1135,7 +1135,7 @@ fn installed_native_scalar_shape(
                 && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
         {
             let width = integer.bits().checked_div(8)?;
-            Some((ValueShape::integer(width, width.min(8)), width))
+            Some((ValueShape::integer(u32::from(width), width.min(8)), width))
         }
         _ => None,
     }

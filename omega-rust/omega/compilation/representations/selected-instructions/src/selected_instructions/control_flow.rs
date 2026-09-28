@@ -168,7 +168,7 @@ pub enum SelectedStructuralTransport {
     WholeValue {
         argument: VirtualRegisterId,
         destination: super::LocalStorageSlotId,
-        byte_size: u16,
+        byte_size: u32,
         alignment: u16,
     },
     Descriptor {

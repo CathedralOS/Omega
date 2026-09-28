@@ -346,7 +346,10 @@ fn scalar_shape(scalar: ScalarType) -> Result<ValueShape, OptimizedOrdinaryCalla
         }
         _ => return Err(OptimizedOrdinaryCallableEntryError::UnsupportedSignature),
     };
-    Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+    Ok(ValueShape::integer(
+        u32::from(bytes),
+        bytes.next_power_of_two().min(8),
+    ))
 }
 fn origin_value(origin: VirtualRegisterOrigin) -> Option<ValueId> {
     match origin {

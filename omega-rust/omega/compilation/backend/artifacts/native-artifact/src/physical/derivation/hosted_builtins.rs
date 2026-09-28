@@ -202,7 +202,7 @@ fn read_byte_result_bytes(
     }
     let payload_offset = result
         .home_byte_offset
-        .checked_add(u32::from(result.layout.payload_byte_offset))
+        .checked_add(result.layout.payload_byte_offset)
         .ok_or("hosted read-byte physical child result home overflow")?;
     match target.architecture {
         Architecture::X86_64 => {

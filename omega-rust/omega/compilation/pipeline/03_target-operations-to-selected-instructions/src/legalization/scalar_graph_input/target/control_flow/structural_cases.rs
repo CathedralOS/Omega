@@ -339,7 +339,7 @@ pub(super) fn matches(
                         && fields[field_position].field_type.scalar_type()
                             == Some(expected.scalar_type)
                         && scalar_shape(expected.scalar_type) == Some(field_layout.shape)
-                        && actual.field_byte_offset == u32::from(field_layout.byte_offset)
+                        && actual.field_byte_offset == field_layout.byte_offset
                 })
         })
 }

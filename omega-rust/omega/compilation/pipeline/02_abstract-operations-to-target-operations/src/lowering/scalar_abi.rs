@@ -182,7 +182,10 @@ pub(super) fn fixed_native_integer_shape(scalar_type: IntegerType) -> Option<Val
         return None;
     }
     let bytes = scalar_type.bits().div_ceil(8);
-    Some(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+    Some(ValueShape::integer(
+        u32::from(bytes),
+        bytes.next_power_of_two().min(8),
+    ))
 }
 
 #[cfg(test)]

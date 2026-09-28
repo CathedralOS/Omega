@@ -45,7 +45,7 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
             if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64) =>
         {
             let bytes = integer.bits() / 8;
-            Some(ValueShape::integer(bytes, bytes))
+            Some(ValueShape::integer(u32::from(bytes), bytes))
         }
         _ => None,
     }
@@ -604,11 +604,11 @@ pub(super) fn call_is_exact(
                             && argument.access == StructuralAccess::SharedBorrow
                         || prior
                             .source_byte_offset
-                            .checked_add(u32::from(prior.shape.byte_size))
+                            .checked_add(prior.shape.byte_size)
                             .is_some_and(|end| end <= argument.source_byte_offset)
                         || argument
                             .source_byte_offset
-                            .checked_add(u32::from(argument.shape.byte_size))
+                            .checked_add(argument.shape.byte_size)
                             .is_some_and(|end| end <= prior.source_byte_offset)
                 })
             })
@@ -663,7 +663,7 @@ fn owned_copy_is_exact(
             .checked_add(argument.byte_count)
             .is_some_and(|end| end <= call_code_offset)
         && copy_offset
-            .checked_add(u32::from(*byte_size))
+            .checked_add(*byte_size)
             .is_some_and(|end| end <= frame_bytes)
         && match pointer {
             IndirectPointerLocation::Register(_) => true,

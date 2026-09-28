@@ -64,7 +64,7 @@ pub(crate) fn validate_scalar_structural_scalar_field_stores(
         || anchor
             .return_field_byte_offset
             .checked_add(u32::from(return_width))
-            .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
+            .is_none_or(|end| end > parameter.shape.byte_size)
         || !function
             .provenance
             .operations
@@ -101,7 +101,7 @@ pub(crate) fn validate_scalar_structural_scalar_field_stores(
             || store
                 .field_byte_offset
                 .checked_add(u32::from(width))
-                .is_none_or(|end| end > u32::from(parameter.shape.byte_size))
+                .is_none_or(|end| end > parameter.shape.byte_size)
             || !function
                 .provenance
                 .operations

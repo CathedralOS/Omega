@@ -15,7 +15,8 @@ pub(crate) fn encode_shape(
         ValueClass::Integer => 1,
         ValueClass::BorrowedReference => 2,
         ValueClass::Float
-            if matches!(shape.byte_size, 4 | 8) && shape.alignment == shape.byte_size =>
+            if matches!(shape.byte_size, 4 | 8)
+                && u32::from(shape.alignment) == shape.byte_size =>
         {
             3
         }
@@ -24,7 +25,7 @@ pub(crate) fn encode_shape(
         }
     });
     bytes.push(0);
-    push_u16(bytes, shape.byte_size);
+    push_u32(bytes, shape.byte_size);
     push_u16(bytes, shape.alignment);
     push_u16(bytes, 0);
     Ok(())
@@ -46,8 +47,8 @@ pub(crate) fn encode_placement(
         } => {
             bytes.push(1);
             bytes.push(register_tag(*register)?);
-            push_u16(bytes, *value_byte_offset);
-            push_u16(bytes, *byte_size);
+            push_u32(bytes, *value_byte_offset);
+            push_u32(bytes, *byte_size);
             push_u16(bytes, 0);
         }
         ValueLocation::Stack {
@@ -58,8 +59,8 @@ pub(crate) fn encode_placement(
         } => {
             bytes.push(2);
             bytes.push(0);
-            push_u16(bytes, *value_byte_offset);
-            push_u16(bytes, *byte_size);
+            push_u32(bytes, *value_byte_offset);
+            push_u32(bytes, *byte_size);
             push_u16(bytes, *alignment);
             push_u32(bytes, *stack_byte_offset);
         }
@@ -89,8 +90,8 @@ pub(crate) fn encode_direct_placement(
             } => {
                 bytes.push(1);
                 bytes.push(register_tag(*register)?);
-                push_u16(bytes, *value_byte_offset);
-                push_u16(bytes, *byte_size);
+                push_u32(bytes, *value_byte_offset);
+                push_u32(bytes, *byte_size);
             }
             ValueLocation::Stack {
                 stack_byte_offset,
@@ -100,8 +101,8 @@ pub(crate) fn encode_direct_placement(
             } => {
                 bytes.push(2);
                 bytes.push(0);
-                push_u16(bytes, *value_byte_offset);
-                push_u16(bytes, *byte_size);
+                push_u32(bytes, *value_byte_offset);
+                push_u32(bytes, *byte_size);
                 push_u16(bytes, *alignment);
                 push_u32(bytes, *stack_byte_offset);
             }
@@ -136,7 +137,7 @@ pub(crate) fn encode_direct_placement(
                     }
                     None => bytes.push(0),
                 }
-                push_u16(bytes, *byte_size);
+                push_u32(bytes, *byte_size);
                 push_u16(bytes, *alignment);
             }
         }
@@ -156,9 +157,11 @@ pub(crate) fn decode_shape(reader: &mut Reader<'_>) -> Result<ValueShape, Instal
     if reader.u8()? != 0 {
         return Err(InstallationError::NonzeroReservedField);
     }
-    let byte_size = reader.u16()?;
+    let byte_size = reader.u32()?;
     let alignment = reader.u16()?;
-    if class == ValueClass::Float && (!matches!(byte_size, 4 | 8) || alignment != byte_size) {
+    if class == ValueClass::Float
+        && (!matches!(byte_size, 4 | 8) || u32::from(alignment) != byte_size)
+    {
         return Err(InstallationError::UnsupportedStructuralReturnShape);
     }
     if reader.u16()? != 0 {
@@ -179,8 +182,8 @@ pub(crate) fn decode_placement(
     let detail = reader.u8()?;
     let location = match location_kind {
         1 => {
-            let value_byte_offset = reader.u16()?;
-            let byte_size = reader.u16()?;
+            let value_byte_offset = reader.u32()?;
+            let byte_size = reader.u32()?;
             if reader.u16()? != 0 {
                 return Err(InstallationError::NonzeroReservedField);
             }
@@ -195,8 +198,8 @@ pub(crate) fn decode_placement(
                 return Err(InstallationError::NonzeroReservedField);
             }
             ValueLocation::Stack {
-                value_byte_offset: reader.u16()?,
-                byte_size: reader.u16()?,
+                value_byte_offset: reader.u32()?,
+                byte_size: reader.u32()?,
                 alignment: reader.u16()?,
                 stack_byte_offset: reader.u32()?,
             }
@@ -229,16 +232,16 @@ pub(crate) fn decode_direct_placement(
         locations.push(match reader.u8()? {
             1 => ValueLocation::Register {
                 register: decode_register(reader.u8()?)?,
-                value_byte_offset: reader.u16()?,
-                byte_size: reader.u16()?,
+                value_byte_offset: reader.u32()?,
+                byte_size: reader.u32()?,
             },
             2 => {
                 if reader.u8()? != 0 {
                     return Err(InstallationError::NonzeroReservedField);
                 }
                 ValueLocation::Stack {
-                    value_byte_offset: reader.u16()?,
-                    byte_size: reader.u16()?,
+                    value_byte_offset: reader.u32()?,
+                    byte_size: reader.u32()?,
                     alignment: reader.u16()?,
                     stack_byte_offset: reader.u32()?,
                 }
@@ -272,7 +275,7 @@ pub(crate) fn decode_direct_placement(
                 ValueLocation::Indirect {
                     pointer,
                     copy_stack_byte_offset,
-                    byte_size: reader.u16()?,
+                    byte_size: reader.u32()?,
                     alignment: reader.u16()?,
                 }
             }
@@ -352,7 +355,7 @@ mod tests {
                         locations: vec![ValueLocation::Register {
                             register,
                             value_byte_offset: 0,
-                            byte_size,
+                            byte_size: u32::from(byte_size),
                         }],
                     };
                     let mut bytes = Vec::new();

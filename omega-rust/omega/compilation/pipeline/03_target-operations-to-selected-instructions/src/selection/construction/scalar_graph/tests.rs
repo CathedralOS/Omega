@@ -58,7 +58,7 @@ fn fixture_with_integer(
     count: usize,
     integer: IntegerType,
 ) -> LegalizedScalarFunction {
-    let shape = ValueShape::integer(integer.bits() / 8, integer.bits() / 8);
+    let shape = ValueShape::integer(u32::from(integer.bits() / 8), integer.bits() / 8);
     let block = BlockId::new(1).unwrap();
     let effect = EffectLink {
         input: 0,

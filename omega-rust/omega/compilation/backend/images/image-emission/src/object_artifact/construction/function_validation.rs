@@ -1569,7 +1569,7 @@ fn validate_boundary_settlements(
                 let expected = settlement.native_result.structural().and_then(|result| {
                     let payload = result
                         .home_byte_offset
-                        .checked_add(u32::from(result.layout.payload_byte_offset))?;
+                        .checked_add(result.layout.payload_byte_offset)?;
                     match plan.target {
                         target if target == NativeTarget::linux_x64() => isa_x86_64::encode_linux_read_byte_to_stack(
                             result.home_byte_offset,

@@ -98,7 +98,7 @@ pub(super) fn validate(
                 .ok_or(invalid.clone())?;
             if actual.field != source.field
                 || actual.field_byte_offset
-                    != u32::from(layout.cases[case_position].fields[field_position].byte_offset)
+                    != layout.cases[case_position].fields[field_position].byte_offset
                 || actual.parameter.value != source.parameter
                 || actual.parameter.value != parameter.value
                 || actual.parameter.scalar_type != source.scalar_type

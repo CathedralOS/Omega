@@ -166,12 +166,12 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(decode_installation_record(&bytes), Ok(record.clone()));
     validate_installation_record(&record, &image).expect("exact image binding");
-    // Format 100 retains byte-field predicates and carrier access. Even this
+    // Format 101 retains full aggregate sizes and offsets. Even this
     // field-free fixture carries the format and Terminal vocabulary in its
     // header, so either marker changes its identity. Pin those inputs beside
     // the digests and reconstruct fingerprint framing independently of the
     // production helper. A header relabel is not a format conversion.
-    assert_eq!(&bytes[8..12], &[100, 0, 111, 0]);
+    assert_eq!(&bytes[8..12], &[101, 0, 111, 0]);
     use sha2::{Digest, Sha256};
     let independent_fingerprint = |payload: &[u8]| {
         let mut digest = Sha256::new();
@@ -192,19 +192,19 @@ fn installation_record_is_canonical_and_binds_exact_image_and_target_facts() {
     );
     assert_eq!(
         independent_fingerprint(&bytes),
-        "081ff2e40d15faf9914e628e49242132e5054877afc8b46abe5305bf216ee4e4"
+        "cd0117b56027bf68a4ddf7a58bbdfdfbf4c90483e636aa6ca8519b5f502a27e4"
     );
     assert_eq!(
         installation_fingerprint(&record)
             .expect("installation fingerprint")
             .to_string(),
-        "081ff2e40d15faf9914e628e49242132e5054877afc8b46abe5305bf216ee4e4"
+        "cd0117b56027bf68a4ddf7a58bbdfdfbf4c90483e636aa6ca8519b5f502a27e4"
     );
     let mut previous_format = bytes.clone();
-    previous_format[8..10].copy_from_slice(&99_u16.to_le_bytes());
+    previous_format[8..10].copy_from_slice(&100_u16.to_le_bytes());
     assert_eq!(
         decode_installation_record(&previous_format),
-        Err(InstallationError::UnsupportedFormatMarker(99))
+        Err(InstallationError::UnsupportedFormatMarker(100))
     );
     // Format 82 adds an explicit continuation count to every function row,
     // including these empty rosters. Changing only the header is not a

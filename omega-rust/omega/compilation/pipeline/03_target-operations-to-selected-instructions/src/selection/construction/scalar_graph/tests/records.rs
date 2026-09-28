@@ -431,7 +431,7 @@ fn nested_fixture(target: target::NativeTarget, child_count: u16) -> LegalizedSc
         panic!("child");
     };
     let child = child.clone();
-    let shape = ValueShape::integer(child_count + 1, 1);
+    let shape = ValueShape::integer(u32::from(child_count + 1), 1);
     let scalar = source.blocks[0].instructions[0].result.unwrap().scalar_type;
     let operation = OperationId::new(4).unwrap();
     let parent_type = StructuralTypeId::new(3).unwrap();

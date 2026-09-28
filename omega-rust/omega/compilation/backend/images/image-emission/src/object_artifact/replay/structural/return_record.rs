@@ -64,7 +64,10 @@ pub(crate) fn validate_structural_return_record(
                 return None;
             }
             let bytes = integer.bits() / 8;
-            Some(calling_conventions::ValueShape::integer(bytes, bytes))
+            Some(calling_conventions::ValueShape::integer(
+                u32::from(bytes),
+                bytes,
+            ))
         })
         .collect::<Option<Vec<_>>>();
     let Some(scalar_shapes) = scalar_shapes else {
@@ -289,7 +292,7 @@ fn direct_return_fragments(
     {
         return None;
     }
-    let mut expected_offset = 0_u16;
+    let mut expected_offset = 0_u32;
     let mut fragments = Vec::with_capacity(returned.source_placement.locations.len());
     for (source, result) in returned
         .source_placement

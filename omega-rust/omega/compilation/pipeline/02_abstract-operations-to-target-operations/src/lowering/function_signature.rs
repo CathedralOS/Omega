@@ -191,7 +191,7 @@ pub(super) fn prepare_function_signature(
         })?;
         signature.push_dynamic_parameter_words(
             declared_dynamic_parameters.len(),
-            ValueShape::integer(pointer_size, pointer_alignment),
+            ValueShape::integer(u32::from(pointer_size), pointer_alignment),
         );
     }
     let call_plan = signature.plan(target)?;

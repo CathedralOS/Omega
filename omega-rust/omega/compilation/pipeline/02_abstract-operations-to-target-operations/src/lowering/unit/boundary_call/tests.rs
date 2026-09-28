@@ -86,7 +86,7 @@ fn entry_plan(
                 .iter()
                 .map(|scalar_type| {
                     let bytes = scalar_type.bits().div_ceil(8);
-                    ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
+                    ValueShape::integer(u32::from(bytes), bytes.next_power_of_two().min(8))
                 })
                 .collect(),
             result: None,
@@ -459,7 +459,7 @@ fn normalized_foreign_results_admit_only_exact_fixed_integer_register_shapes() {
         ] {
             let integer = IntegerType::new(sign, bits).unwrap();
             let bytes = bits.div_ceil(8);
-            let shape = ValueShape::integer(bytes, bytes.next_power_of_two().min(8));
+            let shape = ValueShape::integer(u32::from(bytes), bytes.next_power_of_two().min(8));
             let mut declaration = declaration(boundary, Vec::new());
             declaration.result =
                 terminal_psi::BoundaryMachineResult::Scalar(ScalarType::Integer(integer));

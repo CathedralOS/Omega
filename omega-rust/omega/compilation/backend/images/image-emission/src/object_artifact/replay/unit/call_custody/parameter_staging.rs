@@ -62,7 +62,7 @@ pub(crate) fn expected_bytes(
                 } => (value_byte_offset, byte_size),
                 ValueLocation::Indirect { .. } => return None,
             };
-            let destination = home_offset.checked_add(u32::from(value_byte_offset))?;
+            let destination = home_offset.checked_add(value_byte_offset)?;
             let register = match *fragment {
                 ValueLocation::Register { register, .. } => match target.architecture {
                     Architecture::X86_64 => x86_terminal_register(register)?,
@@ -120,7 +120,7 @@ fn stack_load(
     architecture: Architecture,
     register: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<()> {
     match architecture {
         Architecture::X86_64 if packed_fragment::is_packed(width) => {
@@ -142,7 +142,7 @@ fn stack_store(
     architecture: Architecture,
     register: u8,
     offset: u32,
-    width: u16,
+    width: u32,
 ) -> Option<()> {
     match architecture {
         Architecture::X86_64 if packed_fragment::is_packed(width) => {

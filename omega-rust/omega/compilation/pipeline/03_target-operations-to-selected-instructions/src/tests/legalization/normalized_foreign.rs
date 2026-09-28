@@ -357,7 +357,7 @@ fn mixed_arguments_preserve_authored_order_through_selection_and_replay() {
         }
         let scalar_shape = calling_conventions::ValueShape::integer(4, 4);
         let pointer_shape = calling_conventions::ValueShape::integer(
-            native.pointer_size as u16,
+            native.pointer_size as u32,
             native.pointer_alignment as u16,
         );
         let binding = binding(
@@ -586,7 +586,7 @@ fn mixed_scalar_banks_and_stack_arguments_replay_with_exact_types() {
                 parameters.insert(
                     1,
                     ValueShape::integer(
-                        native.pointer_size as u16,
+                        native.pointer_size as u32,
                         native.pointer_alignment as u16,
                     ),
                 );

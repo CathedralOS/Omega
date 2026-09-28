@@ -223,7 +223,7 @@ pub(super) fn validate_borrowed_argument(
         if offset != target.source_byte_offset {
             return None;
         }
-        ValueShape::borrowed_reference(u16::try_from(capacity.checked_add(8)?).ok()?, 8)
+        ValueShape::borrowed_reference(u32::try_from(capacity.checked_add(8)?).ok()?, 8)
     } else if let Some((offset, _)) = byte_field {
         if offset != target.source_byte_offset {
             return None;

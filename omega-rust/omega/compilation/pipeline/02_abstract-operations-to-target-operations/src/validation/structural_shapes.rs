@@ -73,10 +73,7 @@ pub(super) fn project_static_path(
                 return Err(InvalidStructuralShape);
             }
             let element_shape = shape(element, &indexed, &mut cache, &mut active)?;
-            let stride = align(
-                u32::from(element_shape.byte_size),
-                u32::from(element_shape.alignment),
-            )?;
+            let stride = align(element_shape.byte_size, u32::from(element_shape.alignment))?;
             let element_offset = u64::from(stride)
                 .checked_mul(*index)
                 .and_then(|offset| u32::try_from(offset).ok())
@@ -120,7 +117,7 @@ pub(super) fn project_static_path(
                 break;
             }
             local_offset = local_offset
-                .checked_add(u32::from(shape.byte_size))
+                .checked_add(shape.byte_size)
                 .ok_or(InvalidStructuralShape)?;
         }
         let (field_type, field_offset) = selected.ok_or(InvalidStructuralShape)?;
@@ -170,10 +167,7 @@ pub(super) fn project_runtime_path(
                     return Err(InvalidStructuralShape);
                 };
                 let element_shape = shape(element, &indexed, &mut cache, &mut active)?;
-                let stride = align(
-                    u32::from(element_shape.byte_size),
-                    u32::from(element_shape.alignment),
-                )?;
+                let stride = align(element_shape.byte_size, u32::from(element_shape.alignment))?;
                 elements.push((*index, length, stride));
                 structural_type = element;
             }
@@ -248,7 +242,7 @@ pub(super) fn projected_field(
                 break;
             }
             local_offset = local_offset
-                .checked_add(u32::from(shape.byte_size))
+                .checked_add(shape.byte_size)
                 .ok_or(InvalidStructuralShape)?;
         }
         let (field_type, shape, field_offset) = selected.ok_or(InvalidStructuralShape)?;
@@ -291,10 +285,7 @@ pub(super) fn root_array_transport(
         &mut BTreeMap::new(),
         &mut BTreeSet::new(),
     )?;
-    let stride = align(
-        u32::from(element_shape.byte_size),
-        u32::from(element_shape.alignment),
-    )?;
+    let stride = align(element_shape.byte_size, u32::from(element_shape.alignment))?;
     Ok((Some(length), Some(stride)))
 }
 
@@ -419,7 +410,7 @@ fn byte_sequence_field_geometry(
             return Ok((field_offset, carrier));
         }
         local_offset = local_offset
-            .checked_add(u32::from(field_shape.byte_size))
+            .checked_add(field_shape.byte_size)
             .ok_or(InvalidStructuralShape)?;
     }
     Err(InvalidStructuralShape)
@@ -540,7 +531,7 @@ fn collect_scalar_leaves(
             let leaf = scalar_shape(*scalar);
             leaves.push((
                 base_offset,
-                u32::from(leaf.byte_size),
+                leaf.byte_size,
                 matches!(scalar, ScalarType::IeeeFloat(_)),
             ));
         }
@@ -548,7 +539,7 @@ fn collect_scalar_leaves(
         | StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { .. })
         | StructuralTypeShape::ElementView { .. } => {
             let referent = shape(structural_type, declarations, cache, active)?;
-            leaves.push((base_offset, u32::from(referent.byte_size), false));
+            leaves.push((base_offset, referent.byte_size, false));
         }
         StructuralTypeShape::Record { fields } => {
             let mut local_offset = 0_u32;
@@ -570,7 +561,7 @@ fn collect_scalar_leaves(
                     depth + 1,
                 )?;
                 local_offset = local_offset
-                    .checked_add(u32::from(field_shape.byte_size))
+                    .checked_add(field_shape.byte_size)
                     .ok_or(InvalidStructuralShape)?;
             }
         }
@@ -612,11 +603,11 @@ fn collect_field_leaves(
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
         | StructuralFieldType::IeeeFloat(_) => {
             let leaf = field_shape(field, declarations, cache, active)?;
-            leaves.push((base_offset, u32::from(leaf.byte_size), true));
+            leaves.push((base_offset, leaf.byte_size, true));
         }
         StructuralFieldType::Scalar(_) | StructuralFieldType::BoundedInteger(_) => {
             let leaf = field_shape(field, declarations, cache, active)?;
-            leaves.push((base_offset, u32::from(leaf.byte_size), false));
+            leaves.push((base_offset, leaf.byte_size, false));
         }
         StructuralFieldType::ByteSequence(
             ByteSequenceCarrier::BorrowedView { .. } | ByteSequenceCarrier::BoundedView { .. },
@@ -627,7 +618,7 @@ fn collect_field_leaves(
             ..
         } => {
             let leaf = field_shape(field, declarations, cache, active)?;
-            leaves.push((base_offset, u32::from(leaf.byte_size), false));
+            leaves.push((base_offset, leaf.byte_size, false));
         }
         StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. })
         | StructuralFieldType::PredicateByteSequence {
@@ -635,7 +626,7 @@ fn collect_field_leaves(
             ..
         } => {
             let leaf = field_shape(field, declarations, cache, active)?;
-            for index in 0..u32::from(leaf.byte_size) {
+            for index in 0..leaf.byte_size {
                 leaves.push((
                     base_offset
                         .checked_add(index)
@@ -742,7 +733,7 @@ fn homogeneous_float_leaves(leaves: &[(u32, u32, bool)], referent: ValueShape) -
             .all(|(index, &(offset, size, is_float))| {
                 is_float && size == member_size && offset == index as u32 * member_size
             })
-        && referent.byte_size == u16::try_from(member_size * u32::from(members)).unwrap_or(0)
+        && referent.byte_size == member_size * u32::from(members)
         && referent.alignment == u16::try_from(member_size).unwrap_or(0))
     .then_some(members)
 }
@@ -772,10 +763,7 @@ fn shape(
         | StructuralTypeShape::ElementView { .. } => ValueShape::integer(16, 8),
         StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) => {
             let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;
-            ValueShape::integer(
-                u16::try_from(bytes).map_err(|_| InvalidStructuralShape)?,
-                8,
-            )
+            ValueShape::integer(u32::try_from(bytes).map_err(|_| InvalidStructuralShape)?, 8)
         }
         StructuralTypeShape::Record { fields } => {
             let mut byte_size = 0_u32;
@@ -788,14 +776,11 @@ fn shape(
                 alignment = alignment.max(field_shape.alignment);
                 byte_size = align(byte_size, u32::from(field_shape.alignment))?;
                 byte_size = byte_size
-                    .checked_add(u32::from(field_shape.byte_size))
+                    .checked_add(field_shape.byte_size)
                     .ok_or(InvalidStructuralShape)?;
             }
             byte_size = align(byte_size, u32::from(alignment))?;
-            ValueShape::integer(
-                u16::try_from(byte_size).map_err(|_| InvalidStructuralShape)?,
-                alignment,
-            )
+            ValueShape::integer(byte_size, alignment)
         }
         StructuralTypeShape::FixedArray { length: 0, .. } => {
             // Zero-byte calling plans retain a canonical shape, but emptiness
@@ -805,10 +790,10 @@ fn shape(
         }
         StructuralTypeShape::FixedArray { element, length } => {
             let element = shape(*element, declarations, cache, active)?;
-            let stride = align(u32::from(element.byte_size), u32::from(element.alignment))?;
+            let stride = align(element.byte_size, u32::from(element.alignment))?;
             let bytes = u64::from(stride)
                 .checked_mul(*length)
-                .and_then(|value| u16::try_from(value).ok())
+                .and_then(|value| u32::try_from(value).ok())
                 .ok_or(InvalidStructuralShape)?;
             ValueShape::integer(bytes, element.alignment)
         }
@@ -1023,7 +1008,7 @@ fn field_shape(
         StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
             let bytes = integer.bits().div_ceil(8);
             Ok(ValueShape::integer(
-                bytes,
+                u32::from(bytes),
                 bytes.next_power_of_two().min(16),
             ))
         }
@@ -1031,7 +1016,7 @@ fn field_shape(
             let integer = bounds.integer_type();
             let bytes = integer.bits().div_ceil(8);
             Ok(ValueShape::integer(
-                bytes,
+                u32::from(bytes),
                 bytes.next_power_of_two().min(16),
             ))
         }
@@ -1059,7 +1044,7 @@ fn field_shape(
         } => {
             let bytes = capacity.checked_add(8).ok_or(InvalidStructuralShape)?;
             Ok(ValueShape::integer(
-                u16::try_from(bytes).map_err(|_| InvalidStructuralShape)?,
+                u32::try_from(bytes).map_err(|_| InvalidStructuralShape)?,
                 8,
             ))
         }
@@ -1079,7 +1064,7 @@ pub(super) fn scalar_shape(scalar: ScalarType) -> ValueShape {
         ScalarType::Boolean => ValueShape::integer(1, 1),
         ScalarType::Integer(integer) => {
             let bytes = integer.bits().div_ceil(8);
-            ValueShape::integer(bytes, bytes.next_power_of_two().min(8))
+            ValueShape::integer(u32::from(bytes), bytes.next_power_of_two().min(8))
         }
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),

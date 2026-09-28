@@ -176,11 +176,7 @@ fn validate_home_roster(
             return Err(invalid());
         }
         cursor = cursor
-            .checked_add(if indirect {
-                8
-            } else {
-                u32::from(home.shape.byte_size)
-            })
+            .checked_add(if indirect { 8 } else { home.shape.byte_size })
             .ok_or_else(invalid)?;
     }
 
@@ -770,7 +766,7 @@ fn replay_outgoing_extent(placement: &ValuePlacement, architecture: Architecture
                     stack_byte_offset,
                     byte_size,
                     ..
-                } => stack_byte_offset.checked_add(u32::from(byte_size.max(8)))?,
+                } => stack_byte_offset.checked_add(byte_size.max(8))?,
                 ValueLocation::Indirect {
                     pointer,
                     copy_stack_byte_offset,
@@ -785,8 +781,9 @@ fn replay_outgoing_extent(placement: &ValuePlacement, architecture: Architecture
                     };
                     if architecture == Architecture::Aarch64 {
                         match copy_stack_byte_offset {
-                            Some(offset) => pointer_end
-                                .max(offset.checked_add(u32::from(byte_size).next_multiple_of(8))?),
+                            Some(offset) => {
+                                pointer_end.max(offset.checked_add(byte_size.next_multiple_of(8))?)
+                            }
                             None => pointer_end,
                         }
                     } else {
@@ -1047,7 +1044,10 @@ pub(crate) fn integer_shape(integer: IntegerType) -> Option<ValueShape> {
         return None;
     }
     let bytes = integer.bits().div_ceil(8);
-    Some(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+    Some(ValueShape::integer(
+        u32::from(bytes),
+        bytes.next_power_of_two().min(8),
+    ))
 }
 
 pub(crate) fn scalar_home_shape(scalar: ScalarType) -> Option<ValueShape> {

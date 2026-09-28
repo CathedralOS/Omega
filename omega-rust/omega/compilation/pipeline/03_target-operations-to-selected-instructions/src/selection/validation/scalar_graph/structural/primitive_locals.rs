@@ -45,11 +45,10 @@ pub(super) fn write(
         };
         replay.transport.local_slots.push(SelectedLocalStorageSlot {
             id: slot,
-            byte_size: u32::from(shape.byte_size),
+            byte_size: shape.byte_size,
             alignment: shape.alignment,
         });
-        let pointer =
-            local_storage::address(replay, row, slot, 0, u32::from(shape.byte_size), false)?;
+        let pointer = local_storage::address(replay, row, slot, 0, shape.byte_size, false)?;
         replay.transport.pointers.push((place, pointer));
         pointer
     } else {
@@ -118,14 +117,8 @@ pub(in crate::selection) fn read(
     let pointer = super::runtime_address::scale(replay, row, place, byte_offset, pointer, indices)?;
     let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
         .ok_or_else(|| replay.invalid())?;
-    let (pointer, displacement) = super::memory_pointer(
-        replay,
-        row,
-        place,
-        pointer,
-        byte_offset,
-        u32::from(shape.byte_size),
-    )?;
+    let (pointer, displacement) =
+        super::memory_pointer(replay, row, place, pointer, byte_offset, shape.byte_size)?;
     let output = replay.result_register(
         definition.value,
         definition.definition_site,
@@ -163,7 +156,7 @@ pub(in crate::selection) fn read(
         row,
         place,
         byte_offset,
-        u32::from(shape.byte_size),
+        shape.byte_size,
         indices,
         super::runtime_address::Written::None,
     )?;

@@ -29,7 +29,10 @@ pub(in crate::lowering) fn scalar_shape(
             return Ok(ValueShape::float(8));
         }
     };
-    Ok(ValueShape::integer(bytes, bytes.next_power_of_two().min(8)))
+    Ok(ValueShape::integer(
+        u32::from(bytes),
+        bytes.next_power_of_two().min(8),
+    ))
 }
 
 pub(in crate::lowering) fn scalar_parameter_location(
