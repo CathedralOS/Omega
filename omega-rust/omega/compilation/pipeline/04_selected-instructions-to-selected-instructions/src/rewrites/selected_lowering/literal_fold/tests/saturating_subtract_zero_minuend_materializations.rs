@@ -1,8 +1,8 @@
 use super::{
-    BlockZeroTerminator, fold_with, restage_literal,
+    BlockZeroTerminator, assert_declines, fold_with, restage_literal,
     staged_saturating_subtract_zero_minuend_carrier_inputs, validate,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -13,7 +13,7 @@ use std::sync::Arc;
 use target::NativeTarget;
 
 #[test]
-fn saturating_subtract_zero_minuend_fold_rejects_a_nonzero_minuend() {
+fn saturating_subtract_zero_minuend_fold_declines_a_nonzero_minuend() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // The minuend literal fixes the constant zero only when it is
@@ -29,27 +29,18 @@ fn saturating_subtract_zero_minuend_fold_rejects_a_nonzero_minuend() {
                 BlockZeroTerminator::Jump,
             );
             restage_literal(&mut inputs, minuend);
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} minuend {minuend}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} minuend {minuend} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
+                &format!("{target:?} minuend {minuend}"),
             );
         }
     }
 }
 
 #[test]
-fn saturating_subtract_zero_minuend_fold_rejects_malformed_operand_arrangements() {
+fn saturating_subtract_zero_minuend_fold_declines_malformed_operand_arrangements() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // The constant-result grammar admits exactly the two `Use` operands
@@ -89,20 +80,11 @@ fn saturating_subtract_zero_minuend_fold_rejects_malformed_operand_arrangements(
         let mut selected = inputs.selected.clone();
         selected.transformed = Arc::new(plan);
         inputs.selected = selected;
-        assert_eq!(
-            fold_with(
-                &inputs,
-                &environment,
-                LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1
-            )
-            .map(|_| ()),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation}"
-        );
-        assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} replay"
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_MINUEND_V1,
+            &format!("mutation {mutation}"),
         );
     }
 }
@@ -132,30 +114,17 @@ fn saturating_subtract_zero_minuend_fold_replay_rejects_every_decision_field_sub
         match mutation {
             // The recorded result register is the subtract's own `Def`,
             // not the dropped subtrahend `Use`.
-            0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
-            1 => plan.functions[0].action.as_mut().unwrap().result = None,
+            0 => plan.functions[0].actions[0].result = Some(VirtualRegisterId(0)),
+            1 => plan.functions[0].actions[0].result = None,
             // The recorded immediate is the materialized constant zero;
             // any substitution replays differently.
-            2 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
-            3 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .consumer_instruction = SelectedInstructionId(9)
-            }
+            2 => plan.functions[0].actions[0].immediate += 1,
+            3 => plan.functions[0].actions[0].consumer_instruction = SelectedInstructionId(9),
             // The recorded constraint is the `MaterializeI64` row the
             // zero-minuend policy gate binds; any other key fails the
             // rebuild's binding.
-            4 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .immediate_constraint
-                    .variant += 1
-            }
-            5 => plan.functions[0].action = None,
+            4 => plan.functions[0].actions[0].immediate_constraint.variant += 1,
+            5 => plan.functions[0].actions.clear(),
             6 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
             7 => plan.usage.candidates += 1,
             // The sibling right-zero policy alone cannot replay the
@@ -166,7 +135,7 @@ fn saturating_subtract_zero_minuend_fold_replay_rejects_every_decision_field_sub
             // The surviving register is the dropped subtrahend:
             // recording the result `Def` register instead fails the
             // re-derived action.
-            _ => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(2),
+            _ => plan.functions[0].actions[0].surviving = VirtualRegisterId(2),
         }
         assert!(
             validate(&inputs, &environment, plan).is_err(),

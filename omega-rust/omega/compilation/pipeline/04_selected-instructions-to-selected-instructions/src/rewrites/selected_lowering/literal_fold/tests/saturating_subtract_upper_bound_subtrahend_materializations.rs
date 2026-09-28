@@ -1,8 +1,9 @@
 use super::{
-    BlockZeroTerminator, assert_deterministic_fixed_point, fold_with, restage_literal,
+    BlockZeroTerminator, assert_classification_does_not_steer, assert_declines,
+    assert_deterministic_fixed_point, fold_with, restage_literal,
     staged_saturating_subtract_upper_bound_carrier_inputs, validate,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;
 use selected_instructions::{SaturatingCarrier, SelectedInstructionKind};
@@ -53,17 +54,14 @@ fn signed_carriers() -> [SaturatingCarrier; 4] {
 }
 
 #[test]
-fn saturating_subtract_upper_bound_fold_rejects_every_signed_carrier() {
+fn saturating_subtract_upper_bound_fold_declines_every_signed_carrier() {
     // Signed saturation does not make `x -| MAX` a constant: it is
     // `x - MAX` clamped to the carrier's lower bound, so the family
     // declares no signed pair at all. A staged operand-1 maximum literal
-    // on a signed carrier names no admitted grammar — under the
-    // upper-bound policy alone the consumer *kind* itself is unadmitted
-    // (a consumer mismatch on both paths), while under the union with
-    // the sibling right-zero identity policy — which covers every
-    // signed carrier at operand 1 — the kind is admitted but the
-    // maximum literal fails the zero bound that sibling's grammar
-    // carries (an immediate mismatch on both paths).
+    // on a signed carrier names no admitted grammar under the upper-bound
+    // policy alone or under the union with the sibling right-zero
+    // identity policy, whose zero bound the maximum fails: the candidate
+    // declines on both paths.
     let both = LiteralFoldPolicy::SATURATING_SUBTRACT_ZERO_V1
         .union(LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1);
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -75,38 +73,14 @@ fn saturating_subtract_upper_bound_fold_rejects_every_signed_carrier() {
                 1,
                 BlockZeroTerminator::Jump,
             );
-            for (policy, expected) in [
-                (
-                    LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
-                    LiteralFoldError::ConsumerMismatch { function: 0 },
-                ),
-                (both, LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            ] {
-                assert_eq!(
-                    fold_with(&inputs, &environment, policy).map(|_| ()),
-                    Err(expected.clone()),
-                    "{carrier:?} `x -| MAX` on {target:?} under {policy:?}"
+            for policy in [LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1, both] {
+                assert_declines(
+                    &inputs,
+                    &environment,
+                    policy,
+                    &format!("{carrier:?} `x -| MAX` on {target:?} under {policy:?}"),
                 );
             }
-            // The replay reads the fixture's recorded policy — the
-            // upper-bound bit alone — where the signed consumer kind is
-            // unadmitted.
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                "{carrier:?} `x -| MAX` on {target:?} names no admitted grammar, replay"
-            );
-            // Replayed under the union policy the same staged consumer is
-            // an immediate mismatch: the kind is admitted through the
-            // sibling identity family but the maximum literal is not its
-            // zero.
-            let mut plan = inputs.selected.plan().clone();
-            plan.policy = both;
-            assert_eq!(
-                validate(&inputs, &environment, plan).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{carrier:?} `x -| MAX` on {target:?} under both families, replay"
-            );
         }
     }
 }
@@ -128,20 +102,11 @@ fn saturating_subtract_upper_bound_fold_rejects_a_sub_maximum_subtrahend() {
                 BlockZeroTerminator::Jump,
             );
             restage_literal(&mut inputs, subtrahend);
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} subtrahend {subtrahend}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} subtrahend {subtrahend} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+                &format!("{target:?} subtrahend {subtrahend}"),
             );
         }
         // Under the union with the sibling right-zero identity family the
@@ -173,33 +138,14 @@ fn saturating_subtract_upper_bound_fold_rejects_a_sub_maximum_subtrahend() {
 }
 
 #[test]
-fn saturating_subtract_upper_bound_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
+fn saturating_subtract_upper_bound_fold_ignores_a_classification_claiming_another_operand() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        // The right-literal grammar folds operand 1 alone: a fixture
-        // with the literal at operand 1 claiming operand 0 or the
-        // operand-2 `Def` position names no grammar's victim position,
-        // and a fixture with the literal physically at operand 0 — the
-        // minuend position this family does not cover — claiming
-        // operand 1 finds the surviving register where the victim must
-        // sit, a consumer mismatch under the right-literal grammar.
-        for (literal_operand, claimed_operand, expected) in [
-            (
-                1u16,
-                0u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-            (
-                1u16,
-                2u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-            (
-                0u16,
-                1u16,
-                LiteralFoldError::ConsumerMismatch { function: 0 },
-            ),
-        ] {
+        // Each fixture carries the literal at `literal_operand`; the
+        // recovery classification claims `claimed_operand` instead. The
+        // classification no longer nominates, so the claim neither
+        // redirects nor suppresses the fold the stream itself admits.
+        for (literal_operand, claimed_operand) in [(1u16, 0u16), (1u16, 2u16), (0u16, 1u16)] {
             let mut inputs = staged_saturating_subtract_upper_bound_carrier_inputs(
                 target,
                 SaturatingCarrier::U64,
@@ -217,28 +163,20 @@ fn saturating_subtract_upper_bound_fold_rejects_a_literal_claiming_the_wrong_ope
                 unreachable!()
             };
             future_uses[0].operand = claimed_operand;
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1
-                )
-                .map(|_| ()),
-                Err(expected.clone()),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(expected),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?} \
-                 replay"
+            assert_classification_does_not_steer(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+                &format!(
+                    "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
+                ),
             );
         }
     }
 }
 
 #[test]
-fn saturating_subtract_upper_bound_fold_rejects_a_carrier_kind_against_another_row() {
+fn saturating_subtract_upper_bound_fold_declines_a_carrier_kind_against_another_row() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // A record whose kind names a signed carrier but carries the
@@ -262,18 +200,11 @@ fn saturating_subtract_upper_bound_fold_rejects_a_carrier_kind_against_another_r
     selected.transformed = Arc::new(plan);
     inputs.selected = selected;
 
-    assert_eq!(
-        fold_with(
-            &inputs,
-            &environment,
-            LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1
-        )
-        .map(|_| ()),
-        Err(LiteralFoldError::ConsumerMismatch { function: 0 })
-    );
-    assert_eq!(
-        validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-        Err(LiteralFoldError::ConsumerMismatch { function: 0 })
+    assert_declines(
+        &inputs,
+        &environment,
+        LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+        "",
     );
 
     // The converse direction: a record whose kind names an unsigned
@@ -299,18 +230,11 @@ fn saturating_subtract_upper_bound_fold_rejects_a_carrier_kind_against_another_r
     selected.transformed = Arc::new(plan);
     inputs.selected = selected;
 
-    assert_eq!(
-        fold_with(
-            &inputs,
-            &environment,
-            LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1
-        )
-        .map(|_| ()),
-        Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 })
-    );
-    assert_eq!(
-        validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-        Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 })
+    assert_declines(
+        &inputs,
+        &environment,
+        LiteralFoldPolicy::SATURATING_SUBTRACT_UPPER_BOUND_V1,
+        "",
     );
 }
 

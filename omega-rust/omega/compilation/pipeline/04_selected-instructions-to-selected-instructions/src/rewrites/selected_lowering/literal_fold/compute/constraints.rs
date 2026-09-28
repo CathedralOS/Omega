@@ -9,7 +9,6 @@ use selected_instructions::{
     ValidatedMachineEffectCatalog,
 };
 
-use crate::analyses::machine_effects::machine_semantic_kind;
 use crate::rewrites::enabled_pair_rules;
 use crate::{
     LiteralFoldError, LiteralFoldPolicy, PairOperandShape, PairResultDisposition,
@@ -77,29 +76,6 @@ impl<'a> AdmittedPairs<'a> {
     ) -> Option<&AdmittedPair<'a>> {
         self.pairs.iter().find(|pair| {
             pair.rule.matches_consumer(kind) && pair.rule.victim_operand() == victim_operand
-        })
-    }
-
-    /// Whether any enabled pair admits `kind` as its consumer, whatever
-    /// operand position its grammar folds. Admission-time error reporting
-    /// distinguishes an unadmitted kind from an admitted kind whose literal
-    /// sits at a position no grammar covers.
-    pub(super) fn admits_consumer_kind(&self, kind: SelectedInstructionKind) -> bool {
-        self.pairs
-            .iter()
-            .any(|pair| pair.rule.matches_consumer(kind))
-    }
-
-    /// Whether any enabled pair's consumer shares `kind`'s family — the
-    /// same `MachineSemanticKind` variant, whatever carrier or parameter it
-    /// binds. Admission-time decline binds only records whose consumer
-    /// family the enabled selection does not cover at all: an enabled
-    /// family that admits the family name but not this exact kind still
-    /// rejects as a consumer mismatch.
-    pub(super) fn admits_consumer_family(&self, kind: SelectedInstructionKind) -> bool {
-        let family = machine_semantic_kind(kind);
-        self.pairs.iter().any(|pair| {
-            std::mem::discriminant(&pair.rule.consumer()) == std::mem::discriminant(&family)
         })
     }
 

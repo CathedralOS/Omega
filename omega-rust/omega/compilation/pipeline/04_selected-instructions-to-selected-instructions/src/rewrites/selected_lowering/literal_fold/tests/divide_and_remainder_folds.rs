@@ -1,11 +1,9 @@
 use super::{
-    assert_deterministic_fixed_point, budget, fold_with, restage_literal, staged_divide_inputs,
-    staged_divide_zero_dividend_inputs, staged_remainder_inputs, staged_remainder_minus_one_inputs,
-    staged_remainder_zero_dividend_inputs, validate,
+    assert_declines, assert_deterministic_fixed_point, fold_with, restage_literal,
+    staged_divide_inputs, staged_divide_zero_dividend_inputs, staged_remainder_inputs,
+    staged_remainder_minus_one_inputs, staged_remainder_zero_dividend_inputs, validate,
 };
-use crate::analyses::validated_machine_effect_catalog;
-use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;
 use register_model::RegisterOperandAccess;
@@ -27,13 +25,9 @@ fn divide_fold_is_deterministic_and_a_fixed_point_on_its_output() {
 }
 
 #[test]
-fn remainder_fold_rejects_a_non_unit_divisor() {
+fn remainder_fold_declines_a_non_unit_divisor() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        let keys = environment.allocation_constraint_keys();
-        let effect_catalog =
-            validated_machine_effect_catalog(environment.target(), environment.constraints())
-                .unwrap();
         let inputs = staged_remainder_inputs(target);
         let mut plan = inputs.selected.transformed().clone();
         // The literal is the divisor only under the constant fold: a
@@ -54,55 +48,23 @@ fn remainder_fold_rejects_a_non_unit_divisor() {
         };
         *value = IntegerValue::Unsigned(2);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        inputs.recovery = recovery;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+            &format!("{target:?}"),
         );
     }
 }
 
 #[test]
-fn remainder_fold_rejects_a_dropped_def_without_dead_custody() {
+fn remainder_fold_declines_a_dropped_def_without_dead_custody() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.allocation_constraint_keys();
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
     let remainder_operands = environment
         .constraint(keys.remainder_i64)
         .unwrap()
@@ -145,56 +107,21 @@ fn remainder_fold_rejects_a_dropped_def_without_dead_custody() {
         let mut selected = inputs.selected.clone();
         selected.transformed = Arc::new(plan);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_V1,
+            &format!("mutation {mutation}"),
         );
     }
 }
 
 #[test]
-fn remainder_zero_dividend_fold_rejects_a_non_zero_dividend() {
+fn remainder_zero_dividend_fold_declines_a_non_zero_dividend() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        let keys = environment.allocation_constraint_keys();
-        let effect_catalog =
-            validated_machine_effect_catalog(environment.target(), environment.constraints())
-                .unwrap();
         let inputs = staged_remainder_zero_dividend_inputs(target);
         let mut plan = inputs.selected.transformed().clone();
         // The literal is the zero dividend only under the constant fold:
@@ -216,55 +143,23 @@ fn remainder_zero_dividend_fold_rejects_a_non_zero_dividend() {
         };
         *value = IntegerValue::Unsigned(7);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        inputs.recovery = recovery;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+            &format!("{target:?}"),
         );
     }
 }
 
 #[test]
-fn remainder_zero_dividend_fold_rejects_a_dropped_def_without_dead_custody() {
+fn remainder_zero_dividend_fold_declines_a_dropped_def_without_dead_custody() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.allocation_constraint_keys();
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
     let remainder_operands = environment
         .constraint(keys.remainder_i64)
         .unwrap()
@@ -307,50 +202,19 @@ fn remainder_zero_dividend_fold_rejects_a_dropped_def_without_dead_custody() {
         let mut selected = inputs.selected.clone();
         selected.transformed = Arc::new(plan);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::WRAPPING_REMAINDER_ZERO_V1,
+            &format!("mutation {mutation}"),
         );
     }
 }
 
 #[test]
-fn divide_zero_dividend_fold_rejects_a_non_zero_dividend() {
+fn divide_zero_dividend_fold_declines_a_non_zero_dividend() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // The literal is the zero dividend only under the constant fold:
@@ -359,32 +223,20 @@ fn divide_zero_dividend_fold_rejects_a_non_zero_dividend() {
         // reject.
         let mut inputs = staged_divide_zero_dividend_inputs(target);
         restage_literal(&mut inputs, 7);
-        assert_eq!(
-            fold_with(
-                &inputs,
-                &environment,
-                LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1
-            )
-            .map(|_| ()),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?}"
-        );
-        assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?} replay"
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
+            &format!("{target:?}"),
         );
     }
 }
 
 #[test]
-fn divide_zero_dividend_fold_rejects_a_missing_obligation() {
+fn divide_zero_dividend_fold_declines_a_missing_obligation() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         let keys = environment.allocation_constraint_keys();
-        let effect_catalog =
-            validated_machine_effect_catalog(environment.target(), environment.constraints())
-                .unwrap();
         let inputs = staged_divide_zero_dividend_inputs(target);
         let auxiliary_uses = environment
             .constraint(keys.divide_u64)
@@ -405,55 +257,22 @@ fn divide_zero_dividend_fold_rejects_a_missing_obligation() {
         let mut selected = inputs.selected.clone();
         selected.transformed = Arc::new(plan);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "{target:?}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "{target:?} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
+            &format!("{target:?}"),
         );
     }
 }
 
 #[test]
-fn divide_zero_dividend_fold_rejects_an_auxiliary_operand_without_zero_custody() {
+fn divide_zero_dividend_fold_declines_an_auxiliary_operand_without_zero_custody() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.allocation_constraint_keys();
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
     let divide_operands = environment
         .constraint(keys.divide_u64)
         .unwrap()
@@ -503,44 +322,13 @@ fn divide_zero_dividend_fold_rejects_an_auxiliary_operand_without_zero_custody()
         let mut selected = inputs.selected.clone();
         selected.transformed = Arc::new(plan);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::EXACT_DIVIDE_ZERO_V1,
+            &format!("mutation {mutation}"),
         );
     }
 }
@@ -562,27 +350,14 @@ fn divide_zero_dividend_fold_replay_rejects_every_decision_field_substitution() 
         match mutation {
             // The recorded result register is the divide's own `Def`,
             // not the dropped divisor `Use`.
-            0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
-            1 => plan.functions[0].action.as_mut().unwrap().result = None,
+            0 => plan.functions[0].actions[0].result = Some(VirtualRegisterId(0)),
+            1 => plan.functions[0].actions[0].result = None,
             // The recorded immediate is the materialized constant zero;
             // any substitution replays differently.
-            2 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
-            3 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .consumer_instruction = SelectedInstructionId(9)
-            }
-            4 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .immediate_constraint
-                    .variant += 1
-            }
-            5 => plan.functions[0].action = None,
+            2 => plan.functions[0].actions[0].immediate += 1,
+            3 => plan.functions[0].actions[0].consumer_instruction = SelectedInstructionId(9),
+            4 => plan.functions[0].actions[0].immediate_constraint.variant += 1,
+            5 => plan.functions[0].actions.clear(),
             6 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
             7 => plan.usage.candidates += 1,
             // A policy without the zero-dividend bit cannot replay the
@@ -593,7 +368,7 @@ fn divide_zero_dividend_fold_replay_rejects_every_decision_field_substitution() 
             // The surviving register is the dropped divisor: recording
             // the auxiliary `Use` register instead fails the re-derived
             // action.
-            _ => plan.functions[0].action.as_mut().unwrap().surviving = VirtualRegisterId(3),
+            _ => plan.functions[0].actions[0].surviving = VirtualRegisterId(3),
         }
         assert!(
             validate(&inputs, &environment, plan).is_err(),
@@ -603,7 +378,7 @@ fn divide_zero_dividend_fold_replay_rejects_every_decision_field_substitution() 
 }
 
 #[test]
-fn remainder_minus_one_fold_rejects_a_non_minus_one_divisor() {
+fn remainder_minus_one_fold_declines_a_non_minus_one_divisor() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // The literal is the minus-one divisor only under this fold: a
@@ -614,20 +389,11 @@ fn remainder_minus_one_fold_rejects_a_non_minus_one_divisor() {
         for value in [0, 1, 2, u64::MAX - 1] {
             let mut inputs = staged_remainder_minus_one_inputs(target);
             restage_literal(&mut inputs, value);
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} value {value}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} value {value} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::WRAPPING_REMAINDER_MINUS_ONE_V1,
+                &format!("{target:?} value {value}"),
             );
         }
     }

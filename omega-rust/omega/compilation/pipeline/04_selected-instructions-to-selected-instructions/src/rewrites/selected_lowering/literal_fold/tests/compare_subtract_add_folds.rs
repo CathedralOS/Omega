@@ -1,17 +1,16 @@
 use super::{
-    budget, fold_with, restage_literal, staged_add_inputs, staged_inputs, staged_subtract_inputs,
-    validate,
+    CLASSIFICATION_CORRUPTIONS, assert_classification_does_not_steer, assert_declines,
+    corrupt_classification, fold_with, restage_literal, staged_add_inputs, staged_inputs,
+    staged_subtract_inputs,
 };
+use crate::LiteralFoldPolicy;
 use crate::analyses::validated_machine_effect_catalog;
-use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
-use crate::{LiteralFoldError, LiteralFoldPolicy};
 use optimization_core::AcceptedObligationFactIdentity;
 use register_environment::baseline_target_register_environment;
-use register_homes::{RecoveryClassification, RecoveryVictimRole};
+use register_homes::RecoveryClassification;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    SelectedInstructionId, SelectedInstructionKind, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::{IntegerValue, ObligationId, ValueId};
 use std::sync::Arc;
@@ -36,10 +35,7 @@ fn compare_fold_partitions_the_literal_value_between_forms() {
             let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
                 .expect("a nonzero in-window literal folds to the immediate form");
             assert_eq!(
-                result.plan().functions[0]
-                    .action
-                    .unwrap()
-                    .immediate_constraint,
+                result.plan().functions[0].actions[0].immediate_constraint,
                 expected,
                 "literal {literal} on {target:?}"
             );
@@ -55,10 +51,7 @@ fn compare_fold_partitions_the_literal_value_between_forms() {
         let result = fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1)
             .expect("the zero literal folds");
         assert_eq!(
-            result.plan().functions[0]
-                .action
-                .unwrap()
-                .immediate_constraint,
+            result.plan().functions[0].actions[0].immediate_constraint,
             keys.compare_i64_zero
         );
     }
@@ -99,7 +92,7 @@ fn subtract_immediate_fold_replaces_the_flag_clobbering_consumer_on_both_targets
             effect_catalog.identity()
         );
         assert_eq!(result.receipt().applied_count(), 1);
-        let action = result.plan().functions[0].action.unwrap();
+        let action = result.plan().functions[0].actions[0];
         assert_eq!(action.result, Some(VirtualRegisterId(2)));
         assert_eq!(action.immediate, 5);
         assert_eq!(action.surviving, VirtualRegisterId(0));
@@ -144,124 +137,37 @@ fn subtract_immediate_fold_replaces_the_flag_clobbering_consumer_on_both_targets
     }
 }
 
+/// Corrupting only the recovery classification row cannot redirect or
+/// suppress the subtract-immediate fold: nomination reads the stream.
 #[test]
-fn subtract_fold_rejects_unadmitted_candidate_shapes() {
+fn subtract_fold_ignores_corrupted_classification_rows() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    for mutation in 0..6 {
+    for corruption in 0..CLASSIFICATION_CORRUPTIONS {
         let mut inputs = staged_subtract_inputs(target);
-        let slot = inputs.recovery.plan.functions[0]
-            .classification
-            .as_mut()
-            .unwrap();
-        let (producer_expected, replay_expected) = match mutation {
-            // Only an `Incoming` victim may fold; a reclaimed resident is not
-            // the operand the consumer reads.
-            0 => {
-                slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view: register_model::RegisterViewId(0),
-                    reclaimed_view: register_model::RegisterViewId(0),
-                };
-                (
-                    LiteralFoldError::UnsupportedVictimRole { function: 0 },
-                    LiteralFoldError::UnsupportedVictimRole { function: 0 },
-                )
-            }
-            // The subtract grammar folds the literal at operand 1 only:
-            // claiming the left `Use` is a position no admitted grammar
-            // covers.
-            1 => {
-                let RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    future_uses,
-                    ..
-                } = &mut slot.classification
-                else {
-                    unreachable!()
-                };
-                future_uses[0].operand = 0;
-                (
-                    LiteralFoldError::FutureUseMismatch { function: 0 },
-                    LiteralFoldError::FutureUseMismatch { function: 0 },
-                )
-            }
-            // An over-bound immediate fails admission in the producer; the
-            // replay first refuses the literal record itself, since it no
-            // longer materializes the value the classification carries.
-            2 => {
-                let RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    value, ..
-                } = &mut slot.classification
-                else {
-                    unreachable!()
-                };
-                *value = IntegerValue::Unsigned(4096);
-                (
-                    LiteralFoldError::UnsupportedImmediate { function: 0 },
-                    LiteralFoldError::LiteralMismatch { function: 0 },
-                )
-            }
-            // The classified victim must be the register the literal record
-            // defines and the claimed `Use` operand binds.
-            3 => {
-                slot.victim = VirtualRegisterId(0);
-                (
-                    LiteralFoldError::LiteralMismatch { function: 0 },
-                    LiteralFoldError::LiteralMismatch { function: 0 },
-                )
-            }
-            // The use must sit in the classified block itself.
-            4 => {
-                let RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    future_uses,
-                    ..
-                } = &mut slot.classification
-                else {
-                    unreachable!()
-                };
-                future_uses[0].block = SelectedBlockId(1);
-                (
-                    LiteralFoldError::FutureUseMismatch { function: 0 },
-                    LiteralFoldError::FutureUseMismatch { function: 0 },
-                )
-            }
-            // A second recorded use means the literal is not single-use.
-            _ => {
-                let RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    future_uses,
-                    ..
-                } = &mut slot.classification
-                else {
-                    unreachable!()
-                };
-                let extra = future_uses[0];
-                future_uses.push(extra);
-                (
-                    LiteralFoldError::FutureUseMismatch { function: 0 },
-                    LiteralFoldError::FutureUseMismatch { function: 0 },
-                )
-            }
-        };
-        assert_eq!(
-            fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_SUBTRACT_V1).map(|_| ()),
-            Err(producer_expected),
-            "mutation {mutation}"
+        corrupt_classification(&mut inputs, corruption);
+        let result = assert_classification_does_not_steer(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::EXACT_SUBTRACT_V1,
+            &format!("corruption {corruption}"),
         );
         assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(replay_expected),
-            "mutation {mutation} replay"
+            result.receipt().applied_count(),
+            1,
+            "corruption {corruption}"
         );
     }
 }
 
 #[test]
-fn add_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
+fn add_fold_ignores_a_classification_claiming_another_operand() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        // Each fixture carries the literal at `literal_operand`; claiming the
-        // other `Use` position in the recovery classification selects the
-        // disjoint grammar, whose operand check finds the surviving register
-        // where the victim must sit.
+        // Each fixture carries the literal at `literal_operand`; the
+        // recovery classification claims `claimed_operand` instead. The
+        // classification no longer nominates, so the claim neither
+        // redirects nor suppresses the fold the stream itself admits.
         for (literal_operand, claimed_operand) in [(0u16, 1u16), (1u16, 0u16)] {
             let mut inputs = staged_add_inputs(target, literal_operand);
             let RecoveryClassification::ImmediateU64RematerializationCandidate {
@@ -275,16 +181,13 @@ fn add_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
                 unreachable!()
             };
             future_uses[0].operand = claimed_operand;
-            assert_eq!(
-                fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_ADD_V1).map(|_| ()),
-                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?} \
-                 replay"
+            assert_classification_does_not_steer(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::EXACT_ADD_V1,
+                &format!(
+                    "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
+                ),
             );
         }
     }
@@ -303,7 +206,7 @@ fn add_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it() {
             let result = fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_ADD_V1)
                 .expect("the boundary immediate folds");
             assert_eq!(result.receipt().applied_count(), 1);
-            assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+            assert_eq!(result.plan().functions[0].actions[0].immediate, 4095);
             assert_eq!(
                 result.transformed().functions[0].blocks[0].instructions[0].kind,
                 SelectedInstructionKind::ExactAddI64Immediate {
@@ -315,23 +218,21 @@ fn add_fold_admits_the_u12_boundary_immediate_and_rejects_beyond_it() {
 
             let mut inputs = staged_add_inputs(target, literal_operand);
             restage_literal(&mut inputs, 4096);
-            assert_eq!(
-                fold_with(&inputs, &environment, LiteralFoldPolicy::EXACT_ADD_V1).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "literal at operand {literal_operand} on {target:?}"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::EXACT_ADD_V1,
+                &format!("literal at operand {literal_operand} on {target:?}"),
             );
         }
     }
 }
 
 #[test]
-fn fold_rejects_instructions_the_bound_effect_catalog_does_not_declare() {
+fn fold_declines_instructions_the_bound_effect_catalog_does_not_declare() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         let keys = environment.allocation_constraint_keys();
-        let effect_catalog =
-            validated_machine_effect_catalog(environment.target(), environment.constraints())
-                .unwrap();
         for mutation in 0..2 {
             let inputs = staged_inputs(target);
             let mut plan = inputs.selected.transformed().clone();
@@ -343,47 +244,15 @@ fn fold_rejects_instructions_the_bound_effect_catalog_does_not_declare() {
                 // `(CompareI64, materialize)` declaration either.
                 _ => plan.functions[0].blocks[0].instructions[1].constraint = keys.materialize_i64,
             }
-            let mut selected = inputs.selected.clone();
-            selected.transformed = Arc::new(plan);
-
-            assert_eq!(
-                fold_selected_incoming_literal(
-                    &selected,
-                    &inputs.ranges,
-                    &inputs.legality,
-                    &inputs.spill_choices,
-                    &inputs.recovery,
-                    &inputs.availability,
-                    environment.identity(),
-                    environment.physical(),
-                    environment.constraints(),
-                    environment.reservations(),
-                    &keys,
-                    &effect_catalog,
-                    LiteralFoldPolicy::COMPARE_V1,
-                    budget(),
-                ),
-                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                "mutation {mutation} on {target:?}"
-            );
-            assert_eq!(
-                validate_literal_fold(
-                    &selected,
-                    &inputs.ranges,
-                    &inputs.legality,
-                    &inputs.spill_choices,
-                    &inputs.recovery,
-                    &inputs.availability,
-                    environment.identity(),
-                    environment.physical(),
-                    environment.constraints(),
-                    environment.reservations(),
-                    &keys,
-                    &effect_catalog,
-                    inputs.selected.plan().clone(),
-                ),
-                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                "mutation {mutation} replay on {target:?}"
+            let mut inputs = inputs;
+            inputs.selected.transformed = Arc::new(plan);
+            // A record the bound catalog does not declare is a surface the
+            // fold cannot prove isolated: the candidate declines.
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::COMPARE_V1,
+                &format!("mutation {mutation} on {target:?}"),
             );
         }
     }

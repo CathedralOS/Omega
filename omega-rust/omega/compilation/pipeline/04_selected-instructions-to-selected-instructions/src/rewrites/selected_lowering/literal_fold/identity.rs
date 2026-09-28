@@ -4,7 +4,7 @@ use crate::LiteralFoldPlan;
 
 pub(crate) fn literal_fold_identity(plan: &LiteralFoldPlan) -> LiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v7\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v8\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     LiteralFoldIdentity::from_canonical_bytes(&bytes)
 }
@@ -27,33 +27,29 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &LiteralFoldPlan) -> Ve
     length(&mut bytes, plan.functions.len());
     for function in &plan.functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        match function.action {
-            None => bytes.push(0),
-            Some(action) => {
-                bytes.push(1);
-                bytes.extend_from_slice(&action.block.0.to_le_bytes());
-                bytes.extend_from_slice(&action.pressure_point.0.to_le_bytes());
-                bytes.extend_from_slice(&action.literal_instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&action.victim.0.to_le_bytes());
-                bytes.extend_from_slice(&action.consumer_instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&action.surviving.0.to_le_bytes());
-                match action.result {
-                    None => bytes.push(0),
-                    Some(result) => {
-                        bytes.push(1);
-                        bytes.extend_from_slice(&result.0.to_le_bytes());
-                    }
+        length(&mut bytes, function.actions.len());
+        for action in &function.actions {
+            bytes.extend_from_slice(&action.block.0.to_le_bytes());
+            bytes.extend_from_slice(&action.literal_instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&action.victim.0.to_le_bytes());
+            bytes.extend_from_slice(&action.consumer_instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&action.surviving.0.to_le_bytes());
+            match action.result {
+                None => bytes.push(0),
+                Some(result) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(&result.0.to_le_bytes());
                 }
-                bytes.extend_from_slice(&action.immediate.to_le_bytes());
-                bytes.push(match action.immediate_constraint.family {
-                    register_model::RegisterConstraintFamily::Call => 0,
-                    register_model::RegisterConstraintFamily::Return => 1,
-                    register_model::RegisterConstraintFamily::SystemCall => 2,
-                    register_model::RegisterConstraintFamily::InlineAssembly => 3,
-                    register_model::RegisterConstraintFamily::Instruction => 4,
-                });
-                bytes.extend_from_slice(&action.immediate_constraint.variant.to_le_bytes());
             }
+            bytes.extend_from_slice(&action.immediate.to_le_bytes());
+            bytes.push(match action.immediate_constraint.family {
+                register_model::RegisterConstraintFamily::Call => 0,
+                register_model::RegisterConstraintFamily::Return => 1,
+                register_model::RegisterConstraintFamily::SystemCall => 2,
+                register_model::RegisterConstraintFamily::InlineAssembly => 3,
+                register_model::RegisterConstraintFamily::Instruction => 4,
+            });
+            bytes.extend_from_slice(&action.immediate_constraint.variant.to_le_bytes());
         }
     }
     bytes.extend_from_slice(&plan.transformed_selected.bytes());
@@ -89,7 +85,7 @@ mod tests {
         AllocationLegalityIdentity, AllocatorAvailabilityIdentity, RecoveryClassificationIdentity,
         SpillChoiceIdentity,
     };
-    use selected_instructions::{LiveRangeIdentity, LiveRangePoint};
+    use selected_instructions::LiveRangeIdentity;
 
     fn plan() -> LiteralFoldPlan {
         LiteralFoldPlan {
@@ -114,9 +110,8 @@ mod tests {
             },
             functions: vec![FunctionLiteralFold {
                 machine: MachineId::new(10).unwrap(),
-                action: Some(LiteralFoldAction {
+                actions: vec![LiteralFoldAction {
                     block: SelectedBlockId(1),
-                    pressure_point: LiveRangePoint(8),
                     literal_instruction: SelectedInstructionId(2),
                     victim: VirtualRegisterId(3),
                     consumer_instruction: SelectedInstructionId(4),
@@ -127,7 +122,7 @@ mod tests {
                         family: RegisterConstraintFamily::Instruction,
                         variant: 5,
                     },
-                }),
+                }],
             }],
             transformed_selected: SelectedInstructionPlanIdentity::from_bytes([11; 32]),
         }
@@ -138,7 +133,7 @@ mod tests {
         let baseline = plan();
         let identity = literal_fold_identity(&baseline);
         let mut changed = baseline.clone();
-        changed.functions[0].action.as_mut().unwrap().immediate += 1;
+        changed.functions[0].actions[0].immediate += 1;
         assert_ne!(literal_fold_identity(&changed), identity);
         changed = baseline.clone();
         changed.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([12; 32]);

@@ -11,6 +11,7 @@ mod compare_subtract_add_folds;
 mod divide_and_remainder_folds;
 mod extension_and_copy_folds;
 mod load_and_byte_view_folds;
+mod ordinary_nomination;
 mod saturating_add_upper_bound_materializations;
 mod saturating_add_zero_copies;
 mod saturating_divide_one_copies;
@@ -110,6 +111,7 @@ fn successor(block: u32, edge: u64) -> SelectedSuccessor {
     }
 }
 
+#[derive(Clone)]
 struct Inputs {
     selected: ValidatedLiteralFold,
     ranges: ValidatedLiveRanges,
@@ -320,7 +322,7 @@ fn staged_inputs(target: NativeTarget) -> Inputs {
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -901,6 +903,181 @@ fn assert_deterministic_fixed_point(
         first.receipt().transformed_selected()
     );
     assert_eq!(terminal.transformed(), first.transformed());
+}
+
+/// The fold a forged plan claims for the staged fixture's first literal:
+/// its sole later consumer, surviving operand, and result read straight from
+/// the stream, so the only false fact the plan carries is that the fold
+/// applied at all.
+fn claimed_action(inputs: &Inputs) -> crate::LiteralFoldAction {
+    let function = &inputs.selected.transformed().functions[0];
+    for block in &function.blocks {
+        for (index, literal) in block.instructions.iter().enumerate() {
+            let SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(value),
+            } = literal.kind
+            else {
+                continue;
+            };
+            let Some(victim) = literal
+                .operands
+                .first()
+                .map(|operand| operand.virtual_register)
+            else {
+                continue;
+            };
+            // A mutation may leave the literal with no reader at all; the
+            // forged plan then claims the adjacent instruction, which is
+            // still a fold the stream never supports.
+            let Some(consumer) = block.instructions[index + 1..]
+                .iter()
+                .find(|consumer| {
+                    consumer.operands.iter().any(|operand| {
+                        operand.virtual_register == victim
+                            && operand.access != RegisterOperandAccess::Def
+                    })
+                })
+                .or_else(|| block.instructions.get(index + 1))
+            else {
+                continue;
+            };
+            let surviving = consumer
+                .operands
+                .iter()
+                .find(|operand| {
+                    operand.access == RegisterOperandAccess::Use
+                        && operand.virtual_register != victim
+                })
+                .map_or(victim, |operand| operand.virtual_register);
+            let result = consumer
+                .operands
+                .iter()
+                .find(|operand| operand.access == RegisterOperandAccess::Def)
+                .map(|operand| operand.virtual_register);
+            return crate::LiteralFoldAction {
+                block: block.id,
+                literal_instruction: literal.id,
+                victim,
+                consumer_instruction: consumer.id,
+                surviving,
+                result,
+                immediate: u64::try_from(value).unwrap_or(u64::MAX),
+                immediate_constraint: consumer.constraint,
+            };
+        }
+    }
+    panic!("the staged fixture carries a literal feeding a later consumer")
+}
+
+/// The staged candidate is one the fold cannot prove custody over: the
+/// producer declines it — the published plan carries no action and the
+/// transformed program is the source unchanged — and the replay reaches the
+/// same decline independently, refusing a plan that claims the fold anyway.
+fn assert_declines(
+    inputs: &Inputs,
+    environment: &ValidatedTargetRegisterEnvironment,
+    policy: LiteralFoldPolicy,
+    context: &str,
+) {
+    let result = fold_with(inputs, environment, policy)
+        .unwrap_or_else(|error| panic!("{context}: the fold declines, not rejects: {error:?}"));
+    assert_eq!(result.receipt().applied_count(), 0, "{context}");
+    assert!(
+        result
+            .plan()
+            .functions
+            .iter()
+            .all(|function| function.actions.is_empty()),
+        "{context}"
+    );
+    assert_eq!(
+        result.transformed(),
+        inputs.selected.transformed(),
+        "{context}: a declined candidate leaves the program untouched"
+    );
+    let mut forged = result.plan().clone();
+    forged.functions[0].actions.push(claimed_action(inputs));
+    assert_eq!(
+        validate(inputs, environment, forged).map(|_| ()),
+        Err(LiteralFoldError::DecisionMismatch { function: 0 }),
+        "{context}: the replay refuses a plan claiming the declined fold"
+    );
+}
+
+/// Classification corruptions the retired classification-driven route used
+/// to reject: an `ActiveResident` role, a claimed `Use` at the other or an
+/// uncovered operand, a carried value the literal does not materialize, a
+/// victim naming another register, a use in another block, and a second
+/// recorded use. Each is a fact only the classification row states.
+const CLASSIFICATION_CORRUPTIONS: usize = 7;
+
+fn corrupt_classification(inputs: &mut Inputs, corruption: usize) {
+    let slot = inputs.recovery.plan.functions[0]
+        .classification
+        .as_mut()
+        .expect("the staged fixture admits a candidate");
+    if corruption == 0 {
+        slot.role = RecoveryVictimRole::ActiveResident {
+            current_view: register_model::RegisterViewId(0),
+            reclaimed_view: register_model::RegisterViewId(0),
+        };
+        return;
+    }
+    if corruption == 4 {
+        slot.victim = VirtualRegisterId(0);
+        return;
+    }
+    let RecoveryClassification::ImmediateU64RematerializationCandidate {
+        future_uses, value, ..
+    } = &mut slot.classification
+    else {
+        panic!("the staged classification is an immediate candidate")
+    };
+    match corruption {
+        1 => future_uses[0].operand ^= 1,
+        2 => future_uses[0].operand = 7,
+        3 => *value = IntegerValue::Unsigned(4096),
+        5 => future_uses[0].block = SelectedBlockId(1),
+        _ => {
+            let extra = future_uses[0];
+            future_uses.push(extra);
+        }
+    }
+}
+
+/// Nomination reads the instruction stream, not the recovery
+/// classification: a classification row naming another operand, value,
+/// victim, block, role, or use count cannot redirect or suppress the fold.
+/// The corrupted fixture publishes exactly the plan and program the same
+/// fixture publishes with no classification row at all, and that plan
+/// replays. Returns the published fold so callers can pin its outcome.
+fn assert_classification_does_not_steer(
+    inputs: &Inputs,
+    environment: &ValidatedTargetRegisterEnvironment,
+    policy: LiteralFoldPolicy,
+    context: &str,
+) -> ValidatedLiteralFold {
+    let result = fold_with(inputs, environment, policy)
+        .unwrap_or_else(|error| panic!("{context}: the corrupted row does not reject: {error:?}"));
+    let mut unclassified = inputs.clone();
+    for function in &mut unclassified.recovery.plan.functions {
+        function.classification = None;
+    }
+    let reference = fold_with(&unclassified, environment, policy)
+        .unwrap_or_else(|error| panic!("{context}: the unclassified fixture folds: {error:?}"));
+    assert_eq!(
+        result.plan().functions,
+        reference.plan().functions,
+        "{context}: the classification row steers no action"
+    );
+    assert_eq!(
+        result.transformed(),
+        reference.transformed(),
+        "{context}: the classification row steers no rewrite"
+    );
+    validate(inputs, environment, result.plan().clone())
+        .unwrap_or_else(|error| panic!("{context}: the published fold replays: {error:?}"));
+    result
 }
 
 fn fold(inputs: &Inputs, environment: &ValidatedTargetRegisterEnvironment) -> ValidatedLiteralFold {

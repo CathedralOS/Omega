@@ -1,6 +1,6 @@
 use register_model::{RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
-    MachineSemanticKind, SaturatingCarrier, SelectedFunction, SelectedInstruction,
+    MachineSemanticKind, SaturatingCarrier, SelectedBlockId, SelectedFunction, SelectedInstruction,
     SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
     SelectedInstructionProvenance, SelectedOperand, SelectedTerminator, VirtualRegisterId,
     VirtualRegisterOrigin,
@@ -13,7 +13,6 @@ use crate::{
     FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, ValidatedRecoveryClassifications,
     ValidatedSelectedAnalysis,
 };
-use register_homes::{RecoveryClassification, RecoveryVictimRole};
 
 use super::constraints::{
     ValidationImmediateRows, dead_unit_defs_fold_admission, effect_declaration,
@@ -45,126 +44,297 @@ pub(super) fn reconstruct_literal_fold(
         }
         validate_dense_identifiers(function_index, source)?;
 
-        // The validator binds the same decline contract compute does: a
-        // consistent classification row no enabled pair covers — kind or
-        // operand position — produces no fold and the recorded absence of
-        // an action replays; records inconsistent with the stream itself
-        // still reject.
-        let action = recovery_function
-            .classification
-            .as_ref()
-            .map(|classification| reconstruct_action(function_index, source, classification, rows))
-            .transpose()?
-            .flatten();
-        if let Some(action) = action {
-            rebuild_function(
+        // The validator runs the same scan nomination the producer does —
+        // re-derived from the instruction stream, never read from the
+        // recorded actions: every `MaterializeI64` whose custody the replay
+        // can establish independently is a candidate, and every record it
+        // cannot prove declines rather than rejecting the program. The
+        // recorded `actions` are checked against this reconstruction
+        // wholesale at the plan comparison.
+        let actions = reconstruct_actions(source, rows);
+        if !actions.is_empty() {
+            rebuild_actions(
                 function_index,
                 &mut transformed.functions[function_index],
-                action,
+                &actions,
                 rows,
             )?;
         }
         expected_functions.push(FunctionLiteralFold {
             machine: source.machine,
-            action,
+            actions,
         });
     }
 
     Ok((expected_functions, transformed))
 }
 
-fn reconstruct_action(
-    function_index: usize,
+/// The validator's independent nomination: the same stream scan the
+/// producer runs, restated here so the recorded actions are checked against
+/// a fact the replay derives itself rather than against the producer's
+/// nomination walk.
+fn reconstruct_actions(
     function: &SelectedFunction,
-    candidate: &register_homes::PressureRecoveryClassification,
     rows: &ValidationImmediateRows<'_>,
-) -> Result<Option<LiteralFoldAction>, LiteralFoldError> {
-    if candidate.role != RecoveryVictimRole::Incoming {
-        return Err(LiteralFoldError::UnsupportedVictimRole {
-            function: function_index,
-        });
+) -> Vec<LiteralFoldAction> {
+    let mut actions = Vec::new();
+    for (block_index, block) in function.blocks.iter().enumerate() {
+        for (literal_index, literal) in block.instructions.iter().enumerate() {
+            let SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(value),
+            } = literal.kind
+            else {
+                continue;
+            };
+            let Some(victim) = literal
+                .operands
+                .first()
+                .filter(|_| literal.operands.len() == 1)
+                .map(|operand| operand.virtual_register)
+            else {
+                continue;
+            };
+            let Some(literal_u64) = u64::try_from(value).ok() else {
+                continue;
+            };
+            if !literal_provable(literal) || !register_provable(function, literal, victim, value) {
+                continue;
+            }
+            let Some(sole) = sole_use_site(function, block_index, literal_index, literal, victim)
+            else {
+                continue;
+            };
+            let consumer = &block.instructions[sole.consumer_index];
+            // A consumer rewrites once: an earlier admitted fold in scan
+            // order already claimed it, so a second literal declines.
+            if actions
+                .iter()
+                .any(|action: &LiteralFoldAction| action.consumer_instruction == consumer.id)
+            {
+                continue;
+            }
+            if let Some(action) = reconstruct_action(
+                function,
+                block_index,
+                block.id,
+                literal,
+                sole.consumer_index,
+                consumer,
+                sole.operand,
+                victim,
+                literal_u64,
+                rows,
+            )
+            .filter(|action| rebuilt_consumer(0, function, action, rows).is_ok())
+            {
+                actions.push(action);
+            }
+        }
     }
-    let RecoveryClassification::ImmediateU64RematerializationCandidate {
-        defining_instruction,
-        value: IntegerValue::Unsigned(value),
-        provenance,
-        future_uses,
-        ..
-    } = &candidate.classification
-    else {
-        // A non-candidate classification declines the same way compute
-        // binds it: no fold applied and the spill decision stood.
-        return Ok(None);
-    };
-    let literal_u64 =
-        u64::try_from(*value).map_err(|_| LiteralFoldError::UnsupportedImmediate {
-            function: function_index,
-        })?;
-    let [future_use] = future_uses.as_slice() else {
-        return Err(LiteralFoldError::FutureUseMismatch {
-            function: function_index,
-        });
-    };
-    if future_use.block != candidate.block {
-        return Err(LiteralFoldError::FutureUseMismatch {
-            function: function_index,
-        });
-    }
+    actions
+}
 
-    let (block_index, block) = function
-        .blocks
-        .iter()
-        .enumerate()
-        .find(|(_, block)| block.id == candidate.block)
-        .ok_or(LiteralFoldError::LiteralMismatch {
-            function: function_index,
-        })?;
-    let literal_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == *defining_instruction)
-        .ok_or(LiteralFoldError::LiteralMismatch {
-            function: function_index,
-        })?;
-    let literal = &block.instructions[literal_index];
-    // Same consumer contract `derive_action` binds: the victim's single
-    // recorded use, anywhere later in the same block — an adjacent
-    // materialize–consumer pair still matches, but the chooser only
-    // names the literal the incoming victim when its interval out-lives
-    // every reclaimable resident.
-    let consumer_index = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == future_use.instruction)
-        .filter(|index| *index > literal_index)
-        .ok_or(LiteralFoldError::ConsumerMismatch {
-            function: function_index,
-        })?;
-    let consumer = &block.instructions[consumer_index];
-
-    if literal.kind
-        != (SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(*value),
+/// Producer-record custody the replay re-derives from the literal's own
+/// record: exactly one undecorated `Def` operand, no implicit unit traffic
+/// or operand bindings — removing the instruction would silently drop any
+/// it carried — and the single-operation provenance shape: one operation,
+/// one produced value, no edges or obligations, fuel settling only at that
+/// operation. The register table must agree: an integer scalar that admits
+/// the literal, no entry fixed-view pin, and the `InstructionResult` origin
+/// naming this instruction and the same source value the provenance
+/// carries. Any failure declines the record — the fold proves custody or
+/// leaves it in place.
+fn literal_provable(literal: &SelectedInstruction) -> bool {
+    let [operand] = literal.operands.as_slice() else {
+        return false;
+    };
+    operand.access == RegisterOperandAccess::Def
+        && operand.fixed_view.is_none()
+        && operand.tied_to.is_none()
+        && !operand.early_clobber
+        && literal.implicit_uses.is_empty()
+        && literal.implicit_defs.is_empty()
+        && literal.clobbers.is_empty()
+        && literal.provenance.operations.len() == 1
+        && literal.provenance.values.len() == 1
+        && literal.provenance.edges.is_empty()
+        && literal.provenance.obligations.is_empty()
+        && !literal.provenance.fuel.is_empty()
+        && literal.provenance.fuel.iter().all(|fuel| {
+            fuel.site
+                == optimization_unit::PsiProvenance::Operation(literal.provenance.operations[0])
         })
-        || literal.provenance != *provenance
-        || literal.operands.len() != 1
-        || literal.operands[0].virtual_register != candidate.victim
-        || literal.operands[0].access != RegisterOperandAccess::Def
-        // The eliminated instruction's record must carry no unit traffic at
-        // all: removing it would silently drop any implicit use, definition,
-        // clobber, or operand binding it declared.
-        || literal.operands[0].fixed_view.is_some()
-        || literal.operands[0].tied_to.is_some()
-        || literal.operands[0].early_clobber
-        || !literal.implicit_uses.is_empty()
-        || !literal.implicit_defs.is_empty()
-        || !literal.clobbers.is_empty()
-    {
-        return Err(LiteralFoldError::LiteralMismatch {
-            function: function_index,
-        });
-    }
+}
 
+/// The register-table half of producer custody, re-derived by the replay:
+/// the record is a materialization of this register only when its scalar
+/// type is an integer admitting the literal's bits — address carriers and
+/// non-admitting widths decline — its entry view is unpinned, and its
+/// `InstructionResult` origin names the literal and the provenance's value.
+fn register_provable(
+    function: &SelectedFunction,
+    literal: &SelectedInstruction,
+    victim: VirtualRegisterId,
+    value: u128,
+) -> bool {
+    let Some(register) = function
+        .virtual_registers
+        .iter()
+        .find(|register| register.id == victim)
+    else {
+        return false;
+    };
+    let ScalarType::Integer(integer) = register.scalar_type else {
+        return false;
+    };
+    !integer.is_address()
+        && integer.admits(IntegerValue::Unsigned(value))
+        && register.entry_fixed_view.is_none()
+        && matches!(
+            register.origin,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction,
+                source_value,
+            } if instruction == literal.id
+                && literal.provenance.values.as_slice() == [source_value]
+        )
+}
+
+/// The sole-use occurrence the replay re-walks itself: the victim's only
+/// occurrences in the function — instruction and terminator operand lists
+/// and every successor binding transport — are the literal's own `Def` and
+/// one `Use` at an operand of an instruction later in the same block. Any
+/// other write, a second or terminator-resident use, or a transport
+/// reference leaves the register live past the fold and the candidate
+/// declines.
+fn sole_use_site(
+    function: &SelectedFunction,
+    block_index: usize,
+    literal_index: usize,
+    literal: &SelectedInstruction,
+    victim: VirtualRegisterId,
+) -> Option<ValidatorUseSite> {
+    let mut site = None;
+    for (candidate_block_index, block) in function.blocks.iter().enumerate() {
+        for (instruction_index, (instruction, in_body)) in block
+            .instructions
+            .iter()
+            .map(|instruction| (instruction, true))
+            .chain(std::iter::once((
+                terminator_instruction(&block.terminator),
+                false,
+            )))
+            .enumerate()
+        {
+            for operand in &instruction.operands {
+                if operand.virtual_register != victim {
+                    continue;
+                }
+                match operand.access {
+                    RegisterOperandAccess::Def | RegisterOperandAccess::UseDef => {
+                        if candidate_block_index != block_index
+                            || instruction.id != literal.id
+                            || operand.access != RegisterOperandAccess::Def
+                        {
+                            return None;
+                        }
+                    }
+                    RegisterOperandAccess::Use => {
+                        if site.is_some() {
+                            return None;
+                        }
+                        site = Some((
+                            candidate_block_index,
+                            in_body,
+                            instruction_index,
+                            operand.operand,
+                        ));
+                    }
+                }
+            }
+        }
+        for successor in terminator_successors(&block.terminator) {
+            let carried = successor.structural_bindings.iter().any(|binding| {
+                matches!(
+                    binding.transport,
+                    selected_instructions::SelectedStructuralTransport::WholeValue {
+                        argument,
+                        ..
+                    }
+                    | selected_instructions::SelectedStructuralTransport::Descriptor {
+                        argument,
+                        ..
+                    }
+                    | selected_instructions::SelectedStructuralTransport::Address {
+                        base: selected_instructions::SelectedAddressBase::Register(argument),
+                        ..
+                    } if argument == victim
+                )
+            }) || successor.structural_case.iter().any(|case| {
+                case.payloads
+                    .iter()
+                    .any(|payload| match &payload.transport {
+                        selected_instructions::SelectedCasePayloadTransport::Unused => false,
+                        selected_instructions::SelectedCasePayloadTransport::Unmaterialized {
+                            parameter,
+                        } => *parameter == victim,
+                        selected_instructions::SelectedCasePayloadTransport::Registers {
+                            argument,
+                            parameter,
+                        } => *argument == victim || *parameter == victim,
+                    })
+            }) || successor
+                .bindings
+                .iter()
+                .any(|binding| match &binding.transport {
+                    selected_instructions::SelectedValueTransport::Unused => false,
+                    selected_instructions::SelectedValueTransport::Registers {
+                        argument,
+                        parameter,
+                    } => *argument == victim || *parameter == victim,
+                });
+            if carried {
+                return None;
+            }
+        }
+    }
+    let (site_block, in_body, instruction_index, operand) = site?;
+    (site_block == block_index && in_body && instruction_index > literal_index).then_some(
+        ValidatorUseSite {
+            consumer_index: instruction_index,
+            operand,
+        },
+    )
+}
+
+/// The sole-use site the replay's own occurrence walk produced: the
+/// consumer's position in the literal's block and the operand number the
+/// `Use` record carries.
+struct ValidatorUseSite {
+    consumer_index: usize,
+    operand: u16,
+}
+
+/// One nominated candidate's independent replay. Every admission failure —
+/// a kind or operand position no bound grammar serves, a literal outside
+/// the grammar's bound, an operand shape the grammar does not cover,
+/// custody the record cannot discharge, an effect surface the bound
+/// catalog does not isolate — declines the candidate identically to the
+/// producer's admission, so the replayed `actions` equal the derivation's
+/// exactly when both sides agree on custody.
+#[allow(clippy::too_many_arguments)]
+fn reconstruct_action(
+    function: &SelectedFunction,
+    block_index: usize,
+    block: SelectedBlockId,
+    literal: &SelectedInstruction,
+    consumer_index: usize,
+    consumer: &SelectedInstruction,
+    use_operand: u16,
+    victim_register: VirtualRegisterId,
+    literal_u64: u64,
+    rows: &ValidationImmediateRows<'_>,
+) -> Option<LiteralFoldAction> {
     // The validator re-derives the source grammar from the consumer kind and
     // the folded literal's operand position alone — never from the producer's
     // descriptor. Binary consumers fold the literal into an immediate form
@@ -175,7 +345,7 @@ fn reconstruct_action(
     // a direct `MaterializeI64` of the literal itself.
     let (shape, row, rewritten) = match consumer.kind {
         SelectedInstructionKind::ExactAddI64 { .. } => (
-            if future_use.operand == 0 {
+            if use_operand == 0 {
                 SourceShape::BinaryLeftImmediate
             } else {
                 SourceShape::BinaryImmediate
@@ -202,7 +372,7 @@ fn reconstruct_action(
         SelectedInstructionKind::CompareI64 => {
             if literal_u64 == 0 {
                 (
-                    if future_use.operand == 0 {
+                    if use_operand == 0 {
                         SourceShape::CompareLeftZero
                     } else {
                         SourceShape::CompareZero
@@ -212,7 +382,7 @@ fn reconstruct_action(
                 )
             } else {
                 (
-                    if future_use.operand == 0 {
+                    if use_operand == 0 {
                         SourceShape::CompareLeftImmediate
                     } else {
                         SourceShape::CompareRightImmediate
@@ -259,7 +429,7 @@ fn reconstruct_action(
         // position. The operand-2 `Def` is the result under either
         // grammar.
         SelectedInstructionKind::ByteViewAddress => (
-            if future_use.operand == 0 {
+            if use_operand == 0 {
                 SourceShape::BinaryLeftImmediate
             } else {
                 SourceShape::BinaryImmediate
@@ -284,7 +454,7 @@ fn reconstruct_action(
         // retires under the nonzero-divisor obligation the kind carries,
         // not under the folded literal.
         SelectedInstructionKind::ExactDivideU64 { .. } => {
-            if future_use.operand == 0 {
+            if use_operand == 0 {
                 (
                     SourceShape::DivideZeroDividend,
                     rows.divide_zero,
@@ -322,7 +492,7 @@ fn reconstruct_action(
         // family admits replays under the divisor-one shape so the
         // family's exact-literal check rejects it.
         SelectedInstructionKind::WrappingRemainderI64 { .. } => {
-            if future_use.operand == 0 {
+            if use_operand == 0 {
                 (
                     SourceShape::RemainderZeroDividend,
                     rows.remainder_zero,
@@ -361,7 +531,7 @@ fn reconstruct_action(
         // unadmitted kind. The recorded operand position picks the
         // grammar within each family.
         SelectedInstructionKind::BitwiseAndI64 => {
-            let left = future_use.operand == 0;
+            let left = use_operand == 0;
             if literal_u64 == u64::MAX {
                 (
                     if left {
@@ -391,7 +561,7 @@ fn reconstruct_action(
         // surviving `Use` binds the rewritten row's operand-0 `Use`
         // position. The recorded operand position picks the grammar.
         SelectedInstructionKind::BitwiseXorI64 => (
-            if future_use.operand == 0 {
+            if use_operand == 0 {
                 SourceShape::XorZeroLeft
             } else {
                 SourceShape::XorZero
@@ -407,7 +577,7 @@ fn reconstruct_action(
         // operand-0 `Use` position. The recorded operand position picks
         // the grammar.
         SelectedInstructionKind::WrappingAddI64 => (
-            if future_use.operand == 0 {
+            if use_operand == 0 {
                 SourceShape::WrappingAddZeroLeft
             } else {
                 SourceShape::WrappingAddZero
@@ -443,7 +613,7 @@ fn reconstruct_action(
         // custody the scratch-defs grammars independently re-derive. The
         // constant-result grammars admit the same tail the same way.
         SelectedInstructionKind::SaturatingAdd { carrier } => {
-            let left = future_use.operand == 0;
+            let left = use_operand == 0;
             if !carrier.is_signed() && literal_u64 == carrier.maximum_bits() {
                 (
                     if left {
@@ -508,7 +678,7 @@ fn reconstruct_action(
         // under the occurrence-free custody the scratch-defs grammar
         // independently re-derives.
         SelectedInstructionKind::SaturatingSubtract { carrier } => {
-            if future_use.operand == 0 && !carrier.is_signed() {
+            if use_operand == 0 && !carrier.is_signed() {
                 (
                     SourceShape::SaturatingSubtractZeroMinuend,
                     rows.saturating_subtract_zero_minuend,
@@ -555,7 +725,7 @@ fn reconstruct_action(
         // materializations, and a `Def` — the bound scratch an aarch64
         // signed realization writes — must be occurrence-free.
         SelectedInstructionKind::SaturatingDivide { .. } => {
-            if future_use.operand == 0 {
+            if use_operand == 0 {
                 (
                     SourceShape::SaturatingDivideZeroDividend,
                     rows.saturating_divide_zero,
@@ -577,187 +747,24 @@ fn reconstruct_action(
     };
     // `BitwiseAndI64` and `SaturatingAdd` are the consumer kinds two
     // disjoint families admit at the same operand positions — the
-    // literal's value names the family, so when that family's row was not
-    // bound the position may still be admitted by the other family: an
-    // admitted operand position whose literal no enabled family admits is
-    // an unsupported immediate, a position outside both grammars a
-    // future-use mismatch, and either kind with no enabled family a
-    // consumer mismatch like any other unadmitted kind. The upper-bound
-    // grammar binds only the unsigned carriers: a signed carrier's
-    // operand positions name no admitted grammar even while the
-    // upper-bound family is enabled, so the enabled-family check counts
-    // only the rows a `SaturatingAdd` of this carrier can bind.
-    // `WrappingRemainderI64` carries the same value-disjoint structure on
-    // its divisor operand — the divisor-one and minus-one families share
-    // operand 1 — while its operand-0 zero-dividend family is
-    // position-disjoint like `ExactDivideU64`'s and `SaturatingDivide`'s
-    // two-family splits: for those kinds the
-    // position already picked the family, so its row being unbound means
-    // no enabled grammar covers the position — a future-use mismatch
-    // while either family of the kind is enabled, a consumer mismatch
-    // when neither is. `SaturatingSubtract` mixes both structures: its
-    // operand-0 zero-minuend family is position-disjoint while its
-    // operand-1 subtrahend operand hosts two value-disjoint families —
-    // the right-zero identity on every carrier and the upper-bound fold
-    // on the unsigned ones.
-    // A bound row missing on a consistent record whose consumer
-    // kind-family no enabled grammar admits at all is a coverage state,
-    // not an inconsistency — the row declines and the spill decision
-    // stands. Within a covered family the admission errors still name
-    // the axis: an unadmitted kind is a consumer mismatch, an admitted
-    // kind whose literal sits at a position no enabled grammar covers
-    // is a future-use mismatch, and a literal lying outside every
-    // enabled bound at an admitted position is an unsupported
-    // immediate.
-    let consistent_use = consumer.operands.iter().any(|operand| {
-        operand.operand == future_use.operand
-            && operand.access == RegisterOperandAccess::Use
-            && operand.virtual_register == candidate.victim
-    });
-    let row = match row.ok_or_else(|| -> Option<LiteralFoldError> {
-        let same_position_families = match consumer.kind {
-            SelectedInstructionKind::BitwiseAndI64 => {
-                rows.and_zero.is_some() || rows.and_ones.is_some()
-            }
-            SelectedInstructionKind::SaturatingAdd { carrier } => {
-                rows.saturating_add_zero.is_some()
-                    || (rows.saturating_add_upper_bound.is_some() && !carrier.is_signed())
-            }
-            _ => false,
-        };
-        if same_position_families {
-            if future_use.operand == shape.victim_operand() {
-                Some(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                })
-            } else {
-                Some(LiteralFoldError::FutureUseMismatch {
-                    function: function_index,
-                })
-            }
-        } else if matches!(
-            consumer.kind,
-            SelectedInstructionKind::WrappingRemainderI64 { .. }
-        ) && (rows.remainder.is_some()
-            || rows.remainder_zero.is_some()
-            || rows.remainder_minus_one.is_some())
-        {
-            // The divisor operand hosts two value-disjoint families — a
-            // bound row missing there names a literal neither enabled
-            // divisor family admits, while an unbound row at any other
-            // position names a position no enabled grammar covers.
-            if future_use.operand == 1
-                && (rows.remainder.is_some() || rows.remainder_minus_one.is_some())
-            {
-                Some(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                })
-            } else {
-                Some(LiteralFoldError::FutureUseMismatch {
-                    function: function_index,
-                })
-            }
-        } else if let SelectedInstructionKind::SaturatingSubtract { carrier } = consumer.kind {
-            // The zero-minuend and upper-bound grammars bind only the
-            // unsigned carriers: a signed carrier's operand positions
-            // name no admitted grammar outside the right-zero family even
-            // while an unsigned-only family is enabled, so the
-            // enabled-family check counts only the rows a
-            // `SaturatingSubtract` of this carrier can bind. Within the
-            // admitted kind the subtrahend operand hosts two
-            // value-disjoint families — a bound row missing there names a
-            // literal neither enabled subtrahend family admits, while an
-            // unbound row at any other position names a position no
-            // enabled grammar covers.
-            let kind_admitted = rows.saturating_subtract_zero.is_some()
-                || (!carrier.is_signed()
-                    && (rows.saturating_subtract_zero_minuend.is_some()
-                        || rows.saturating_subtract_upper_bound.is_some()));
-            let family_admitted = rows.saturating_subtract_zero.is_some()
-                || rows.saturating_subtract_zero_minuend.is_some()
-                || rows.saturating_subtract_upper_bound.is_some();
-            if !kind_admitted {
-                // The kind itself no enabled subtrahend family can
-                // serve — a signed carrier under an unsigned-only
-                // selection is a fabricated record when the family is
-                // enabled at all; only when no `SaturatingSubtract`
-                // grammar is enabled does a consistent record decline.
-                if family_admitted || !consistent_use {
-                    Some(LiteralFoldError::ConsumerMismatch {
-                        function: function_index,
-                    })
-                } else {
-                    None
-                }
-            } else if (future_use.operand == 1
-                && (rows.saturating_subtract_zero.is_some()
-                    || (!carrier.is_signed() && rows.saturating_subtract_upper_bound.is_some())))
-                || (future_use.operand == 0
-                    && !carrier.is_signed()
-                    && rows.saturating_subtract_zero_minuend.is_some())
-            {
-                Some(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                })
-            } else {
-                Some(LiteralFoldError::FutureUseMismatch {
-                    function: function_index,
-                })
-            }
-        } else if let SelectedInstructionKind::SaturatingAdd { .. } = consumer.kind {
-            // The saturating-add family reaching here admits nothing for
-            // this record — `same_position_families` already excluded
-            // every admitted carrier — so the record is a fabricated
-            // claim whenever the family is enabled at all, and declines
-            // only when no `SaturatingAdd` grammar is bound.
-            if rows.saturating_add_zero.is_some()
-                || rows.saturating_add_upper_bound.is_some()
-                || !consistent_use
-            {
-                Some(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                })
-            } else {
-                None
-            }
-        } else if (matches!(
-            consumer.kind,
-            SelectedInstructionKind::ExactDivideU64 { .. }
-        ) && (rows.divide.is_some() || rows.divide_zero.is_some()))
-            || (matches!(
-                consumer.kind,
-                SelectedInstructionKind::SaturatingDivide { .. }
-            ) && (rows.saturating_divide_one.is_some()
-                || rows.saturating_divide_zero.is_some()))
-        {
-            Some(LiteralFoldError::FutureUseMismatch {
-                function: function_index,
-            })
-        } else if consistent_use {
-            // The kind names no family any enabled grammar admits — the
-            // consistent record declines so the spill decision stands.
-            None
-        } else {
-            Some(LiteralFoldError::ConsumerMismatch {
-                function: function_index,
-            })
-        }
-    }) {
-        Ok(row) => row,
-        Err(Some(error)) => return Err(error),
-        Err(None) => return Ok(None),
+    // literal's value names the family — and `WrappingRemainderI64`,
+    // `ExactDivideU64`, `SaturatingDivide`, and `SaturatingSubtract` each
+    // host position- or value-disjoint families of their own. A bound row
+    // missing — whether the kind admits no grammar at all, the position
+    // sits outside every enabled grammar, or the literal lies outside
+    // every enabled bound — is a coverage state the candidate declines
+    // against, never a record defect: the fold proves custody or it
+    // leaves the record in place.
+    let Some(row) = row else {
+        return None;
     };
-    if future_use.operand != shape.victim_operand() {
-        return Err(LiteralFoldError::FutureUseMismatch {
-            function: function_index,
-        });
+    if use_operand != shape.victim_operand() {
+        return None;
     }
     let immediate = match shape {
         SourceShape::BinaryImmediate | SourceShape::BinaryLeftImmediate => {
             if literal_u64 > 4095 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -769,9 +776,7 @@ fn reconstruct_action(
         // different computation the replay must not admit here.
         SourceShape::CompareRightImmediate | SourceShape::CompareLeftImmediate => {
             if literal_u64 == 0 || literal_u64 > 4095 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -782,17 +787,11 @@ fn reconstruct_action(
         // the `CompareI64Zero` rebuild does not embed.
         SourceShape::CompareZero | SourceShape::CompareLeftZero => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
-        SourceShape::UnaryExtension => extension_bits(consumer.kind, literal_u64).ok_or(
-            LiteralFoldError::ConsumerMismatch {
-                function: function_index,
-            },
-        )?,
+        SourceShape::UnaryExtension => extension_bits(consumer.kind, literal_u64)?,
         // The copy's constant output is the literal itself; the
         // `MaterializeI64` row it rewrites into bounds the payload only by
         // what the result register's scalar type admits, checked at rebuild.
@@ -802,9 +801,7 @@ fn reconstruct_action(
         // replay must not admit.
         SourceShape::DivideIdentity => {
             if literal_u64 != 1 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -816,9 +813,7 @@ fn reconstruct_action(
         // embeds — zero.
         SourceShape::DivideZeroDividend => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -828,9 +823,7 @@ fn reconstruct_action(
         // the constant the rewritten `MaterializeI64` embeds — zero.
         SourceShape::RemainderIdentity => {
             if literal_u64 != 1 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -843,9 +836,7 @@ fn reconstruct_action(
         // `MaterializeI64` embeds — zero.
         SourceShape::RemainderMinusOne => {
             if literal_u64 != u64::MAX {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -857,9 +848,7 @@ fn reconstruct_action(
         // embeds — zero.
         SourceShape::RemainderZeroDividend => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -870,9 +859,7 @@ fn reconstruct_action(
         // is the constant the rewritten `MaterializeI64` embeds — zero.
         SourceShape::AndZero | SourceShape::AndZeroLeft => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -883,9 +870,7 @@ fn reconstruct_action(
         // is the folded literal itself, unused by the `CopyI64` rebuild.
         SourceShape::XorZero | SourceShape::XorZeroLeft => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -897,9 +882,7 @@ fn reconstruct_action(
         // the `CopyI64` rebuild.
         SourceShape::WrappingAddZero | SourceShape::WrappingAddZeroLeft => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -914,9 +897,7 @@ fn reconstruct_action(
         | SourceShape::SaturatingAddZeroScratch
         | SourceShape::SaturatingAddZeroLeftScratch => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -932,14 +913,10 @@ fn reconstruct_action(
         // validator recomputes from the consumer kind itself.
         SourceShape::SaturatingAddUpperBound | SourceShape::SaturatingAddUpperBoundLeft => {
             let SelectedInstructionKind::SaturatingAdd { carrier } = consumer.kind else {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             };
             if carrier.is_signed() || literal_u64 != carrier.maximum_bits() {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             carrier.maximum_bits()
         }
@@ -951,9 +928,7 @@ fn reconstruct_action(
         // `CopyI64` rebuild.
         SourceShape::SaturatingSubtractZero | SourceShape::SaturatingSubtractZeroScratch => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -966,9 +941,7 @@ fn reconstruct_action(
         // `MaterializeI64` embeds — zero.
         SourceShape::SaturatingSubtractZeroMinuend => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -985,14 +958,10 @@ fn reconstruct_action(
         // the rewritten `MaterializeI64` embeds — zero.
         SourceShape::SaturatingSubtractUpperBoundSubtrahend => {
             let SelectedInstructionKind::SaturatingSubtract { carrier } = consumer.kind else {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             };
             if carrier.is_signed() || literal_u64 != carrier.maximum_bits() {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -1005,9 +974,7 @@ fn reconstruct_action(
         // the `CopyI64` rebuild.
         SourceShape::SaturatingDivideOne => {
             if literal_u64 != 1 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -1020,9 +987,7 @@ fn reconstruct_action(
         // embeds — zero.
         SourceShape::SaturatingDivideZeroDividend => {
             if literal_u64 != 0 {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             0
         }
@@ -1033,9 +998,7 @@ fn reconstruct_action(
         // is the folded literal itself, unused by the `CopyI64` rebuild.
         SourceShape::AndOnes | SourceShape::AndOnesLeft => {
             if literal_u64 != u64::MAX {
-                return Err(LiteralFoldError::UnsupportedImmediate {
-                    function: function_index,
-                });
+                return None;
             }
             literal_u64
         }
@@ -1044,15 +1007,13 @@ fn reconstruct_action(
         (SourceShape::BinaryImmediate, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1060,16 +1021,14 @@ fn reconstruct_action(
         // operand-1 `Use` is the register the rewritten row binds.
         (SourceShape::BinaryLeftImmediate, [victim, right, result]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1087,13 +1046,11 @@ fn reconstruct_action(
         ) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || row.operands.len() != 1
                 || left.class != row.operands[0].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             None
         }
@@ -1115,7 +1072,7 @@ fn reconstruct_action(
             [victim, subtrahend],
         ) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || subtrahend.access != RegisterOperandAccess::Use
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Use
@@ -1124,9 +1081,7 @@ fn reconstruct_action(
                 || consumer.implicit_defs != row.implicit_defs
                 || consumer.clobbers != row.clobbers
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             None
         }
@@ -1141,7 +1096,7 @@ fn reconstruct_action(
         (SourceShape::DivideIdentity, [left, right, result, auxiliary @ ..]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
@@ -1151,9 +1106,7 @@ fn reconstruct_action(
                         && dropped_use_defined_zero(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1170,7 +1123,7 @@ fn reconstruct_action(
         // zero at operand 0 fixes only the low dividend half.
         (SourceShape::DivideZeroDividend, [victim, right, result, auxiliary @ ..]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
@@ -1181,9 +1134,7 @@ fn reconstruct_action(
                         && dropped_use_defined_zero(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1205,7 +1156,7 @@ fn reconstruct_action(
         ) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
@@ -1215,9 +1166,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1231,7 +1180,7 @@ fn reconstruct_action(
         // an x86-64 `idiv` realization writes.
         (SourceShape::RemainderZeroDividend, [victim, right, result, scratch @ ..]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
@@ -1242,9 +1191,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1259,7 +1206,7 @@ fn reconstruct_action(
         (SourceShape::AndZero, [left, right, result, scratch @ ..]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
@@ -1269,9 +1216,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1283,7 +1228,7 @@ fn reconstruct_action(
         // repositions the dropped operand.
         (SourceShape::AndZeroLeft, [victim, right, result, scratch @ ..]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
@@ -1294,9 +1239,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1308,15 +1251,13 @@ fn reconstruct_action(
         (SourceShape::XorZero, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1326,16 +1267,14 @@ fn reconstruct_action(
         // `0 ^ x` is `x ^ 0` is `x`.
         (SourceShape::XorZeroLeft, [victim, right, result]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1347,15 +1286,13 @@ fn reconstruct_action(
         (SourceShape::WrappingAddZero, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1365,16 +1302,14 @@ fn reconstruct_action(
         // addition commutes — `0 + x` is `x + 0` is `x` modulo 2^64.
         (SourceShape::WrappingAddZeroLeft, [victim, right, result]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1387,15 +1322,13 @@ fn reconstruct_action(
         (SourceShape::SaturatingAddZero, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1407,16 +1340,14 @@ fn reconstruct_action(
         // carries exactly three operands.
         (SourceShape::SaturatingAddZeroLeft, [victim, right, result]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1433,7 +1364,7 @@ fn reconstruct_action(
         (SourceShape::SaturatingAddZeroScratch, [left, right, result, scratch @ ..]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
@@ -1443,9 +1374,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1457,7 +1386,7 @@ fn reconstruct_action(
         // scratch `Def` tail under the same occurrence-free custody.
         (SourceShape::SaturatingAddZeroLeftScratch, [victim, right, result, scratch @ ..]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
@@ -1468,9 +1397,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1492,7 +1419,7 @@ fn reconstruct_action(
         (SourceShape::SaturatingAddUpperBound, [left, right, result, scratch @ ..]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
@@ -1502,9 +1429,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1518,7 +1443,7 @@ fn reconstruct_action(
         // custody.
         (SourceShape::SaturatingAddUpperBoundLeft, [victim, right, result, scratch @ ..]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
@@ -1529,9 +1454,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1545,15 +1468,13 @@ fn reconstruct_action(
         (SourceShape::SaturatingSubtractZero, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1570,7 +1491,7 @@ fn reconstruct_action(
         (SourceShape::SaturatingSubtractZeroScratch, [left, right, result, scratch @ ..]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
@@ -1580,9 +1501,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1605,7 +1524,7 @@ fn reconstruct_action(
         // long, so the scratch slice is empty in practice.
         (SourceShape::SaturatingSubtractZeroMinuend, [victim, right, result, scratch @ ..]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
@@ -1616,9 +1535,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1646,7 +1563,7 @@ fn reconstruct_action(
         ) => {
             if left.access != RegisterOperandAccess::Use
                 || victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
@@ -1656,9 +1573,7 @@ fn reconstruct_action(
                         && dropped_def_is_dead(function, operand.virtual_register)
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1680,7 +1595,7 @@ fn reconstruct_action(
         (SourceShape::SaturatingDivideOne, [left, right, result, tail @ ..]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
@@ -1695,9 +1610,7 @@ fn reconstruct_action(
                     _ => false,
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1719,7 +1632,7 @@ fn reconstruct_action(
         // and rejects.
         (SourceShape::SaturatingDivideZeroDividend, [victim, right, result, tail @ ..]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
@@ -1735,9 +1648,7 @@ fn reconstruct_action(
                     _ => false,
                 })
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1749,15 +1660,13 @@ fn reconstruct_action(
         (SourceShape::AndOnes, [left, right, result]) => {
             if left.access != RegisterOperandAccess::Use
                 || right.access != RegisterOperandAccess::Use
-                || right.virtual_register != candidate.victim
+                || right.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || left.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
@@ -1767,37 +1676,31 @@ fn reconstruct_action(
         // bitwise and commutes — `MAX & x` is `x & MAX` is `x`.
         (SourceShape::AndOnesLeft, [victim, right, result]) => {
             if victim.access != RegisterOperandAccess::Use
-                || victim.virtual_register != candidate.victim
+                || victim.virtual_register != victim_register
                 || right.access != RegisterOperandAccess::Use
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 2
                 || right.class != row.operands[0].class
                 || result.class != row.operands[1].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
         (SourceShape::UnaryExtension | SourceShape::UnaryCopy, [input, result]) => {
             if input.access != RegisterOperandAccess::Use
-                || input.virtual_register != candidate.victim
+                || input.virtual_register != victim_register
                 || result.access != RegisterOperandAccess::Def
                 || row.operands.len() != 1
                 || row.operands[0].access != RegisterOperandAccess::Def
                 || result.class != row.operands[0].class
             {
-                return Err(LiteralFoldError::ConsumerMismatch {
-                    function: function_index,
-                });
+                return None;
             }
             Some(result.virtual_register)
         }
         _ => {
-            return Err(LiteralFoldError::ConsumerMismatch {
-                function: function_index,
-            });
+            return None;
         }
     };
     // The rebuild replaces the consumer's operands wholesale; an operand
@@ -1857,9 +1760,7 @@ fn reconstruct_action(
             || operand.tied_to.is_some()
             || (operand.early_clobber && !drops_early_clobbers)
     }) {
-        return Err(LiteralFoldError::ConsumerMismatch {
-            function: function_index,
-        });
+        return None;
     }
 
     // The validator re-derives the effect-surface admission from the bound
@@ -1874,23 +1775,13 @@ fn reconstruct_action(
         rows.catalog,
         MachineSemanticKind::MaterializeI64,
         literal.constraint,
-    )
-    .ok_or(LiteralFoldError::EffectSurfaceMismatch {
-        function: function_index,
-    })?;
+    )?;
     let consumer_declaration = effect_declaration(
         rows.catalog,
         machine_semantic_kind(consumer.kind),
         consumer.constraint,
-    )
-    .ok_or(LiteralFoldError::EffectSurfaceMismatch {
-        function: function_index,
-    })?;
-    let rewritten_declaration = effect_declaration(rows.catalog, rewritten, row.key).ok_or(
-        LiteralFoldError::EffectSurfaceMismatch {
-            function: function_index,
-        },
     )?;
+    let rewritten_declaration = effect_declaration(rows.catalog, rewritten, row.key)?;
     // The consumer/rewritten relationship differs per fold family. The
     // isolated folds replace an isolated surface wholesale; the indexed
     // byte-load fold is memory-carrying, so its admission binds the two
@@ -2006,9 +1897,7 @@ fn reconstruct_action(
         })
         || !fold_surface_admitted
     {
-        return Err(LiteralFoldError::EffectSurfaceMismatch {
-            function: function_index,
-        });
+        return None;
     }
 
     // The operand-swapped compare grammars' record-level gate, re-derived
@@ -2029,9 +1918,7 @@ fn reconstruct_action(
         SourceShape::CompareLeftImmediate | SourceShape::CompareLeftZero
     ) && !swapped_condition_flow_admitted(function, block_index, consumer_index, consumer)
     {
-        return Err(LiteralFoldError::EffectSurfaceMismatch {
-            function: function_index,
-        });
+        return None;
     }
 
     // The surviving operand is the register each `Use` position of the
@@ -2077,17 +1964,16 @@ fn reconstruct_action(
         | SourceShape::AndOnes => consumer.operands[0].virtual_register,
     };
 
-    Ok(Some(LiteralFoldAction {
-        block: candidate.block,
-        pressure_point: candidate.point,
-        literal_instruction: *defining_instruction,
-        victim: candidate.victim,
+    Some(LiteralFoldAction {
+        block,
+        literal_instruction: literal.id,
+        victim: victim_register,
         consumer_instruction: consumer.id,
         surviving,
         result,
         immediate,
         immediate_constraint: row.key,
-    }))
+    })
 }
 
 /// The consumer source grammar the validator admits: the binary immediate
@@ -2596,7 +2482,7 @@ fn validate_dense_identifiers(
         .enumerate()
         .any(|(index, register)| usize::try_from(register.id.0) != Ok(index))
     {
-        return Err(LiteralFoldError::FunctionMismatch {
+        return Err(LiteralFoldError::IdentifierUnderflow {
             function: function_index,
         });
     }
@@ -2622,48 +2508,153 @@ fn validate_dense_identifiers(
     ids.sort_unstable();
     let count = u32::try_from(ids.len()).map_err(|_| LiteralFoldError::WorkOverflow)?;
     if ids != (0..count).collect::<Vec<_>>() {
-        return Err(LiteralFoldError::FunctionMismatch {
+        return Err(LiteralFoldError::IdentifierUnderflow {
             function: function_index,
         });
     }
     Ok(())
 }
 
-fn rebuild_function(
+/// Rebuild every reconstructed action, in the same three phases the
+/// producer applies: each consumer's record rewrites while the source's
+/// dense identifiers still describe it, every folded literal instruction
+/// then leaves its block — shifting the boundary-settlement ordinals —
+/// and every victim register leaves the table before the two identifier
+/// spaces redensify in one pass over the removed sets.
+fn rebuild_actions(
     function_index: usize,
     function: &mut SelectedFunction,
-    action: LiteralFoldAction,
+    actions: &[LiteralFoldAction],
     rows: &ValidationImmediateRows<'_>,
 ) -> Result<(), LiteralFoldError> {
+    let rebuilt = actions
+        .iter()
+        .map(|action| rebuilt_consumer(function_index, function, action, rows))
+        .collect::<Result<Vec<_>, _>>()?;
+    for (action, record) in actions.iter().zip(rebuilt) {
+        let consumer = function
+            .blocks
+            .iter_mut()
+            .filter(|block| block.id == action.block)
+            .flat_map(|block| block.instructions.iter_mut())
+            .find(|instruction| instruction.id == action.consumer_instruction)
+            .ok_or(LiteralFoldError::DecisionMismatch {
+                function: function_index,
+            })?;
+        *consumer = record;
+    }
+    let mut removed_instructions = Vec::with_capacity(actions.len());
+    let mut settlement_shifts = Vec::new();
+    for block in &mut function.blocks {
+        let mut positions = Vec::new();
+        for action in actions.iter().filter(|action| action.block == block.id) {
+            let position = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.id == action.literal_instruction)
+                .ok_or(LiteralFoldError::DecisionMismatch {
+                    function: function_index,
+                })?;
+            removed_instructions.push(action.literal_instruction);
+            positions.push(u32::try_from(position).map_err(|_| LiteralFoldError::WorkOverflow)?);
+        }
+        if positions.is_empty() {
+            continue;
+        }
+        positions.sort_unstable();
+        let folded: Vec<SelectedInstructionId> = actions
+            .iter()
+            .filter(|action| action.block == block.id)
+            .map(|action| action.literal_instruction)
+            .collect();
+        block
+            .instructions
+            .retain(|instruction| !folded.contains(&instruction.id));
+        settlement_shifts.push((block.id, positions));
+    }
+    for settlement in &mut function.boundary_settlements {
+        let Some((_, positions)) = settlement_shifts
+            .iter()
+            .find(|(block, _)| *block == settlement.block)
+        else {
+            continue;
+        };
+        let shift = u32::try_from(
+            positions
+                .iter()
+                .filter(|position| **position < settlement.instruction_index)
+                .count(),
+        )
+        .map_err(|_| LiteralFoldError::WorkOverflow)?;
+        settlement.instruction_index -= shift;
+    }
+    let mut removed_registers = Vec::with_capacity(actions.len());
+    for action in actions {
+        let victim_index = usize::try_from(action.victim.0).map_err(|_| {
+            LiteralFoldError::IdentifierUnderflow {
+                function: function_index,
+            }
+        })?;
+        if function
+            .virtual_registers
+            .get(victim_index)
+            .map(|register| register.id)
+            != Some(action.victim)
+        {
+            return Err(LiteralFoldError::DecisionMismatch {
+                function: function_index,
+            });
+        }
+        removed_registers.push(action.victim);
+    }
+    removed_registers.sort_unstable();
+    removed_instructions.sort_unstable();
+    function
+        .virtual_registers
+        .retain(|register| !removed_registers.contains(&register.id));
+    redensify(
+        function_index,
+        function,
+        &removed_instructions,
+        &removed_registers,
+    )
+}
+
+/// The consumer record the replay rebuilds for `action`, from the
+/// unmodified source function. The replay's nomination runs the same
+/// construction, so a candidate whose rebuilt form cannot exist declines.
+fn rebuilt_consumer(
+    function_index: usize,
+    function: &SelectedFunction,
+    action: &LiteralFoldAction,
+    rows: &ValidationImmediateRows<'_>,
+) -> Result<SelectedInstruction, LiteralFoldError> {
     let block = function
         .blocks
-        .iter_mut()
+        .iter()
         .find(|block| block.id == action.block)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
-    let literal_index = block
+    // The literal's record stays until phase B so its kind — the value the
+    // fold reconstructed — and provenance feed the consumer rebuild.
+    let literal = block
         .instructions
         .iter()
-        .position(|instruction| instruction.id == action.literal_instruction)
+        .find(|instruction| instruction.id == action.literal_instruction)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
-    let removed_position =
-        u32::try_from(literal_index).map_err(|_| LiteralFoldError::WorkOverflow)?;
-    let literal = block.instructions.remove(literal_index);
-    for settlement in &mut function.boundary_settlements {
-        if settlement.block == action.block && settlement.instruction_index > removed_position {
-            settlement.instruction_index -= 1;
-        }
-    }
-    let consumer = block
+    let literal_kind = literal.kind;
+    let literal_provenance = literal.provenance.clone();
+    let mut consumer = block
         .instructions
-        .iter_mut()
+        .iter()
         .find(|instruction| instruction.id == action.consumer_instruction)
         .ok_or(LiteralFoldError::DecisionMismatch {
             function: function_index,
-        })?;
+        })?
+        .clone();
 
     let (row, rewritten_kind) = match consumer.kind {
         SelectedInstructionKind::ExactAddI64 {
@@ -2697,7 +2688,7 @@ fn rebuild_function(
         // carrying the recorded payload.
         SelectedInstructionKind::CompareI64 => {
             if matches!(
-                literal.kind,
+                literal_kind,
                 SelectedInstructionKind::MaterializeI64 {
                     value: IntegerValue::Unsigned(0),
                 }
@@ -2767,7 +2758,7 @@ fn rebuild_function(
                 if victim_position == 0 {
                     rows.remainder_zero
                 } else if matches!(
-                    literal.kind,
+                    literal_kind,
                     SelectedInstructionKind::MaterializeI64 {
                         value: IntegerValue::Unsigned(bits),
                     } if bits == u128::from(u64::MAX)
@@ -2969,7 +2960,7 @@ fn rebuild_function(
                     function: function_index,
                 })?;
             let maximum_subtrahend = matches!(
-                literal.kind,
+                literal_kind,
                 SelectedInstructionKind::MaterializeI64 {
                     value: IntegerValue::Unsigned(bits),
                 } if bits == u128::from(carrier.maximum_bits())
@@ -3084,9 +3075,9 @@ fn rebuild_function(
         })?;
 
     let consumer_provenance = consumer.provenance.clone();
-    let mut operations = literal.provenance.operations;
+    let mut operations = literal_provenance.operations;
     operations.extend(consumer_provenance.operations);
-    let mut fuel = literal.provenance.fuel;
+    let mut fuel = literal_provenance.fuel;
     fuel.extend(consumer_provenance.fuel);
     // Bind each rewritten row operand to its recorded register: `Use`
     // positions take the surviving source operand and `Def` positions take
@@ -3151,46 +3142,25 @@ fn rebuild_function(
         obligations: consumer_provenance.obligations,
         fuel,
     };
-
-    let victim_index =
-        usize::try_from(action.victim.0).map_err(|_| LiteralFoldError::IdentifierUnderflow {
-            function: function_index,
-        })?;
-    if function
-        .virtual_registers
-        .get(victim_index)
-        .map(|register| register.id)
-        != Some(action.victim)
-    {
-        return Err(LiteralFoldError::DecisionMismatch {
-            function: function_index,
-        });
-    }
-    function.virtual_registers.remove(victim_index);
-    redensify(
-        function_index,
-        function,
-        action.literal_instruction,
-        action.victim,
-    )
+    Ok(consumer)
 }
 
 fn redensify(
     function_index: usize,
     function: &mut SelectedFunction,
-    removed_instruction: SelectedInstructionId,
-    removed_register: VirtualRegisterId,
+    removed_instructions: &[SelectedInstructionId],
+    removed_registers: &[VirtualRegisterId],
 ) -> Result<(), LiteralFoldError> {
     for call in &mut function.calls {
         call.instruction =
-            lower_instruction(function_index, call.instruction, removed_instruction)?;
+            lower_instruction(function_index, call.instruction, removed_instructions)?;
     }
     for access in &mut function.memory_accesses {
         access.instruction =
-            lower_instruction(function_index, access.instruction, removed_instruction)?;
+            lower_instruction(function_index, access.instruction, removed_instructions)?;
     }
     for register in &mut function.virtual_registers {
-        register.id = lower_register(function_index, register.id, removed_register)?;
+        register.id = lower_register(function_index, register.id, removed_registers)?;
         match &mut register.origin {
             VirtualRegisterOrigin::InstructionResult { instruction, .. }
             | VirtualRegisterOrigin::SpillAddress { instruction, .. }
@@ -3199,7 +3169,7 @@ fn redensify(
             | VirtualRegisterOrigin::InstructionScratch { instruction, .. }
             | VirtualRegisterOrigin::AbiTransport { instruction, .. } => {
                 *instruction =
-                    lower_instruction(function_index, *instruction, removed_instruction)?;
+                    lower_instruction(function_index, *instruction, removed_instructions)?;
             }
             VirtualRegisterOrigin::EntryParameter { .. }
             | VirtualRegisterOrigin::StructuralParameter { .. }
@@ -3211,8 +3181,8 @@ fn redensify(
             lower_selected_instruction(
                 function_index,
                 instruction,
-                removed_instruction,
-                removed_register,
+                removed_instructions,
+                removed_registers,
             )?;
         }
         let successors = match &mut block.terminator {
@@ -3251,7 +3221,7 @@ fn redensify(
                     ..
                 } = &mut binding.transport
                 {
-                    *argument = lower_register(function_index, *argument, removed_register)?;
+                    *argument = lower_register(function_index, *argument, removed_registers)?;
                 }
             }
             if let Some(case) = &mut successor.structural_case {
@@ -3262,16 +3232,16 @@ fn redensify(
                             parameter,
                         } => {
                             *parameter =
-                                lower_register(function_index, *parameter, removed_register)?;
+                                lower_register(function_index, *parameter, removed_registers)?;
                         }
                         selected_instructions::SelectedCasePayloadTransport::Registers {
                             argument,
                             parameter,
                         } => {
                             *argument =
-                                lower_register(function_index, *argument, removed_register)?;
+                                lower_register(function_index, *argument, removed_registers)?;
                             *parameter =
-                                lower_register(function_index, *parameter, removed_register)?;
+                                lower_register(function_index, *parameter, removed_registers)?;
                         }
                     }
                 }
@@ -3282,8 +3252,8 @@ fn redensify(
                     parameter,
                 } = &mut binding.transport
                 {
-                    *argument = lower_register(function_index, *argument, removed_register)?;
-                    *parameter = lower_register(function_index, *parameter, removed_register)?;
+                    *argument = lower_register(function_index, *argument, removed_registers)?;
+                    *parameter = lower_register(function_index, *parameter, removed_registers)?;
                 }
             }
         }
@@ -3298,8 +3268,8 @@ fn redensify(
                 lower_selected_instruction(
                     function_index,
                     instruction,
-                    removed_instruction,
-                    removed_register,
+                    removed_instructions,
+                    removed_registers,
                 )?;
             }
         }
@@ -3310,13 +3280,13 @@ fn redensify(
 fn lower_selected_instruction(
     function_index: usize,
     instruction: &mut SelectedInstruction,
-    removed_instruction: SelectedInstructionId,
-    removed_register: VirtualRegisterId,
+    removed_instructions: &[SelectedInstructionId],
+    removed_registers: &[VirtualRegisterId],
 ) -> Result<(), LiteralFoldError> {
-    instruction.id = lower_instruction(function_index, instruction.id, removed_instruction)?;
+    instruction.id = lower_instruction(function_index, instruction.id, removed_instructions)?;
     for operand in &mut instruction.operands {
         operand.virtual_register =
-            lower_register(function_index, operand.virtual_register, removed_register)?;
+            lower_register(function_index, operand.virtual_register, removed_registers)?;
     }
     Ok(())
 }
@@ -3324,41 +3294,53 @@ fn lower_selected_instruction(
 fn lower_instruction(
     function_index: usize,
     id: SelectedInstructionId,
-    removed: SelectedInstructionId,
+    removed: &[SelectedInstructionId],
 ) -> Result<SelectedInstructionId, LiteralFoldError> {
-    if id == removed {
+    // A surviving reference to a folded instruction is an inconsistency —
+    // the replay's own occurrence walk already proved none exists.
+    if removed.contains(&id) {
         return Err(LiteralFoldError::IdentifierUnderflow {
             function: function_index,
         });
     }
-    Ok(SelectedInstructionId(if id > removed {
-        id.0.checked_sub(1)
-            .ok_or(LiteralFoldError::IdentifierUnderflow {
-                function: function_index,
-            })?
-    } else {
-        id.0
-    }))
+    Ok(SelectedInstructionId(
+        id.0.checked_sub(
+            u32::try_from(removed.partition_point(|removed| removed.0 < id.0)).map_err(|_| {
+                LiteralFoldError::IdentifierUnderflow {
+                    function: function_index,
+                }
+            })?,
+        )
+        .ok_or(LiteralFoldError::IdentifierUnderflow {
+            function: function_index,
+        })?,
+    ))
 }
 
 fn lower_register(
     function_index: usize,
     id: VirtualRegisterId,
-    removed: VirtualRegisterId,
+    removed: &[VirtualRegisterId],
 ) -> Result<VirtualRegisterId, LiteralFoldError> {
-    if id == removed {
+    // A surviving reference to a victim register — a site the sole-use
+    // walk proved absent — is an inconsistency, not a program state.
+    if removed.contains(&id) {
         return Err(LiteralFoldError::IdentifierUnderflow {
             function: function_index,
         });
     }
-    Ok(VirtualRegisterId(if id > removed {
-        id.0.checked_sub(1)
-            .ok_or(LiteralFoldError::IdentifierUnderflow {
-                function: function_index,
-            })?
-    } else {
-        id.0
-    }))
+    Ok(VirtualRegisterId(
+        id.0.checked_sub(
+            u32::try_from(removed.partition_point(|removed| removed.0 < id.0)).map_err(|_| {
+                LiteralFoldError::IdentifierUnderflow {
+                    function: function_index,
+                }
+            })?,
+        )
+        .ok_or(LiteralFoldError::IdentifierUnderflow {
+            function: function_index,
+        })?,
+    ))
 }
 
 fn selected_operand(

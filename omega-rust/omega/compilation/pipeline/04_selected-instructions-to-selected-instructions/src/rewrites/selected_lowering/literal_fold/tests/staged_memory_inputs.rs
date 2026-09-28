@@ -260,7 +260,7 @@ pub(super) fn staged_extension_inputs(
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -798,7 +798,7 @@ pub(super) fn staged_load8_indexed_inputs(target: NativeTarget, folded: u64) -> 
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -1364,7 +1364,7 @@ pub(super) fn staged_byte_view_address_inputs(target: NativeTarget, folded: u64)
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },

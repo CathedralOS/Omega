@@ -1,8 +1,8 @@
 use super::{
-    BlockZeroTerminator, assert_deterministic_fixed_point, fold_with, restage_literal,
-    staged_saturating_add_upper_bound_carrier_inputs, validate,
+    BlockZeroTerminator, assert_declines, assert_deterministic_fixed_point, fold_with,
+    restage_literal, staged_saturating_add_upper_bound_carrier_inputs, validate,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{SaturatingCarrier, SelectedInstructionKind, VirtualRegisterId};
@@ -48,15 +48,13 @@ fn clamped_unsigned_carriers() -> [SaturatingCarrier; 3] {
 }
 
 #[test]
-fn saturating_add_upper_bound_fold_rejects_every_signed_carrier() {
+fn saturating_add_upper_bound_fold_declines_every_signed_carrier() {
     // Signed saturation does not make `x +| MAX` a constant: `MIN +|
     // MAX` is `-1`, so the family declares no signed pair at all. A
     // staged maximum literal on a signed carrier names no admitted
-    // grammar — under the upper-bound policy alone the consumer *kind*
-    // itself is unadmitted (a consumer mismatch on both paths), while
-    // under the union with the sibling identity policy the kind is
-    // admitted but the maximum literal fails the zero bound that
-    // sibling's grammar carries (an immediate mismatch on both paths).
+    // grammar under the upper-bound policy alone or under the union with
+    // the sibling identity policy, whose zero bound the maximum fails:
+    // the candidate declines on both paths.
     let both = LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
         .union(LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1);
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
@@ -69,41 +67,17 @@ fn saturating_add_upper_bound_fold_rejects_every_signed_carrier() {
                     literal_operand,
                     BlockZeroTerminator::Jump,
                 );
-                for (policy, expected) in [
-                    (
-                        LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
-                        LiteralFoldError::ConsumerMismatch { function: 0 },
-                    ),
-                    (both, LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                ] {
-                    assert_eq!(
-                        fold_with(&inputs, &environment, policy).map(|_| ()),
-                        Err(expected.clone()),
-                        "{carrier:?} `x +| MAX` at operand {literal_operand} on {target:?} under \
-                         {policy:?}"
+                for policy in [LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1, both] {
+                    assert_declines(
+                        &inputs,
+                        &environment,
+                        policy,
+                        &format!(
+                            "{carrier:?} `x +| MAX` at operand {literal_operand} on {target:?} \
+                             under {policy:?}"
+                        ),
                     );
                 }
-                // The replay reads the fixture's recorded policy — the
-                // upper-bound bit alone — where the signed consumer kind
-                // is unadmitted.
-                assert_eq!(
-                    validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                    "{carrier:?} `x +| MAX` at operand {literal_operand} names no admitted \
-                     grammar, replay"
-                );
-                // Replayed under the union policy the same staged
-                // consumer is an immediate mismatch: the kind is
-                // admitted through the sibling identity family but the
-                // maximum literal is not its zero.
-                let mut plan = inputs.selected.plan().clone();
-                plan.policy = both;
-                assert_eq!(
-                    validate(&inputs, &environment, plan).map(|_| ()),
-                    Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                    "{carrier:?} `x +| MAX` at operand {literal_operand} under both families, \
-                     replay"
-                );
             }
         }
     }
@@ -128,20 +102,11 @@ fn saturating_add_upper_bound_fold_rejects_a_sub_maximum_literal() {
                     BlockZeroTerminator::Jump,
                 );
                 restage_literal(&mut inputs, literal);
-                assert_eq!(
-                    fold_with(
-                        &inputs,
-                        &environment,
-                        LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1
-                    )
-                    .map(|_| ()),
-                    Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                    "{target:?} literal {literal} at operand {literal_operand}"
-                );
-                assert_eq!(
-                    validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                    Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                    "{target:?} literal {literal} at operand {literal_operand} replay"
+                assert_declines(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
+                    &format!("{target:?} literal {literal} at operand {literal_operand}"),
                 );
             }
         }
@@ -177,7 +142,7 @@ fn saturating_add_upper_bound_fold_rejects_a_sub_maximum_literal() {
 }
 
 #[test]
-fn saturating_add_upper_bound_fold_rejects_a_clamped_consumer_whose_scratch_is_not_custodied() {
+fn saturating_add_upper_bound_fold_declines_a_clamped_consumer_whose_scratch_is_not_custodied() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // The scratch-defs custody drops the bound scratch `Def` only under
@@ -205,20 +170,13 @@ fn saturating_add_upper_bound_fold_rejects_a_clamped_consumer_whose_scratch_is_n
                 let mut selected = inputs.selected.clone();
                 selected.transformed = Arc::new(plan);
                 inputs.selected = selected;
-                assert_eq!(
-                    fold_with(
-                        &inputs,
-                        &environment,
-                        LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1
-                    )
-                    .map(|_| ()),
-                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                    "{carrier:?} literal at operand {literal_operand} mutation {mutation}"
-                );
-                assert_eq!(
-                    validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                    "{carrier:?} literal at operand {literal_operand} mutation {mutation} replay"
+                assert_declines(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_ADD_UPPER_BOUND_V1,
+                    &format!(
+                        "{carrier:?} literal at operand {literal_operand} mutation {mutation}"
+                    ),
                 );
             }
         }

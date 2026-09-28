@@ -1,8 +1,8 @@
 use super::{
-    BlockZeroTerminator, assert_deterministic_fixed_point, fold_with, restage_literal,
-    staged_saturating_divide_carrier_inputs, staged_saturating_divide_inputs, validate,
+    BlockZeroTerminator, assert_declines, assert_deterministic_fixed_point, restage_literal,
+    staged_saturating_divide_carrier_inputs, staged_saturating_divide_inputs,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{SaturatingCarrier, SelectedInstructionKind, VirtualRegisterId};
@@ -27,7 +27,7 @@ fn signed_fixtures() -> [(NativeTarget, BlockZeroTerminator); 3] {
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_a_non_one_divisor() {
+fn saturating_divide_one_fold_declines_a_non_one_divisor() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // The literal is the right divisor identity only when it is
@@ -38,27 +38,18 @@ fn saturating_divide_one_fold_rejects_a_non_one_divisor() {
         for divisor in [0, 2] {
             let mut inputs = staged_saturating_divide_inputs(target, 1, BlockZeroTerminator::Jump);
             restage_literal(&mut inputs, divisor);
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} divisor {divisor}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} divisor {divisor} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                &format!("{target:?} divisor {divisor}"),
             );
         }
     }
 }
 
 #[test]
-fn saturating_divide_one_fold_rejects_an_auxiliary_operand_without_zero_custody() {
+fn saturating_divide_one_fold_declines_an_auxiliary_operand_without_zero_custody() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // Both x86-64 divide rows — the unsigned `div` and the signed `idiv`
@@ -103,20 +94,11 @@ fn saturating_divide_one_fold_rejects_an_auxiliary_operand_without_zero_custody(
             selected.transformed = Arc::new(plan);
             inputs.selected = selected;
 
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                "{carrier:?} mutation {mutation}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                "{carrier:?} mutation {mutation} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ONE_V1,
+                &format!("{carrier:?} mutation {mutation}"),
             );
         }
     }

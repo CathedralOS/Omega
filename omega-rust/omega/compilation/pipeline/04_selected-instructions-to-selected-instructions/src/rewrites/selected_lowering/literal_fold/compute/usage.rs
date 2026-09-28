@@ -2,6 +2,7 @@
 
 use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
 use register_model::RegisterOperandAccess;
+use selected_instructions::SelectedInstructionKind;
 
 use crate::rewrites::block_edges::terminator_successors;
 use crate::{
@@ -9,6 +10,51 @@ use crate::{
 };
 
 use super::constraints::AdmittedPairs;
+
+/// Successor binding slots the nomination's occurrence walk visits per
+/// block: structural bindings, case payloads, and value bindings on every
+/// terminator successor.
+fn successor_sites(function: &selected_instructions::SelectedFunction) -> u64 {
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| {
+            match &block.terminator {
+                selected_instructions::SelectedTerminator::Jump { successor, .. } => {
+                    vec![successor]
+                }
+                selected_instructions::SelectedTerminator::ConditionalBranch {
+                    when_nonzero,
+                    when_zero,
+                    ..
+                } => vec![when_nonzero, when_zero],
+                selected_instructions::SelectedTerminator::ConditionalBranchU64LessThan {
+                    when_less,
+                    when_not_less,
+                    ..
+                }
+                | selected_instructions::SelectedTerminator::ConditionalBranchI64LessThan {
+                    when_less,
+                    when_not_less,
+                    ..
+                } => vec![when_less, when_not_less],
+                selected_instructions::SelectedTerminator::Return { .. }
+                | selected_instructions::SelectedTerminator::Crash { .. }
+                | selected_instructions::SelectedTerminator::HostedExitProcess { .. } => Vec::new(),
+            }
+            .into_iter()
+        })
+        .map(|successor| {
+            successor.structural_bindings.len()
+                + successor
+                    .structural_case
+                    .iter()
+                    .map(|case| case.payloads.len())
+                    .sum::<usize>()
+                + successor.bindings.len()
+        })
+        .sum::<usize>() as u64
+}
 
 pub(super) fn fold_usage(
     selected: &impl ValidatedSelectedAnalysis,
@@ -34,83 +80,116 @@ pub(super) fn fold_usage(
                 .checked_add(instructions)
         })
         .ok_or(LiteralFoldError::WorkOverflow)?;
-    let mut applied = 0_u64;
-    for (function, fold) in plan.functions.iter().zip(functions.iter()) {
-        let Some(action) = &fold.action else {
-            continue;
-        };
-        applied = applied
-            .checked_add(1)
-            .ok_or(LiteralFoldError::WorkOverflow)?;
-        // The operand-swapped compare grammar's reader-flow audit ran
-        // while this action was derived — re-derive that the enabled
-        // pair bound to the action's consumer grammar declares
-        // `OperandSwapped` and charge its walk: for each
-        // implicit unit the consumer defines, the audit visits a block
-        // at most twice — once from the consumer's tail position and
-        // once at its head through a back edge — scanning every
-        // instruction record plus the terminator and traversing each of
-        // the block's successor edges on each visit.
-        let Some(consumer) = function
+    // Nomination walks the whole function — every instruction and
+    // terminator operand plus every successor binding slot — once per
+    // `MaterializeI64` record found, whether or not the record's custody
+    // admitted it. Charging the bound rather than the observed outcome
+    // keeps the accounting a deterministic function of the input.
+    for function in &plan.functions {
+        let producers = function
             .blocks
             .iter()
-            .find(|block| block.id == action.block)
-            .and_then(|block| {
-                block
-                    .instructions
-                    .iter()
-                    .find(|instruction| instruction.id == action.consumer_instruction)
+            .flat_map(|block| block.instructions.iter())
+            .filter(|instruction| {
+                matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::MaterializeI64 { .. }
+                )
             })
-        else {
-            continue;
-        };
-        let Some(victim_position) = consumer
-            .operands
-            .iter()
-            .position(|operand| {
-                operand.access == RegisterOperandAccess::Use
-                    && operand.virtual_register == action.victim
-            })
-            .and_then(|position| u16::try_from(position).ok())
-        else {
-            continue;
-        };
-        let audited = rows
-            .for_position(consumer.kind, victim_position)
-            .is_some_and(|pair| {
-                pair.rule.machine_effects().unit_defs == PairUnitDefRelation::OperandSwapped
-            });
-        if !audited {
-            continue;
-        }
-        let scan = function
+            .count();
+        let per_producer = function
             .blocks
             .iter()
             .try_fold(0_u64, |count, block| {
                 count.checked_add(u64::try_from(block.instructions.len() + 1).ok()?)
             })
-            .ok_or(LiteralFoldError::WorkOverflow)?;
-        let edges = function
-            .blocks
-            .iter()
-            .try_fold(0_u64, |count, block| {
-                count.checked_add(
-                    u64::try_from(terminator_successors(&block.terminator).len()).ok()?,
-                )
-            })
+            .and_then(|sites| sites.checked_add(successor_sites(function)))
             .ok_or(LiteralFoldError::WorkOverflow)?;
         validation_steps = validation_steps
             .checked_add(
-                u64::try_from(consumer.implicit_defs.len())
+                u64::try_from(producers)
                     .map_err(|_| LiteralFoldError::WorkOverflow)?
-                    .checked_mul(
-                        scan.checked_add(edges)
-                            .and_then(|per_visit| per_visit.checked_mul(2))
-                            .ok_or(LiteralFoldError::WorkOverflow)?,
-                    )
+                    .checked_mul(per_producer)
                     .ok_or(LiteralFoldError::WorkOverflow)?,
             )
             .ok_or(LiteralFoldError::WorkOverflow)?;
+    }
+    let mut applied = 0_u64;
+    for (function, fold) in plan.functions.iter().zip(functions.iter()) {
+        for action in &fold.actions {
+            applied = applied
+                .checked_add(1)
+                .ok_or(LiteralFoldError::WorkOverflow)?;
+            // The operand-swapped compare grammar's reader-flow audit ran
+            // while this action was derived — re-derive that the enabled
+            // pair bound to the action's consumer grammar declares
+            // `OperandSwapped` and charge its walk: for each
+            // implicit unit the consumer defines, the audit visits a block
+            // at most twice — once from the consumer's tail position and
+            // once at its head through a back edge — scanning every
+            // instruction record plus the terminator and traversing each of
+            // the block's successor edges on each visit.
+            let Some(consumer) = function
+                .blocks
+                .iter()
+                .find(|block| block.id == action.block)
+                .and_then(|block| {
+                    block
+                        .instructions
+                        .iter()
+                        .find(|instruction| instruction.id == action.consumer_instruction)
+                })
+            else {
+                continue;
+            };
+            let Some(victim_position) = consumer
+                .operands
+                .iter()
+                .position(|operand| {
+                    operand.access == RegisterOperandAccess::Use
+                        && operand.virtual_register == action.victim
+                })
+                .and_then(|position| u16::try_from(position).ok())
+            else {
+                continue;
+            };
+            let audited = rows
+                .for_position(consumer.kind, victim_position)
+                .is_some_and(|pair| {
+                    pair.rule.machine_effects().unit_defs == PairUnitDefRelation::OperandSwapped
+                });
+            if !audited {
+                continue;
+            }
+            let scan = function
+                .blocks
+                .iter()
+                .try_fold(0_u64, |count, block| {
+                    count.checked_add(u64::try_from(block.instructions.len() + 1).ok()?)
+                })
+                .ok_or(LiteralFoldError::WorkOverflow)?;
+            let edges = function
+                .blocks
+                .iter()
+                .try_fold(0_u64, |count, block| {
+                    count.checked_add(
+                        u64::try_from(terminator_successors(&block.terminator).len()).ok()?,
+                    )
+                })
+                .ok_or(LiteralFoldError::WorkOverflow)?;
+            validation_steps = validation_steps
+                .checked_add(
+                    u64::try_from(consumer.implicit_defs.len())
+                        .map_err(|_| LiteralFoldError::WorkOverflow)?
+                        .checked_mul(
+                            scan.checked_add(edges)
+                                .and_then(|per_visit| per_visit.checked_mul(2))
+                                .ok_or(LiteralFoldError::WorkOverflow)?,
+                        )
+                        .ok_or(LiteralFoldError::WorkOverflow)?,
+                )
+                .ok_or(LiteralFoldError::WorkOverflow)?;
+        }
     }
     Ok(OptimizationWorkUsage {
         rule_evaluations: function_count,
