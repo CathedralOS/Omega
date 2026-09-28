@@ -11,12 +11,11 @@ use crate::checked::{
 };
 use crate::native::produce_native_report;
 use crate::terminal::produce_terminal_report;
-use crate::{
-    CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
-};
+use crate::{CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome};
 use artifacts::compile_timings::{
     BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta,
 };
+use compilation_products::CheckedProductReport;
 use compilation_products::compile_request::{SharedCompileInputs, ValidatedTargetCompilation};
 use diagnostics::Diagnostic;
 use package_compilation::BuildSourceCustody;
@@ -98,68 +97,30 @@ fn compile_target(
     })?;
     let checked = CheckedCompilation::seal(execution, build_sources, package_inputs, timings)?;
 
-    // Trust settlement and the requested product's fences.
-    let stage_timings = checked.timings().phases().to_vec();
+    // Product ownership admits the stop and retains report companions before
+    // the selected stage sequence consumes the checked compilation.
     let trust_settlement = checked.admit_trust(target.accepted_trust_admissions())?;
-    let build_observation = checked.build_observation_identity();
-    // Build products are settled once, then carried alongside the requested
-    // compiler product. A check-only stop publishes none.
-    let build_outputs = if shared.requested_product != RequestedCompileProduct::Check {
-        checked.completed_build_outputs()?
-    } else {
-        None
-    };
-    shared.requested_product.admit_build_requirements(
-        checked.application_artifact_only(),
-        checked.pcc_requests(),
+    let product = checked.prepare_product_report(
+        root_path.clone(),
+        shared.requested_product,
         target.optimization_rollback(),
+        trust_settlement,
     )?;
-    if checked.application_artifact_only()
-        && shared.requested_product != RequestedCompileProduct::Check
-    {
-        let outputs = build_outputs
-            .ok_or_else(|| vec![Diagnostic::error("artifact-only build completed no files")])?;
-        return CompileReport::from_build_outputs(
-            root_path,
-            checked.source_file_count(),
-            outputs,
-            checked.production_subject()?,
-        )
-        .map(|report| {
-            report
-                .with_trust_admission_settlement(trust_settlement)
-                .with_timings(stage_timings)
-        })
-        .map_err(|message| vec![Diagnostic::error(message)]);
-    }
-
-    let report = match shared.requested_product {
-        RequestedCompileProduct::Check => {
-            CompileReport::check_only(root_path, checked.source_file_count())
-                .map_err(|message| vec![Diagnostic::error(message)])?
-        }
+    match product {
+        CheckedProductReport::Complete(report) => Ok(report),
         // Psi 05-07: lower, optimize and publish the Terminal artifact.
-        RequestedCompileProduct::TerminalArtifact => produce_terminal_report(
+        CheckedProductReport::Terminal(settlement) => settlement.finish(produce_terminal_report(
             root_path,
             checked,
             target.terminal_admission_profile(),
             target.optimization_rollback(),
-        )?,
+        )?),
         // The same retained Terminal boundary, then Omega 00-09 and image emission.
-        RequestedCompileProduct::NativeArtifact => {
-            produce_native_report(target.into_native_product_request(), checked)?
-        }
-    };
-    let report = if shared.requested_product != RequestedCompileProduct::Check {
-        report
-            .with_build_outputs(build_outputs, build_observation)
-            .map_err(|message| vec![Diagnostic::error(message)])?
-    } else {
-        report
-    };
-    Ok(report
-        .with_trust_admission_settlement(trust_settlement)
-        .with_timings(stage_timings))
+        CheckedProductReport::Native(settlement) => settlement.finish(produce_native_report(
+            target.into_native_product_request(),
+            checked,
+        )?),
+    }
 }
 
 /// The assembled, built and typed program of one invocation, keyed by the

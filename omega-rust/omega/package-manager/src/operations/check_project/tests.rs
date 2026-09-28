@@ -74,6 +74,79 @@ fn assert_empty_directory(path: &Path) {
 }
 
 #[test]
+fn checked_artifact_only_reports_complete_without_artifact_lowering() {
+    let project = Project::new();
+    project.write("source/main.omg", "pub machine value() -> u64 { 7 }\n");
+    project.write(
+        "source/build.omg",
+        r#"
+machine build(builder: &mut Build) {
+    builder.application("report");
+    builder.artifact_only();
+    let required: RequiredOutput = builder.output.require("result.txt");
+    let path: BuildPath = builder.output.resolve("result.txt");
+    let descriptor: i32 = builder.output.create(path, 438);
+    let written: i64 = builder.output.write(descriptor, "report");
+    let closed: i32 = builder.output.close(descriptor);
+    let completion: OutputCompletion = builder.output.complete(required, path);
+}
+"#,
+    );
+    let (entry, closure, _) = project
+        .prepare("source/main.omg")
+        .into_review_parts(TARGET)
+        .unwrap();
+    let (checked, _reviews) = crate::review::compile_resolved_package_candidate_for_check(
+        &closure.for_exact_target(TARGET),
+        &project.0.join("review"),
+        &entry,
+        None,
+        true,
+    )
+    .expect("retain the checked Build and completed output custody");
+    for requested in [
+        compiler::RequestedCompileProduct::Check,
+        compiler::RequestedCompileProduct::TerminalArtifact,
+        compiler::RequestedCompileProduct::NativeArtifact,
+    ] {
+        let prepared = checked
+            .prepare_product_report(
+                entry.clone(),
+                requested,
+                &compiler::OptimizationRollback::default(),
+                compiler::TrustAdmissionSettlement::default(),
+            )
+            .expect("admit the checked artifact-only Build");
+        let compiler::report::CheckedProductReport::Complete(report) = prepared else {
+            panic!("artifact-only Build must not request Terminal or native lowering");
+        };
+        assert_eq!(report.source_file_count, checked.source_file_count());
+        assert_eq!(report.timings(), checked.timings().phases());
+        assert!(!report.timings().is_empty());
+        assert!(!report.wrote_output());
+        if requested == compiler::RequestedCompileProduct::Check {
+            assert_check_only(&report);
+            assert!(report.build_outputs().is_none());
+        } else {
+            assert_eq!(report.output_kind(), CompileOutputKind::BuildArtifacts);
+            assert_eq!(
+                report.build_observation_identity(),
+                checked.build_observation_identity()
+            );
+            assert!(report.has_consistent_executable_publication_custody());
+            assert_eq!(
+                report.build_outputs().unwrap().identity(),
+                checked
+                    .completed_build_outputs()
+                    .unwrap()
+                    .unwrap()
+                    .identity()
+            );
+        }
+    }
+}
+
+#[test]
 fn the_prepared_check_route_carries_the_stage_ladder_only_when_asked() {
     let project = Project::new();
     project.write(

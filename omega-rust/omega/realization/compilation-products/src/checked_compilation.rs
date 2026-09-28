@@ -10,6 +10,9 @@ use selected_dispatch::{SelectedConstantEvaluation, SelectedExecution};
 use std::sync::Arc;
 
 mod production_subject;
+mod report;
+
+pub use report::{CheckedProductReport, CompileReportSettlement};
 
 /// Whole stage products supplied when sealing a checked compilation.
 /// These inputs are not an admission receipt. Sealing retains them immutably;
