@@ -52,6 +52,7 @@ pub enum AbstractOptimizationError {
     UnitBuild(VerifiedPsiOptimizationUnitBuildError),
     Run(OptimizationRunError),
     Publication(OptimizedAbstractProjectionError),
+    EmptySelectionChangedPlan,
 }
 
 impl std::fmt::Display for AbstractOptimizationError {
@@ -77,7 +78,17 @@ pub fn optimize_abstract_operations(
     let run =
         run_psi_pipeline_for_projection(verified, selections, psi_selections, budget_per_pass)
             .map_err(AbstractOptimizationError::Run)?;
-    publish_optimization_run(run).map_err(AbstractOptimizationError::Publication)
+    let published =
+        publish_optimization_run(run).map_err(AbstractOptimizationError::Publication)?;
+    // An empty phase is an identity transform, including when another phase
+    // has selected work. This contract belongs to the producer, not to a
+    // native coordinator's special path for an entirely empty selection.
+    if psi_selections.selections().is_empty()
+        && published.plan() != published.verified_input().plan()
+    {
+        return Err(AbstractOptimizationError::EmptySelectionChangedPlan);
+    }
+    Ok(published)
 }
 
 #[cfg(any(test, feature = "test-support"))]

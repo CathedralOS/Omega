@@ -1,7 +1,7 @@
 //! One abstract-to-object sequence, independent of optimization selection.
 
 use crate::native::native_realization::callback_thunks::lower_callback_thunks;
-use crate::native::native_realization::optimization_stage::lower_realization_optimization_stage;
+use crate::native::native_realization::native_optimization_budget;
 use crate::native::native_realization::realization_diagnostics::{
     realization_error, selected_physical_pipeline_failed,
 };
@@ -29,10 +29,18 @@ pub(crate) fn emit_realization_object(
     terminal: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<PublishedFragmentObject, Vec<Diagnostic>> {
-    let abstract_stage = lower_realization_optimization_stage(input, request)?;
+    let selections = request.optimization_selections.selections();
+    let abstract_stage = abstract_operations_to_abstract_operations::optimize_abstract_operations(
+        input.into_optimization_input(),
+        selections,
+        &selections.project_psi(),
+        native_optimization_budget(),
+    )
+    .map_err(|error| realization_error("canonical abstract optimization", error))?;
     // Thunks are independent canonical artifacts: materialize them once the
-    // request-level callback/selection custody check has passed, before the
-    // shared instruction pipeline runs the program plan.
+    // request's callback custody has been admitted, under the same effective
+    // selection as the entry. Target lowering rejoins the exact callback
+    // roster; physical and installation replay preserve its private addresses.
     let private_functions = lower_callback_thunks(request)?;
     let target = lower_optimized_to_target_operations(
         abstract_stage,

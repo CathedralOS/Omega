@@ -13,7 +13,7 @@
 //! materializes as a `CompilerPrivateMachineCodeFunction` the retained
 //! object's private-function channel can publish.
 
-use crate::native::native_realization::optimization_stage::native_optimization_budget;
+use crate::native::native_realization::native_optimization_budget;
 use crate::native::native_realization::realization_diagnostics::{
     artifact_lowering_error, realization_error,
 };
