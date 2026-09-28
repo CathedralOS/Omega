@@ -11,12 +11,10 @@
 //! finished products and publication belong to the independent
 //! `compilation_products` owner; this crate only sequences their production.
 
-pub use compilation_products::publication as artifact_publication;
 mod compiler;
 
 pub mod checked;
 pub mod native;
-pub use compilation_products as report;
 pub mod terminal;
 
 pub use crate::checked::{
@@ -26,11 +24,10 @@ pub use crate::checked::{
     compile_to_checked, preliminary_check_totals, settled_check_totals,
     source_assembly_invocation_count, typed_frontier_reuse_count,
 };
-pub use crate::native::{
-    RetainedNativeRealizationRequest, SourceEvaluatedImportSettlement,
-    realize_retained_native_artifact,
-};
-pub use crate::report::{
+pub use crate::native::realize_retained_native_artifact;
+pub use build_evaluation::BuildSnapshotRequest;
+pub use compilation_products::RetainedNativeRealizationRequest;
+pub use compilation_products::{
     BatchChildCommitment, BatchChildOutcome, BatchChildRow, BatchCompilationManifest,
     BatchCompilationManifestIdentity, CompileOutputKind, CompileReport,
     ExecutablePublicationReceipt, FinalRealizationEvidenceError, OptimizationRollbackReceipt,
@@ -38,7 +35,6 @@ pub use crate::report::{
     ProductionCompilationManifestIdentity, ProductionCompilationSubject, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
-pub use build_evaluation::BuildSnapshotRequest;
 pub use compilation_products::{
     CompileOptions, CompileOutcomes, CompileRequest, CompileTargetOutcome, RequestedCompileProduct,
     TargetCompileConfiguration, validate_lowered_ieee_float_comparison_custody,
@@ -47,5 +43,6 @@ pub use compilation_products::{
 pub use compiler::compile;
 pub use compiler::package::retained_terminal_artifact_from_checked_package;
 pub use target::ExplicitTargetSet;
+pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;
 pub use trust_model::{TrustAdmission, TrustAdmissionSettlement};
 pub use typed_trees_to_checked_trees::{RepeatedCheckRetention, retain_repeated_checks};

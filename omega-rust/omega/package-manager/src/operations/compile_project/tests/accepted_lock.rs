@@ -12,6 +12,7 @@ use crate::review::{
 };
 use checked_interpreter::BuildMachineEntry;
 use checked_interpreter::InterpretOptions;
+use terminal_psi_to_abstract_operations::provider_admission;
 
 pub(super) fn accept_project(
     project: &TemporaryProject,
@@ -364,7 +365,7 @@ fn receiving_permission_policy_binds_or_rejects_at_explicit_admission_replay() {
         None
     );
     let explicit_empty =
-        compiler::native::terminal_authority_permission_policy_with_rows(Vec::new())
+        provider_admission::terminal_authority_permission_policy_with_rows(Vec::new())
             .expect("an explicit empty receiving policy is valid");
     artifact
         .validate_for_terminal_authority_policies(
@@ -412,7 +413,7 @@ fn receiving_permission_policy_binds_or_rejects_at_explicit_admission_replay() {
         )
         .expect("the artifact admits under its bound receiving policy");
 
-    let foreign = compiler::native::terminal_authority_permission_policy_with_rows(vec![
+    let foreign = provider_admission::terminal_authority_permission_policy_with_rows(vec![
         effects::ServiceTerminalAuthorityPermission::new(
             effects::provider_plan::ServiceSchemaDigest::from_digest([7; 32]),
             "Foreign::noop#exact".to_owned(),

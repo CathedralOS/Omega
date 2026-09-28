@@ -117,7 +117,7 @@ machine build(builder: &mut Build) {
                 compiler::TrustAdmissionSettlement::default(),
             )
             .expect("admit the checked artifact-only Build");
-        let compiler::report::CheckedProductReport::Complete(report) = prepared else {
+        let compilation_products::CheckedProductReport::Complete(report) = prepared else {
             panic!("artifact-only Build must not request Terminal or native lowering");
         };
         assert_eq!(report.source_file_count, checked.source_file_count());

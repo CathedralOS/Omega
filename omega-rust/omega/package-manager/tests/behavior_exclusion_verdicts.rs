@@ -27,6 +27,7 @@ use package_source::{
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use terminal_psi_to_abstract_operations::provider_admission;
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
@@ -117,7 +118,7 @@ fn realize(workspace: &Path, app: &str) -> Result<(), String> {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
+            terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             imports: &[],
         },

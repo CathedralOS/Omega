@@ -3,14 +3,14 @@
 use crate::checked::CheckedCompilation;
 use diagnostics::Diagnostic;
 
-pub use compilation_products::NativeProductRequest;
+use compilation_products::NativeProductRequest;
 
 /// Produce the same retained Terminal product used by package re-entry, then
 /// consume it through the single source-free native pipeline.
 pub fn produce_native_report(
     request: NativeProductRequest,
     mut checked: CheckedCompilation,
-) -> Result<crate::report::CompileReport, Vec<Diagnostic>> {
+) -> Result<compilation_products::CompileReport, Vec<Diagnostic>> {
     let production_subject = checked.production_subject()?;
     let rollback = request
         .optimization_rollback
@@ -32,13 +32,13 @@ pub fn produce_native_report(
     let post_terminal = rollback.effective().project_post_terminal();
     let artifact = crate::native::realize_retained_native_artifact(
         terminal,
-        crate::native::RetainedNativeRealizationRequest {
+        compilation_products::RetainedNativeRealizationRequest {
             profile: &request.terminal_admission_profile,
             optimization_selections: post_terminal.selections(),
             terminal_authority_policy: request.terminal_authority_policy,
             accepted_package_terminal_authority_permission_policy,
             terminal_authority_permission_policy: request.terminal_authority_permission_policy,
-            image_request: crate::native::ExecutableImageEmissionRequest::direct(
+            image_request: image_emission::ExecutableImageEmissionRequest::direct(
                 checked.build().config.settings.subsystem,
             ),
             imports: &[],

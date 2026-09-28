@@ -1,21 +1,20 @@
 //! Native re-entry: prepare the retained product, admit providers, then realize.
 
-pub use compilation_products::RetainedNativeRealizationRequest;
+use compilation_products::RetainedNativeRealizationRequest;
 use diagnostics::Diagnostic;
 use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
-pub use terminal_psi_to_abstract_operations::provider_admission::SourceEvaluatedImportSettlement;
 
 /// Consume retained Terminal through the ordinary source-free native pipeline.
 /// Package permissions and optional receiver policy stay distinct and are
 /// independently rejoined by provider preparation and admission. Rejection
 /// returns the original complete image request, including its interpreter.
 pub fn realize_retained_native_artifact(
-    retained: crate::report::RetainedTerminalArtifact,
+    retained: compilation_products::RetainedTerminalArtifact,
     mut request: RetainedNativeRealizationRequest<'_>,
 ) -> Result<
-    crate::native::RequestedNativeArtifact,
+    native_artifact::RequestedNativeArtifact,
     (
-        crate::native::ExecutableImageEmissionRequest,
+        image_emission::ExecutableImageEmissionRequest,
         Vec<Diagnostic>,
     ),
 > {
@@ -36,7 +35,7 @@ pub fn realize_retained_native_artifact(
         let native_settlements = prepared.imports.settlements();
         crate::native::realize_native_artifact(
             artifact,
-            crate::native::NativeRealizationRequest {
+            compilation_products::NativeRealizationRequest {
                 admission: prepared.admission_request(
                     request.profile,
                     &native_settlements,

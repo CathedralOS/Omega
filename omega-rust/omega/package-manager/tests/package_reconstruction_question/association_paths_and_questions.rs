@@ -19,6 +19,7 @@ use package_manager::review::{
     ReviewOnlyCapabilityConflictLimits, SemanticBindingReview, bind_fresh_package_root_policy,
     compare_review_only_initial_capabilities, compile_resolved_package_reviews,
 };
+use terminal_psi_to_abstract_operations::provider_admission;
 
 #[test]
 fn all_fresh_association_paths_reject_reviews_for_another_requested_target() {
@@ -391,7 +392,7 @@ machine build(builder: &mut Build) {
     assert!(empty_permission_policy.rows().is_empty());
     assert_eq!(
         empty_permission_policy.identity(),
-        compiler::native::current_terminal_authority_permission_policy().identity(),
+        provider_admission::current_terminal_authority_permission_policy().identity(),
     );
 
     remove_temporary_tree(&temporary);

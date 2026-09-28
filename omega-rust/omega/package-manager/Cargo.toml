@@ -19,12 +19,15 @@ compiler = { path = "../compiler" }
 compilation-products = { path = "../realization/compilation-products" }
 component-description = { path = "../backend/artifacts/component-description" }
 effects = { path = "../backend/plans/provider-evidence" }
+image-emission = { path = "../backend/images/image-emission" }
+native-artifact = { path = "../backend/artifacts/native-artifact" }
 package-evidence = { path = "review-evidence" }
 package-source = { path = "source-acquisition" }
 package-compilation = { path = "compilation-inputs" }
 optimization-core = { path = "../foundation/optimization-core" }
 platform-custody = { path = "../foundation/platform-custody" }
 target = { path = "../backend/target" }
+terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 arena = { path = "../../psi/foundation/arena" }
 semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../psi/foundation/language-semantics" }

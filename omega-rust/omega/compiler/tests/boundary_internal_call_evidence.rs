@@ -17,6 +17,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use target_operations::CallSiteOwner;
+use terminal_psi_to_abstract_operations::provider_admission;
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -64,11 +65,11 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
     let proposal = retained
         .native_realization_proposal()
         .expect("checked boundary fixture native proposal");
-    let package_policy = compiler::native::terminal_authority_permission_policy_with_rows(
+    let package_policy = provider_admission::terminal_authority_permission_policy_with_rows(
         proposal.package_terminal_authority_permissions().to_vec(),
     )
     .expect("package permission policy");
-    let permission_policy = compiler::native::terminal_authority_permission_policy_with_rows(
+    let permission_policy = provider_admission::terminal_authority_permission_policy_with_rows(
         proposal
             .package_terminal_authority_permissions()
             .iter()
@@ -81,7 +82,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
                     .iter()
                     .flat_map(|plan| {
                         plan.rows.iter().map(|row| {
-                            compiler::native::TerminalAuthorityPermissionPolicyRow::new(
+                            provider_admission::TerminalAuthorityPermissionPolicyRow::new(
                                 plan.schema.identity_digest(),
                                 row.requirement_identity.clone(),
                                 effects::TerminalAuthorityDisposition::from_classes([]),
@@ -91,7 +92,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
             )
             .fold(
                 Vec::new(),
-                |mut rows: Vec<compiler::native::TerminalAuthorityPermissionPolicyRow>, row| {
+                |mut rows: Vec<provider_admission::TerminalAuthorityPermissionPolicyRow>, row| {
                     if !rows.iter().any(|seen| {
                         seen.service_schema() == row.service_schema()
                             && seen.requirement_identity() == row.requirement_identity()
@@ -104,7 +105,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
     )
     .expect("permission policy");
     let image_request =
-        compiler::native::ExecutableImageEmissionRequest::direct(proposal.application().subsystem);
+        image_emission::ExecutableImageEmissionRequest::direct(proposal.application().subsystem);
     let replay_image_request = image_request.clone();
     let product = realize_retained_native_artifact(
         retained,
@@ -112,7 +113,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
             profile: &proof_admission::AdmissionProfile::default(),
             optimization_selections:
                 &optimization_core::PostTerminalOptimizationSelections::default(),
-            terminal_authority_policy: compiler::native::terminal_authority_policy_with_rows(
+            terminal_authority_policy: provider_admission::terminal_authority_policy_with_rows(
                 Vec::new(),
             )
             .expect("empty terminal authority policy"),
@@ -125,7 +126,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
     .unwrap_or_else(|(_, diagnostics)| {
         panic!("checked boundary fixture must realize its native artifact: {diagnostics:#?}")
     });
-    let compiler::native::RequestedNativeArtifact::Direct(artifact) = product else {
+    let native_artifact::RequestedNativeArtifact::Direct(artifact) = product else {
         panic!("checked boundary fixture emits a direct native artifact")
     };
     artifact
@@ -142,19 +143,19 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
         .filter(|child| {
             matches!(
                 child.relocation(),
-                compiler::native::PhysicalRelocationDisposition::ResolvedInternalCall
+                native_artifact::PhysicalRelocationDisposition::ResolvedInternalCall
             )
         })
         .collect::<Vec<_>>();
     let [call_child] = internal_call_children.as_slice() else {
         panic!("one boundary child must carry the resolved internal call")
     };
-    let compiler::native::PhysicalChildParent::BoundaryTraitSettlement(settlement) =
+    let native_artifact::PhysicalChildParent::BoundaryTraitSettlement(settlement) =
         call_child.parent()
     else {
         panic!("the internal-call boundary child keeps its settlement parent")
     };
-    let compiler::native::BoundaryTraitSettlementRole::InstalledProviderInternalCall {
+    let native_artifact::BoundaryTraitSettlementRole::InstalledProviderInternalCall {
         boundary,
         provider_identity,
         candidate_identity,
@@ -168,7 +169,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
         !provider_identity.is_empty() && !candidate_identity.is_empty(),
         "the internal-call role retains the selected provider and candidate identities"
     );
-    let compiler::native::InstalledProviderInternalCallCustody::Unit {
+    let native_artifact::InstalledProviderInternalCallCustody::Unit {
         owner,
         target,
         call_field_offset,
@@ -202,11 +203,11 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
         .find(|child| {
             matches!(
                 child.relocation(),
-                compiler::native::PhysicalRelocationDisposition::DirectInstructionBytes
+                native_artifact::PhysicalRelocationDisposition::DirectInstructionBytes
             )
         })
         .expect("the hosted exit boundary keeps its settlement child");
-    let compiler::native::PhysicalChildParent::BoundaryTraitSettlement(hosted) =
+    let native_artifact::PhysicalChildParent::BoundaryTraitSettlement(hosted) =
         hosted_child.parent()
     else {
         panic!("the hosted-exit boundary child keeps its settlement parent")
@@ -214,7 +215,7 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
     assert!(
         matches!(
             hosted.role(),
-            compiler::native::BoundaryTraitSettlementRole::CompilerBuiltin { .. }
+            native_artifact::BoundaryTraitSettlementRole::CompilerBuiltin { .. }
         ),
         "the hosted exit boundary keeps its builtin role"
     );
@@ -246,9 +247,8 @@ fn installed_provider_internal_call_retains_complete_physical_evidence() {
 
 fn emission_request_parts(
     artifact: native_artifact::NativeArtifact,
-    image: compiler::native::ExecutableImageEmissionRequest,
-) -> native_artifact::NativeArtifactEmissionParts<compiler::native::ExecutableImageEmissionRequest>
-{
+    image: image_emission::ExecutableImageEmissionRequest,
+) -> native_artifact::NativeArtifactEmissionParts<image_emission::ExecutableImageEmissionRequest> {
     let parts = artifact.into_parts();
     native_artifact::NativeArtifactEmissionParts {
         target: parts.target,

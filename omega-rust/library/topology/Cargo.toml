@@ -18,6 +18,7 @@ bounded-process = { path = "../../omega/foundation/bounded-process" }
 
 [dev-dependencies]
 compiler = { path = "../../omega/compiler" }
+compilation-products = { path = "../../omega/realization/compilation-products" }
 component-description = { path = "../../omega/backend/artifacts/component-description", features = ["test-support"] }
 libc = "0.2.186"
 mutation-matrix = { path = "../../psi/foundation/mutation-matrix", features = ["test-support"] }
@@ -26,3 +27,4 @@ package-source = { path = "../../omega/package-manager/source-acquisition" }
 proof-admission = { path = "../../psi/proof/admission" }
 semantic-vocabulary = { path = "../../psi/foundation/semantic-vocabulary" }
 target = { path = "../../omega/backend/target" }
+terminal-psi-to-abstract-operations = { path = "../../omega/pipeline/00_terminal-psi-to-abstract-operations" }

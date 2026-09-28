@@ -5,6 +5,13 @@ interface for any supplied target count. The coordinator sequences typed owner r
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../pipeline.md).
 
+The public `native` module exposes realization sequences and their orchestration
+errors, not a façade for backend artifacts or provider authority. Consumers use
+`native-artifact`, `image-emission`, and stage 00's `provider_admission` directly
+for those contracts. Reports and publication come from `compilation-products`;
+there is no compiler-owned `report` or `artifact_publication` module. Root-level
+request/result exports remain conveniences for the compilation entrypoints.
+
 [compiler.rs](src/compiler.rs) sequences request admission, the shared checked
 continuation, and the Check / Terminal / Native product dispatch. Its single public
 function runs one target loop: checking, trust admission, observations, then the

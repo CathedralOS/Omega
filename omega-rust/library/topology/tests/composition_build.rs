@@ -30,6 +30,7 @@ use package_source::{
 };
 use std::path::{Path, PathBuf};
 use support::*;
+use terminal_psi_to_abstract_operations::provider_admission;
 use topology_plan::*;
 
 /// Explicit project acceptance through the ordinary policy workflow (mirrors
@@ -181,14 +182,14 @@ fn the_package_composes_and_a_source_free_consumer_verifies() {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
+            terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             imports: &[],
         },
     )
     .expect("ordinary accepted artifact-only production");
     let publication = workspace.join("published");
-    let report = compiler::artifact_publication::publish_compilation(report, &publication)
+    let report = compilation_products::publication::publish_compilation(report, &publication)
         .expect("build outputs publish");
     let outputs = report.build_outputs().unwrap();
     let directory = outputs.published_directory().unwrap();

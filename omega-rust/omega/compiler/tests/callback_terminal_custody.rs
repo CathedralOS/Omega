@@ -20,6 +20,7 @@ use task_plans::{
     SameStackContributionAdmissionCandidate, SameStackContributionAdmissionReceiptId,
     SameStackProviderPlanCommitment, admit_same_stack_contribution,
 };
+use terminal_psi_to_abstract_operations::provider_admission;
 
 static NEXT_FIXTURE_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -549,7 +550,7 @@ fn terminal_report_rejects_native_proofs_and_freezes_published_context() {
         "a Terminal stop cannot satisfy a native proof-product request",
     );
     assert!(!directory.exists());
-    let published = compiler::artifact_publication::publish_compilation(
+    let published = compilation_products::publication::publish_compilation(
         report()
             .with_pcc_context(
                 PccRequests {
@@ -589,7 +590,7 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
         .to_bytes();
     let publication = fixture.root.join("published-terminal");
     assert!(!publication.exists(), "compilation does not publish files");
-    let terminal = compiler::artifact_publication::publish_compilation(
+    let terminal = compilation_products::publication::publish_compilation(
         terminal
             .with_pcc_context(
                 package_compilation::build_execution::build_value::PccRequests {
@@ -794,13 +795,13 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
 
     // Retained-product replay still binds every placement: a dropped
     // occurrence leaves a placement uncovered and rejects.
-    let missing = compiler::report::TerminalNativeRealizationProposal::new(
+    let missing = compilation_products::TerminalNativeRealizationProposal::new(
         retained.artifact(),
         proposal.application().clone(),
         proposal.program_entry().clone(),
         proposal.post_terminal_optimizations().clone(),
         proposal.providers().clone(),
-        compiler::report::TerminalNativeOccurrences {
+        compilation_products::TerminalNativeOccurrences {
             callbacks: vec![first_occurrence.clone()],
             ..proposal.occurrences().clone()
         },
@@ -811,7 +812,7 @@ fn reachable_private_callback_registrar_binds_its_terminal_occurrence() {
     .expect("artifact-local replay permits a partial occurrence catalog");
     let (artifact, placements, _) = retained.into_parts();
     assert!(
-        compiler::report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
             artifact, placements, missing,
         )
         .is_err(),
@@ -1059,9 +1060,9 @@ fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelec
         first_materialization.context, second_materialization.context,
         "both slots of one call share the materialization context"
     );
-    let policy = compiler::native::terminal_authority_policy_with_rows(vec![
-        compiler::native::TerminalAuthorityPolicyRow::new(
-            compiler::native::normalized_foreign_terminal_mechanism_with_callback_materializations(
+    let policy = provider_admission::terminal_authority_policy_with_rows(vec![
+        provider_admission::TerminalAuthorityPolicyRow::new(
+            provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
                 locator,
                 boundary_entry_plan,
                 &materialization_context,
@@ -1071,16 +1072,17 @@ fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelec
         ),
     ])
     .expect("two-slot registrar receiving policy");
-    let permission_policy = compiler::native::terminal_authority_permission_policy_with_rows(vec![
-        compiler::native::TerminalAuthorityPermissionPolicyRow::new(
-            provider_plan.schema.identity_digest(),
-            provider_requirement.clone(),
-            effects::TerminalAuthorityDisposition::from_classes([]),
-        ),
-    ])
-    .expect("two-slot registrar exact service permission");
+    let permission_policy =
+        provider_admission::terminal_authority_permission_policy_with_rows(vec![
+            provider_admission::TerminalAuthorityPermissionPolicyRow::new(
+                provider_plan.schema.identity_digest(),
+                provider_requirement.clone(),
+                effects::TerminalAuthorityDisposition::from_classes([]),
+            ),
+        ])
+        .expect("two-slot registrar exact service permission");
     let artifact = {
-        let image_request = compiler::native::ExecutableImageEmissionRequest::direct(
+        let image_request = image_emission::ExecutableImageEmissionRequest::direct(
             retained
                 .native_realization_proposal()
                 .expect("native proposal")
@@ -1094,7 +1096,7 @@ fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelec
                 optimization_selections: post_terminal.selections(),
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
-                    compiler::native::current_terminal_authority_permission_policy(),
+                    provider_admission::current_terminal_authority_permission_policy(),
                 terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &[SourceEvaluatedImportSettlement::new(
@@ -1104,8 +1106,8 @@ fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelec
             },
         )
         .map(|artifact| match artifact {
-            compiler::native::RequestedNativeArtifact::Direct(artifact) => artifact,
-            compiler::native::RequestedNativeArtifact::DynamicElf(_) => {
+            native_artifact::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_artifact::RequestedNativeArtifact::DynamicElf(_) => {
                 panic!("direct image request returned dynamic ELF custody")
             }
         })
@@ -1241,7 +1243,7 @@ fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelec
         .children()
         .iter()
         .filter_map(|child| {
-            let compiler::native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
+            let native_artifact::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
                 foreign,
             ) = child.relocation()
             else {
@@ -1262,7 +1264,7 @@ fn assert_two_slot_native_image(selections: optimization_core::OptimizationSelec
         .iter()
         .zip(occurrences.iter())
     {
-        let compiler::native::NormalizedForeignCallbackRelocations::X86_64Relative32 {
+        let native_artifact::NormalizedForeignCallbackRelocations::X86_64Relative32 {
             callback_function,
             ..
         } = physical_callback
@@ -1477,26 +1479,28 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         .validate()
         .expect("direct callback occurrence replays against its artifact");
 
-    let drifted_thunk = compiler::report::TerminalCallbackThunkArtifact::new(
+    let drifted_thunk = compilation_products::TerminalCallbackThunkArtifact::new(
         std::sync::Arc::from("__omega_callback_drifted"),
         replay_copy_terminal_artifact(thunk.artifact()),
         receipt,
     )
     .expect("a canonical thunk artifact can carry a mutation-test symbol");
-    let drifted_thunk_proposal = compiler::report::TerminalNativeRealizationProposal::new(
+    let drifted_thunk_proposal = compilation_products::TerminalNativeRealizationProposal::new(
         retained.artifact(),
         proposal.application().clone(),
         proposal.program_entry().clone(),
         proposal.post_terminal_optimizations().clone(),
         proposal.providers().clone(),
-        compiler::report::TerminalNativeOccurrences {
-            callbacks: vec![compiler::report::TerminalCallbackOccurrenceProposal::new(
-                0,
-                occurrence.terminal_operation(),
-                Some(application.clone()),
-                callback_thunk_identity,
-                drifted_thunk,
-            )],
+        compilation_products::TerminalNativeOccurrences {
+            callbacks: vec![
+                compilation_products::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(application.clone()),
+                    callback_thunk_identity,
+                    drifted_thunk,
+                ),
+            ],
             ..proposal.occurrences().clone()
         },
         proposal.boundary_applications().clone(),
@@ -1505,7 +1509,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     )
     .expect("artifact-local proposal replay does not own checked placement spelling");
     assert!(
-        compiler::report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
             replay_copy_terminal_artifact(retained.artifact()),
             retained.callback_placements().to_vec(),
             drifted_thunk_proposal,
@@ -1523,20 +1527,22 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         .expect("the registrar literals produce a distinct Terminal operation")
         .id;
     assert!(
-        compiler::report::TerminalNativeRealizationProposal::new(
+        compilation_products::TerminalNativeRealizationProposal::new(
             retained.artifact(),
             proposal.application().clone(),
             proposal.program_entry().clone(),
             proposal.post_terminal_optimizations().clone(),
             proposal.providers().clone(),
-            compiler::report::TerminalNativeOccurrences {
-                callbacks: vec![compiler::report::TerminalCallbackOccurrenceProposal::new(
-                    0,
-                    wrong_operation,
-                    Some(application.clone()),
-                    callback_thunk_identity,
-                    occurrence.callback_thunk_artifact().clone(),
-                )],
+            compilation_products::TerminalNativeOccurrences {
+                callbacks: vec![
+                    compilation_products::TerminalCallbackOccurrenceProposal::new(
+                        0,
+                        wrong_operation,
+                        Some(application.clone()),
+                        callback_thunk_identity,
+                        occurrence.callback_thunk_artifact().clone(),
+                    )
+                ],
                 ..proposal.occurrences().clone()
             },
             proposal.boundary_applications().clone(),
@@ -1547,13 +1553,13 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         "a non-boundary Terminal operation cannot replace the registrar call",
     );
     assert!(
-        compiler::report::TerminalNativeRealizationProposal::new(
+        compilation_products::TerminalNativeRealizationProposal::new(
             retained.artifact(),
             proposal.application().clone(),
             proposal.program_entry().clone(),
             proposal.post_terminal_optimizations().clone(),
             proposal.providers().clone(),
-            compiler::report::TerminalNativeOccurrences {
+            compilation_products::TerminalNativeOccurrences {
                 callbacks: vec![occurrence.clone(), occurrence.clone()],
                 ..proposal.occurrences().clone()
             },
@@ -1566,20 +1572,22 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     );
     let mut drifted_application = application.clone();
     drifted_application.native_ordinal = 0;
-    let drifted_proposal = compiler::report::TerminalNativeRealizationProposal::new(
+    let drifted_proposal = compilation_products::TerminalNativeRealizationProposal::new(
         retained.artifact(),
         proposal.application().clone(),
         proposal.program_entry().clone(),
         proposal.post_terminal_optimizations().clone(),
         proposal.providers().clone(),
-        compiler::report::TerminalNativeOccurrences {
-            callbacks: vec![compiler::report::TerminalCallbackOccurrenceProposal::new(
-                0,
-                occurrence.terminal_operation(),
-                Some(drifted_application),
-                callback_thunk_identity,
-                occurrence.callback_thunk_artifact().clone(),
-            )],
+        compilation_products::TerminalNativeOccurrences {
+            callbacks: vec![
+                compilation_products::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(drifted_application),
+                    callback_thunk_identity,
+                    occurrence.callback_thunk_artifact().clone(),
+                ),
+            ],
             ..proposal.occurrences().clone()
         },
         proposal.boundary_applications().clone(),
@@ -1588,7 +1596,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     )
     .expect("artifact-local replay cannot infer the checked native telescope");
     assert!(
-        compiler::report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
             replay_copy_terminal_artifact(retained.artifact()),
             retained.callback_placements().to_vec(),
             drifted_proposal,
@@ -1599,20 +1607,22 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     let placement_index_drift = backend_plan::canonical_callback_thunk_identity(1, placement)
         .expect("the same exact placement admits a distinct indexed thunk identity");
     assert!(
-        compiler::report::TerminalNativeRealizationProposal::new(
+        compilation_products::TerminalNativeRealizationProposal::new(
             retained.artifact(),
             proposal.application().clone(),
             proposal.program_entry().clone(),
             proposal.post_terminal_optimizations().clone(),
             proposal.providers().clone(),
-            compiler::report::TerminalNativeOccurrences {
-                callbacks: vec![compiler::report::TerminalCallbackOccurrenceProposal::new(
-                    0,
-                    occurrence.terminal_operation(),
-                    Some(application.clone()),
-                    placement_index_drift,
-                    occurrence.callback_thunk_artifact().clone(),
-                ),],
+            compilation_products::TerminalNativeOccurrences {
+                callbacks: vec![
+                    compilation_products::TerminalCallbackOccurrenceProposal::new(
+                        0,
+                        occurrence.terminal_operation(),
+                        Some(application.clone()),
+                        placement_index_drift,
+                        occurrence.callback_thunk_artifact().clone(),
+                    ),
+                ],
                 ..proposal.occurrences().clone()
             },
             proposal.boundary_applications().clone(),
@@ -1627,20 +1637,22 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     let continuation_drift =
         backend_plan::canonical_callback_thunk_identity(0, &continuation_drift_placement)
             .expect("a valid but unrelated continuation can form a mutation identity");
-    let continuation_drift_proposal = compiler::report::TerminalNativeRealizationProposal::new(
+    let continuation_drift_proposal = compilation_products::TerminalNativeRealizationProposal::new(
         retained.artifact(),
         proposal.application().clone(),
         proposal.program_entry().clone(),
         proposal.post_terminal_optimizations().clone(),
         proposal.providers().clone(),
-        compiler::report::TerminalNativeOccurrences {
-            callbacks: vec![compiler::report::TerminalCallbackOccurrenceProposal::new(
-                0,
-                occurrence.terminal_operation(),
-                Some(application.clone()),
-                continuation_drift,
-                occurrence.callback_thunk_artifact().clone(),
-            )],
+        compilation_products::TerminalNativeOccurrences {
+            callbacks: vec![
+                compilation_products::TerminalCallbackOccurrenceProposal::new(
+                    0,
+                    occurrence.terminal_operation(),
+                    Some(application.clone()),
+                    continuation_drift,
+                    occurrence.callback_thunk_artifact().clone(),
+                ),
+            ],
             ..proposal.occurrences().clone()
         },
         proposal.boundary_applications().clone(),
@@ -1649,7 +1661,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     )
     .expect("artifact-only proposal replay cannot reconstruct checked continuation handles");
     assert!(
-        compiler::report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
             replay_copy_terminal_artifact(retained.artifact()),
             retained.callback_placements().to_vec(),
             continuation_drift_proposal,
@@ -1657,13 +1669,13 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
         .is_err(),
         "retained-product replay must reject callback-thunk continuation drift",
     );
-    let missing = compiler::report::TerminalNativeRealizationProposal::new(
+    let missing = compilation_products::TerminalNativeRealizationProposal::new(
         retained.artifact(),
         proposal.application().clone(),
         proposal.program_entry().clone(),
         proposal.post_terminal_optimizations().clone(),
         proposal.providers().clone(),
-        compiler::report::TerminalNativeOccurrences {
+        compilation_products::TerminalNativeOccurrences {
             callbacks: Vec::new(),
             ..proposal.occurrences().clone()
         },
@@ -1674,7 +1686,7 @@ fn direct_callback_placement_binds_the_exact_terminal_registrar_occurrence() {
     .expect("artifact-local replay permits an empty occurrence catalog");
     let (artifact, placements, _) = retained.into_parts();
     assert!(
-        compiler::report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+        compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
             artifact, placements, missing,
         )
         .is_err(),
@@ -1779,9 +1791,9 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
     let [(locator, boundary_entry_plan)] = policy_rows.as_slice() else {
         panic!("one exact callback registrar authority row expected");
     };
-    let policy = compiler::native::terminal_authority_policy_with_rows(vec![
-        compiler::native::TerminalAuthorityPolicyRow::new(
-            compiler::native::normalized_foreign_terminal_mechanism_with_callback_materializations(
+    let policy = provider_admission::terminal_authority_policy_with_rows(vec![
+        provider_admission::TerminalAuthorityPolicyRow::new(
+            provider_admission::normalized_foreign_terminal_mechanism_with_callback_materializations(
                 locator,
                 boundary_entry_plan,
                 &callback_materialization.context,
@@ -1791,16 +1803,17 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         ),
     ])
     .expect("callback registrar receiving policy");
-    let permission_policy = compiler::native::terminal_authority_permission_policy_with_rows(vec![
-        compiler::native::TerminalAuthorityPermissionPolicyRow::new(
-            provider_plan.schema.identity_digest(),
-            provider_requirement.clone(),
-            effects::TerminalAuthorityDisposition::from_classes([]),
-        ),
-    ])
-    .expect("callback registrar exact service permission");
+    let permission_policy =
+        provider_admission::terminal_authority_permission_policy_with_rows(vec![
+            provider_admission::TerminalAuthorityPermissionPolicyRow::new(
+                provider_plan.schema.identity_digest(),
+                provider_requirement.clone(),
+                effects::TerminalAuthorityDisposition::from_classes([]),
+            ),
+        ])
+        .expect("callback registrar exact service permission");
     let artifact = {
-        let image_request = compiler::native::ExecutableImageEmissionRequest::direct(
+        let image_request = image_emission::ExecutableImageEmissionRequest::direct(
             retained
                 .native_realization_proposal()
                 .expect("native proposal")
@@ -1815,15 +1828,15 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
                     &optimization_core::PostTerminalOptimizationSelections::default(),
                 terminal_authority_policy: policy,
                 accepted_package_terminal_authority_permission_policy:
-                    compiler::native::current_terminal_authority_permission_policy(),
+                    provider_admission::current_terminal_authority_permission_policy(),
                 terminal_authority_permission_policy: Some(permission_policy),
                 image_request,
                 imports: &[],
             },
         )
         .map(|artifact| match artifact {
-            compiler::native::RequestedNativeArtifact::Direct(artifact) => artifact,
-            compiler::native::RequestedNativeArtifact::DynamicElf(_) => {
+            native_artifact::RequestedNativeArtifact::Direct(artifact) => artifact,
+            native_artifact::RequestedNativeArtifact::DynamicElf(_) => {
                 panic!("direct image request returned dynamic ELF custody")
             }
         })
@@ -1899,7 +1912,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
         .children()
         .iter()
         .filter_map(|child| {
-            let compiler::native::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
+            let native_artifact::PhysicalRelocationDisposition::UnresolvedNormalizedForeignCall(
                 foreign,
             ) = child.relocation()
             else {
@@ -1915,7 +1928,7 @@ fn direct_callback_relocation_resolves_to_its_private_function() {
     else {
         panic!("one direct callback registrar D32 child expected")
     };
-    let compiler::native::NormalizedForeignCallbackRelocations::X86_64Relative32 {
+    let native_artifact::NormalizedForeignCallbackRelocations::X86_64Relative32 {
         callback_function,
         relocation: physical_callback_relocation,
     } = physical_callback

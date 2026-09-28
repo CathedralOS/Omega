@@ -29,6 +29,7 @@ use package_source::{
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use terminal_psi_to_abstract_operations::provider_admission;
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
 
@@ -139,14 +140,14 @@ fn compose(workspace: &Path) -> Result<PathBuf, String> {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
+            terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             imports: &[],
         },
     )
     .map_err(|diagnostics| format!("{diagnostics:?}"))?;
     let publication = workspace.join("published");
-    let report = compiler::artifact_publication::publish_compilation(report, &publication)?;
+    let report = compilation_products::publication::publish_compilation(report, &publication)?;
     let outputs = report
         .build_outputs()
         .ok_or_else(|| "no retained build outputs".to_owned())?;
