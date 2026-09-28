@@ -10,6 +10,11 @@ product: whole selected-execution results, source-custody sealing, metadata,
 generated-source handoffs and the production-report subject. The coordinator
 supplies completed stage products through `CheckedCompilationInputs`; sealing
 rejoins source custody but does not grant package admission or native authority.
+Its [Terminal projections](src/checked_compilation/terminal.rs) assemble native
+proposal requests and Terminal reports from retained checked custody. Inspection
+uses those same checked provider selections for comparison-custody joins; stage
+00 owns the independent reconstruction. Callback production and native proposal
+execution stay visible in the coordinator, not inside the checked product.
 Package review consumes this product directly, without a production dependency
 on compiler orchestration, and still independently reconstructs evidence.
 [`evaluated_build.rs`](src/evaluated_build.rs) owns the shared retained Build

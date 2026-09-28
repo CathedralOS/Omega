@@ -10,6 +10,7 @@ build-output = { path = "../../package-manager/build-output" }
 build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
+lowered-psi = { path = "../../../psi/representations/lowered-psi" }
 effects = { path = "../../backend/plans/provider-evidence" }
 provider-planning = { path = "../provider-planning" }
 representation-planning = { path = "../../../psi/checking/representation-planning" }

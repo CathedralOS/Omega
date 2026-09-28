@@ -83,7 +83,8 @@ fn integer_comparison_custody_rejects_a_negated_recorded_triple() {
     assert!(!occurrence.negated);
     lowered.selected_integer_comparison_occurrences[0].negated = true;
     assert!(
-        compiler::validate_lowered_integer_comparison_custody(&checked, &lowered).is_err(),
+        compilation_products::validate_lowered_integer_comparison_custody(&checked, &lowered)
+            .is_err(),
         "a negation-drifting occurrence must fail the custody join"
     );
 }
