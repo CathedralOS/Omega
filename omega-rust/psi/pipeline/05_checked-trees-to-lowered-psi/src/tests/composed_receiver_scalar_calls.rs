@@ -33,35 +33,31 @@ const WHOLE_RECEIVER: &str = r#"
 #[test]
 fn a_receiver_operand_that_drifts_from_its_authored_place_rejects() {
     let mut checked = checked_source_with_core_service(WHOLE_RECEIVER);
-    let main = checked
+    // The initializer's call arrives as a scalar computation: the receiver
+    // operand is the Call node's first structural argument, a `Place` plan.
+    let call_span = checked
         .facts
-        .flow
-        .terminal_unit_effects
-        .composed_machines
+        .values
+        .scalar_computations
+        .nodes
         .iter()
-        .map(|plan| plan.machine)
-        .find(|machine| checked.symbols.display_path(*machine, "::") == "Main::main")
-        .expect("Main::main is a composed state graph");
-    let plan = checked
-        .facts
-        .flow
-        .terminal_unit_effects
-        .composed_machines
-        .iter_mut()
-        .find(|plan| plan.machine == main)
-        .expect("Main::main plan");
-    let receiver = plan
-        .states
-        .iter_mut()
-        .flat_map(|state| &mut state.operations)
-        .find_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+        .find_map(|node| match &node.1.kind {
+            checked_trees::CheckedScalarComputationKind::Call {
                 structural_arguments,
                 ..
-            } => structural_arguments.first_mut(),
+            } => Some(structural_arguments.clone()),
             _ => None,
         })
-        .expect("the receiver scalar call");
+        .expect("the receiver call computation");
+    let receiver = checked
+        .facts
+        .values
+        .scalar_computations
+        .structural_arguments
+        .span_mut_or_empty(call_span)
+        .first_mut()
+        .and_then(|argument| argument.as_place_mut())
+        .expect("the receiver operand place");
     receiver
         .path
         .push(checked_trees::CheckedUnitStructuralPathSegment::Field(
