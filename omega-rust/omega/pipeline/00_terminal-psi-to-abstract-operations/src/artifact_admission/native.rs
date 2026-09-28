@@ -21,6 +21,28 @@ pub struct VerifiedNativeArtifactInput {
 }
 
 impl VerifiedNativeArtifactInput {
+    /// Replay the complete canonical artifact, admit its sealed proof, lower
+    /// its abstract plan, and bind the supplied direct-entry placed-view loans.
+    /// Both cached preparation and direct realization use this same operation.
+    pub fn prepare(
+        artifact: &terminal_codec::CanonicalTerminalArtifact,
+        profile: &proof_admission::AdmissionProfile,
+        establishments: &[TerminalPlacedViewEstablishment],
+    ) -> Result<Self, ArtifactLoweringError> {
+        artifact
+            .validate()
+            .map_err(ArtifactLoweringError::CanonicalArtifact)?;
+        super::lower_artifact(
+            super::ArtifactSections {
+                semantic_bytes: artifact.semantic_bytes(),
+                proof_bytes: artifact.proof_bytes(),
+                obligation_ledger_bytes: None,
+            },
+            profile,
+        )?
+        .try_into_native_input(establishments)
+    }
+
     pub fn plan(&self) -> &AbstractOperationPlan {
         self.optimization_input.plan()
     }

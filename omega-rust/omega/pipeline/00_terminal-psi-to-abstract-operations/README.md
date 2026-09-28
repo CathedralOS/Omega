@@ -10,6 +10,10 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   admission. Every admitted result retains the exact placed-view input roster.
   Extraction into a consumer without roster custody rejects nonempty inputs;
   this check follows verification and lowering, not canonical decode.
+  Its [reusable preparation](src/artifact_admission/preparation.rs) binds the
+  complete artifact identity, exact proof-admission profile and admitted loans.
+  Cached and direct native inputs use the same admission; later optimization
+  choices remain with realization, not the unoptimized input's reuse key.
 - `optimization`: verified optimization-unit construction and proof questions.
 - `provider_installation`: exact selected-adapter and installation custody.
 - [callback_settlement.rs](src/callback_settlement.rs): rejoin a produced

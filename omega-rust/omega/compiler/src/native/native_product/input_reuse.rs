@@ -5,9 +5,9 @@ use crate::report::CompileReport;
 use artifacts::compile_timings::{StageMeta, TimingCategory};
 use diagnostics::Diagnostic;
 
-/// The shared Terminal-input preparation each exact input pays once: the
-/// artifact's lowering and physical planning legs run inside this row until
-/// the native realization internals own their own stage rows.
+/// The shared Terminal-input preparation each exact input pays once:
+/// canonical replay, proof admission and target-neutral abstract lowering.
+/// Optimization and physical planning remain in each realization.
 const NATIVE_INPUT_PREPARATION_STAGE: StageMeta = StageMeta::new(
     "native-input-preparation",
     "TerminalArtifact",
@@ -16,8 +16,8 @@ const NATIVE_INPUT_PREPARATION_STAGE: StageMeta = StageMeta::new(
 );
 
 /// Prepared native realization inputs shared by every target of one
-/// invocation whose exact Terminal identity, admission profile and physical
-/// selections agree.
+/// invocation whose exact Terminal identity and admission profile agree.
+/// Later optimization choices are not inputs to this preparation.
 #[derive(Default)]
 pub struct NativeInputReuse {
     inputs: Vec<(

@@ -2,6 +2,7 @@ use crate::lowering::LoweringError;
 
 #[derive(Debug)]
 pub enum ArtifactLoweringError {
+    CanonicalArtifact(terminal_codec::CanonicalTerminalArtifactError),
     SemanticDecode(terminal_codec::CodecError),
     ObligationLedgerDecode(terminal_codec::CodecError),
     TrustGraph(terminal_codec::TrustGraphError),

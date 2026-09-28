@@ -27,6 +27,23 @@ use tokens_to_syntax_trees::parse_syntax_trees;
 use typed_trees_to_checked_trees::CheckingRequest;
 use typed_trees_to_checked_trees::lower_typed_trees;
 
+fn canonical_artifact(
+    module: &terminal_psi::TerminalModule,
+) -> terminal_codec::CanonicalTerminalArtifact {
+    let proof = terminal_verifier::ProofBundle::default();
+    let semantic_identity = terminal_codec::terminal_psi_identity(module).unwrap();
+    let proof_identity = terminal_codec::proof_bundle_fingerprint(&proof).unwrap();
+    let execution = terminal_codec::PsiOptimizationExecutionRecord::new(
+        Default::default(),
+        semantic_identity,
+        proof_identity,
+        semantic_identity,
+        proof_identity,
+    )
+    .unwrap();
+    terminal_codec::CanonicalTerminalArtifact::from_parts(module, &proof, &execution, None).unwrap()
+}
+
 #[test]
 fn artifact_admission_preserves_decode_and_replay_diagnostic_order() {
     use terminal_psi_to_abstract_operations::{ArtifactLoweringError, ArtifactSections};
@@ -77,8 +94,12 @@ fn artifact_admission_preserves_decode_and_replay_diagnostic_order() {
 
 #[test]
 fn admitted_artifacts_retain_rosters_and_reject_unsupplied_native_custody() {
-    use terminal_psi_to_abstract_operations::{ArtifactLoweringError, ArtifactSections};
+    use terminal_psi_to_abstract_operations::{
+        ArtifactLoweringError, ArtifactSections, TerminalPlacedViewEstablishment,
+        VerifiedNativeArtifactInput, prepare_native_realization_input,
+    };
     let mut module = provider_module();
+    let foreign_artifact = canonical_artifact(&module);
     let (original_semantic, _) = artifact(&module);
     let trust = current_terminal_trust_graph().unwrap();
     let stale_ledger = build_terminal_obligation_ledger(&module, &trust)
@@ -149,6 +170,72 @@ fn admitted_artifacts_retain_rosters_and_reject_unsupplied_native_custody() {
     assert!(matches!(
         lower_artifact(stale, &profile).map(|_| ()),
         Err(ArtifactLoweringError::ObligationReplay(_))
+    ));
+
+    // Cached and direct realization share admission, including the exact
+    // provider loan. Later optimization choices are not preparation inputs.
+    let artifact = canonical_artifact(&module);
+    assert!(matches!(
+        prepare_native_realization_input(&artifact, &profile, &[]),
+        Err(ArtifactLoweringError::PlacedViewInputsRequireCustodyLowering)
+    ));
+    let establishment = TerminalPlacedViewEstablishment {
+        input: module.placed_view_inputs[0].clone(),
+        referent: terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: structural_type_id(1),
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        },
+    };
+    let supplied = std::slice::from_ref(&establishment);
+    let prepared = prepare_native_realization_input(&artifact, &profile, supplied).unwrap();
+    assert!(prepared.matches(artifact.manifest().identity(), &profile));
+    assert_eq!(
+        prepared.terminal_artifact_identity(),
+        artifact.manifest().identity()
+    );
+    assert_eq!(prepared.admission_profile(), &profile);
+    assert_eq!(prepared.placed_view_establishments(), supplied);
+    let reopened = prepared.reopen(&artifact, &profile).unwrap();
+    let direct = VerifiedNativeArtifactInput::prepare(&artifact, &profile, supplied).unwrap();
+    assert_eq!(reopened.plan(), direct.plan());
+    assert_eq!(reopened.placed_view_establishments(), supplied);
+    assert_eq!(
+        reopened.accepted_control_cycles(),
+        direct.accepted_control_cycles()
+    );
+
+    let different_profile =
+        AdmissionProfile::from_acceptances([proof_admission::AdmissionAcceptance {
+            site: semantic_vocabulary::AdmissionSiteId::new(1).unwrap(),
+            evidence_identity: semantic_vocabulary::EvidenceIdentity::new(2).unwrap(),
+            profile_decision: semantic_vocabulary::ProfileDecisionId::new(3).unwrap(),
+        }]);
+    assert!(!prepared.matches(artifact.manifest().identity(), &different_profile));
+    assert!(!prepared.matches(foreign_artifact.manifest().identity(), &profile));
+    for (candidate, candidate_profile) in [
+        (&artifact, &different_profile),
+        (&foreign_artifact, &profile),
+    ] {
+        assert_eq!(
+            prepared.reopen(candidate, candidate_profile).unwrap_err(),
+            "Terminal artifact identity or proof-admission profile changed"
+        );
+    }
+    let mut foreign_establishment = establishment.clone();
+    foreign_establishment.input.position += 1;
+    assert!(matches!(
+        prepare_native_realization_input(&artifact, &profile, &[foreign_establishment]),
+        Err(ArtifactLoweringError::PlacedViewEstablishmentUnexpected { .. })
+    ));
+    assert!(matches!(
+        prepare_native_realization_input(
+            &artifact,
+            &profile,
+            &[establishment.clone(), establishment]
+        ),
+        Err(ArtifactLoweringError::PlacedViewEstablishmentDuplicate { .. })
     ));
 }
 

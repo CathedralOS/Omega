@@ -5,10 +5,9 @@
 //! optimizations do not choose a different publication route.
 
 mod callback_thunks;
-mod input_preparation;
 mod object_emission;
 mod optimization_stage;
-mod realization_diagnostics;
+pub(crate) mod realization_diagnostics;
 mod realization_request;
 pub use abstract_operations_to_target_operations::provider_admission::terminal_authority_permissions;
 
@@ -33,18 +32,20 @@ pub use abstract_operations_to_target_operations::provider_admission::{
     TerminalAuthorityPermissionPolicyRow, current_terminal_authority_permission_policy,
     terminal_authority_permission_policy_with_rows,
 };
-pub use input_preparation::{PreparedNativeRealizationInput, prepare_native_realization_input};
 pub use realization_request::{
     NativeBoundaryRealization, NativeCallbackThunkSettlement, NativeCompilerBuiltinSettlement,
     NativeProviderSettlement, NativeRealizationRequest, RequestedNativeArtifact,
     RequestedNativeArtifactError,
 };
+pub use terminal_psi_to_abstract_operations::{
+    PreparedNativeRealizationInput, prepare_native_realization_input,
+};
 
 use diagnostics::Diagnostic;
 
 use self::{
-    input_preparation::lower_realization_input, object_emission::emit_realization_object,
-    realization_diagnostics::realization_error,
+    object_emission::emit_realization_object,
+    realization_diagnostics::{artifact_lowering_error, realization_error},
 };
 use abstract_operations_to_target_operations::provider_admission::{
     AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers,
@@ -102,8 +103,15 @@ fn realize_image(
     let proof_bytes = artifact.proof_bytes();
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();
     let input = match request.prepared_input {
-        Some(prepared) => prepared.reopen(&artifact, request)?,
-        None => lower_realization_input(semantic_bytes, proof_bytes, request.profile, &[])?,
+        Some(prepared) => prepared
+            .reopen(&artifact, request.profile)
+            .map_err(|error| realization_error("prepared native input", error))?,
+        None => terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput::prepare(
+            &artifact,
+            request.profile,
+            &[],
+        )
+        .map_err(artifact_lowering_error)?,
     };
     let receiver_settlement = native_artifact::admit_executable_entry_receiver(
         &input,

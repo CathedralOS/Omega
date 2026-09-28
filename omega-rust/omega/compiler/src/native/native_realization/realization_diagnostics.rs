@@ -1,6 +1,20 @@
 //! Diagnostic constructors shared by every realization stage.
 
 use diagnostics::Diagnostic;
+use terminal_psi_to_abstract_operations::ArtifactLoweringError;
+
+pub(crate) fn artifact_lowering_error(error: ArtifactLoweringError) -> Vec<Diagnostic> {
+    match error {
+        ArtifactLoweringError::CanonicalArtifact(error) => {
+            realization_error("canonical artifact replay", error)
+        }
+        ArtifactLoweringError::SemanticDecode(error) => {
+            realization_error("semantic section", error)
+        }
+        ArtifactLoweringError::ProofDecode(error) => realization_error("proof section", error),
+        error => realization_error("native artifact lowering", error),
+    }
+}
 
 pub(crate) fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
