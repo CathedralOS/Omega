@@ -1585,6 +1585,88 @@ the complete product bar; focused successes below do not establish that baseline
   without weakening negative controls. **SAMPLE-CORPUS** retains complete sample
   publication and runtime oracles after checking closes.
 
+- **GENERAL-CYCLIC-EXECUTION.** Complete general
+  [cyclic control](wiki/spec/terminal-psi/control_flow.md) and
+  [safety/progress checking](wiki/spec/language/termination.md) through native
+  execution. Owners: Terminal verification's `validation/control_flow/`, stage
+  04 `execution/terminal_unit/` and stage 05 `unit/attached_unit/` and expression
+  preparation. The same-name optimizer-board task owns native receiving/replay.
+
+  `tests/omega/pass/text/runtime_number_to_decimal_exit` and
+  `runtime_bounded_carrier_write_read_exit` already execute with exit 70 on
+  macOS ARM64. Projected byte-field reads, cyclic writes and the decimal
+  divisor invariant are implemented; preserve these controls on the hosted
+  matrix. The separate `domains/utf8_equals_literal_exit` still rejects at
+  `Main::classify`'s conditional guard, without a cycle.
+
+  - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
+    relations: broader qualified/partial ownership and structural results,
+    moving claims, content reshuffles/partitions, projected call arguments and
+    boundary completion receipts. Plain case/record results, pinned entry
+    claims and several effectful calls already pass eligibility. Eligibility
+    supplies no proof; verify every arrival before removing a fence.
+  - Verify unchanged `print_squares` through ordinary package review and native
+    execution: `--check` passes; an isolated macOS `omega run` stops at missing
+    package acceptance. Establish complete composition of projected helpers,
+    Console operands, indexed/aggregate writes and computed results before
+    assigning another lowering repair. **STATE-LOCAL-VALUE-FRONTIER** owns transport;
+    **NOMINAL-FIELD-FLOW** and **CRASH-CONTRACT** own facts and call contracts.
+    **SAMPLE-CORPUS** retains nine computed rows ending in `081`, exit 0.
+  - Generalize independently proved invariant proposals beyond
+    `proofs/scalar_block_invariants/lockstep.rs`'s divisor/counter recognizer;
+    avoid one recognizer per customer or source-state duplication.
+
+  Acceptance: unchanged programs run across the hosted matrix with exact
+  caller/callee resources and ranking where declared. Preserve dominance,
+  successors/frontiers, current-iteration guards and fuel suspension/resumption;
+  corrupt arrivals, custody, effects and proof groups reject. Stage 05's
+  `tests/owned_scalar_cycles/` covers rebound fields and custody mutations.
+  Safety remains independent of termination or a test's fuel allowance.
+
+- **CRASH-CONTRACT.** Complete invocation-specific crash obligations through
+  selected operators, nested values, calls, cycles and package review. Owners:
+  stage 04 `facts/{operator_crashes,crash_entry_values}.rs`,
+  `CrashPlan::checked_operators`, `flow/expression.rs`, stage 05
+  `retention/operation_crash_contracts.rs` and Terminal/native consumers.
+  Preserve selected requirement, saved actuals, Match arm and surviving route;
+  traps or opaque provider bodies cannot narrow authored contracts.
+
+  - Generalize selected-use/operation joins beyond IEEE/integer comparisons.
+    Named uses still reject before lowering; structural telescopes and call
+    carriers need exact operand mapping, provider commitment and independent
+    Psi/Omega replay through one occurrence relation. Scalar IEEE equality/
+    inequality guards exist; float ordering, generic and structural-formal
+    routes still need portable predicates, preserving the original guard.
+  - Finish invocation-outcome trace/refinement under
+    [reconstructed observations](wiki/spec/terminal-psi/observations.md#reconstructed-rows):
+    actual outcome, substituted guards, abandoned claims, staged writeback and
+    no-result/no-cleanup behavior. Stage 05 `tests/scalar_boundary_arguments.rs`
+    already verifies and interprets scalar boundary outcomes; its structural
+    guard control rejects. Native call continuations exist, but retained crash
+    rows alone do not establish executed outcomes.
+  - Extend ordered completion beyond supported scalar contracts, closed integer
+    ranges and mutable Boolean snapshots to remaining qualified results,
+    state/control contracts and field/arithmetic guarantees. Reuse
+    `tests/unit_scalar_result_source/boundary_wrappers/`; preserve transitive
+    contracts and exact entry versions across joins.
+  - Complete package crash-expression projection in
+    `review-evidence/src/capture/behavior/crash/expressions.rs`: indexed scalar
+    reads, byte lengths and integer casts currently return `None`. Verify
+    remaining generic-field and case-payload combinations through source and
+    canonical recovery. `tests/callable_policy/case_membership.rs` already
+    covers authored/indexed membership and projected result tags.
+  - Extend entry provenance for opaque/content leaves, dynamic indices and
+    whole-collection reads after writes with proven origins. Fixed-index/range
+    disjointness exists; divergent arrivals and unknown cycles stay conservative.
+    Share snapshots with **STATE-LOCAL-VALUE-FRONTIER** and
+    **MATCH-SELECTIVE-LOWERING**.
+
+  Acceptance: extend checked-only `tests/omega/pass/operators/crash_routes`
+  and float controls through independent Terminal replay, execution and package
+  review. Safe uses discharge routes; changed guards, captures, substitutions,
+  sites and stale writes reject. Proof-only terms cannot authorize executable
+  guards; legacy propositions remain **PROOF-CONTRACT-MIGRATION** scope.
+
 ## Automatic service reach
 
 Finish portable coverage of
@@ -2442,102 +2524,6 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   cannot repair these assertions; preserve Omega's no-default-debug-dumps contract.
 
 ## P3 - Terminal Psi, PCC, and observation
-
-- **GENERAL-CYCLIC-EXECUTION.** Complete
-  [cyclic control](wiki/spec/terminal-psi/control_flow.md) and
-  [safety/progress checking](wiki/spec/language/termination.md) for the unchanged
-  decimal/Console loop and `print_squares`.
-  Owners: `terminal-verifier/src/validation/control_flow/`, Psi's
-  `execution/terminal_unit/`, `05_checked-trees-to-lowered-psi/src/unit/attached_unit/`
-  and expression preparation. The same-name optimizer-board task owns native
-  receiving/replay coverage. Unit/scalar/aggregate functions already share the
-  common native graph; no countdown or whole-Unit fallback.
-
-  - Carry bounded-field byte reads through expression lowering and the portable
-    vocabulary. The checked literal-equality guard retains
-    `StructuralParameterIndexedRead` with a field path, but
-    `expression_preparation/prepare_expression.rs` requires a whole byte-view
-    parameter. `runtime_number_to_decimal_exit_canary_runs` exposes this join;
-    `runtime_bounded_carrier_write_read_exit` and `utf8_equals_literal_exit`
-    are related controls. Use exact carrier/path/live-length evidence, not a
-    decimal-specific leaf.
-  - Close the customer over existing scalar-call/store transport and cyclic
-    bounded-field writes. `compiler/tests/byte_field_replacement/indexed.rs`
-    already covers source writes and cyclic native publication; helper coverage
-    is not the unchanged customer's output. Coordinate obsolete range-suffix
-    fixtures with **CANONICALIZE-SCALAR-RANGE-CONTRACTS**.
-  - Replace remaining cyclic shape exclusions with independently checked
-    arrival/custody relations: qualified and partial owned values, structural
-    results, claim transfers/reshuffles/partition compositions and effectful
-    calls. Preserve dominance, exact successors/frontiers, current-iteration
-    guards and test-fuel suspension/resumption. Extend only when the retained
-    proof establishes the case; fuel or a relaxed allowlist proves no safety.
-  - Compose projected helpers, Console structural operands, indexed/aggregate
-    writes and computed results without source-state duplication.
-
-  Architecture trap: `unranked_cycles.rs` keeps growing per source shape
-  although its eligibility check grants no proof authority. Complete the
-  per-arrival custody checking before retiring superseded restrictions.
-  The producer's `proofs/scalar_block_invariants/lockstep.rs` also recognizes
-  a particular divisor/counter update. Its proposals are independently proved,
-  but general strengthening should not become one recognizer per customer.
-  Existing `cyclic_field_divisor_*` controls already establish that arithmetic
-  case; do not repeat the isolated invariant milestone.
-
-  Acceptance: unchanged decimal source reaches Terminal, then its native
-  exit/output on the hosted matrix with exact caller/callee resources and
-  ranking where declared. Corrupt arrivals, custody, guards, effects and proof
-  groups reject. **SAMPLE-CORPUS** owns the full customer and current
-  `print_squares` scope pause; **STATE-LOCAL-VALUE-FRONTIER** owns shared value
-  transport. Interpreted loops or checked-only canaries do not exercise the
-  complete lowering repair.
-
-- **CRASH-CONTRACT.** Carry invocation-specific crash obligations through
-  selected operators, nested values, calls, cycles, execution and package review.
-  Owners: `facts/{operator_crashes,crash_entry_values}.rs`,
-  `CrashPlan::checked_operators`, `flow/expression.rs`,
-  lowered `retention/operation_crash_contracts.rs` and independent Terminal/
-  native consumers. Keep selected requirement, saved actuals, Match arm and
-  surviving route; do not infer semantic causes from traps or inspect opaque
-  providers to narrow contracts.
-
-  - Generalize selected-use to emitted-operation joins beyond existing IEEE/
-    integer comparison rosters. Named uses, structural operand telescopes and
-    call carriers need exact operand mapping, provider commitment and Psi/Omega
-    replay through one compositional occurrence relation, not another roster
-    per operator. Guarded float/generic/structural-formal routes need portable
-    predicate vocabulary; copying identity or conservative `Truth` rows is
-    not replay of the original guard.
-  - Finish invocation-outcome trace/refinement joins under
-    [reconstructed observations](wiki/spec/terminal-psi/observations.md#reconstructed-rows).
-    Target Unit/borrowed/aggregate call lanes already carry crash continuations;
-    do not restore the old blanket-refusal diagnosis. Exercise actual outcome,
-    guard substitution, abandoned claims, staged writeback and no-result/
-    no-cleanup behavior through the source-to-execution route, using
-    `scalar_boundary_arguments.rs` and `behavior_exclusions.rs`.
-  - Carry qualified scalar results, state/control contracts, mutable entry
-    snapshots across joins and field/arithmetic guarantees through ordered
-    completion. Reuse `unit_scalar_result_source/boundary_wrappers/`.
-    Preserve transitive callees' authored contracts; current mutable storage is
-    not an entry snapshot, and crash ceilings imply no normal guarantee.
-  - Complete package-review projections through indexes, case payloads and
-    generic fields using Psi's exact carrier/case relation. Keep
-    `omega-rust/omega/package-manager/review-evidence/tests/callable_policy/case_membership.rs` as the
-    source/recovery control; saved/result tags need ordinary value custody,
-    not re-executed initializers or callee bodies.
-  - Extend entry provenance for opaque/content leaves, dynamic indices and
-    whole-collection reads after element writes only with proven origins.
-    Fixed-index/range disjointness already exists. Divergent arrivals,
-    unresolvable cycles and unknown origins remain conservative.
-    Share snapshots with **STATE-LOCAL-VALUE-FRONTIER** and the crash-qualified
-    equality dependency of **MATCH-SELECTIVE-LOWERING**.
-
-  Acceptance: source `operators/crash_routes` and crash-qualified float controls
-  preserve exact examined/discharged routes and caller coverage through
-  independent Terminal replay, execution and package review. Safe uses discharge
-  each route; changed guards, captures, substitutions, sites and stale writes
-  reject. Proof-only mathematical terms do not authorize executable guard use;
-  retired proposition declarations remain **PROOF-CONTRACT-MIGRATION** scope.
 
 - **ARITHMETIC-POLICY-REALIZATION.** (new-scope) Complete integer comparisons and executable policies
   from [numeric values](wiki/spec/language/numeric_values.md) through Terminal,
