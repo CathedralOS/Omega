@@ -123,6 +123,13 @@ Package installation and update belong to the separate
 
 ## Product boundaries and observations
 
+The [Terminal coordinator](src/terminal/terminal_artifact.rs) directly sequences
+Psi production, exclusion admission, proof verification and native-proposal
+construction. Callback placements stay in Omega rather than travelling through
+Psi as an opaque payload. The effective optimization selection flows from the
+entry to each callback thunk; thunk production does not reread authored choices
+and undo rollback.
+
 Entry Terminal production retains the unoptimized lowering only for authored
 behavior exclusions. Callback production also needs it for the callback lowering
 receipt. Exclusion admission uses the backend effects checker; on rejection,
