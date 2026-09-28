@@ -2626,84 +2626,68 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   authorize acceptance. [Kernel budgets](wiki/spec/proofs/kernel_metatheory.md)
   remain implementation policy, not narrower language semantics.
 
-- **PROOF-CONTRACT-MIGRATION.** Deliver general mathematics from Omega
-  source through Terminal evidence and independent checking, using
-  [machine contracts and trait bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)
-  and the selected [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md).
-  Owners: Psi syntax/resolution/typing, contract checking, Terminal evidence
-  and codec, and `source/library/core/`; use PROOF-KERNEL-CORE's terms.
+- **PROOF-CONTRACT-MIGRATION.** Deliver general mathematics through
+  [machine contracts and witness/law bundles](wiki/spec/proofs/contracts.md#machines-and-bundles)
+  and [mathematical bindings](wiki/spec/proofs/mathematical_bindings.md).
+  Owners: Psi resolution/typing and contract checking, Terminal evidence/codec,
+  and `source/library/core/`; use PROOF-KERNEL-CORE's terms.
 
-  Top-level mathematical `let`/`boundary let` parse, resolve and receive
-  bounded kernel-signature checking. The production frontier is
-  `05_checked-trees-to-lowered-psi/src/proofs/mathematical_declarations.rs`:
-  it rejects every declaration-bearing program because Terminal evidence
-  does not carry the checked signature. The mathematical certificate codec
-  exists but is not connected to that producer.
+  Checked mathematical signatures already publish in Terminal artifacts and
+  recheck after serialization. Terminal codec's `verify_terminal_artifact_proof`
+  checks that signature separately from the module proof; connect mathematical
+  applications to exact program obligations and receiver assumption policy.
+  Existing prefix applications, explicit generic arguments and bounded universe
+  inference in stage 04's `proof/mathematical_signature/` are the starting point.
 
   Remaining work:
 
-  - Connect the checked signature to Terminal evidence and receiver checking;
-    extend machine-valued body denotation and applied carriers as required by
-    the controls below, including member-call target resolution inside
-    mathematical definitions and ordering over non-integer operands.
-    The fixed `core::Level`, `Type`, `Strict` and `Squash` declarations are
-    compiler-installed root symbols that `core::*` type references bind by
-    canonical slot identity. Retire the transitional unresolved-spelling arm
-    in `04_typed-trees-to-checked-trees/src/proof/fixed_core_vocabulary.rs`
-    once the surfaces that still leave `core::*` unbound — proposition-body
-    call targets and any other non-type positions — resolve them too.
-  - Replace the surviving `proposition`/hidden-witness routes, including
-    `proof_output_calls.rs` and their core/test consumers, with ordinary
-    contracts and witness/law bundles. Preserve exact substitutions,
-    path/result availability, witness identity, validity and assumption closure.
-    Remove the retired parser/carrier/codec paths rather than widening them.
-  - Implement mathematical term application and theorem-only logical
-    hypotheses without changing executable callback selection, ordinary local
-    bindings or complete machine calls. Add no quantifier keywords or
-    declaration-catalog substitute for arbitrary mathematical terms.
-    Trait requirements also need mathematical argument substitution:
-    `typed-trees`' `TraitRequirement` currently carries only lifetime and type
-    arguments, not predicate/function terms.
-    Calls and recursive citations still owe exact preconditions and descent;
+  - Complete body denotation and applied carriers, including mathematical
+    member-call resolution and non-integer ordering. Preserve the distinction
+    between interpreted operations and opaque carrier assumptions. Resolve
+    non-type `core::*` occurrences by canonical symbol identity, then remove
+    `proof/fixed_core_vocabulary.rs`'s unresolved-spelling fallback.
+  - Replace `proposition`/hidden-witness routes, including `proof_output_calls.rs`
+    and core/test consumers, with ordinary contracts/bundles. Preserve exact
+    substitutions, witness identity, path/result availability, validity and
+    assumption closure; remove retired parser/carrier/codec paths. Include
+    `omega-rust/omega/package-manager/review-evidence/EVIDENCE_SCHEMA.md`'s
+    replacement proof rows and QUOTIENT-THEOREM-LIFT's congruence-only lift payload.
+  - Complete arbitrary mathematical application and theorem-only logical
+    hypotheses under the binding spec's delivery controls. `TraitRequirement`
+    still needs predicate/function terms beyond lifetime/type arguments. Keep
+    executable callback selection, ordinary local bindings and complete machine
+    calls intact; introduce no quantifier keywords or declaration-catalog
+    substitute. Exact call preconditions and recursive descent remain required;
     OPERATOR-MACHINE-SUPPLY owns the shared call repair and Nat migration.
-  - Connect source-established sequence/range predicates to element proof
-    use through selected mathematical evidence. The isolated
-    `ForAllInRangeFact` / `QuantifiedRangeFact` helpers have no source
-    producer or entailment consumer. Preserve exact collection, predicate,
-    range and subject identity through mutation and serialization. In-range
-    element use must check independently; wrong collection/predicate,
-    out-of-range and invalidated facts must reject. Do not introduce a second
-    calculus or quantifier keywords to wire these helpers.
+  - Connect source-established sequence/range predicates to element proof use.
+    `ForAllInRangeFact` / `QuantifiedRangeFact` have no source producer or
+    entailment consumer. Preserve collection, predicate, range and subject
+    identity through mutation and wire; reject wrong, out-of-range or invalidated
+    facts. Use the same mathematical calculus.
   - Enforce [executable demand](wiki/spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand)
-    at source use, evaluation and lowering: an axiom is not a missing provider,
-    and choice-dependent control cannot execute just because its branches
-    contain constants. Preserve assumption closure even when proof use erases.
-  - Migrate core relations, quotients and examples. Include the replacement
-    proof rows assigned by
-    `omega-rust/omega/package-manager/review-evidence/EVIDENCE_SCHEMA.md` and
-    QUOTIENT-THEOREM-LIFT's congruence-only lift payload.
+    at source use, evaluation and lowering: axioms supply no executable provider;
+    constant branch arms do not justify choice-dependent control. Erasure must
+    retain assumption closure. Migrate core relations, quotients and examples.
 
-  Acceptance is source → Terminal serialization → independent checking under
-  the [publication contract](wiki/spec/proofs/publication.md), with false
-  twins for each case:
+  Acceptance: source → Terminal serialization → independent checking under
+  the [publication contract](wiki/spec/proofs/publication.md), with false twins:
 
-  1. Two composed witness/law bundles preserve substitutions and distinct
-     relevant witnesses.
-  2. A higher-order theorem over arbitrary predicates/functions passes the
-     [delivery controls](wiki/spec/proofs/mathematical_bindings.md#delivery-controls),
-     including derived Π-term evidence for a machine-shaped logical hypothesis.
-  3. Nonconstructive existence permits an erased proof reference but not
-     unjustified executable extraction or branching. Squash-to-strict reasoning
-     needs no choice. Gated record construction proves its coupling; relevant
-     dependent pairs remain distinct from strict predicate gating.
-  4. Accepting and denying policies distinguish the same theorem using its
-     exact transitive closure through statements/types, import, erasure and wire.
-  5. Cauchy/quotient reasoning uses the
+  1. Two composed witness/law bundles preserve substitutions and distinct relevant
+     witnesses; higher-order theorems accept arbitrary predicates/functions and
+     derived Π-term evidence for machine-shaped logical hypotheses, satisfying
+     all [binding delivery controls](wiki/spec/proofs/mathematical_bindings.md#delivery-controls).
+  2. Nonconstructive existence permits erased references without unjustified
+     executable extraction/branching. Squash-to-strict reasoning needs no choice;
+     constrained records prove coupling, and relevant dependent pairs remain
+     distinct from strict predicate gating.
+  3. Accepting and denying policies distinguish the same theorem by its exact
+     transitive closure through statements/types, import, erasure and wire.
+  4. Cauchy/quotient reasoning uses the
      [set-quotient interface](wiki/spec/proofs/quotients.md#set-quotient-foundation)
      without hidden extensionality or new reduction. A quotient-refusing policy
-     accepts representative operations and congruence with quotient-free
-     closure, and rejects the assumption-bearing quotient theorem. Rat's
-     implementation comments do not establish that separation.
+     accepts representative operations and congruence with quotient-free closure,
+     but rejects the assumption-bearing quotient theorem. Rat's comments do
+     not prove that separation.
 
 - **PROOF-CERTIFICATION-BRIDGE.** Check functional guarantees against generated
   loops, independently of termination, under the
@@ -2775,32 +2759,29 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
 
 - **PROOF-RELEVANCE-MIGRATION.** Complete carrier-independent erased arguments
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
-  Reuse static checked-shape record/sum formals through `ProofTerm::Scalar`
-  and the `erased_record_parameter_exit` control; array-field carriers remain
-  unsupported. The dynamic gap is
-  `04_typed-trees-to-checked-trees/src/checks/contracts/dynamic_erased_lane.rs`
-  rejecting erased formals on dynamic requirements because their dispatch
-  plans carry no proof actuals. These refusals diagnose missing support; they
-  do not complete the specified feature.
+  Owners: stage 04 call plans, stage 05 contract/proof-term lowering, Terminal
+  codec and independent call composition. Static scalar contract arguments and
+  checked record/sum constructions with `ProofTerm::Scalar` leaves already have
+  transport. `erased_record_parameter_exit` exercises signature stripping, not
+  a contract consuming its witness. Array-field carriers still refuse; dynamic
+  dispatch rejects erased formals in `checks/contracts/dynamic_erased_lane.rs`
+  and its plans admit self-only calls without proof actuals.
 
-  Carry the exact erased subjects/actuals through static and dynamic call plans,
-  Terminal contracts and independent call composition without adding runtime
-  storage, ABI arguments or execution. Preserve witness identity, scope,
-  multiplicity and assumptions. Reuse the existing erased scalar/proof-term
-  routes; the exploratory dynamic-lane draft is not a new language prerequisite.
-  Erased-field custody/cleanup belongs to
-  CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.
+  Extend the existing routes to retain exact erased subjects/actuals, witness
+  identity, scope, multiplicity and assumptions through static/dynamic calls and
+  serialized contracts, without runtime storage, ABI arguments or execution.
+  The exploratory dynamic-lane draft adds no language prerequisite; erased-field
+  custody/cleanup belongs to CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.
 
-  Acceptance: an erased record/enum formal and a dynamic trait call using
-  erased evidence check and execute with stripped runtime signatures.
-  Replace `fail/relevance/erased_nonscalar_parameter` and
-  `dynamic_erased_formal_lane`'s implementation-limit expectations with
-  positive coverage. Missing, substituted, out-of-scope or violating proof
-  actuals still reject after serialization. Retain the static
-  `erased_parameter_proof_only`, `erased_parameter_named_transition_forward`
-  and `composed_unit_internal_calls` controls, plus runtime-read, receiver and
-  layout-dependent-erasure rejection. Do not relax semantically invalid
-  qualifier combinations merely to remove an implementation fence.
+  Acceptance: erased record/enum and array-bearing formals, plus a dynamic trait
+  call, use their erased evidence in checked contracts and execute with stripped
+  runtime signatures. Replace `fail/relevance/erased_nonscalar_parameter` and
+  `dynamic_erased_formal_lane`'s implementation-limit expectations with positives.
+  Missing, substituted, out-of-scope or violating actuals must reject after wire
+  round-trip. Preserve `erased_parameter_proof_only`,
+  `erased_parameter_named_transition_forward`
+  and `composed_unit_internal_calls`' exact erased ordinals, plus runtime-read,
+  receiver, layout-dependent-erasure and invalid-qualifier refusals.
 
 - **NORMALIZED-ABI-LOWERING.** Finish aggregate and descriptor foreign
   argument/result transport under the
