@@ -39,6 +39,50 @@ Release notes identify its tested hosts and verified source-acquisition paths.
 Broader OS compatibility, code signing, final license review and installer
 channels remain release-distribution work, not claims made by the smoke tests.
 
+## Direct Windows installer
+
+`windows-installer.yml` wraps existing verified Windows release archives in a
+per-user MSI. It does not rebuild the compiler. MSI owns the whole bundle under
+`%LOCALAPPDATA%\Programs\Omega`, user PATH registration, transactional major
+upgrades, downgrade rejection, and uninstall. No custom actions or recursive
+directory deletion are authored; user projects and caches remain outside it.
+
+Dispatch from any development host with GitHub CLI:
+
+```sh
+gh workflow run windows-installer.yml --ref main \
+    -f previous_tag=v0.1.0-alpha.2 -f tag=v0.1.0-alpha.3 \
+    -f previous_installer_version=0.1.2 -f installer_version=0.1.3
+```
+
+MSI versions are an **independent monotonically increasing installer sequence**:
+three integers bounded by `255.255.65535`. They are not the compiler's SemVer
+version. Never reuse a published installer version for different bytes, including
+a packaging-only change. The product's display name and `omega --version` retain
+the full compiler version. Keep the UpgradeCode stable across releases.
+
+The disposable Windows job installs the old MSI, builds a Git-backed native
+program returning 42, upgrades the whole bundle, rebuilds the same project
+offline without rewriting its lock, rejects a downgrade, and uninstalls. It
+checks exact installed manifests and restoration of unrelated PATH entries.
+Only a successful job uploads the new MSI/checksum as `windows-msi`; attach
+those exact files to the release after reviewing `windows-msi-evidence`. The
+workflow does not automatically publish or overwrite release assets.
+
+Authoring is Python-portable; MSI construction needs Windows, .NET, and pinned
+WiX 4.0.6 installed locally (not globally):
+
+```powershell
+dotnet tool install wix --version 4.0.6 --tool-path build/wix
+python tools/release/windows_installer.py --bundle EXTRACTED_VERIFIED_BUNDLE --installer-version 0.1.3 --output build/msi --wix build/wix/wix.exe
+```
+
+The builder verifies the bundle manifest, rejects dirty/non-Windows bundles,
+and refuses an existing output directory. The hosted check also verifies the
+input archive checksums and their exact release-tag commits. WiX 4 is pinned
+to its existing open-source licensing; upgrading the packaging dependency is
+an explicit review, not a floating tool update. Installers remain unsigned.
+
 ## Build a relocatable bundle
 
 From a clean checkout, on the host you are distributing:
