@@ -92,6 +92,21 @@ pub(super) struct Session {
 }
 
 impl Session {
+    /// Prefer a literal already connected by cited equalities over expanding
+    /// an observation into its field identity. A later read and an earlier
+    /// guarded read can share that identity without sharing an SSA value.
+    pub(super) fn literal_equality(&self, endpoint: &ScalarTerm) -> Option<ProofNode> {
+        let component = self.roster.components.get(endpoint)?;
+        let literal = self.roster.base_endpoints.iter().find(|candidate| {
+            matches!(
+                candidate,
+                ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+            ) && candidate.scalar_type() == endpoint.scalar_type()
+                && self.roster.components.get(*candidate) == Some(component)
+        })?;
+        self.prove(&Proposition::Equal(endpoint.clone(), literal.clone()))
+    }
+
     /// Same contract as `prove` under the session's fixed scope.
     pub(super) fn prove(&self, goal: &Proposition) -> Option<ProofNode> {
         self.roster.prove(goal)
@@ -855,6 +870,43 @@ mod tests {
 
     fn conserved_sum() -> ScalarTerm {
         add(term(1), term(2))
+    }
+
+    #[test]
+    fn literal_transport_requires_the_whole_unconditional_equality_chain() {
+        let facts = vec![
+            Proposition::Equal(term(1), term(2)),
+            Proposition::Equal(term(3), term(2)),
+            Proposition::Equal(term(1), one()),
+        ];
+        let proof = super::session(&context(), &[], &facts)
+            .literal_equality(&term(3))
+            .expect("reversed aliases connect the observation to its guarded literal");
+        let goal = Proposition::Equal(term(3), one());
+        proof_admission::accept_certificate(&context(), &goal, &[], &facts, &proof).unwrap();
+        for missing in 0..facts.len() {
+            let mut incomplete = facts.clone();
+            incomplete[missing] = Proposition::Truth;
+            assert!(
+                super::session(&context(), &[], &incomplete)
+                    .literal_equality(&term(3))
+                    .is_none()
+            );
+            assert!(
+                proof_admission::accept_certificate(&context(), &goal, &[], &incomplete, &proof,)
+                    .is_err()
+            );
+        }
+        let mut conditional = facts.clone();
+        conditional[2] = Proposition::Implication {
+            premise: Box::new(Proposition::Falsehood),
+            conclusion: Box::new(facts[2].clone()),
+        };
+        assert!(
+            super::session(&context(), &[], &conditional)
+                .literal_equality(&term(3))
+                .is_none()
+        );
     }
 
     #[test]

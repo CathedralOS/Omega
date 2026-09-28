@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use proof_admission::ProofNode;
-use semantic_vocabulary::{Proposition, PropositionContext, ValueId};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ValueId};
 
 use super::affine_custody::DefinitionIndex;
 
@@ -24,6 +24,15 @@ mod substitution;
 mod wrapping;
 
 pub(super) use logical::{prove_conjunction, prove_disjunction};
+
+pub(super) fn cited_literal_equality(
+    context: &PropositionContext,
+    endpoint: &ScalarTerm,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Option<ProofNode> {
+    exact::session(context, assumptions, semantic_axioms).literal_equality(endpoint)
+}
 
 pub(super) fn build(
     context: &PropositionContext,

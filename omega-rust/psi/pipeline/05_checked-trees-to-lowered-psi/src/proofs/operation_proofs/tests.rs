@@ -8,6 +8,79 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
 #[test]
+fn guarded_nested_fields_prove_composed_exact_arithmetic() {
+    let source = "data Inner { value: i32; bonus: i32; }
+         data Outer { inner: Inner; count: i32; multiplier: i32; }
+         data Main { state: Outer; result: i32; }
+         machine Main::run(&mut self) {
+             transition self.state.inner.value == 40 {
+                 true -> bonus() _ -> done()
+             }
+             state bonus(&mut self) {
+                 transition self.state.inner.bonus == 20 {
+                     true -> count() _ -> done()
+                 }
+             }
+             state count(&mut self) {
+                 transition self.state.count == 2 {
+                     true -> multiplier() _ -> done()
+                 }
+             }
+             state multiplier(&mut self) {
+                 transition self.state.multiplier == 5 {
+                     true -> compute() _ -> done()
+                 }
+             }
+             state compute(&mut self) {
+                 self.result = ARITHMETIC;
+             }
+             state done(&mut self) { }
+         }";
+    for expression in [
+        "self.state.inner.value + self.state.inner.bonus + self.state.count * self.state.multiplier",
+        "self.state.count * self.state.multiplier + (self.state.inner.bonus + self.state.inner.value)",
+        "self.state.inner.value - self.state.count * self.state.multiplier",
+    ] {
+        let source = source.replace("ARITHMETIC", expression);
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+            .expect("guarded reads retain their bounds through composed exact arithmetic");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("independent replay checks the arithmetic evidence");
+
+        let mut changed = lowered.semantic_module.clone();
+        let literal = changed
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                terminal_psi::OperationKind::IntegerConstant { value }
+                    if *value == semantic_vocabulary::IntegerValue::Signed(40) =>
+                {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .expect("the value guard has an explicit literal");
+        *literal = semantic_vocabulary::IntegerValue::Signed(i32::MAX as i128);
+        assert!(
+            terminal_verifier::verify_module(
+                &changed,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "changed guards cannot retain the original arithmetic evidence"
+        );
+    }
+}
+
+#[test]
 fn sequential_clamps_prove_exact_arithmetic_on_an_observed_field() {
     for expression in ["bounded + 70", "70 + bounded", "bounded + -70"] {
         let lowered = clamped_field_addition(expression);
