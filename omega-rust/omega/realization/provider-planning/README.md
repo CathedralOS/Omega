@@ -36,6 +36,19 @@ The compiler forwards that adapter to Psi's build-time evaluator, which owns
 execution admissibility, operands and replay; it does not reconstruct provider
 authority.
 
+[Target declarations](src/target_machines.rs) prepare the source family roster,
+rejoin generated extensions and select the product's typed bodies. The retained
+carrier consumes that roster into typed defaults and origins for settlement;
+build evaluation and the compiler do not implement those selection rules.
+[Provider declarations](src/provider_declarations.rs) decode static defaults
+and executed Build choices into the same exact selection identities. Package
+review uses its declaration replay without executing Build again.
+
+This is transitional source/checked-tree realization, not target-neutral Psi
+checking or the final post-Terminal installation route. The dependency on Psi's
+typed declaration checks supports these exact joins and does not give Omega
+authority to change source-language meaning.
+
 Target defaults preserve their exact producer roster through target-marker
 erasure and typed construction, then rejoin those typed machines before plan
 selection. Do not replace the consuming carrier with a raw machine-name channel.
