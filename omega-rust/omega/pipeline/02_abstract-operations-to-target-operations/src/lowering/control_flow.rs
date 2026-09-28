@@ -18,6 +18,7 @@ use terminal_psi::{
 };
 mod aggregate_borrows;
 pub(super) mod aggregate_results;
+mod atomic_access;
 mod borrowed_calls;
 mod borrowed_windows;
 mod byte_concatenation;

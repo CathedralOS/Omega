@@ -1,6 +1,7 @@
 //! Optimizer module role: stage group.
 
 mod address_joins;
+mod atomic_access;
 mod dynamic_parameters;
 mod indexed_field_reads;
 mod native_boundaries;
