@@ -52,7 +52,7 @@ pub(super) fn project(
             }
         }
         AbstractOperation::StructuralByteSequenceFieldLength { .. } => {
-            let (_, _, source, field) = scalar_graph_input::structural_fields::read(
+            let (_, _, source, _, field) = scalar_graph_input::structural_fields::read(
                 optimized,
                 &node.operation,
                 &plan.structural_types,
@@ -62,13 +62,17 @@ pub(super) fn project(
         }
         AbstractOperation::IntegerStructuralField { .. }
         | AbstractOperation::BooleanStructuralField { .. } => {
-            let (_, _, source, field) = scalar_graph_input::structural_fields::read(
+            let (_, _, source, case, field) = scalar_graph_input::structural_fields::read(
                 optimized,
                 &node.operation,
                 &plan.structural_types,
             )
             .ok_or(Error::custody())?;
-            LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field }
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                source,
+                case,
+                field,
+            }
         }
         AbstractOperation::IntegerBitwiseAnd { left, right, .. } => {
             LegalizedScalarInstructionKind::BitwiseAnd {

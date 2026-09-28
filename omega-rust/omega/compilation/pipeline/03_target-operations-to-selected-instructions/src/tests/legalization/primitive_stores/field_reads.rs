@@ -12,6 +12,7 @@ use crate::validate_legalized_operations;
 use abstract_operations::AbstractFunctionResult;
 use semantic_vocabulary::EdgeId;
 
+mod case_payloads;
 mod indirect_inputs;
 
 #[test]
@@ -435,6 +436,7 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                         psi_operation,
                         result,
                         source: argument.clone(),
+                        case: None,
                         field,
                     };
                 assert!(legalize_target_operations(&changed, &source, &unit).is_err());
@@ -442,6 +444,7 @@ fn field_observations(access: StructuralAccess, nested: bool, byte_length: bool)
                 changed.scalar_functions[0].blocks[0].instructions[1].kind =
                     LegalizedScalarInstructionKind::StructuralScalarFieldRead {
                         source: argument,
+                        case: None,
                         field,
                     };
                 assert!(validate_legalized_operations(&target, &source, &unit, changed).is_err());

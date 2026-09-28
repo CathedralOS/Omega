@@ -177,16 +177,22 @@ pub(in crate::legalization) fn byte_read(
     })
 }
 
+/// One scalar field observation's legal shape: the defining operation and
+/// result, the runtime carrier, the declared case whose payload holds the
+/// field (absent for a record field), and the observed field.
+pub(in crate::legalization) type FieldObservation = (
+    semantic_vocabulary::OperationId,
+    abstract_operations::AbstractResult,
+    terminal_psi::StructuralArgument,
+    Option<semantic_vocabulary::StructuralCaseId>,
+    semantic_vocabulary::StructuralFieldId,
+);
+
 pub(in crate::legalization) fn read(
     function: &PsiOptimizationFunction,
     operation: &AbstractOperation,
     types: &[terminal_psi::StructuralTypeDeclaration],
-) -> Option<(
-    semantic_vocabulary::OperationId,
-    abstract_operations::AbstractResult,
-    terminal_psi::StructuralArgument,
-    semantic_vocabulary::StructuralFieldId,
-)> {
+) -> Option<FieldObservation> {
     if let AbstractOperation::StructuralByteSequenceFieldLength {
         psi_operation,
         result,
@@ -211,6 +217,7 @@ pub(in crate::legalization) fn read(
                 access: parameter.access,
                 path: path.clone(),
             },
+            None,
             *field,
         ));
     }
@@ -287,20 +294,39 @@ pub(in crate::legalization) fn read(
             terminal_psi::StructuralAccess::Owned,
         )
     };
-    let runtime_path = runtime_path(structural_type, path, types)?;
+    // A final `Case` step selects which payload overlay holds the field. It
+    // names no storage of its own: the payload lives at the sum's place, so
+    // the runtime carrier stops at the sum and the case travels beside it.
+    let (carrier_path, case) = match path.split_last() {
+        Some((semantic_vocabulary::CanonicalStructuralPathSegment::Case(case), prefix)) => {
+            (prefix, Some(*case))
+        }
+        _ => (path.as_slice(), None),
+    };
+    let runtime_path = runtime_path(structural_type, carrier_path, types)?;
     let source = terminal_psi::StructuralArgument {
         place,
         access,
         path: runtime_path,
     };
-    crate::structural_inputs::structural_reference_input::field_read(
-        structural_type,
-        &source.path,
-        field,
-        result.scalar_type,
-        types,
-    )?;
-    Some((operation, result, source, field))
+    match case {
+        None => crate::structural_inputs::structural_reference_input::field_read(
+            structural_type,
+            &source.path,
+            field,
+            result.scalar_type,
+            types,
+        )?,
+        Some(case) => crate::structural_inputs::structural_reference_input::case_field_read(
+            structural_type,
+            &source.path,
+            case,
+            field,
+            result.scalar_type,
+            types,
+        )?,
+    };
+    Some((operation, result, source, case, field))
 }
 
 /// The runtime spelling of a canonical projection beneath `root`: each field

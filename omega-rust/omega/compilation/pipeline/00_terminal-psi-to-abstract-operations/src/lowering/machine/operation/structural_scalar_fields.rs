@@ -2,6 +2,9 @@
 //! Bounded reads use the declared integer carrier after constructor/entry range
 //! proof reconstruction. A read captures a value; it does not relax the declared
 //! invariant, so stores without their own establishment proof remain rejected.
+//! An integer read may also end its carrier with one `Case` step naming a
+//! payload field of that declared case; the payload overlays the sum's own
+//! place, and the carrier and leaf are rebuilt from declarations here.
 
 use abstract_operations::{AbstractOperation, AbstractResult, StructuralScalarStoreDestination};
 use semantic_vocabulary::{
@@ -224,12 +227,9 @@ fn lower_integer_read(
 ) -> Result<AbstractOperation, LoweringError> {
     let invalid = || LoweringError::InvalidIntegerStructuralField(operation.id);
     let structural_type = readable_source_type(machine, source).ok_or_else(invalid)?;
-    let carrier =
-        terminal_semantics::record_field_carrier(structural_types.iter(), structural_type, path)
-            .ok_or_else(invalid)?;
     let result = operation.result.scalar().ok_or_else(invalid)?;
     if !matches!(result.scalar_type, ScalarType::Integer(_))
-        || direct_relevant_scalar_field(structural_types, carrier.structural_type, field, true)
+        || observed_scalar_field(structural_types, structural_type, path, field)
             != Some(result.scalar_type)
     {
         return Err(invalid());
@@ -420,6 +420,27 @@ fn resolve_structural_path(
     Some(structural_type)
 }
 
+/// The scalar one field observation reads beneath a `root` of that type: a
+/// relevant field of the record `path` reaches, or a relevant payload field of
+/// the declared case a final `Case` step names. The `Case` step is a claim
+/// about which overlay is live, not storage; Terminal verification proved it
+/// before this read, so only the declared carrier and leaf are rebuilt here.
+fn observed_scalar_field(
+    structural_types: &[StructuralTypeDeclaration],
+    root: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    field: StructuralFieldId,
+) -> Option<ScalarType> {
+    if let Some(carrier) =
+        terminal_semantics::case_payload_carrier(structural_types.iter(), root, path)
+    {
+        exact_structural_type(structural_types, carrier.sum)?;
+        return unique_relevant_scalar_field(carrier.fields, field, true);
+    }
+    let carrier = terminal_semantics::record_field_carrier(structural_types.iter(), root, path)?;
+    direct_relevant_scalar_field(structural_types, carrier.structural_type, field, true)
+}
+
 fn direct_relevant_scalar_field(
     structural_types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
@@ -430,6 +451,14 @@ fn direct_relevant_scalar_field(
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;
     };
+    unique_relevant_scalar_field(fields, field, allow_bounded_integer)
+}
+
+fn unique_relevant_scalar_field(
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    field: StructuralFieldId,
+    allow_bounded_integer: bool,
+) -> Option<ScalarType> {
     let mut matching = fields.iter().filter(|candidate| {
         candidate.id == field && candidate.relevance == BindingRelevance::Relevant
     });
@@ -466,7 +495,7 @@ fn exact_structural_type(
 mod tests {
     use super::{
         direct_relevant_scalar_field, dominating_scalar_type, exact_parameter,
-        has_empty_structural_custody, resolve_structural_path,
+        has_empty_structural_custody, observed_scalar_field, resolve_structural_path,
     };
     use semantic_vocabulary::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, PlaceId,
@@ -821,6 +850,73 @@ mod tests {
         );
         assert_eq!(
             direct_relevant_scalar_field(&types, root, StructuralFieldId::new(13).unwrap(), true),
+            None
+        );
+    }
+
+    #[test]
+    fn case_qualified_reads_resolve_only_the_named_case_payload() {
+        use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, StructuralCaseId};
+        let u8_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let sum = StructuralTypeId::new(2).unwrap();
+        let types = vec![
+            record_type(
+                1,
+                vec![field(5, "mode", StructuralFieldType::Structural(sum))],
+            ),
+            StructuralTypeDeclaration {
+                id: sum,
+                identity: "test::Mode".into(),
+                shape: StructuralTypeShape::Sum {
+                    cases: vec![
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: StructuralCaseId::new(1).unwrap(),
+                            identity: "Idle".into(),
+                            fields: vec![field(
+                                1,
+                                "level",
+                                StructuralFieldType::Scalar(i32_type()),
+                            )],
+                        },
+                        terminal_psi::StructuralCaseDeclaration {
+                            id: StructuralCaseId::new(2).unwrap(),
+                            identity: "Run".into(),
+                            fields: vec![field(1, "speed", StructuralFieldType::Scalar(u8_type))],
+                        },
+                    ],
+                },
+            },
+        ];
+        let root = StructuralTypeId::new(1).unwrap();
+        let path = |case| {
+            vec![
+                Segment::Field(StructuralFieldId::new(5).unwrap()),
+                Segment::Case(StructuralCaseId::new(case).unwrap()),
+            ]
+        };
+        let first = StructuralFieldId::new(1).unwrap();
+        // Both cases declare field 1; the case step alone selects its type.
+        assert_eq!(
+            observed_scalar_field(&types, root, &path(1), first),
+            Some(i32_type())
+        );
+        assert_eq!(
+            observed_scalar_field(&types, root, &path(2), first),
+            Some(u8_type)
+        );
+        // An undeclared case, an absent payload field, and a case step that
+        // is not final all fail closed.
+        assert_eq!(observed_scalar_field(&types, root, &path(3), first), None);
+        assert_eq!(
+            observed_scalar_field(&types, root, &path(1), StructuralFieldId::new(2).unwrap()),
+            None
+        );
+        let mut trailing = path(1);
+        trailing.push(Segment::Field(first));
+        assert_eq!(observed_scalar_field(&types, root, &trailing, first), None);
+        // Without the case step the sum is no record carrier.
+        assert_eq!(
+            observed_scalar_field(&types, root, &path(1)[..1], first),
             None
         );
     }

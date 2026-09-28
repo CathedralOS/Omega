@@ -14,26 +14,35 @@ pub(super) fn validate_structural_scalar_field_read(
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Result<(), LegalizationError> {
-    let ((
-        LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field },
-        AbstractOperation::IntegerStructuralField { .. }
-        | AbstractOperation::BooleanStructuralField { .. },
-    )
-    | (
-        LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field },
-        AbstractOperation::StructuralByteSequenceFieldLength { .. },
-    )) = (&actual.kind, &node.operation)
-    else {
-        unreachable!("dispatched validate_structural_scalar_field_read")
+    // A record read and a byte-length observation carry no case; a
+    // case-qualified read must name exactly the case its abstract carrier's
+    // final `Case` step names, so neither a dropped nor a substituted case
+    // (which would move the offset to another overlay) replays.
+    let (source, case, field) = match (&actual.kind, &node.operation) {
+        (
+            LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                source,
+                case,
+                field,
+            },
+            AbstractOperation::IntegerStructuralField { .. }
+            | AbstractOperation::BooleanStructuralField { .. },
+        ) => (source, *case, field),
+        (
+            LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { source, field },
+            AbstractOperation::StructuralByteSequenceFieldLength { .. },
+        ) => (source, None, field),
+        _ => unreachable!("dispatched validate_structural_scalar_field_read"),
     };
     let invalid = Error::NonCanonicalLegalizedPlan;
-    let (_, _, expected_source, expected_field) = scalar_graph_input::structural_fields::read(
-        optimized,
-        &node.operation,
-        &plan.structural_types,
-    )
-    .ok_or(invalid.clone())?;
-    if source != &expected_source || *field != expected_field {
+    let (_, _, expected_source, expected_case, expected_field) =
+        scalar_graph_input::structural_fields::read(
+            optimized,
+            &node.operation,
+            &plan.structural_types,
+        )
+        .ok_or(invalid.clone())?;
+    if source != &expected_source || case != expected_case || *field != expected_field {
         return Err(invalid);
     }
     Ok(())

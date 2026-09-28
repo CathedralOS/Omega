@@ -150,15 +150,12 @@ the complete product bar; focused successes below do not establish that baseline
     zero-length arrays still reject in native structural layout; preserve
     empty-index and literal-arity rejection while admitting empty construction.
     `filesystem/windows_canonicalize_exit` needs its stored UnitResult;
-    Case payloads read through a sum field now verify and interpret: the
-    read's carrier ends in a `Case` step proved by a dominating membership
-    test or by exhaustion. `data/runtime_case_reassignment_exit`,
-    `structs/deep_nested_write_paths_exit`, `samples/cli/proofs/shape_area` and
-    `samples/cli/basics/brightness_control` now stop in Omega stage 00:
-    `structural_scalar_fields.rs` `lower_integer_read` resolves record carriers
-    only. Realize the read at the case payload offset, as
-    `StructuralCopyPath::Case` copies already do. `errors/runtime_result_match_exit`
-    stops at `ControlCycleIneligible` for a case read inside a cycle. Coordinate
+    `samples/cli/proofs/shape_area` stops in Psi stage 05 at
+    `OperationProofUnavailable`: the overflow obligation of
+    `radius * radius * 3` in `circle_area` is not produced although the
+    path facts bound `radius` to 0..=100. `errors/runtime_result_match_exit`
+    stops at `ControlCycleIneligible` for the affine case store inside its
+    loop. Coordinate
     **FILESYSTEM-RELEASE-CONTRACT**, **WRITE-ONLY-BORROW** and
     **NOMINAL-FIELD-FLOW**.
 

@@ -607,8 +607,16 @@ pub(super) fn retained(
     else {
         return false;
     };
-    let mut runtime_path = Vec::with_capacity(path.len());
-    for (position, segment) in path.iter().enumerate() {
+    // A final `Case` step names the payload overlay the field belongs to. It
+    // adds no runtime segment; the published row must carry that same case.
+    let (carrier_path, case) = match path.split_last() {
+        Some((semantic_vocabulary::CanonicalStructuralPathSegment::Case(case), prefix)) => {
+            (prefix, Some(*case))
+        }
+        _ => (path.as_slice(), None),
+    };
+    let mut runtime_path = Vec::with_capacity(carrier_path.len());
+    for (position, segment) in carrier_path.iter().enumerate() {
         match segment {
             semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
                 let Some(declaration) = target
@@ -643,7 +651,7 @@ pub(super) fn retained(
             // observed field. The bound is rechecked against the declared
             // extent rather than trusted from the producer.
             semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
-                if position + 1 == path.len() =>
+                if position + 1 == carrier_path.len() =>
             {
                 let Some(declaration) = target
                     .graph
@@ -682,12 +690,14 @@ pub(super) fn retained(
                 psi_operation,
                 result,
                 source,
+                case,
                 field,
-            } if *psi_operation == identity => Some((result, source, field)),
+            } if *psi_operation == identity => Some((result, source, case, field)),
             _ => None,
         });
-    matches!(reads.next(), Some((actual_result, source, actual_field))
-        if *actual_result == result && *source == expected_source && *actual_field == field)
+    matches!(reads.next(), Some((actual_result, source, actual_case, actual_field))
+        if *actual_result == result && *source == expected_source && *actual_case == case
+            && *actual_field == field)
         && reads.next().is_none()
 }
 

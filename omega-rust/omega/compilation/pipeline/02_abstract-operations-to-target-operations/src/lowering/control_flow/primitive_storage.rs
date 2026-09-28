@@ -302,6 +302,16 @@ pub(super) fn lower(
             };
             let mut carrier = structural_type;
             let mut runtime_path = Vec::with_capacity(path.len());
+            let mut case = None;
+            // A trailing `Case` step names the declared case whose payload
+            // field the read observes; its payload overlays the sum's own
+            // place, so the step joins no runtime path segment.
+            let carrier_end = match path.last() {
+                Some(semantic_vocabulary::CanonicalStructuralPathSegment::Case(_)) => {
+                    path.len() - 1
+                }
+                _ => path.len(),
+            };
             for (position, segment) in path.iter().enumerate() {
                 match segment {
                     semantic_vocabulary::CanonicalStructuralPathSegment::Field(field) => {
@@ -336,7 +346,7 @@ pub(super) fn lower(
                     // against the declared extent rather than trusted from
                     // the producer.
                     semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index)
-                        if position + 1 == path.len() =>
+                        if position + 1 == carrier_end =>
                     {
                         let StructuralTypeShape::FixedArray { element, length } = &types
                             .get(&carrier)
@@ -353,14 +363,36 @@ pub(super) fn lower(
                         runtime_path.push(terminal_psi::StructuralPathSegment::FixedIndex(*index));
                         carrier = *element;
                     }
+                    semantic_vocabulary::CanonicalStructuralPathSegment::Case(identity)
+                        if position == carrier_end =>
+                    {
+                        case = Some(*identity);
+                    }
                     _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
                 }
             }
-            if !types.get(&carrier).is_some_and(|declaration|
-                matches!(&declaration.shape, StructuralTypeShape::Record { fields }
-                    if fields.iter().any(|candidate| candidate.id == field && !candidate.relevance.is_erased()
-                        && candidate.field_type.scalar_type() == Some(result.scalar_type))))
-            {
+            let declaration = types
+                .get(&carrier)
+                .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            let fields = match (&declaration.shape, case) {
+                (StructuralTypeShape::Record { fields }, None) => fields,
+                (
+                    StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
+                    Some(case),
+                ) => {
+                    &cases
+                        .iter()
+                        .find(|candidate| candidate.id == case)
+                        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
+                        .fields
+                }
+                _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
+            };
+            if !fields.iter().any(|candidate| {
+                candidate.id == field
+                    && !candidate.relevance.is_erased()
+                    && candidate.field_type.scalar_type() == Some(result.scalar_type)
+            }) {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
             retain_result(psi_operation, result, live)?;
@@ -374,6 +406,7 @@ pub(super) fn lower(
                         access,
                         path: runtime_path,
                     },
+                    case,
                     field,
                 },
             )

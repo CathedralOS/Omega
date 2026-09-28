@@ -106,6 +106,7 @@ fn shared_record_field_load_replays_field_type_access_and_offset() {
                         access: StructuralAccess::SharedBorrow,
                         path: Vec::new(),
                     },
+                    case: None,
                     field,
                 };
             let LegalizedScalarTerminator::Return(returned) = &mut source.blocks[0].terminator
@@ -157,8 +158,9 @@ fn shared_record_field_load_replays_field_type_access_and_offset() {
             for mutation in 0..4 {
                 let mut changed = source.clone();
                 let row = &mut changed.blocks[0].instructions[0];
-                let LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field } =
-                    &mut row.kind
+                let LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                    source, field, ..
+                } = &mut row.kind
                 else {
                     panic!("read");
                 };

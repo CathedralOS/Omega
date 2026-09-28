@@ -145,6 +145,7 @@ pub(super) fn read_geometry(
         Instruction::StructuralScalarFieldRead {
             source: argument,
             field,
+            ..
         }
         | Instruction::StructuralByteSequenceFieldLength {
             source: argument,
@@ -222,18 +223,36 @@ pub(super) fn read_geometry(
                 }
                 result.structural_type
             };
-            let geometry = if observes_byte_length {
-                crate::structural_inputs::structural_reference_input::byte_field_length
-            } else {
-                crate::structural_inputs::structural_reference_input::field_read
+            // A case-qualified read loads from its payload overlay; the
+            // offset comes from that declared case's layout, never the row.
+            let (offset, _) = match &row.kind {
+                Instruction::StructuralScalarFieldRead {
+                    case: Some(case), ..
+                } => crate::structural_inputs::structural_reference_input::case_field_read(
+                    structural_type,
+                    &argument.path,
+                    *case,
+                    *field,
+                    scalar,
+                    &signature.structural_types,
+                )?,
+                _ if observes_byte_length => {
+                    crate::structural_inputs::structural_reference_input::byte_field_length(
+                        structural_type,
+                        &argument.path,
+                        *field,
+                        scalar,
+                        &signature.structural_types,
+                    )?
+                }
+                _ => crate::structural_inputs::structural_reference_input::field_read(
+                    structural_type,
+                    &argument.path,
+                    *field,
+                    scalar,
+                    &signature.structural_types,
+                )?,
             };
-            let (offset, _) = geometry(
-                structural_type,
-                &argument.path,
-                *field,
-                scalar,
-                &signature.structural_types,
-            )?;
             Some((argument.place, offset))
         }
         _ => None,

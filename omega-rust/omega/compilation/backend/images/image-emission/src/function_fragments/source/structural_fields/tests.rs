@@ -243,6 +243,7 @@ fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) 
             access: parameter.access,
             path: vec![],
         },
+        case: None,
         field,
     };
     let function = AbstractFunction {
@@ -367,6 +368,7 @@ fn byte_length_membership_preserves_metadata_kind_and_exact_borrowed_subject() {
                         psi_operation: *psi_operation,
                         result: *result,
                         source: source.clone(),
+                        case: None,
                         field: *field,
                     }
                 }
@@ -969,12 +971,13 @@ fn structural_field_membership_requires_exact_source_result_type_access_path_and
         let (function, target) = field_fixture(scalar_type);
         let operation = &function.operations[0];
         assert!(retained(&function, operation, &target));
-        for mutation in 0..7 {
+        for mutation in 0..8 {
             let mut changed = target.clone();
             let TargetUnitOperation::StructuralScalarFieldRead {
                 psi_operation,
                 result,
                 source,
+                case,
                 field,
             } = &mut changed.graph.blocks[0].operations[0]
             else {
@@ -995,6 +998,9 @@ fn structural_field_membership_requires_exact_source_result_type_access_path_and
                 5 => source
                     .path
                     .push(StructuralPathSegment::Field("nested".to_owned())),
+                // A record read relabeled as a case payload read would move
+                // selection to an overlay offset the carrier never named.
+                6 => *case = Some(semantic_vocabulary::StructuralCaseId::new(1).unwrap()),
                 _ => *field = StructuralFieldId::new(2).unwrap(),
             }
             assert!(

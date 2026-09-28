@@ -1156,6 +1156,61 @@ pub(crate) fn field_read(
         .map(|(offset, bytes, _)| (offset, bytes))
 }
 
+/// Case payload geometry for one scalar observation. `path` is the runtime
+/// carrier to a sum, in the same bounded grammar `field_read` admits, and
+/// `field` is a relevant payload field of the declared `case`. A payload
+/// overlays the sum's own place, so the offset is the sum's offset plus the
+/// field's offset in that case's conventional layout: the layout
+/// `case_projection` copies and case establishment writes use. The case is a
+/// verified claim about which overlay is live, not layout evidence; the field
+/// is found only within that case, so a substituted case or field fails
+/// instead of reading a neighbouring overlay.
+pub(crate) fn case_field_read(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    case: semantic_vocabulary::StructuralCaseId,
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8)> {
+    if !matches!(scalar, ScalarType::Boolean | ScalarType::Integer(_))
+        || !terminal_psi::is_bounded_structural_scalar_store_path(path)
+    {
+        return None;
+    }
+    let root = shape(structural_type, declarations)?;
+    let (sum, sum_offset) = project(structural_type, path, declarations)?;
+    let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
+        &declarations
+            .iter()
+            .find(|declaration| declaration.id == sum)?
+            .shape
+    else {
+        return None;
+    };
+    let case_position = cases.iter().position(|candidate| candidate.id == case)?;
+    let (field_position, declaration) = cases[case_position]
+        .fields
+        .iter()
+        .filter(|candidate| !candidate.relevance.is_erased())
+        .enumerate()
+        .find(|(_, candidate)| candidate.id == field)?;
+    if declaration.field_type.scalar_type() != Some(scalar) {
+        return None;
+    }
+    let placed = case_layout(sum, declarations)?
+        .cases
+        .get(case_position)?
+        .fields
+        .get(field_position)
+        .copied()?;
+    let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
+    let offset = sum_offset.checked_add(placed.byte_offset)?;
+    (placed.shape.byte_size == u32::from(bytes)
+        && u64::from(offset).checked_add(u64::from(bytes))? <= u64::from(root.byte_size))
+    .then_some((offset, bytes))
+}
+
 /// Bounded inline byte storage starts with an aligned u64 live length, followed
 /// by capacity bytes. The enclosing record rounds the capacity+8 footprint for
 /// its next field; a borrowed view's pointer/length descriptor is a different

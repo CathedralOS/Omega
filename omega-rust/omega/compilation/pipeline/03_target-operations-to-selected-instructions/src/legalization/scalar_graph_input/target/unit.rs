@@ -590,6 +590,7 @@ pub(super) fn validate_operation(
                 result,
                 source,
                 field,
+                ..
             },
             AbstractOperation::IntegerStructuralField { .. }
             | AbstractOperation::BooleanStructuralField { .. },
@@ -603,13 +604,19 @@ pub(super) fn validate_operation(
             },
             AbstractOperation::StructuralByteSequenceFieldLength { .. },
         ) => {
+            // Only a scalar field read names a payload case; the replayed
+            // carrier decides whether one is required, and which.
+            let case = match target {
+                TargetUnitOperation::StructuralScalarFieldRead { case, .. } => *case,
+                _ => None,
+            };
             let expected = super::super::structural_fields::read(
                 optimized,
                 abstracted,
                 &plan.structural_types,
             )
             .ok_or(LegalizationError::custody())?;
-            if expected != (*psi_operation, *result, source.clone(), *field) {
+            if expected != (*psi_operation, *result, source.clone(), case, *field) {
                 return Err(LegalizationError::custody());
             }
             sources.push((

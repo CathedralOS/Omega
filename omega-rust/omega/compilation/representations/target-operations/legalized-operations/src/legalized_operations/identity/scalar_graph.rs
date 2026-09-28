@@ -314,9 +314,25 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_path(bytes, path);
                     encode_runtime_indices(bytes, indices);
                 }
-                LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field } => {
+                LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                    source,
+                    case: None,
+                    field,
+                } => {
                     bytes.push(25);
                     super::structural_types::encode_structural_argument(bytes, source);
+                    bytes.extend_from_slice(&field.get().to_le_bytes());
+                }
+                // A case-qualified read takes its own tag, so record reads keep
+                // their existing encoding and no two shapes share bytes.
+                LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                    source,
+                    case: Some(case),
+                    field,
+                } => {
+                    bytes.push(TAG_CASE_PAYLOAD_FIELD_READ);
+                    super::structural_types::encode_structural_argument(bytes, source);
+                    bytes.extend_from_slice(&case.get().to_le_bytes());
                     bytes.extend_from_slice(&field.get().to_le_bytes());
                 }
                 LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
@@ -1059,6 +1075,10 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
         }
     }
 }
+
+/// A case-qualified scalar field read: above the trapping forms (95..166) and
+/// the atomic access tag (167).
+const TAG_CASE_PAYLOAD_FIELD_READ: u8 = 168;
 
 /// One tag per Trapping form, above every other instruction tag: 95 plus the
 /// form's dense ordinal (95 through 166).
