@@ -169,6 +169,238 @@ fn closed_token_candidates_are_independent_of_provider_selection() {
     }
 }
 
+/// Two closed `[]` applications over distinct const tuples, where each
+/// provider's checked body computes a different observable scalar from the
+/// same operands: the first reads the structural operand's field, the second
+/// folds in the scalar argument. Installing either provider must produce that
+/// provider's result — an installed candidate whose body never ran is not
+/// execution coverage.
+const EXECUTED_OPERATOR_SOURCE: &str = r#"
+    data Buffer<Element, const Count: u64> { value: i64; }
+    data Indexing {}
+    boundary machine [] Indexing::pick<Element, const Count: u64>(
+        items: Buffer<Element, Count>, offset: i32
+    ) -> i64 requires Count == Count;
+    data FirstProvider {}
+    machine FirstProvider::pick<Value, const Length: u64>(
+        items: Buffer<Value, Length>, offset: i32
+    ) -> i64 satisfies Indexing::pick {
+        items.value
+    }
+    data SecondProvider {}
+    machine SecondProvider::pick<Value, const Length: u64>(
+        items: Buffer<Value, Length>, offset: i32
+    ) -> i64 satisfies Indexing::pick {
+        items.value ^ (offset as i64)
+    }
+    machine run(four: Buffer<i32, 4>, eight: Buffer<i32, 8>) -> i64 {
+        let first: i64 = four[(7 as i32)];
+        let second: i64 = eight[(11 as i32)];
+        first ^ second
+    }
+"#;
+
+fn run_artifact_with_provider(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    module: &terminal_psi::TerminalModule,
+    provider: &str,
+    field_values: &[(u32, i64)],
+) -> terminal_interpreter::TerminalExecutionResult {
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+    use terminal_interpreter::{TerminalScalarValue, TerminalStructuralScalarFieldValue};
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry machine");
+    let arguments = entry
+        .structural_parameters
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| TerminalStructuralValue {
+            opaque_identity: position as u64 + 1,
+            structural_type: parameter.structural_type,
+            qualifications: parameter.qualifications.clone(),
+            path: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let scalar_fields = field_values
+        .iter()
+        .map(|(argument_index, value)| {
+            let declaration = module
+                .structural_types
+                .iter()
+                .find(|declaration| {
+                    declaration.id == arguments[*argument_index as usize].structural_type
+                })
+                .expect("argument structural type");
+            let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
+                panic!("Buffer is a record");
+            };
+            let field = fields
+                .iter()
+                .find(|field| field.identity == "value")
+                .expect("value field");
+            TerminalStructuralScalarFieldValue {
+                argument_index: *argument_index,
+                path: Vec::new(),
+                field: field.id,
+                value: TerminalScalarValue::Integer {
+                    scalar_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+                    value: IntegerValue::Signed(i128::from(*value)),
+                },
+            }
+        })
+        .collect::<Vec<_>>();
+    let selections = module
+        .provider_candidates
+        .iter()
+        .filter(|candidate| candidate.provider_identity == provider)
+        .map(|candidate| ProviderInstallationSelection {
+            boundary: candidate.boundary,
+            provider_identity: candidate.provider_identity.clone(),
+            candidate: candidate.candidate,
+        })
+        .collect::<Vec<_>>();
+    let installation = admit_provider_installation_from_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &selections,
+    )
+    .expect("the named provider installs both closed tuples");
+    let mut execution = TerminalExecution::start_installed_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &arguments,
+            scalar_fields: &scalar_fields,
+            ..Default::default()
+        },
+        &installation,
+    )
+    .expect("installed provider applications execute");
+    let TerminalExecutionStatus::Complete(result) = execution
+        .resume(
+            &mut TerminalFuelMeter::default(),
+            &mut AcceptTerminalEffects,
+        )
+        .expect("execution completes")
+    else {
+        panic!("execution must complete")
+    };
+    result
+}
+
+fn i64_value(value: terminal_interpreter::TerminalScalarValue) -> i128 {
+    use semantic_vocabulary::IntegerValue;
+    let terminal_interpreter::TerminalScalarValue::Integer {
+        scalar_type, value, ..
+    } = value
+    else {
+        panic!("integer scalar")
+    };
+    assert_eq!(
+        scalar_type,
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 64)
+            .unwrap()
+    );
+    match value {
+        IntegerValue::Signed(raw) => raw,
+        IntegerValue::Unsigned(raw) => raw as i128,
+    }
+}
+
+/// The artifact closes the `[]` application without a checked-time provider
+/// selection; after source custody drops, installing one provider must run
+/// that provider's own checked body — distinct scalar results distinguish
+/// executing the selected body from installing either candidate.
+#[test]
+fn closed_operator_applications_execute_the_installed_provider_body() {
+    let checked = crate::front_end::checked_program(EXECUTED_OPERATOR_SOURCE);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("mixed-input scalar-result applications produce one artifact")
+    .into_artifact();
+    drop(checked);
+    let module = decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(
+        module.provider_candidates.len(),
+        4,
+        "two closed const tuples, one candidate per provider each"
+    );
+    assert!(module.provider_candidates.iter().all(|candidate| {
+        ["FirstProvider", "SecondProvider"].contains(&candidate.provider_identity.as_str())
+    }));
+    // FirstProvider reads the operand's field: 3 ^ 5 = 6.
+    // SecondProvider folds in the scalar `offset`: (3 ^ 7) ^ (5 ^ 11) = 10.
+    for (provider, expected) in [("FirstProvider", 6i128), ("SecondProvider", 10i128)] {
+        let TerminalExecutionResult::Scalar(value) =
+            run_artifact_with_provider(&artifact, &module, provider, &[(0, 3), (1, 5)])
+        else {
+            panic!("{provider}'s application must return the scalar result")
+        };
+        assert_eq!(
+            i64_value(value),
+            expected,
+            "{provider}'s own body must execute"
+        );
+    }
+}
+
+/// A legacy named `boundary operator` application is retained as a checked
+/// demand but its applying machine never earns a requirement-level call plan:
+/// lowering the caller refuses at local construction, so the application never
+/// reaches a Terminal artifact or Omega stage 00 settlement. This pins the
+/// frontier the requirement-call route must close; when named applications
+/// lower, this test is replaced by execution coverage beside
+/// `closed_operator_applications_execute_the_installed_provider_body`.
+#[test]
+fn named_boundary_operator_application_dies_before_a_terminal_route() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data CheckedMath {}
+        boundary operator CheckedMath::offset_zero(value: i32) -> i32
+        requires value == value
+        ensures result == value + 0 && value == value;
+        data CheckedMathProvider {}
+        machine CheckedMathProvider::offset_zero_impl(input: i32) -> i32
+        satisfies CheckedMath::offset_zero
+        requires input == input
+        ensures result == input + 0 && input == input
+        { transition { _ -> (input + 0) } }
+        machine run(value: i32) -> i32 { CheckedMath::offset_zero(value) }
+    "#,
+    );
+    assert_eq!(
+        checked.facts.operators.boundary_applications.len(),
+        1,
+        "the named operator application survives checking as an exact demand"
+    );
+    let error = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("run"),
+    )
+    .expect_err("the applying machine has no requirement-level plan");
+    assert!(
+        matches!(
+            error,
+            checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
+                ref machine,
+                ..
+            } if machine.as_str() == "run"
+        ),
+        "{error:?}"
+    );
+}
+
 #[test]
 fn closed_operator_catalog_rejects_substituted_or_missing_application_custody() {
     let baseline = checked_closed_operator_candidates();
