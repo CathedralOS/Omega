@@ -259,8 +259,8 @@ fn bounded_owner_call_rechecks_predicate_preservation_after_rewriting() {
     };
     let domains = [(domain, &domain_declaration)].into_iter().collect();
     let caller = &mut unit.functions[0];
-    caller.entry_claim_declarations = Vec::new().into();
-    caller.content_entry_claims = Vec::new().into();
+    caller.entry_claim_declarations = Vec::new();
+    caller.content_entry_claims = Vec::new();
     let actual = &mut caller.structural_parameters[0];
     actual.structural_type = root;
     actual.access = Access::MutableBorrow;

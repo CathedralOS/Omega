@@ -184,6 +184,15 @@ pub(in crate::validation) fn validate_call_unit(
         .enumerate()
         .find(|(_, (argument, expected))| {
             !argument.path.is_empty()
+                // Whole-owner loans already replay the selected field's
+                // capacity and both directions of its byte predicate contract.
+                // Other projected qualifications still need their own transport.
+                && !machine.structural_parameters.iter().any(|actual| {
+                    terminal_semantics::bounded_byte_owner_capacity(
+                        module, actual, argument, expected,
+                    )
+                    .is_some()
+                })
                 && (!expected.qualifications.is_empty()
                     || machine
                         .structural_parameters

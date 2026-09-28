@@ -232,7 +232,7 @@ mod tests {
                 structural_type,
             },
         };
-        function.structural_places.push(literal.clone());
+        function.structural_places.push(literal);
         let mut node = template.clone();
         node.operation = Operation::EstablishByteSequenceLiteral {
             psi_operation: OperationId::new(1).unwrap(),

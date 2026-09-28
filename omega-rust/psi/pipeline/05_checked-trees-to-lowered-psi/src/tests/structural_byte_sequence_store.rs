@@ -159,9 +159,15 @@ fn byte_field_store_receiving_rejects_literal_path_access_and_omission_drift() {
                     } => *field_identity = "Record::other".into(),
                     _ => unreachable!(),
                 },
-                2 => store
-                    .carrier_path
-                    .push(CheckedUnitStructuralPathSegment::FixedIndex(0)),
+                2 => match &mut store.destination {
+                    checked_trees::CheckedByteSequenceStoreDestination::Field {
+                        carrier_path,
+                        ..
+                    } => {
+                        carrier_path.push(CheckedUnitStructuralPathSegment::FixedIndex(0));
+                    }
+                    _ => unreachable!(),
+                },
                 _ => unreachable!(),
             }
         }
@@ -299,4 +305,48 @@ fn byte_replacements_preserve_sibling_and_call_order_at_each_fuel_pause() {
             (Some(b"QQ".to_vec()), Some(Vec::new())),
         ]
     );
+}
+
+#[test]
+fn byte_replacement_keeps_rhs_receiver_and_authored_output_parameter_mapping() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        domain [u8; 8]::Utf8 requires valid_utf8(self);
+        domain [u8; 16]::Utf8 requires valid_utf8(self);
+        data Formatter { label: [u8; 8] in Utf8; }
+        machine Formatter::render(&mut self, marker: u32, output: &mut [u8; 16] in Utf8) {
+            output = "== " + self.label + " ==";
+        }
+        "#,
+    );
+    let lowered = lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Formatter::render"),
+    )
+    .expect("assignment RHS retains its receiver and maps the output past a scalar formal");
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .unwrap();
+    let receiver = entry
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.is_self)
+        .expect("byte field read retains receiver storage");
+    let output = entry
+        .structural_parameters
+        .iter()
+        .find(|parameter| !parameter.is_self)
+        .expect("whole borrowed owner is retained");
+    let operations = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    assert!(operations.iter().any(|operation| matches!(operation.kind,
+        OperationKind::ByteSequenceStore { destination, .. } if destination == output.place)));
+    assert!(operations.iter().any(|operation| matches!(operation.kind,
+        OperationKind::StructuralByteSequenceFieldLength { source, .. } if source == receiver.place)));
 }
