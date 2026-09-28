@@ -211,3 +211,38 @@ A row that cites a deleted test as existing evidence overstates its own
 progress twice: the behavior is unverified, and the next reader spends time
 looking for a file to extend. Re-run this sweep after any crate
 restructuring; it is a dozen lines of Python and finished in seconds.
+
+## SAMPLE-CORPUS rows that name a LATER blocker than the current one
+
+Measured 2026-09-27 at `695b5e05d07` against a full `tools/sample_gate.py`
+run. Three rows attribute a sample to an item that is not what refuses it
+today. The attributions are not wrong about the obligation; they are wrong
+about the order, and a reader who takes the row will start in the wrong
+place.
+
+| sample | row says | what actually refuses it now |
+| --- | --- | --- |
+| `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast | provider selection: `Main::time::host` has no selected provider for `TimeHost` |
+| `gui/window_app`, `gui/window_demo` | **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** for by-value primitive-array boundary arguments | `validated named operator application has no checked selected use` — see [named_operator_selected_use.md](named_operator_selected_use.md) |
+| `gui/windowed_calculator` | not listed in that row at all | the same named-operator failure as the other two |
+
+`systems/descriptor_walk`, the other sample in `elapsed_timer`'s row, DOES
+fail where the row says (`statement sequence: local data: structural call
+binding`), so the row is right for one of its two customers.
+
+### `TimeHost` has no implementation on any target
+
+`elapsed_timer` cannot be wired the way the nine Clock-bearing samples were.
+`source/library/std/time_host.omg` fully specifies the seam — including the
+darwin mapping (`clock_gettime_nsec_np`, units `1_000_000_000`, epoch offset
+`0`) and the per-target constants — but `grep` over
+`source/library/std/targets/` finds **no `TimeHost` or `monotonic_ticks`
+implementation for any target**, including `windows_x86_64`, which that file
+says rung 5 binds first. The `TASKS_TIME.md` it cites no longer exists.
+
+So this is unstarted realization work with **no board item naming it**, not a
+design question: the design is settled in `time_host.omg` down to the
+constants. Someone should either restore an item for it or fold it into an
+existing one. It also blocks `tick_marquee`'s portable route — that sample
+now checks only because its `Clock2` is package-local and was wired to the
+darwin leaf directly.
