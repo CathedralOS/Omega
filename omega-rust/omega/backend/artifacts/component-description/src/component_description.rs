@@ -1016,10 +1016,19 @@ pub struct ComponentDescriptionFacts<'a> {
 pub fn describe_component_facts(
     facts: ComponentDescriptionFacts<'_>,
 ) -> Result<ComponentDescription, DescribeError> {
-    let artifact_bytes = facts.artifact.to_bytes();
     let module = terminal_codec::decode_module(facts.artifact.semantic_bytes())
         .map_err(DescribeError::ArtifactDecode)?;
-    let inventory = derive_component_inventory(&module)?;
+    describe_decoded_component_facts(facts, &module)
+}
+
+/// Both in-memory description and serialized publication use the same inventory
+/// derivation. Only callers in this owner may supply the already-decoded module.
+pub(crate) fn describe_decoded_component_facts(
+    facts: ComponentDescriptionFacts<'_>,
+    module: &TerminalModule,
+) -> Result<ComponentDescription, DescribeError> {
+    let artifact_bytes = facts.artifact.to_bytes();
+    let inventory = derive_component_inventory(module)?;
 
     let selected = facts.selected_provider_plans;
     let providers: Vec<RetainedProvider> = selected

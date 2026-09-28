@@ -7,7 +7,9 @@
 
 use crate::CheckedCompilation;
 use compilation_products::RetainedTerminalArtifact;
-use component_description::{ComponentDescriptionFacts, encode_component_description};
+use component_description::{
+    ComponentDescriptionFacts, DescribeError, publish_component_description,
+};
 use diagnostics::Diagnostic;
 use package_compilation::IndependentComponentDescription;
 use std::path::PathBuf;
@@ -82,7 +84,7 @@ pub fn published_independent_component_description(
     // no emitter-derived stack demand and no bound realization identity. The
     // description's own producer owns which rows that omits; nothing is
     // invented here to stand in for them.
-    let description = component_description::describe_component_facts(ComponentDescriptionFacts {
+    let (expected_subject, description) = publish_component_description(ComponentDescriptionFacts {
         artifact,
         selected_provider_plans: &selected_provider_plans,
         component_progress: component_progress.as_ref(),
@@ -90,23 +92,18 @@ pub fn published_independent_component_description(
         realization_identity: None,
     })
     .map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "component description publication failed for the dependency compiled as its own component: {error}"
-        ))]
-    })?;
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "published component artifact does not decode to one Terminal module: {error}"
-        ))]
-    })?;
-    let expected_subject = terminal_codec::terminal_psi_identity(&module).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "published component module has no exact Terminal Psi identity: {error}"
-        ))]
+        vec![Diagnostic::error(match error {
+            DescribeError::ArtifactIdentity(error) => format!(
+                "published component module has no exact Terminal Psi identity: {error}"
+            ),
+            error => format!(
+                "component description publication failed for the dependency compiled as its own component: {error}"
+            ),
+        })]
     })?;
     Ok(IndependentComponentDescription::new(
         package,
         expected_subject,
-        encode_component_description(&description),
+        description,
     ))
 }
