@@ -321,8 +321,12 @@ pub enum LegalizedScalarInstructionKind {
         path: Vec<terminal_psi::StructuralPathSegment>,
         indices: Vec<LegalizedRuntimeIndexOperand>,
     },
+    /// One scalar field observation; selection reconstructs the offset. With
+    /// `case`, `source.path` ends at a sum and `field` is a payload field of
+    /// that declared case, overlaid at the sum's own place.
     StructuralScalarFieldRead {
         source: terminal_psi::StructuralArgument,
+        case: Option<semantic_vocabulary::StructuralCaseId>,
         field: semantic_vocabulary::StructuralFieldId,
     },
     /// One inline field byte read under the field's current length

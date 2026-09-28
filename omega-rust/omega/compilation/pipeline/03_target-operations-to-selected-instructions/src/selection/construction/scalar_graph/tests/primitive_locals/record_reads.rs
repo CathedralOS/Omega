@@ -60,6 +60,7 @@ fn record_fixture(native: target::NativeTarget) -> LegalizedScalarFunction {
                 access: StructuralAccess::Owned,
                 path: Vec::new(),
             },
+            case: None,
             field: fields[1],
         };
     source.blocks[0].instructions[2].ownership.clear();
@@ -119,8 +120,9 @@ fn owned_record_read_rejects_wrong_root_offset_and_unavailable_home() {
             if mutation == 2 {
                 changed.blocks[0].instructions.swap(1, 2);
             } else {
-                let LegalizedScalarInstructionKind::StructuralScalarFieldRead { source, field } =
-                    &mut changed.blocks[0].instructions[2].kind
+                let LegalizedScalarInstructionKind::StructuralScalarFieldRead {
+                    source, field, ..
+                } = &mut changed.blocks[0].instructions[2].kind
                 else {
                     panic!("read");
                 };

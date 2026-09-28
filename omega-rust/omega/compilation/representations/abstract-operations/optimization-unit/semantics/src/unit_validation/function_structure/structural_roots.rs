@@ -363,19 +363,10 @@ pub(crate) fn validate_structural_root_operations(
                 } => {
                     // Root catalogs and dominance are checked before this pass;
                     // current ownership separately checks live, whole owned inputs.
-                    let valid = readable_field_type(function, *source)
-                        .and_then(|root| {
-                            terminal_semantics::record_field_carrier(
-                                structural_types.values().copied(),
-                                root,
-                                path,
-                            )
-                        })
-                        .is_some_and(|carrier| {
-                            let identity = carrier.structural_type;
-                            direct_relevant_scalar_field(structural_types, identity, *field, true)
-                                == Some(ScalarType::Boolean)
-                        });
+                    let valid = readable_field_type(function, *source).is_some_and(|root| {
+                        observed_scalar_field(structural_types, root, path, *field)
+                            == Some(ScalarType::Boolean)
+                    });
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidBooleanStructuralField {
@@ -394,23 +385,10 @@ pub(crate) fn validate_structural_root_operations(
                     ..
                 } => {
                     let valid = matches!(result.scalar_type, ScalarType::Integer(_))
-                        && readable_field_type(function, *source)
-                            .and_then(|root| {
-                                terminal_semantics::record_field_carrier(
-                                    structural_types.values().copied(),
-                                    root,
-                                    path,
-                                )
-                            })
-                            .is_some_and(|carrier| {
-                                let identity = carrier.structural_type;
-                                direct_relevant_scalar_field(
-                                    structural_types,
-                                    identity,
-                                    *field,
-                                    true,
-                                ) == Some(result.scalar_type)
-                            });
+                        && readable_field_type(function, *source).is_some_and(|root| {
+                            observed_scalar_field(structural_types, root, path, *field)
+                                == Some(result.scalar_type)
+                        });
                     if !valid {
                         return Err(
                             OptimizationUnitValidationError::InvalidIntegerStructuralField {
@@ -765,6 +743,27 @@ pub(crate) fn validate_structural_root_operations(
     Ok(())
 }
 
+/// The scalar one field observation reads beneath `root`: a relevant field of
+/// the record `path` reaches, or a relevant payload field of the declared case
+/// a final `Case` step names. The payload overlays the sum's own place; the
+/// verified module proved that case active, and this replay rebuilds only the
+/// declared carrier and leaf, so a substituted case or field fails here.
+fn observed_scalar_field(
+    structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
+    root: StructuralTypeId,
+    path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+    field: semantic_vocabulary::StructuralFieldId,
+) -> Option<ScalarType> {
+    if let Some(carrier) =
+        terminal_semantics::case_payload_carrier(structural_types.values().copied(), root, path)
+    {
+        return relevant_scalar_field(carrier.fields, field, true);
+    }
+    let carrier =
+        terminal_semantics::record_field_carrier(structural_types.values().copied(), root, path)?;
+    direct_relevant_scalar_field(structural_types, carrier.structural_type, field, true)
+}
+
 fn direct_relevant_scalar_field(
     structural_types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     structural_type: StructuralTypeId,
@@ -775,6 +774,14 @@ fn direct_relevant_scalar_field(
     let terminal_psi::StructuralTypeShape::Record { fields } = &declaration.shape else {
         return None;
     };
+    relevant_scalar_field(fields, field, allow_bounded_integer)
+}
+
+fn relevant_scalar_field(
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    field: semantic_vocabulary::StructuralFieldId,
+    allow_bounded_integer: bool,
+) -> Option<ScalarType> {
     fields.iter().find_map(|candidate| {
         (candidate.id == field && !candidate.relevance.is_erased())
             .then_some(&candidate.field_type)

@@ -6,6 +6,7 @@ use super::{
     SelectedSelectionConstraints, StructuralTypeId, ValueId, ValueShape, build, evaluate_call_plan,
     fixture,
 };
+mod case_payload_borrows;
 mod hostile;
 mod mixed_references;
 mod record_borrows;

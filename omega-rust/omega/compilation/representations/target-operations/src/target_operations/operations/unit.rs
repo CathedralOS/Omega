@@ -90,10 +90,17 @@ pub enum TargetUnitOperation {
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
     },
+    /// One scalar field observation beneath a readable root. `source.path`
+    /// is the runtime carrier. With `case`, it ends at a sum and `field` is a
+    /// payload field of that declared case: the payload overlays the sum's own
+    /// place, so the case adds no path segment but selects which overlay's
+    /// layout the field offset comes from. Terminal verification proved the
+    /// case active; consumers rebuild the offset from declarations.
     StructuralScalarFieldRead {
         psi_operation: OperationId,
         result: AbstractResult,
         source: StructuralArgument,
+        case: Option<semantic_vocabulary::StructuralCaseId>,
         field: StructuralFieldId,
     },
     /// One byte copy of a subtree out of a live readable root into a fresh

@@ -569,6 +569,88 @@ fn direct_integer_structural_field_rejects_access_type_and_field_corruption() {
     ));
 }
 
+/// A read through a sum field names one declared case, and its field is a
+/// payload field of that case alone. Both cases declare the same field
+/// identity with different carriers, so a substituted case changes the leaf.
+#[test]
+fn case_payload_integer_field_replays_exact_case_and_payload_field() {
+    use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, StructuralCaseId};
+    use terminal_psi::StructuralTypeShape as Shape;
+    let mut baseline = direct_realization_integer_structural_field_unit();
+    let sum = id(4_810, StructuralTypeId::new);
+    let idle = id(4_811, StructuralCaseId::new);
+    let run = id(4_812, StructuralCaseId::new);
+    let Shape::Record { fields } = &mut baseline.structural_types.make_mut()[0].shape else {
+        unreachable!()
+    };
+    let mode = fields[0].id;
+    let payload = fields[0].clone();
+    fields[0].field_type = terminal_psi::StructuralFieldType::Structural(sum);
+    let wide = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    baseline
+        .structural_types
+        .make_mut()
+        .push(terminal_psi::StructuralTypeDeclaration {
+            id: sum,
+            identity: "validation::Mode".into(),
+            shape: Shape::Sum {
+                cases: vec![
+                    terminal_psi::StructuralCaseDeclaration {
+                        id: idle,
+                        identity: "validation::Mode::Idle".into(),
+                        fields: vec![terminal_psi::StructuralFieldDeclaration {
+                            field_type: terminal_psi::StructuralFieldType::Scalar(wide),
+                            ..payload.clone()
+                        }],
+                    },
+                    terminal_psi::StructuralCaseDeclaration {
+                        id: run,
+                        identity: "validation::Mode::Run".into(),
+                        fields: vec![payload.clone()],
+                    },
+                ],
+            },
+        });
+    let O::IntegerStructuralField { path, field, .. } =
+        &mut baseline.functions[0].blocks[0].nodes[0].operation
+    else {
+        unreachable!()
+    };
+    *path = vec![Segment::Field(mode), Segment::Case(run)];
+    *field = payload.id;
+    refresh_function_derivatives(&mut baseline, 0);
+    validate_psi_optimization_unit(&baseline).expect("case payload read validates");
+
+    for corruption in 0..5 {
+        let mut candidate = baseline.clone();
+        let O::IntegerStructuralField { path, field, .. } =
+            &mut candidate.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        match corruption {
+            // The other case's same-identity field is a u64, not the i32 read.
+            0 => path[1] = Segment::Case(idle),
+            1 => path[1] = Segment::Case(id(4_813, StructuralCaseId::new)),
+            // Without its case the carrier ends at a sum, not a record.
+            2 => {
+                path.pop();
+            }
+            3 => *field = id(4_814, semantic_vocabulary::StructuralFieldId::new),
+            // A case step that does not end the carrier is no payload read.
+            _ => path.push(Segment::Field(payload.id)),
+        }
+        refresh_function_derivatives(&mut candidate, 0);
+        assert!(
+            matches!(
+                validate_psi_optimization_unit(&candidate),
+                Err(OptimizationUnitValidationError::InvalidIntegerStructuralField { .. })
+            ),
+            "corruption {corruption}"
+        );
+    }
+}
+
 #[test]
 fn projected_structural_scalar_field_store_validates_and_rejects_corruption() {
     validate_psi_optimization_unit(&structural_scalar_field_store_unit())
