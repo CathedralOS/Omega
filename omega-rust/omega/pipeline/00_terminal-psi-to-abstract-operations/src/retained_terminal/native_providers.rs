@@ -6,9 +6,9 @@
 
 use super::TerminalNativeRealizationProposal;
 use crate::provider_admission::{
-    NativeCompilerBuiltinSettlement, PreparedSourceEvaluatedImports,
-    SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
-    prepare_source_evaluated_imports,
+    NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedImports,
+    ProviderAdmissionRequest, SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
+    TerminalAuthorityPolicy, prepare_source_evaluated_imports,
 };
 use diagnostics::Diagnostic;
 
@@ -24,10 +24,46 @@ pub struct RetainedNativeProviderInputs<'input> {
 /// Invocation-owned preparation, not provider or publication authority.
 /// Native admission independently checks every borrowed settlement.
 pub struct PreparedRetainedNativeProviders<'input> {
+    proposal: &'input TerminalNativeRealizationProposal,
     pub imports: PreparedSourceEvaluatedImports<'input>,
-    pub callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
+    callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
     pub callback_thunks: Vec<backend_plan::NativeCallbackThunkSettlement<'input>>,
-    pub compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
+    compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
+}
+
+impl PreparedRetainedNativeProviders<'_> {
+    /// Assemble admission from the exact proposal this preparation consumed.
+    /// Independent policies remain caller inputs; prepared rows grant no
+    /// authority until `admit_native_realization` checks the complete request.
+    /// The import projection borrows this preparation's owned execution records
+    /// and must remain alive through admission and realization.
+    pub fn admission_request<'request>(
+        &'request self,
+        profile: &'request proof_admission::AdmissionProfile,
+        settlements: &'request [NativeProviderSettlement<'request>],
+        terminal_authority_policy: &'request TerminalAuthorityPolicy,
+        receiving_permissions: &'request Option<TerminalAuthorityPermissionPolicy>,
+    ) -> crate::NativeAdmissionRequest<'request> {
+        let proposal = self.proposal;
+        crate::NativeAdmissionRequest {
+            checked_scope: Some(&proposal.boundary_applications().scope),
+            prepared_input: None,
+            boundary_application_coverage: Some(&proposal.boundary_applications().coverage),
+            behavior_exclusions: proposal.behavior_exclusions(),
+            providers: ProviderAdmissionRequest {
+                target: proposal.native_target(),
+                profile,
+                program_entry: proposal.program_entry().as_settlement(),
+                selected_provider_plans: &proposal.providers().selection,
+                external_binding_rows: proposal.providers().external_bindings.as_slice(),
+                settlements,
+                compiler_builtins: &self.compiler_builtins,
+                native_callbacks: &self.callbacks,
+                terminal_authority_policy,
+                terminal_authority_permission_policy: receiving_permissions,
+            },
+        }
+    }
 }
 
 impl TerminalNativeRealizationProposal {
@@ -96,6 +132,7 @@ impl TerminalNativeRealizationProposal {
         )?;
 
         Ok(PreparedRetainedNativeProviders {
+            proposal: self,
             imports: prepared_imports,
             callbacks: native_callbacks,
             callback_thunks,

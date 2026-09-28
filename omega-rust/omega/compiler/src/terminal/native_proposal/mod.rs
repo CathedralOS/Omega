@@ -48,10 +48,7 @@ pub(crate) fn project_terminal_native_realization_proposal(
             external_bindings: checked.external_binding_rows(),
             behavior_exclusions: checked.behavior_exclusions(),
             package_terminal_authority_permissions: checked
-                .resolved_semantic_bindings()
-                .flat_map(|binding| binding.terminal_authority_permissions())
-                .cloned()
-                .collect(),
+                .package_terminal_authority_permissions(),
             callback_placements,
             callback_thunks,
             source_call_occurrences,
