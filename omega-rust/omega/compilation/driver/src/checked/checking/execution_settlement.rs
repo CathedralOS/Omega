@@ -34,8 +34,10 @@ pub(crate) fn check_selected_execution(
         .unwrap_or_else(target::NativeTarget::host);
     // The frontend typed every family's canonical body; this target's own
     // body replaces it before anything target-specific reads the program.
-    selected_target_machine_declarations
-        .select_product_target(&mut typed, selected_native_target)?;
+    selected_target_machine_declarations.select_product_target(
+        &mut typed,
+        selected_target_profile.unwrap_or_else(target::TargetProfile::host),
+    )?;
     let mut boundary_calling_plan_realizations =
         provider_planning::calling_policy_plans::compute_boundary_calling_plans(
             &mut typed,

@@ -106,7 +106,7 @@ pub(crate) fn evaluate_build_and_continue(
 pub(super) fn lower_typed_frontier(
     source_file_count: usize,
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
-    execution_profile_name: Option<&str>,
+    execution_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
@@ -116,8 +116,19 @@ pub(super) fn lower_typed_frontier(
     // Only build helpers select an execution target here. Product families
     // retain a canonical frontend shared by every requested product target.
     let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
-    let execution = target::NativeTarget::from_omega_target_name(execution_profile_name)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let execution = execution_profile
+        .or_else(target::TargetProfile::host_if_supported)
+        .ok_or_else(|| vec![Diagnostic::error(
+            "no target profile named and this host has no catalogued Omega deployment profile; name an exact target profile explicitly",
+        )])?;
+    // Build execution still requires an implemented host shape, but that
+    // projection is not the identity used to choose source declarations.
+    if execution.native_realization().is_none() {
+        return Err(vec![Diagnostic::error(format!(
+            "native realization for target profile `{}` is not implemented",
+            execution.target_name(),
+        ))]);
+    }
     let selected_target_machine_declarations =
         provider_planning::target_machines::prepare_target_machines(
             &mut syntax.syntax_trees,
