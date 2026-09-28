@@ -1033,6 +1033,10 @@ fn validate_receiver_fields(
                 StructuralFieldType::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
                 ) => {}
+                StructuralFieldType::PredicateByteSequence {
+                    carrier: terminal_psi::ByteSequenceCarrier::BoundedOwned { .. },
+                    predicates,
+                } if predicates.holds_for(&[]) => {}
                 StructuralFieldType::Structural(structural_type) => {
                     if visiting.contains(&structural_type) {
                         return Err(invalid());
@@ -1166,6 +1170,10 @@ fn zero_valid_field(
             // Zero-filled owned storage has live length zero for every
             // capacity. Source receipts separately establish its domains.
             StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned { .. }) => true,
+            StructuralFieldType::PredicateByteSequence {
+                carrier: ByteSequenceCarrier::BoundedOwned { .. },
+                predicates,
+            } => predicates.holds_for(&[]),
             StructuralFieldType::Structural(child) => {
                 zero_valid_record_storage(declarations, child, visiting)
             }
