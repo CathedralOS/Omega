@@ -120,6 +120,7 @@ pub(crate) use propositions::{
 };
 pub(crate) use references::{argument_owns_references, is_reference_projection};
 pub use scalar::block_invariants::scalar_block_invariant_scope;
+pub(crate) use structural::byte_sequence_fields::length_capacity_bound as structural_byte_sequence_field_length_capacity_bound;
 pub(crate) use structural::byte_sequence_fields::replacement_length_equation as structural_byte_sequence_field_length_equation;
 pub(crate) use structural::byte_sequence_store::capacity as structural_byte_sequence_store_capacity;
 pub(crate) use structural::operations::{

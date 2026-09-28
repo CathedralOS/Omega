@@ -209,7 +209,34 @@ fn equal_capacity_is_not_evidence_of_current_live_length() {
             .semantic_axioms
             .contains(&Proposition::Equal(length, count(3)))
     );
+    assert!(
+        questions[0]
+            .semantic_axioms
+            .contains(&Proposition::LessOrEqual(
+                ScalarTerm::value(id(3), ScalarType::Integer(integer())),
+                count(3),
+            ))
+    );
     assert!(verify_module(&module, &bundle, &AdmissionProfile::default()).is_err());
+
+    // A borrowed descriptor has a live length but no declaration-owned capacity.
+    let super::StructuralTypeShape::Record { fields } = &mut module.structural_types[0].shape
+    else {
+        unreachable!()
+    };
+    fields[0].field_type =
+        super::StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::MutableBorrow),
+        });
+    let questions = reconstruct_operation_obligations(&module).unwrap();
+    assert!(
+        !questions[0]
+            .semantic_axioms
+            .contains(&Proposition::LessOrEqual(
+                ScalarTerm::value(id(3), ScalarType::Integer(integer())),
+                count(3),
+            ))
+    );
 }
 
 #[test]

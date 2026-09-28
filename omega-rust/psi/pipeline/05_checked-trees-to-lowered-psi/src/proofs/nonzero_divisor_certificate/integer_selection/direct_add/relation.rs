@@ -1,4 +1,4 @@
-//! Canonical fixed-integer carrier-bound add recognition.
+//! Direct mathematical addition with a representable literal endpoint.
 
 use semantic_vocabulary::{IntegerMathTerm, IntegerType, Proposition, ScalarTerm};
 
@@ -16,7 +16,7 @@ pub(super) fn classify(goal: &Proposition) -> Option<DirectAddRelation> {
     let Proposition::IntegerMathLessOrEqual(goal_left, goal_right) = goal else {
         return None;
     };
-    let (sum, carrier_bound, lower) = match (goal_left, goal_right) {
+    let (sum, bound, lower) = match (goal_left, goal_right) {
         (IntegerMathTerm::Add(_, _), IntegerMathTerm::IntegerLiteral(bound)) => {
             (goal_left, *bound, false)
         }
@@ -29,13 +29,11 @@ pub(super) fn classify(goal: &Proposition) -> Option<DirectAddRelation> {
         unreachable!("classified direct mathematical addition")
     };
     let integer_type = direct_integer_type(left, right)?;
-    let expected = if lower {
-        integer_type.minimum_value()
-    } else {
-        integer_type.maximum_value()
-    };
+    // Storage capacities are ordinary literal endpoints, not necessarily the
+    // scalar carrier's extrema. The existing affine rule independently maps
+    // both cited operand bounds and checks the requested sum endpoint.
     if integer_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-        || carrier_bound.as_integer_value(integer_type) != Some(expected)
+        || bound.as_integer_value(integer_type).is_none()
     {
         return None;
     }

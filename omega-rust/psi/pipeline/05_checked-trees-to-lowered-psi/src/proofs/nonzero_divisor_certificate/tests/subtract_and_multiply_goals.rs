@@ -880,3 +880,43 @@ fn nested_shift_then_cast_bound_composes_existing_checked_rules() {
         ProofRule::IntegerAffineBound { .. }
     ));
 }
+
+#[test]
+fn exact_add_proves_storage_capacity_from_live_operand_bounds() {
+    use semantic_vocabulary::IntegerMathTerm;
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let context = two_value_context(integer_type);
+    let literal =
+        |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
+    let axioms = [
+        Proposition::Equal(value(1, integer_type), literal(1)),
+        Proposition::LessOrEqual(value(2, integer_type), literal(5)),
+    ];
+    for (left, right) in [(1, 2), (2, 1)] {
+        let sum = IntegerMathTerm::Add(
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(left).unwrap(),
+            }),
+            Box::new(IntegerMathTerm::MathValue {
+                source_type: integer_type,
+                value: ValueId::new(right).unwrap(),
+            }),
+        );
+        let goal = Proposition::IntegerMathLessOrEqual(
+            sum.clone(),
+            IntegerMathTerm::literal(IntegerValue::Unsigned(6)),
+        );
+        let proof = prove_canonical_integer_proposition(&context, &goal, &[], &axioms)
+            .expect("one literal byte plus up to five live bytes fits six");
+        accept_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+        let too_small = Proposition::IntegerMathLessOrEqual(
+            sum,
+            IntegerMathTerm::literal(IntegerValue::Unsigned(5)),
+        );
+        assert!(accept_certificate(&context, &too_small, &[], &axioms, &proof).is_err());
+        assert!(prove_canonical_integer_proposition(&context, &too_small, &[], &axioms).is_none());
+        assert!(accept_certificate(&context, &goal, &[], &axioms[..1], &proof).is_err());
+        assert!(prove_canonical_integer_proposition(&context, &goal, &[], &axioms[..1]).is_none());
+    }
+}
