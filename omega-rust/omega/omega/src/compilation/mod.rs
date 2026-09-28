@@ -28,6 +28,10 @@ pub struct CompileProjectRequest {
 
     pub timings: bool,
     pub offline: bool,
+    /// `--check --verify`: recheck the root's sources under the retained pins
+    /// without the accepted lock's restricted-request grants or recorded
+    /// trust admissions.
+    pub verify: bool,
     pub accept_admissions: bool,
     /// Reject standalone source after package preparation and transaction recovery.
     pub require_package_project: bool,
@@ -44,6 +48,7 @@ impl CompileProjectRequest {
 
             timings: false,
             offline: false,
+            verify: false,
             accept_admissions: false,
             require_package_project: false,
             optimization_rollback: OptimizationRollback::default(),
@@ -153,6 +158,7 @@ fn compile_project_targets(
         product,
         timings: collect_timings,
         offline,
+        verify,
         accept_admissions,
         require_package_project,
         optimization_rollback,
@@ -320,6 +326,7 @@ fn compile_project_targets(
                             active_profiles.clone(),
                         )
                         .with_accepted_trust_admissions(admissions.clone())
+                        .with_verify(verify)
                         .with_timings(collect_timings);
                         let request = match &build_snapshot {
                             Some(snapshot) => request.with_build_snapshot(snapshot.clone()),

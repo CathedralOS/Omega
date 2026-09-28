@@ -22,6 +22,10 @@ pub struct PreparedLocalProjectCheckRequest {
     target_profiles: Vec<TargetProfile>,
 
     accepted_trust_admissions: Vec<TrustAdmission>,
+    /// `--check --verify`: compile under the retained pins without the
+    /// accepted lock's restricted-request grants or recorded trust
+    /// admissions, so findings the lock previously settled surface again.
+    verify: bool,
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     timings: bool,
 }
@@ -50,9 +54,19 @@ impl PreparedLocalProjectCheckRequest {
             target_profiles,
 
             accepted_trust_admissions: Vec::new(),
+            verify: false,
             build_snapshot: None,
             timings: false,
         }
+    }
+
+    /// Re-verify under the lock's retained source pins: the restricted-request
+    /// checkpoint is not armed and recorded trust admissions do not settle
+    /// findings. Acceptance rows still describe dependencies; they no longer
+    /// grant this run's projected requests.
+    pub fn with_verify(mut self, verify: bool) -> Self {
+        self.verify = verify;
+        self
     }
 
     /// Record per-stage timings on the produced report. Off by default: the
@@ -154,6 +168,7 @@ pub fn check_prepared_local_project(
         target_profiles,
 
         accepted_trust_admissions,
+        verify,
         build_snapshot,
         timings,
     } = request;
@@ -171,8 +186,11 @@ pub fn check_prepared_local_project(
     // retained target's restricted-request checkpoint arms the pass, and a
     // projected request the accepted rows do not grant rejects before its
     // own build effect executes.
-    let (checked, _reviews) = match accepted_target.as_ref() {
-        Some(accepted) => compile_resolved_package_candidate_for_check_with_checkpoint(
+    let (checked, _reviews) = match (accepted_target.as_ref(), verify) {
+        // A verify check keeps the lock's source pins but grants nothing it
+        // recorded: the root's own projected requests surface ungranted and
+        // its findings arrive without recorded admissions settling them.
+        (Some(accepted), false) => compile_resolved_package_candidate_for_check_with_checkpoint(
             &source_closure.for_exact_target(target_profile),
             &build_dir,
             &entry_path,
@@ -180,7 +198,7 @@ pub fn check_prepared_local_project(
             &RestrictedBuildCheckpoint::derive(accepted),
             timings,
         ),
-        None => compile_resolved_package_candidate_for_check(
+        _ => compile_resolved_package_candidate_for_check(
             &source_closure.for_exact_target(target_profile),
             &build_dir,
             &entry_path,
@@ -194,8 +212,16 @@ pub fn check_prepared_local_project(
         build_dir: Some(build_dir),
         target_name: Some(target_profile.target_name().to_owned()),
     };
-    let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
-        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
+    let empty_admissions: &[TrustAdmission] = &[];
+    let admission = compiler::admit_checked_compilation(
+        &checked,
+        if verify {
+            empty_admissions
+        } else {
+            &accepted_trust_admissions
+        },
+    )
+    .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     let settlement = admission.into_settlement();
     compiler::RequestedCompileProduct::Check
         .admit_build_requirements(
@@ -235,6 +261,7 @@ pub fn check_prepared_local_project_for_targets(
         target_profiles,
 
         accepted_trust_admissions,
+        verify,
         build_snapshot,
         timings,
     } = request;
@@ -253,6 +280,7 @@ pub fn check_prepared_local_project_for_targets(
                 &build_dir,
                 build_snapshot.as_ref(),
                 &accepted_trust_admissions,
+                verify,
                 &mut preparation,
             );
             CheckedProjectTargetOutcome {
@@ -275,6 +303,7 @@ fn check_one_prepared_target(
     build_dir: &Path,
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     accepted_trust_admissions: &[TrustAdmission],
+    verify: bool,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompileReport, CheckPreparedLocalProjectError> {
     let profile = prepared_target.profile;
@@ -282,9 +311,16 @@ fn check_one_prepared_target(
         .accepted
         .map_err(CheckPreparedLocalProjectError::Prepare)?;
     let target_build_dir = build_dir.join(profile.target_name());
-    let checkpoint = accepted_target
-        .as_ref()
-        .map(RestrictedBuildCheckpoint::derive);
+    // A verify check withholds the accepted target's granted request
+    // meanings: each occurrence still compiles under the retained pins, but
+    // its projected restricted requests stand or fall on this pass alone.
+    let checkpoint = if verify {
+        None
+    } else {
+        accepted_target
+            .as_ref()
+            .map(RestrictedBuildCheckpoint::derive)
+    };
     let (checked, _reviews) = compile_candidate_for_check_reusing(
         &source_closure.for_exact_target(profile),
         &target_build_dir,
@@ -299,8 +335,16 @@ fn check_one_prepared_target(
         build_dir: Some(target_build_dir),
         target_name: Some(profile.target_name().to_owned()),
     };
-    let admission = compiler::admit_checked_compilation(&checked, accepted_trust_admissions)
-        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
+    let empty_admissions: &[TrustAdmission] = &[];
+    let admission = compiler::admit_checked_compilation(
+        &checked,
+        if verify {
+            empty_admissions
+        } else {
+            accepted_trust_admissions
+        },
+    )
+    .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     let settlement = admission.into_settlement();
     compiler::RequestedCompileProduct::Check
         .admit_build_requirements(
