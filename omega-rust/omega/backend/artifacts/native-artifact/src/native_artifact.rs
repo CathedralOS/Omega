@@ -11,8 +11,8 @@ use std::collections::BTreeSet;
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
 use abstract_operations::AbstractOperationPlan;
 use effects::{
-    TerminalAuthorityClosureReviewReceipt, TerminalAuthorityPermissionPolicyIdentity,
-    TerminalAuthorityPolicyIdentity,
+    SelectedProviderPlanFacts, TerminalAuthorityClosureReviewReceipt,
+    TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
 };
 use installation_evidence::ProviderExecutionEvidence;
 use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
@@ -707,6 +707,40 @@ pub struct NativeSelectedProviderPlan {
 }
 
 impl NativeSelectedProviderPlan {
+    /// Retain each selected plan's exact Terminal-facing requirement roster.
+    /// Specialized rows supply closed identities instead of the authored
+    /// template identity, matching provider admission without selecting or
+    /// reconstructing providers from source. Artifact replay remains independent.
+    pub fn project_selection(selection: &SelectedProviderPlanFacts) -> Vec<Self> {
+        let mut plans = selection
+            .plans()
+            .iter()
+            .map(|plan| {
+                let report_identity = plan.report_fingerprint();
+                let requirements = plan
+                    .rows
+                    .iter()
+                    .flat_map(|row| {
+                        selection.selected_row_requirement_identities(
+                            report_identity,
+                            &row.requirement_identity,
+                        )
+                    })
+                    .map(str::to_owned)
+                    .collect();
+                Self::new(
+                    report_identity,
+                    NativeSelectedProviderPlanDigest::from_digest(
+                        *plan.identity_digest().as_bytes(),
+                    ),
+                    requirements,
+                )
+            })
+            .collect::<Vec<_>>();
+        plans.sort_by_key(Self::report_identity);
+        plans
+    }
+
     pub fn new(
         report_identity: u64,
         plan_digest: NativeSelectedProviderPlanDigest,

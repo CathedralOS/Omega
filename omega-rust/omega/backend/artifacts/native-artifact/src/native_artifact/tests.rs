@@ -7,6 +7,79 @@ use super::{
     TerminalAuthorityPermissionPolicyIdentity, TerminalAuthorityPolicyIdentity,
     derive_native_artifact_identity,
 };
+use effects::provider_plan::{
+    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+};
+use effects::{SelectedProviderPlanFacts, SelectedRequirementSpecialization};
+
+#[test]
+fn selected_plan_projection_retains_closed_and_unspecialized_requirements() {
+    let plans = ["Generic", "Ordinary"].map(|name| ProviderPlan {
+        name: name.into(),
+        provider_type: format!("{name}Provider"),
+        target: "macos_arm64".into(),
+        schema: ServiceSchema {
+            trait_name: name.into(),
+            methods: vec![ServiceMethod {
+                name: "read".into(),
+                requirement_owner: name.into(),
+                requirement_identity: format!("{name}::read"),
+                ..ServiceMethod::default()
+            }],
+            ..ServiceSchema::default()
+        },
+        rows: vec![ProviderPlanRow {
+            method: "read".into(),
+            requirement_identity: format!("{name}::read"),
+            requirement_lifetime_partition: Vec::new(),
+            binding: ProviderBinding::CheckedAdapter {
+                machine_identity: format!("{name}Provider::read"),
+                machine_package_identity: None,
+            },
+        }],
+        ..ProviderPlan::default()
+    });
+    let generic_report_identity = plans[0].report_fingerprint();
+    let selection = SelectedProviderPlanFacts::from_selected_plans(plans.into())
+        .expect("fully covering plans")
+        .with_specialized_requirement_rows(
+            ["u64", "i32"]
+                .map(|element| SelectedRequirementSpecialization {
+                    provider_plan_report_identity: generic_report_identity,
+                    selected_requirement_identity: "Generic::read".into(),
+                    selected_machine_identity: "GenericProvider::read".into(),
+                    requirement_identity: format!("Generic::read<{element}>"),
+                    machine_identity: format!("GenericProvider::read<{element}>"),
+                })
+                .into(),
+        )
+        .expect("two exact closed instances of the selected adapter");
+    let projected = NativeSelectedProviderPlan::project_selection(&selection);
+
+    assert_eq!(projected.len(), 2);
+    assert!(
+        projected
+            .windows(2)
+            .all(|pair| pair[0].report_identity() < pair[1].report_identity())
+    );
+    for plan in selection.plans() {
+        let projection = projected
+            .iter()
+            .find(|projection| projection.report_identity() == plan.report_fingerprint())
+            .expect("selected plan retained");
+        assert_eq!(
+            projection.plan_digest(),
+            NativeSelectedProviderPlanDigest::from_digest(*plan.identity_digest().as_bytes())
+        );
+        let expected: &[&str] = if plan.report_fingerprint() == generic_report_identity {
+            &["Generic::read<i32>", "Generic::read<u64>"]
+        } else {
+            &["Ordinary::read"]
+        };
+        assert_eq!(projection.requirement_identities(), expected);
+    }
+}
+
 struct IdentityFixture<'a> {
     terminal_marker: u8,
     target: target::NativeTarget,

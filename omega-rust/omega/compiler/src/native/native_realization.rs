@@ -51,7 +51,6 @@ use abstract_operations_to_target_operations::provider_admission::{
 };
 use native_artifact::{
     NativeArtifactEmissionParts, NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
-    NativeSelectedProviderPlanDigest,
 };
 use terminal_psi_to_abstract_operations::retain_terminal_boundary_application_coverage;
 
@@ -157,24 +156,6 @@ fn realize_image(
         &artifact,
         request,
     )?;
-    // Project selected source plans into the backend's source-free custody.
-    // Image dispatch, physical evidence and artifact replay belong to that owner.
-    let mut selected_provider_plans = request
-        .selected_provider_plans
-        .plans()
-        .iter()
-        .map(|plan| {
-            NativeSelectedProviderPlan::new(
-                plan.report_fingerprint(),
-                NativeSelectedProviderPlanDigest::from_digest(*plan.identity_digest().as_bytes()),
-                plan.rows
-                    .iter()
-                    .map(|row| row.requirement_identity.clone())
-                    .collect(),
-            )
-        })
-        .collect::<Vec<_>>();
-    selected_provider_plans.sort_by_key(NativeSelectedProviderPlan::report_identity);
     RequestedNativeArtifact::emit(NativeArtifactEmissionParts {
         target: request.target,
         psi_artifact: artifact,
@@ -186,7 +167,9 @@ fn realize_image(
         selected_provider_closure_digest: NativeSelectedProviderClosureDigest::from_digest(
             *request.selected_provider_plans.identity_digest().as_bytes(),
         ),
-        selected_provider_plans,
+        selected_provider_plans: NativeSelectedProviderPlan::project_selection(
+            request.selected_provider_plans,
+        ),
         provider_executions: executions,
         terminal_authority_policy_identity,
         terminal_authority_permission_policy_identity,

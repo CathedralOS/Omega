@@ -783,8 +783,7 @@ pass/providers/provider_type_target_default_override checked 406ms
 pass/providers/runtime_adapter_dispatch_exit checked 834ms
 pass/providers/runtime_result_domain_requirement_overload_exit checked 960ms
 pass/providers/service_fused_root_establishment checked 409ms
-pass/providers/specialized_mixed_structural_result_operator_hosted_native rejected 753ms
-	native artifact native artifact replay failed: native physical evidence cannot rejoin one exact selected provider plan
+pass/providers/specialized_mixed_structural_result_operator_hosted_native checked 398ms
 pass/providers/specialized_structural_fixed_operator_terminal_custody checked 429ms
 pass/providers/token_machine_family_override_exit checked 1690ms
 pass/range/runtime_funnel_guard_agreement_exit checked 855ms
