@@ -1,11 +1,13 @@
-use super::recovery::{analyze, assign, candidates, overlaps_pressure, transformations};
+use super::recovery::{
+    admissible_split, analyze, assign, candidates, overlaps_pressure, transformations,
+};
 use super::{RuntimeSpillAllocation, RuntimeSpillAllocationError, RuntimeSpillStepRewrite};
 use selected_instructions_to_selected_instructions::{
     RuntimeSpillError, RuntimeSpillSpanPolicy, SelectedProgramRef,
     rematerialize_selected_runtime_value, spill_selected_runtime_value_with_span_policy,
     validate_allocation_legality, validate_live_ranges, validate_liveness,
     validate_runtime_rematerialization, validate_runtime_spill,
-    validate_runtime_spill_with_span_policy,
+    validate_runtime_spill_with_span_policy, validate_runtime_split,
 };
 
 pub(super) fn inadmissible(error: &RuntimeSpillError) -> bool {
@@ -61,7 +63,45 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
         let selected = prior
             .as_ref()
             .map_or_else(|| source.base(), |previous| previous.selected());
+        // The cost order is replayed, not trusted: the producer commits the
+        // first admissible split over the still-available candidates before
+        // it considers any other decision, so a recorded split must be that
+        // exact candidate and every other step requires that none existed.
+        let expected_split = admissible_split(
+            &failure,
+            roster
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| !used.contains(index))
+                .map(|(_, candidate)| candidate),
+            &current_ranges,
+            &selected,
+            environment,
+            budget,
+        )?
+        .map(|(candidate, _)| candidate);
+        if !matches!(step.rewrite, RuntimeSpillStepRewrite::Split(_)) && expected_split.is_some() {
+            return Err(RuntimeSpillAllocationError::CandidateMismatch);
+        }
         let replayed = match &step.rewrite {
+            RuntimeSpillStepRewrite::Split(rewrite) => {
+                if expected_split != Some((step.function, step.register)) {
+                    return Err(RuntimeSpillAllocationError::CandidateMismatch);
+                }
+                let replayed = validate_runtime_split(
+                    &selected,
+                    step.function,
+                    step.register,
+                    environment,
+                    budget,
+                    rewrite.transformed().clone(),
+                )
+                .map_err(RuntimeSpillAllocationError::Split)?;
+                if replayed.receipt() != rewrite.receipt() {
+                    return Err(RuntimeSpillAllocationError::ReceiptMismatch);
+                }
+                RuntimeSpillStepRewrite::Split(replayed)
+            }
             RuntimeSpillStepRewrite::Spill(rewrite) => {
                 // The producer's decision is replayed, not trusted: private
                 // storage may stand only while rematerialization remains

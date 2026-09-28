@@ -47,6 +47,9 @@ pub struct PostAllocationStatistics {
 pub enum PostAllocationSelectedTransformation {
     RuntimeSpill(SelectedInstructionPlanIdentity),
     RuntimeRematerialization(SelectedInstructionPlanIdentity),
+    /// A pressure-chosen live-range split: one copy ends a fixed-view
+    /// definition's pinned segment. Realizes no private storage.
+    RuntimeSplit(SelectedInstructionPlanIdentity),
     FixedViewCopy(FixedViewCopyIdentity),
     LiteralFold(LiteralFoldIdentity),
     PressureRematerialization(PressureRematerializationIdentity),

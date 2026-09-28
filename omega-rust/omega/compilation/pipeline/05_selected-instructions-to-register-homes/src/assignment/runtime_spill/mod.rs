@@ -22,10 +22,11 @@ use selected_instructions_to_selected_instructions::{
     LiveRangeError, LivenessError, OptimizedAllocationLegalityCustodyError,
     OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
     OptimizedSelectedReanalysisError, RuntimeRematerializationError, RuntimeSpillError,
-    SelectedProgramRef, StagedOptimizedAllocationLegality, StagedOptimizedSelectedReanalysis,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
-    ValidatedAllocationLegality, ValidatedAllocatorAvailability, ValidatedLiveRanges,
-    ValidatedLiveness, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    RuntimeSplitError, SelectedProgramRef, StagedOptimizedAllocationLegality,
+    StagedOptimizedSelectedReanalysis, StagedPreAllocationOptimizationRun,
+    StagedSelectedLoweringOptimizationRun, ValidatedAllocationLegality,
+    ValidatedAllocatorAvailability, ValidatedLiveRanges, ValidatedLiveness,
+    ValidatedRuntimeRematerialization, ValidatedRuntimeSpill, ValidatedRuntimeSplit,
     probe_optimized_fixed_precolored_segment_homes, validate_optimized_allocation_legality_custody,
     validate_optimized_selected_reanalysis_custody, validate_pre_allocation_optimization_custody,
     validate_selected_lowering_optimization_custody,
@@ -386,11 +387,14 @@ pub(crate) struct RuntimeSpillStep {
     pub(crate) rewrite: RuntimeSpillStepRewrite,
 }
 
-/// The recorded recovery decision for one pressured value. Rematerialization
-/// is the cheaper form and is chosen whenever its admission accepts the
+/// The recorded recovery decision for one pressured value, cheapest first.
+/// A split ends a fixed-view definition's pinned segment with one copy and
+/// realizes no storage, so it is chosen whenever an overlapping candidate
+/// admits it; rematerialization is chosen whenever its admission accepts the
 /// victim's pure immediate definition; private storage is the fallback.
 #[derive(Debug)]
 pub(crate) enum RuntimeSpillStepRewrite {
+    Split(ValidatedRuntimeSplit),
     Spill(ValidatedRuntimeSpill),
     Rematerialization(ValidatedRuntimeRematerialization),
 }
@@ -398,6 +402,7 @@ pub(crate) enum RuntimeSpillStepRewrite {
 impl RuntimeSpillStepRewrite {
     pub(crate) fn transformed(&self) -> &SelectedInstructionPlan {
         match self {
+            Self::Split(rewrite) => rewrite.transformed(),
             Self::Spill(rewrite) => rewrite.transformed(),
             Self::Rematerialization(rewrite) => rewrite.transformed(),
         }
@@ -405,6 +410,7 @@ impl RuntimeSpillStepRewrite {
 
     pub(crate) fn selected(&self) -> SelectedProgramRef<'_> {
         match self {
+            Self::Split(rewrite) => SelectedProgramRef::new(rewrite),
             Self::Spill(rewrite) => SelectedProgramRef::new(rewrite),
             Self::Rematerialization(rewrite) => SelectedProgramRef::new(rewrite),
         }
@@ -435,6 +441,7 @@ pub enum RuntimeSpillAllocationError {
     UpstreamPreAllocation(OptimizedPreAllocationCustodyError),
     Rewrite(RuntimeSpillError),
     Rematerialization(RuntimeRematerializationError),
+    Split(RuntimeSplitError),
     Liveness(LivenessError),
     Ranges(LiveRangeError),
     Legality(AllocationLegalityError),

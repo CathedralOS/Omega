@@ -121,6 +121,10 @@ pub(crate) use rewrites::{
     ValidatedEquivalentCompare, ValidatedPreAllocationTransformation, ValidatedRedundantCompare,
     ValidatedRedundantExtension, fixed_view_copy_identity,
 };
+pub use rewrites::{
+    RuntimeSplitError, RuntimeSplitReceipt, ValidatedRuntimeSplit, split_selected_runtime_value,
+    validate_runtime_split,
+};
 
 #[cfg(any(test, feature = "test-support"))]
 pub use rewrites::test_support;

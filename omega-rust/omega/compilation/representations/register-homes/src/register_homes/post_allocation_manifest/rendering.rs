@@ -88,6 +88,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::EquivalentCompare(identity) => {
                     ("equivalent-compare", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
+                    ("runtime-split", identity.bytes())
+                }
             };
             writeln!(
                 output,
