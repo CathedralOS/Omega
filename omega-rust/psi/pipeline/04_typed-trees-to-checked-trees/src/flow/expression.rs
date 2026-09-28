@@ -808,17 +808,10 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             self.statement_index,
             expression,
         )?;
-        match crate::values::scalar_value_at_place(
-            self.program,
-            self.semantic,
-            self.context
-                .contexts
-                .semantic_context_refs
-                .span_or_empty(contexts)
-                .iter()
-                .map(|reference| self.semantic.contexts.get(reference.context)),
-            &place,
-        )? {
+        match self
+            .context
+            .scalar_value_at_place(self.program, self.semantic, contexts, &place)?
+        {
             facts::ScalarValue::Boolean(value) => Some(value),
             _ => None,
         }

@@ -219,6 +219,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// whole-arena scan and its literal parsing run at most once per build
     /// rather than once per widening rejoin.
     integer_literal_thresholds: Option<Rc<Vec<numerics::bignum::BigInt>>>,
+    pub(super) assignment_observations: super::assignment_observations::AssignmentObservations,
     pub(super) contexts: FlowContextFacts,
     pub(super) invalidations: FlowInvalidationFacts,
     pub(super) borrow_lifetimes: FlowBorrowLifetimeFacts,
@@ -289,6 +290,7 @@ impl<'plans> FlowBuildContext<'plans> {
             proof_fact_occurrences: HashMap::default(),
             integer_literal_thresholds: None,
             state_mutation_summary_cache,
+            assignment_observations: Default::default(),
             contexts: FlowContextFacts::with_roots(
                 arena::Arena::with_capacity(semantic.contexts.len().saturating_mul(2)),
                 arena::Arena::with_capacity(
@@ -619,6 +621,7 @@ impl<'plans> FlowBuildContext<'plans> {
     /// survive reuse. Published output cannot be reset because finish consumes
     /// the context. Preserve these constraints when adding a context field.
     pub(super) fn discard_output(&mut self) {
+        self.assignment_observations.clear();
         discard_output_arena(&mut self.contexts.semantic_context_refs);
         discard_output_arena(&mut self.contexts.constraint_refs);
         discard_output_arena(&mut self.invalidations.segments);

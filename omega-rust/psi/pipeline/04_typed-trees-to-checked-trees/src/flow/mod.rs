@@ -27,6 +27,7 @@
 
 // The entrance and its sweep: the build state it carries, the incoming state
 // values whose changes decide another sweep, and the reach summaries it attaches.
+mod assignment_observations;
 mod builder;
 mod context;
 mod reach;
