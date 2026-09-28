@@ -35,17 +35,30 @@
 //! whose single-member cohort reiterates the row's child strand. Every
 //! lifecycle boundary is a `Statement` while each call boundary is a `Call`
 //! with ordinal zero, so both boundary variants appear on the wire.
+//!
+//! The representable legs run through the shared
+//! `run_one_field_substitution_matrix` driver over the declared
+//! `ReborrowRestoredCallUseCustodyFieldForTest` inventory in
+//! `reborrow_restored_call_use_custody_fields.rs`: each leg mutates one
+//! `TerminalModule` field, must still encode and round-trip canonically,
+//! keeps the module verifiable under the retained bundle (the roster carries
+//! no proof obligations), diverges the honestly recomputed semantic and
+//! artifact identities, and is rejected by the two custody replays — the
+//! retained-manifest join and the sealed proof subject join — asserted inside
+//! the matrix's checker. The raw wire axes (count lies, closed tags, zero and
+//! non-canonical identities, join-constrained strands, roster-order
+//! violations) and the producer-side encode rejections stay authored below.
 
 use std::ops::Range;
 
 use super::{
     block_id, canonical_artifact, contract_id, edge_id, machine_id, operation_id, place_id,
-    structural_type_id,
+    semantic_module, structural_type_id,
 };
 use proof_admission::AdmissionProfile;
 use semantic_vocabulary::StructuralPlaceKind;
 use terminal_codec::{
-    ArtifactManifestError, CodecError, ProofCodecError, build_artifact_manifest,
+    CodecError, ProofCodecError, build_artifact_manifest,
     build_identity_optimization_execution_record, decode_module, decode_proof_section_for,
     encode_module, terminal_psi_identity, validate_artifact_manifest,
 };
@@ -59,6 +72,15 @@ use terminal_psi::{
     TerminalReborrowSharedCohortMember, Terminator,
 };
 use terminal_verifier::{ModuleError, ProofBundle, verify_module};
+
+use mutation_matrix::{OneFieldSubstitutionMatrix, run_one_field_substitution_matrix};
+
+#[path = "reborrow_restored_call_use_custody_fields.rs"]
+mod reborrow_restored_call_use_custody_fields;
+use reborrow_restored_call_use_custody_fields::{
+    ReborrowRestoredCallUseCustodyFieldForTest, reborrow_restored_call_use_custody_outcome,
+    substitute_reborrow_restored_call_use_for_test,
+};
 
 /// Byte offsets of every wire field inside the reborrow restored-call-use
 /// roster. Every `string` field records its u32 length prefix and its
@@ -81,11 +103,9 @@ struct BoundarySpan {
 }
 
 struct OwnerSegmentSpan {
-    row: Range<usize>,
     tag: Range<usize>,
     text_len: Option<Range<usize>>,
     text: Option<Range<usize>>,
-    index: Option<Range<usize>>,
 }
 
 struct PlaceSegmentSpan {
@@ -221,23 +241,23 @@ impl<'bytes> SpanWalker<'bytes> {
     }
 
     fn walk_owner_segment(&mut self) -> OwnerSegmentSpan {
-        let row_start = self.offset;
         let (tag, value) = self.tag();
-        let (text_len, text, index) = match value {
+        let (text_len, text) = match value {
             1 | 2 => {
                 let (len, text) = self.take_string();
-                (Some(len), Some(text), None)
+                (Some(len), Some(text))
             }
-            3 => (None, None, Some(self.take(8))),
-            4 => (None, None, None),
+            3 => {
+                self.take(8);
+                (None, None)
+            }
+            4 => (None, None),
             other => panic!("fixture owner segments are known tags, not {other}"),
         };
         OwnerSegmentSpan {
-            row: row_start..self.offset,
             tag,
             text_len,
             text,
-            index,
         }
     }
 
@@ -717,61 +737,64 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
     let semantic_identity = terminal_psi_identity(&module).expect("semantic identity");
     assert_eq!(retained.semantic(), semantic_identity);
 
-    // A substitution that still forms a canonical module honestly
-    // recomputes a divergent semantic and artifact identity: the
+    // Every representable substitution still forms a canonical module that
+    // honestly recomputes a divergent semantic and artifact identity: the
     // substituted module still verifies under the retained bundle (the
     // roster carries no proof obligations), while the retained custody
-    // replays — the manifest join and the sealed proof subject join —
-    // reject it.
-    let divergent = |name: &'static str, mutated: &[u8]| {
-        let substituted = decode_module(mutated)
-            .unwrap_or_else(|error| panic!("{name} must still decode: {error:?}"));
-        assert_ne!(substituted, module, "{name} must change the module");
-        assert_eq!(
-            encode_module(&substituted).expect("re-encode the substitution"),
-            mutated,
-            "{name} must re-encode canonically"
-        );
-        assert_ne!(
-            terminal_psi_identity(&substituted).expect("substituted semantic identity"),
-            semantic_identity,
-            "{name} must diverge the honestly recomputed semantic identity"
-        );
-        verify_module(&substituted, &bundle, &AdmissionProfile::default()).unwrap_or_else(
-            |error| panic!("{name} must keep the substituted module verifiable: {error:?}"),
-        );
-        let recomputed_optimization =
-            build_identity_optimization_execution_record(&substituted, &bundle)
-                .expect("identity optimization over the substituted module");
-        let recomputed =
-            build_artifact_manifest(&substituted, &bundle, &recomputed_optimization, None, None)
-                .expect("honest manifest over the substituted module");
-        assert_ne!(
-            recomputed.identity(),
-            retained.identity(),
-            "{name} must diverge the recomputed artifact identity"
-        );
-        assert_eq!(
+    // replays — the manifest join and the sealed proof subject join — reject
+    // it, all asserted inside the matrix's checker. The donor is an
+    // authentic semantic module with an empty restored-use roster.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "reborrow restored-call-use roster",
+        fields: ReborrowRestoredCallUseCustodyFieldForTest::INVENTORY,
+        honest: &|| module.clone(),
+        donor: semantic_module(),
+        custody: &|record: &terminal_psi::TerminalModule| {
+            terminal_psi_identity(record).expect("semantic identity")
+        },
+        substitute: &substitute_reborrow_restored_call_use_for_test,
+        check: &|record: &terminal_psi::TerminalModule| {
+            let encoded = encode_module(record).expect("a declared leg must encode canonically");
+            assert_eq!(
+                decode_module(&encoded),
+                Ok(record.clone()),
+                "a declared leg must decode canonically under the same subject"
+            );
+            verify_module(record, &bundle, &AdmissionProfile::default()).unwrap_or_else(|error| {
+                panic!("a declared leg must keep the substituted module verifiable: {error:?}")
+            });
+            let recomputed_optimization =
+                build_identity_optimization_execution_record(record, &bundle)
+                    .expect("identity optimization over the substituted module");
+            let recomputed =
+                build_artifact_manifest(record, &bundle, &recomputed_optimization, None, None)
+                    .expect("honest manifest over the substituted module");
+            assert_ne!(
+                recomputed.identity(),
+                retained.identity(),
+                "a declared leg must diverge the recomputed artifact identity"
+            );
+            assert!(
+                matches!(
+                    decode_proof_section_for(record, artifact.proof_bytes()),
+                    Err(ProofCodecError::ProofSubjectMismatch { .. })
+                ),
+                "a declared leg must reject at the sealed proof subject join"
+            );
             validate_artifact_manifest(
-                &substituted,
+                record,
                 &bundle,
                 &recomputed_optimization,
                 None,
                 None,
                 retained,
-            ),
-            Err(ArtifactManifestError::ManifestMismatch),
-            "{name} must reject at the retained-manifest replay"
-        );
-        assert!(
-            matches!(
-                decode_proof_section_for(&substituted, artifact.proof_bytes()),
-                Err(ProofCodecError::ProofSubjectMismatch { .. })
-            ),
-            "{name} must reject at the sealed proof subject join"
-        );
-        substituted
-    };
+            )
+            .map(|()| terminal_psi_identity(record).expect("leg semantic identity"))
+        },
+        outcome: &reborrow_restored_call_use_custody_outcome,
+        joined_replay: None,
+    });
+
     // A substitution that cannot form a canonical module rejects inside the
     // canonical decoder with an exact error.
     let rejected = |name: &'static str, mutated: &[u8], expected: CodecError| {
@@ -826,15 +849,6 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
         mutated.extend_from_slice(&encoded[count_span.end..rows.start]);
         mutated.extend_from_slice(&encoded[rows.end..]);
         mutated
-    };
-    // Remove one roster row and decrement its roster count honestly.
-    let drop_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
-        let remaining = u32::from_le_bytes(
-            encoded[count_span.clone()]
-                .try_into()
-                .expect("roster count"),
-        ) - 1;
-        excise(count_span, row, remaining)
     };
     // Duplicate one roster row directly behind itself with an honest count.
     let duplicate_row = |count_span: Range<usize>, row: Range<usize>| -> Vec<u8> {
@@ -892,18 +906,8 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
     );
     // Clearing the roster or dropping either row stays representable: the
     // recomputed identity diverges and the retained custody replays reject.
-    divergent(
-        "a cleared restored-use roster",
-        &excise(spans.use_count.clone(), first.row.start..second.row.end, 0),
-    );
-    divergent(
-        "a dropped first restored-use row",
-        &drop_row(spans.use_count.clone(), first.row.clone()),
-    );
-    divergent(
-        "a dropped second restored-use row",
-        &drop_row(spans.use_count.clone(), second.row.clone()),
-    );
+    // The `UseRosterCleared`, `FirstUseDropped`, and `SecondUseDropped`
+    // inventory legs exercise all three through the matrix.
     // A duplicated row collides on the (machine, operation) coordinate; a
     // swapped roster violates the strict row order.
     rejected(
@@ -1026,14 +1030,8 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
         &put_u64(first.call_boundary.call_ordinal.clone().unwrap(), 1),
         invalid_first(),
     );
-    divergent(
-        "a renamed restored-use call boundary target",
-        &restring(
-            first.call_boundary.target_len.clone().unwrap(),
-            first.call_boundary.target.clone().unwrap(),
-            &borrow(0x91),
-        ),
-    );
+    // The `CallBoundaryTargetRenamed` inventory leg exercises the free
+    // canonical target identity through the matrix.
     rejected(
         "a non-canonical restored-use call boundary target",
         &restring(
@@ -1077,15 +1075,9 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
     // --- source identities -------------------------------------------------
 
     // Each source identity must stay a canonical borrow identity; any other
-    // canonical spelling reidentifies the source and diverges.
-    divergent(
-        "a renamed restored-use source machine identity",
-        &restring(
-            first.source_machine_len.clone(),
-            first.source_machine.clone(),
-            &borrow(0x92),
-        ),
-    );
+    // canonical spelling reidentifies the source and diverges: the
+    // `SourceMachineIdentityRenamed` and `SourceStateIdentityRenamed`
+    // inventory legs exercise both through the matrix.
     rejected(
         "an emptied restored-use source machine identity",
         &restring(
@@ -1110,14 +1102,6 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
         CodecError::InvalidUtf8("restored-use machine identity"),
     );
 
-    divergent(
-        "a renamed restored-use source state identity",
-        &restring(
-            first.source_state_len.clone(),
-            first.source_state.clone(),
-            &borrow(0x93),
-        ),
-    );
     rejected(
         "an emptied restored-use source state identity",
         &restring(
@@ -1133,10 +1117,8 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
         CodecError::StringTooLong("restored-use state identity"),
     );
 
-    divergent(
-        "a renamed restored-use direct owner identity",
-        &restring(first.owner_len.clone(), first.owner.clone(), &borrow(0x94)),
-    );
+    // The `DirectOwnerIdentityRenamed` inventory leg exercises the direct
+    // owner identity through the matrix.
     rejected(
         "a non-canonical restored-use direct owner identity",
         &restring(first.owner_len.clone(), first.owner.clone(), "owner"),
@@ -1144,31 +1126,10 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
     );
 
     // The source identities stay free on the shared-freeze row too: the
-    // cohort joins only the child strand.
-    divergent(
-        "a renamed shared-freeze source machine identity",
-        &restring(
-            second.source_machine_len.clone(),
-            second.source_machine.clone(),
-            &borrow(0x95),
-        ),
-    );
-    divergent(
-        "a renamed shared-freeze source state identity",
-        &restring(
-            second.source_state_len.clone(),
-            second.source_state.clone(),
-            &borrow(0x96),
-        ),
-    );
-    divergent(
-        "a renamed shared-freeze direct owner identity",
-        &restring(
-            second.owner_len.clone(),
-            second.owner.clone(),
-            &borrow(0x97),
-        ),
-    );
+    // cohort joins only the child strand. The
+    // `SharedSourceMachineIdentityRenamed`, `SharedSourceStateIdentityRenamed`,
+    // and `SharedDirectOwnerIdentityRenamed` inventory legs exercise all
+    // three through the matrix.
 
     // --- direct root owner path --------------------------------------------
 
@@ -1282,11 +1243,9 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
     // The lifecycle is the exact nesting
     // activation < child activation <= child weakening < weakening: an
     // earlier activation or a later weakening stays representable while the
-    // collapsing substitutions reject.
-    divergent(
-        "an earlier restored-use direct root activation",
-        &put_u64(first.activation.statement_index.clone(), 5),
-    );
+    // collapsing substitutions reject. The `DirectRootActivationMoved` and
+    // `DirectRootWeakeningMoved` inventory legs exercise both free
+    // coordinates through the matrix.
     rejected(
         "a restored-use direct root activation at the child start",
         &put_u64(first.activation.statement_index.clone(), 11),
@@ -1296,10 +1255,6 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
         "an unknown restored-use activation boundary tag",
         &put_u8(first.activation.tag.clone(), 9),
         CodecError::InvalidTag("TerminalBorrowBoundarySource", 9),
-    );
-    divergent(
-        "a later restored-use direct root weakening",
-        &put_u64(first.weakening.statement_index.clone(), 50),
     );
     rejected(
         "a restored-use direct root weakening inside the child span",
@@ -1314,14 +1269,8 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
 
     // --- child owner -----------------------------------------------------------
 
-    divergent(
-        "a renamed restored-use child owner identity",
-        &restring(
-            first.child_owner_len.clone(),
-            first.child_owner.clone(),
-            &borrow(0x9A),
-        ),
-    );
+    // The `ChildOwnerIdentityRenamed` inventory leg exercises the free child
+    // owner identity through the matrix.
     rejected(
         "a non-canonical restored-use child owner identity",
         &restring(
@@ -1342,10 +1291,9 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
         ),
         invalid_second(),
     );
-    divergent(
-        "a restored-use child owner case recast as a field",
-        &put_u8(first.child_owner_path[0].tag.clone(), 1),
-    );
+    // The `ChildOwnerCaseRecastAsField`, `ChildOwnerFixedIndexMoved`, and
+    // `ChildOwnerPathCleared` inventory legs exercise the free child owner
+    // path through the matrix.
     rejected(
         "a non-canonical restored-use child owner case identity",
         &restring(
@@ -1354,18 +1302,6 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
             "case",
         ),
         invalid_first(),
-    );
-    divergent(
-        "a moved restored-use child owner fixed index",
-        &put_u64(first.child_owner_path[1].index.clone().unwrap(), 0x57),
-    );
-    divergent(
-        "an emptied restored-use child owner path",
-        &excise(
-            first.child_owner_path_count.clone(),
-            first.child_owner_path[0].row.start..first.child_owner_path[1].row.end,
-            0,
-        ),
     );
     rejected(
         "a restored-use child owner path count one over",
@@ -1439,12 +1375,10 @@ fn terminal_reborrow_restored_call_uses_reject_every_one_field_substitution() {
     // --- child access and boundaries ----------------------------------------------
 
     // The exclusive child stays mutable or write-only: write-only to
-    // mutable stays permitted while shared or owned rejects. The
-    // shared-freeze child is pinned to shared by its class.
-    divergent(
-        "a mutable restored-use child access",
-        &put_u8(first.child_access.clone(), 3),
-    );
+    // mutable stays permitted while shared or owned rejects — the
+    // `ChildAccessMutable` inventory leg exercises the permitted flip
+    // through the matrix. The shared-freeze child is pinned to shared by
+    // its class.
     rejected(
         "a shared-borrow restored-use child access",
         &put_u8(first.child_access.clone(), 2),
