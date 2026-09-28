@@ -4486,31 +4486,31 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   execution in an admitted privileged environment. Hosted tests must not execute
   raw port I/O.
 
-- **FLOAT-PROVIDERS.** Complete checked source and independently replayed
-  `FloatSemantics` obligations used by the actual `Float::*` slot contracts,
-  under [FloatMeaning](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
-  Closed Meaning-valued applications and authored equality ensures already
-  reach produced artifacts and independent proof replay; reuse that route.
-  Its checked binder, evaluator and Terminal application carrier specialize
-  Meaning results and Format/Meaning operands. Complete Boolean,
-  classification and integer-conversion contract discharge through the
-  appropriate proof carriers, not by admitting those results as FloatMeaning.
+- **FLOAT-PROVIDERS.** Complete the `FloatSemantics` obligations of the actual
+  `Float`, `F32`/`F64` and conversion slots under
+  [FloatMeaning](wiki/spec/terminal-psi/mathematical_values.md#floatmeaning).
+  Closed Meaning arithmetic already reaches artifacts: `add(BINARY32,
+  meaning32(1), meaning32(2)) == meaning32(3)` succeeds; replacing `3` with `4`
+  rejects. Reuse that route.
 
-  Owners: checked `proof/float_meaning.rs`, validation's
-  `float_projection_bindings`, checked/lowered contract production and
-  Terminal semantic/proof replay. Preserve exact declaration/signature,
-  owner/use-site, result and argument correspondence; shared numerical kernels
-  and well-formed metadata alone do not establish a source obligation.
+  Checked `proof/float_meaning.rs` and validation's
+  `float_projection_bindings/semantic_values.rs` accept only Meaning results
+  with Format/Meaning operands. Complete Boolean/classification/integer results
+  and integer operands such as `from_integer` through their appropriate proof
+  carriers and independent Terminal replay. Even closed true `is_finite`,
+  `to_i32` and `from_integer` ensures currently stop at unsupported proof
+  entailment. Non-Meaning results must not occupy the FloatMeaning carrier.
 
-  Acceptance: actual slot-contract customers retain and discharge their
-  obligations through produced source-free artifacts, including non-Meaning
-  results and imported call/operator results. False claims, lookalike
-  declarations, altered operands/formats/results and missing evidence reject.
-  Preserve IEEE Boolean comparison separately from structural meaning
-  equality, including NaNs and signed zeros. Keep
-  `produced_artifact_verifies_authored_float_meaning_ensures` and its forged/
-  missing-evidence controls. Native FMA transport belongs to
-  **X86-FMA-PROVIDER-TRANSPORT**; constants to **FLOAT-IDENTITY-LITERAL-CARRIER**.
+  Acceptance: actual slot contracts and imported call/operator results retain
+  and discharge obligations in produced source-free artifacts, beyond existing
+  imported-result binding and roster-custody tests. Preserve exact declaration,
+  signature, owner/use-site and argument/result correspondence. Reject false
+  claims, lookalike declarations, changed
+  operands/formats/results and missing or forged proof evidence. Preserve IEEE
+  Boolean comparison separately from structural meaning equality, including
+  NaNs and signed zeros. **OPERATOR-BOUNDARY-CALLS** owns executable named
+  provider installation, **X86-FMA-PROVIDER-TRANSPORT** native FMA, and
+  **FLOAT-IDENTITY-LITERAL-CARRIER** constant materialization.
 
 - **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY.** Finish ordinary native
   borrowed-descriptor invocation and forwarding under
@@ -4889,27 +4889,29 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   **FILTERED-CALLEE-CALL-SITES**, not a permanent no-std restriction. Use a
   reduced fixture to isolate admission, then close the imported customer.
 
-- **X86-FMA-PROVIDER-TRANSPORT.** Carry checked/legalized scalar FMA
-  occurrences through ordinary selected-instruction transformation,
-  register-home assignment, machine planning and image publication.
-  Reuse the feature-custodied encoder in `machine-emission/src/x86_fma.rs`
-  and independent artifact readers; their test-driven fragments are not a
-  connected provider-execution route.
+- **X86-FMA-PROVIDER-TRANSPORT.** Connect selected x86 FMA plans to exact
+  Terminal occurrences, then ordinary target lowering, instruction selection,
+  register homes, machine planning and image publication. Checked plan
+  associations and the feature-custodied `machine-emission/src/x86_fma.rs`
+  encoder exist; native `comparison_settlement.rs` rejects every retained FMA
+  without selected occurrence custody. Stage 02 also rejects FMA; stage 03
+  admission and function-fragment emission remain missing.
 
-  Preserve exact operation/operand/result identities, selected provider and
-  AVX+FMA3 admission, XMM homes, canonical MXCSR save/install/restore, and
-  per-occurrence physical coverage. Remove the object, entry and optimization
-  fences only as their required transport is independently checked, not by
-  bypassing them. The production native realization still rejects retained
-  FMA before instruction selection.
+  Preserve exact operation/operand/result and selected-provider identity,
+  AVX+FMA3 admission, XMM homes, canonical MXCSR save/install/restore and complete
+  physical coverage. Extend `object_artifact/replay/x86_fma.rs`
+  beyond its constant-load operand records to ordinary runtime value transport.
+  Keep fences until their required evidence replays independently.
 
-  Acceptance: the source-evaluated-import/FMA customer pinned by
-  `retained_x86_fma_and_source_evaluated_import_stop_at_fma_transport`
-  publishes and executes on a matching admitted host, including nested
-  foreign-call control custody. Both formats distinguish fused from
-  separately rounded cancellation; absent/wrong-profile feature admission,
-  operand/provider substitution and corrupted emitted evidence reject.
-  Report cross-target byte replay separately from hardware execution.
+  Acceptance: `float/x86_fma_plan_association` publishes and runs on an admitted
+  matching host; both formats distinguish fused cancellation from separately
+  rounded multiply/add, including repeated FMA using a prior result. Its nested
+  call and named-provider installation gaps belong to **OPERATOR-BOUNDARY-CALLS**;
+  direct `F64::fused_multiply_add` also lacks a requirement-level Terminal route.
+  Include source-evaluated imports with nested foreign-call control custody.
+  Reject absent/wrong-profile feature admission, operand/provider substitution
+  and corrupted emitted evidence. Report cross-target byte replay separately
+  from hardware execution.
 
 - **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry accepted checked assembly
   through the ordinary source-to-native pipeline under
