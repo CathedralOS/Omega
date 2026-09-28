@@ -18,7 +18,6 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use build_evaluation::target_machines::{
     SelectedTargetMachineDeclarations, filter_target_machines,
 };
-use build_evaluation::{CheckedProviderSelection, settle_checked_providers};
 use component_description::test_support::{
     bare_module, describe_module, module_subject, provider_module,
 };
@@ -27,6 +26,7 @@ use package_compilation::{
     BuildDeclarationKind, IndependentComponentDescription, PackageCompilationInputs,
     PackageDependencyBinding, PackageSourceBinding,
 };
+use provider_planning::{CheckedProviderSelection, settle_checked_providers};
 use provider_planning::{
     CompositionMode, ProviderPlanDerivation, ProviderSelection, ProviderSelectionIdentity,
     ProviderSelectionSubject, derive_satisfies_plans,
@@ -249,9 +249,10 @@ impl Build {
             selection,
             ..
         } = self;
+        let declarations = target_machines.settle_provider_defaults(&mut typed)?;
         settle_checked_providers(
             &mut typed,
-            target_machines,
+            declarations,
             None,
             Some(&package_inputs),
             &[selection],

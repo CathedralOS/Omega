@@ -10,7 +10,6 @@
 
 use std::path::PathBuf;
 
-use build_evaluation::settle_checked_providers;
 use build_evaluation::target_machines::{
     SelectedTargetMachineDeclarations, filter_target_machines,
 };
@@ -19,6 +18,7 @@ use package_compilation::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, BuildDeclarationKind,
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
+use provider_planning::settle_checked_providers;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -171,14 +171,20 @@ impl Fixture {
         &mut self,
         with_binding: bool,
         target_name: Option<&'static str>,
-    ) -> build_evaluation::CheckedProviderSelection {
+    ) -> provider_planning::CheckedProviderSelection {
         let inputs = self.package_inputs(with_binding);
         let profile = target_name.map(|name| {
             target::TargetProfile::from_canonical_target_name(name).expect("known target profile")
         });
+        let declarations = self
+            .target_machines
+            .take()
+            .expect("settle once")
+            .settle_provider_defaults(&mut self.typed)
+            .expect("provider defaults settle");
         settle_checked_providers(
             &mut self.typed,
-            self.target_machines.take().expect("settle once"),
+            declarations,
             profile,
             Some(&inputs),
             &[],

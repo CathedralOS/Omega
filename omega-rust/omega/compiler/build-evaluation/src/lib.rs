@@ -52,14 +52,14 @@
 //! declarations, wire protocol, behavior exclusions, configuration), and
 //! `evidence/` owns the evaluation evidence execution consults (observations
 //! and their identity, filesystem scope and output custody).
-//! `optimization` and `provider_settlement` own their own admissions.
+//! `optimization` owns exact optimization selection admission. Provider planning
+//! and settlement belong to the independent `provider-planning` realization owner.
 
 mod admission;
 mod admitted_build_program;
 mod evidence;
 mod execution;
 mod optimization;
-mod provider_settlement;
 pub mod sources;
 #[cfg(test)]
 mod tests;
@@ -111,8 +111,3 @@ pub use evidence::observations::{
     BuildObservationSummary, BuildRequiredOutputSettlement,
 };
 pub use execution::execute_admitted_build_program;
-pub use provider_settlement::{
-    CheckedProviderSelection, MintedFilesystemHostPlan, MintedTimeHostPlan,
-    mint_canonical_filesystem_host_plan, mint_canonical_time_host_plan, settle_checked_providers,
-    verify_independent_component_descriptions,
-};

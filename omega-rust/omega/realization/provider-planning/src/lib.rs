@@ -10,7 +10,8 @@
 //! Checked-tree and package-input custody dependencies remain a transitional
 //! realization bridge, not a completed Terminal-only handoff.
 //!
-//! Start at `provider_planning.rs` for selection and checked-program binding;
+//! Start at `provider_settlement.rs` for typed candidate derivation and selection,
+//! then `provider_planning.rs` for checked-program binding;
 //! every other folder is one public vocabulary the compiler consumes by path.
 
 pub mod calling_policy_plans;
@@ -18,9 +19,17 @@ pub mod component_progress;
 pub mod evaluated_via_bindings;
 mod intrinsic_requirements;
 mod provider_planning;
+mod provider_settlement;
 pub mod service_schema;
 pub mod task_plans;
 pub mod x86_fma_plan_association;
+
+pub use provider_settlement::{
+    CheckedProviderSelection, MintedFilesystemHostPlan, MintedTimeHostPlan,
+    SettledTargetMachineDeclarations, mint_canonical_filesystem_host_plan,
+    mint_canonical_time_host_plan, settle_checked_providers,
+    verify_independent_component_descriptions,
+};
 
 pub use intrinsic_requirements::{IntrinsicRequirement, IntrinsicRequirementKind};
 pub use provider_planning::selection::{

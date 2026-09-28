@@ -28,16 +28,15 @@ pub use canonical_filesystem_host::{
 pub use canonical_time_host::{MintedTimeHostPlan, mint_canonical_time_host_plan};
 pub use independent_components::verify_independent_component_descriptions;
 
-use crate::admission::target_machines::SelectedTargetMachineDeclarations;
+use crate::ProviderSelection;
+use crate::SelectedProviderReviewProvenance;
+use crate::calling_policy_plans::BoundaryCallingPlanRealization;
+use crate::derive_satisfies_plans;
+use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
 use diagnostics::Diagnostic;
 use effects::SelectedProviderPlanFacts;
 use effects::provider_plan::ProviderPlan;
 use package_compilation::{AcceptedSemanticBindingRole, PackageCompilationInputs};
-use provider_planning::ProviderSelection;
-use provider_planning::SelectedProviderReviewProvenance;
-use provider_planning::calling_policy_plans::BoundaryCallingPlanRealization;
-use provider_planning::derive_satisfies_plans;
-use provider_planning::evaluated_via_bindings::EvaluatedViaBindingTable;
 use typed_trees::TypedTrees;
 
 /// The toolchain-settled mint output shared by the canonical host plans:
@@ -46,6 +45,14 @@ struct ToolchainSettledMint {
     plan: ProviderPlan,
     trait_symbol: symbols::SymbolHandle,
     requirement_symbols: Vec<symbols::SymbolHandle>,
+}
+
+/// Target defaults and declaration origins prepared before provider planning.
+/// Build admission resolves its retained declarations to these exact typed
+/// identities; settlement consumes them without depending on source filtering.
+pub struct SettledTargetMachineDeclarations {
+    pub provider_defaults: Vec<ProviderSelection>,
+    pub origins: Vec<crate::SelectedTargetMachineOrigin>,
 }
 
 /// Final typed provider choices and their evidence, retained for checking and
@@ -63,7 +70,7 @@ pub struct CheckedProviderSelection {
 /// This must precede deferred const evaluation and typed-to-checked settlement.
 pub fn settle_checked_providers(
     typed: &mut TypedTrees,
-    selected_target_machine_declarations: SelectedTargetMachineDeclarations,
+    settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     build_provider_selections: &[ProviderSelection],
@@ -81,18 +88,16 @@ pub fn settle_checked_providers(
     let provider_selection_target = planning_target
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
-    let settled_target_machines =
-        selected_target_machine_declarations.settle_provider_defaults(typed)?;
     let target_provider_defaults = settled_target_machines.provider_defaults;
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let evaluated_via_bindings = provider_planning::evaluated_via_bindings::evaluate_via_bindings(
+    let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
         typed,
         planning_target,
         package_inputs,
     )?;
-    let derived_provider_plans = provider_planning::ProviderPlanDerivation::evaluated(
+    let derived_provider_plans = crate::ProviderPlanDerivation::evaluated(
         typed,
         target_name,
         &evaluated_via_bindings,
@@ -103,7 +108,7 @@ pub fn settle_checked_providers(
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
-    let diagnostics = provider_planning::validate_derived_provider_plan_candidates(
+    let diagnostics = crate::validate_derived_provider_plan_candidates(
         typed,
         &evaluated_via_bindings,
         &derived_provider_plans,
@@ -111,7 +116,7 @@ pub fn settle_checked_providers(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let selected_provider_plans = provider_planning::select_derived_provider_plans(
+    let selected_provider_plans = crate::select_derived_provider_plans(
         &derived_provider_plans,
         provider_selection_target,
         &target_provider_defaults,
@@ -165,7 +170,7 @@ pub fn settle_checked_providers(
             .selected_by
             .composition_mode()
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        if composition_mode != provider_planning::CompositionMode::Fused {
+        if composition_mode != crate::CompositionMode::Fused {
             continue;
         }
         let requirement = selected.derived.provenance.schema.symbol();
@@ -190,17 +195,14 @@ pub fn settle_checked_providers(
     // only its honestly realizable leaves and its syscall rows can never
     // invoke, so it joins after the authored-plan cycle check, before the
     // external-binding extraction that binds its syscall numbers.
-    provider_planning::validate_selected_synchronous_invocation_cycles(
-        typed,
-        &selected_semantic_plans,
-    )?;
+    crate::validate_selected_synchronous_invocation_cycles(typed, &selected_semantic_plans)?;
     if let Some(minted) = &toolchain_filesystem_plan {
         selected_semantic_plans.push(minted.plan.clone());
     }
     if let Some(minted) = &toolchain_time_host_plan {
         selected_semantic_plans.push(minted.plan.clone());
     }
-    let external_binding_rows = provider_planning::extract_native_external_binding_rows(
+    let external_binding_rows = crate::extract_native_external_binding_rows(
         target_name,
         provider_selection_target,
         &selected_semantic_plans,
@@ -219,7 +221,7 @@ pub fn settle_checked_providers(
         accepted_component_assumptions,
     )?;
     let (mut selected_provider_plan_facts, mut selected_provider_provenance) =
-        provider_planning::selected_provider_plan_facts_with_independent_components(
+        crate::selected_provider_plan_facts_with_independent_components(
             typed,
             &evaluated_via_bindings,
             selected_provider_plans,
@@ -261,10 +263,8 @@ pub fn settle_checked_providers(
             index,
             SelectedProviderReviewProvenance {
                 plan: minted.plan.clone(),
-                provider: provider_planning::ProviderPlanProvenance {
-                    schema: provider_planning::ProviderSchemaDeclaration::BoundaryTrait(
-                        minted.trait_symbol,
-                    ),
+                provider: crate::ProviderPlanProvenance {
+                    schema: crate::ProviderSchemaDeclaration::BoundaryTrait(minted.trait_symbol),
                     provider_type: None,
                     row_requirements: minted.requirement_symbols,
                     row_realizations: vec![
@@ -273,8 +273,7 @@ pub fn settle_checked_providers(
                     ],
                     row_target_machine_origins: vec![None; minted.plan.rows.len()],
                 },
-                selected_by:
-                    provider_planning::ProviderSelectionProvenance::UniqueCoveringCandidate,
+                selected_by: crate::ProviderSelectionProvenance::UniqueCoveringCandidate,
                 row_compiler_intrinsic_executions: Vec::new(),
             },
         );
