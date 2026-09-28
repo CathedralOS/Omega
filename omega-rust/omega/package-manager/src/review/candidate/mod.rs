@@ -19,9 +19,8 @@ pub use compilation::{
     compile_resolved_package_reviews_with_checkpoint,
 };
 pub(crate) use compilation::{
-    compile_resolved_package_candidate_for_check,
-    compile_resolved_package_candidate_for_check_with_checkpoint,
-    compile_resolved_package_candidate_for_production_collecting_timings,
+    compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
+    compile_resolved_package_candidate_for_check_with_checkpoint, production_candidate_reusing,
 };
 pub(crate) use custody::verify_transitive_source_custody;
 pub use error::CompileResolvedPackageReviewsError;

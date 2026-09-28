@@ -217,27 +217,6 @@ pub fn compile_resolved_package_candidate_for_production_with_checkpoint(
     )
 }
 
-/// The production route with the stage ladder under the caller's control.
-/// The consuming operation owns the `--timings` decision, so it reaches the
-/// shared derivation directly rather than through the two default wrappers.
-pub(crate) fn compile_resolved_package_candidate_for_production_collecting_timings(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
-    bindings: SemanticBindingReview<'_>,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
-    collect_timings: bool,
-) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
-    production_candidate(
-        target_closure,
-        build_root,
-        bindings,
-        root_build_snapshot,
-        restricted_build_checkpoint,
-        collect_timings,
-    )
-}
-
 fn production_candidate(
     target_closure: &ExactTargetPackageSourceClosure<'_>,
     build_root: &Path,
@@ -245,6 +224,30 @@ fn production_candidate(
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     collect_timings: bool,
+) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    let closure = target_closure.source_closure();
+    production_candidate_reusing(
+        target_closure,
+        build_root,
+        bindings,
+        root_build_snapshot,
+        restricted_build_checkpoint,
+        &mut CandidateSourcePreparation::for_closure(closure).collecting_timings(collect_timings),
+    )
+}
+
+/// The production route retaining source preparation in the caller's store.
+/// An operation that compiles several exact targets of one resolved closure
+/// shares the store, so each package's binding-independent parse frontier is
+/// built once while custody admission, build execution, and checking still
+/// run per target context.
+pub(crate) fn production_candidate_reusing(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    bindings: SemanticBindingReview<'_>,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    preparation: &mut CandidateSourcePreparation,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
@@ -267,7 +270,7 @@ fn production_candidate(
         Some(&root_path),
         root_build_snapshot,
         restricted_build_checkpoint,
-        &mut CandidateSourcePreparation::for_closure(closure).collecting_timings(collect_timings),
+        preparation,
     )?;
     let checked_root = compiled.checked_root.ok_or_else(|| {
         CompileResolvedPackageReviewsError::IdentityMismatch {
@@ -345,6 +348,35 @@ fn compile_candidate_for_check(
     (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
     CompileResolvedPackageReviewsError,
 > {
+    compile_candidate_for_check_reusing(
+        target_closure,
+        build_root,
+        entry_path,
+        root_build_snapshot,
+        restricted_build_checkpoint,
+        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure())
+            .collecting_timings(collect_timings),
+    )
+}
+
+/// The consuming check route retaining source preparation in the caller's
+/// store. An operation checking several exact targets of one resolved closure
+/// shares the store, so each package's binding-independent parse frontier is
+/// built once while custody admission, build execution, and checking still
+/// run per target context. The restricted-request checkpoint is consulted per
+/// target exactly as in the single-target route, and the store's own
+/// `collecting_timings` choice governs the stage ladder.
+pub(crate) fn compile_candidate_for_check_reusing(
+    target_closure: &ExactTargetPackageSourceClosure<'_>,
+    build_root: &Path,
+    entry_path: &Path,
+    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
+    preparation: &mut CandidateSourcePreparation,
+) -> Result<
+    (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
+    CompileResolvedPackageReviewsError,
+> {
     let compiled = compile_candidate(
         target_closure,
         build_root,
@@ -352,8 +384,7 @@ fn compile_candidate_for_check(
         Some(entry_path),
         root_build_snapshot,
         restricted_build_checkpoint,
-        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure())
-            .collecting_timings(collect_timings),
+        preparation,
     )?;
     let CompiledPackageReviews {
         reviews,

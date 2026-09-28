@@ -1,9 +1,10 @@
 //! Checked inspection and reporting for one prepared package or application project.
 
-use super::PreparedLocalProject;
+use super::prepare_project::PreparedProjectTarget;
+use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::review::{
-    CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
-    compile_resolved_package_candidate_for_check,
+    CandidateSourcePreparation, CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
+    compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
     compile_resolved_package_candidate_for_check_with_checkpoint,
 };
 use compiler::{CompileOptions, CompileOutputKind, CompileReport, TrustAdmission};
@@ -18,7 +19,7 @@ mod tests;
 pub struct PreparedLocalProjectCheckRequest {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
-    target_profile: TargetProfile,
+    target_profiles: Vec<TargetProfile>,
 
     accepted_trust_admissions: Vec<TrustAdmission>,
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
@@ -31,10 +32,22 @@ impl PreparedLocalProjectCheckRequest {
         build_dir: impl Into<PathBuf>,
         target_profile: TargetProfile,
     ) -> Self {
+        Self::for_targets(prepared, build_dir, vec![target_profile])
+    }
+
+    /// One check request covering several exact targets. Their prepared source
+    /// shares one candidate preparation: each package's binding-independent
+    /// parse frontier is built once for the union while each target still
+    /// checks under its own staging root and accepted consent.
+    pub fn for_targets(
+        prepared: PreparedLocalProject,
+        build_dir: impl Into<PathBuf>,
+        target_profiles: Vec<TargetProfile>,
+    ) -> Self {
         Self {
             prepared,
             build_dir: build_dir.into(),
-            target_profile,
+            target_profiles,
 
             accepted_trust_admissions: Vec::new(),
             build_snapshot: None,
@@ -64,6 +77,9 @@ impl PreparedLocalProjectCheckRequest {
 
 #[derive(Debug)]
 pub enum CheckPreparedLocalProjectError {
+    /// One target's own prepared section failed while sibling targets carried
+    /// on; reported per target in the multi-target route.
+    Prepare(PrepareLocalProjectError),
     Review(CompileResolvedPackageReviewsError),
     TrustAdmission(Vec<Diagnostic>),
     /// The retained checked root carries an optional proof-product request a
@@ -78,6 +94,7 @@ pub enum CheckPreparedLocalProjectError {
 impl fmt::Display for CheckPreparedLocalProjectError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Prepare(error) => write!(formatter, "{error}"),
             Self::Review(error) => write!(formatter, "cannot check prepared project: {error}"),
             Self::TrustAdmission(diagnostics) => {
                 write!(formatter, "cannot admit package trust: {diagnostics:?}")
@@ -105,7 +122,9 @@ pub fn check_prepared_local_project_for_inspection(
     build_dir: &Path,
     target_profile: TargetProfile,
 ) -> Result<compiler::CheckedCompilation, CompileResolvedPackageReviewsError> {
-    let (entry_path, source_closure, _) = prepared.into_review_parts();
+    // Inspection issues no grants and consumes no accepted section; the
+    // shared closure already carries the exact sources this profile checks.
+    let (entry_path, source_closure, _targets) = prepared.into_target_review_parts();
     compile_resolved_package_candidate_for_check(
         &source_closure.for_exact_target(target_profile),
         build_dir,
@@ -114,6 +133,13 @@ pub fn check_prepared_local_project_for_inspection(
         false,
     )
     .map(|(checked, _reviews)| checked)
+}
+
+/// One target's check result inside a shared multi-target request. A failing
+/// target never stops or hides a sibling.
+pub struct CheckedProjectTargetOutcome {
+    pub target: TargetProfile,
+    pub result: Result<CompileReport, CheckPreparedLocalProjectError>,
 }
 
 /// Run scoped candidate checking and report its final checked root. Generated
@@ -125,13 +151,21 @@ pub fn check_prepared_local_project(
     let PreparedLocalProjectCheckRequest {
         prepared,
         build_dir,
-        target_profile,
+        target_profiles,
 
         accepted_trust_admissions,
         build_snapshot,
         timings,
     } = request;
-    let (entry_path, source_closure, accepted_target) = prepared.into_review_parts();
+    let [target_profile] = target_profiles.as_slice() else {
+        return Err(CheckPreparedLocalProjectError::Report(
+            "check_prepared_local_project needs a single-target request",
+        ));
+    };
+    let target_profile = *target_profile;
+    let (entry_path, source_closure, accepted_target) = prepared
+        .into_review_parts(target_profile)
+        .map_err(CheckPreparedLocalProjectError::Prepare)?;
     // Checked reporting consumes the compile's generated sources, so it is
     // an executor of the accepted policy, not an observational review: the
     // retained target's restricted-request checkpoint arms the pass, and a
@@ -161,6 +195,113 @@ pub fn check_prepared_local_project(
         target_name: Some(target_profile.target_name().to_owned()),
     };
     let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
+        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
+    let settlement = admission.into_settlement();
+    // A check-only stop publishes no artifact pair, so a checked root whose
+    // build requested an optional proof product can never be satisfied here.
+    // The standalone compiler's `RequestedCompileProduct::Check` arm applies
+    // the same admission fence.
+    if checked.pcc_requests().any() {
+        return Err(CheckPreparedLocalProjectError::ProofProduct(vec![
+            Diagnostic::error("a check-only stop cannot satisfy an optional proof-product request"),
+        ]));
+    }
+    CompileReport::checked(
+        options.root_path,
+        checked.source_file_count(),
+        false,
+        CompileOutputKind::CheckOnly,
+        None,
+    )
+    .map(|report| {
+        report
+            .with_trust_admission_settlement(settlement)
+            .with_timings(checked.timings().phases().to_vec())
+    })
+    .map_err(CheckPreparedLocalProjectError::Report)
+}
+
+/// The same check for every requested target under one prepared source union.
+/// All targets share the prepared project's resolved closure and one
+/// [`CandidateSourcePreparation`], so a package's binding-independent parse
+/// frontier — and any typed frontier whose inputs two targets carry
+/// identically — assembles exactly once for the request. Each target still
+/// stages into `build_dir/<target>`, arms its own accepted checkpoint, and
+/// settles its own trust admission and report.
+pub fn check_prepared_local_project_for_targets(
+    request: PreparedLocalProjectCheckRequest,
+) -> Vec<CheckedProjectTargetOutcome> {
+    let PreparedLocalProjectCheckRequest {
+        prepared,
+        build_dir,
+        target_profiles,
+
+        accepted_trust_admissions,
+        build_snapshot,
+        timings,
+    } = request;
+    let (entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
+    let mut preparation =
+        CandidateSourcePreparation::for_closure(&source_closure).collecting_timings(timings);
+    prepared_targets
+        .into_iter()
+        .filter(|target| target_profiles.contains(&target.profile))
+        .map(|prepared_target| {
+            let profile = prepared_target.profile;
+            let result = check_one_prepared_target(
+                prepared_target,
+                &source_closure,
+                &entry_path,
+                &build_dir,
+                build_snapshot.as_ref(),
+                &accepted_trust_admissions,
+                &mut preparation,
+            );
+            CheckedProjectTargetOutcome {
+                target: profile,
+                result,
+            }
+        })
+        .collect()
+}
+
+/// Check one prepared target inside the shared request. Checked reporting
+/// consumes the compile's generated sources, so it is an executor of the
+/// accepted policy, not an observational review: the target's own
+/// restricted-request checkpoint arms the pass, and a projected request the
+/// accepted rows do not grant rejects before its own build effect executes.
+fn check_one_prepared_target(
+    prepared_target: PreparedProjectTarget,
+    source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
+    entry_path: &Path,
+    build_dir: &Path,
+    build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    accepted_trust_admissions: &[TrustAdmission],
+    preparation: &mut CandidateSourcePreparation,
+) -> Result<CompileReport, CheckPreparedLocalProjectError> {
+    let profile = prepared_target.profile;
+    let accepted_target = prepared_target
+        .accepted
+        .map_err(CheckPreparedLocalProjectError::Prepare)?;
+    let target_build_dir = build_dir.join(profile.target_name());
+    let checkpoint = accepted_target
+        .as_ref()
+        .map(RestrictedBuildCheckpoint::derive);
+    let (checked, _reviews) = compile_candidate_for_check_reusing(
+        &source_closure.for_exact_target(profile),
+        &target_build_dir,
+        entry_path,
+        build_snapshot,
+        checkpoint.as_ref(),
+        preparation,
+    )
+    .map_err(CheckPreparedLocalProjectError::Review)?;
+    let options = CompileOptions {
+        root_path: entry_path.to_path_buf(),
+        build_dir: Some(target_build_dir),
+        target_name: Some(profile.target_name().to_owned()),
+    };
+    let admission = compiler::admit_checked_compilation(&checked, accepted_trust_admissions)
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     let settlement = admission.into_settlement();
     // A check-only stop publishes no artifact pair, so a checked root whose

@@ -25,12 +25,14 @@ pub use check_locked_sources::{
     CheckLockedSourcesError, CheckedLockedSources, check_locked_sources,
 };
 pub use check_project::{
-    CheckPreparedLocalProjectError, PreparedLocalProjectCheckRequest, check_prepared_local_project,
-    check_prepared_local_project_for_inspection,
+    CheckPreparedLocalProjectError, CheckedProjectTargetOutcome, PreparedLocalProjectCheckRequest,
+    check_prepared_local_project, check_prepared_local_project_for_inspection,
+    check_prepared_local_project_for_targets,
 };
 pub use compile_project::{
-    CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
-    compile_prepared_local_project_for_native,
+    CompilePreparedLocalProjectNativeError, CompiledProjectTargetOutcome,
+    PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native,
+    compile_prepared_local_project_for_native_targets,
 };
 pub use inspect_packages::{
     PackageInspectionError, PackageInspectionOptions, PackageInspectionOutcome, inspect_packages,
@@ -46,7 +48,7 @@ pub use package_change::{
 pub(crate) use prepare_project::LOCAL_PROJECT_CONTEXT;
 pub use prepare_project::{
     LocalProjectPreparationOptions, PrepareLocalProjectError, PreparedLocalProject,
-    prepare_local_project,
+    prepare_local_project, prepare_local_project_for_targets,
 };
 pub use publication::{
     PackageFileTransaction, PackagePublicationError, PackagePublicationLimits,

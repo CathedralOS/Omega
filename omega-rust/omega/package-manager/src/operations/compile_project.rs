@@ -2,15 +2,16 @@
 
 use crate::review::SemanticBindingReview;
 
-use super::PreparedLocalProject;
+use super::prepare_project::PreparedProjectTarget;
+use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::admission::{
     AcceptedNativeInput, AcceptedNativeRealizationRequest, AcceptedOrdinaryEvidenceError,
     accept_ordinary_closure_evidence, realize_accepted_native_report,
 };
 use crate::review::{
-    CanonicalPackageReconstructionQuestionLimits, CompileResolvedPackageReviewsError,
-    RestrictedBuildCheckpoint, ReviewOnlyCapabilityConflictLimits,
-    compile_resolved_package_candidate_for_production_collecting_timings,
+    CandidateSourcePreparation, CanonicalPackageReconstructionQuestionLimits,
+    CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
+    ReviewOnlyCapabilityConflictLimits, production_candidate_reusing,
 };
 use compiler::native::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
@@ -18,7 +19,7 @@ use compiler::native::{
 use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Complete policy and output input for one package-aware native production.
 ///
@@ -33,7 +34,7 @@ use std::path::PathBuf;
 pub struct PreparedLocalProjectNativeRequest {
     prepared: PreparedLocalProject,
     build_dir: PathBuf,
-    target_profile: target::TargetProfile,
+    target_profiles: Vec<target::TargetProfile>,
 
     accepted_trust_admissions: Vec<TrustAdmission>,
     optimization_rollback: OptimizationRollback,
@@ -49,10 +50,23 @@ impl PreparedLocalProjectNativeRequest {
         build_dir: impl Into<PathBuf>,
         target_profile: target::TargetProfile,
     ) -> Self {
+        Self::for_targets(prepared, build_dir, vec![target_profile])
+    }
+
+    /// One native production request covering several exact targets. Their
+    /// prepared source shares one candidate preparation, so each package's
+    /// binding-independent parse frontier is built once for the union; each
+    /// target still produces under `build_dir/<target>` with its own accepted
+    /// consent.
+    pub fn for_targets(
+        prepared: PreparedLocalProject,
+        build_dir: impl Into<PathBuf>,
+        target_profiles: Vec<target::TargetProfile>,
+    ) -> Self {
         Self {
             prepared,
             build_dir: build_dir.into(),
-            target_profile,
+            target_profiles,
 
             accepted_trust_admissions: Vec::new(),
             optimization_rollback: OptimizationRollback::default(),
@@ -110,6 +124,9 @@ impl PreparedLocalProjectNativeRequest {
 
 #[derive(Debug)]
 pub enum CompilePreparedLocalProjectNativeError {
+    /// One target's own prepared section failed while sibling targets carried
+    /// on; reported per target in the multi-target route.
+    Prepare(PrepareLocalProjectError),
     Review(CompileResolvedPackageReviewsError),
     Evidence(AcceptedOrdinaryEvidenceError),
     TrustAdmission(Vec<Diagnostic>),
@@ -119,6 +136,7 @@ pub enum CompilePreparedLocalProjectNativeError {
 impl fmt::Display for CompilePreparedLocalProjectNativeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Prepare(error) => write!(formatter, "{error}"),
             Self::Review(error) => {
                 write!(formatter, "cannot compile fresh package review: {error}")
             }
@@ -160,10 +178,46 @@ pub fn compile_prepared_local_project_for_native<Observation>(
     request: PreparedLocalProjectNativeRequest,
     observe: impl FnOnce(&compiler::CheckedCompilation) -> Observation,
 ) -> Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError> {
+    if request.target_profiles.len() != 1 {
+        return Err(CompilePreparedLocalProjectNativeError::Native(vec![
+            Diagnostic::error(
+                "compile_prepared_local_project_for_native needs a single-target request",
+            ),
+        ]));
+    }
+    let mut observe = Some(observe);
+    compile_prepared_local_project_for_native_targets(request, move |checked| {
+        observe
+            .take()
+            .expect("one native observation per requested target")(checked)
+    })
+    .pop()
+    .expect("a native request produces one outcome per requested target")
+    .result
+}
+
+/// One target's native production result inside a shared multi-target
+/// request. A failing target never stops or hides a sibling.
+pub struct CompiledProjectTargetOutcome<Observation> {
+    pub target: target::TargetProfile,
+    pub result: Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError>,
+}
+
+/// Native production for every requested target under one prepared source
+/// union. All targets share the resolved closure and one
+/// [`CandidateSourcePreparation`], so a package's binding-independent parse
+/// frontier — and any typed frontier whose inputs two targets carry
+/// identically — assembles exactly once for the request. Each target still
+/// produces under `build_dir/<target>`, arms its own accepted checkpoint, and
+/// settles its own evidence, admission, and realization.
+pub fn compile_prepared_local_project_for_native_targets<Observation>(
+    request: PreparedLocalProjectNativeRequest,
+    mut observe: impl FnMut(&compiler::CheckedCompilation) -> Observation,
+) -> Vec<CompiledProjectTargetOutcome<Observation>> {
     let PreparedLocalProjectNativeRequest {
         prepared,
         build_dir,
-        target_profile,
+        target_profiles,
 
         accepted_trust_admissions,
         optimization_rollback,
@@ -172,23 +226,68 @@ pub fn compile_prepared_local_project_for_native<Observation>(
         receiving_terminal_authority_permission_policy,
         timings,
     } = request;
-    let (_, source_closure, accepted_target) = prepared.into_review_parts();
+    let (_entry_path, source_closure, prepared_targets) = prepared.into_target_review_parts();
+    let mut preparation =
+        CandidateSourcePreparation::for_closure(&source_closure).collecting_timings(timings);
+    prepared_targets
+        .into_iter()
+        .filter(|target| target_profiles.contains(&target.profile))
+        .map(|prepared_target| {
+            let profile = prepared_target.profile;
+            let result = compile_one_prepared_target(
+                prepared_target,
+                &source_closure,
+                &build_dir,
+                build_snapshot.as_ref(),
+                &accepted_trust_admissions,
+                &optimization_rollback,
+                terminal_authority_policy.clone(),
+                receiving_terminal_authority_permission_policy.clone(),
+                &mut preparation,
+                &mut observe,
+            );
+            CompiledProjectTargetOutcome {
+                target: profile,
+                result,
+            }
+        })
+        .collect()
+}
+
+/// Produce one prepared target inside the shared request. Native production
+/// is an executor of the accepted policy: the retained target's
+/// restricted-request checkpoint arms the pass, so a projected request the
+/// accepted rows do not grant rejects before its own build effect executes —
+/// before generated sources or the checked root can reach realization.
+#[allow(clippy::too_many_arguments)]
+fn compile_one_prepared_target<Observation>(
+    prepared_target: PreparedProjectTarget,
+    source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
+    build_dir: &Path,
+    build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
+    accepted_trust_admissions: &[TrustAdmission],
+    optimization_rollback: &OptimizationRollback,
+    terminal_authority_policy: TerminalAuthorityPolicy,
+    receiving_terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
+    preparation: &mut CandidateSourcePreparation,
+    observe: &mut impl FnMut(&compiler::CheckedCompilation) -> Observation,
+) -> Result<(CompileReport, Observation), CompilePreparedLocalProjectNativeError> {
+    let target_profile = prepared_target.profile;
+    let accepted_target = prepared_target
+        .accepted
+        .map_err(CompilePreparedLocalProjectNativeError::Prepare)?;
     let target_closure = source_closure.for_exact_target(target_profile);
-    // Native production is an executor of the accepted policy: the retained
-    // target's restricted-request checkpoint arms the pass, so a projected
-    // request the accepted rows do not grant rejects before its own build
-    // effect executes — before generated sources or the checked root can
-    // reach realization.
+    let target_build_dir = build_dir.join(target_profile.target_name());
     let checkpoint = accepted_target
         .as_ref()
         .map(RestrictedBuildCheckpoint::derive);
-    let candidate = compile_resolved_package_candidate_for_production_collecting_timings(
+    let candidate = production_candidate_reusing(
         &target_closure,
-        &build_dir,
+        &target_build_dir,
         SemanticBindingReview::Discover,
-        build_snapshot.as_ref(),
+        build_snapshot,
         checkpoint.as_ref(),
-        timings,
+        preparation,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
     // Snapshot the ladder before realization: native realization overwrites
@@ -203,14 +302,14 @@ pub fn compile_prepared_local_project_for_native<Observation>(
     )
     .map_err(CompilePreparedLocalProjectNativeError::Evidence)?;
     let admission =
-        compiler::admit_checked_compilation(candidate.checked_root(), &accepted_trust_admissions)
+        compiler::admit_checked_compilation(candidate.checked_root(), accepted_trust_admissions)
             .map_err(CompilePreparedLocalProjectNativeError::TrustAdmission)?;
     let trust_settlement = admission.into_settlement();
     let observation = observe(candidate.checked_root());
     realize_accepted_native_report(
         AcceptedNativeInput::Reviewed {
             candidate: Box::new(candidate),
-            optimization_rollback: &optimization_rollback,
+            optimization_rollback,
         },
         AcceptedNativeRealizationRequest {
             evidence: &evidence,

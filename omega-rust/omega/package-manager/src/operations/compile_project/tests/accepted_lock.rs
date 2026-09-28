@@ -26,7 +26,9 @@ pub(super) fn accept_project(
     )
     .expect("prepare initial review")
     .expect("application project");
-    let (_, closure, _) = prepared.into_review_parts();
+    let (_, closure, _) = prepared
+        .into_review_parts(target)
+        .expect("prepared project covers its requested target");
     let review = review_package_change(closure, target, None, &project.workspace.join("review"))
         .expect("check the ordinary install/update candidate");
     let choices = review
@@ -75,7 +77,9 @@ fn accepted_project_policy_needs_no_second_native_approval() {
     )
     .expect("prepare accepted project")
     .expect("application project");
-    let (_, closure, _) = prepared.into_review_parts();
+    let (_, closure, _) = prepared
+        .into_review_parts(target)
+        .expect("prepared project covers its requested target");
     let unchanged = review_package_change(
         closure,
         target,
@@ -291,7 +295,9 @@ fn equal_policy_source_edit_remains_visible_and_resolution_update_preserves_assu
     )
     .unwrap()
     .unwrap();
-    let (_, closure, retained) = prepared.into_review_parts();
+    let (_, closure, retained) = prepared
+        .into_review_parts(target)
+        .expect("prepared project covers its requested target");
     assert_eq!(retained.as_ref(), accepted.target(target));
     let review = review_package_change(
         closure,
