@@ -35,6 +35,7 @@ use checked_trees::CheckedTrees;
 #[derive(Clone, Copy)]
 pub struct CheckingRequest<'a> {
     mode: CheckingMode,
+    asm_authority: Option<validation::AsmAuthorityAdmission>,
     selected_generic_operator_providers: &'a [SelectedGenericOperatorProviderSpecialization],
     selected_boundary_families: &'a [SelectedBoundaryFamilySpecialization],
     opaque_property_receipts: &'a [validation::OpaqueDataPropertyReceipt],
@@ -45,6 +46,7 @@ impl<'a> CheckingRequest<'a> {
     const fn with_mode(mode: CheckingMode) -> Self {
         Self {
             mode,
+            asm_authority: None,
             selected_generic_operator_providers: &[],
             selected_boundary_families: &[],
             opaque_property_receipts: &[],
@@ -67,6 +69,19 @@ impl<'a> CheckingRequest<'a> {
     #[cfg(test)]
     pub(crate) const fn crash_fact_inspection() -> Self {
         Self::with_mode(CheckingMode::CrashFactInspection)
+    }
+
+    /// Request privileged-instruction admission under the evaluated build.
+    /// Language-only probes leave this absent: checking an unused runtime
+    /// body during constant evaluation is not permission to install it.
+    /// Final product checking supplies authority and validates it on every
+    /// invocation, independently of the memoized language judgment.
+    pub const fn with_asm_authority(
+        mut self,
+        authority: validation::AsmAuthorityAdmission,
+    ) -> Self {
+        self.asm_authority = Some(authority);
+        self
     }
 
     /// Omega-selected generic checked bodies to specialize for the exact
@@ -125,6 +140,9 @@ pub fn lower_typed_trees(
     if request.mode != CheckingMode::Preliminary {
         deferred_constants::require_evaluated_constants(&program)?;
     }
+    if let Some(authority) = request.asm_authority {
+        validation::validate_asm_discharge(&program, authority)?;
+    }
     // Rejoin authored source instances before specialization can introduce
     // generated declarations with the same source provenance.
     let opaque_property_receipts =
@@ -163,6 +181,7 @@ fn lower_typed_trees_uncached(
         selected_boundary_families,
         opaque_property_receipts,
         declaration_authority: _,
+        asm_authority: _,
     } = *request;
     // Mathematical `let`/`boundary let` declarations elaborate into
     // `CheckedMathematicalDeclaration` records and then into a kernel
@@ -481,6 +500,37 @@ pub(crate) fn specialize_static_machine_calls_with_selections(
 mod tests {
     use super::CheckingRequest;
     use crate::tests::front_end::typed_program;
+
+    #[test]
+    fn settled_check_requires_instruction_authority_even_after_a_memo_hit() {
+        let typed = typed_program(
+            "boundary trait PortIo {}
+             data Root {}
+             machine Root::emit() reaches PortIo { asm { out 32, 7 } }",
+        );
+        let _retention = super::retain_repeated_checks();
+        let authorized = CheckingRequest::settled()
+            .with_asm_authority(validation::AsmAuthorityAdmission::HOSTED.with_grants(true, false));
+        let unauthorized = CheckingRequest::settled()
+            .with_asm_authority(validation::AsmAuthorityAdmission::HOSTED);
+
+        crate::lower_typed_trees(typed.clone(), &CheckingRequest::settled())
+            .expect("a language-only probe does not grant runtime installation authority");
+
+        for _ in 0..2 {
+            crate::lower_typed_trees(typed.clone(), &authorized)
+                .expect("the explicit port-I/O grant admits the instruction");
+            let diagnostics = crate::lower_typed_trees(typed.clone(), &unauthorized).expect_err(
+                "a retained language judgment must not supply another caller's authority",
+            );
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| { diagnostic.message.contains("port-I/O authority") }),
+                "{diagnostics:?}"
+            );
+        }
+    }
 
     #[test]
     fn unelaboratable_mathematical_declarations_fail_with_their_own_diagnostic() {

@@ -46,6 +46,7 @@ pub(crate) fn bind_fixture_fused_service_erasures(typed: &mut typed_trees::Typed
 }
 
 pub(crate) mod front_end;
+pub(crate) mod rebuild_execution;
 
 mod admissibility;
 mod authored_selections;

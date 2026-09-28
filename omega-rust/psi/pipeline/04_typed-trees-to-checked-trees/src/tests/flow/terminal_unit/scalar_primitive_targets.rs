@@ -59,7 +59,7 @@ fn failed_settlement_publishes_no_intermediate_facts() {
             .message
             .contains("cannot prove automatic cleanup requires at scalar return edge")
     }));
-    let diagnostics = crate::settle_checked_execution(checked)
+    let diagnostics = crate::tests::rebuild_execution::rebuild(checked)
         .expect_err("missing cleanup premise rejects the complete settlement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic

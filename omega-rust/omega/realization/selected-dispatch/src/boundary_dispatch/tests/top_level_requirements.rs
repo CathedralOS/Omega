@@ -196,6 +196,42 @@ const MUTABLE_SELF_REQUIREMENT_SOURCE: &str = r#"
     }
 "#;
 
+#[test]
+fn selected_dispatch_preserves_checked_plans_and_accepts_shared_custody() {
+    for source in [
+        REQUIREMENT_SOURCE,
+        SELF_REQUIREMENT_SOURCE,
+        BORROWED_SELF_REQUIREMENT_SOURCE,
+        MUTABLE_SELF_REQUIREMENT_SOURCE,
+    ] {
+        let (checked, plans) = requirement_fixture(source);
+        let selected = selected_all(&plans);
+        let original = Arc::new(checked);
+        let settled = crate::settle_selected_execution_dispatch(Arc::clone(&original), &selected)
+            .expect("provider selection does not need exclusive checked-program custody");
+        assert_eq!(settled.typed, original.typed);
+        assert_eq!(
+            settled.facts.flow.terminal_unit_effects, original.facts.flow.terminal_unit_effects,
+            "provider association must not rebuild Unit plans"
+        );
+        assert_eq!(
+            settled.facts.flow.terminal_boundary_scalar_returns,
+            original.facts.flow.terminal_boundary_scalar_returns
+        );
+        assert_eq!(
+            settled.facts.flow.terminal_structural_scalar_returns,
+            original.facts.flow.terminal_structural_scalar_returns
+        );
+        assert!(!settled.facts.boundary_adapter_dispatch.is_empty());
+
+        // An unchanged association is a read-only operation even when a
+        // consumer retains the checked program. No clone or recheck is needed.
+        let repeated = crate::settle_selected_execution_dispatch(Arc::clone(&settled), &selected)
+            .expect("unchanged dispatch can retain a shared checked program");
+        assert!(Arc::ptr_eq(&settled, &repeated));
+    }
+}
+
 /// A public `&mut self` requirement is called through a member receiver the
 /// same way an owned `self` or shared `&self` requirement is: the call
 /// mutably borrows the receiver place for its duration, so settlement keys

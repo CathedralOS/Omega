@@ -2,25 +2,35 @@
 
 //! Checked-Psi dispatch settlement for exact build-selected realizations.
 //!
-//! The compiler coordinates these rewrites after checking. This crate owns
-//! their semantics and atomic plan/apply behavior. Start at `selected_dispatch.rs`
-//! for execution settlement or `boundary_dispatch.rs` for call associations.
+//! Start at `provider_checking.rs` for build-selected checking inputs, then
+//! `execution_settlement.rs` for dispatch, accepted services and activation.
+//! Psi owns source checking and execution plans. This crate owns realization
+//! associations, not another entrance into source checking.
 
 mod boundary_dispatch;
 mod compiler_intrinsic;
 #[cfg(test)]
 mod core_service_fixture;
+mod execution_settlement;
 mod intrinsic_review;
+mod provider_checking;
 mod selected_dispatch;
 mod service_custody;
 
 pub use boundary_dispatch::{
     selected_boundary_family_specializations, settle_selected_boundary_adapter_dispatch,
 };
+
 pub use compiler_intrinsic::{
     derive_selected_compiler_intrinsic_execution_identity_for_row,
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding,
     derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding,
+};
+pub use execution_settlement::{
+    SelectedExecution, SelectedExecutionRequest, settle_selected_execution,
+};
+pub use provider_checking::{
+    CheckedProviderProgram, ProviderCheckingInputs, ProviderCheckingRequest,
 };
 
 pub use intrinsic_review::{

@@ -82,7 +82,7 @@ fn anonymous_shared_permissions_reject_missing_changed_and_late_custody() {
                     "access" => permissions.get_mut(handle).access = PermissionAccess::Exclusive,
                     _ => unreachable!(),
                 }
-                if let Ok(changed) = crate::settle_checked_execution(changed) {
+                if let Ok(changed) = crate::tests::rebuild_execution::rebuild(changed) {
                     assert!(
                         changed
                             .facts

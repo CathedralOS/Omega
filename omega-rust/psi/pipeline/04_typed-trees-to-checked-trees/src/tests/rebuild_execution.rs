@@ -1,18 +1,13 @@
-//! Rebuild checked execution plans after provider settlement.
-//!
-//! Settlement changes no checked body: a call or operator application keeps
-//! naming the requirement it resolved to, and Omega installs the selected
-//! provider. What settlement does add is the dispatch rows a top-level
-//! requirement call's Unit plan consumes, so `settle_checked_execution`
-//! rebuilds the Terminal plan lanes once against the settled facts.
+//! Rebuild plans after a test deliberately tampers with checked evidence.
+//! Production finalizes execution inside checking; provider selection must
+//! not re-enter that phase. Mutation controls use the same private builders
+//! to verify that inconsistent evidence cannot recover an executable plan.
 
 use crate::execution::execution_plans::{ExecutionPlans, build_execution_plans};
 use checked_trees::CheckedTrees;
 
-/// Rebuild the three Terminal plan lanes of a checked program whose facts
-/// provider settlement extended. The lanes are published together; a failure
-/// publishes nothing.
-pub fn settle_checked_execution(
+/// Rebuild the three plan lanes together; failed mutation checks publish nothing.
+pub(crate) fn rebuild(
     mut checked: CheckedTrees,
 ) -> Result<CheckedTrees, Vec<diagnostics::Diagnostic>> {
     let call_frames = validation::CallFrameResolver::new(&checked.typed);

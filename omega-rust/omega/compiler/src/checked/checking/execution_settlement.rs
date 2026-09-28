@@ -3,18 +3,18 @@
 
 use super::build_continuation::BuiltCheckedProgram;
 use super::const_evaluation;
-use crate::checked::checking::phase_transitions::{
-    SelectedExecutionSettlementInput, SelectedExecutionSettlementSurface,
-    TypedToCheckedSettlementInput, settle_selected_execution, typed_trees_to_checked_trees,
-};
 use artifacts::compile_timings::CompileTimings;
 use build_time_evaluation::SelectedBuildTimeOperators;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
+use selected_dispatch::{
+    ProviderCheckingInputs, ProviderCheckingRequest, SelectedExecution, SelectedExecutionRequest,
+    settle_selected_execution,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CheckedExecution {
-    pub(super) settled: SelectedExecutionSettlementSurface,
+    pub(super) settled: SelectedExecution,
     pub(super) const_evaluation: const_evaluation::SelectedConstEvaluation,
     pub(super) subsystem: u16,
     pub(super) application_intent: Option<build_evaluation::HostedApplicationIntent>,
@@ -198,24 +198,47 @@ pub(crate) fn check_selected_execution(
             &selected_provider_plan_facts,
         )?;
     }
-    let checked = typed_trees_to_checked_trees(
-        typed,
-        timings,
-        TypedToCheckedSettlementInput {
-            native_target: selected_native_target,
-            package_inputs,
-            selected_build_machine: selected_build_machine_symbol,
-            freestanding: build_config.freestanding,
-            privileged_port_io: build_config.privileged_services.port_io,
-            privileged_interrupt_table: build_config.privileged_services.interrupt_table,
-            boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
-            opaque_representation_selections: &opaque_representation_selections,
-            provider_plans: &provider_plans,
-            selected_provider_plan_facts,
-            root_grants: &root_grants,
-            authored_root_grants: &build_config.grants,
+    let provider_request = ProviderCheckingRequest {
+        native_target: selected_native_target,
+        package_inputs,
+        selected_build_machine: selected_build_machine_symbol,
+        boundary_calling_plan_realizations: &mut boundary_calling_plan_realizations,
+        opaque_representation_selections: &opaque_representation_selections,
+        provider_plans: &provider_plans,
+        selected_provider_plan_facts,
+        root_grants: &root_grants,
+        authored_root_grants: &build_config.grants,
+    };
+    let prepared = ProviderCheckingInputs::prepare(&typed, &provider_request)?;
+    let checking = prepared
+        .checking_request()
+        .with_asm_authority(
+            typed_trees_to_checked_trees::AsmAuthorityAdmission::from_freestanding(
+                build_config.freestanding,
+            )
+            .with_grants(
+                build_config.privileged_services.port_io,
+                build_config.privileged_services.interrupt_table,
+            ),
+        )
+        .with_declaration_authority(
+            package_inputs.map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+        );
+    let program = timings.record(
+        artifacts::compile_timings::TYPED_TREES_TO_CHECKED_TREES,
+        || {
+            let started = std::time::Instant::now();
+            let result = typed_trees_to_checked_trees::lower_typed_trees(typed, &checking);
+            super::record_settled_check(started.elapsed());
+            result
         },
     )?;
+    let mut checked = prepared.bind(program, provider_request)?;
+    // Every sibling was checked before realizing this target. Only the
+    // selected bodies remain in its executable product.
+    checked.program = std::sync::Arc::new(typed_trees_to_checked_trees::prune_target_siblings(
+        std::sync::Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone()),
+    )?);
     const_evaluation.validate(
         &checked.program,
         &checked.selected_provider_plan_facts,
@@ -255,8 +278,9 @@ pub(crate) fn check_selected_execution(
     });
     let selected_execution_settlement = settle_selected_execution(
         checked,
-        SelectedExecutionSettlementInput {
+        SelectedExecutionRequest {
             exact_component_progress_root,
+            expected_entry_role: program_entry_binding_role,
             provider_selection_target,
             selected_target_profile,
             selected_provider_provenance,

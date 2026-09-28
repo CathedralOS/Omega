@@ -67,7 +67,6 @@ pub use checks::{
     derive_contract_entailment_exit_membership_discharges,
     recheck_contract_entailment_exit_membership_discharge, replay_checked_borrow_certificates,
 };
-pub use execution::selected_execution::settle_checked_execution;
 
 pub use package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
@@ -90,18 +89,9 @@ pub use product_pruning::{
     target_sibling_selection_occurrences,
 };
 
-/// The privileged-service asm-intrinsic discharge (each instruction's
-/// authority class checks against the build's supplied
-/// `AsmAuthorityAdmission` evidence) -- re-exported for the ORCHESTRATION
-/// layer, which owns the BuildConfig fact the gate consumes; the other
-/// validations run inside `lower_typed_trees` and never see build.omg. The
-/// live call site is the typed->checked settlement transition in
-/// `assembled-syntax-to-checked-compilation` (`checking/phase_transitions.rs`),
-/// which derives the admission from the evaluated `Build.freestanding`
-/// through `TypedToCheckedSettlementInput`.
-pub use ::validation::{
-    AsmAuthorityAdmission, data_requires_establishment, validate_asm_discharge,
-};
+/// Build inputs to Psi's instruction-authority check. The checking entrance
+/// consumes these; the compiler does not run an additional validation pass.
+pub use ::validation::{AsmAuthorityAdmission, data_requires_establishment};
 pub use conformance::conformance_applications::close_conformance_application;
 pub use monomorphization::{
     generic_machine_template_commitment, generic_machine_template_report_fingerprint,
