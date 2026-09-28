@@ -17,7 +17,7 @@ pub(crate) fn evaluate_build_and_continue(
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), Vec<Diagnostic>> {
     let CheckedExecutionRequest {
-        selected_target_profile,
+        selected_target_profile: _,
         build_execution_profile,
         package_inputs,
         build_dir,
@@ -28,9 +28,6 @@ pub(crate) fn evaluate_build_and_continue(
         restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
     } = child;
-    // CLI aliases end at request admission. Every source, build, provider, and
-    // artifact consumer below observes only the catalog's canonical spelling.
-    let target_name = selected_target_profile.map(target::TargetProfile::target_name);
     let TypedCompilationFrontier {
         typing,
         mut selected_target_machine_declarations,
@@ -81,7 +78,6 @@ pub(crate) fn evaluate_build_and_continue(
             &base_sources,
             extension,
             selected_target_machine_declarations,
-            target_name,
             package_inputs,
             timings,
         )?;
@@ -110,7 +106,6 @@ pub(crate) fn evaluate_build_and_continue(
 pub(super) fn lower_typed_frontier(
     source_file_count: usize,
     mut syntax: package_compilation::source_assembly::AssembledSyntax,
-    target_name: Option<&str>,
     execution_profile_name: Option<&str>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
@@ -118,19 +113,18 @@ pub(super) fn lower_typed_frontier(
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
     let application = syntax.application.take();
-    // Build-scope sources select their target-scoped declarations against
-    // the admitted execution profile; product sources against the target.
-    // An unprofiled host resolves to its `NativeTarget` triple. Build-time
-    // evaluation resolves and checks its own probe programs, so it must see
-    // the selected program: an unselected per-target leaf (std's
-    // `ConsoleNativeProvider::read_byte`) is inert and its callers fail.
+    // Only build helpers select an execution target here. Product families
+    // retain a canonical frontend shared by every requested product target.
     let build_scope_sources = std::mem::take(&mut syntax.build_scope_sources);
+    let execution = target::NativeTarget::from_omega_target_name(execution_profile_name)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let selected_target_machine_declarations =
-        provider_planning::target_machines::filter_target_machines_by_scope(
+        provider_planning::target_machines::prepare_target_machines(
             &mut syntax.syntax_trees,
-            target_name,
-            execution_profile_name,
-            &build_scope_sources,
+            Some(provider_planning::target_machines::BuildTargetScope {
+                execution,
+                sources: &build_scope_sources,
+            }),
         )?;
     let evaluated = build_time_evaluation::evaluate_pre_resolution(
         build_time_evaluation::BuildTimeEvaluationRequest {
@@ -195,7 +189,6 @@ fn continue_generated_sources(
     extension: package_compilation::source_imports::GeneratedSourceExtension,
     selected_target_machine_declarations:
         provider_planning::target_machines::SelectedTargetMachineDeclarations,
-    target_name: Option<&str>,
     package_inputs: &PackageCompilationInputs,
     timings: &mut CompileTimings,
 ) -> Result<
@@ -220,8 +213,8 @@ fn continue_generated_sources(
                 retained_base: Some(&resolved_base),
             },
         )?;
-    let selected_target_machine_declarations = selected_target_machine_declarations
-        .filter_generated_extension(&mut extension_syntax, target_name)?;
+    let selected_target_machine_declarations =
+        selected_target_machine_declarations.filter_generated_extension(&mut extension_syntax)?;
     let seeded = timings.record(
         artifacts::compile_timings::SYNTAX_TREES_TO_SYMBOL_RESOLVED_TREES,
         || {

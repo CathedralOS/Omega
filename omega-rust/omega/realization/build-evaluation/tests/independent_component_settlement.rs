@@ -2,7 +2,7 @@
 //! descriptions the package inputs attach.
 //!
 //! The provider plan comes from a real source fixture routed through the
-//! build-evaluation entrance (`filter_target_machines` for the target roster,
+//! build-evaluation entrance (`prepare_target_machines` for the target roster,
 //! then `settle_checked_providers`). Each realizing component is a canonical
 //! Terminal module described the way a dependency's own compilation would
 //! describe it and attached to the package inputs as bytes plus the observed
@@ -24,7 +24,7 @@ use package_compilation::{
     PackageDependencyBinding, PackageSourceBinding,
 };
 use provider_planning::target_machines::{
-    SelectedTargetMachineDeclarations, filter_target_machines,
+    SelectedTargetMachineDeclarations, prepare_target_machines,
 };
 use provider_planning::{CheckedProviderSelection, settle_checked_providers};
 use provider_planning::{
@@ -123,7 +123,7 @@ impl Build {
             .expect("tokenize fixture");
         let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
             .expect("parse fixture");
-        let target_machines = filter_target_machines(&mut syntax, None)
+        let target_machines = prepare_target_machines(&mut syntax, None)
             .expect("the fixture declares no target machine");
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
@@ -152,7 +152,7 @@ impl Build {
             .expect("nominal provider type");
         // `settle_checked_providers` plans for the requested target, or for
         // the compiler host when none is requested -- the same choice
-        // `filter_target_machines_by_scope` already made before resolution.
+        // `prepare_target_machines` already made before resolution.
         // This build requests none, so the expected plan must be derived for
         // that same fallback or it compares a targetless name and empty
         // target against the host-qualified ones settlement produces.
