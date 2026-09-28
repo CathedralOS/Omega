@@ -3,5 +3,6 @@
 //! selection custody.
 
 pub(crate) mod admission;
+pub(crate) mod build_activation;
 pub(crate) mod build_machines;
 pub(crate) mod selected_operators;

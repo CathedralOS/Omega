@@ -1,6 +1,5 @@
 //! Exact toolchain build vocabulary: canonical build machine and prelude facets.
 
-use std::path::Path;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
@@ -128,25 +127,6 @@ pub(crate) fn build_reaches_filesystem_facet(
         }
     }
     false
-}
-
-pub(crate) fn is_exact_toolchain_build_prelude_data(
-    typed: &TypedTrees,
-    symbol: SymbolHandle,
-    expected_name: &str,
-) -> bool {
-    typed.data_definitions().iter().any(|definition| {
-        definition.symbol == symbol
-            && definition.name.as_str() == expected_name
-            && typed
-                .symbols
-                .symbol_source_span(symbol)
-                .and_then(|span| typed.symbols.source_file(span))
-                .is_some_and(|file| {
-                    file.origin == source::SourceOrigin::Toolchain
-                        && file.path == Path::new("<build-prelude>")
-                })
-    })
 }
 
 fn named_data_symbol(

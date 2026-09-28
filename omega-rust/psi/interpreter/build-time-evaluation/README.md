@@ -21,6 +21,11 @@ by constants and placed views. `reflection` separately owns semantic schema
 graphs, scoped selection snapshots, and checked runtime visitation plans; their
 independent replay remains beside their producers.
 
+[Build activation admission](src/machine_execution/build_activation.rs) recognizes
+the exact toolchain Build and checks source construction, storage, copying, and
+replacement before its caller may execute effects. Omega consumes that verdict
+when constructing the build argument; target configuration stays Omega-owned.
+
 Within `layouts`, `layout_plans.rs` produces validated policy plans,
 `materialization.rs` derives exact bytes and retains value-specific custody, and
 `schema_reflection.rs` owns the typed geometry and Schema ABI both consume. The
