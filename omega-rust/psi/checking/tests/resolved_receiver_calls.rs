@@ -22,6 +22,49 @@ fn accepts(source: &str) {
 }
 
 #[test]
+fn private_states_are_jump_destinations_not_callable_methods() {
+    for call in ["finish(42)", "self.finish(42)", "Helper::run::finish(42)"] {
+        rejects(
+            &format!(
+                "data Helper {{}}
+             machine Helper::run(&self) -> u64 {{
+                 let value: u64 = {call};
+                 transition {{ _ -> finish(value) }}
+                 state finish(&self, value: u64) -> u64 {{ value }}
+             }}"
+            ),
+            "does not resolve",
+        );
+    }
+    accepts(
+        "machine finish(value: u64) -> u64 { value }
+         data Helper {}
+         machine Helper::run() -> u64 {
+             let value: u64 = finish(42);
+             transition { _ -> finish(value) }
+             state finish(value: u64) -> u64 { value }
+         }",
+    );
+}
+
+#[test]
+fn discarded_unit_calls_cannot_invoke_private_states_either() {
+    for call in ["finish()", "self.finish()"] {
+        rejects(
+            &format!(
+                "data Helper {{}}
+             machine Helper::run(&self) {{
+                 {call};
+                 transition {{ _ -> finish() }}
+                 state finish(&self) {{}}
+             }}"
+            ),
+            "finish",
+        );
+    }
+}
+
+#[test]
 fn boundary_parameter_receiver_calls_obey_result_use_and_arity() {
     for (body, expected) in [
         ("probe.sample(7); 0", "discards its non-unit `bool` result"),

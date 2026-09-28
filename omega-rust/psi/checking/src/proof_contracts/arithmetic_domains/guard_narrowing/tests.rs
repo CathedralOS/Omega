@@ -167,19 +167,26 @@ fn cyclic_dependent_arrival_bounds_stay_within_the_declared_range() {
 }
 
 #[test]
-fn arrival_bounds_include_statement_and_value_calls() {
-    for call in ["append(value);", "let returned: u32 = append(value);"] {
+fn ordinary_calls_do_not_add_internal_state_arrivals() {
+    for call in ["_ = append(value);", "let returned: u32 = append(value);"] {
+        let source = format!(
+            "machine main(value: u32) -> u32 requires value <= 4; {{
+                {call}
+                transition value < 4 {{ true -> append(value) false -> 0u32 }}
+                state append(delivered: u32) -> u32 requires delivered <= 4; {{ delivered }}
+            }}
+            machine append(value: u32) -> u32 {{ value }}"
+        );
+        let program = crate::front_end::typed_program(&source);
+        let result = crate::validate_program(&program);
+        assert!(result.is_ok(), "{source}: {result:?}");
+        // Only the guarded transition enters the internal state. An ordinary
+        // call to the same-named free machine contributes no arrival there.
         assert_eq!(
-            delivered_bounds(&format!(
-                "machine main(value: u32 [0..=4]) -> u32 {{
-            {call}
-            transition value < 4 {{ true -> append(value) false -> 0u32 }}
-            state append(delivered: u32 [0..=4]) -> u32 {{ delivered }}
-        }}"
-            )),
+            delivered_bounds(&source),
             Some(Interval {
                 low: Some(0),
-                high: Some(4)
+                high: Some(3)
             }),
             "{call}"
         );

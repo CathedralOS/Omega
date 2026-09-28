@@ -515,9 +515,8 @@ fn validate_expression_call_bounds(
         executes,
     };
 
-    // Self-call or `self`-prefixed call: the callee is a state of the
-    // current machine, an attached-data sibling machine, or a free machine.
-    // Mirrors the same three-way fallback in `validate_call_node`.
+    // Self-call or receiverless call: select a machine requirement or entry,
+    // never an internal state that happens to have the same spelling.
     if call_is_self {
         if let Some(signature) =
             program.machine_parameter_signature_in(current_machine, call.target_symbol)
@@ -545,18 +544,12 @@ fn validate_expression_call_bounds(
             return;
         }
 
-        // The callee is a selected state, a state of this machine, a
-        // SIBLING machine sharing the same attached data (`machine
+        // The callee is a selected entry or a sibling sharing attached data (`machine
         // Main::pick<T [copy]>` called from `machine Main::main`; the
         // statement path uses `symbols.attached_machine_state` too), or a
         // free machine (`compute(item)` -- no `self.`, no receiver).
         let callee = machine_state_by_symbol(program, call.target_symbol)
             .map(|(machine, state)| ValueCallee::named(machine, state, call))
-            .or_else(|| {
-                machine_symbols
-                    .state(call.target.as_str())
-                    .map(|state| ValueCallee::declared(current_machine, state))
-            })
             .or_else(|| {
                 let attached_data = current_machine.attached_data.as_ref()?;
                 symbols
@@ -776,8 +769,8 @@ fn validate_expression_call_bounds(
     {
         if let Some(callee_state) = program
             .machine_states(callee_machine)
-            .iter()
-            .find(|s| s.name == call.target)
+            .first()
+            .filter(|state| state.name == call.target)
         {
             site.validate_callee(
                 symbols,

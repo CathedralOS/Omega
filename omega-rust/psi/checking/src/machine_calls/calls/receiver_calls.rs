@@ -119,8 +119,8 @@ pub(super) fn validate_receiver_call(
     {
         if let Some(state) = program
             .machine_states(machine)
-            .iter()
-            .find(|state| state.name == call.target)
+            .first()
+            .filter(|state| state.name == call.target)
         {
             validate_result_use(program, call, &state.name, state.return_type, diagnostics);
             validate_call_arguments_handles(

@@ -339,8 +339,8 @@ impl<'program> TopLevelSymbols<'program> {
             .then(|| {
                 program
                     .machine_states(symbol.machine)
-                    .iter()
-                    .find(|state| state.name.as_str() == state_name)
+                    .first()
+                    .filter(|state| state.name.as_str() == state_name)
                     .map(|state| (symbol.machine, state))
             })?
         })
