@@ -8,6 +8,7 @@ needed.
 
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -100,6 +101,53 @@ class Scoreboard(unittest.TestCase):
             corpus_scoreboard.summary_line(board, "macos_arm64"),
             "macos_arm64 native: 64 authored / 172 executed / 746 fixtures, "
             "237 rejected (108 executed without an oracle)")
+
+
+class CollectBaseGolden(unittest.TestCase):
+    """--base-golden diffs the working golden against any recorded file —
+    the scratch-recording workflow that used to need an ad-hoc script."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        self.corpus = self.root / "tests" / "omega"
+        for fixture in ("run/loop", "run/new", "run/lost"):
+            directory = self.corpus / fixture
+            directory.mkdir(parents=True)
+            (directory / "expected_native_exit.txt").write_text(
+                "0\n", encoding="utf-8")
+        self.golden = self.corpus / "corpus_native_macos_arm64.txt"
+        self.scratch = self.root / "scratch_golden.txt"
+
+    def write(self, path, lines):
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def test_collect_diffs_working_golden_against_scratch_file(self):
+        self.write(self.scratch, ["run/loop built 1ms exit:0",
+                                  "run/lost built 1ms exit:0"])
+        self.write(self.golden, ["run/loop built 1ms exit:0",
+                                 "run/new built 1ms exit:0"])
+        board = corpus_scoreboard.collect(self.root, golden=self.golden,
+                                          base_golden=self.scratch)
+        self.assertEqual(board["base_label"], str(self.scratch))
+        self.assertIsNone(board["base_rev"])
+        self.assertEqual(board["gained"], ["run/new"])
+        self.assertEqual(board["lost"], ["run/lost"])
+        self.assertEqual(board["executed_lost"], ["run/lost"])
+
+    def test_base_and_base_golden_are_mutually_exclusive(self):
+        self.write(self.golden, ["run/loop built 1ms exit:0"])
+        with self.assertRaises(corpus_scoreboard.ScoreboardError):
+            corpus_scoreboard.collect(self.root, golden=self.golden,
+                                      base_rev="abc123",
+                                      base_golden=self.scratch)
+
+    def test_missing_base_golden_is_an_error(self):
+        self.write(self.golden, ["run/loop built 1ms exit:0"])
+        with self.assertRaises(corpus_scoreboard.ScoreboardError):
+            corpus_scoreboard.collect(self.root, golden=self.golden,
+                                      base_golden=self.root / "absent.txt")
 
 
 if __name__ == "__main__":
