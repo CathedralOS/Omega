@@ -293,7 +293,7 @@ pub(super) fn validate<'a, 'p>(
             &written,
         );
     } else {
-        value_environment.clear();
+        value_environment.invalidate_unknown_writes(program, current_state);
     }
     arithmetic_domains::record_assignment(
         value_environment,

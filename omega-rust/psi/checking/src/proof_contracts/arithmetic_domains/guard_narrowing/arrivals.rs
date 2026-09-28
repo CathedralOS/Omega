@@ -63,7 +63,7 @@ pub fn arrival_integer_expression_bounds(
     walk.expression(state, expression, &mut environment);
     // Within the consuming expression, an aggregate effect frame also covers
     // reads evaluated before a later mutating child.
-    walk.expression_effects(expression, &mut environment);
+    walk.expression_effects(state, expression, &mut environment);
     let interval = walk.interval(state, expression, &environment);
     let (low, high) = (interval.low?, interval.high?);
     (low <= high).then_some((low, high))
@@ -463,16 +463,27 @@ impl ArrivalWalk<'_, '_> {
         }
     }
 
-    fn cross_writes(environment: &mut ValueEnvironment, written: Option<Vec<String>>) {
+    fn cross_writes(
+        &self,
+        source: &State,
+        environment: &mut ValueEnvironment,
+        written: Option<Vec<String>>,
+    ) {
         if let Some(written) = written {
             environment.invalidate_written_paths(&written);
         } else {
-            environment.clear();
+            environment.invalidate_unknown_writes(self.program, Some(source));
         }
     }
 
-    fn expression_effects(&self, expression: ExpressionHandle, environment: &mut ValueEnvironment) {
-        Self::cross_writes(
+    fn expression_effects(
+        &self,
+        source: &State,
+        expression: ExpressionHandle,
+        environment: &mut ValueEnvironment,
+    ) {
+        self.cross_writes(
+            source,
             environment,
             self.frames
                 .and_then(|frames| frames.expression_may_write_paths(self.machine, expression)),
@@ -684,8 +695,8 @@ impl ArrivalWalk<'_, '_> {
                             condition,
                             false,
                         );
-                        self.expression_effects(condition, &mut selected);
-                        self.expression_effects(condition, &mut fallback);
+                        self.expression_effects(source, condition, &mut selected);
+                        self.expression_effects(source, condition, &mut fallback);
                     }
                     self.target(source, transition.target, &mut selected);
                     self.target(source, transition.continuation, &mut fallback);
@@ -728,7 +739,7 @@ impl ArrivalWalk<'_, '_> {
                             &written,
                         );
                     } else {
-                        environment.clear();
+                        environment.invalidate_unknown_writes(self.program, Some(source));
                     }
                     // Preserve an exact direct unsigned literal only after
                     // target/value effects and the complete store frame have
@@ -773,7 +784,8 @@ impl ArrivalWalk<'_, '_> {
                         &intervals,
                         environment,
                     );
-                    Self::cross_writes(
+                    self.cross_writes(
+                        source,
                         environment,
                         self.frames
                             .and_then(|frames| frames.may_write_paths(self.machine, call)),
@@ -845,7 +857,7 @@ impl ArrivalWalk<'_, '_> {
                     &intervals,
                     environment,
                 );
-                self.expression_effects(expression, environment);
+                self.expression_effects(source, expression, environment);
             }
             ExpressionNode::Binary(binary) => {
                 self.expression(source, binary.left, environment);
