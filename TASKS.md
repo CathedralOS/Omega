@@ -2718,44 +2718,42 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   corpus pair, `ranked_value_guarantees` and
   `terminal-verifier/tests/ranked_scc/scalar_block_invariants.rs` controls.
 
-- **PCC-CANONICAL-SEMANTIC-LEDGER.** Replace trusted fusion of artifact
-  traversal and proof search with a total canonical-ledger generator and an
-  untrusted certificate producer under the
+- **PCC-CANONICAL-SEMANTIC-LEDGER.** Define and justify the total generator
+  from canonical Terminal bytes to the semantic ledger under the
   [verification contract](wiki/spec/terminal-psi/verification.md#canonical-semantic-ledger).
-  Owner: `terminal-verifier`, with `terminal-codec` and `proof-admission`.
+  Owner: `terminal-verifier`, `terminal-codec`, `proof-admission`.
+  Codec currently reconstructs from a validated `TerminalModule`; its
+  `framework:canonical-semantic-ledger-v1` remains explicitly trusted.
 
-  The existing `trusted_surface.rs` inventory mechanically covers dispatch,
-  reconstructed facts, dependencies, implementation sources and soundness
-  statuses. Reuse it; coverage and a `Proved` label are not themselves proofs.
-  Revalidate changed entries' justifications before refreshing source digests;
-  a matching digest is not a soundness argument. Remaining work:
+  Crash certificates already come from untrusted `certificate_search` and
+  supplied `ProofBundle::crash_obligations`; preserve independent obligation
+  reconstruction and certificate replay without search. Remaining work:
 
-  - Preserve supplied `ProofBundle::crash_obligations` and untrusted search in
-    `proof-admission::certificate_search`; verification reconstructs obligations
-    and replays certificates without searching.
   - Discharge `ExplicitlyTrusted` reconstruction, normalization, scope,
-    invalidation and call/cycle-composition rows with checked evidence and
-    exact dependencies. Preserve `PROVED_ENTRIES`, dispatch/fact coverage,
-    source-closure and unfinished-dependency checks; prove prerequisites
-    rather than hiding trusted composition behind a proved leaf.
-  - Audit the borrowed-`self` cleanup-hook entry/content claims in
-    `validation/affine_cleanup.rs`: receiver and requires checks are visible,
-    but the cleanup edge's discharge of the target's entry claims needs an
-    explicit argument and substitution control. Coordinate with **CML4**;
-    this is a targeted unresolved audit, not an established exploit.
-  - Define the generator over canonical Terminal bytes, not a producer-decoded
-    AST accepted by assertion. The common kernel and selected inductive
-    profile's unfinished soundness/encoding obligations remain dependencies,
-    not permission to assume generator success.
+    invalidation and call/cycle composition with checked evidence and exact
+    dependencies. Preserve `trusted_surface.rs`
+    dispatch/fact/source-closure checks, `PROVED_ENTRIES` and rejection of
+    unfinished dependencies. Labels, checker-token presence and source digests
+    do not prove soundness; revalidate justifications before updating digests.
+  - Close the cleanup entry-claim gap in `validation/affine_cleanup.rs` and
+    scalar cleanup in `validation/frontier.rs`, coordinated with **CML4**.
+    A borrowed-`self` Unit hook with structural or content entry claims validates
+    and verifies without caller transfer; the equivalent ordinary call rejects
+    with `UnitCallClaimPresenceMismatch` or `UnitCallContentClaimMismatch`.
+    Reconstruct the edge's claim discharge and exact receiver substitution;
+    retain honest cleanup and wrong-claim controls. This raw Terminal probe
+    establishes missing validation, not a source-level exploit.
+  - Establish the canonical-byte generator's definition and soundness, rather
+    than assuming a producer-decoded AST. The common kernel and selected
+    inductive profile's soundness/encoding remain dependencies.
 
-  Acceptance: a theorem-dependent program verifies after source and producer
-  state are removed, under accepting and rejecting assumption policies.
-  Wrong goals, profiles, scopes, premises, missing obligations and omitted
-  transitive assumptions reject; normalization and erasure cannot hide
-  dependencies. Use `terminal-verifier/tests/trusted_surface.rs` and codec
-  trust-graph controls alongside the connected certificate case. This is not
-  native refinement or bootstrap proof discharge; GAMMA-DERIVATION-CHECKER
-  remains independently owned by `TASKS_BOOTSTRAP.md`.
+  Acceptance: a theorem-dependent program verifies without source or producer
+  state under accepting/rejecting assumption policies. Wrong goals, profiles,
+  scopes, premises, missing obligations and omitted transitive assumptions
+  reject, including after normalization and erasure. Combine the connected
+  certificate case with `terminal-verifier/tests/trusted_surface.rs` and codec
+  trust-graph controls. Native refinement is separate; bootstrap proof discharge
+  remains with GAMMA-DERIVATION-CHECKER in `TASKS_BOOTSTRAP.md`.
 
 - **PROOF-RELEVANCE-MIGRATION.** Complete carrier-independent erased arguments
   under [explicit erased bindings](wiki/spec/proofs/contracts.md#explicit-erased-bindings).
