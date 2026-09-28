@@ -57,7 +57,7 @@ pub(crate) fn evaluate_build_and_continue(
         evaluation_sponsor,
         build_snapshot,
         optimization_rollback: _,
-        mut restricted_build_grants,
+        restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
     } = child;
     // CLI aliases end at request admission. Every source, build, provider, and
@@ -70,52 +70,30 @@ pub(crate) fn evaluate_build_and_continue(
         base_sources,
         application,
     } = frontier;
-    let package_authority_verdict = if let Some(package_inputs) = package_inputs {
-        Some(crate::checked::package::declaration_admission::validate_authored_declaration_selections_before_build(
-            frontend.typing.typed(),
+    let build_evaluation::EvaluatedBuild {
+        configuration: computed_build_config,
+        restricted_build_requests,
+        base_source_consumption_commitment,
+    } = build_evaluation::evaluate_build(
+        build_evaluation::BuildEvaluationRequest {
+            root_path,
+            typed: frontend.typing.typed(),
+            build_source_id: frontend.build_source_id,
+            sources: &base_sources,
             package_inputs,
-            &generated_source_custody,
-            timings,
-        )?)
-    } else {
-        None
-    };
-    let build_machine_filesystem_scope = build_evaluation::prepare_filesystem_scope(
-        root_path,
-        package_inputs,
-        &base_sources,
-        build_execution_profile,
-        build_dir,
-        filesystem_sponsor,
-        build_snapshot.as_ref(),
+            generated_source_custody: &generated_source_custody,
+            execution_profile: build_execution_profile,
+            build_directory: build_dir,
+            filesystem_sponsor,
+            evaluation_sponsor,
+            snapshot: build_snapshot.as_ref(),
+            restricted_build_grants,
+            artifact_only: application
+                .as_ref()
+                .is_some_and(|application| application.artifact_only),
+        },
+        timings,
     )?;
-    let admitted_build = build_evaluation::admit_build_program(
-        frontend.typing.typed(),
-        frontend.build_source_id,
-        &build_machine_filesystem_scope,
-        evaluation_sponsor.as_ref(),
-        application
-            .as_ref()
-            .is_some_and(|application| application.artifact_only),
-    )?;
-    // Consent joins the admitted request meanings before any build effect.
-    // Keep the selected machine bound across execution, not in a second
-    // checkpoint that only transports this continuation's local variables.
-    let admitted_build_symbol = admitted_build.selected_build_machine_symbol();
-    let restricted_build_requests = admitted_build.restricted_build_requests();
-    if let Some(grants) = restricted_build_grants.as_mut() {
-        for request in &restricted_build_requests {
-            grants.admit(request)?;
-        }
-    }
-    let computed_build_config = admitted_build.execute()?;
-    if computed_build_config.selected_build_machine_symbol != admitted_build_symbol {
-        return Err(vec![Diagnostic::error(
-            "build execution returned a selected symbol different from its admitted checkpoint",
-        )]);
-    }
-    // The activation's grant guard ends with execution, before source continuation.
-    drop(restricted_build_grants);
     let selected_build_machine_symbol = computed_build_config.selected_build_machine_symbol;
     let CheckedFrontend {
         typing,
@@ -196,9 +174,7 @@ pub(crate) fn evaluate_build_and_continue(
             source_file_count,
             build_execution_profile,
             generated_source_custody,
-            base_source_consumption_commitment: package_authority_verdict
-                .as_ref()
-                .map(|verdict| verdict.base_source_consumption_commitment()),
+            base_source_consumption_commitment,
         },
     ))
 }

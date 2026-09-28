@@ -359,6 +359,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     let missing =
         PackageLock::recover_text(&stripped, PackageLockRecoveryLimits::default()).unwrap();
     let missing = RestrictedBuildCheckpoint::derive(missing.target(target).unwrap());
+    let rejected_evaluation = checked_interpreter::BuildEvaluationSponsor::new(evaluation_limits);
     let mut preparation = super::CandidateSourcePreparation::for_closure(&closure);
     let error = super::super::package_pass::compile_dependency_closure(
         &exact,
@@ -366,7 +367,7 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
         &roster,
         &output,
         &sponsor,
-        &checked_interpreter::BuildEvaluationSponsor::new(evaluation_limits),
+        &rejected_evaluation,
         &Default::default(),
         None,
         None,
@@ -377,6 +378,11 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     )
     .map(|_| ())
     .expect_err("a missing grant rejects the consuming compile");
+    assert_eq!(rejected_evaluation.consumed_fuel_units(), 0);
+    assert_eq!(
+        rejected_evaluation.consumed_filesystem_operation_attempts(),
+        0
+    );
     let CompileResolvedPackageReviewsError::Compilation {
         package,
         diagnostics,
@@ -410,13 +416,14 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     let wider_sponsor =
         checked_interpreter::FilesystemSponsor::with_limits(&wider_output, wider_limits).unwrap();
     let mut preparation = super::CandidateSourcePreparation::for_closure(&closure);
+    let widened_evaluation = checked_interpreter::BuildEvaluationSponsor::new(evaluation_limits);
     let error = super::super::package_pass::compile_dependency_closure(
         &exact,
         target::TargetProfile::host_if_supported(),
         &roster,
         &wider_output,
         &wider_sponsor,
-        &checked_interpreter::BuildEvaluationSponsor::new(evaluation_limits),
+        &widened_evaluation,
         &Default::default(),
         None,
         None,
@@ -427,6 +434,11 @@ fn armed_checkpoint_gates_restricted_requests_inside_the_pass() {
     )
     .map(|_| ())
     .expect_err("a widened request is ungranted under the checkpoint");
+    assert_eq!(widened_evaluation.consumed_fuel_units(), 0);
+    assert_eq!(
+        widened_evaluation.consumed_filesystem_operation_attempts(),
+        0
+    );
     let CompileResolvedPackageReviewsError::Compilation {
         package,
         diagnostics,

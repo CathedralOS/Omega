@@ -48,28 +48,7 @@ pub struct IndependentComponentDiscovery {
     pub evaluation_usage: Option<build_evaluation::BuildEvaluationUsage>,
 }
 
-/// Retained restricted-request consent a consuming caller binds to one
-/// checked activation.
-///
-/// With a binding present, each restricted build-host request the admitted
-/// build machine projects joins here — in issue order — before that
-/// request's own build effect executes; a refusal fails the compile without
-/// running it. The binding owns what it consults: the compile worker runs on
-/// its own thread, so retained consent crosses as owned meaning, not a
-/// borrow.
-///
-/// `None` is observation-only: requests still project into the compile's
-/// retained custody, where a review presents or a lock retains them, but the
-/// activation admits without consulting accepted request meaning. Audit-only
-/// callers pass no binding and issue no grants.
-pub trait RestrictedBuildGrants: Send {
-    /// Join one projected restricted build request. `Err` carries the
-    /// diagnostics the checked compile returns unchanged.
-    fn admit(
-        &mut self,
-        request: &build_evaluation::RestrictedBuildRequest,
-    ) -> Result<(), Vec<Diagnostic>>;
-}
+pub use build_evaluation::RestrictedBuildGrants;
 
 /// Inputs for checked-Psi compilation, without native publication authority.
 /// All requests use the same source identity, package admission, and
@@ -499,26 +478,10 @@ pub fn typed_frontier_reuse_count() -> u64 {
     TYPED_FRONTIER_REUSES.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-static PRELIMINARY_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-static PRELIMINARY_CHECK_MICROS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
 static SETTLED_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 static SETTLED_CHECK_MICROS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// Monotonic `(calls, wall microseconds)` totals of the pre-build
-/// declaration-authority checks `lower_typed_trees` served. A call served
-/// from the exact-input check memo returns in microseconds while a fresh
-/// check of a package graph takes seconds, so a review pass whose
-/// preliminary total stays near zero while its call count rises was already
-/// deduplicated, and the microseconds that remain name the residual
-/// preliminary-versus-settled duplication inside each compile.
-#[doc(hidden)]
-pub fn preliminary_check_totals() -> (u64, u64) {
-    (
-        PRELIMINARY_CHECK_CALLS.load(std::sync::atomic::Ordering::Relaxed),
-        PRELIMINARY_CHECK_MICROS.load(std::sync::atomic::Ordering::Relaxed),
-    )
-}
+pub use build_evaluation::preliminary_check_totals;
 
 /// Monotonic `(calls, wall microseconds)` totals of the settled
 /// `lower_typed_trees` checks, so a review pass report can show what the
@@ -548,15 +511,6 @@ pub fn executed_preliminary_check_count() -> u64 {
 #[doc(hidden)]
 pub fn executed_settled_check_count() -> u64 {
     typed_trees_to_checked_trees::RepeatedCheckRetention::executed_settled_check_count()
-}
-
-/// Account one pre-build declaration-authority check's wall time.
-pub(crate) fn record_preliminary_check(elapsed: std::time::Duration) {
-    PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    PRELIMINARY_CHECK_MICROS.fetch_add(
-        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
-        std::sync::atomic::Ordering::Relaxed,
-    );
 }
 
 /// Account one settled whole-program check's wall time.

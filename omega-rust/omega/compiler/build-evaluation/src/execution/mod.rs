@@ -13,7 +13,7 @@ use trust_model::{
 
 /// Consume one admitted build activation and extract its durable configuration
 /// and evaluation evidence.
-pub fn execute_admitted_build_program(
+pub(crate) fn execute_admitted_build_program(
     admitted: AdmittedBuildProgram,
 ) -> Result<ComputedBuildConfig, Vec<Diagnostic>> {
     // The private captured-source backing is scratch for this occurrence
@@ -33,8 +33,6 @@ fn execute_admitted_build_occurrence(
     let AdmittedBuildProgram {
         prepared,
         machine,
-        operational_plan: _,
-        service_reach_plan: _,
         filesystem_scope,
         evaluation_sponsor,
         artifact_only,
