@@ -2,7 +2,8 @@
 //! leaf projected out of a live readable root. The verifier already proved
 //! the read-only observation contract — copying never opens a restoration
 //! window, so this leg re-checks only the static shape the verifier's
-//! admission committed to: the fresh `Unrestricted` result row, a readable
+//! admission committed to: the fresh result row (`Unrestricted`, plus the
+//! case path's owned `Affine` non-reference copy), a readable
 //! source signature, and the ordinary or case-qualified path landing on the
 //! exact leaf type. Case membership is proved before this lowering runs;
 //! selecting a payload's declared type cannot establish its active case.
@@ -32,7 +33,17 @@ pub(super) fn lower(
     let result = operation.result.structural().ok_or_else(invalid)?;
     // The copy is fresh storage under Unrestricted multiplicity; anything
     // carrying custody, domain, or claim evidence rides a different contract.
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
+    // A case-qualified path also admits the verifier's owned-copy shape: an
+    // `Affine` result over a non-reference leaf is an owned copy the
+    // successor takes custody of — copying out of a proven-active case
+    // payload never moves the stored value itself.
+    let owned_case_copy = matches!(path, StructuralCopyPath::Case(_))
+        && result.multiplicity == StructuralMultiplicity::Affine
+        && structural_types.iter().any(|declaration| {
+            declaration.id == result.structural_type
+                && !matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+        });
+    if (result.multiplicity != StructuralMultiplicity::Unrestricted && !owned_case_copy)
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()

@@ -91,8 +91,7 @@ pass/calls/case_arm_payload_receiver_arg rejected 1544ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/calls/case_scrutinee_param_clone_exit rejected 776ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
-pass/calls/case_scrutinee_self_dispatch_exit rejected 1494ms
-	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy(OperationId(11)))
+pass/calls/case_scrutinee_self_dispatch_exit checked 1044ms
 pass/calls/copy_projection_from_borrowed_receiver checked 1034ms
 pass/calls/guard_call_scalar_argument_exit checked 292ms
 pass/calls/guarded_value_call_arm_exit checked 1768ms
@@ -102,8 +101,7 @@ pass/calls/mutual_cycle_tail_admitted_exit checked 1797ms
 pass/calls/named_target_payload_dispatch checked 1934ms
 pass/calls/nested_call_init_transition checked 1482ms
 pass/calls/nested_call_runtime_index_arg_exit checked 985ms
-pass/calls/nested_call_tail_roots_exit rejected 1131ms
-	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy(OperationId(21)))
+pass/calls/nested_call_tail_roots_exit checked 5981ms
 pass/calls/nested_machine_continuation checked 1719ms
 pass/calls/nested_value_call_arg_compile checked 1385ms
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 736ms
@@ -837,6 +835,7 @@ pass/storage/runtime_machine_owned_indexed_integer_write_exit checked 508ms
 pass/storage/runtime_machine_owned_indexed_struct_copy_exit rejected 741ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: record literal source` (state 0, statement 2)
 pass/structs/affine_record_state_clone checked 1864ms
+pass/structs/affine_result_constructor checked 1042ms
 pass/structs/copied_array_field_shared_record checked 1559ms
 pass/structs/deep_nested_write_paths_exit rejected 1555ms
 	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
