@@ -43,12 +43,19 @@ pub(crate) fn validate_authored_declaration_selections_before_build(
     // request.
     let mut provisional = typed.clone();
     typed_trees_to_checked_trees::prune_target_siblings_typed(&mut provisional);
-    let checked =
-        crate::checked::checking::phase_transitions::typed_trees_to_preliminary_checked_trees(
-            provisional,
-            timings,
-            packages,
-        )?;
+    let checked = timings.record(
+        artifacts::compile_timings::TYPED_TREES_TO_PRELIMINARY_CHECKED_TREES,
+        || {
+            let started = std::time::Instant::now();
+            let result = typed_trees_to_checked_trees::lower_typed_trees(
+                provisional,
+                &typed_trees_to_checked_trees::CheckingRequest::preliminary()
+                    .with_declaration_authority(Some(packages)),
+            );
+            crate::checked::checking::record_preliminary_check(started.elapsed());
+            typed_trees_to_checked_trees::prune_target_siblings(result?)
+        },
+    )?;
     let base = package_compilation::derive_package_compilation_subject(
         &checked,
         packages,

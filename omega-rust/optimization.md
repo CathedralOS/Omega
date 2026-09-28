@@ -14,14 +14,18 @@ records current experimental status, applicability, and composition limits.
 [Build evaluation](omega/compiler/build-evaluation/src/optimization/mod.rs) admits
 the exact vocabulary. The compiler's
 [build vocabulary](omega/compiler/build-evaluation/src/sources/source_assembly/build_vocabulary/mod.rs)
-supplies both preludes from one mapping; its
-[checked handoff](omega/compiler/src/checked/optimization/checked_handoff/mod.rs)
-retains selection and report requests.
+supplies both preludes from one mapping. The
+[checked result](omega/compiler/src/checked/checking/checked_compilation.rs)
+retains the complete evaluated Build, including selection and report requests.
 [Rollback settlement](omega/foundation/optimization-core/src/optimization_core/rollback.rs)
 owns exact-name validation, subtractive selection and the resulting receipt.
 The compiler consumes its effective selection before artifact production without
 changing the authored selection; product-specific phase admission remains in
-the compiler.
+the compiler. For checked-tree product pruning, it supplies the selected product
+roots to [Psi's product selection entrance](psi/pipeline/04_typed-trees-to-checked-trees/src/product_pruning/mod.rs).
+That owner validates roots, executes pruning and returns its evidence; an absent
+selection preserves the shared checked program without copying it. No compiler-local
+optimizer dispatcher wraps the transform.
 
 The [Psi X-to-X entrance](psi/pipeline/06_lowered-psi-to-lowered-psi/src/lib.rs)
 consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
