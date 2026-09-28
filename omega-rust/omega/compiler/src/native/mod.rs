@@ -6,13 +6,10 @@
 //! begins at `terminal-psi-to-abstract-operations`. Target setup is supplied by
 //! backend owners. Component policy and installation remain outside this owner.
 //!
-//! Two entrances start from a compiler product rather than a bare artifact:
-//! `prepare_native_product` (`native_product`) admits one checked compilation
-//! and realizes its program-entry Terminal artifact, and
-//! `realize_retained_native_artifact` (`retained_native_product`) re-enters a
-//! retained Terminal product with source-evaluated imports. Both run the same
-//! staged route, `stage_optimized_verified_physical_pipeline` (`native_pipeline`),
-//! after target lowering in `native_realization`.
+//! Fresh compilation first produces the retained Terminal boundary:
+//! `produce_native_report` packages checked source, then calls
+//! `realize_retained_native_artifact`, exactly as package re-entry does.
+//! Native realization never reads the checked source or selects providers again.
 
 mod native_pipeline;
 mod native_product;
@@ -46,9 +43,7 @@ pub use native_pipeline::{
     optimization_pipeline_report_from_ordinary_callable_entry,
     stage_optimized_verified_physical_pipeline,
 };
-pub use native_product::{
-    NativeInputReuse, NativeProductRequest, PreparedNativeCompilation, prepare_native_product,
-};
+pub use native_product::{NativeProductRequest, produce_native_report};
 pub use native_realization::terminal_authority_permissions::{
     validate_package_terminal_authority_permission_custody,
     validate_package_terminal_authority_permissions,
