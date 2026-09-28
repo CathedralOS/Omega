@@ -346,8 +346,25 @@ impl SelectedTargetMachineDeclarations {
             }
             self.reselect(canonical_origin, wanted_origin);
         }
-        typed.statement_table.retarget_call_states(&replacements);
-        typed.expression_table.retarget_call_states(&replacements);
+        // Resolution already binds every target-authored body to its own
+        // target's callees. Only portable callers still name family entries.
+        // Rewriting the whole arena would change foreign bodies before they
+        // are checked, judging them against another target's contracts.
+        for machine_position in 0..typed.machines().len() {
+            let machine = &typed.machines()[machine_position];
+            if machine.target.is_some()
+                || typed.target_machine_families.iter().any(|family| {
+                    family
+                        .members
+                        .iter()
+                        .any(|member| member.machine == machine.symbol)
+                })
+            {
+                continue;
+            }
+            let machine = machine.clone();
+            typed.retarget_machine_calls(&machine, &replacements);
+        }
         reject_inert_sibling_callers(typed, target)
     }
 
@@ -1114,6 +1131,82 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn realization_retargets_portable_calls_without_rewriting_target_bodies() {
+        let text = "data Helper { seed: u64; }
+            linux_x86_64 machine Helper::value(&self) -> u64 { 1 }
+            windows_x86_64 machine Helper::value(&self) -> u64 { 2 }
+            linux_x86_64 machine Helper::run(&self) -> u64 {
+                let value: u64 = self.finish(self.value());
+                transition { _ -> value }
+                state finish(&self, value: u64) -> u64 { value }
+            }
+            windows_x86_64 machine Helper::run(&self) -> u64 {
+                let value: u64 = self.finish(self.value());
+                transition { _ -> value }
+                state finish(&self, value: u64) -> u64 { value }
+            }
+            machine portable(helper: &Helper) -> u64 { helper.run() }";
+        let mut sources = source::SourceMap::default();
+        let source_id = sources.add("helper.omg".into(), text.into()).source_id;
+        let mut program = syntax(source_id.0, text);
+        let mut declarations =
+            prepare_target_machines(&mut program, Some(&sources), None).expect("target families");
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &program,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve each target's own calls");
+        let mut typed =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+                .expect("type each target's own calls");
+        let mut inspection = super::ExplicitStateCallees::default();
+        let target_calls = typed
+            .target_machine_families
+            .iter()
+            .flat_map(|family| &family.members)
+            .flat_map(|member| {
+                typed.machine_states(typed.machine_by_symbol(member.machine).unwrap())
+            })
+            .map(|state| (state.clone(), inspection.collect(&typed, state).to_vec()))
+            .collect::<Vec<_>>();
+        let selected = typed
+            .target_machine_families
+            .iter()
+            .find(|family| family.name.as_str() == "Helper::run")
+            .unwrap()
+            .members
+            .iter()
+            .find(|member| member.target.as_str() == "windows_x86_64")
+            .unwrap()
+            .machine;
+        let selected_entry =
+            typed.machine_states(typed.machine_by_symbol(selected).unwrap())[0].symbol;
+        declarations
+            .select_product_target(&mut typed, target::TargetProfile::WindowsX64)
+            .expect("Windows realization");
+        for (state, before) in target_calls {
+            assert_eq!(
+                inspection.collect(&typed, &state),
+                before,
+                "realization changed calls inside authored target state {}",
+                state.name
+            );
+        }
+        let portable = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "portable")
+            .unwrap();
+        assert_eq!(
+            inspection.collect(&typed, &typed.machine_states(portable)[0]),
+            &[selected_entry]
+        );
     }
 
     #[test]

@@ -1,7 +1,8 @@
-//! Bind the calls inside a target sibling's body to the same target's sibling
-//! declarations. Ordinary resolution sees only the selected target's
-//! declarations: a sibling's symbol is spelled `<path>::<target>` and it is
-//! excluded from attachment lookups, so a `windows_x86_64` body that calls a
+//! Bind each target-authored body's calls to that target's declarations.
+//! The canonical member is a body too, not a portable caller. Ordinary
+//! resolution sees only canonical declarations: a sibling's symbol is spelled
+//! `<path>::<target>` and excluded from attachment lookups, so a
+//! `windows_x86_64` body that calls a
 //! `windows_x86_64`-only helper would otherwise stay unresolved, and one that
 //! calls a contract every target implements would bind to the selected
 //! target's body instead of its own target's.
@@ -37,7 +38,10 @@ fn bind_sibling_calls_with(program: &mut SymbolResolvedTrees, symbols: &SymbolTa
         .machines
         .iter()
         .filter_map(|machine| {
-            let target = machine.target.as_ref()?;
+            let target = machine
+                .authored_target
+                .as_ref()
+                .or(machine.target.as_ref())?;
             Some(Sibling {
                 machine: machine.symbol,
                 family: machine.target_family,

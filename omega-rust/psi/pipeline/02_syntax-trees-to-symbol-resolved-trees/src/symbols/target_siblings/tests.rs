@@ -110,6 +110,49 @@ demo_target machine Helper::entry_point(&self) -> i32 {
 }";
 
 #[test]
+fn canonical_body_uses_its_authored_target_not_the_callee_familys_canonical_target() {
+    let text = "base_target machine helper() -> u64 { 1 }
+        demo_target machine helper() -> u64 { 2 }
+        demo_target machine caller() -> u64 { let value: u64 = helper(); value }";
+    let tokens = Lexer::new(text).tokenize().expect("tokens");
+    let mut syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).expect("syntax");
+    for handle in syntax.root_item_handles().to_vec() {
+        let syntax_trees::item::Item::Machine(machine) = syntax.root_item(handle) else {
+            continue;
+        };
+        if machine.name.as_str() == "caller"
+            || machine
+                .target
+                .as_ref()
+                .is_some_and(|target| target.as_str() == "base_target")
+        {
+            let mut machine = machine.clone();
+            machine.target = None;
+            syntax
+                .items
+                .replace_item(handle, syntax_trees::item::Item::Machine(machine));
+        }
+    }
+    let program =
+        resolve(ResolutionRequest::new(&syntax)).expect("resolve target-authored callers");
+    let target_helper = program
+        .machines
+        .iter()
+        .find(|machine| {
+            machine.name.as_str() == "helper"
+                && machine
+                    .target
+                    .as_ref()
+                    .is_some_and(|target| target.as_str() == "demo_target")
+        })
+        .expect("demo helper");
+    assert_eq!(
+        first_local_call_callee(&program, "caller"),
+        target_helper.symbol
+    );
+}
+
+#[test]
 fn sibling_bodies_lower_with_their_target_and_authored_name() {
     let program = resolve_source(SOURCE);
     let targets = program
