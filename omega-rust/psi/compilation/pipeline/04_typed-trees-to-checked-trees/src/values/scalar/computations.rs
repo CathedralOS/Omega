@@ -640,6 +640,54 @@ pub(crate) fn build_checked_value_computation_plans(
                 let StatementNode::Transition(transition) = statement else {
                     continue;
                 };
+                // Named machine invocations use the same argument roles as
+                // expression calls. Their captured preorder coordinate is
+                // independent of guard/operand evaluation order; internal
+                // state transfers keep the transition roles below instead.
+                if let Some(captured) = captured {
+                    for call in flow
+                        .control
+                        .calls
+                        .span_or_empty(captured.calls)
+                        .iter()
+                        .filter(|call| call.statement_index == statement_index)
+                    {
+                        let Some(crate::semantic::calls::CallSite::TransitionNamed {
+                            path,
+                            arguments,
+                            ..
+                        }) = crate::semantic::calls::find_call_site(
+                            program,
+                            machine.symbol,
+                            state.symbol,
+                            statement_index,
+                            call.call_ordinal,
+                        )
+                        else {
+                            continue;
+                        };
+                        let Some((owner, _)) = crate::semantic::calls::find_state_with_machine(
+                            program,
+                            call.target_symbol,
+                        ) else {
+                            continue;
+                        };
+                        if owner.symbol == machine.symbol && path.symbol != machine.symbol {
+                            continue;
+                        }
+                        let Ok(call_ordinal) = u32::try_from(call.call_ordinal) else {
+                            continue;
+                        };
+                        builder.record_call_arguments(
+                            pure,
+                            &mut structural_values,
+                            statement_ordinal,
+                            call_ordinal,
+                            call.target_symbol,
+                            program.statement_table.expression_handles(arguments),
+                        );
+                    }
+                }
                 if let typed_trees::statement::TransitionGuardNode::When(expression) =
                     transition.guard
                 {

@@ -555,6 +555,18 @@ fn authored_read_path(
         Some(scope.preceding_statements() as usize),
         expression,
     ) {
+        // Runtime selectors are expression reads, not fixed path identity.
+        // Leave them to the indexed-expression walk below, which compares
+        // their exact binding/operand position against the retained selector.
+        // The ordinary indexed-read lowering still proves carrier and bounds.
+        if source.path.iter().any(|segment| {
+            matches!(
+                segment,
+                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+            )
+        }) {
+            return Ok(None);
+        }
         let path = source
             .path
             .iter()

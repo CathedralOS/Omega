@@ -517,7 +517,15 @@ pub(super) fn build_traced(
                     return None;
                 }
                 (false, CheckedStructuralAccess::Owned) => {
+                    // Fixed primitive arrays carry their recursively checked
+                    // payload shape rather than a nominal record identity.
+                    // Edge custody still checks the exact source/destination;
+                    // adding states must not remove the ordinary call carrier.
+                    let primitive_array = parameter.multiplicity == Multiplicity::Unrestricted
+                        && !program.state_parameters(state)[parameter.position as usize].is_mutable
+                        && validation::is_closed_primitive_array_type(program, reference());
                     if parameter.multiplicity != Multiplicity::Linear
+                        && !primitive_array
                         && !matches!(
                             program.type_reference_table.type_reference(reference()),
                             TypeReferenceNode::Named { .. }
@@ -529,6 +537,7 @@ pub(super) fn build_traced(
                         return None;
                     }
                     if parameter.multiplicity != Multiplicity::Linear
+                        && !primitive_array
                         && !validation::has_plain_owned_contents_with_numeric_constraints(
                             program,
                             reference(),

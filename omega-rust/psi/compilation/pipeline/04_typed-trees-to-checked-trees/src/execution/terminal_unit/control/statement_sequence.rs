@@ -903,7 +903,8 @@ pub(in crate::execution::terminal_unit) fn build(
         .enumerate()
         .skip(construction_statement_count)
         .take_while(|(index, statement)| {
-            !matches!(statement, StatementNode::Transition(_))
+            (!matches!(statement, StatementNode::Transition(_))
+                || call_occurrences::terminal_named_call(program, machine, state, *index).is_some())
                 && !matches!(statement, StatementNode::LocalData(local) if local.name.as_str().starts_with("__arm_destructure#V="))
                 && !matches!(statement, StatementNode::Expression(expression)
                     if !is_unit(program, state.return_type)
@@ -1102,6 +1103,11 @@ pub(in crate::execution::terminal_unit) fn build(
             StatementNode::Expression(_)
                 if call_occurrences::unit_statement_call(program, machine, state, index)
                     .is_some() =>
+            {
+                None
+            }
+            StatementNode::Transition(_)
+                if call_occurrences::terminal_named_call(program, machine, state, index).is_some() =>
             {
                 None
             }

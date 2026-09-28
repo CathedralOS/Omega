@@ -12,6 +12,50 @@ use crate::execution::terminal_unit::control::call_results::checked_structural_r
 
 use checked_trees::{CheckedScalarComputationHandle, CheckedScalarComputationKind};
 
+/// An unconditional named machine invocation completes this Unit body after
+/// its ordinary call operation. Internal state destinations remain control
+/// edges; guarded invocations must not be hoisted into this linear sequence.
+pub(super) fn terminal_named_call(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+) -> Option<SymbolHandle> {
+    use typed_trees::statement::{TransitionExit, TransitionGuardNode, TransitionTargetNode};
+    let statements = program.statement_table.statements(state.statement_nodes);
+    if !is_unit(program, state.return_type) || statement_index.checked_add(1)? != statements.len() {
+        return None;
+    }
+    let StatementNode::Transition(transition) = statements.get(statement_index)? else {
+        return None;
+    };
+    if transition.guard != TransitionGuardNode::Always
+        || transition.continuation.is_valid()
+        || transition.exit != TransitionExit::Ordinary
+        || !program
+            .statement_table
+            .transition_target_is_valid(transition.target)
+    {
+        return None;
+    }
+    let TransitionTargetNode::Named { path, .. } =
+        program.statement_table.transition_target(transition.target)
+    else {
+        return None;
+    };
+    let target = if let Some(owner) = program.machine_by_symbol(path.symbol) {
+        program.machine_states(owner).first()?
+    } else {
+        let (owner, target) =
+            crate::semantic::calls::find_state_with_machine(program, path.symbol)?;
+        if owner.symbol == machine.symbol {
+            return None;
+        }
+        target
+    };
+    is_unit(program, target.return_type).then_some(target.symbol)
+}
+
 pub(in crate::execution::terminal_unit) fn tail_call<'a>(
     program: &'a TypedTrees,
     state: &typed_trees::state::State,
@@ -585,6 +629,22 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
         trace.phase("outer calls: statement shape");
         trace.statement(u32::try_from(call.statement_index).ok());
         let (target, arguments) = match statement {
+            StatementNode::Transition(_)
+                if terminal_named_call(program, owner, state, call.statement_index)
+                    == Some(call.target_symbol) =>
+            {
+                let site = crate::semantic::calls::find_call_site(
+                    program,
+                    machine,
+                    state.symbol,
+                    call.statement_index,
+                    call.call_ordinal,
+                )?;
+                (
+                    call.target_symbol,
+                    crate::semantic::calls::call_site_argument_expressions(program, &site),
+                )
+            }
             StatementNode::Call(authored) => (
                 authored.target_symbol,
                 program

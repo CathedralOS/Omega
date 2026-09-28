@@ -523,6 +523,39 @@ fn build_permuted_cycle_frame_equation<'program>(
             }
             StatementNode::Transition(transition) => {
                 for target in [transition.target, transition.continuation] {
+                    // Calls leave this state graph. Their complete writes
+                    // contribute to this equation; they are not SCC edges.
+                    if super::terminal_calls::target(program, machine, target).is_valid() {
+                        let origins = CallOriginContext {
+                            parameters,
+                            isolated_locals: &isolated_local_roots,
+                            aliases: &local_alias_origins,
+                            divergent: &[],
+                            stored: &stored,
+                        };
+                        let writes = super::terminal_calls::written_paths(
+                            program,
+                            machine,
+                            target,
+                            machine_symbols,
+                            symbols,
+                            &mut inference,
+                            complete_state_summaries,
+                            &origins,
+                        )?;
+                        for relative in writes
+                            .iter()
+                            .flat_map(|path| expand_write_path(path, &local_alias_origins, &stored))
+                        {
+                            push_visible_frame_path(
+                                &mut direct_writes,
+                                relative,
+                                parameters,
+                                &locals,
+                            )?;
+                        }
+                        continue;
+                    }
                     append_permuted_cycle_frame_edge(program, machine, state, target, &mut edges)?;
                 }
             }
@@ -676,6 +709,18 @@ pub(crate) fn summarize_transition_target_written_paths(
 ) -> Option<Vec<String>> {
     if !target.is_valid() {
         return Some(Vec::new());
+    }
+    if super::terminal_calls::target(program, machine, target).is_valid() {
+        return super::terminal_calls::written_paths(
+            program,
+            machine,
+            target,
+            machine_symbols,
+            symbols,
+            inference,
+            complete_state_summaries,
+            origins,
+        );
     }
     match program.statement_table.transition_target(target) {
         TransitionTargetNode::Terminal => Some(Vec::new()),

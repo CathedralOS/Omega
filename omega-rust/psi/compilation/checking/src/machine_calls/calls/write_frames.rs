@@ -37,6 +37,8 @@ mod result_origins;
 mod state_paths;
 mod state_write_walk;
 mod stored_origins;
+// Terminal machine invocations compose call summaries, not state-graph edges.
+mod terminal_calls;
 mod transition_equations;
 mod transition_topology;
 mod transparent_effects;

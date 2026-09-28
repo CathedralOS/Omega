@@ -112,6 +112,12 @@ pub(super) fn plan(
     if matching.next().is_some() {
         return None;
     }
+    if matches!(statement, StatementNode::Transition(_))
+        && super::super::call_occurrences::terminal_named_call(program, machine, state, index)
+            != Some(call.target_symbol)
+    {
+        return None;
+    }
     let authored_expression = match statement {
         StatementNode::LocalData(local) => Some(local.initial_value),
         StatementNode::Expression(expression) => Some(*expression),

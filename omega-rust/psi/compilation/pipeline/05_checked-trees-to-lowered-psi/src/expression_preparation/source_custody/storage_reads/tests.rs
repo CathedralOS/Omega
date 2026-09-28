@@ -5,6 +5,39 @@ use super::{
 };
 use checked_trees::CheckedStructuralPredicatePathSegment;
 
+#[test]
+fn runtime_array_read_retains_its_exact_selector_binding() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        machine read(values: [i32; 3], index: u64, other: u64) -> i32
+        requires index <= 2 {
+            values[index]
+        }
+    "#,
+    );
+    let (state, expression) = source(&checked);
+    let (_, retained) = checked
+        .facts
+        .values
+        .scalar_expressions
+        .bound_expression_at(state, 0, CheckedScalarExpressionRole::Return)
+        .expect("indexed return");
+    validate_expression(&checked, state, 0, expression, retained)
+        .expect("dynamic index is a selector read, not a fixed path segment");
+    let mut changed = retained.clone();
+    let CheckedScalarExpression::StructuralParameterIndexedRead { index, .. } = &mut changed else {
+        panic!("runtime indexed read");
+    };
+    *index = Box::new(CheckedScalarExpression::Parameter {
+        position: 1,
+        primitive_type: PrimitiveType::U64,
+    });
+    assert!(
+        validate_expression(&checked, state, 0, expression, &changed).is_err(),
+        "a same-typed different selector cannot replace the authored index"
+    );
+}
+
 fn indexed_case_fixture(nested: bool) -> CheckedTrees {
     let source = r#"
         boundary trait Output { machine observe(value: i64) reaches Output; }
