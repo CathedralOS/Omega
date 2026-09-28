@@ -5,6 +5,90 @@ use super::{
 };
 use checked_trees::CheckedStructuralPredicatePathSegment;
 
+fn indexed_case_fixture(nested: bool) -> CheckedTrees {
+    let source = r#"
+        boundary trait Output { machine observe(value: i64) reaches Output; }
+        data Payload { value: i64; }
+        data Plan { case At(offset: i64, width: i64); case Skip; }
+        data Root { plans: [Plan; 4]; }
+        machine Root::enter(&mut self) reaches Output {
+            self.plans[0] = Plan::At { offset: 8, width: 4 };
+            transition self.plans[0] {
+                Plan::At { offset, width } -> emit((offset as i64 in Wrapping) + (width as i64 in Wrapping))
+                Plan::Skip -> bad()
+            }
+            state emit(&mut self, value: i64 in Wrapping) { Output::observe(value as i64); }
+            state bad(&mut self) { Output::observe(99); }
+        }
+    "#;
+    let source = if nested {
+        source
+            .replace("offset: i64", "offset: Payload")
+            .replace("offset: 8", "offset: Payload { value: 8 }")
+            .replace("(offset as", "(offset.value as")
+    } else {
+        source.to_owned()
+    };
+    crate::front_end::checked_program(&source)
+}
+
+#[test]
+fn indexed_case_payload_reads_reject_changed_root_index_case_field_or_carrier() {
+    for nested in [false, true] {
+        let checked = indexed_case_fixture(nested);
+        let plans = &checked.facts.values.scalar_expressions;
+        let (binding, retained) = plans.source_bindings.iter().find_map(|(_, binding)| {
+            let (_, retained) = plans.bound_expression_at(binding.state, binding.statement_ordinal, binding.role)?;
+            matches!(retained, CheckedScalarExpression::IntegerBinary { left, .. }
+                if matches!(left.as_ref(), CheckedScalarExpression::StructuralParameterField { .. }))
+                .then_some((binding, retained))
+        }).expect("case arm payload computation");
+        let validate = |candidate: &CheckedScalarExpression| {
+            validate_expression(
+                &checked,
+                binding.state,
+                binding.statement_ordinal,
+                binding.expression,
+                candidate,
+            )
+        };
+        validate(retained).expect("authored payload path, including nested record fields");
+        for component in 0..6 {
+            let mut changed = retained.clone();
+            let CheckedScalarExpression::IntegerBinary { left, .. } = &mut changed else {
+                panic!("payload sum");
+            };
+            let CheckedScalarExpression::StructuralParameterField {
+                parameter_position,
+                path,
+                primitive_type,
+            } = left.as_mut()
+            else {
+                panic!("payload field");
+            };
+            match component {
+                0 => *parameter_position = 1,
+                1 => path[1] = CheckedStructuralPredicatePathSegment::FixedIndex(2),
+                2 => path[2] = CheckedStructuralPredicatePathSegment::Case("Skip".into()),
+                3 => path[3] = CheckedStructuralPredicatePathSegment::Field("width".into()),
+                4 => {
+                    path.remove(2);
+                }
+                _ => *primitive_type = PrimitiveType::U64,
+            }
+            assert!(
+                matches!(
+                    validate(&changed),
+                    Err(LoweringError::Unsupported(
+                        "scalar read differs from its authored binding or mutable place"
+                    ))
+                ),
+                "nested={nested}, component={component}"
+            );
+        }
+    }
+}
+
 fn fixture(body: &str, result: &str) -> CheckedTrees {
     fixture_with_declarations(body, result, "")
 }
