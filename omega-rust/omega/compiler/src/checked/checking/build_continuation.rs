@@ -57,9 +57,6 @@ pub(crate) fn evaluate_build_and_continue(
         evaluation_sponsor,
         build_snapshot,
         optimization_rollback: _,
-        // Build evaluation is this continuation's last stop before provider
-        // settlement; the caller extracts the discovery write target first.
-        independent_component_discovery: _,
         mut restricted_build_grants,
         permit_unsettled_fused_service_fields: _,
     } = child;

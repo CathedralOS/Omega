@@ -15,7 +15,7 @@ pub(crate) struct ReviewFixture {
 }
 
 pub(crate) fn compile_review_fixture(
-    request: CheckedCompileRequest<'_>,
+    request: CheckedCompileRequest,
 ) -> Result<ReviewFixture, Vec<Diagnostic>> {
     compiler::compile_to_checked(request).map(|custody| ReviewFixture {
         custody,

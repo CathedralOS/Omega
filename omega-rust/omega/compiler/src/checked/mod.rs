@@ -22,11 +22,11 @@ pub(crate) use checking::build_continuation::{BuiltCheckedProgram, evaluate_buil
 pub use checking::compile_thread::run_on_compile_thread;
 pub(crate) use checking::execution_settlement::check_selected_execution;
 pub use checking::{
-    CheckedCompilation, CheckedCompileRequest, IndependentComponentDiscovery,
-    IndependentComponentSelection, PreparedCheckedSource, RestrictedBuildGrants,
-    checked_compilation_call_count, compile_to_checked, executed_preliminary_check_count,
-    executed_settled_check_count, preliminary_check_totals, settled_check_totals,
-    source_assembly_invocation_count, typed_frontier_reuse_count,
+    CheckedCompilation, CheckedCompileOutcome, CheckedCompileRequest,
+    IndependentComponentDiscovery, IndependentComponentSelection, PreparedCheckedSource,
+    RestrictedBuildGrants, checked_compilation_call_count, compile_to_checked,
+    executed_preliminary_check_count, executed_settled_check_count, preliminary_check_totals,
+    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use optimization_core::{
     OptimizationRollback, OptimizationRollbackInputError, OptimizationRollbackSettlement,

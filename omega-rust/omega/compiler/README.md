@@ -79,14 +79,19 @@ than clone-rebuilding scratch. Any mutation does not reseal evidence, and
 downstream reconstruction remains mandatory. `into_program` consumes the result and discards its compilation
 evidence; compiler malformed-tree tests use that raw representation.
 
-Candidate discovery can supply `CheckedCompileRequest::prepared_source_output`
-to retain an opaque `PreparedCheckedSource`, then consume it with a fresh request.
-The output slot is cleared before validation and published only on success.
-This reuses physical source loading and parsing, never checked semantics or build
-authority. Root paths and immutable package inputs must still match; callers retain
-their before/after physical-source custody checks and final source-consumption
-verification. Retention copies parsed storage for the discovery child and holds
-that frontier until the final child consumes it; it is not a persistent cache.
+Candidate discovery calls `CheckedCompileRequest::compile` for one owned
+`checked::CheckedCompileOutcome`: the verdict, optional reusable source, and
+independent-component discovery. The request contains inputs only, including
+an optional `prepared_source` and `retain_prepared_source` intent; there are no
+mutable output slots or separate prepared-compilation entrypoints. Reusable
+source publishes only on success, while evaluated selections and sponsored Build
+usage survive a later settlement rejection so review can publish the missing
+component descriptions and account for the rejected attempt. `compile_to_checked`
+is the verdict-only projection of this same operation.
+Root paths and immutable package inputs must still match. Reuse shares source
+loading, parsing and exact-input typed preparation, never checked semantics or
+Build authority; every child still performs custody admission and subsequent
+checking. Retained preparation is invocation-local, not a persistent cache.
 
 [Native compilation](src/native/native_product.rs) produces the same retained
 Terminal product as Terminal-only compilation, then consumes it through

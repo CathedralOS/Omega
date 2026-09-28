@@ -75,7 +75,7 @@ pub trait RestrictedBuildGrants: Send {
 /// Inputs for checked-Psi compilation, without native publication authority.
 /// All requests use the same source identity, package admission, and
 /// sponsored build execution checks.
-pub struct CheckedCompileRequest<'a> {
+pub struct CheckedCompileRequest {
     /// Physical source entrypoint.
     pub root_path: std::path::PathBuf,
     /// Explicit target selection; `None` preserves targetless semantic checking.
@@ -103,19 +103,11 @@ pub struct CheckedCompileRequest<'a> {
     /// each phase boundary this child executes. The authored selection remains
     /// the retained identity; the request can only remove exact rules it names.
     pub optimization_rollback: crate::checked::OptimizationRollback,
-    /// Optional destination for target-independent source preparation. Cleared
-    /// before validation and populated only after successful checking. Retention
-    /// copies parsed storage for this child; a later child can consume the result.
-    pub prepared_source_output: Option<&'a mut Option<PreparedCheckedSource>>,
-    /// Optional destination for post-evaluation discovery: the evaluated
-    /// `Independent` provider selections this child's build authored and the
-    /// usage of the evaluation that produced them. Cleared before validation
-    /// and populated after build evaluation — before provider settlement's
-    /// component-closure fence runs — so a caller that finds the compile
-    /// rejected for an unanswered selection can publish the named components'
-    /// descriptions and compile again with them attached. The discovery is
-    /// reported whether the compile settles or rejects.
-    pub independent_component_discovery_output: Option<&'a mut IndependentComponentDiscovery>,
+    /// Optional immutable source frontier from an earlier successful child.
+    /// It supplies source preparation, never this activation's authority.
+    pub prepared_source: Option<PreparedCheckedSource>,
+    /// Return the source frontier after successful checking for another child.
+    pub retain_prepared_source: bool,
     /// Occurrence-bound consent this activation's projected restricted build
     /// requests join before their own build effects execute. `None` admits
     /// without consulting retained acceptance and issues no grants.
@@ -136,7 +128,18 @@ pub struct CheckedCompileRequest<'a> {
     pub permit_unsettled_fused_service_fields: bool,
 }
 
-impl<'a> CheckedCompileRequest<'a> {
+/// One checked attempt, including observations that survive a rejected verdict.
+/// Source reuse publishes only on success; evaluated component selections and
+/// sponsored usage survive a later provider-settlement rejection. No output is
+/// written through the request or lost when the worker returns a diagnostic.
+#[must_use]
+pub struct CheckedCompileOutcome {
+    pub result: Result<CheckedCompilation, Vec<Diagnostic>>,
+    pub prepared_source: Option<PreparedCheckedSource>,
+    pub independent_components: IndependentComponentDiscovery,
+}
+
+impl CheckedCompileRequest {
     /// Select source and optional target without package or sponsor inputs.
     pub fn new(root_path: &Path, target_name: Option<&str>) -> Self {
         Self {
@@ -149,44 +152,24 @@ impl<'a> CheckedCompileRequest<'a> {
             evaluation_sponsor: None,
             build_snapshot: None,
             optimization_rollback: crate::checked::OptimizationRollback::default(),
-            prepared_source_output: None,
-            independent_component_discovery_output: None,
+            prepared_source: None,
+            retain_prepared_source: false,
             restricted_build_grants: None,
             collect_timings: false,
             permit_unsettled_fused_service_fields: false,
         }
     }
 
-    // Keep the caller's borrowed outputs on its thread; only owned compilation
-    // inputs cross the compiler worker's static lifetime boundary.
-    fn into_worker_request(
-        self,
-    ) -> (
-        CheckedCompileRequest<'static>,
-        Option<&'a mut Option<PreparedCheckedSource>>,
-        Option<&'a mut IndependentComponentDiscovery>,
-    ) {
-        let source_output = self.prepared_source_output;
-        let discovery_output = self.independent_component_discovery_output;
-        (
-            CheckedCompileRequest {
-                root_path: self.root_path,
-                build_execution_profile: self.build_execution_profile,
-                target_name: self.target_name,
-                package_inputs: self.package_inputs,
-                build_dir: self.build_dir,
-                filesystem_sponsor: self.filesystem_sponsor,
-                evaluation_sponsor: self.evaluation_sponsor,
-                build_snapshot: self.build_snapshot,
-                optimization_rollback: self.optimization_rollback,
-                restricted_build_grants: self.restricted_build_grants,
-                collect_timings: self.collect_timings,
-                prepared_source_output: None,
-                independent_component_discovery_output: None,
-                permit_unsettled_fused_service_fields: self.permit_unsettled_fused_service_fields,
+    /// Run this owned request on the compiler stack and return its whole outcome.
+    /// Early admission failures return no source frontier or build observations.
+    pub fn compile(self) -> CheckedCompileOutcome {
+        CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        compile_thread::run_on_compile_thread(move || compile_checked_worker(self)).unwrap_or_else(
+            |diagnostics| CheckedCompileOutcome {
+                result: Err(diagnostics),
+                prepared_source: None,
+                independent_components: IndependentComponentDiscovery::default(),
             },
-            source_output,
-            discovery_output,
         )
     }
 }
@@ -231,11 +214,6 @@ pub(crate) struct CheckedChildExecution<'a> {
     evaluation_sponsor: Option<build_time_evaluation::BuildEvaluationSponsor>,
     build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
     optimization_rollback: crate::checked::OptimizationRollback,
-    /// Discovery write target owned by the compiling call: the evaluated
-    /// `Independent` selections and evaluation usage are recorded between
-    /// build evaluation and provider settlement so the roster survives a
-    /// closure-fence rejection.
-    independent_component_discovery: Option<&'a mut IndependentComponentDiscovery>,
     /// Consent binding this child's projected restricted build requests join
     /// before their own build effects execute.
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
@@ -277,7 +255,6 @@ impl<'a> CheckedChildExecution<'a> {
             // automatic package membership or silently fall back after failure.
             build_snapshot: build_snapshot.cloned().or(automatic_snapshot),
             optimization_rollback: optimization_rollback.clone(),
-            independent_component_discovery: None,
             restricted_build_grants: None,
             permit_unsettled_fused_service_fields: false,
         }
@@ -313,48 +290,6 @@ impl<'a> CheckedChildExecution<'a> {
 }
 
 impl PreparedCheckedSource {
-    /// Check another child from this immutable source frontier. Target attachments,
-    /// build sponsors and output custody come exclusively from the new request.
-    pub fn compile_to_checked(
-        self,
-        request: CheckedCompileRequest<'_>,
-    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        compile_checked_request(request, Some(self))
-    }
-
-    fn compile_request(
-        self,
-        request: CheckedCompileRequest<'_>,
-        independent_component_discovery: &mut IndependentComponentDiscovery,
-    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        if request.root_path != self.root_path {
-            return Err(vec![Diagnostic::error(
-                "checked child compilation root does not match its prepared source checkpoint",
-            )]);
-        }
-        let selected_target_profile = request
-            .target_name
-            .as_deref()
-            .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
-            .transpose()
-            .map_err(|diagnostic| vec![diagnostic])?;
-        self.compile_child(CheckedChildExecution {
-            selected_target_profile,
-            build_execution_profile: request
-                .build_execution_profile
-                .or_else(target::TargetProfile::host_if_supported),
-            package_inputs: request.package_inputs.as_ref(),
-            build_dir: request.build_dir.as_deref(),
-            filesystem_sponsor: request.filesystem_sponsor,
-            evaluation_sponsor: request.evaluation_sponsor,
-            build_snapshot: request.build_snapshot,
-            optimization_rollback: request.optimization_rollback,
-            independent_component_discovery: Some(independent_component_discovery),
-            restricted_build_grants: request.restricted_build_grants,
-            permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
-        })
-    }
-
     pub fn prepare(
         root_path: &Path,
         package_sources: Option<
@@ -403,16 +338,6 @@ impl PreparedCheckedSource {
             shared_timings,
             frontier_memo: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
         })
-    }
-
-    fn compile_child(
-        self,
-        child: CheckedChildExecution<'_>,
-    ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-        let root_path = self.root_path.clone();
-        self.admit_child(&child)?;
-        let (frontier, timings) = self.prepare_frontier(&child)?;
-        compile_frontier_checked_child(&root_path, child, frontier, timings)
     }
 
     /// Prepare one admitted child's complete typed input before Build execution.
@@ -535,10 +460,12 @@ impl PreparedCheckedSource {
 /// Compile source through checked Psi on the compiler worker stack.
 /// Returns checked semantics and selected build evidence, without backend lowering
 /// or native output. Build execution may stage generated sources in its admitted root.
+/// Call [`CheckedCompileRequest::compile`] when retaining preparation or discovery
+/// from a rejected attempt; this convenience projection returns only the verdict.
 pub fn compile_to_checked(
-    request: CheckedCompileRequest<'_>,
+    request: CheckedCompileRequest,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    compile_checked_request(request, None)
+    request.compile().result
 }
 
 static CHECKED_COMPILATION_CALLS: std::sync::atomic::AtomicU64 =
@@ -642,55 +569,20 @@ pub(crate) fn record_settled_check(elapsed: std::time::Duration) {
     );
 }
 
-fn compile_checked_request(
-    request: CheckedCompileRequest<'_>,
-    prepared: Option<PreparedCheckedSource>,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    CHECKED_COMPILATION_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let (request, mut source_output, mut discovery_output) = request.into_worker_request();
-    if let Some(output) = source_output.as_deref_mut() {
-        *output = None;
-    }
-    if let Some(output) = discovery_output.as_deref_mut() {
-        *output = IndependentComponentDiscovery::default();
-    }
-    let retain_source = source_output.is_some();
-    // The discovery record is owned by the worker and returned beside the
-    // compile verdict: a rejection loses only the sealed result, never the
-    // evaluated selections the caller needs to publish named components.
-    let (result, discovered) =
-        crate::checked::checking::compile_thread::run_on_compile_thread(move || {
-            let mut discovered = IndependentComponentDiscovery::default();
-            let result = compile_checked_worker(request, prepared, retain_source, &mut discovered);
-            Ok((result, discovered))
-        })?;
-    if let Some(output) = discovery_output {
-        *output = discovered;
-    }
-    let (checked, retained_source) = result?;
-    if let Some(output) = source_output {
-        *output = retained_source;
-    }
-    Ok(checked)
-}
-
-/// The worker body of one checked compile. Discovery output is written
-/// beside, never inside, the result: a component-closure rejection still
-/// returns the evaluated `Independent` selections it recorded.
+/// The checked request's feed-forward route. Before Build completes there is
+/// no discovery to return. After it completes, settlement and source-sealing
+/// failures remain inside the outcome beside the consumed Build observations.
 fn compile_checked_worker(
-    request: CheckedCompileRequest<'static>,
-    prepared: Option<PreparedCheckedSource>,
-    retain_source: bool,
-    independent_component_discovery: &mut IndependentComponentDiscovery,
-) -> Result<(CheckedCompilation, Option<PreparedCheckedSource>), Vec<Diagnostic>> {
+    request: CheckedCompileRequest,
+) -> Result<CheckedCompileOutcome, Vec<Diagnostic>> {
     // Validate target selection before loading source, including fresh requests.
-    request
+    let selected_target_profile = request
         .target_name
         .as_deref()
         .map(|target_name| target::TargetProfile::from_omega_target_name(Some(target_name)))
         .transpose()
         .map_err(|diagnostic| vec![diagnostic])?;
-    let prepared = match prepared {
+    let prepared = match request.prepared_source {
         Some(prepared) => prepared,
         None => PreparedCheckedSource::prepare_with_timing_collection(
             &request.root_path,
@@ -701,65 +593,81 @@ fn compile_checked_worker(
             request.collect_timings,
         )?,
     };
-    let retained_source = retain_source.then(|| prepared.clone());
-    let checked = prepared.compile_request(request, independent_component_discovery)?;
-    Ok((checked, retained_source))
-}
-
-fn compile_frontier_checked_child(
-    root_path: &Path,
-    mut child: CheckedChildExecution<'_>,
-    frontier: build_continuation::TypedFrontier,
-    mut timings: CompileTimings,
-) -> Result<CheckedCompilation, Vec<Diagnostic>> {
-    let selected_target_profile = child.selected_target_profile;
-    let package_inputs = child.package_inputs;
-    let optimization_rollback = child.optimization_rollback.clone();
-    let independent_component_discovery = child.independent_component_discovery.take();
-    let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
+    if request.root_path != prepared.root_path {
+        return Err(vec![Diagnostic::error(
+            "checked child compilation root does not match its prepared source checkpoint",
+        )]);
+    }
+    let package_inputs = request.package_inputs.as_ref();
+    let child = CheckedChildExecution {
+        selected_target_profile,
+        build_execution_profile: request
+            .build_execution_profile
+            .or_else(target::TargetProfile::host_if_supported),
+        package_inputs,
+        build_dir: request.build_dir.as_deref(),
+        filesystem_sponsor: request.filesystem_sponsor,
+        evaluation_sponsor: request.evaluation_sponsor,
+        build_snapshot: request.build_snapshot,
+        optimization_rollback: request.optimization_rollback.clone(),
+        restricted_build_grants: request.restricted_build_grants,
+        permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
+    };
+    let retained_source = request.retain_prepared_source.then(|| prepared.clone());
+    prepared.admit_child(&child)?;
+    let (frontier, mut timings) = prepared.prepare_frontier(&child)?;
     let build_started = std::time::Instant::now();
-    let (built, sources) =
-        build_continuation::evaluate_build_and_continue(root_path, child, frontier, &mut timings)?;
+    let (built, sources) = build_continuation::evaluate_build_and_continue(
+        &request.root_path,
+        child,
+        frontier,
+        &mut timings,
+    )?;
     timings.add_completed(
         artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
         build_started.elapsed().as_micros(),
         artifacts::allocations::AllocationDelta::default(),
     );
-    // The evaluated build configuration never leaves this crate, so the
-    // discovery stop records `Independent` selections and the evaluation's
-    // usage here — after the build computed them and before
-    // `check_selected_execution` runs the component-closure fence that
-    // rejects any of them left unanswered.
-    if let Some(output) = independent_component_discovery {
-        output.evaluation_usage = built.computed_build_config.evaluation_usage;
-        output.selections.extend(
-            built
-                .computed_build_config
-                .config
-                .provider_selections
-                .iter()
-                .filter(|selection| {
-                    selection.composition_mode == provider_planning::CompositionMode::Independent
-                })
-                .map(|selection| IndependentComponentSelection {
-                    selection: selection.clone(),
-                    component: selection.provider_type.package,
-                }),
-        );
-    }
+    let independent_components = IndependentComponentDiscovery {
+        evaluation_usage: built.computed_build_config.evaluation_usage,
+        selections: built
+            .computed_build_config
+            .config
+            .provider_selections
+            .iter()
+            .filter(|selection| {
+                selection.composition_mode == provider_planning::CompositionMode::Independent
+            })
+            .map(|selection| IndependentComponentSelection {
+                selection: selection.clone(),
+                component: selection.provider_type.package,
+            })
+            .collect(),
+    };
     let settlement_started = std::time::Instant::now();
-    let execution = execution_settlement::check_selected_execution(
+    let result = execution_settlement::check_selected_execution(
         built,
         selected_target_profile,
         package_inputs,
-        &optimization_rollback,
+        &request.optimization_rollback,
         &mut timings,
-        permit_unsettled_fused_service_fields,
-    )?;
+        request.permit_unsettled_fused_service_fields,
+    );
     timings.add_completed(
         artifacts::compile_timings::EXECUTION_SETTLEMENT,
         settlement_started.elapsed().as_micros(),
         artifacts::allocations::AllocationDelta::default(),
     );
-    CheckedCompilation::seal(execution, sources, package_inputs, timings)
+    let result = result.and_then(|execution| {
+        CheckedCompilation::seal(execution, sources, package_inputs, timings)
+    });
+    Ok(CheckedCompileOutcome {
+        prepared_source: if result.is_ok() {
+            retained_source
+        } else {
+            None
+        },
+        result,
+        independent_components,
+    })
 }
