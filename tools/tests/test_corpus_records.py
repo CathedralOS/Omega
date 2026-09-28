@@ -82,6 +82,34 @@ class RoundTrip(unittest.TestCase):
         self.assertIn("1 legacy", line)
         self.assertIn("40 commits behind HEAD (@bbbbbbbbbbbb)", line)
 
+    def test_context_line_round_trips_and_stays_out_of_records(self):
+        records = [{"fixture": "pass/core/ok", "tier": "pass",
+                    "status": "checked", "millis": 3,
+                    "expected_satisfied": None, "facts": {},
+                    "diagnostics": [], "recorded_at": "aaaaaaaaaaaa"}]
+        context = {"schema": "omega-corpus-context-v1", "jobs": "8",
+                   "cpus": 10, "platform": "darwin", "machine": "arm64",
+                   "load1_start": 1.5, "load1_end": 9.25}
+        text = corpus_records.render(records, context)
+        self.assertIn("# context: ", text)
+        self.assertEqual(corpus_records.context_from(text), context)
+        self.assertEqual(corpus_records.parse(text), records)
+
+    def test_context_absent_or_malformed_reads_none(self):
+        records = [{"fixture": "pass/core/ok", "tier": "pass",
+                    "status": "checked", "millis": 3,
+                    "expected_satisfied": None, "facts": {},
+                    "diagnostics": [], "recorded_at": None}]
+        self.assertIsNone(
+            corpus_records.context_from(corpus_records.render(records)))
+        self.assertIsNone(corpus_records.context_from("# context: oops\n"))
+        self.assertIsNone(corpus_records.context_from(
+            "# context: [1,2]\npass/a/x checked 1ms\n"))
+        # A context line after the first record is ignored: context belongs
+        # to the header, before any fixture row.
+        self.assertIsNone(corpus_records.context_from(
+            "pass/a/x checked 1ms\n# context: {}\n"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,10 +14,15 @@ stamp a `built` row can be days stale. Legacy rows carry no stamp. Each
 diagnostic follows on its
 own line after one tab, with backslash, newline, carriage return and tab
 escaped as `\\\\`, `\\n`, `\\r` and `\\t`. Lines starting with `#` are
-comments. Standard library only.
+comments; a `# context: {...}` comment after the header records the
+conditions the recording ran under (worker count, machine parallelism,
+load average), which is what makes a later timing comparison meaningful.
+Standard library only.
 """
 
 from __future__ import annotations
+
+import json
 
 HEADER = """\
 # Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
@@ -27,7 +32,10 @@ HEADER = """\
 # `@<revision>` recording which commit measured the row (`+wt` = dirty
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
+# A `# context: {...}` line records the conditions of the --record run.
 """
+
+CONTEXT_PREFIX = "# context: "
 
 _ESCAPES = {"\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t"}
 _UNESCAPES = {"\\": "\\", "n": "\n", "r": "\r", "t": "\t"}
@@ -96,8 +104,11 @@ def parse(text: str) -> list[dict]:
     return records
 
 
-def render(records: list[dict]) -> str:
+def render(records: list[dict], context=None) -> str:
     lines = [HEADER.rstrip("\n")]
+    if context is not None:
+        lines.append(CONTEXT_PREFIX + json.dumps(context, ensure_ascii=True,
+                                                 sort_keys=True))
     for record in records:
         header = f"{record['fixture']} {record['status']} {record['millis']}ms"
         if record["expected_satisfied"] is not None:
@@ -114,6 +125,28 @@ def render(records: list[dict]) -> str:
 def read(path) -> list[dict]:
     with open(path, encoding="utf-8") as handle:
         return parse(handle.read())
+
+
+def context_from(text: str):
+    """The recording context a `--record` wrote as a header comment, or
+    None when the golden predates context stamping (or it is unreadable).
+    Kept separate from parse(): rows and run conditions have different
+    callers and lifetimes."""
+    for line in text.splitlines():
+        if line.startswith(CONTEXT_PREFIX):
+            try:
+                context = json.loads(line[len(CONTEXT_PREFIX):])
+            except ValueError:
+                return None
+            return context if isinstance(context, dict) else None
+        if line and not line.startswith("#"):
+            return None
+    return None
+
+
+def read_context(path):
+    with open(path, encoding="utf-8") as handle:
+        return context_from(handle.read())
 
 
 # Retired diagnostic prefixes and the spelling that replaced them. The
