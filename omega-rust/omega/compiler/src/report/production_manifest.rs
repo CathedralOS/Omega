@@ -111,138 +111,9 @@ impl ProductionCompilationSubject {
                 "production compilation subject target profile disagrees with native target",
             );
         }
-        if build_evaluation_usage.invocation_fuel_ceiling == 0 {
-            return Err("production compilation subject has a zero invocation fuel ceiling");
-        }
-        if build_evaluation_usage.fuel_units > build_evaluation_usage.invocation_fuel_ceiling {
-            return Err("production compilation subject exceeded its invocation fuel ceiling");
-        }
-        match (
-            build_evaluation_usage.sponsor_schema_version,
-            build_evaluation_usage.session_fuel_ceiling,
-            build_evaluation_usage.session_build_log_byte_ceiling,
-            build_evaluation_usage.session_filesystem_attempt_ceiling,
-            build_evaluation_usage.session_live_filesystem_handle_ceiling,
-            build_evaluation_usage.session_live_cell_ceiling,
-            build_evaluation_usage.session_live_text_byte_ceiling,
-            build_evaluation_usage.session_result_cell_ceiling,
-            build_evaluation_usage.session_result_text_byte_ceiling,
-        ) {
-            (None, None, None, None, None, None, None, None, None) => {
-                if build_evaluation_usage.session_peak_live_filesystem_handles != 0
-                    || build_evaluation_usage.session_peak_live_cells != 0
-                    || build_evaluation_usage.session_peak_live_text_bytes != 0
-                {
-                    return Err(
-                        "production compilation subject has unsponsored session-live usage",
-                    );
-                }
-            }
-            (Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
-                return Err("production compilation subject has a zero session fuel ceiling");
-            }
-            (Some(_), Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
-                return Err("production compilation subject has a zero session BuildLog ceiling");
-            }
-            (Some(_), Some(_), Some(_), Some(0), Some(_), Some(_), Some(_), Some(_), Some(_)) => {
-                return Err(
-                    "production compilation subject has a zero session filesystem-attempt ceiling",
-                );
-            }
-            (Some(_), Some(_), Some(_), Some(_), Some(0), Some(_), Some(_), Some(_), Some(_)) => {
-                return Err(
-                    "production compilation subject has a zero live-filesystem-handle ceiling",
-                );
-            }
-            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(0), Some(_), Some(_), Some(_)) => {
-                return Err("production compilation subject has a zero live-cell ceiling");
-            }
-            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(0), Some(_), Some(_)) => {
-                return Err("production compilation subject has a zero live-Text-byte ceiling");
-            }
-            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(0), Some(_)) => {
-                return Err("production compilation subject has a zero result-cell ceiling");
-            }
-            (Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(_), Some(0)) => {
-                return Err("production compilation subject has a zero result-Text-byte ceiling");
-            }
-            (
-                Some(_),
-                Some(session_ceiling),
-                Some(build_log_ceiling),
-                Some(filesystem_attempt_ceiling),
-                Some(live_filesystem_handle_ceiling),
-                Some(live_cell_ceiling),
-                Some(live_text_byte_ceiling),
-                Some(result_cell_ceiling),
-                Some(result_text_byte_ceiling),
-            ) => {
-                let consumed = build_evaluation_usage.fuel_units;
-                if consumed > session_ceiling {
-                    return Err("production compilation subject exceeded its session fuel ceiling");
-                }
-                let build_log = build_evaluation_usage.build_log_bytes;
-                if build_log > build_log_ceiling {
-                    return Err(
-                        "production compilation subject exceeded its session BuildLog ceiling",
-                    );
-                }
-                let filesystem_attempts = build_evaluation_usage.filesystem_operation_attempts;
-                if filesystem_attempts > filesystem_attempt_ceiling {
-                    return Err(
-                        "production compilation subject exceeded its session filesystem-attempt ceiling",
-                    );
-                }
-                if build_evaluation_usage.session_peak_live_filesystem_handles
-                    > live_filesystem_handle_ceiling
-                {
-                    return Err(
-                        "production compilation subject exceeded its live-filesystem-handle ceiling",
-                    );
-                }
-                if build_evaluation_usage.session_peak_live_cells > live_cell_ceiling
-                    || build_evaluation_usage.peak_live_cells > live_cell_ceiling
-                {
-                    return Err("production compilation subject exceeded its live-cell ceiling");
-                }
-                if build_evaluation_usage.peak_live_cells
-                    > build_evaluation_usage.session_peak_live_cells
-                {
-                    return Err(
-                        "production compilation subject live-cell peak exceeds its session peak",
-                    );
-                }
-                if build_evaluation_usage.session_peak_live_text_bytes > live_text_byte_ceiling
-                    || build_evaluation_usage.peak_live_text_bytes > live_text_byte_ceiling
-                {
-                    return Err(
-                        "production compilation subject exceeded its live-Text-byte ceiling",
-                    );
-                }
-                if build_evaluation_usage.peak_live_text_bytes
-                    > build_evaluation_usage.session_peak_live_text_bytes
-                {
-                    return Err(
-                        "production compilation subject live-Text-byte peak exceeds its session peak",
-                    );
-                }
-                let result_cells = build_evaluation_usage.result_cells;
-                if result_cells > result_cell_ceiling {
-                    return Err("production compilation subject exceeded its result-cell ceiling");
-                }
-                let result_text_bytes = build_evaluation_usage.result_text_bytes;
-                if result_text_bytes > result_text_byte_ceiling {
-                    return Err(
-                        "production compilation subject exceeded its result-Text-byte ceiling",
-                    );
-                }
-            }
-            _ => {
-                return Err(
-                    "production compilation subject has incomplete evaluation sponsor identity",
-                );
-            }
-        }
+        build_evaluation_usage
+            .validate()
+            .map_err(build_usage_diagnostic)?;
         Ok(Self {
             package,
             selected_build_machine_identity,
@@ -413,6 +284,80 @@ impl ProductionCompilationManifest {
                 |gap| FinalRealizationEvidenceError::NativePhysicalEvidenceBlocked(*gap),
             )
         })
+    }
+}
+
+// The interpreter owns accounting consistency; this report keeps its existing
+// production-specific diagnostic contract.
+fn build_usage_diagnostic(error: checked_interpreter::BuildEvaluationUsageError) -> &'static str {
+    use checked_interpreter::BuildEvaluationUsageError;
+    match error {
+        BuildEvaluationUsageError::ZeroInvocationFuelCeiling => {
+            "production compilation subject has a zero invocation fuel ceiling"
+        }
+        BuildEvaluationUsageError::InvocationFuelExceeded => {
+            "production compilation subject exceeded its invocation fuel ceiling"
+        }
+        BuildEvaluationUsageError::UnsponsoredSessionUsage => {
+            "production compilation subject has unsponsored session-live usage"
+        }
+        BuildEvaluationUsageError::ZeroSessionFuelCeiling => {
+            "production compilation subject has a zero session fuel ceiling"
+        }
+        BuildEvaluationUsageError::ZeroSessionBuildLogCeiling => {
+            "production compilation subject has a zero session BuildLog ceiling"
+        }
+        BuildEvaluationUsageError::ZeroSessionFilesystemAttemptCeiling => {
+            "production compilation subject has a zero session filesystem-attempt ceiling"
+        }
+        BuildEvaluationUsageError::ZeroLiveFilesystemHandleCeiling => {
+            "production compilation subject has a zero live-filesystem-handle ceiling"
+        }
+        BuildEvaluationUsageError::ZeroLiveCellCeiling => {
+            "production compilation subject has a zero live-cell ceiling"
+        }
+        BuildEvaluationUsageError::ZeroLiveTextByteCeiling => {
+            "production compilation subject has a zero live-Text-byte ceiling"
+        }
+        BuildEvaluationUsageError::ZeroResultCellCeiling => {
+            "production compilation subject has a zero result-cell ceiling"
+        }
+        BuildEvaluationUsageError::ZeroResultTextByteCeiling => {
+            "production compilation subject has a zero result-Text-byte ceiling"
+        }
+        BuildEvaluationUsageError::SessionFuelExceeded => {
+            "production compilation subject exceeded its session fuel ceiling"
+        }
+        BuildEvaluationUsageError::SessionBuildLogExceeded => {
+            "production compilation subject exceeded its session BuildLog ceiling"
+        }
+        BuildEvaluationUsageError::SessionFilesystemAttemptsExceeded => {
+            "production compilation subject exceeded its session filesystem-attempt ceiling"
+        }
+        BuildEvaluationUsageError::LiveFilesystemHandlesExceeded => {
+            "production compilation subject exceeded its live-filesystem-handle ceiling"
+        }
+        BuildEvaluationUsageError::LiveCellsExceeded => {
+            "production compilation subject exceeded its live-cell ceiling"
+        }
+        BuildEvaluationUsageError::InvocationCellPeakExceedsSession => {
+            "production compilation subject live-cell peak exceeds its session peak"
+        }
+        BuildEvaluationUsageError::LiveTextBytesExceeded => {
+            "production compilation subject exceeded its live-Text-byte ceiling"
+        }
+        BuildEvaluationUsageError::InvocationTextPeakExceedsSession => {
+            "production compilation subject live-Text-byte peak exceeds its session peak"
+        }
+        BuildEvaluationUsageError::ResultCellsExceeded => {
+            "production compilation subject exceeded its result-cell ceiling"
+        }
+        BuildEvaluationUsageError::ResultTextBytesExceeded => {
+            "production compilation subject exceeded its result-Text-byte ceiling"
+        }
+        BuildEvaluationUsageError::IncompleteSponsorIdentity => {
+            "production compilation subject has incomplete evaluation sponsor identity"
+        }
     }
 }
 

@@ -1,6 +1,8 @@
 //! Psi-owned checked/typed-tree interpreter used for build-time evaluation and
 //! as a differential oracle while the terminal producer grows.
 //! Start at [`interpreter`] for worker setup, authority selection, and result handling.
+//! `build_evaluation_usage.rs` owns retained invocation/sponsor accounting;
+//! `build_evaluation_sponsor.rs` owns the live account and resource reservations.
 //!
 //! Canonical portable execution belongs to the Psi-owned
 //! `terminal-interpreter` crate. This crate retains the source-shaped
@@ -90,6 +92,7 @@
 mod front_end;
 
 mod build_evaluation_sponsor;
+mod build_evaluation_usage;
 mod build_time;
 mod evaluation;
 mod filesystem;
@@ -101,6 +104,7 @@ pub use build_evaluation_sponsor::{
     BUILD_EVALUATION_SPONSOR_LIMITS_SCHEMA_VERSION, BuildEvaluationSponsor,
     BuildEvaluationSponsorLimits,
 };
+pub use build_evaluation_usage::{BuildEvaluationUsage, BuildEvaluationUsageError};
 pub use build_time::{BuildTimeValue, SelectedBuildTimeBinaryOperator};
 pub use filesystem_sponsor::{
     COMPILER_DEFAULT_STAGING_ENTRY_LIMIT, COMPILER_DEFAULT_STAGING_MAX_OBJECT_EXTENT,
