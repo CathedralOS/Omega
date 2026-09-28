@@ -22,9 +22,17 @@ Package inputs, build staging and session sponsors are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
 Ordinary production accepts `CompileRequest::with_build_snapshot`, or distinct
-`TargetCompileConfiguration::with_build_snapshot` requests. Each target captures
-and executes its own caller-declared inventory and required-output roster;
-parsing reuse does not merge those inputs or suppress a sibling's failure.
+`TargetCompileConfiguration::with_build_snapshot` requests. Each target retains
+its caller-declared inventory and required-output roster; unequal build inputs
+evaluate independently, without merging inputs or suppressing a sibling's failure.
+Package [compilation reuse](../package-manager/compilation-inputs/src/compilation_reuse.rs)
+owns both input comparisons: source assembly observes imported content and entry
+bindings; unsponsored build reuse additionally observes all bindings, component
+descriptions, the full snapshot request and live output placement. Equal captured
+builds may share a result only after per-child custody admission. Different
+inventories or required-output rosters never borrow a sibling's success. Live
+output directories remain separate; the coordinator does not rebuild these
+package projections or treat a source-reuse key as build-execution authority.
 An omitted request retains automatic capture of canonical package inputs.
 Standalone scoped inventories must include consumed source files and do not
 expose undeclared siblings. Without a caller-supplied sponsor, captured builds

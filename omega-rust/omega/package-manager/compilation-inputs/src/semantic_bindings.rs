@@ -2,6 +2,33 @@ use effects::ServiceTerminalAuthorityPermission;
 use effects::provider_plan::{ProviderPlanDigest, ServiceSchemaDigest};
 use semantic_vocabulary::PackageKeyIdentity;
 
+/// Accepted-binding role that admits one ordinary package's copy of the
+/// target-owned physical entry contract for this consumer.
+pub fn program_entry_semantic_binding_role(
+    package: target::ProgramEntryPhysicalContractPackage,
+) -> AcceptedSemanticBindingRole {
+    match package {
+        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
+            AcceptedSemanticBindingRole::UefiX64ProgramEntry
+        }
+        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
+            AcceptedSemanticBindingRole::MacosArm64ProgramEntry
+        }
+        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
+            AcceptedSemanticBindingRole::MacosX64ProgramEntry
+        }
+        target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
+            AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
+        }
+        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
+            AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
+        }
+        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
+            AcceptedSemanticBindingRole::WindowsX64ProgramEntry
+        }
+    }
+}
+
 /// One compiler consumer role whose ordinary-package declaration must be
 /// accepted explicitly rather than inferred from a package or source name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

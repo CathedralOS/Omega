@@ -81,8 +81,9 @@ impl TargetCompileConfiguration {
         self
     }
     /// Set this target's caller-authorized build input inventory and required
-    /// outputs. Capture and execution remain child-local; this request does
-    /// not grant output sponsorship or publish completed companion artifacts.
+    /// outputs. Unequal requests never share build results; equal captured
+    /// inputs may share one evaluation after each child's custody admission.
+    /// This grants neither output sponsorship nor publication authority.
     /// Omission retains the automatic snapshot for canonical package inputs.
     pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
         self.build_snapshot = Some(snapshot);
@@ -175,8 +176,9 @@ impl CompileRequest {
     }
 
     /// Apply the same capture intent to every current target configuration.
-    /// Each child captures and checks its own occurrence; distinct inventories
-    /// and output rosters belong on their target configurations.
+    /// Each child checks its own custody; equal captured inputs may share one
+    /// evaluation. Distinct inventories and output rosters belong on their
+    /// target configurations and never reuse a sibling's build result.
     pub fn with_build_snapshot(mut self, snapshot: build_evaluation::BuildSnapshotRequest) -> Self {
         for configuration in &mut self.configurations {
             configuration.build_snapshot = Some(snapshot.clone());

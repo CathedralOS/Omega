@@ -46,8 +46,8 @@ pub(crate) enum CheckedFrontierInput {
         syntax: build_evaluation::sources::AssembledSyntax,
     },
     /// A typed frontier retained from an earlier child of the same immutable
-    /// source checkpoint whose [`TypedFrontierKey`] was identical. Assembly
-    /// and the typed frontend are deterministic in those inputs; the child's
+    /// source checkpoint with identical [`package_compilation::SourceAssemblyInputs`].
+    /// Assembly and the typed frontend are deterministic in those inputs; the child's
     /// per-activation custody admission, declaration authority check, build
     /// execution and provider settlement all still run against its live
     /// request, and only work no later input could alter is skipped.
@@ -67,115 +67,18 @@ pub(crate) struct TypedFrontier {
     application: Option<build_declarations::ApplicationDeclaration>,
 }
 
-/// The exact inputs a child's assembled source and typed frontend are a
-/// function of.
-///
-/// The immutable parse checkpoint pins the parsed physical sources. On top of
-/// it a child contributes its build execution profile and the package inputs
-/// assembly and the typed frontend read — reduced to their
-/// frontier-observable shape by [`FrontierPackageInputs`]. The selected
-/// product target is deliberately absent: product-scope machine bodies stay
-/// tagged families in the typed frontier and `select_product_target`
-/// realizes one of them after the frontier seals, so two targets of one
-/// request that carry identical frontier inputs share this entry rather than
-/// re-assembling identical source. Every other accepted semantic binding
-/// first reaches the program at provider settlement — after this frontier is
-/// sealed — so it is not part of this key: a bound pass reuses the frontier
-/// its discovery pass built whenever only those downstream bindings joined.
-#[derive(Clone, PartialEq)]
-pub(crate) struct TypedFrontierKey {
-    build_execution_profile: Option<target::TargetProfile>,
-    package_inputs: Option<FrontierPackageInputs>,
-}
-
-/// The part of one child's package inputs its assembled source and typed
-/// frontend observe, joined against the shared parse checkpoint: the checked
-/// activation's purpose (it scopes how product imports land), the immutable
-/// source graph, the dependency generated-source handoff reduced to what
-/// assembly stores — the relative scope each bundle lands under, the package
-/// it binds, and its exact bytes — and the accepted program-entry bindings
-/// entry-contract seeding consults.
-///
-/// Everything else in [`PackageCompilationInputs`] is deliberately excluded:
-/// a bundle's producer target, execution profile, dependency closure, and
-/// source-consumption commitment are custody evidence the per-child
-/// `admit_child` and custody gates re-validate, never assembly content, so
-/// equal bytes under equal scope share this frontier while custody stays
-/// per-activation. Component descriptions join at build settlement, and
-/// non-entry semantic bindings first reach the program at provider
-/// settlement — both after this frontier seals.
-#[derive(Clone, PartialEq)]
-struct FrontierPackageInputs {
-    purpose: build_declarations::DependencyPurpose,
-    source: Arc<package_compilation::PackageCompilationSourceInputs>,
-    generated: Vec<FrontierGeneratedSources>,
-    entry_bindings: Vec<package_compilation::AcceptedSemanticBinding>,
-}
-
-/// One dependency generated-source handoff reduced to assembly's view. The
-/// producer's target and execution custody are checked per child before this
-/// projection ever keys reuse, so they cannot manufacture a false union.
-#[derive(Clone, PartialEq)]
-struct FrontierGeneratedSources {
-    scope: build_declarations::DependencyPurpose,
-    package: semantic_vocabulary::PackageKeyIdentity,
-    sources: Vec<build_output::PackageGeneratedSource>,
-}
-
-impl TypedFrontierKey {
-    /// Project `child` onto exactly what its assembled frontier reads. Package
-    /// inputs join reduced to their frontier-observable shape: accepted
-    /// semantic bindings outside the program-entry contract roles are
-    /// dropped, since nothing before provider settlement can observe them.
-    /// The signature keeps the `Result` shape its callers already hold.
-    pub(crate) fn for_child(child: &CheckedChildExecution<'_>) -> Result<Self, Vec<Diagnostic>> {
-        let package_inputs = child.package_inputs.map(|inputs| {
-            let mut entry_roles = std::collections::BTreeSet::new();
-            for profile in target::TargetProfile::ALL {
-                if let Some(contract_package) =
-                    profile.program_entry_slot().physical_contract_package
-                {
-                    entry_roles.insert(build_evaluation::program_entry_semantic_binding_role(
-                        contract_package,
-                    ));
-                }
-            }
-            FrontierPackageInputs {
-                purpose: inputs.compilation_purpose(),
-                source: inputs.source_inputs(),
-                generated: inputs
-                    .dependency_generated_source_instances()
-                    .map(|(scope, bundle)| FrontierGeneratedSources {
-                        scope,
-                        package: bundle.package(),
-                        sources: bundle.sources().to_vec(),
-                    })
-                    .collect(),
-                entry_bindings: entry_roles
-                    .into_iter()
-                    .filter_map(|role| inputs.accepted_semantic_binding(role))
-                    .cloned()
-                    .collect(),
-            }
-        });
-        Ok(Self {
-            build_execution_profile: child.build_execution_profile,
-            package_inputs,
-        })
-    }
-}
-
 /// Typed frontiers one immutable source checkpoint produced for children
-/// already compiled, keyed by each child's exact [`TypedFrontierKey`].
+/// already compiled, keyed by the package owner's exact source assembly inputs.
 /// `PreparedCheckedSource` clones share the map, so a later pass over the
 /// same frontier reuses the typed program instead of re-assembling and
 /// re-lowering identical source.
-pub(crate) type TypedFrontierMemo = std::sync::Mutex<Vec<(TypedFrontierKey, TypedFrontier)>>;
+pub(crate) type TypedFrontierMemo =
+    std::sync::Mutex<Vec<(package_compilation::SourceAssemblyInputs, TypedFrontier)>>;
 
 /// One checkpoint-shared memo and the key a fresh frontier is stored under.
 pub(crate) struct TypedFrontierMemoSlot {
     pub(crate) memo: std::sync::Arc<TypedFrontierMemo>,
-    pub(crate) key: TypedFrontierKey,
+    pub(crate) key: package_compilation::SourceAssemblyInputs,
 }
 
 /// Assembled-syntax entry for callers that never retain a typed frontier

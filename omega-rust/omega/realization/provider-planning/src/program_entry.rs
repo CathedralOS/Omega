@@ -856,32 +856,7 @@ fn target_owned_physical_contract_source(
     })
 }
 
-/// Accepted-binding role that admits one ordinary package's copy of the
-/// target-owned physical entry contract for this consumer.
-pub fn program_entry_semantic_binding_role(
-    package: target::ProgramEntryPhysicalContractPackage,
-) -> package_compilation::AcceptedSemanticBindingRole {
-    match package {
-        target::ProgramEntryPhysicalContractPackage::UefiX64 => {
-            package_compilation::AcceptedSemanticBindingRole::UefiX64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosArm64 => {
-            package_compilation::AcceptedSemanticBindingRole::MacosArm64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::MacosX64 => {
-            package_compilation::AcceptedSemanticBindingRole::MacosX64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxX86_64 => {
-            package_compilation::AcceptedSemanticBindingRole::LinuxX86_64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::LinuxArm64 => {
-            package_compilation::AcceptedSemanticBindingRole::LinuxArm64ProgramEntry
-        }
-        target::ProgramEntryPhysicalContractPackage::WindowsX64 => {
-            package_compilation::AcceptedSemanticBindingRole::WindowsX64ProgramEntry
-        }
-    }
-}
+pub use package_compilation::program_entry_semantic_binding_role;
 
 /// Bundled-toolchain digest expected for one closed contract package.
 fn exact_bundled_physical_contract_package_source_digest(

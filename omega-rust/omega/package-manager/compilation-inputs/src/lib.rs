@@ -6,6 +6,8 @@
 //! `source_snapshot` captures the package source a compilation consumed,
 //! `source_consumption` records exactly which of it was read, and
 //! `semantic_bindings` carries the optional standard-library bindings.
+//! `compilation_reuse` owns exact source/build input comparisons, not admission
+//! or scheduling; the compiler consumes those keys without re-projecting them.
 //! `source_imports` resolves source frontiers through exact package scopes;
 //! `toolchain_library` locates and validates the compiler's bundled sources.
 //! `build_execution` owns immutable build inputs, filesystem custody and
@@ -15,6 +17,7 @@
 
 pub mod build_execution;
 mod checked_source_cache;
+mod compilation_reuse;
 pub mod source_imports;
 pub mod toolchain_library;
 pub use build_execution::*;
@@ -27,6 +30,7 @@ pub use build_declarations::BuildDeclarationKind;
 pub use checked_source_cache::{
     CachedSourceIndex, CheckedSourceCache, CheckedSourceCacheLimits, CheckedSourceCacheOutcome,
 };
+pub use compilation_reuse::{BuildExecutionInputs, SourceAssemblyInputs};
 pub use package_compilation::{
     BuildDependencyOccurrence, IndependentComponentDescription, PackageCompilationInputError,
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
@@ -35,6 +39,7 @@ pub use package_compilation::{
 };
 pub use semantic_bindings::{
     AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
+    program_entry_semantic_binding_role,
 };
 pub use source_consumption::{
     ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,
