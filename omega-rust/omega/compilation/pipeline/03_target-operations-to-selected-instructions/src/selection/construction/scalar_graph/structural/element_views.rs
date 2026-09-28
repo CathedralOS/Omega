@@ -243,7 +243,9 @@ fn element_view_read(
             ..Default::default()
         },
     )?;
-    Ok(output)
+    // A narrow signed element loads zero-extended; the register carrier is
+    // sign-extended, so a signed compare of `-5` would otherwise see 2^32 - 5.
+    super::primitive_locals::normalize_signed_load(builder, definition, output)
 }
 
 fn element_view_length(
