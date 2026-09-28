@@ -6,9 +6,9 @@
 //! the identity boundary; each named member must route through its owning
 //! transform here rather than selecting a different pipeline.
 
-use crate::checked::checking::phase_transitions::CheckedProgramSurface;
 use diagnostics::Diagnostic;
 use optimization_core::{Optimization, OptimizationExecutionPhase, OptimizationSelections};
+use selected_dispatch::CheckedProviderProgram;
 use std::sync::Arc;
 use typed_trees_to_checked_trees::{
     CheckedTreeProductPruning, CheckedTreeProductRoots, CheckedTreeProductSelection,
@@ -24,10 +24,10 @@ use typed_trees_to_checked_trees::{
 /// identity-bearing product selection evidence; `None` when no checked-tree
 /// optimization ran.
 pub(crate) fn execute(
-    mut checked: CheckedProgramSurface,
+    mut checked: CheckedProviderProgram,
     effective: &OptimizationSelections,
     product_root_machines: Vec<symbols::SymbolHandle>,
-) -> Result<(CheckedProgramSurface, Option<CheckedTreeProductSelection>), Vec<Diagnostic>> {
+) -> Result<(CheckedProviderProgram, Option<CheckedTreeProductSelection>), Vec<Diagnostic>> {
     let phase = effective.project_phase(OptimizationExecutionPhase::CheckedTrees);
     let mut product_selection = None;
     for optimization in phase.selections().as_slice() {

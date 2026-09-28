@@ -200,15 +200,15 @@ Its checking stage also owns exact boundary-call and source-authority validation
 the compiler does not issue a separate source-provider approval after checking.
 It forwards independently rederived opaque-representation property receipts;
 Psi rejoins their authored dependency-scope instances during input preparation.
-This coordinator closes build/target inputs around that phase; it does not add
-target policy to the portable Terminal module. Enter
-[phase_transitions.rs](src/checked/checking/phase_transitions.rs).
+The coordinator supplies evaluated build authority to Psi's checking request;
+Psi checks assembly authority even when the language judgment is memoized.
+Language-only probes do not issue runtime installation authority.
 
-`CheckedProgramSurface` retains checked Psi with exact predecessor facts:
-selected provider plans/grants, callback placements, accepted template
-classifications, and contract-entailment stand-downs. `TypedToCheckedSettlementInput`
-closes callback and provider receipts transactionally before checked ownership
-is shared. A compact identifier is not a replacement for these retained inputs.
+[Provider checking inputs](../realization/selected-dispatch/src/provider_checking.rs)
+belong to Omega realization. That owner prepares specialization and
+representation inputs, then binds callback placements and provider grants to
+Psi's checked result. `CheckedProviderProgram` retains the resulting program
+and exact review records; the coordinator does not reconstruct them.
 
 Deferred constant folds keep provider-plan rederivation in Omega. Their final
 source-occurrence checks and invocation replay belong to Psi's
@@ -221,11 +221,12 @@ then independently validates source selection, operands, arithmetic policy,
 signature, conformance, and invocation admission. The coordinator does not
 classify Float meaning or rebuild separate fact lists for these two supplies.
 
-Selected execution then produces `SelectedExecutionSettlementSurface`. Its
-ordered work closes component-entry progress, selected-dispatch settlement,
-provenance, boundary-adapter associations, and task activations. Preserve that order and
-each independent sidecar when moving coordinator code; duplicating or reordering
-settlement is not a new pipeline stage.
+[Execution settlement](../realization/selected-dispatch/src/execution_settlement.rs)
+produces `SelectedExecution`: component-entry progress, dispatch associations,
+accepted-service provenance and task activations. It retains Psi's checked
+execution plans instead of re-entering Psi to rebuild them. This is still a
+checked-tree realization seam; moving it out of the coordinator does not
+complete the separate task of installing providers behind Terminal Psi.
 
 Boundary calls remain canonical in checked trees. Selected execution records
 exact receiver/requirement/entry-state associations and whether the receiver is

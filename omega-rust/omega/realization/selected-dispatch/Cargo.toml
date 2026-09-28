@@ -9,10 +9,14 @@ name = "selected_dispatch"
 path = "src/lib.rs"
 
 [dependencies]
+backend-plan = { path = "../../backend/plans/backend-plan" }
+representation-planning = { path = "../../../psi/checking/representation-planning" }
+trust-model = { path = "../../compiler/trust-model" }
+task-plans = { path = "../../backend/runtime/task-plans" }
 effects = { path = "../../backend/plans/provider-evidence" }
-package-compilation = { path = "../package-compilation" }
+package-compilation = { path = "../../compiler/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
-provider-planning = { path = "../provider-planning" }
+provider-planning = { path = "../../compiler/provider-planning" }
 target = { path = "../../backend/target" }
 arena = { path = "../../../psi/foundation/arena" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }

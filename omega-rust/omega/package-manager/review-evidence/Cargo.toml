@@ -17,7 +17,7 @@ provider-planning = { path = "../../compiler/provider-planning" }
 calling-conventions = { path = "../../backend/calling-conventions" }
 layout = { path = "../../backend/layout" }
 representation-planning = { path = "../../../psi/checking/representation-planning" }
-selected-dispatch = { path = "../../compiler/selected-dispatch" }
+selected-dispatch = { path = "../../realization/selected-dispatch" }
 effects = { path = "../../backend/plans/provider-evidence" }
 target = { path = "../../backend/target" }
 trust-model = { path = "../../compiler/trust-model" }

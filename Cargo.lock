@@ -1719,6 +1719,7 @@ name = "selected-dispatch"
 version = "0.1.0"
 dependencies = [
  "arena",
+ "backend-plan",
  "checked-trees",
  "diagnostics",
  "effects",
@@ -1729,6 +1730,7 @@ dependencies = [
  "package-compilation",
  "program-entry-plan",
  "provider-planning",
+ "representation-planning",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -1736,7 +1738,9 @@ dependencies = [
  "symbols",
  "syntax-trees-to-symbol-resolved-trees",
  "target",
+ "task-plans",
  "tokens-to-syntax-trees",
+ "trust-model",
  "typed-trees",
  "typed-trees-to-checked-trees",
  "validation",
