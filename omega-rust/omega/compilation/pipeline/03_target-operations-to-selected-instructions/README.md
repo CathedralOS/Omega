@@ -23,6 +23,14 @@ virtual registers, exact fixed ABI constraints and machine effects. Roster order
 is not control-flow order. Arithmetic and calls use the same ordinary graph;
 physical register homes, liveness, frame storage and emission are downstream jobs.
 
+[Place declarations](src/legalization/scalar_graph_input/place_declarations.rs)
+rejoin each runtime place to its exact parameter, result or local producer.
+Primitive locals, byte literals and aggregate results compose without a
+whole-function storage-family classifier. Declaration ordinals count declarations,
+not instruction positions. Whole-unit custody retains dominance and ownership;
+selection entry captures the incoming ABI, and each instruction constructs or
+independently replays its own storage.
+
 Every target function contains its `TargetControlGraph` directly. This stage
 does not convert flat bodies or whole-function expression trees. Unit, scalar,
 and aggregate results share construction and independent replay; projected

@@ -87,8 +87,6 @@ pub(super) fn validate(
                 return Err(LegalizationError::custody());
             }
             if !graph.parameters.is_empty()
-                || !(super::super::primitive_locals::roster(optimized)
-                    || super::super::literals::roster(optimized))
                 || graph
                     .blocks
                     .iter()

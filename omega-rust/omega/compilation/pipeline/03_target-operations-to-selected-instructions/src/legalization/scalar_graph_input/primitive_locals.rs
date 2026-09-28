@@ -61,29 +61,6 @@ pub(super) fn valid_result(
                     }
         })
 }
-pub(super) fn roster(function: &PsiOptimizationFunction) -> bool {
-    // Provider attachments are specialization metadata, not local storage.
-    // Whole-unit custody checks their field, boundary and service identities;
-    // keep them out of the runtime place set while checking each real producer.
-    // Metadata alone must retain the separate no-storage contract.
-    (function.structural_places.is_empty() || !function.declared_places.is_empty())
-        && function.structural_places.iter().all(|place| {
-            if let StructuralPlaceKind::ProviderAttachment { attachment, .. } = place.kind {
-                return function.attachment == Some(attachment);
-            }
-            producer(function, place.id)
-                .is_some_and(|(operation, result, _)| valid_result(function, operation, result))
-        })
-        && function.declared_places
-            == function
-                .structural_places
-                .iter()
-                .filter(|place| {
-                    !matches!(place.kind, StructuralPlaceKind::ProviderAttachment { .. })
-                })
-                .map(|place| place.id)
-                .collect()
-}
 pub(super) fn validate(
     function: &PsiOptimizationFunction,
     types: &[terminal_psi::StructuralTypeDeclaration],

@@ -19,14 +19,7 @@ pub(super) fn function_abi(
         || optimized.result != abstracted.result
         || !abstracted.structural_parameters.is_empty()
         || !optimized.structural_parameters.is_empty()
-        || !(super::primitive_locals::roster(optimized)
-            || super::literals::roster(optimized)
-            || (abstracted.result == AbstractFunctionResult::Unit
-                && super::read_byte::roster(optimized))
-            || (abstracted.result == AbstractFunctionResult::Unit
-                && super::literals::provider_metadata_roster(optimized))
-            || (abstracted.result == AbstractFunctionResult::Unit
-                && super::silent_boundary::roster(optimized)))
+        || !super::place_declarations::matches_producers(optimized)
         || !abstracted.entry_claims.is_empty()
         || !optimized.entry_claim_declarations.is_empty()
         || !optimized.content_entry_claims.is_empty()

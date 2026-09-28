@@ -1,8 +1,7 @@
 //! Input-only custody for ordinary ordered scalar graphs. No legalized output is built here.
 use super::LegalizationError;
 use abstract_operations::{
-    AbstractBoundaryResult, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
@@ -27,9 +26,9 @@ pub(super) mod byte_views;
 mod header;
 mod hosted_scalar;
 pub(in crate::legalization) mod normalized_foreign;
+mod place_declarations;
 pub(super) mod read_byte;
 pub(super) mod scalar_arrays;
-mod silent_boundary;
 pub(super) mod structural_case;
 mod unobserved_owned;
 pub(super) use hosted_scalar::hosted_realization;
@@ -53,16 +52,14 @@ pub(super) fn structural_contract(
     optimized: &PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
-    // A matching place roster alone must not replace parameter custody
-    // with an empty local-only signature; the sum fallback needs an actual producer.
+    // Incoming parameter custody cannot be replaced by a local-only contract.
+    // Provider metadata alone does not create runtime storage. Each actual
+    // local declaration rejoins its own producer regardless of body composition.
     if let Some(parameters) = structural_parameters(target).or_else(|| {
-        (!optimized.structural_places.is_empty()
-            && (literals::roster(optimized)
-                || read_byte::roster(optimized)
-                || silent_boundary::roster(optimized)
-                || primitive_locals::roster(optimized)
-                || (aggregate_results::uses(optimized, plan)
-                    && aggregate_results::roster(optimized))))
+        (abstracted.structural_parameters.is_empty()
+            && optimized.structural_parameters.is_empty()
+            && !optimized.declared_places.is_empty()
+            && place_declarations::matches_producers(optimized))
         .then_some(&[][..])
     }) {
         return Some(legalized_operations::LegalizedStructuralContract {
