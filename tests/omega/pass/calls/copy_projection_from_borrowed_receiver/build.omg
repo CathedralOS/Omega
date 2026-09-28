@@ -1,4 +1,4 @@
-// PENDING build root, shaped like the FFIVAL one beside it: the pending
+// Promoted build root.
 // watcher compiles only `main.omg`, but the authored bindings are retained
 // so promotion to `pass/calls/` needs no new wiring. A program-entry root is
 // load-bearing here -- the omission this fixture pins is invisible to the

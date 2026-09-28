@@ -91,6 +91,7 @@ pass/calls/case_scrutinee_param_clone_exit rejected 776ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`ScanResult::clone`), which was itself omitted at local construction at `result ownership`
 pass/calls/case_scrutinee_self_dispatch_exit rejected 1494ms
 	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy(OperationId(11)))
+pass/calls/copy_projection_from_borrowed_receiver checked 1034ms
 pass/calls/guard_call_scalar_argument_exit checked 292ms
 pass/calls/guarded_value_call_arm_exit checked 1768ms
 pass/calls/machine_self_call_recursion_compile checked 442ms
