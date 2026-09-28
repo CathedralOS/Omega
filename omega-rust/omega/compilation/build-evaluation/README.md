@@ -1,14 +1,17 @@
 # Build evaluation
 
 [`build_evaluation.rs`](src/build_evaluation.rs) owns one complete Build activation:
-pre-effect declaration admission, filesystem preparation, exact machine admission,
+entry selection, pre-effect declaration admission, filesystem preparation, exact machine admission,
 restricted-request consent, execution and the returned source commitment.
 The coordinator calls `evaluate_build` once and consumes `EvaluatedBuild`; it
 cannot obtain an executable checkpoint and skip consent. The private
 `admitted_build_program.rs` binds one selected machine to its prepared program;
 `execution` consumes that activation against its selected filesystem.
-The preliminary declaration check still uses the full Psi checked pass. This
-ownership change does not claim to eliminate that duplicate semantic work.
+Without an authored Build entry, it returns default settings and the retained
+source commitment without checking, specializing or capturing an execution
+snapshot. Final product checking still admits all ordinary declarations.
+For actual Build entries, the preliminary declaration check still uses the full
+Psi checked pass; removing that duplicate semantic work remains unfinished.
 [Compilation products](../products/src/evaluated_build.rs)
 owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exported
 here for callers. Evaluation produces those records; consumers need not import

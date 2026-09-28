@@ -18,7 +18,7 @@ mod output_custody;
 mod restricted_requests;
 mod snapshot_request;
 
-pub use build_admission::{SelectedBuildMachine, admit_build_machine};
+pub use build_admission::{SelectedBuildMachine, admit_build_machine, select_build_machine};
 pub use completed_outputs::RetainedBuildOutputs;
 pub use filesystem_scope::preparation::prepare_filesystem_scope;
 pub use filesystem_scope::{
