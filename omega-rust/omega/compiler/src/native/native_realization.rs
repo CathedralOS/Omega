@@ -4,7 +4,6 @@
 //! program, including the retained behavior-exclusion union; selected
 //! optimizations do not choose a different publication route.
 
-mod boundary_applications;
 mod callback_thunks;
 mod input_preparation;
 mod object_emission;
@@ -44,7 +43,6 @@ pub use realization_request::{
 use diagnostics::Diagnostic;
 
 use self::{
-    boundary_applications::retain_boundary_application_coverage,
     input_preparation::lower_realization_input, object_emission::emit_realization_object,
     realization_diagnostics::realization_error,
 };
@@ -55,6 +53,7 @@ use native_artifact::{
     NativeArtifactEmissionParts, NativeSelectedProviderClosureDigest, NativeSelectedProviderPlan,
     NativeSelectedProviderPlanDigest,
 };
+use terminal_psi_to_abstract_operations::retain_terminal_boundary_application_coverage;
 
 /// Realize one Terminal artifact using explicit image, custody, reuse, and
 /// behavior-exclusion inputs. The request's retained behavior-exclusion union
@@ -94,11 +93,12 @@ fn realize_image(
         request.selected_provider_plans,
     )
     .map_err(|error| realization_error("Fused ProgramEntry establishment", error))?;
-    let boundary_application_coverage = retain_boundary_application_coverage(
+    let boundary_application_coverage = retain_terminal_boundary_application_coverage(
         &artifact,
         request.checked_scope,
         request.boundary_application_coverage,
-    )?;
+    )
+    .map_err(|error| realization_error("boundary-application custody", error))?;
     let semantic_bytes = artifact.semantic_bytes();
     let proof_bytes = artifact.proof_bytes();
     let terminal_artifact_identity = *artifact.manifest().identity().as_bytes();

@@ -1,4 +1,7 @@
-use super::{BoundaryApplicationSettlement, validate_terminal_boundary_application_coverage};
+use super::{
+    BoundaryApplicationSettlement, retain_terminal_boundary_application_coverage,
+    validate_terminal_boundary_application_coverage,
+};
 use boundary_applications::{
     BoundaryApplication, BoundaryApplicationRealization, BoundaryApplicationRealizationCompanion,
     BoundaryNominalIdentity, BoundaryOperatorRequirement, TerminalBoundaryApplicationCoverage,
@@ -83,6 +86,20 @@ fn settlement_and_retained_replay_require_the_exact_scope_artifact() {
         validate_terminal_boundary_application_coverage(&artifact, &scope, &coverage),
         Ok(())
     );
+    assert_eq!(
+        retain_terminal_boundary_application_coverage(&artifact, None, None),
+        Ok(None)
+    );
+    for supplied in [None, Some(&coverage)] {
+        assert_eq!(
+            retain_terminal_boundary_application_coverage(&artifact, Some(&scope), supplied),
+            Ok(Some(coverage.clone()))
+        );
+    }
+    assert_eq!(
+        retain_terminal_boundary_application_coverage(&artifact, None, Some(&coverage)),
+        Err("D29 coverage requires the exact checked source-to-Terminal scope")
+    );
     let expected = "checked boundary-operator scope belongs to a different Terminal artifact";
     let diagnostics = settlement.settle(&foreign_artifact, &scope).unwrap_err();
     assert_eq!(diagnostics.len(), 1);
@@ -91,6 +108,16 @@ fn settlement_and_retained_replay_require_the_exact_scope_artifact() {
         validate_terminal_boundary_application_coverage(&foreign_artifact, &scope, &coverage),
         Err(expected),
     );
+    for supplied in [None, Some(&coverage)] {
+        assert_eq!(
+            retain_terminal_boundary_application_coverage(
+                &foreign_artifact,
+                Some(&scope),
+                supplied
+            ),
+            Err(expected)
+        );
+    }
 }
 
 #[test]
@@ -128,8 +155,10 @@ fn public_companion_cannot_pad_the_sealed_occurrence_roster() {
     let padded = TerminalBoundaryApplicationCoverage::new(demands, realizations).unwrap();
     assert_eq!(
         validate_terminal_boundary_application_coverage(&artifact, &scope, &padded),
-        Err(
-            "Terminal native proposal source-free boundary demands differ from checked occurrence custody"
-        ),
+        Err("source-free D29 coverage differs from exact checked occurrence custody"),
+    );
+    assert_eq!(
+        retain_terminal_boundary_application_coverage(&artifact, Some(&scope), Some(&padded)),
+        Err("source-free D29 coverage differs from exact checked occurrence custody"),
     );
 }
