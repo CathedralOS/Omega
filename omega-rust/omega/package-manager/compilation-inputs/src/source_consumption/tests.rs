@@ -62,6 +62,174 @@ fn generated_files(
 }
 
 #[test]
+fn checked_source_custody_seals_the_closure_and_exports_only_own_outputs() {
+    let custody = generated_fixture();
+    let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+    let root = std::env::current_dir().unwrap();
+    let inputs = crate::PackageCompilationInputs::new_package(
+        package,
+        vec![crate::PackageSourceBinding::new(
+            package,
+            "source_custody",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .unwrap();
+    let mut files = generated_files(&custody);
+    for (file, (_, generated)) in files.iter_mut().zip(&custody) {
+        file.package_root = root.clone();
+        file.path = root
+            .join(".omega/generated")
+            .join(std::str::from_utf8(generated.relative_path()).unwrap());
+    }
+    let program = checked_sources(files.clone());
+    let base = PackageSourceConsumptionCommitment::for_test([42; 32]);
+    let continuation = super::BuildSourceCustody {
+        source_file_count: files.len(),
+        build_execution_profile: Some(target::TargetProfile::MacosArm64),
+        generated_source_custody: custody.clone(),
+        base_source_consumption_commitment: Some(base),
+    };
+    let sealed = continuation.clone().seal(&program, Some(&inputs)).unwrap();
+    assert_eq!(sealed.source_file_count(), 2);
+    assert_eq!(sealed.base_source_consumption_commitment(), Some(base));
+    assert_eq!(
+        sealed.package_subject().unwrap(),
+        &super::derive_package_compilation_subject(&program, &inputs, &custody).unwrap(),
+    );
+    sealed.verify_current_source_consumption(&program).unwrap();
+    let own_outputs = vec![custody[1].1.clone()];
+    let bundle = sealed
+        .package_generated_source_bundle(
+            Some(target::TargetProfile::WindowsX64),
+            own_outputs.clone(),
+        )
+        .unwrap();
+    assert_eq!(bundle.package(), package);
+    assert_eq!(bundle.purpose(), inputs.compilation_purpose());
+    assert_eq!(bundle.target(), target::TargetProfile::WindowsX64);
+    assert_eq!(
+        bundle.build_execution_profile(),
+        Some(target::TargetProfile::MacosArm64)
+    );
+    assert_eq!(bundle.sources(), own_outputs);
+    assert_eq!(
+        bundle.dependency_closure(),
+        sealed.package_subject().unwrap().dependency_closure()
+    );
+    assert_eq!(
+        bundle.source_consumption_commitment(),
+        sealed
+            .package_subject()
+            .unwrap()
+            .source_consumption_commitment()
+    );
+    assert_eq!(
+        sealed
+            .package_generated_source_bundle(None, Vec::new())
+            .unwrap_err(),
+        "generated-source bundles require one selected target"
+    );
+
+    let mut duplicate = continuation.clone();
+    duplicate.generated_source_custody.push(custody[0].clone());
+    assert!(
+        duplicate.seal(&program, Some(&inputs)).unwrap_err()[0]
+            .message
+            .contains("duplicate frontend source IDs")
+    );
+    files[0].source = Arc::from("changed");
+    assert!(
+        continuation
+            .seal(&checked_sources(files), Some(&inputs))
+            .unwrap_err()[0]
+            .message
+            .contains("does not match final checked source")
+    );
+}
+
+#[test]
+fn checked_source_custody_preserves_standalone_and_physical_drift_boundaries() {
+    let package = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+    let path = std::env::temp_dir().join(format!(
+        "omega-checked-source-custody-{}.omg",
+        std::process::id()
+    ));
+    std::fs::write(&path, "physical").unwrap();
+    let root = path.parent().unwrap().to_owned();
+    let inputs = crate::PackageCompilationInputs::new_package(
+        package,
+        vec![crate::PackageSourceBinding::new(
+            package,
+            "physical_custody",
+            root.clone(),
+        )],
+        Vec::new(),
+    )
+    .unwrap();
+    let mut physical = source(
+        "unused",
+        "unused",
+        Some(package),
+        SourceOrigin::User,
+        "physical",
+    );
+    physical.path = path.clone();
+    physical.package_root = root;
+    let mut prelude = source("<prelude>", "", None, SourceOrigin::Toolchain, "prelude");
+    prelude.source_id = SourceId(1);
+    let program = checked_sources(vec![physical, prelude]);
+    let continuation = super::BuildSourceCustody {
+        source_file_count: 2,
+        build_execution_profile: None,
+        generated_source_custody: Vec::new(),
+        base_source_consumption_commitment: None,
+    };
+    let sealed = continuation.clone().seal(&program, Some(&inputs)).unwrap();
+    assert_eq!(
+        sealed.exact_toolchain_sources(),
+        super::toolchain_source_identities(&program).unwrap()
+    );
+    std::fs::write(&path, "changed").unwrap();
+    assert!(
+        sealed
+            .verify_current_source_consumption(&program)
+            .unwrap_err()[0]
+            .message
+            .contains("changed after frontend loading")
+    );
+    assert!(
+        continuation
+            .clone()
+            .seal(&program, Some(&inputs))
+            .unwrap_err()[0]
+            .message
+            .contains("changed after frontend loading")
+    );
+    // Standalone checking intentionally does not acquire package filesystem
+    // custody, but callers may explicitly request its physical reread.
+    let standalone = continuation.seal(&program, None).unwrap();
+    assert!(standalone.package_subject().is_none());
+    assert_eq!(
+        standalone.exact_toolchain_sources(),
+        sealed.exact_toolchain_sources()
+    );
+    assert_eq!(
+        standalone
+            .package_generated_source_bundle(Some(target::TargetProfile::WindowsX64), Vec::new())
+            .unwrap_err(),
+        "generated-source bundles require package-aware compilation"
+    );
+    assert!(
+        standalone
+            .verify_current_source_consumption(&program)
+            .is_err()
+    );
+    std::fs::remove_file(path).unwrap();
+}
+
+#[test]
 fn generated_projection_preserves_order_independence_and_custody_errors() {
     let custody = generated_fixture();
     let files = generated_files(&custody);

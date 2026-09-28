@@ -8,6 +8,9 @@
 //! `source_snapshot` captures the package source a compilation consumed,
 //! `source_consumption` records exactly which of it was read, and
 //! `semantic_bindings` carries the optional standard-library bindings.
+//! `BuildSourceCustody::seal` joins the final checked closure to that source
+//! evidence; `CheckedSourceCustody` owns its revalidation and generated-source
+//! export. Neither operation reconstructs package custody in the coordinator.
 //! `compilation_reuse` owns exact source/build input comparisons, not admission
 //! or scheduling; the compiler consumes those keys without re-projecting them.
 //! `source_imports` resolves source frontiers through exact package scopes;
@@ -46,8 +49,8 @@ pub use semantic_bindings::{
     program_entry_semantic_binding_role,
 };
 pub use source_consumption::{
-    ConsumedSourceUnit, ConsumedSourceUnitKind, PackageCompilationSubject,
-    PackageSourceConsumptionCommitment, derive_consumed_source_units,
+    BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
+    PackageCompilationSubject, PackageSourceConsumptionCommitment, derive_consumed_source_units,
     derive_package_compilation_subject, derive_source_consumption_commitment,
     toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
 };
