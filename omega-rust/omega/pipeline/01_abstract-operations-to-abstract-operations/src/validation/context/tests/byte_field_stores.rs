@@ -249,3 +249,80 @@ fn byte_field_replacement_rejoins_capacity_and_verified_destination() {
         ));
     }
 }
+
+#[test]
+fn whole_owner_replacement_rejoins_verified_destination() {
+    let source = r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        machine replace(out_line: &mut [u8; 3] in Utf8, sibling: &mut [u8; 3] in Utf8) {
+            out_line = "X";
+        }
+    "#;
+    let tokens = source_files_to_tokens::Lexer::new(source)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees(&tokens).unwrap();
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+        syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(&syntax),
+    )
+    .unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let checked = typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .unwrap();
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("replace"),
+    )
+    .unwrap();
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        terminal_psi_to_abstract_operations::ArtifactSections {
+            semantic_bytes: &terminal_codec::encode_module(&terminal.semantic_module).unwrap(),
+            proof_bytes: &terminal_codec::encode_proof_section(
+                &terminal.semantic_module,
+                &terminal.proof_bundle,
+            )
+            .unwrap(),
+            obligation_ledger_bytes: None,
+        },
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap()
+    .into_optimization_artifact()
+    .into_optimization_input();
+    let verified = terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .unwrap();
+    validate_verified_psi_optimization_unit(&verified).unwrap();
+    let (input, mut redirected) = verified.into_parts();
+    let function = redirected
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == redirected.entry)
+        .unwrap();
+    let sibling = function.structural_parameters[1].place;
+    let operation = function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.nodes)
+        .find_map(|node| match &mut node.operation {
+            AbstractOperation::ByteSequenceStore { destination, .. } => Some(destination),
+            _ => None,
+        })
+        .expect("retained whole-owner replacement");
+    assert_ne!(*operation, sibling);
+    *operation = sibling;
+    refresh_identity(&mut redirected);
+    // Equal capacity, access and predicates satisfy the current-IR checks;
+    // they do not authorize changing which caller-visible owner is written.
+    optimization_unit_semantics::validate_psi_optimization_unit(&redirected).unwrap();
+    assert!(matches!(
+        validate_transformed_psi_optimization_unit(&input, &redirected),
+        Err(OptimizationUnitValidationError::OperationObligationOwnerMismatch { .. })
+    ));
+}

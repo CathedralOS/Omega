@@ -773,6 +773,25 @@ fn validate_structural_arguments(
         }) {
             continue;
         }
+        // Inline bounded owners have no standalone field type to resolve.
+        // Preserve the original root/path and replay the exact capacity and
+        // predicate contract instead of manufacturing a structural leaf type.
+        if matches!(presentation, StructuralArgumentPresentation::Ordinary)
+            && parameter.is_some_and(|actual| {
+                terminal_semantics::bounded_byte_owner_capacity(module, actual, argument, expected)
+                    .is_some()
+            })
+            && !machine
+                .entry_claims
+                .iter()
+                .any(|claim| claim.input == argument.place)
+            && !machine
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place)
+        {
+            continue;
+        }
         let inline_byte_view = match presentation {
             StructuralArgumentPresentation::Boundary => true,
             StructuralArgumentPresentation::Ordinary => {

@@ -31,7 +31,8 @@ pub(super) fn indexed_store_retained(
     else {
         return false;
     };
-    let Some((access, _)) = read_access(function, target, *destination, true) else {
+    let Some((access, _)) = read_access(function, target, *destination, AccessPurpose::ByteLength)
+    else {
         return false;
     };
     if !matches!(
@@ -220,7 +221,7 @@ pub(super) fn indexed_read_retained(
     else {
         return false;
     };
-    let Some((access, _)) = read_access(function, target, *source, false) else {
+    let Some((access, _)) = read_access(function, target, *source, AccessPurpose::Field) else {
         return false;
     };
     if !matches!(
@@ -321,7 +322,12 @@ pub(super) fn replacement_retained(
         obligation,
     } = operation
     {
-        let Some((access, _)) = read_access(function, target, *destination, true) else {
+        let Some((access, _)) = read_access(
+            function,
+            target,
+            *destination,
+            AccessPurpose::ByteOwnerReplacement,
+        ) else {
             return false;
         };
         if destination == source
@@ -351,7 +357,8 @@ pub(super) fn replacement_retained(
     else {
         return false;
     };
-    let Some((access, _)) = read_access(function, target, *destination, true) else {
+    let Some((access, _)) = read_access(function, target, *destination, AccessPurpose::ByteLength)
+    else {
         return false;
     };
     if !matches!(
@@ -487,7 +494,8 @@ pub(super) fn retained(
         field,
     } = operation
     {
-        let Some((access, _)) = read_access(function, target, *source, true) else {
+        let Some((access, _)) = read_access(function, target, *source, AccessPurpose::ByteLength)
+        else {
             return false;
         };
         let expected_source = StructuralArgument {
@@ -521,7 +529,7 @@ pub(super) fn retained(
         path,
     } = operation
     {
-        let Some((_, root)) = read_access(function, target, *source, false) else {
+        let Some((_, root)) = read_access(function, target, *source, AccessPurpose::Field) else {
             return false;
         };
         if path.is_empty()
@@ -595,7 +603,8 @@ pub(super) fn retained(
         ),
         _ => return false,
     };
-    let Some((access, mut carrier)) = read_access(function, target, place, false) else {
+    let Some((access, mut carrier)) = read_access(function, target, place, AccessPurpose::Field)
+    else {
         return false;
     };
     let mut runtime_path = Vec::with_capacity(path.len());
@@ -684,16 +693,24 @@ pub(super) fn retained(
 
 /// Rejoin original storage declarations without manufacturing a parameter for
 /// an operation result. Mandatory graph replay checks pointwise availability.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AccessPurpose {
+    Field,
+    ByteLength,
+    ByteOwnerReplacement,
+}
+
 fn read_access(
     function: &AbstractFunction,
     target: &TargetFunction,
     place: semantic_vocabulary::PlaceId,
-    observes_byte_length: bool,
+    purpose: AccessPurpose,
 ) -> Option<(
     terminal_psi::StructuralAccess,
     semantic_vocabulary::StructuralTypeId,
 )> {
     use terminal_psi::{StructuralAccess, StructuralMultiplicity};
+    let observes_byte_length = purpose != AccessPurpose::Field;
     let mut access = None;
     for (position, parameter) in function
         .structural_parameters
@@ -709,7 +726,19 @@ fn read_access(
             ) || (parameter.access == StructuralAccess::Owned && !observes_byte_length)
                 || (parameter.access == StructuralAccess::WriteOnlyBorrow && observes_byte_length))
             || parameter.multiplicity == StructuralMultiplicity::Linear
-            || !parameter.qualifications.is_empty()
+            // Whole-owner replacement carries the declared predicate roster;
+            // mandatory object/source replay checks its exact preservation and
+            // the source proof. Other field observations retain their fence.
+            || (!parameter.qualifications.is_empty()
+                && purpose != AccessPurpose::ByteOwnerReplacement)
+            || (purpose == AccessPurpose::ByteOwnerReplacement
+                && !target.graph.structural_types.iter().any(|declaration| {
+                    declaration.id == parameter.structural_type
+                        && matches!(declaration.shape,
+                            terminal_psi::StructuralTypeShape::ByteSequence(
+                                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }
+                            ))
+                }))
             || !parameter.projected_qualifications.is_empty()
             || retained.place != place
             || retained.structural_type != parameter.structural_type

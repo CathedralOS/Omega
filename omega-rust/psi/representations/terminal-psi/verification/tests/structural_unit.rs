@@ -6,6 +6,8 @@
 mod borrowed_frontier;
 #[path = "structural_unit/boundary_buffers.rs"]
 mod boundary_buffers;
+#[path = "structural_unit/bounded_byte_owner_calls.rs"]
+mod bounded_byte_owner_calls;
 #[path = "structural_unit/disjoint_borrowed_projections.rs"]
 mod disjoint_borrowed_projections;
 #[path = "structural_unit/jumps_and_crash_routes.rs"]

@@ -206,6 +206,21 @@ fn validate_surviving_byte_operations(
             });
         let matches = original.is_some_and(|original| {
             let (result, kind) = match operation {
+                O::ByteSequenceStore {
+                    destination,
+                    source,
+                    length,
+                    obligation,
+                    ..
+                } => (
+                    terminal_psi::OperationResult::Unit,
+                    terminal_psi::OperationKind::ByteSequenceStore {
+                        destination: *destination,
+                        source: *source,
+                        length: *length,
+                        obligation: *obligation,
+                    },
+                ),
                 O::StructuralByteSequenceFieldByteStore {
                     destination,
                     path,
