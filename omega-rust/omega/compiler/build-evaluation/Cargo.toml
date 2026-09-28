@@ -15,11 +15,9 @@ language-core = { path = "../../../psi/foundation/language-core" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 validation = { path = "../../../psi/checking" }
 build-output = { path = "../../package-manager/build-output" }
-calling-conventions = { path = "../../backend/calling-conventions" }
 effects = { path = "../../backend/plans/provider-evidence" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../../package-manager/compilation-inputs" }
-program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../../realization/provider-planning" }
 representation-planning = { path = "../../../psi/checking/representation-planning" }
 target = { path = "../../backend/target" }
@@ -35,7 +33,6 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/04_typed-trees-to-checked-trees" }
 build-declarations = { path = "../../package-manager/build-declarations" }
 tokens = { path = "../../../psi/representations/tokens" }
 source-files-to-tokens = { path = "../../../psi/pipeline/00_source-files-to-tokens" }

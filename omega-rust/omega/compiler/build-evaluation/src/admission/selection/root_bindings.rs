@@ -4,13 +4,7 @@ use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 use typed_trees::statement::StatementNode;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RootBinding {
-    pub slot: String,
-    pub implementation: String,
-    /// Exact product machine selected under the occurrence's lexical package scope.
-    pub implementation_symbol: symbols::SymbolHandle,
-}
+pub use provider_planning::program_entry::RootBinding;
 
 /// Admission is lexical per occurrence package: the `implementation` operand
 /// resolves against the product machines declared in the package containing

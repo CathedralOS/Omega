@@ -1,22 +1,19 @@
-//! Build selection tests.
+//! Program-entry planning tests.
 
+use super::RootBinding;
 use super::{
     SelectedCompilerProgramEntry, select_compiler_program_entry, selected_program_entry_machine,
 };
-use crate::{BuildConfig, RootBinding};
 
-fn config_with_root_bindings(bindings: &[(&str, &str)]) -> BuildConfig {
-    BuildConfig {
-        root_bindings: bindings
-            .iter()
-            .map(|(slot, implementation)| RootBinding {
-                slot: (*slot).to_owned(),
-                implementation: (*implementation).to_owned(),
-                implementation_symbol: symbols::SymbolHandle::from_arena_index(1),
-            })
-            .collect(),
-        ..BuildConfig::default()
-    }
+fn root_bindings(bindings: &[(&str, &str)]) -> Vec<RootBinding> {
+    bindings
+        .iter()
+        .map(|(slot, implementation)| RootBinding {
+            slot: (*slot).to_owned(),
+            implementation: (*implementation).to_owned(),
+            implementation_symbol: symbols::SymbolHandle::from_arena_index(1),
+        })
+        .collect()
 }
 
 fn source_only_program_entry_settlement() -> SelectedCompilerProgramEntry {
@@ -131,11 +128,10 @@ fn compiler_program_entry_binds_exact_sorted_fused_root_establishments() {
 
 #[test]
 fn compiler_program_entry_validates_source_before_calling_plans() {
-    let config =
-        config_with_root_bindings(&[("windows_x86_64::ProgramEntry", "MissingApplication::start")]);
+    let bindings = root_bindings(&[("windows_x86_64::ProgramEntry", "MissingApplication::start")]);
     let result = select_compiler_program_entry(
         &typed_trees::TypedTrees::default(),
-        &config,
+        &bindings,
         Some(target::TargetProfile::WindowsX64),
         &[],
         None,
@@ -153,9 +149,9 @@ fn compiler_program_entry_validates_source_before_calling_plans() {
 
 #[test]
 fn selected_entry_retains_the_target_owned_slot_schema() {
-    let config = config_with_root_bindings(&[("uefi_x86_64::ProgramEntry", "Application::start")]);
+    let bindings = root_bindings(&[("uefi_x86_64::ProgramEntry", "Application::start")]);
 
-    let selected = selected_program_entry_machine(&config, Some(target::TargetProfile::UefiX64))
+    let selected = selected_program_entry_machine(&bindings, Some(target::TargetProfile::UefiX64))
         .expect("typed root slot selection")
         .expect("one selected entry");
 
@@ -169,10 +165,10 @@ fn selected_entry_retains_the_target_owned_slot_schema() {
 
 #[test]
 fn selected_target_requires_every_member_of_its_catalog() {
-    let config = config_with_root_bindings(&[("linux_x86_64::ProgramEntry", "Diagnostics::start")]);
+    let bindings = root_bindings(&[("linux_x86_64::ProgramEntry", "Diagnostics::start")]);
 
     let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+        selected_program_entry_machine(&bindings, Some(target::TargetProfile::WindowsX64))
             .expect_err("a foreign target row cannot satisfy the selected catalog");
 
     assert_eq!(diagnostics.len(), 1);
@@ -183,13 +179,13 @@ fn selected_target_requires_every_member_of_its_catalog() {
 
 #[test]
 fn selected_target_rejects_duplicate_catalog_members() {
-    let config = config_with_root_bindings(&[
+    let bindings = root_bindings(&[
         ("windows_x86_64::ProgramEntry", "Application::start"),
         ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
     ]);
 
     let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+        selected_program_entry_machine(&bindings, Some(target::TargetProfile::WindowsX64))
             .expect_err("one required catalog member cannot be bound twice");
 
     assert_eq!(diagnostics.len(), 1);
@@ -200,13 +196,13 @@ fn selected_target_rejects_duplicate_catalog_members() {
 
 #[test]
 fn malformed_foreign_root_row_rejects_beside_a_valid_selection() {
-    let config = config_with_root_bindings(&[
+    let bindings = root_bindings(&[
         ("macos_arm64::UndeclaredSlot", "Application::start"),
         ("windows_x86_64::ProgramEntry", "Diagnostics::start"),
     ]);
 
     let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+        selected_program_entry_machine(&bindings, Some(target::TargetProfile::WindowsX64))
             .expect_err("an inactive row must still resolve its slot ownership");
 
     assert_eq!(diagnostics.len(), 1);
@@ -217,13 +213,13 @@ fn malformed_foreign_root_row_rejects_beside_a_valid_selection() {
 
 #[test]
 fn root_selection_collects_every_malformed_row() {
-    let config = config_with_root_bindings(&[
+    let bindings = root_bindings(&[
         ("ProgramEntry", "Application::start"),
         ("plan9::ProgramEntry", "Diagnostics::start"),
     ]);
 
     let diagnostics =
-        selected_program_entry_machine(&config, Some(target::TargetProfile::WindowsX64))
+        selected_program_entry_machine(&bindings, Some(target::TargetProfile::WindowsX64))
             .expect_err("each malformed row reports its own identity");
 
     assert_eq!(diagnostics.len(), 2);

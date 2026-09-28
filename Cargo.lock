@@ -178,7 +178,6 @@ dependencies = [
  "build-declarations",
  "build-output",
  "build-time-evaluation",
- "calling-conventions",
  "checked-interpreter",
  "component-description",
  "diagnostics",
@@ -189,7 +188,6 @@ dependencies = [
  "layout-plans",
  "optimization-core",
  "package-compilation",
- "program-entry-plan",
  "provider-planning",
  "representation-planning",
  "semantic-vocabulary",
@@ -206,7 +204,6 @@ dependencies = [
  "tokens-to-syntax-trees",
  "trust-model",
  "typed-trees",
- "typed-trees-to-checked-trees",
  "validation",
 ]
 
