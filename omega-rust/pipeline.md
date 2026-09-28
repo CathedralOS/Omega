@@ -137,8 +137,7 @@ an independent package beside their Psi admission owner at
 ### Subsystem entrances and supporting packages
 
 `omega/compiler/` owns compilation orchestration. Its supporting crates are
-`build-declarations`, `build-evaluation`, `build-output`, `package-compilation`
-and `trust-model`.
+`build-declarations`, `build-evaluation`, `build-output` and `package-compilation`.
 Each retains its own `Cargo.toml` and domain
 entrypoint. Nesting makes the compilation responsibilities discoverable; it
 does not make helpers depend on the coordinator. In particular,
@@ -158,6 +157,12 @@ provider evidence, without depending on compiler trust-report reconstruction.
 These remain checked-tree realization seams with package-input custody;
 moving them out of the coordinator does not establish the intended Terminal-only
 handoff.
+
+[`omega/realization/trust-model/`](omega/realization/trust-model/README.md)
+owns trust obligation reconstruction and exact report records, consuming source
+judgments and selected-provider evidence. The CLI supplies policy admissions;
+the compiler sequences admission. Its checked-tree input remains a transitional
+boundary. Host file writing and timing have no dependency on these semantics.
 
 `omega/package-manager/` owns package operations, with independent
 `source-acquisition`, `resolver-execution`, and `review-evidence` crates beneath
@@ -210,8 +215,10 @@ not duplicate them in Omega. Target/ABI/register descriptions and retained
 realization evidence belong to their backend owners. Psi must not depend on Omega. A coordinator forwards complete typed
 results rather than owning package loading, build evaluation, stage algorithms,
 artifact formatting, or a generic orchestration subsystem. Allocation counters
-and phase-report deltas belong to [artifacts](omega/compiler/artifacts/src/compile_timings/mod.rs),
-not program representations or a dependency-floor core.
+and phase-report deltas belong to the independent host
+[artifacts](omega/foundation/artifacts/README.md) utility, not program
+representations. It depends only on diagnostic foundations, not semantic
+reports, backend encoders or producing stages.
 
 Keep `X-to-Y`, `Y-to-Y`, `Y-to-Z` followable on disk and in the executable route.
 A named calculation or a crate name containing `to` does not establish a reusable

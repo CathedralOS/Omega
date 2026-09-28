@@ -6,7 +6,7 @@ use super::{
     accepted_machine_synchronous_invocations, accepted_machine_terminates_guarantee,
     exact_machine_contract_plan, reconstruct_trust_report, trust_provider_realization,
 };
-use artifacts::{
+use crate::{
     TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard, TrustProviderRealization,
 };
 use checked_trees::{

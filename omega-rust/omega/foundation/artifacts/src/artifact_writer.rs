@@ -7,8 +7,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use diagnostics::Diagnostic;
-#[cfg(test)]
-use executable_installation::{Artifact, ContainerLimits, encode_executable_container};
 
 pub struct ArtifactWriter {
     root: PathBuf,
@@ -54,30 +52,6 @@ impl ArtifactWriter {
         })?;
 
         Ok(path)
-    }
-
-    /// Test-only packaging adapter for the quarantined executable-installation
-    /// experiment. Ordinary artifact/report writing accepts already-produced
-    /// bytes and has no installation-runtime dependency.
-    ///
-    /// Packages one already-normalized executable artifact in Omega's
-    /// canonical semantic container.
-    ///
-    /// This is deliberately downstream of artifact construction and upstream
-    /// of any target firmware envelope. It accepts neither a native image nor
-    /// arbitrary bytes pretending to be code. The encoder revalidates its own
-    /// output before this writer installs the file atomically.
-    #[cfg(test)]
-    pub(crate) fn write_executable_container(
-        &self,
-        file_name: &str,
-        artifact: &Artifact,
-        proof: &[u8],
-        limits: ContainerLimits,
-    ) -> Result<PathBuf, Diagnostic> {
-        let bytes = encode_executable_container(artifact, proof, limits)
-            .map_err(|diagnostic| Diagnostic::error(diagnostic.0))?;
-        self.write_bytes(file_name, &bytes)
     }
 
     pub fn remove_files<'a>(

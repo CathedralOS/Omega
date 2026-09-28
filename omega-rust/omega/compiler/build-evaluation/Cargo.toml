@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 arena = { path = "../../../psi/foundation/arena" }
-artifacts = { path = "../artifacts" }
+artifacts = { path = "../../foundation/artifacts" }
 language-core = { path = "../../../psi/foundation/language-core" }
 syntax-trees = { path = "../../../psi/representations/syntax-trees" }
 validation = { path = "../../../psi/checking" }
@@ -24,7 +24,7 @@ program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../../realization/provider-planning" }
 representation-planning = { path = "../../../psi/checking/representation-planning" }
 target = { path = "../../backend/target" }
-trust-model = { path = "../trust-model" }
+trust-model = { path = "../../realization/trust-model" }
 build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }

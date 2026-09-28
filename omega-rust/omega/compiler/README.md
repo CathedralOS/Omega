@@ -88,8 +88,6 @@ Consumers depend directly on the package whose contract they need.
 | --- | --- |
 | `build-declarations`, `build-evaluation`, `build-output` | Build inputs, evaluation and retained outputs |
 | `package-compilation` | Source package compilation inputs and results |
-| `trust-model` | Trust vocabulary and admission reconstruction |
-| `artifacts` | Output writing, retained trust records and measurement storage |
 
 Target-neutral build evaluation remains in
 [Psi's compiler support](../../psi/interpreter/build-time-evaluation/README.md).
@@ -100,6 +98,11 @@ provider selection and planning belong to
 [selected execution](../realization/selected-dispatch/README.md).
 Project admission-policy files belong to the CLI's independent
 [trust ledger](../omega/trust-ledger/README.md), not compiler execution.
+Trust obligation and report reconstruction belong to
+[realization admission](../realization/trust-model/README.md).
+Host output writing and opt-in measurements belong to the
+[artifact utilities](../foundation/artifacts/README.md); these utilities retain
+no semantic trust records.
 Package installation and update belong to the separate
 [package manager](../package-manager/README.md).
 
