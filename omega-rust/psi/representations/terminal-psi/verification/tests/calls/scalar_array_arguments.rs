@@ -11,6 +11,9 @@ use terminal_psi::{StructuralAccess, StructuralArgument, StructuralParameterDecl
 #[path = "scalar_array_arguments/selection.rs"]
 mod selection;
 
+#[path = "scalar_array_arguments/boundary.rs"]
+mod boundary;
+
 fn array_call(dimensions: &[u64]) -> TerminalModule {
     let mut module = call_module();
     for (position, length) in dimensions.iter().enumerate() {

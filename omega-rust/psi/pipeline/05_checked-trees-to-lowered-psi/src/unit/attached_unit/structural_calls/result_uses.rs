@@ -222,6 +222,7 @@ fn validate_argument_construction_consumer(
     operation: &CheckedUnitEffectOperationPlan,
     argument_index: usize,
     parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    source_position: u32,
 ) -> Result<(), LoweringError> {
     let (machine, state, operations) = (caller.machine, caller.state, caller.operations);
     let (coordinate, structural_arguments) = match operation {
@@ -239,8 +240,23 @@ fn validate_argument_construction_consumer(
             coordinate,
             structural_arguments,
             ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryCall {
+            coordinate,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+            coordinate,
+            structural_arguments,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
+            coordinate,
+            structural_arguments,
+            ..
         } => (coordinate, structural_arguments),
-        _ => return unsupported("argument construction requires an ordinary internal call"),
+        _ => return unsupported("argument construction requires an ordinary or boundary call"),
     };
     let argument = structural_arguments
         .get(argument_index)
@@ -274,7 +290,7 @@ fn validate_argument_construction_consumer(
     if source.operation_index >= consumer_index
         || !source.precedes_consumer(*coordinate)
         || source.discard
-        || parameter_position != parameter.position
+        || parameter_position != source_position
         || !argument.path.is_empty()
         || argument.access != checked_trees::CheckedStructuralAccess::Owned
         || parameter.access != argument.access
@@ -967,17 +983,23 @@ pub(crate) fn validate_usage(
                 continue;
             }
             if result.multiplicity == Multiplicity::Unrestricted {
+                // Copies retain their source after either call family. Exact
+                // boundary type eligibility is rejoined by validate_consumer;
+                // this walk checks the produced value's use and lifetime.
                 if !matches!(
                     operation,
                     CheckedUnitEffectOperationPlan::CallUnit { .. }
                         | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                         | CheckedUnitEffectOperationPlan::StructuralCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
                 ) || argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || argument.type_identity != result.type_identity
                 {
                     return unsupported(
-                        "unrestricted array result requires a whole owned ordinary argument",
+                        "unrestricted array result requires a whole owned call argument",
                     );
                 }
                 continue;
@@ -1192,16 +1214,49 @@ pub(crate) fn validate_consumer(
     let (source_machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
+    let signature = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        caller.machine,
+        authored.source_target,
+    )?;
+    // Boundary plans omit the provider-selecting receiver from ABI positions.
+    // Operand constructions retain authored positions, including that receiver.
+    // Reuse the source partition that already joins literal boundary arguments.
+    let boundary_source_positions = if authored.boundary {
+        Some(
+            crate::emission::call_source_custody::literal_arguments::structural_positions(
+                checked,
+                &signature,
+                structural_arguments.len(),
+            )?,
+        )
+    } else {
+        None
+    };
     for (index, (argument, parameter)) in structural_arguments
         .iter()
         .zip(target_parameters)
         .enumerate()
     {
+        let source_position = boundary_source_positions
+            .as_ref()
+            .map(|positions| positions[index])
+            .unwrap_or(parameter.position);
+        let boundary_array_argument = authored.boundary
+            && signature
+                .parameters
+                .get(source_position as usize)
+                .is_some_and(|source| {
+                    validation::is_closed_primitive_array_type(
+                        &checked.typed,
+                        source.type_reference,
+                    )
+                });
         let expression = authored
             .structural_arguments
             .iter()
             .find_map(|(position, expression)| {
-                (*position == parameter.position).then_some(*expression)
+                (*position == source_position).then_some(*expression)
             });
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
         if let Some(expression) = expression
@@ -1313,7 +1368,7 @@ pub(crate) fn validate_consumer(
             source_machine,
             statements,
             argument,
-            parameter,
+            source_position,
             expression,
             binding_ordinal,
         )?;
@@ -1369,7 +1424,14 @@ pub(crate) fn validate_consumer(
             producer.construction_source,
             Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
         ) {
-            validate_argument_construction_consumer(checked, caller, operation, index, parameter)?;
+            validate_argument_construction_consumer(
+                checked,
+                caller,
+                operation,
+                index,
+                parameter,
+                source_position,
+            )?;
         }
         // A linear result chained into the next structural call keeps its
         // exact returned claim lineage across both calls.
@@ -1436,7 +1498,8 @@ pub(crate) fn validate_consumer(
                     CheckedUnitEffectOperationPlan::CallUnit { .. }
                         | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                         | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                ) || !argument.path.is_empty()
+                ) && !boundary_array_argument
+                    || !argument.path.is_empty()
                     || !matches!(
                         argument.access,
                         checked_trees::CheckedStructuralAccess::Owned
@@ -1489,7 +1552,7 @@ fn validate_operand_producers(
     source_machine: &checked_trees::machine::Machine,
     statements: &[StatementNode],
     argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
-    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+    source_position: u32,
     expression: Option<checked_trees::expression::ExpressionHandle>,
     binding_ordinal: Option<u32>,
 ) -> Result<(), LoweringError> {
@@ -1519,7 +1582,7 @@ fn validate_operand_producers(
                 ))?;
             let names_result = result.statement_index == coordinate.statement_index
                 && *call_ordinal == coordinate.call_ordinal
-                && *parameter_position == parameter.position
+                && *parameter_position == source_position
                 && expression == Some(source_expression);
             if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
                 return unsupported(
@@ -1527,8 +1590,7 @@ fn validate_operand_producers(
                 );
             }
             if names_result
-                && (authored.boundary
-                    || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                && (argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || result.multiplicity != Multiplicity::Unrestricted
                     || !validation::is_closed_primitive_array_type(&checked.typed, source_type)
@@ -1592,7 +1654,7 @@ fn validate_operand_producers(
             };
             let names_result = result.statement_index == coordinate.statement_index
                 && *call_ordinal == coordinate.call_ordinal
-                && *parameter_position == parameter.position
+                && *parameter_position == source_position
                 && expression == Some(construction_expression);
             if names_result != (binding_ordinal == Some(result.binding_ordinal)) {
                 return unsupported(
@@ -1602,13 +1664,16 @@ fn validate_operand_producers(
             // The call takes the fresh value whole: unrestricted or affine
             // plain contents (numeric domains allowed) need no cleanup
             // beyond the transfer itself; linear values keep claim rules.
-            let whole_owned_contents = result.multiplicity != Multiplicity::Linear
-                && validation::has_plain_owned_contents_with_numeric_constraints(
-                    &checked.typed,
-                    construction_type,
-                );
+            let copied_array = result.multiplicity == Multiplicity::Unrestricted
+                && validation::is_closed_primitive_array_type(&checked.typed, construction_type);
+            let whole_owned_contents = copied_array
+                || result.multiplicity != Multiplicity::Linear
+                    && validation::has_plain_owned_contents_with_numeric_constraints(
+                        &checked.typed,
+                        construction_type,
+                    );
             if names_result
-                && (authored.boundary
+                && ((authored.boundary && !copied_array)
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || !whole_owned_contents

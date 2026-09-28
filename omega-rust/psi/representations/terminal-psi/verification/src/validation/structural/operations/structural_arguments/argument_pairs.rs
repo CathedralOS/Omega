@@ -2,8 +2,8 @@
 
 use super::{CallShape, structural_access_is_exclusive, structural_paths_may_overlap};
 use crate::validation::{
-    ModuleError, OperationId, StructuralAccess, StructuralArgument, StructuralMultiplicity,
-    StructuralPlaceKind, TerminalMachine, TerminalModule,
+    ModuleError, OperationId, OperationKind, StructuralAccess, StructuralArgument,
+    StructuralMultiplicity, StructuralPlaceKind, TerminalMachine, TerminalModule,
 };
 
 /// Every pair of arguments: two loans of the same root may not alias
@@ -16,14 +16,19 @@ pub(in crate::validation) fn validate_argument_pairs(
     operation: OperationId,
     shape: &CallShape<'_>,
 ) -> Result<(), ModuleError> {
-    let CallShape { ordinary_call, .. } = *shape;
+    let CallShape {
+        ordinary_call,
+        call_kind,
+        ..
+    } = *shape;
     for first in 0..arguments.len() {
         for second in first + 1..arguments.len() {
             let left = &arguments[first];
             let right = &arguments[second];
             // Both arguments receive independent unrestricted array values;
             // neither takes an exclusive loan or moves the caller's payload.
-            let copied_array = ordinary_call
+            let copied_array = (ordinary_call
+                || matches!(call_kind, Some(OperationKind::BoundaryCall { .. })))
                 && left.access == StructuralAccess::Owned
                 && right.access == StructuralAccess::Owned
                 && left.path.is_empty()

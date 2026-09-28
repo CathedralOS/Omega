@@ -551,6 +551,13 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
     if program.type_multiplicity(reference) != language_semantics::Multiplicity::Unrestricted {
         return false;
     }
+    // A fixed primitive array is a copyable structural value too. Materialize
+    // the existing copied-place operation before an owned call argument so
+    // reading a field through `&self`/`&mut self` never moves it out of the
+    // borrowed receiver. The destination keeps the exact array type/extent.
+    if validation::is_closed_primitive_array_type(program, reference) {
+        return true;
+    }
     let TypeReferenceNode::Named { symbol, .. } =
         program.type_reference_table.type_reference(reference)
     else {
@@ -564,7 +571,8 @@ fn copied_place_type(program: &TypedTrees, expected: TypeReferenceHandle) -> boo
 
 /// `self.scan_compare_type`-shape admission: a member/fixed-index projection
 /// rooted at shared-borrowed storage whose leaf is a copyable `Unrestricted`
-/// named type. Same root/path contract as `is_scalar_case_place_value`, but
+/// named type or fixed primitive array. Same root/path contract as
+/// `is_scalar_case_place_value`, but
 /// for leaves whose contents cannot be reconstructed by case fan-out. A bare
 /// whole-root name is the degenerate path: an owned root's `Unrestricted`
 /// contents copy out whole, no loan involved.
@@ -598,6 +606,14 @@ pub(super) fn is_copied_place_value(
         return false;
     };
     if place.segments.is_empty() {
+        // Whole array locals and parameters already have an initialized
+        // payload owner. Their existing value-argument route copies that
+        // payload; recording another expression-owned copy would give the
+        // same authored local two competing producer identities. Array
+        // projections need this operation to snapshot borrowed backing.
+        if validation::is_closed_primitive_array_type(program, root) {
+            return false;
+        }
         // A whole owned root reads its declared contents directly: any
         // non-view reference carrier stays on the borrowed-leaf lane below,
         // while an owned `[copy]` root copies into a fresh result with an

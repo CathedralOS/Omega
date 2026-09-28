@@ -713,20 +713,26 @@ fn validate_structural_arguments(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
             });
-            if matches!(presentation, StructuralArgumentPresentation::Boundary)
-                || !plain_source
-                // A shared borrow passes the payload through in place; the
-                // argument still names the caller-owned result storage.
-                || !matches!(
+            // Boundary value arguments carry the same whole owned array as
+            // ordinary calls. Shared observation of an owned payload remains
+            // an ordinary-call route; this does not lend boundary storage.
+            let admitted_access =
+                matches!(
                     (argument.access, expected.access),
                     (
                         terminal_psi::StructuralAccess::Owned,
                         terminal_psi::StructuralAccess::Owned
-                    ) | (
-                        terminal_psi::StructuralAccess::SharedBorrow,
-                        terminal_psi::StructuralAccess::SharedBorrow
                     )
-                )
+                ) || (matches!(presentation, StructuralArgumentPresentation::Ordinary)
+                    && matches!(
+                        (argument.access, expected.access),
+                        (
+                            terminal_psi::StructuralAccess::SharedBorrow,
+                            terminal_psi::StructuralAccess::SharedBorrow
+                        )
+                    ));
+            if !plain_source
+                || !admitted_access
                 || !argument.path.is_empty()
                 || expected.multiplicity != StructuralMultiplicity::Unrestricted
                 || !expected.qualifications.is_empty()
@@ -741,7 +747,7 @@ fn validate_structural_arguments(
                     .any(|claim| claim.input.root == argument.place)
             {
                 return malformed(
-                    "primitive-array argument requires whole plain owned internal-call custody",
+                    "primitive-array argument requires whole plain array call custody",
                 );
             }
         }

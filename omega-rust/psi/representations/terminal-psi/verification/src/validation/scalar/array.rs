@@ -85,15 +85,22 @@ pub(in crate::validation) fn plain_return_source(
                             result.structural_type,
                         )
                         .is_some()
-                }) && match operation.kind {
+                }) && match &operation.kind {
                     OperationKind::EstablishScalarArray { .. } => {
                         shape(module, machine, operation).is_ok()
+                    }
+                    OperationKind::StructuralLeafCopy { source, path } => {
+                        crate::validation::structural::leaf_copy::validate(
+                            module, machine, operation, *source, path,
+                        )
+                        .is_ok()
                     }
                     // The complete call and its live result are validated by the
                     // operation and frontier walks. Do not recursively inspect
                     // callee source shapes or invent another call graph here.
                     OperationKind::CallStructural { .. }
-                    | OperationKind::CallStructuralWithScalarArguments { .. } => true,
+                    | OperationKind::CallStructuralWithScalarArguments { .. }
+                    | OperationKind::BoundaryCall { .. } => true,
                     _ => false,
                 }
             })
