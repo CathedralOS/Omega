@@ -398,6 +398,22 @@ class ClaimsTests(unittest.TestCase):
             self.b, "notes", "--all", "--ticket", second["ticket"])["count"],
             1)
 
+    def test_ambiguous_ticket_prefix_is_refused(self):
+        first, second = "abcd" + "1" * 28, "abcd" + "2" * 28
+        self.claim(self.a, "ALPHA-ITEM", "A", "--ticket", first)
+        self.claim(self.b, "BETA-ITEM", "B", "--ticket", second)
+        self.run_claims(self.a, "note", "--ticket", first, "--text", "one")
+        refused = self.run_claims(self.b, "notes", "--ticket", "abcd",
+                                  expected=1)
+        self.assertIn("matches 2 tickets", refused)
+        # The second ticket has no notes, yet it still makes the prefix
+        # ambiguous: a filter must not silently pick whichever inbox is
+        # non-empty.
+        self.run_claims(self.b, "notes", "--ticket", "abcd", "--owner", "A",
+                        expected=1)
+        exact = self.run_claims(self.b, "notes", "--ticket", "abcd1")
+        self.assertEqual([note["text"] for note in exact["notes"]], ["one"])
+
     def test_notes_survive_record_rewrite_and_concurrent_claims(self):
         claimed = self.claim(self.a, owner="A")
         self.run_claims(self.a, "note", "--ticket", claimed["ticket"],

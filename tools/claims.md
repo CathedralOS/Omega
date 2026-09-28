@@ -84,7 +84,8 @@ item, and owner, and requires a live claim. Notes survive claim release, so a
 finding like "already resolved upstream, verified at `<sha>`" reaches the
 coordinator without a board-only commit on `main`. `notes` lists pending
 (unswept) entries — each carries its ticket, item, owner, and `created_utc`
-— and `--ticket <prefix>` (unambiguous prefixes work), `--owner <substr>`,
+— and `--ticket <prefix>` (a prefix naming more than one known ticket is
+refused with the candidates listed), `--owner <substr>`,
 and `--all` (include swept history) filter that list; `status` reports the
 pending count as `notes_pending`. The
 coordinator reads them at drain, writes the board updates they justify in its
