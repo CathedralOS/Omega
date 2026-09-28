@@ -26,6 +26,7 @@ pass/arithmetic/const_fold_unsigned_landed_ops_exit checked 2128ms
 pass/arithmetic/constant_trapping_shift_value_overflow_traps checked 2109ms
 pass/arithmetic/exact_integer_cast_proven checked 320ms
 pass/arithmetic/narrowing_flow_and_widen_permitted checked 2102ms
+pass/arithmetic/runtime_anonymous_array_stores_with_float_import_exit checked 2866ms
 pass/arithmetic/runtime_bitwise_high_ops_exit checked 1753ms
 pass/arithmetic/runtime_comparison_signedness_exit checked 1207ms
 pass/arithmetic/runtime_domain_boundaries_exit checked 1199ms
