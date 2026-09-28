@@ -4,6 +4,85 @@ use crate::tests::contracts::parse_typed_trees;
 use checked_trees::{CheckedContractEntailmentAssumptionDischarge, MachineContractCommitment};
 use semantic_vocabulary::Proposition;
 
+#[test]
+fn exit_membership_discharge_requires_every_live_exit_and_exact_commitment() {
+    let source = r#"
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        data Inner { name: [u8; 4] in Utf8; }
+        data Main { inner: Inner; }
+        machine Main::set(&mut self, alternate: bool)
+        ensures self.inner.name in Utf8
+        {
+            transition alternate { true -> left() _ -> right() }
+            state left(&mut self) { self.inner.name = "One"; }
+            state right(&mut self) { self.inner.name = "Two"; }
+        }
+    "#;
+    let checked = lower_typed_trees(parse_typed_trees(source), &CheckingRequest::settled())
+        .expect("both branches establish the nested membership");
+    let certificates = crate::derive_contract_entailment_exit_membership_discharges(
+        &checked.typed,
+        &checked.facts,
+    );
+    assert_eq!(certificates.len(), 1, "{certificates:?}");
+    let certificate = &certificates[0];
+    assert_eq!(certificate.covered_exits().len(), 2);
+    crate::recheck_contract_entailment_exit_membership_discharge(
+        &checked.typed,
+        &checked.facts,
+        certificate,
+    )
+    .expect("complete exit reconstruction");
+
+    let partial = checked_trees::CheckedContractEntailmentExitMembershipDischarge::new(
+        certificate.machine_symbol(),
+        certificate.contract_position(),
+        certificate.fact_position(),
+        certificate.machine_contract_commitment(),
+        certificate.covered_exits()[..1].to_vec(),
+    )
+    .unwrap();
+    assert!(
+        crate::recheck_contract_entailment_exit_membership_discharge(
+            &checked.typed,
+            &checked.facts,
+            &partial,
+        )
+        .is_err(),
+        "a valid branch cannot stand in for the complete exit roster"
+    );
+
+    let changed = checked_trees::CheckedContractEntailmentExitMembershipDischarge::new(
+        certificate.machine_symbol(),
+        certificate.contract_position(),
+        certificate.fact_position(),
+        MachineContractCommitment::from_digest([71; 32]),
+        certificate.covered_exits().to_vec(),
+    )
+    .unwrap();
+    assert!(
+        crate::recheck_contract_entailment_exit_membership_discharge(
+            &checked.typed,
+            &checked.facts,
+            &changed,
+        )
+        .is_err()
+    );
+
+    let mut missing_context = checked.facts.clone();
+    let exit_handle = missing_context.flow.control.exits.iter().next().unwrap().0;
+    let exit = missing_context.flow.control.exits.get_mut(exit_handle);
+    exit.entry_semantic_contexts = Default::default();
+    assert!(
+        crate::derive_contract_entailment_exit_membership_discharges(
+            &checked.typed,
+            &missing_context,
+        )
+        .is_empty(),
+        "the declared field type cannot replace live exit evidence"
+    );
+}
+
 fn checked_with_contracts(requires: &str, ensures: &str) -> checked_trees::CheckedTrees {
     let source = format!(
         r#"

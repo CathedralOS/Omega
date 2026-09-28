@@ -2,6 +2,7 @@
 
 use super::{
     OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentAssumptionDischarge,
+    OrdinaryPackageContractEntailmentExitMembershipDischarge,
     OrdinaryPackageContractEntailmentOpenObligation, OrdinaryPackageDangerousAuthorityObligation,
     OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
     OrdinaryPackageTerminalAuthorityPermissionObligation,
@@ -275,6 +276,7 @@ fn results_from_matching_projection(
         dependency_closure: ledger.dependency_closure().clone(),
         open_accepted_claims,
         contract_entailment_assumption_discharges: Vec::new(),
+        contract_entailment_exit_membership_discharges: Vec::new(),
         open_contract_entailment_obligations,
         open_external_executable_supplies,
         open_dangerous_authorities,
@@ -344,6 +346,12 @@ pub fn reconstruct_package_review<'a>(
             "ordinary package contract-entailment discharge reconstruction failed: {error}"
         ))]
     })?;
+    apply_contract_entailment_exit_membership_discharges(&projection, &ledger, &mut results)
+        .map_err(|error| {
+            vec![diagnostics::Diagnostic::error(format!(
+                "ordinary package exit-membership discharge reconstruction failed: {error}"
+            ))]
+        })?;
     Ok(ReconstructedPackageReview {
         projection,
         canonical_rows,
@@ -513,6 +521,83 @@ fn apply_contract_entailment_assumption_discharges(
     results.open_contract_entailment_obligations = remaining;
     results
         .contract_entailment_assumption_discharges
+        .sort_by(|left, right| left.obligation.cmp(&right.obligation));
+    Ok(())
+}
+
+/// Called only after fresh capture rechecks every exit against immutable
+/// compiler custody. The projection-only recovery entrance deliberately does
+/// not apply these rows: persisted evidence alone cannot close an obligation.
+fn apply_contract_entailment_exit_membership_discharges(
+    projection: &CheckedPackageReviewProjection,
+    ledger: &OrdinaryPackageObligationLedger,
+    results: &mut OrdinaryPackageObligationResultSet,
+) -> Result<(), OrdinaryPackageObligationLedgerRecoveryError> {
+    let evidence_rows = ledger
+        .rows_of_kind(PackageReviewCanonicalRowKind::ContractEntailmentExitMembershipDischarge);
+    let discharges = projection.contract_entailment_exit_membership_discharges();
+    if evidence_rows.len() != discharges.len() {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "exit-membership discharges are not bijective with their canonical evidence rows",
+        ));
+    }
+    let obligations = &results.open_contract_entailment_obligations;
+    let mut selected = Vec::with_capacity(discharges.len());
+    for discharge in discharges {
+        let start = obligations.partition_point(|open| open.obligation() < discharge.obligation());
+        let end = start
+            + obligations[start..]
+                .partition_point(|open| open.obligation() == discharge.obligation());
+        let [open] = &obligations[start..end] else {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "exit-membership certificate does not rejoin exactly one open obligation",
+            ));
+        };
+        let evidence_position = evidence_rows
+            .binary_search_by(|row| row.key_bytes().cmp(open.row().key_bytes()))
+            .map_err(|_| {
+                OrdinaryPackageObligationLedgerRecoveryError::new(
+                    "exit-membership discharge does not rejoin its canonical evidence row",
+                )
+            })?;
+        let evidence_row = &evidence_rows[evidence_position];
+        if evidence_row.risk() != PackageReviewCanonicalRowRisk::Blocking {
+            return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+                "exit-membership discharge evidence is not blocking",
+            ));
+        }
+        selected.push((start, discharge, evidence_row));
+    }
+    selected.sort_unstable_by_key(|(position, _, _)| *position);
+    if selected.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(OrdinaryPackageObligationLedgerRecoveryError::new(
+            "duplicate exit-membership certificate for one obligation",
+        ));
+    }
+    let mut selected = selected.into_iter().peekable();
+    let mut remaining = Vec::with_capacity(obligations.len() - selected.len());
+    for (position, open) in std::mem::take(&mut results.open_contract_entailment_obligations)
+        .into_iter()
+        .enumerate()
+    {
+        let Some((_, discharge, evidence_row)) =
+            selected.next_if(|(selected_position, _, _)| *selected_position == position)
+        else {
+            remaining.push(open);
+            continue;
+        };
+        results.contract_entailment_exit_membership_discharges.push(
+            OrdinaryPackageContractEntailmentExitMembershipDischarge {
+                obligation: open.obligation,
+                row: open.row,
+                evidence_row: evidence_row.clone(),
+                covered_exits: discharge.covered_exits().to_vec(),
+            },
+        );
+    }
+    results.open_contract_entailment_obligations = remaining;
+    results
+        .contract_entailment_exit_membership_discharges
         .sort_by(|left, right| left.obligation.cmp(&right.obligation));
     Ok(())
 }

@@ -39,7 +39,13 @@ mod assembly;
 pub(crate) mod calls;
 mod dynamic_erased_lane;
 mod evidence;
+mod exit_membership;
 mod exits;
+pub use exit_membership::{
+    derive_contract_entailment_exit_membership_discharges,
+    recheck_contract_entailment_exit_membership_discharge,
+};
+
 mod nominal_inputs;
 mod writes;
 

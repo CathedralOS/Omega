@@ -216,6 +216,8 @@ pub struct OrdinaryPackageObligationResultSet {
     open_accepted_claims: Vec<OrdinaryPackageAcceptedClaimObligation>,
     contract_entailment_assumption_discharges:
         Vec<OrdinaryPackageContractEntailmentAssumptionDischarge>,
+    contract_entailment_exit_membership_discharges:
+        Vec<OrdinaryPackageContractEntailmentExitMembershipDischarge>,
     open_contract_entailment_obligations: Vec<OrdinaryPackageContractEntailmentOpenObligation>,
     open_external_executable_supplies: Vec<OrdinaryPackageExternalExecutableSupplyObligation>,
     open_dangerous_authorities: Vec<OrdinaryPackageDangerousAuthorityObligation>,
@@ -255,6 +257,12 @@ impl OrdinaryPackageObligationResultSet {
         &self.contract_entailment_assumption_discharges
     }
 
+    pub fn contract_entailment_exit_membership_discharges(
+        &self,
+    ) -> &[OrdinaryPackageContractEntailmentExitMembershipDischarge] {
+        &self.contract_entailment_exit_membership_discharges
+    }
+
     pub fn open_external_executable_supplies(
         &self,
     ) -> &[OrdinaryPackageExternalExecutableSupplyObligation] {
@@ -269,5 +277,33 @@ impl OrdinaryPackageObligationResultSet {
         &self,
     ) -> &[OrdinaryPackageTerminalAuthorityPermissionObligation] {
         &self.open_terminal_authority_permissions
+    }
+}
+
+/// Live exit membership rederived from immutable checked compilation custody.
+/// Canonical row recovery alone cannot construct this discharged result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrdinaryPackageContractEntailmentExitMembershipDischarge {
+    obligation: PackageReviewContractEntailmentOpenObligation,
+    row: OrdinaryPackageObligationRow,
+    evidence_row: OrdinaryPackageObligationRow,
+    covered_exits: Vec<crate::record::PackageReviewContractEntailmentCoveredExit>,
+}
+
+impl OrdinaryPackageContractEntailmentExitMembershipDischarge {
+    pub const fn obligation(&self) -> &PackageReviewContractEntailmentOpenObligation {
+        &self.obligation
+    }
+    pub const fn row(&self) -> &OrdinaryPackageObligationRow {
+        &self.row
+    }
+    pub const fn evidence_row(&self) -> &OrdinaryPackageObligationRow {
+        &self.evidence_row
+    }
+    pub fn covered_exits(&self) -> &[crate::record::PackageReviewContractEntailmentCoveredExit] {
+        &self.covered_exits
+    }
+    pub const fn status(&self) -> OrdinaryPackageObligationStatus {
+        OrdinaryPackageObligationStatus::Discharged
     }
 }

@@ -67,6 +67,8 @@ pub enum PackageReviewCanonicalRowKind {
     /// One exact assumption-citation discharge rechecked against the local
     /// semantic program and proof kernel. This is evidence, not admission.
     ContractEntailmentAssumptionDischarge,
+    /// Live checked-body membership at every normal exit, rejoined to custody.
+    ContractEntailmentExitMembershipDischarge,
     /// One exact consumer-supplied terminal-authority permission. This is a
     /// blocking policy grant, not evidence that a terminal leaf exercised it.
     TerminalAuthorityPermission,
@@ -328,6 +330,12 @@ impl CheckedPackageReviewProjection {
         &self,
     ) -> &[super::contracts::PackageReviewContractEntailmentAssumptionDischarge] {
         &self.contract_entailment_assumption_discharges
+    }
+
+    pub fn contract_entailment_exit_membership_discharges(
+        &self,
+    ) -> &[super::contracts::PackageReviewContractEntailmentExitMembershipDischarge] {
+        &self.contract_entailment_exit_membership_discharges
     }
 
     pub fn external_executable_supply(&self) -> &[PackageReviewExternalExecutableSupply] {

@@ -98,6 +98,15 @@ impl PendingPackageReview {
             self.callables.contract_entailment_assumption_discharges,
             PackageReviewSourceLocationRole::Declaration,
         )?;
+        let (
+            contract_entailment_exit_membership_discharges,
+            contract_entailment_exit_membership_discharge_sources,
+        ) = finalize_projected_rows(
+            compilation,
+            self.callables
+                .contract_entailment_exit_membership_discharges,
+            PackageReviewSourceLocationRole::Declaration,
+        )?;
         let (external_executable_supply, external_executable_supply_sources) =
             finalize_projected_rows(
                 compilation,
@@ -133,6 +142,8 @@ impl PendingPackageReview {
             contract_entailment_open_obligations: contract_entailment_open_obligation_sources,
             contract_entailment_assumption_discharges:
                 contract_entailment_assumption_discharge_sources,
+            contract_entailment_exit_membership_discharges:
+                contract_entailment_exit_membership_discharge_sources,
             external_executable_supply: external_executable_supply_sources,
             dangerous_authorities: dangerous_authority_sources,
             dangerous_authority_slack: dangerous_authority_slack_sources,
@@ -161,6 +172,7 @@ impl PendingPackageReview {
             callables,
             contract_entailment_open_obligations,
             contract_entailment_assumption_discharges,
+            contract_entailment_exit_membership_discharges,
             external_executable_supply,
             dangerous_authorities,
             dangerous_authority_slack,

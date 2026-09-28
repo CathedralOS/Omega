@@ -8,3 +8,6 @@ mod defaults_and_requirements;
 mod operational_envelopes;
 #[path = "trait_contracts/state_and_crash.rs"]
 mod state_and_crash;
+
+#[path = "trait_contracts/exit_membership.rs"]
+mod exit_membership;

@@ -63,7 +63,10 @@ pub use checking::{
 // replay independently for any consumer of the published record: the
 // producing pass keeps the checker itself public so post-publication
 // evidence is checkable, not just inspectable.
-pub use checks::replay_checked_borrow_certificates;
+pub use checks::{
+    derive_contract_entailment_exit_membership_discharges,
+    recheck_contract_entailment_exit_membership_discharge, replay_checked_borrow_certificates,
+};
 pub use execution::selected_execution::settle_checked_execution;
 
 pub use package_review::{

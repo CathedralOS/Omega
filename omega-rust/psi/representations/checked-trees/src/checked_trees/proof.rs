@@ -26,7 +26,10 @@ mod obligations;
 mod propositions;
 mod roots;
 
-pub use contract_entailment::CheckedContractEntailmentAssumptionDischarge;
+pub use contract_entailment::{
+    CheckedContractEntailmentAssumptionDischarge, CheckedContractEntailmentExitMembershipDischarge,
+    CheckedContractMembershipExit,
+};
 pub use contracts::{
     BoundaryQualificationAuthorization, CheckedEvidenceTerm, ContractCallFact,
     ContractEvidenceArgument, ContractExitFact, ContractExpressionEvidenceArgumentFact,

@@ -32,6 +32,7 @@ pub use obligation_ledger::{
 };
 pub use results::{
     OrdinaryPackageAcceptedClaimObligation, OrdinaryPackageContractEntailmentAssumptionDischarge,
+    OrdinaryPackageContractEntailmentExitMembershipDischarge,
     OrdinaryPackageContractEntailmentOpenObligation, OrdinaryPackageDangerousAuthorityObligation,
     OrdinaryPackageExternalExecutableSupplyObligation, OrdinaryPackageObligationResultSet,
     OrdinaryPackageObligationStatus, OrdinaryPackageTerminalAuthorityPermissionObligation,

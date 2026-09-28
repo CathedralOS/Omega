@@ -3,6 +3,7 @@ use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
     PackageReviewCallableContract, PackageReviewContractEntailmentAssumptionDischarge,
+    PackageReviewContractEntailmentExitMembershipDischarge,
     PackageReviewContractEntailmentOpenObligation, PackageReviewContractEntailmentOpenReason,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewPropositionApplication,
     PackageReviewPropositionBinderArgumentKind, PackageReviewPropositionBinderValue,
@@ -354,4 +355,26 @@ pub(crate) fn encode_proposition_application(
         Ok(())
     })?;
     Ok(())
+}
+
+pub(crate) fn encode_contract_entailment_exit_membership_discharge(
+    encoder: &mut Encoder,
+    discharge: &PackageReviewContractEntailmentExitMembershipDischarge,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_nominal(encoder, &discharge.obligation.callable)?;
+    encoder.u32(discharge.obligation.contract_position);
+    encoder.u32(discharge.obligation.fact_position);
+    encode_contract_entailment_exit_membership_discharge_value(encoder, discharge)
+}
+
+pub(crate) fn encode_contract_entailment_exit_membership_discharge_value(
+    encoder: &mut Encoder,
+    discharge: &PackageReviewContractEntailmentExitMembershipDischarge,
+) -> Result<(), PackageReviewEncodingError> {
+    encode_contract_entailment_open_obligation_value(encoder, &discharge.obligation)?;
+    encoder.sequence(&discharge.covered_exits, |encoder, exit| {
+        encode_nominal(encoder, &exit.state)?;
+        encoder.u32(exit.statement_index);
+        Ok(())
+    })
 }

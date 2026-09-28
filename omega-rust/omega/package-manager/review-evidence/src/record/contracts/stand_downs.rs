@@ -78,3 +78,37 @@ impl PackageReviewContractEntailmentAssumptionDischarge {
         self.selected_assumption_position
     }
 }
+
+/// One normal exit covered by the compiler's live membership judgment.
+/// State identity is canonical; no arena handle crosses package persistence.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewContractEntailmentCoveredExit {
+    pub(crate) state: PackageReviewNominalIdentity,
+    pub(crate) statement_index: u32,
+}
+
+impl PackageReviewContractEntailmentCoveredExit {
+    pub const fn state(&self) -> &PackageReviewNominalIdentity {
+        &self.state
+    }
+    pub const fn statement_index(&self) -> u32 {
+        self.statement_index
+    }
+}
+
+/// Exact checked-body membership coverage. This row is inert until fresh
+/// compilation custody reproduces its goal and complete normal-exit roster.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewContractEntailmentExitMembershipDischarge {
+    pub(crate) obligation: PackageReviewContractEntailmentOpenObligation,
+    pub(crate) covered_exits: Vec<PackageReviewContractEntailmentCoveredExit>,
+}
+
+impl PackageReviewContractEntailmentExitMembershipDischarge {
+    pub const fn obligation(&self) -> &PackageReviewContractEntailmentOpenObligation {
+        &self.obligation
+    }
+    pub fn covered_exits(&self) -> &[PackageReviewContractEntailmentCoveredExit] {
+        &self.covered_exits
+    }
+}

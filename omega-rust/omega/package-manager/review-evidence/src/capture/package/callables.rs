@@ -1,6 +1,7 @@
 use super::super::callables::{project_callable, project_private_external_executable_supply};
 use super::super::contracts::stand_downs::{
     project_package_contract_entailment_assumption_discharges,
+    project_package_contract_entailment_exit_membership_discharges,
     project_package_contract_entailment_open_obligations,
 };
 use super::super::semantics::declarations::{nominal_identity, top_level_requirement_identity};
@@ -16,6 +17,7 @@ use crate::capture::source::{ProjectedNestedSourceLocation, ProjectedReviewRow};
 use crate::record::{
     CheckedPackageCallableReview, PackageReviewCallableRole,
     PackageReviewContractEntailmentAssumptionDischarge,
+    PackageReviewContractEntailmentExitMembershipDischarge,
     PackageReviewContractEntailmentOpenObligation, PackageReviewExternalExecutableSupply,
     PackageReviewNominalOwner, PackageReviewSourceLocationRole,
 };
@@ -24,6 +26,8 @@ use language_semantics::MachineSupplyMode;
 use semantic_vocabulary::PackageKeyIdentity;
 
 pub(super) struct ProjectedPackageCallables {
+    pub(super) contract_entailment_exit_membership_discharges:
+        Vec<ProjectedReviewRow<PackageReviewContractEntailmentExitMembershipDischarge>>,
     pub(super) callables: Vec<ProjectedReviewRow<CheckedPackageCallableReview>>,
     pub(super) external_executable_supply:
         Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
@@ -146,6 +150,13 @@ pub(super) fn project_package_callables(
             &contract_entailment_open_obligations,
         )?;
 
+    let contract_entailment_exit_membership_discharges =
+        project_package_contract_entailment_exit_membership_discharges(
+            compilation,
+            package,
+            &contract_entailment_open_obligations,
+        )?;
+
     if build_machine.is_some() && !projected_build_machine {
         return Err(vec![Diagnostic::error(
             "selected build machine is not owned by the reviewed root package",
@@ -174,6 +185,7 @@ pub(super) fn project_package_callables(
         external_executable_supply,
         contract_entailment_open_obligations,
         contract_entailment_assumption_discharges,
+        contract_entailment_exit_membership_discharges,
     })
 }
 
