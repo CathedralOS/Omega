@@ -97,6 +97,18 @@ impl StructuralTypeShape {
 }
 
 impl ByteSequenceCarrier {
+    /// Declaration predicates describe owned bytes or an immutable shared view.
+    /// Construction and mutation must independently preserve those predicates.
+    pub const fn supports_field_predicates(&self) -> bool {
+        matches!(
+            self,
+            Self::BoundedOwned { .. }
+                | Self::BorrowedView {
+                    access: Some(crate::StructuralAccess::SharedBorrow),
+                }
+        )
+    }
+
     /// Whether this carrier reads through borrowed storage at all.
     pub const fn is_borrowed(&self) -> bool {
         matches!(self, Self::BorrowedView { .. } | Self::BoundedView { .. })
