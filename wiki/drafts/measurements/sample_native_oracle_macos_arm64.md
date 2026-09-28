@@ -55,20 +55,41 @@ The nine are exactly the samples wired in the "Clock-bearing samples" row:
 
 **Wiring the provider did not cause this and does not repair it.** Before the
 wiring these samples were refused earlier, at provider selection, so they had
-no native build either; they now check and still have none. The refusal is in
-the leaf: a `satisfies Clock::sleep` machine whose body calls `darwin_poll`
-produces a unit plan whose scalar callee has no checked executable body.
+no native build either; they now check and still have none.
 
-This qualifies the board's own note that "existing macOS wiring is in
+**It is not the provider indirection, and not one leaf.** Two controls, each a
+ten-line program calling the leaf directly from `Main::main` with no provider
+and no `satisfies` machine anywhere:
+
+| program | result |
+| --- | --- |
+| `self.rc = darwin_poll(0, 0, 10);` | checks; `InvalidUnitMachinePlan { machine: "darwin_poll", reason: "scalar callee has no checked executable body" }` |
+| `self.ns = darwin_clock_ns(6);` | checks; the same, naming `darwin_clock_ns` |
+
+So every call to a `DarwinClock` leaf is unrealizable, however it is reached.
+The leaves are not missing or unreachable: `macos_gui.omg:30` imports
+`targets::macos_arm64::macos_gui_impl`, and that file binds each one — for
+example `darwin_poll ... satisfies DarwinClock::poll via
+darwin_poll_binding()`, a `MachODylibSymbol` for `_poll` in
+`/usr/lib/libSystem.B.dylib`. A foreign-bound machine has no Omega body, and
+the unit plan demands one for a scalar callee in this position.
+
+Console leaves do realize — 83 samples print through them — so this is not
+"foreign bindings do not lower" in general. What distinguishes the two was not
+established here.
+
+This qualifies the board's note that "existing macOS wiring is in
 `samples/gui/window_app` and `source/library/std/macos_gui.omg`: exact Clock
 selection and sleep through `darwin_poll`". That route reaches checked
-semantics; it does not reach a running program. `window_app` never exercised
-it natively, because `window_app` does not check — it is refused by the
+semantics; it does not reach a running program, and `window_app` never
+exposed it because `window_app` does not check at all — it is refused by the
 [named operator handle mismatch](named_operator_selected_use.md).
 
 So the Clock row's macOS leg is complete for checking and open for
-realization, and closing it wants the `darwin_poll` leaf given an executable
-body rather than more per-sample wiring.
+realization. Closing it wants an executable body for the `DarwinClock` leaf
+family, not more per-sample wiring; `source/library/std/clock.omg` declines
+darwin for a different stated reason (the `invokes DarwinClock` ceiling leak)
+and is right to for an additional one it does not mention.
 
 ## Reading this later
 
