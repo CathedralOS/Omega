@@ -16,7 +16,8 @@
 use crate::native::native_realization::realization_diagnostics::{
     artifact_lowering_error, realization_error,
 };
-use crate::native::native_realization::{NativeCallbackThunkSettlement, NativeRealizationRequest};
+use backend_plan::NativeCallbackThunkSettlement;
+use compilation_products::NativeRealizationRequest;
 use diagnostics::Diagnostic;
 use machine_code::CompilerPrivateMachineCodeFunction;
 

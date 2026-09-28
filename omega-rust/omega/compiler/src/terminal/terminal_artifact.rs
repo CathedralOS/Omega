@@ -58,7 +58,7 @@ pub fn produce_terminal_report(
     mut checked: CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     rollback: &OptimizationRollback,
-) -> Result<crate::report::CompileReport, Vec<Diagnostic>> {
+) -> Result<compilation_products::CompileReport, Vec<Diagnostic>> {
     let pcc_requests = checked.build().config.settings.pcc;
     compilation_products::RequestedCompileProduct::TerminalArtifact.admit_build_requirements(
         checked.application_artifact_only(),
@@ -88,7 +88,7 @@ pub(crate) fn produce_retained_terminal_artifact(
     checked: &mut CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
-) -> Result<crate::report::RetainedTerminalArtifact, Vec<Diagnostic>> {
+) -> Result<compilation_products::RetainedTerminalArtifact, Vec<Diagnostic>> {
     let selected_program_entry = checked.admit_terminal_production()?;
     let entry_machine_symbol = selected_program_entry.source_signature().machine_symbol();
     let source_signature_identity = selected_program_entry.source_signature().identity().bytes();
@@ -173,7 +173,7 @@ pub(crate) fn produce_retained_terminal_artifact(
         });
     *checked.timings_mut() = stage_timings;
     let native_realization_proposal = native_realization_proposal?;
-    crate::report::RetainedTerminalArtifact::new_with_native_realization_proposal(
+    compilation_products::RetainedTerminalArtifact::new_with_native_realization_proposal(
         artifact,
         callback_placements,
         native_realization_proposal,

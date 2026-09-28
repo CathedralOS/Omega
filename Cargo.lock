@@ -1379,8 +1379,10 @@ dependencies = [
  "component-description",
  "diagnostics",
  "effects",
+ "image-emission",
  "language-semantics",
  "mimalloc",
+ "native-artifact",
  "optimization-core",
  "package-compilation",
  "package-evidence",
@@ -1394,6 +1396,7 @@ dependencies = [
  "source-files-to-tokens",
  "syntax-trees",
  "target",
+ "terminal-psi-to-abstract-operations",
  "tokens",
  "tokens-to-syntax-trees",
 ]
@@ -2280,6 +2283,7 @@ name = "topology-plan"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
+ "compilation-products",
  "compiler",
  "component-description",
  "libc",
@@ -2291,6 +2295,7 @@ dependencies = [
  "sha2",
  "target",
  "terminal-psi",
+ "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]

@@ -13,6 +13,7 @@ use package_evidence::record::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };
 use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi_to_abstract_operations::provider_admission;
 
 /// One compiler-issued semantic-binding proposal together with the exact
 /// checked service schema from which a consumer may author permission rows.
@@ -187,13 +188,14 @@ pub(super) fn candidate_semantic_binding_inputs(
             {
                 let settled_permission_rows = match role {
                     AcceptedSemanticBindingRole::FilesystemHostService => {
-                        compiler::native::filesystem_host_permission_rows(
+                        provider_admission::filesystem_host_permission_rows(
                             candidate.service_schema(),
                         )
                         .ok()
                     }
                     AcceptedSemanticBindingRole::TimeHostService => {
-                        compiler::native::time_host_permission_rows(candidate.service_schema()).ok()
+                        provider_admission::time_host_permission_rows(candidate.service_schema())
+                            .ok()
                     }
                     _ => None,
                 };

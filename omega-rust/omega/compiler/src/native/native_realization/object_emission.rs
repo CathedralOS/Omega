@@ -23,7 +23,9 @@ pub(crate) fn emit_realization_object(
     provider_installation: Option<AdmittedProviderInstallation>,
     settlements: &[AdmittedBoundarySettlement<'_>],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
-    hosted_receiver: Option<&crate::native::ValidatedNativeProgramEntrySettlement>,
+    hosted_receiver: Option<
+        &terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement,
+    >,
     terminal: &terminal_codec::CanonicalTerminalArtifact,
     request: &NativeRealizationRequest<'_>,
 ) -> Result<PublishedFragmentObject, Vec<Diagnostic>> {

@@ -19,12 +19,12 @@ use super::super::{
 };
 use super::{TemporaryProject, accepted_lock::accept_project};
 use crate::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use compiler::native::{
+use std::collections::BTreeSet;
+use terminal_psi_to_abstract_operations::provider_admission::{
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPermissionPolicyRow,
     current_terminal_authority_permission_policy, current_terminal_authority_policy,
     terminal_authority_permission_policy_with_rows,
 };
-use std::collections::BTreeSet;
 
 fn compile_with_receiving_policy(
     project: &TemporaryProject,

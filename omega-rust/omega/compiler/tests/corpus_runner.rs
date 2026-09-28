@@ -359,7 +359,7 @@ fn build_native_fixture(
     }
     let report =
         compiler::compile(request).and_then(compiler::CompileOutcomes::into_single_report)?;
-    let published = compiler::artifact_publication::publish_compilation(report, build_dir)
+    let published = compilation_products::publication::publish_compilation(report, build_dir)
         .map_err(|error| vec![diagnostics::Diagnostic::error(error)])?;
     published
         .checked_native_executable_path()

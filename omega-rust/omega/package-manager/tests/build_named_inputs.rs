@@ -1,5 +1,6 @@
 //! Captured dependency slots feed generated source and ordinary accepted publication.
 use crate::accepted_policy_fixture;
+use terminal_psi_to_abstract_operations::provider_admission;
 
 use package_compilation::{
     BuildDependencyOccurrence, BuildSourceCaptureObligation, BuildSourceCaptureRequest,
@@ -239,7 +240,7 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
         AcceptedNativeRealizationRequest {
             evidence: &evidence,
             profile: &proof_admission::AdmissionProfile::default(),
-            terminal_authority_policy: compiler::native::current_terminal_authority_policy(),
+            terminal_authority_policy: provider_admission::current_terminal_authority_policy(),
             receiving_terminal_authority_permission_policy: None,
             imports: &[],
         },
@@ -248,7 +249,9 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
     let publication = fixture.0.join("published");
     assert!(!publication.exists());
     let check_only = compiler::CompileReport::check_only(fixture.0.join("main.omg"), 1).unwrap();
-    assert!(compiler::artifact_publication::publish_compilation(check_only, &publication).is_err());
+    assert!(
+        compilation_products::publication::publish_compilation(check_only, &publication).is_err()
+    );
     assert!(
         !publication.exists(),
         "a non-product cannot create output directories"
@@ -257,7 +260,8 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
         report.output_kind(),
         compiler::CompileOutputKind::BuildArtifacts
     );
-    let report = compiler::artifact_publication::publish_compilation(report, &publication).unwrap();
+    let report =
+        compilation_products::publication::publish_compilation(report, &publication).unwrap();
     let outputs = report.build_outputs().unwrap();
     let directory = outputs.published_directory().unwrap();
     assert_eq!(
@@ -275,7 +279,8 @@ fn named_dependency_inputs_reach_generated_source_and_completed_publication() {
     assert!(report.has_consistent_executable_publication_custody());
     let repeated_destination = fixture.0.join("republished");
     assert!(
-        compiler::artifact_publication::publish_compilation(report, &repeated_destination).is_err()
+        compilation_products::publication::publish_compilation(report, &repeated_destination)
+            .is_err()
     );
     assert!(
         !repeated_destination.exists(),

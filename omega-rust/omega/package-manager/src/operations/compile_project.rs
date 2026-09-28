@@ -13,13 +13,13 @@ use crate::review::{
     CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
     ReviewOnlyCapabilityConflictLimits, production_candidate_reusing,
 };
-use compiler::native::{
-    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
-};
 use compiler::{CompileReport, OptimizationRollback, TrustAdmission};
 use diagnostics::Diagnostic;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use terminal_psi_to_abstract_operations::provider_admission::{
+    TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, current_terminal_authority_policy,
+};
 
 /// Complete policy and output input for one package-aware native production.
 ///

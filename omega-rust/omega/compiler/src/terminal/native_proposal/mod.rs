@@ -42,7 +42,7 @@ fn produce_callback_thunk_artifact(
     profile: &proof_admission::AdmissionProfile,
     placement: &backend_plan::BoundNominalCallbackPlacement,
     selections: &optimization_core::OptimizationSelections,
-) -> Result<crate::report::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
+) -> Result<compilation_products::TerminalCallbackThunkArtifact, Vec<Diagnostic>> {
     // The thunk body leaves through the same production body as the program
     // entry: one lowering, the selected Psi optimization, canonical
     // publication. It carries no entry identity, so no `ProgramEntry`
@@ -101,7 +101,7 @@ fn produce_callback_thunk_artifact(
             error.subject, error.reason,
         ))]
     })?;
-    crate::report::TerminalCallbackThunkArtifact::new(
+    compilation_products::TerminalCallbackThunkArtifact::new(
         backend_plan::canonical_callback_private_symbol(placement),
         artifact,
         receipt,
