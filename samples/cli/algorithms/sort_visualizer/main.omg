@@ -10,6 +10,8 @@
 // Expected exit: 0.
 // Expected output contains: #
 use omega_language_std::console;
+use omega_language_std::macos_gui;
+use omega::language::core::numeric_conversion;
 use omega::language::core::binding;
 
 domain [u8]::Utf8
@@ -21,7 +23,23 @@ requires
 domain [u8; 3]::Utf8
 requires
     valid_utf8(self);
-pub boundary trait Clock { machine sleep(milliseconds: u32); }
+pub boundary trait Clock { machine sleep(&mut self, milliseconds: u32) invokes DarwinClock; }
+
+// Declared-host Clock wiring, the pattern `samples/gui/window_app` carries: a
+// provider data, a target-scoped `provider_defaults` that selects it, and a
+// `satisfies Clock::sleep` machine over the `darwin_poll` leaf.
+data PacingClockProvider {
+    rc: i32;
+    timeout: i32;
+}
+macos_arm64 machine PacingClockProvider::provider_defaults(defaults: &mut PacingClockProvider) {
+    defaults.select_provider<Clock, PacingClockProvider>();
+}
+macos_arm64 machine PacingClockProvider::sleep(&mut self, milliseconds: u32) satisfies Clock::sleep
+{
+    self.timeout = narrow_u32_to_i32_wrapping(milliseconds);
+    self.rc = darwin_poll(0, 0, self.timeout);
+}
 
 // FULLY EXACT -- no overflow domain anywhere: the counters are plain i32 and
 // every increment is guard-proven on its DIRECT incoming edge (re-guard hops added
@@ -46,7 +64,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(&mut self) reaches Clock + Console {
+machine Main::main(&mut self) reaches Clock + Console + DarwinClock {
     self.console.write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
     self.arr = [5, 2, 8, 1, 7, 3, 6, 4];
     self.home = "XXX";
