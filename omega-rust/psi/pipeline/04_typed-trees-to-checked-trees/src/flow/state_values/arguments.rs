@@ -105,17 +105,7 @@ pub(in crate::flow) fn capture_argument(
                 parameters: program.state_parameters(state),
                 symbols: plans.binding_symbols.span_or_empty(binding.symbols),
                 value_at_place: |place: &CanonicalPlace| {
-                    crate::values::scalar_value_at_place(
-                        program,
-                        semantic,
-                        context
-                            .contexts
-                            .semantic_context_refs
-                            .span_or_empty(contexts)
-                            .iter()
-                            .map(|reference| semantic.contexts.get(reference.context)),
-                        place,
-                    )
+                    context.scalar_value_at_place(program, semantic, contexts, place)
                 },
             },
         )
@@ -140,16 +130,7 @@ pub(in crate::flow) fn capture_argument(
     }) {
         return ScalarValue::Unknown;
     }
-    crate::values::scalar_value_at_place(
-        program,
-        semantic,
-        context
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(contexts)
-            .iter()
-            .map(|reference| semantic.contexts.get(reference.context)),
-        &place,
-    )
-    .unwrap_or_default()
+    context
+        .scalar_value_at_place(program, semantic, contexts, &place)
+        .unwrap_or_default()
 }

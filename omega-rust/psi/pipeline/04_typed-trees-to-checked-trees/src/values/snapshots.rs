@@ -57,8 +57,20 @@ pub(crate) fn scalar_value_at_place<'a>(
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
 ) -> Option<ScalarValue> {
+    scalar_value_from_payloads(
+        program,
+        semantic,
+        payloads_at_place(program, semantic, contexts, subject),
+    )
+}
+
+pub(crate) fn scalar_value_from_payloads(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    payloads: impl IntoIterator<Item = FactPayload>,
+) -> Option<ScalarValue> {
     let mut retained = None;
-    for payload in payloads_at_place(program, semantic, contexts, subject) {
+    for payload in payloads {
         let incoming = match payload {
             FactPayload::AssignedScalarValue { value } => match semantic.scalar_values.get(value) {
                 ScalarValue::Unknown => None,
@@ -136,8 +148,20 @@ pub(crate) fn integer_bounds_at_place<'a>(
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
 ) -> Option<facts::IntegerRange> {
+    integer_bounds_from_payloads(
+        program,
+        semantic,
+        payloads_at_place(program, semantic, contexts, subject),
+    )
+}
+
+pub(crate) fn integer_bounds_from_payloads(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    payloads: impl IntoIterator<Item = FactPayload>,
+) -> Option<facts::IntegerRange> {
     let mut retained: Option<facts::IntegerRange> = None;
-    for payload in payloads_at_place(program, semantic, contexts, subject) {
+    for payload in payloads {
         let incoming = match payload {
             FactPayload::AssignedIntegerBounds { bounds }
                 if semantic.integer_ranges.is_valid(bounds) =>
@@ -188,15 +212,8 @@ fn payloads_at_place<'a>(
     contexts: impl IntoIterator<Item = &'a FactContext>,
     subject: &CanonicalPlace,
 ) -> Vec<FactPayload> {
-    if let PlaceRoot::Expression(expression) = subject.root
-        && subject.segments.is_empty()
-        && program.expression_table.expression_is_valid(expression)
-        && matches!(
-            program.expression_table.expression(expression),
-            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
-        )
-    {
-        return vec![FactPayload::AssignedValue { value: expression }];
+    if let Some(payload) = literal_assignment_payload(program, subject) {
+        return vec![payload];
     }
     let subject_root = normalized_event_place_root(program, subject.root);
     contexts
@@ -224,36 +241,102 @@ fn payloads_at_place<'a>(
                 {
                     return None;
                 }
-                // Call provenance and its completed scalar snapshot share one
-                // transfer context and point. Keep unknown calls at other
-                // points as blockers; never let one path's snapshot mask them.
-                if let FactPayload::AssignedValue { value } = fact.payload
-                    && matches!(
-                        program.expression_table.expression(value),
-                        ExpressionNode::Call(_)
-                    )
-                    && semantic.context_view(context).facts().any(|snapshot| {
-                        snapshot.place == fact.place
-                            && snapshot.point == fact.point
-                            && snapshot.origin == fact.origin
-                            && match snapshot.payload {
-                                FactPayload::AssignedScalarValue { value } => !matches!(
-                                    semantic.scalar_values.get(value),
-                                    ScalarValue::Unknown
-                                ),
-                                // A captured call-result range is the same
-                                // completed snapshot at bounds precision. It
-                                // still proves nothing about the exact value.
-                                FactPayload::AssignedIntegerBounds { bounds } => {
-                                    semantic.integer_ranges.is_valid(bounds)
-                                }
-                                _ => false,
-                            }
-                    })
-                {
+                if has_completed_call_snapshot(program, semantic, context, fact) {
                     return None;
                 }
                 Some(fact.payload)
+            })
+        })
+        .collect()
+}
+
+fn has_completed_call_snapshot(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    context: &FactContext,
+    fact: &facts::Fact,
+) -> bool {
+    // Only this exact occurrence can replace call provenance. Unknown calls at
+    // another point or origin remain blockers even when the place is the same.
+    let FactPayload::AssignedValue { value } = fact.payload else {
+        return false;
+    };
+    matches!(
+        program.expression_table.expression(value),
+        ExpressionNode::Call(_)
+    ) && semantic.context_view(context).facts().any(|snapshot| {
+        snapshot.place == fact.place
+            && snapshot.point == fact.point
+            && snapshot.origin == fact.origin
+            && match snapshot.payload {
+                FactPayload::AssignedScalarValue { value } => {
+                    !matches!(semantic.scalar_values.get(value), ScalarValue::Unknown)
+                }
+                // Bounds are a completed observation too, without asserting
+                // that the call has one exact value.
+                FactPayload::AssignedIntegerBounds { bounds } => {
+                    semantic.integer_ranges.is_valid(bounds)
+                }
+                _ => false,
+            }
+    })
+}
+
+pub(crate) fn literal_assignment_payload(
+    program: &TypedTrees,
+    subject: &CanonicalPlace,
+) -> Option<FactPayload> {
+    if let PlaceRoot::Expression(expression) = subject.root
+        && subject.segments.is_empty()
+        && program.expression_table.expression_is_valid(expression)
+        && matches!(
+            program.expression_table.expression(expression),
+            ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) | ExpressionNode::String(_)
+        )
+    {
+        Some(FactPayload::AssignedValue { value: expression })
+    } else {
+        None
+    }
+}
+
+/// Canonical assignment inputs from one immutable published context. The flow
+/// builder may retain these only until its semantic sweep is discarded.
+#[derive(Debug)]
+pub(crate) struct AssignmentObservation {
+    pub place: CanonicalPlace,
+    pub payload: FactPayload,
+}
+
+pub(crate) fn prepare_assignment_observations(
+    program: &TypedTrees,
+    semantic: &FactPlan,
+    context: &FactContext,
+) -> Vec<AssignmentObservation> {
+    semantic
+        .context_view(context)
+        .facts()
+        .filter_map(|fact| {
+            if !matches!(
+                fact.payload,
+                FactPayload::AssignedValue { .. }
+                    | FactPayload::AssignedScalarValue { .. }
+                    | FactPayload::AssignedIntegerBounds { .. }
+            ) {
+                return None;
+            }
+            let FactPlace::Place(place) = fact.place else {
+                return None;
+            };
+            let mut place =
+                canonical_place_from_semantic_place(program, semantic, semantic.places.get(place))?;
+            place.root = normalized_event_place_root(program, place.root);
+            if has_completed_call_snapshot(program, semantic, context, fact) {
+                return None;
+            }
+            Some(AssignmentObservation {
+                place,
+                payload: fact.payload,
             })
         })
         .collect()

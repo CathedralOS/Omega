@@ -197,7 +197,7 @@ fn literal(program: &typed_trees::TypedTrees, expression: ExpressionHandle) -> O
 fn value_at_place(
     program: &typed_trees::TypedTrees,
     semantic: &FactPlan,
-    build: &FlowBuildContext,
+    build: &mut FlowBuildContext,
     contexts: HandleSpan<FlowSemanticContextRef>,
     place: facts::PlaceHandle,
 ) -> ScalarValue {
@@ -206,18 +206,9 @@ fn value_at_place(
     else {
         return ScalarValue::Unknown;
     };
-    crate::values::scalar_value_at_place(
-        program,
-        semantic,
-        build
-            .contexts
-            .semantic_context_refs
-            .span_or_empty(contexts)
-            .iter()
-            .map(|reference| semantic.contexts.get(reference.context)),
-        &place,
-    )
-    .unwrap_or_default()
+    build
+        .scalar_value_at_place(program, semantic, contexts, &place)
+        .unwrap_or_default()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -302,17 +293,7 @@ pub(super) fn record_transition(
                     build.canonical_place_at(program, state.symbol, statement_index, *argument)
                 })
                 .and_then(|place| {
-                    crate::values::integer_bounds_at_place(
-                        program,
-                        semantic,
-                        build
-                            .contexts
-                            .semantic_context_refs
-                            .span_or_empty(contexts)
-                            .iter()
-                            .map(|reference| semantic.contexts.get(reference.context)),
-                        &place,
-                    )
+                    build.integer_bounds_at_place(program, semantic, contexts, &place)
                 }),
         };
         values.push((parameter.symbol, value));
