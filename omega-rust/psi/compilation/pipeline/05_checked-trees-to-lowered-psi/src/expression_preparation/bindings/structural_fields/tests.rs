@@ -14,6 +14,68 @@ use checked_trees::types::PrimitiveType;
 use terminal_psi::OperationKind;
 use terminal_psi::{BindingRelevance, StructuralFieldDeclaration};
 
+#[test]
+fn whole_owned_array_read_uses_its_declared_carrier_not_a_borrowed_view() {
+    let scalar_type = terminal_scalar_type(PrimitiveType::I32).unwrap();
+    let element = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: "i32".to_owned(),
+        shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+    };
+    let array = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(2).unwrap(),
+        identity: "[i32;3]".to_owned(),
+        shape: StructuralTypeShape::FixedArray {
+            element: element.id,
+            length: 3,
+        },
+    };
+    let parameter = StructuralParameterDeclaration {
+        place: PlaceId::new(11).unwrap(),
+        position: 0,
+        is_self: false,
+        structural_type: array.id,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    let declarations = [element, array];
+    let expression = CheckedScalarExpression::StructuralParameterIndexedRead {
+        root: checked_trees::CheckedStorageRoot::Parameter { index: 3 },
+        path: Vec::new(),
+        element_path: Vec::new(),
+        primitive_type: PrimitiveType::I32,
+        index: Box::new(CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::U64,
+        }),
+    };
+    let bindings = ScalarBindings::new(1)
+        .with_structural_parameters(&[(3, parameter.clone())])
+        .with_structural_observations(&declarations);
+    assert!(matches!(bindings.expression(&expression).unwrap(),
+        crate::emission::operation_emission::expressions::LoweredDirectExpression::IndexedPrimitiveRead { source, path, scalar_type: actual, .. }
+        if source == parameter.place && path.is_empty() && actual == scalar_type));
+    let mut wrong_type = expression.clone();
+    let CheckedScalarExpression::StructuralParameterIndexedRead { primitive_type, .. } =
+        &mut wrong_type
+    else {
+        unreachable!()
+    };
+    *primitive_type = PrimitiveType::U64;
+    assert!(bindings.expression(&wrong_type).is_err());
+    let mut unreadable = parameter;
+    unreadable.access = StructuralAccess::WriteOnlyBorrow;
+    assert!(
+        ScalarBindings::new(1)
+            .with_structural_parameters(&[(3, unreadable)])
+            .with_structural_observations(&declarations)
+            .expression(&expression)
+            .is_err()
+    );
+}
+
 fn bindings(access: StructuralAccess, relevance: BindingRelevance) -> ScalarBindings {
     let scalar_type = terminal_scalar_type(PrimitiveType::U64).unwrap();
     let declaration = StructuralTypeDeclaration {
