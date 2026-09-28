@@ -397,7 +397,11 @@ pub fn exact_checked_adapter<'typed>(
         .machines()
         .iter()
         .filter(|candidate| {
-            crate::service_schema::is_product_declaration(typed, candidate.symbol)
+            // Target selection leaves inactive siblings in the checked source
+            // set. They share the callable identity but cannot supply the
+            // selected product; only the active declaration has no target tag.
+            candidate.target.is_none()
+                && crate::service_schema::is_product_declaration(typed, candidate.symbol)
                 && typed
                     .normalized_machine_overload_identity(candidate)
                     .is_some_and(|identity| identity.identity() == *machine_identity)
