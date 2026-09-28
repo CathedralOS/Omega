@@ -2911,42 +2911,37 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   and `composed_unit_internal_calls`' exact erased ordinals, plus runtime-read,
   receiver, layout-dependent-erasure and invalid-qualifier refusals.
 
-- **BORROW-PROOF-CONVERGENCE.** Carry ordinary borrow compatibility from
-  checked certificates to independent portable replay under
-  [loans](wiki/spec/terminal-psi/loans.md).
-  Owners: `04_typed-trees-to-checked-trees/src/checks/borrows/`,
-  `omega-rust/psi/representations/checked-trees/src/checked_trees/borrow.rs`, checked-to-lowered publication
-  and Terminal verification. Current checking supports immutable normalized
-  bounds, requires/domain predicates, incoming guards, immutable whole-result
-  call guarantees and transparent propositions. Two premises can already
-  compose through a shared middle. These certificates remain checked-stage
-  records, not portable authority.
+- **BORROW-PROOF-CONVERGENCE.** Publish ordinary borrow-compatibility
+  certificates through Terminal with independent replay under
+  [loans](wiki/spec/terminal-psi/loans.md). Owners: checked `checks/borrows/`
+  and `checked_trees::borrow`, checked-to-lowered publication, Terminal codec
+  and verification.
 
-  Retain exact formation, captured places/resource identities, source
-  establishment and consulted premise order through publication. Reconstruct
-  availability, dominance and value/place versions independently. Broader
-  callee/domain predicates, mutable or projected results, same-statement and
-  theorem-call establishment need exact substitution/version evidence.
-  Reuse existing contract/range readers, including the original assignment's
-  exact call occurrence; do not collect a second set of guarantees. Include
-  adversarial call-prerequisite removal/replacement and cross-call copy
-  substitution in the replay controls.
+  Preserve implemented requires/domain/guard/proposition and chained-premise
+  checking, pinned mutable results, fixed projections, and guarantees from
+  statement calls and nested call results. `borrow_certificate_replay` invokes
+  checked replay with typed source and facts; it neither lowers nor reloads
+  a Terminal artifact.
 
-  Read-footprint expansion is paused for lack of a demonstrated customer:
-  first recheck the recorded `items[low + 0u64..high]` lost-bound candidate.
-  An incomplete footprint conservatively retires facts after writes; admitting
-  more expression kinds without preserving a needed source fact is not progress.
-  The builtin bound-meaning gate is distinct from the read-footprint check.
+  Retain exact formation, captured places/resources, establishment and consulted
+  premise order. Independently reconstruct availability, dominance and value/place
+  versions. Complete remaining callee/domain predicates, runtime projections and
+  same-statement/theorem establishment using exact call substitution and existing
+  contract/range readers, rather than a second guarantee collector.
 
-  Acceptance: each new establishment has source pass coverage for disjoint
-  loans, writes and exclusive call operands, with independently replayed
-  certificates. Missing, stale, reordered/substituted or insufficient premises,
-  overlapping mutation and containment-only second exclusive loans reject.
-  Proof never creates, widens, duplicates or extends authority. Preserve
-  `src/tests/borrow/checks/premised_disjoint_writes.rs`, the `certificates/`
-  suite and stated, sum, guarded, domain, returned-window, proposition and
-  chained-premise corpus controls. CANARY-CORPUS routes borrow-obligation
-  failures here; these are implementation gaps, not unsettled language rules.
+  Expand read footprints only for a demonstrated fact loss. The `low + 0u64`
+  subslice lead remains unverified: matched plain/computed audit probes reject
+  `view[0]` for unknown slice length even before an unrelated write. Distinguish
+  builtin bound-meaning admission from fact invalidation.
+
+  Acceptance: source passes for disjoint loans, writes and exclusive call
+  operands must retain independently replayed certificates through artifact
+  reload. Missing, stale, reordered/substituted or insufficient premises,
+  removed/replaced call prerequisites, cross-call copy substitution, overlapping
+  mutation and containment-only second exclusive loans reject. Proof cannot
+  create, widen, duplicate or extend authority. Preserve `certificates/`,
+  `premised_disjoint_writes.rs` and stated/sum/guard/domain/returned-window/
+  proposition/chained controls. Route CANARY-CORPUS borrow-obligation failures here.
 
 - **CALLBACK-PRIVATE-MATERIALIZATION.** Complete native realization under
   [private callbacks](wiki/spec/build/private_callbacks.md). Reproduce and repair
