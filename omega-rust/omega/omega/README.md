@@ -18,6 +18,11 @@ remain part of the operation; another frontend need not reconstruct that sequenc
 Install/update and package inspection already have their own complete operations
 in [package-manager](../package-manager/src/operations/mod.rs), with no second wrapper.
 
+The independent [trust-ledger](trust-ledger/README.md) package owns the
+`omega.admissions` file used by compile and run commands. It loads explicit
+owner policy; only `--accept-admissions` requests replacement. The compiler
+receives admissions in memory and never depends on this filesystem lifecycle.
+
 `run_project` owns a distinct temporary directory per invocation. Disposable
 output is cleaned up on success and failure; requested retained output survives,
 including interpreter disagreement. An explicit target compiles without running

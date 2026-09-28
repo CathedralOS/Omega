@@ -29,6 +29,6 @@ The other owners are meaningful siblings:
 - [accepted_templates.rs](src/accepted_templates/mod.rs) holds exact accepted-template
   classifications used during reconstruction.
 
-The sibling [trust-ledger](../trust-ledger/README.md) owns policy-file reading
+The CLI's independent [trust-ledger](../../omega/trust-ledger/README.md) owns policy-file reading
 and explicit replacement. Compiler callers supply admissions in memory; report
 rendering cannot turn a report into policy.

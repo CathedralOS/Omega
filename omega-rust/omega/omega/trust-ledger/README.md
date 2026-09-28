@@ -1,11 +1,15 @@
-# Standalone compiler admission custody
+# CLI admission-policy custody
 
 [admission_policy.rs](src/admission_policy.rs) owns reading and explicitly
 replacing `omega.admissions`, including format validation.
-The sibling [trust-model](../trust-model/README.md) owns filesystem-free
+The independent [trust-model](../../compiler/trust-model/README.md) owns filesystem-free
 obligation/report construction. This is separate from the
 [package lock](../../../../wiki/spec/packages/locks.md), which records source
 pins and project package acceptance.
+
+Compile and run commands use this package to load project policy. It remains an
+independent library, not part of compiler pipeline execution. Command orchestration
+alone opts into replacement through `--accept-admissions`.
 
 The compiler consumes one complete in-memory admission set, reconstructs required
 obligations, and reports consumed, unresolved, and unused rows. Ordinary checking
