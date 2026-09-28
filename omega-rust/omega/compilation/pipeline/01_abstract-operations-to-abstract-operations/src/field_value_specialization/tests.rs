@@ -127,6 +127,40 @@ const BOUND_NESTED_SOURCE: &str = r#"
     }
 "#;
 
+/// A nested field read whose `inner` member arrives as a stored-whole
+/// zeroed child: a zeroed establishment fixes every scalar leaf of its
+/// storage at zero, so `o.inner.v` folds to `0` and `o.inner.flag` folds
+/// to `false` in one candidate under the `EstablishZeroedStructural`
+/// basis — the verifier admits that operation only on zero-constructible
+/// shapes, so the leaf roster needs no child place to cross.
+const ZEROED_NESTED_FIELDS_SOURCE: &str = r#"
+    data Inner { v: u32; flag: bool; }
+    data Outer { inner: Inner; flag: bool; }
+    machine probe() -> bool {
+        let o: Outer = Outer { flag: true };
+        (o.inner.v == 0) == o.inner.flag
+    }
+"#;
+
+/// An integer field read beneath a fixed index: the `rooms` member is a
+/// stored-whole zeroed `[Room; 2]` child of the uniformly bound record,
+/// so `l.rooms[1].v` reads zero — the zeroed basis descends the declared
+/// type alone where a record-child establishment cannot cross the index.
+const ZEROED_ARRAY_ELEMENT_SOURCE: &str = r#"
+    data Room { v: u32; flag: bool; }
+    data Level { rooms: [Room; 2]; other: bool; }
+    data Root {}
+    machine Root::run() {
+        let l: Level = Level { other: true };
+        transition { _ -> check(l) }
+        state check(l: Level) {
+            transition l.rooms[1].v == 0 { true -> good() _ -> bad() }
+        }
+        state good() {}
+        state bad() {}
+    }
+"#;
+
 /// Both arms of the entry conditional deliver the same established place:
 /// the binding is uniform across every incoming edge, so the read still
 /// folds.
@@ -670,6 +704,222 @@ fn replay_rejects_stale_candidate_revision() {
         .err(),
         Some(OptimizationUnitValidationError::CandidateInputMismatch)
     );
+}
+
+#[test]
+fn zeroed_child_field_reads_fold() {
+    let unit = lowered_unit_entry(ZEROED_NESTED_FIELDS_SOURCE, "zeroed nested fields", "probe");
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    // The record place is the `EstablishRecord` result — the zeroed child
+    // is declared first, so `established_record_place` would find it.
+    let (place, producer) = input.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishRecord {
+                psi_operation,
+                result,
+                ..
+            } => Some((result.place, *psi_operation)),
+            _ => None,
+        })
+        .expect("the fixture establishes a record");
+    let zeroed = zeroed_producer(&input, machine);
+    // Both reads observe the record's `inner` member: the fixture must
+    // carry the integer and Boolean reads the zeroed basis proves.
+    let reads = input.functions[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter(|node| {
+            matches!(
+                &node.operation,
+                AbstractOperation::IntegerStructuralField { source, path, .. }
+                    | AbstractOperation::BooleanStructuralField { source, path, .. }
+                    if *source == place
+                        && matches!(
+                            path.as_slice(),
+                            [semantic_vocabulary::CanonicalStructuralPathSegment::Field(_)]
+                        )
+            )
+        })
+        .count();
+    assert_eq!(reads, 2, "two field reads observe the zeroed member");
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.machine, machine);
+    assert_eq!(patch.place, place);
+    assert_eq!(
+        patch.producer,
+        Some(producer),
+        "the place's own establishment is the `EstablishRecord`"
+    );
+    let [integer_row, boolean_row] = patch.reads.as_slice() else {
+        panic!("both reads fold in one candidate")
+    };
+    let (integer_row, boolean_row) = if matches!(
+        integer_row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Boolean(_))
+    ) {
+        (boolean_row, integer_row)
+    } else {
+        (integer_row, boolean_row)
+    };
+    assert_eq!(integer_row.producer, Some(zeroed));
+    assert_eq!(
+        integer_row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(0)
+        ))
+    );
+    assert_eq!(boolean_row.producer, Some(zeroed));
+    assert_eq!(
+        boolean_row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Boolean(false))
+    );
+}
+
+#[test]
+fn zeroed_array_element_field_read_folds_beneath_fixed_index() {
+    let unit = lowered_unit_entry(
+        ZEROED_ARRAY_ELEMENT_SOURCE,
+        "zeroed array element",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let machine = input.functions[0].machine;
+    let place = block_parameter_place(&input, machine);
+    let zeroed = zeroed_producer(&input, machine);
+    let (site, read) = field_read_on(&input, machine, place).expect("field read exists");
+    // The read's path really crosses a fixed index into the zeroed array —
+    // the fold must come from the zeroed basis, not a resolvable-but-empty
+    // path.
+    assert!(
+        matches!(
+            input.functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.nodes)
+                .find(|node| matches!(
+                    &node.operation,
+                    AbstractOperation::IntegerStructuralField { psi_operation, .. }
+                        if *psi_operation == read.0
+                ))
+                .map(|node| &node.operation),
+            Some(AbstractOperation::IntegerStructuralField { path, .. })
+                if matches!(
+                    path.as_slice(),
+                    [
+                        semantic_vocabulary::CanonicalStructuralPathSegment::Field(_),
+                        semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(1)
+                    ]
+                )
+        ),
+        "the fixture's read crosses a fixed index"
+    );
+
+    let run = specialize(unit);
+    let (_, patch) = single_commit(&run);
+    assert_eq!(patch.place, place);
+    let [row] = patch.reads.as_slice() else {
+        panic!("one folded field read")
+    };
+    assert_eq!(row.site, site);
+    assert_eq!(row.psi_operation, read.0);
+    assert_eq!(row.source, place);
+    assert_eq!(row.producer, Some(zeroed));
+    assert_eq!(
+        row.resolution,
+        FieldValueResolution::Constant(FoldedFieldValue::Integer(
+            semantic_vocabulary::IntegerValue::Unsigned(0)
+        ))
+    );
+}
+
+#[test]
+fn replay_rejects_forged_zeroed_field_rows() {
+    let unit = lowered_unit_entry(
+        ZEROED_ARRAY_ELEMENT_SOURCE,
+        "zeroed array element forged",
+        "Root::run",
+    );
+    let input = unit.unit().clone();
+    let run = specialize(unit);
+    let (commit, _) = single_commit(&run);
+
+    // A forged folded value — zero is the only provable leaf.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].resolution = FieldValueResolution::Constant(
+                    FoldedFieldValue::Integer(semantic_vocabulary::IntegerValue::Unsigned(1)),
+                );
+            },
+        ),
+    );
+
+    // A forged witness — a different operation claimed as the establishment.
+    assert_rejects_rows(
+        &input,
+        forged(
+            commit.declaration.rewrite().expect("rewrite declaration"),
+            |patch| {
+                patch.reads[0].producer = Some(patch.reads[0].psi_operation);
+            },
+        ),
+    );
+
+    let validated = validate_field_value_specialization_candidate(
+        &input,
+        commit.declaration.rewrite().expect("rewrite declaration"),
+    )
+    .expect("the exact zeroed candidate still validates");
+    assert_eq!(validated.unit().identity, commit.output);
+}
+
+/// The machine's structural block-parameter place — the state parameter an
+/// edge binding delivers.
+fn block_parameter_place(unit: &PsiOptimizationUnit, machine: MachineId) -> PlaceId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    function
+        .structural_places
+        .iter()
+        .find(|declaration| matches!(declaration.kind, StructuralPlaceKind::BlockParameter { .. }))
+        .expect("block parameter exists")
+        .id
+}
+
+/// The `EstablishZeroedStructural` custody identity in `machine` — every
+/// fixture carries exactly one.
+fn zeroed_producer(
+    unit: &PsiOptimizationUnit,
+    machine: MachineId,
+) -> semantic_vocabulary::OperationId {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("machine exists");
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find_map(|node| match &node.operation {
+            AbstractOperation::EstablishZeroedStructural { psi_operation, .. } => {
+                Some(*psi_operation)
+            }
+            _ => None,
+        })
+        .expect("the fixture establishes a zeroed structural")
 }
 
 fn budget() -> OptimizationWorkBudget {

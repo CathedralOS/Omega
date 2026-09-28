@@ -1,21 +1,24 @@
 //! Optimizer module role: proposal leaf. Proven-case membership specialization plans.
 //!
 //! A `StructuralCaseMembership` is foldable when the case of the position it
-//! observes is proven by the unit itself. At an empty path the observed
-//! position is the source place itself, and two proofs qualify: the place is
-//! an `OperationResult` whose same-function producer is `EstablishCase`,
-//! so the place is assigned once by that producer and cannot be rewritten;
-//! or the place's declared structural type is a closed roster of exactly one
-//! case — `StructuralTypeShape::Sum` or `Mixed` — so every inhabitant holds
-//! that case regardless of producer. At a non-empty path the observed
-//! position is nested, so the establishment proof no longer applies: only
-//! the roster at the resolved end type can prove the verdict. `Field`
-//! segments descend through `Record` and `Mixed` common fields by identity,
-//! `FixedIndex` descends a `FixedArray` element, and `Referent` crosses a
-//! `Reference` carrier. In each shape the membership verdict is
-//! `proven_case == case` at every site. Memberships whose resolved position
-//! is not a proven sole-case position — an unestablished multi-case root or
-//! a path ending on a multi-case roster — stay unfused; the rule freezes
+//! observes is proven by the unit itself. Three proofs qualify. An
+//! `EstablishCase` establishment — the place's own producer, or the same
+//! producer reached through `Field` descents across owned, complete
+//! structural children stored by an `EstablishRecord`, where a block
+//! parameter crosses only through the one place every incoming edge binds
+//! it to whole — proves the selected case at its position permanently. An
+//! `EstablishZeroedStructural` establishment selects each admissible sum's
+//! first declared case at every position of its storage: the verifier
+//! admits it only on zero-constructible shapes, so the remaining `Field`
+//! and index path descends the declared type alone. A single-case roster —
+//! `StructuralTypeShape::Sum` or `Mixed` — proves the case at any
+//! resolvable path without custody evidence: `Field` segments descend
+//! through `Record` and `Mixed` common fields by identity, `FixedIndex`
+//! and `RuntimeIndex` descend a `FixedArray` element, and `Referent`
+//! crosses a `Reference` carrier. In each shape the membership verdict is
+//! `proven_case == case` at every site. Memberships whose resolved
+//! position is not proven — an unestablished multi-case root, a path
+//! ending on a multi-case roster — stay unfused; the rule freezes
 //! machines holding an authenticated cyclic component before asking for a
 //! plan.
 

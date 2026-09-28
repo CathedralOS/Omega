@@ -28,12 +28,15 @@ use terminal_psi::{
 /// The establishing operation the place's operation-result producer resolves
 /// to, when it is one this family's proofs can draw on: `Record` for an
 /// `EstablishRecord`, `Variant` for an `EstablishCase` carrying its
-/// `result_case`, `None` for every other producer or place kind.
+/// `result_case`, `Zeroed` for an `EstablishZeroedStructural` whose all-zero
+/// storage fixes every scalar leaf at zero, `None` for every other producer
+/// or place kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum RootProducer {
     None,
     Record(OperationId),
     Variant(OperationId, StructuralCaseId),
+    Zeroed(OperationId),
 }
 
 impl RootProducer {
@@ -41,7 +44,9 @@ impl RootProducer {
     /// establishing op this family's proofs can draw on.
     pub(super) const fn operation(&self) -> Option<OperationId> {
         match self {
-            Self::Record(operation) | Self::Variant(operation, _) => Some(*operation),
+            Self::Record(operation) | Self::Variant(operation, _) | Self::Zeroed(operation) => {
+                Some(*operation)
+            }
             Self::None => None,
         }
     }
@@ -101,6 +106,12 @@ fn root_producer(
                 ..
             } if *psi_operation == producer && result.place == declaration.id => {
                 return RootProducer::Variant(producer, *result_case);
+            }
+            O::EstablishZeroedStructural {
+                psi_operation,
+                result,
+            } if *psi_operation == producer && result.place == declaration.id => {
+                return RootProducer::Zeroed(producer);
             }
             _ => {}
         }
@@ -327,19 +338,33 @@ fn proven_field_value(
         return None;
     }
     let establishment = establishment_scalar(unit, evidence, function, path, field);
-    if let Some((producer, initializer)) = establishment
-        && let Some(value) = constant_definition(function, initializer)
-        && matches_constant_kind(value, kind)
-    {
-        return Some(ProvenFieldValue {
-            producer: Some(producer),
-            resolution: FieldValueResolution::Constant(value),
-        });
+    match establishment {
+        // A zeroed establishment fixes the leaf at literal zero outright —
+        // there is no initializer operand to fold or forward.
+        Some(EstablishmentScalar::Zeroed(producer)) => {
+            return Some(ProvenFieldValue {
+                producer: Some(producer),
+                resolution: FieldValueResolution::Constant(zeroed_fold(declaration, kind)?),
+            });
+        }
+        Some(EstablishmentScalar::Initializer(producer, initializer)) => {
+            if let Some(value) = constant_definition(function, initializer)
+                && matches_constant_kind(value, kind)
+            {
+                return Some(ProvenFieldValue {
+                    producer: Some(producer),
+                    resolution: FieldValueResolution::Constant(value),
+                });
+            }
+        }
+        None => {}
     }
     if let Some(proven) = bound_value(declaration, kind) {
         return Some(proven);
     }
-    let (producer, initializer) = establishment?;
+    let EstablishmentScalar::Initializer(producer, initializer) = establishment? else {
+        return None;
+    };
     forwarded_resolution(
         function,
         analysis,
@@ -483,27 +508,39 @@ fn matches_observed_kind(
     )
 }
 
+/// What an establishment chain proves about the observed field: either the
+/// scalar initializer operand the terminal producer stores — which the
+/// caller folds or forwards — or the literal zero an
+/// `EstablishZeroedStructural` fixes without naming any operand.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EstablishmentScalar {
+    Initializer(OperationId, ValueId),
+    Zeroed(OperationId),
+}
+
 /// The establishment basis: the chain of establishing producers along `path`
-/// proves the field's stored scalar by name. `Some((producer, initializer))`
-/// when the producer at the path's terminal position establishes the
-/// observed field and its initializer is a scalar; `None` when any step is
-/// not established. A `Field` descent crosses only into an `EstablishRecord`
-/// field stored as an owned, complete structural child place whose declared
-/// type is exactly the field's declared carrier — a pathed or borrowed
-/// argument, a non-operation-result place, and every other producer leave
-/// the nested position unproven. A place with no producer of its own — a
-/// block parameter — crosses only into the one place every incoming edge
-/// binds it to whole when nothing rewrites or mutably re-lends it. The
-/// caller decides what the initializer proves — a literal fold when it
-/// resolves to a same-function constant, a use substitution when it does
-/// not.
+/// proves the field's stored scalar by name. `Some(Initializer(..))` when
+/// the producer at the path's terminal position establishes the observed
+/// field and its initializer is a scalar; `Some(Zeroed(..))` when that
+/// producer is an `EstablishZeroedStructural`, which the verifier admits
+/// only on zero-constructible shapes — every scalar leaf the remaining path
+/// resolves is stored at zero; `None` when any step is not established. A
+/// `Field` descent crosses only into an `EstablishRecord` field stored as
+/// an owned, complete structural child place whose declared type is exactly
+/// the field's declared carrier — a pathed or borrowed argument, a
+/// non-operation-result place, and every other producer leave the nested
+/// position unproven. A place with no producer of its own — a block
+/// parameter — crosses only into the one place every incoming edge binds
+/// it to whole when nothing rewrites or mutably re-lends it. The caller
+/// decides what an initializer proves — a literal fold when it resolves to
+/// a same-function constant, a use substitution when it does not.
 fn establishment_scalar(
     unit: &PsiOptimizationUnit,
     evidence: &FieldEvidence<'_>,
     function: &PsiOptimizationFunction,
     path: &[CanonicalStructuralPathSegment],
     field: StructuralFieldId,
-) -> Option<(OperationId, ValueId)> {
+) -> Option<EstablishmentScalar> {
     let mut place = evidence.declaration.id;
     let mut producer = evidence.root_producer;
     let mut declared = evidence.root_type;
@@ -516,7 +553,22 @@ fn establishment_scalar(
                 // initializers: the observed field's scalar initializer fixes
                 // the stored value permanently.
                 return record_initializer(function, producer, place, field)
-                    .map(|initializer| (producer, initializer));
+                    .map(|initializer| EstablishmentScalar::Initializer(producer, initializer));
+            }
+            (RootProducer::Zeroed(operation), _) => {
+                // A zeroed establishment writes every scalar leaf of the
+                // resolved position to zero — the verifier admits it only
+                // on zero-constructible shapes, so the remaining canonical
+                // path needs no child place to cross: it descends the
+                // declared type alone, and any field it reaches is stored
+                // at zero. `Case` enters a case-payload namespace whose
+                // scalar fields read the same zeroed bytes.
+                let mut position = Position::Type(declared?);
+                for segment in segments {
+                    position = position.descend(unit, segment)?;
+                }
+                position.field_declaration(unit, field)?;
+                return Some(EstablishmentScalar::Zeroed(operation));
             }
             (
                 RootProducer::Variant(producer, result_case),
@@ -525,7 +577,7 @@ fn establishment_scalar(
                 // An `EstablishCase` proves its scalar case-field
                 // initializers for exactly the case it establishes.
                 return case_field_initializer(function, producer, place, field)
-                    .map(|initializer| (producer, initializer));
+                    .map(|initializer| EstablishmentScalar::Initializer(producer, initializer));
             }
             (
                 RootProducer::Record(operation),
@@ -872,6 +924,31 @@ fn matches_constant_kind(value: FoldedFieldValue, kind: ObservedFieldKind) -> bo
         (FoldedFieldValue::Boolean(_), ObservedFieldKind::Boolean)
             | (FoldedFieldValue::Integer(_), ObservedFieldKind::Integer)
     )
+}
+
+/// The literal zero a zeroed establishment stores in `declaration`: `false`
+/// for a Boolean carrier, all-zero bits for an integer carrier of either
+/// sign. `None` when the observed kind does not match the declaration's
+/// scalar — the caller already checked this, so the `None` is defensive.
+fn zeroed_fold(
+    declaration: &StructuralFieldDeclaration,
+    kind: ObservedFieldKind,
+) -> Option<FoldedFieldValue> {
+    match (kind, declaration.field_type.scalar_type()) {
+        (ObservedFieldKind::Boolean, Some(ScalarType::Boolean)) => {
+            Some(FoldedFieldValue::Boolean(false))
+        }
+        (ObservedFieldKind::Integer, Some(ScalarType::Integer(integer_type))) => {
+            Some(FoldedFieldValue::Integer(
+                if integer_type.sign() == semantic_vocabulary::IntegerSign::Signed {
+                    semantic_vocabulary::IntegerValue::Signed(0)
+                } else {
+                    semantic_vocabulary::IntegerValue::Unsigned(0)
+                },
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// The declared-bound basis: the field's declared `BoundedInteger` bound
