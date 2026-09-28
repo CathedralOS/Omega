@@ -19,3 +19,13 @@ actually consumed by compilation and their package commitment, including generat
 source custody. This is distinct from the complete root visible to build evaluation.
 [semantic_bindings.rs](src/semantic_bindings.rs) owns accepted nominal identities
 for receiving-policy services.
+
+[build_execution.rs](src/build_execution.rs) owns build filesystem custody:
+preparing immutable source and named-input roots, projecting interpreter
+observations, settling sealed-output obligations, and selecting generated source.
+Capture precedes validation of the returned Build value; output settlement
+follows it. No partially settled observation is published, and the evaluator
+does not reconstruct the evidence fields. The subordinate filesystem scope owns
+root-overlap checks, snapshot materialization and release; observations retain
+their canonical identity independently of their compiler consumer.
+See [observation custody](observation_custody.md) for the retained contract.

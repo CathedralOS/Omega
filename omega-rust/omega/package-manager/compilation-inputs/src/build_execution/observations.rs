@@ -50,7 +50,7 @@ impl BuildCanonicalSourceMetadataIdentity {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BuildActivation {
     pub(crate) root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    pub(crate) root_role: Option<package_compilation::BuildDeclarationKind>,
+    pub(crate) root_role: Option<crate::BuildDeclarationKind>,
     pub(crate) build_execution_profile: Option<target::TargetProfile>,
 }
 
@@ -62,7 +62,7 @@ impl BuildActivation {
 
     /// Authored declaration role (`package` or `application`) of the root
     /// occurrence.
-    pub const fn root_role(&self) -> Option<package_compilation::BuildDeclarationKind> {
+    pub const fn root_role(&self) -> Option<crate::BuildDeclarationKind> {
         self.root_role
     }
 

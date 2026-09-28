@@ -332,7 +332,7 @@ Checked arithmetic rejects overflow rather than publishing partial accounting.
 Live cells are charged from reservation through the final alias, not estimated
 as Rust allocation size. Text backing has a separately charged lifetime.
 
-The [build observation custody note](../../../omega/compiler/build-evaluation/observation_custody.md)
+The [build observation custody note](../../../omega/package-manager/compilation-inputs/observation_custody.md)
 owns current sponsor ceilings and filesystem observation accounting.
 Those bounds and schema-version histories are neither
 semantic-evaluation laws nor host CPU/RSS containment guarantees.

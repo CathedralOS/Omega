@@ -6,10 +6,14 @@
 //! `source_snapshot` captures the package source a compilation consumed,
 //! `source_consumption` records exactly which of it was read, and
 //! `semantic_bindings` carries the optional standard-library bindings.
+//! `build_execution` owns immutable build inputs, filesystem custody and
+//! output settlement; it consumes interpreter observations, not compiler state.
 //! This package is the shared input contract below compilation and package
 //! commands, not a dependency on either application's orchestration.
 
+pub mod build_execution;
 mod checked_source_cache;
+pub use build_execution::*;
 mod package_compilation;
 mod semantic_bindings;
 mod source_consumption;

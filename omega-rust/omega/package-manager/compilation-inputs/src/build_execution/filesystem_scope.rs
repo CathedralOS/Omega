@@ -2,12 +2,10 @@
 
 pub mod preparation;
 
-use crate::{
-    BuildCanonicalSourceMetadataIdentity,
-    evidence::observations::{
-        BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
-    },
+use super::observations::{
+    BuildActivation, BuildCapturedSourceInventory, BuildNamedInputInventory,
 };
+use crate::BuildCanonicalSourceMetadataIdentity;
 use build_output::{
     BuildStagedOutputEntryKind, BuildStagedOutputTree, CapturedBuildSourceInput, capture,
     discard_materialized_snapshot, empty,
@@ -57,7 +55,7 @@ pub struct BuildMachineFilesystemScope {
     admitted_build_dir_key: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
     root_package_identity: Option<semantic_vocabulary::PackageKeyIdentity>,
-    root_role: Option<package_compilation::BuildDeclarationKind>,
+    root_role: Option<crate::BuildDeclarationKind>,
     build_execution_profile: Option<target::TargetProfile>,
     captured_source_input: Option<CapturedBuildSourceInput>,
     snapshot_dir: Option<PathBuf>,
@@ -167,7 +165,7 @@ fn reject_overlapping_roots(
 
 /// Release handle for one occurrence's private captured-source backing.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CapturedSnapshotRelease {
+pub struct CapturedSnapshotRelease {
     snapshot_dirs: Vec<PathBuf>,
 }
 
@@ -175,7 +173,7 @@ impl CapturedSnapshotRelease {
     /// Discard the private materialization if this occurrence bound one.
     /// An already-absent backing is not an error, so the release may run on
     /// the settlement path and again on the occurrence's final exit.
-    pub(crate) fn release(&self) {
+    pub fn release(&self) {
         let mut parents = Vec::new();
         for snapshot_dir in &self.snapshot_dirs {
             let _ = discard_materialized_snapshot(snapshot_dir);
@@ -203,6 +201,16 @@ impl CapturedSnapshotRelease {
 }
 
 impl BuildMachineFilesystemScope {
+    /// Establish the write fence and immutable input snapshots before granting access.
+    pub fn establish_filesystem_access(
+        &self,
+    ) -> Result<BuildMachineFilesystemAccess, Vec<Diagnostic>> {
+        self.ensure_write_roots()?;
+        self.ensure_canonical_source_metadata()?;
+        self.ensure_captured_snapshot()?;
+        Ok(self.filesystem_access())
+    }
+
     pub fn for_root(
         root_path: &Path,
         build_dir: PathBuf,
@@ -261,7 +269,7 @@ impl BuildMachineFilesystemScope {
     pub fn with_package_activation(
         mut self,
         root_package_identity: semantic_vocabulary::PackageKeyIdentity,
-        root_role: package_compilation::BuildDeclarationKind,
+        root_role: crate::BuildDeclarationKind,
     ) -> Self {
         self.root_package_identity = Some(root_package_identity);
         self.root_role = Some(root_role);
@@ -372,7 +380,7 @@ impl BuildMachineFilesystemScope {
         self
     }
 
-    pub(crate) fn named_input_facet(&self) -> build_time_evaluation::BuildTimeValue {
+    pub fn named_input_facet(&self) -> build_time_evaluation::BuildTimeValue {
         use build_time_evaluation::BuildTimeValue;
         BuildTimeValue::Struct {
             type_name: "$OmegaBuildInputSlots".to_owned(),
@@ -395,7 +403,7 @@ impl BuildMachineFilesystemScope {
         }
     }
 
-    pub(crate) fn named_input_inventory(
+    pub fn named_input_inventory(
         &self,
         root: BuildMachineFilesystemGrantRootIdentity,
     ) -> Option<BuildCapturedSourceInventory> {
@@ -461,7 +469,7 @@ impl BuildMachineFilesystemScope {
     /// The activation this scope describes: the bound package occurrence
     /// members and admitted execution profile. The Build observes no realized
     /// target.
-    pub(crate) fn activation(&self) -> BuildActivation {
+    pub fn activation(&self) -> BuildActivation {
         BuildActivation {
             root_package_identity: self.root_package_identity,
             root_role: self.root_role,
@@ -471,11 +479,11 @@ impl BuildMachineFilesystemScope {
 
     /// The declared sealed outputs this occurrence must settle before its
     /// result may publish, in canonical order.
-    pub(crate) fn required_outputs(&self) -> &BTreeSet<Vec<u8>> {
+    pub fn required_outputs(&self) -> &BTreeSet<Vec<u8>> {
         &self.required_outputs
     }
 
-    pub(crate) fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
+    pub fn captured_source_inventory(&self) -> Option<BuildCapturedSourceInventory> {
         self.captured_source_input.as_ref().map(captured_inventory)
     }
 
@@ -522,10 +530,7 @@ impl BuildMachineFilesystemScope {
     /// or sponsorship alone. Generic sponsors may point at existing host data.
     /// Here every read uses captured membership, and the only write root belongs
     /// to a fresh private session whose shared owner also handles cleanup.
-    pub(crate) fn is_private_snapshot_execution(
-        &self,
-        access: &BuildMachineFilesystemAccess,
-    ) -> bool {
+    pub fn is_private_snapshot_execution(&self, access: &BuildMachineFilesystemAccess) -> bool {
         let BuildMachineFilesystemAccess::RealScopedSponsored { sponsor, .. } = access else {
             return false;
         };
@@ -838,7 +843,7 @@ impl BuildMachineFilesystemScope {
     /// and rejected settlements, so a failed build leaves no residue behind.
     /// The handle carries only the backing path, so the caller can hold it
     /// across the run without cloning retained inventory bytes.
-    pub(crate) fn captured_snapshot_release(&self) -> CapturedSnapshotRelease {
+    pub fn captured_snapshot_release(&self) -> CapturedSnapshotRelease {
         CapturedSnapshotRelease {
             snapshot_dirs: self
                 .snapshot_dir

@@ -267,12 +267,12 @@ const fn grant_refusal_reason_tag(reason: BuildFilesystemGrantRefusalReason) -> 
     }
 }
 
-const fn declaration_role_tag(role: Option<package_compilation::BuildDeclarationKind>) -> u8 {
+const fn declaration_role_tag(role: Option<crate::BuildDeclarationKind>) -> u8 {
     match role {
         None => 0,
-        Some(package_compilation::BuildDeclarationKind::Package) => 1,
-        Some(package_compilation::BuildDeclarationKind::Application) => 2,
-        Some(package_compilation::BuildDeclarationKind::Workspace) => 3,
+        Some(crate::BuildDeclarationKind::Package) => 1,
+        Some(crate::BuildDeclarationKind::Application) => 2,
+        Some(crate::BuildDeclarationKind::Workspace) => 3,
     }
 }
 

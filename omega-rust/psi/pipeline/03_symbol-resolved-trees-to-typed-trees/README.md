@@ -6,7 +6,7 @@ limits, not a different generated-source language.
 
 ## Entry points
 
-- [filesystem_scope.rs](../../../omega/compiler/build-evaluation/src/evidence/filesystem_scope.rs) binds request staging and sponsor
+- [filesystem_scope.rs](../../../omega/package-manager/compilation-inputs/src/build_execution/filesystem_scope.rs) binds request staging and sponsor
   inputs to the package/root filesystem scope. It checks canonical Source metadata
   before reopening review-only replay; it does not admit or execute the build.
 - [build_continuation.rs](../../../omega/compiler/src/checked/checking/build_continuation.rs): `AdmittedBuildCheckpoint`
