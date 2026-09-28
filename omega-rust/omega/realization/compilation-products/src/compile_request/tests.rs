@@ -4,6 +4,63 @@ use crate::{
 };
 use optimization_core::Optimization;
 
+#[test]
+fn check_only_report_cannot_claim_a_native_proof_product() {
+    let error = CompileReport::check_only("check.omg".into(), 1)
+        .unwrap()
+        .with_pcc_context(
+            PccRequests {
+                psi: false,
+                native: true,
+            },
+            proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap_err();
+    assert_eq!(
+        error,
+        "a check-only stop cannot satisfy an optional proof-product request"
+    );
+}
+
+#[test]
+fn direct_report_attachment_respects_check_and_object_product_limits() {
+    for kind in [
+        crate::CompileOutputKind::CheckOnly,
+        crate::CompileOutputKind::ObjectContainer,
+    ] {
+        for requests in [
+            PccRequests::default(),
+            PccRequests {
+                psi: true,
+                native: false,
+            },
+            PccRequests {
+                psi: false,
+                native: true,
+            },
+            PccRequests {
+                psi: true,
+                native: true,
+            },
+        ] {
+            let report = CompileReport::checked(
+                "input.omg".into(),
+                1,
+                kind == crate::CompileOutputKind::ObjectContainer,
+                kind,
+                None,
+            )
+            .unwrap();
+            assert_eq!(
+                report
+                    .with_pcc_context(requests, Default::default())
+                    .is_ok(),
+                !requests.any()
+            );
+        }
+    }
+}
+
 fn request() -> CompileRequest {
     CompileRequest::new(CompileOptions {
         root_path: PathBuf::from("unread-source/main.omg"),

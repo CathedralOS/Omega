@@ -67,29 +67,22 @@ impl RequestedCompileProduct {
         pcc_requests: PccRequests,
         optimization_rollback: &OptimizationRollback,
     ) -> Result<(), Vec<Diagnostic>> {
-        if artifact_only && self != RequestedCompileProduct::Check {
+        let kind = if artifact_only && self != Self::Check {
             if !optimization_rollback.is_empty() {
                 return Err(vec![Diagnostic::error(
                     "artifact-only builds execute no product optimization stages to roll back",
                 )]);
             }
-            if pcc_requests.any() {
-                return Err(vec![Diagnostic::error(
-                    "artifact-only builds cannot publish Psi or native proof products",
-                )]);
+            crate::CompileOutputKind::BuildArtifacts
+        } else {
+            match self {
+                Self::Check => crate::CompileOutputKind::CheckOnly,
+                Self::TerminalArtifact => crate::CompileOutputKind::TerminalArtifact,
+                Self::NativeArtifact => crate::CompileOutputKind::RetainedNativeArtifact,
             }
-        }
-        match self {
-            RequestedCompileProduct::Check if pcc_requests.any() => Err(vec![Diagnostic::error(
-                "a check-only stop cannot satisfy an optional proof-product request",
-            )]),
-            RequestedCompileProduct::TerminalArtifact if pcc_requests.native => {
-                Err(vec![Diagnostic::error(
-                    "a Terminal stop cannot satisfy a native proof-product request",
-                )])
-            }
-            _ => Ok(()),
-        }
+        };
+        kind.admit_proof_requests(pcc_requests)
+            .map_err(|message| vec![Diagnostic::error(message)])
     }
 }
 

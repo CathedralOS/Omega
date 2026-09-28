@@ -197,15 +197,13 @@ pub fn check_prepared_local_project(
     let admission = compiler::admit_checked_compilation(&checked, &accepted_trust_admissions)
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     let settlement = admission.into_settlement();
-    // A check-only stop publishes no artifact pair, so a checked root whose
-    // build requested an optional proof product can never be satisfied here.
-    // The standalone compiler's `RequestedCompileProduct::Check` arm applies
-    // the same admission fence.
-    if checked.pcc_requests().any() {
-        return Err(CheckPreparedLocalProjectError::ProofProduct(vec![
-            Diagnostic::error("a check-only stop cannot satisfy an optional proof-product request"),
-        ]));
-    }
+    compiler::RequestedCompileProduct::Check
+        .admit_build_requirements(
+            checked.application_artifact_only(),
+            checked.pcc_requests(),
+            &compiler::OptimizationRollback::default(),
+        )
+        .map_err(CheckPreparedLocalProjectError::ProofProduct)?;
     CompileReport::checked(
         options.root_path,
         checked.source_file_count(),
@@ -304,15 +302,13 @@ fn check_one_prepared_target(
     let admission = compiler::admit_checked_compilation(&checked, accepted_trust_admissions)
         .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
     let settlement = admission.into_settlement();
-    // A check-only stop publishes no artifact pair, so a checked root whose
-    // build requested an optional proof product can never be satisfied here.
-    // The standalone compiler's `RequestedCompileProduct::Check` arm applies
-    // the same admission fence.
-    if checked.pcc_requests().any() {
-        return Err(CheckPreparedLocalProjectError::ProofProduct(vec![
-            Diagnostic::error("a check-only stop cannot satisfy an optional proof-product request"),
-        ]));
-    }
+    compiler::RequestedCompileProduct::Check
+        .admit_build_requirements(
+            checked.application_artifact_only(),
+            checked.pcc_requests(),
+            &compiler::OptimizationRollback::default(),
+        )
+        .map_err(CheckPreparedLocalProjectError::ProofProduct)?;
     CompileReport::checked(
         options.root_path,
         checked.source_file_count(),

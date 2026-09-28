@@ -143,83 +143,101 @@ pub fn realize_accepted_native_report(
         imports,
     } = request;
     // Keep the reviewed input's source/review custody alive through realization.
-    let (mut report, optimization_selections, rollback_receipt, trust_settlement, _reviews) =
-        match input {
-            AcceptedNativeInput::Terminal {
+    let (
+        mut report,
+        optimization_selections,
+        rollback_receipt,
+        trust_settlement,
+        pcc_context,
+        _reviews,
+    ) = match input {
+        AcceptedNativeInput::Terminal {
+            report,
+            optimization_selections,
+        } => {
+            let rollback_receipt = report.optimization_rollback_receipt().cloned();
+            let trust_settlement = report.trust_admission_settlement().clone();
+            let pcc_context = (
+                report.pcc_requests(),
+                report.terminal_admission_profile().clone(),
+            );
+            (
                 report,
-                optimization_selections,
-            } => {
-                let rollback_receipt = report.optimization_rollback_receipt().cloned();
-                let trust_settlement = report.trust_admission_settlement().clone();
-                (
-                    report,
-                    optimization_selections.clone(),
-                    rollback_receipt,
-                    trust_settlement,
-                    None,
-                )
-            }
-            AcceptedNativeInput::Reviewed {
-                candidate,
+                optimization_selections.clone(),
+                rollback_receipt,
+                trust_settlement,
+                pcc_context,
+                None,
+            )
+        }
+        AcceptedNativeInput::Reviewed {
+            candidate,
+            optimization_rollback,
+        } => {
+            let build_selected = candidate.checked_root().optimization_selections().clone();
+            let rollback_receipt = optimization_rollback.reconcile(&build_selected);
+            let effective_optimizations = rollback_receipt
+                .as_ref()
+                .map_or(build_selected, |receipt| receipt.effective().clone());
+            let post_terminal_optimizations = effective_optimizations.project_post_terminal();
+            let (reviews, root_path, checked_root) = candidate.into_production_parts();
+            let build_observation = checked_root.build_observation_identity();
+            let build_outputs = checked_root.completed_build_outputs()?;
+            compiler::RequestedCompileProduct::NativeArtifact.admit_build_requirements(
+                checked_root.application_artifact_only(),
+                checked_root.pcc_requests(),
                 optimization_rollback,
-            } => {
-                let build_selected = candidate.checked_root().optimization_selections().clone();
-                let rollback_receipt = optimization_rollback.reconcile(&build_selected);
-                let effective_optimizations = rollback_receipt
-                    .as_ref()
-                    .map_or(build_selected, |receipt| receipt.effective().clone());
-                let post_terminal_optimizations = effective_optimizations.project_post_terminal();
-                let (reviews, root_path, checked_root) = candidate.into_production_parts();
-                let build_observation = checked_root.build_observation_identity();
-                let build_outputs = checked_root.completed_build_outputs()?;
-                if checked_root.application_artifact_only() {
-                    if !optimization_rollback.is_empty() {
-                        return Err(diagnostics(
-                            "artifact-only builds execute no product optimization stages to roll back",
-                        ));
-                    }
-                    if checked_root.pcc_requests().any() {
-                        return Err(diagnostics(
-                            "artifact-only builds cannot publish Psi or native proof products",
-                        ));
-                    }
-                    let subject = checked_root.production_subject()?.ok_or_else(|| {
-                        diagnostics("accepted build outputs require package production custody")
-                    })?;
-                    validate_accepted_package_production_subject(&subject, evidence)?;
-                    let outputs = build_outputs
-                        .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
-                    return compiler::CompileReport::from_build_outputs(
-                        root_path,
-                        checked_root.source_file_count(),
-                        outputs,
-                        Some(subject),
-                    )
-                    .map_err(diagnostics);
-                }
-                let report = compiler::retained_terminal_report_from_checked_package(
+            )?;
+            if checked_root.application_artifact_only() {
+                let subject = checked_root.production_subject()?.ok_or_else(|| {
+                    diagnostics("accepted build outputs require package production custody")
+                })?;
+                validate_accepted_package_production_subject(&subject, evidence)?;
+                let outputs = build_outputs
+                    .ok_or_else(|| diagnostics("artifact-only build completed no files"))?;
+                return compiler::CompileReport::from_build_outputs(
                     root_path,
-                    checked_root,
-                    profile.clone(),
-                )?
-                .with_build_outputs(build_outputs, build_observation)
-                .map_err(diagnostics)?;
-                (
-                    report,
-                    post_terminal_optimizations.selections().clone(),
-                    rollback_receipt,
-                    compiler::TrustAdmissionSettlement::default(),
-                    Some(reviews),
+                    checked_root.source_file_count(),
+                    outputs,
+                    Some(subject),
                 )
+                .map_err(diagnostics);
             }
-        };
+            // Native proof requests describe the eventual native product, not
+            // this intermediate Terminal artifact. Keep them with the pending
+            // request rather than attaching an impossible context to a report.
+            let pcc_context = (checked_root.pcc_requests(), profile.clone());
+            let source_count = checked_root.source_file_count();
+            let subject = checked_root.production_subject()?;
+            let retained = compiler::retained_terminal_artifact_from_checked_package(
+                checked_root,
+                profile.clone(),
+                optimization_rollback.clone(),
+            )?;
+            let report = compiler::CompileReport::from_retained_terminal_artifact(
+                root_path,
+                source_count,
+                retained,
+                subject,
+            )
+            .and_then(|report| report.with_build_outputs(build_outputs, build_observation))
+            .map_err(diagnostics)?;
+            (
+                report,
+                post_terminal_optimizations.selections().clone(),
+                rollback_receipt,
+                compiler::TrustAdmissionSettlement::default(),
+                pcc_context,
+                Some(reviews),
+            )
+        }
+    };
     validate_accepted_terminal_production_subject(&report, evidence)?;
     let build_observation = report.build_observation_identity();
     let build_outputs = report.take_build_outputs();
     let root_path = report.root_path().to_path_buf();
     let source_file_count = report.source_file_count;
-    let pcc_requests = report.pcc_requests();
-    let pcc_admission_profile = report.terminal_admission_profile().clone();
+    let (pcc_requests, pcc_admission_profile) = pcc_context;
     let production_subject = report
         .production_manifest()
         .map(|manifest| manifest.subject().clone());
@@ -275,7 +293,7 @@ pub fn realize_accepted_native_report(
         production_subject,
     )
     .map(|report| report.with_trust_admission_settlement(trust_settlement))
-    .map(|report| report.with_pcc_context(pcc_requests, pcc_admission_profile))
+    .and_then(|report| report.with_pcc_context(pcc_requests, pcc_admission_profile))
     .and_then(|report| report.with_build_outputs(build_outputs, build_observation))
     .and_then(|report| report.with_application_metadata(application))
     .map_err(|message| vec![Diagnostic::error(message)])

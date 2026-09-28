@@ -29,6 +29,30 @@ pub enum CompileOutputKind {
     BuildArtifacts,
 }
 
+impl CompileOutputKind {
+    /// Eligibility is shared by pre-production admission and direct report attachment.
+    pub(crate) fn admit_proof_requests(
+        self,
+        requests: package_compilation::build_execution::build_value::PccRequests,
+    ) -> Result<(), &'static str> {
+        match self {
+            Self::CheckOnly if requests.any() => {
+                Err("a check-only stop cannot satisfy an optional proof-product request")
+            }
+            Self::BuildArtifacts if requests.any() => {
+                Err("artifact-only builds cannot publish Psi or native proof products")
+            }
+            Self::TerminalArtifact if requests.native => {
+                Err("a Terminal stop cannot satisfy a native proof-product request")
+            }
+            Self::ObjectContainer if requests.any() => {
+                Err("an object container cannot satisfy an optional proof-product request")
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
 /// The retained Terminal product and the subtractive build overlay whose
 /// effective selection the artifact and its native proposal must carry.
 #[derive(Debug)]
@@ -603,15 +627,23 @@ impl CompileReport {
     /// Retain the normalized Build's optional proof-product requests and the
     /// admission profile that produced the retained evidence. Publication
     /// uses these to emit and self-validate every requested pair; they confer
-    /// no receiving authority.
+    /// no receiving authority. Incompatible products reject before attachment;
+    /// publication freezes this context so the recorded pairs cannot be relabeled.
     pub fn with_pcc_context(
         mut self,
         pcc_requests: package_compilation::build_execution::build_value::PccRequests,
         terminal_admission_profile: proof_admission::AdmissionProfile,
-    ) -> Self {
+    ) -> Result<Self, &'static str> {
+        self.output_kind().admit_proof_requests(pcc_requests)?;
+        if self.wrote_output
+            && (self.pcc_requests != pcc_requests
+                || self.terminal_admission_profile != terminal_admission_profile)
+        {
+            return Err("published proof-product context cannot be replaced");
+        }
         self.pcc_requests = pcc_requests;
         self.terminal_admission_profile = terminal_admission_profile;
-        self
+        Ok(self)
     }
 
     /// Retain the authored application name, hosted intent, and identifier
@@ -830,6 +862,13 @@ impl CompileReport {
     /// each product kind then replays only the evidence it can hold — the
     /// retained/installation identity joins live beside their payloads.
     pub fn has_consistent_executable_publication_custody(&self) -> bool {
+        if self
+            .output_kind()
+            .admit_proof_requests(self.pcc_requests)
+            .is_err()
+        {
+            return false;
+        }
         if self.build_outputs.as_ref().is_some_and(|outputs| {
             self.build_observation != Some(outputs.observation_identity())
                 || self.production_manifest.as_ref().is_some_and(|manifest| {
