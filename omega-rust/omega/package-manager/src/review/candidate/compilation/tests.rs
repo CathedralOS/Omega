@@ -323,6 +323,24 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
                 .is_none()
         );
     }
+    // A reusable source is input, not authority for a different root. Its
+    // rejected outcome cannot publish that frontier or stale Build discovery.
+    let prepared = preparation.slots[0].as_ref().unwrap().prepared.clone();
+    let mut request = compiler::CheckedCompileRequest::new(
+        &fixture.0.join("different-root.omg"),
+        Some("windows_x86_64"),
+    );
+    request.prepared_source = Some(prepared);
+    request.retain_prepared_source = true;
+    let rejected = request.compile();
+    assert!(rejected.result.unwrap_err().iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("does not match its prepared source checkpoint")
+    }));
+    assert!(rejected.prepared_source.is_none());
+    assert!(rejected.independent_components.selections.is_empty());
+    assert!(rejected.independent_components.evaluation_usage.is_none());
 }
 
 #[test]

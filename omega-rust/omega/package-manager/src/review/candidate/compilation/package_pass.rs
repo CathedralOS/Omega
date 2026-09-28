@@ -39,7 +39,7 @@ use crate::resolution::PackageCompilationScope;
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use crate::review::restricted_build_grants::RestrictedBuildCheckpoint;
 use checked_interpreter::{BuildEvaluationSponsor, FilesystemSponsor};
-use compiler::compile_to_checked;
+use compiler::checked::CheckedCompileOutcome;
 use diagnostics::Diagnostic;
 use package_compilation::{
     AcceptedSemanticBinding, PackageCompilationInputError, PackageCompilationInputs,
@@ -507,7 +507,7 @@ pub(super) fn compile_dependency_closure(
                 )?;
                 continue;
             }
-            let request = CheckedCompileRequest {
+            let mut request = CheckedCompileRequest {
                 build_execution_profile: execution_profile,
                 build_dir: Some(package_build_root(
                     build_session_root,
@@ -543,24 +543,19 @@ pub(super) fn compile_dependency_closure(
             // candidate of this same closure prepares it once. A slot recorded
             // under another entry root belongs to a differently resolved package
             // at this position; it is replaced rather than consumed.
-            let prepared = match preparation.slots[position].take() {
+            request.prepared_source = match preparation.slots[position].take() {
                 Some(slot) if slot.entry_root == *entry => Some(slot.prepared),
                 _ => None,
             };
-            let mut retained = None;
-            let mut component_discovery = compiler::IndependentComponentDiscovery::default();
-            let checked = {
-                let mut request = request;
-                request.prepared_source_output = Some(&mut retained);
-                request.independent_component_discovery_output = Some(&mut component_discovery);
-                match prepared {
-                    Some(prepared) => prepared.compile_to_checked(request),
-                    None => {
-                        preparation.fresh_preparations += 1;
-                        compile_to_checked(request)
-                    }
-                }
-            };
+            request.retain_prepared_source = true;
+            if request.prepared_source.is_none() {
+                preparation.fresh_preparations += 1;
+            }
+            let CheckedCompileOutcome {
+                result: checked,
+                prepared_source: mut retained,
+                independent_components: component_discovery,
+            } = request.compile();
             let (checked, occurrence_inputs) = match checked {
                 Ok(checked) => (checked, unanswered_inputs),
                 Err(diagnostics) => {
@@ -588,7 +583,7 @@ pub(super) fn compile_dependency_closure(
                     // reaches here. One retry is the whole protocol — a selection
                     // still unanswered after publication re-rejects at the same
                     // fence, never as a fused edge.
-                    let mut request = CheckedCompileRequest {
+                    let request = CheckedCompileRequest {
                         build_execution_profile: execution_profile,
                         build_dir: Some(package_build_root(
                             build_session_root,
@@ -615,15 +610,17 @@ pub(super) fn compile_dependency_closure(
                                 as Box<dyn compiler::RestrictedBuildGrants>
                         }),
                         collect_timings: preparation.collect_timings,
+                        retain_prepared_source: true,
                         // The retried discovery child keeps the same
                         // settlement tolerance as the rejected attempt.
                         permit_unsettled_fused_service_fields: discovery
                             == TargetEntryDiscovery::Dependencies,
                         ..CheckedCompileRequest::new(entry, Some(target))
                     };
-                    request.prepared_source_output = Some(&mut retained);
                     preparation.fresh_preparations += 1;
-                    let checked = compile_to_checked(request).map_err(|diagnostics| {
+                    let outcome = request.compile();
+                    retained = outcome.prepared_source;
+                    let checked = outcome.result.map_err(|diagnostics| {
                         CompileResolvedPackageReviewsError::Compilation {
                             package: key.clone(),
                             diagnostics,
