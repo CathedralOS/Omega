@@ -42,7 +42,8 @@ pub(crate) struct CheckedExecution {
     pub(super) root_grants: Vec<String>,
     /// The normalized restricted build-host requests the admitted build
     /// activation asked of the host before it executed.
-    pub(super) restricted_build_requests: Vec<build_evaluation::RestrictedBuildRequest>,
+    pub(super) restricted_build_requests:
+        Vec<package_compilation::build_execution::RestrictedBuildRequest>,
     /// The component descriptions this package compilation attached and
     /// provider settlement verified, in package-identity order. Retained as
     /// custody so consumers replaying the selected-provider join can re-verify

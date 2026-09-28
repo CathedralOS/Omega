@@ -15,7 +15,9 @@ use crate::record::{
     PackagePolicyRestrictedBuildGrantRoot, PackagePolicyRestrictedBuildOperation,
     PackagePolicyRestrictedBuildRequest,
 };
-use build_evaluation::{RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation};
+use package_compilation::build_execution::{
+    RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
+};
 
 pub(super) fn project(
     compilation: &PackageReviewInput<'_>,
@@ -29,7 +31,7 @@ pub(super) fn project(
 }
 
 fn request(
-    request: &build_evaluation::RestrictedBuildRequest,
+    request: &package_compilation::build_execution::RestrictedBuildRequest,
 ) -> PackagePolicyRestrictedBuildRequest {
     let bounds = request.bounds();
     PackagePolicyRestrictedBuildRequest {

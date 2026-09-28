@@ -54,6 +54,8 @@
 //! Package compilation's `build_execution` owner retains filesystem scope,
 //! observation identities and output custody. Execution captures interpreter
 //! observations and requests settlement; it cannot construct the summary fields.
+//! The same owner projects restricted host requests from the admitted mode and
+//! scope. These records describe requested authority; they never grant it.
 //! `optimization` owns exact optimization selection admission. Provider planning
 //! including target declarations, selection decoding and settlement belongs to
 //! the independent `provider-planning` realization owner.
@@ -79,8 +81,7 @@ pub use admission::selection::{
 pub use admission::vocabulary::is_build_machine;
 pub use admitted_build_program::{
     AdmittedBuildAuthorityVerdict, AdmittedBuildProgram, AdmittedBuildProgramDisposition,
-    ComputedBuildConfig, RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
-    RestrictedBuildOperation, RestrictedBuildRequest, admit_build_program,
+    ComputedBuildConfig, admit_build_program,
 };
 pub use build_output::BuildStagedOutputEntryKind;
 pub use build_time_evaluation::wire_compatibility::WireCompatibilityDemand;
@@ -98,6 +99,6 @@ pub use package_compilation::build_execution::{
     BuildFilesystemRoot, BuildIncludedSourceHandoff, BuildMachineFilesystemScope,
     BuildNamedInputInventory, BuildObservationIdentity, BuildObservationSummary,
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
-    prepare_filesystem_scope,
+    RestrictedBuildRequest, prepare_filesystem_scope,
 };
 pub use trust_model::AuthoredComponentAssumptionAcceptance;

@@ -51,7 +51,7 @@ impl PackagePolicyBaseline {
 pub fn restricted_build_request_acceptance_text(
     package: PackageKeyIdentity,
     target: target::TargetProfile,
-    request: &build_evaluation::RestrictedBuildRequest,
+    request: &package_compilation::build_execution::RestrictedBuildRequest,
 ) -> Result<String, PackageReviewEncodingError> {
     let limits = PackagePolicyRowLimits::default();
     let request = crate::record::PackagePolicyRestrictedBuildRequest::from(request);

@@ -4,6 +4,8 @@
 //! Capture precedes Build-value validation; settlement follows it. Keeping
 //! these two operations separate preserves diagnostic order without exposing
 //! partially settled observation records to the compiler.
+//! Restricted host requests project the admitted execution mode and scope
+//! before execution, so package review and consumption share one vocabulary.
 
 mod completed_outputs;
 mod filesystem_scope;
@@ -11,6 +13,7 @@ mod observation_identity;
 mod observation_projection;
 mod observations;
 mod output_custody;
+mod restricted_requests;
 mod snapshot_request;
 
 pub use completed_outputs::RetainedBuildOutputs;
@@ -21,6 +24,10 @@ pub use filesystem_scope::{
 };
 pub use observation_identity::BuildObservationIdentity;
 pub use observations::*;
+pub use restricted_requests::{
+    RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
+    RestrictedBuildOperation, RestrictedBuildRequest,
+};
 pub use snapshot_request::{BuildSnapshotCapture, BuildSnapshotRequest};
 
 use checked_interpreter::{BuildOutputObligation, BuildOutputReceipt, EvaluationObservations};

@@ -1,8 +1,7 @@
 //! Normalized restricted build-host request meaning retained for comparison.
 //!
-//! These records mirror the compiler's admitted
-//! `build_evaluation::RestrictedBuildRequest` in evidence vocabulary so an
-//! installer can retain accepted request meaning — in `omega.lock`, for
+//! These records mirror package build-execution requests in evidence vocabulary
+//! so an installer can retain accepted request meaning — in `omega.lock`, for
 //! example — without storing host paths, live handles, or ephemeral
 //! capabilities. A captured source inventory is recorded by presence only: the
 //! captured counts and identity bind source content, and folding them into the
@@ -10,7 +9,9 @@
 //! the requested authority is unchanged
 //! (wiki/spec/packages/acceptance.md#restricted-build-acceptance).
 
-use build_evaluation::{RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation};
+use package_compilation::build_execution::{
+    RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
+};
 use target::TargetProfile;
 
 /// The restricted operation one retained request asks of the host.
@@ -113,8 +114,10 @@ pub struct PackagePolicyRestrictedBuildRequest {
 /// capture *presence*, sponsor ceilings, declared required outputs, and the
 /// activation profiles — never host paths, live handles, or ephemeral
 /// capability state.
-impl From<&build_evaluation::RestrictedBuildRequest> for PackagePolicyRestrictedBuildRequest {
-    fn from(request: &build_evaluation::RestrictedBuildRequest) -> Self {
+impl From<&package_compilation::build_execution::RestrictedBuildRequest>
+    for PackagePolicyRestrictedBuildRequest
+{
+    fn from(request: &package_compilation::build_execution::RestrictedBuildRequest) -> Self {
         let bounds = request.bounds();
         Self {
             operation: match request.operation() {

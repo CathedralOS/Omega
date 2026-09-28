@@ -163,9 +163,9 @@ fn purposes(
 
 fn build_request(
     output: &mut Output,
-    request: &build_evaluation::RestrictedBuildRequest,
+    request: &package_compilation::build_execution::RestrictedBuildRequest,
 ) -> fmt::Result {
-    use build_evaluation::{
+    use package_compilation::build_execution::{
         RestrictedBuildGrant, RestrictedBuildGrantRoot, RestrictedBuildOperation,
     };
     let operation = match request.operation() {
