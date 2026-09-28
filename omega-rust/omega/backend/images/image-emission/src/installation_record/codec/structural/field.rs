@@ -4,10 +4,13 @@ use semantic_vocabulary::{
     IeeeFloatFormat, IntegerSign, IntegerType, ScalarType, StructuralFieldId, StructuralTypeId,
 };
 use terminal_psi::{
-    BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
+    BindingRelevance, ByteSequenceCarrier, ByteSequencePredicateSet, StructuralFieldDeclaration,
+    StructuralFieldType,
 };
 
-use crate::installation_record::codec::structural::scalar::{decode_identity, encode_identity};
+use crate::installation_record::codec::structural::scalar::{
+    access_tag, decode_access, decode_identity, encode_identity,
+};
 use crate::installation_record::{InstallationError, Reader, decode_boolean, push_u16, push_u64};
 
 pub(crate) fn encode_structural_field(
@@ -59,6 +62,28 @@ pub(crate) fn encode_structural_field(
             });
             bytes.push(0);
         }
+        StructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates,
+        } => {
+            if predicates.is_empty() {
+                return Err(InstallationError::InvalidStructuralTypeShape);
+            }
+            bytes.push(9);
+            let (tag, access, capacity) = match carrier {
+                ByteSequenceCarrier::BorrowedView { access } => (1, *access, None),
+                ByteSequenceCarrier::BoundedOwned { capacity } => (2, None, Some(*capacity)),
+                ByteSequenceCarrier::BoundedView { access, capacity } => {
+                    (3, *access, Some(*capacity))
+                }
+            };
+            bytes.push(tag);
+            bytes.push(access.map_or(0, access_tag));
+            bytes.push(predicates.bits());
+            if let Some(capacity) = capacity {
+                push_u64(bytes, capacity);
+            }
+        }
         StructuralFieldType::ByteSequence(carrier) => {
             bytes.push(6);
             bytes.push(match carrier {
@@ -100,6 +125,34 @@ pub(crate) fn decode_structural_field(
         value => return Err(InstallationError::InvalidBoolean(value)),
     };
     let field_type = match reader.u8()? {
+        9 => {
+            let carrier_tag = reader.u8()?;
+            let access_tag = reader.u8()?;
+            let access = if access_tag == 0 {
+                None
+            } else {
+                Some(decode_access(access_tag)?)
+            };
+            let predicates = ByteSequencePredicateSet::from_bits(reader.u8()?)
+                .filter(|predicates| !predicates.is_empty())
+                .ok_or(InstallationError::InvalidStructuralTypeShape)?;
+            let carrier = match carrier_tag {
+                1 => ByteSequenceCarrier::BorrowedView { access },
+                2 if access.is_none() => ByteSequenceCarrier::BoundedOwned {
+                    capacity: reader.u64()?,
+                },
+                3 => ByteSequenceCarrier::BoundedView {
+                    access,
+                    capacity: reader.u64()?,
+                },
+                _ => return Err(InstallationError::InvalidStructuralTypeShape),
+            };
+            StructuralFieldType::PredicateByteSequence {
+                carrier,
+                predicates,
+            }
+        }
+
         8 => {
             let sign = match reader.u8()? {
                 1 => IntegerSign::Signed,
@@ -228,6 +281,54 @@ mod tests {
         decode_structural_field, encode_structural_field,
     };
     use semantic_vocabulary::{BoundedIntegerType, IntegerValue};
+
+    #[test]
+    fn installed_predicate_fields_preserve_carrier_access_and_reject_unknown_bits() {
+        use terminal_psi::{ByteSequenceCarrier, ByteSequencePredicateSet, StructuralAccess};
+        for access in [
+            None,
+            Some(StructuralAccess::SharedBorrow),
+            Some(StructuralAccess::MutableBorrow),
+            Some(StructuralAccess::WriteOnlyBorrow),
+        ] {
+            for carrier in [
+                ByteSequenceCarrier::BorrowedView { access },
+                ByteSequenceCarrier::BoundedView {
+                    access,
+                    capacity: 23,
+                },
+                ByteSequenceCarrier::BoundedOwned { capacity: 23 },
+            ] {
+                for bits in 1..=15 {
+                    let field = StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "text".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::PredicateByteSequence {
+                            carrier,
+                            predicates: ByteSequencePredicateSet::from_bits(bits).unwrap(),
+                        },
+                    };
+                    let mut bytes = Vec::new();
+                    encode_structural_field(&mut bytes, &field).unwrap();
+                    let mut reader = Reader::new(&bytes);
+                    assert_eq!(decode_structural_field(&mut reader).unwrap(), field);
+                    assert_eq!(reader.remaining(), 0);
+                    let predicate_offset = bytes.len()
+                        - if matches!(carrier, ByteSequenceCarrier::BorrowedView { .. }) {
+                            1
+                        } else {
+                            9
+                        };
+                    for malformed in [0, 16, 255] {
+                        let mut changed = bytes.clone();
+                        changed[predicate_offset] = malformed;
+                        assert!(decode_structural_field(&mut Reader::new(&changed)).is_err());
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn installed_bounded_fields_preserve_full_width_endpoints_and_reject_reversed_bounds() {
