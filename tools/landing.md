@@ -82,7 +82,9 @@ non-empty set also adds `omega`, since checking the CLI package checks the
 whole product dependency closure — dependents an API change broke. It then
 runs `mbx check -p <pkg> ...` (plain `cargo` when `mbx` is absent) and
 writes `build/landing_receipts/<candidate-sha>.json`. A non-Rust candidate
-needs no check and records an empty receipt.
+needs no check and records an empty receipt. `<base>` must be an ancestor of
+HEAD, as publish requires; otherwise the diff would include other lanes'
+changes, so `verify` refuses and asks for a rebase.
 
 The flow is: verify → enqueue/claim → if main moved, rebase and verify the
 new candidate sha → publish. Publish refuses a Rust-touching candidate

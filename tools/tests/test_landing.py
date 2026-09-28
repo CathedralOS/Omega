@@ -654,6 +654,23 @@ class ReceiptTests(LandingTests):
         self.assertEqual(receipt["packages"], [])
         self.assertIsNone(receipt["command"])
 
+    def test_verify_refuses_a_base_that_is_not_an_ancestor(self):
+        module = load_landing()
+        # Branch a sibling Rust change off initial, then return to a
+        # Python-only candidate: the sibling is not in HEAD's history.
+        sibling = self.rust_crate()
+        self.git(self.a, "reset", "--hard", self.initial)
+        candidate = self.commit(self.a, "notes only")
+        calls = []
+        with mock.patch.object(module.subprocess, "run",
+                               side_effect=self.check_recorder(0, calls)):
+            with self.assertRaises(module.LandingError) as refusal:
+                module.verify(self.a, sibling)
+        self.assertIn("not an ancestor", str(refusal.exception))
+        self.assertEqual(calls, [])
+        self.assertFalse((self.a / "build" / "landing_receipts"
+                          / f"{candidate}.json").exists())
+
     def test_publish_refuses_a_rust_candidate_without_a_passing_receipt(self):
         module = load_landing()
         # The temp repository has no .gitignore; keep receipts invisible to
