@@ -11,6 +11,7 @@ use diagnostics::Diagnostic;
 use std::collections::BTreeMap;
 use typed_trees::TypedTrees;
 
+mod declarations;
 mod demands;
 mod migration;
 mod observations;
@@ -18,6 +19,7 @@ mod schemas;
 #[cfg(test)]
 mod tests;
 
+pub use declarations::harvest_wire_compatibility_demands;
 pub use observations::*;
 use schemas::{build_wire_protocol_report, qualified_schema_path};
 

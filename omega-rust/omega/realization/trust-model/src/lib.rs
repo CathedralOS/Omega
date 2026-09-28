@@ -19,6 +19,7 @@ mod accepted_machine_grants;
 mod accepted_templates;
 mod admission_settlement;
 mod behavior_exclusions;
+mod component_assumptions;
 use effects::provider_grants;
 mod root_grants;
 mod trust_admission;
@@ -30,13 +31,16 @@ pub use admission_settlement::{
     TrustAdmissionSettlement, reconstruct_trust_obligations, reconstruct_trust_settlement,
     settle_trust_admissions,
 };
-pub use behavior_exclusions::verify_entry_behavior_exclusions;
+pub use behavior_exclusions::{harvest_behavior_exclusions, verify_entry_behavior_exclusions};
+pub use component_assumptions::{
+    AuthoredComponentAssumptionAcceptance, harvest_component_assumption_acceptances,
+};
 pub use provider_grants::{
     AuthoredRootGrant, ProviderGrantSelectorKind, ResolvedAuthoredSelectedProviderGrant,
     ResolvedSelectedProviderGrant, resolve_authored_selected_provider_grants,
     resolve_selected_provider_grants,
 };
-pub use root_grants::reject_package_non_provider_grants;
+pub use root_grants::{harvest_root_grants, reject_package_non_provider_grants};
 pub use trust_admission::{TrustAdmission, TrustAdmissionDigest};
 pub use trust_report::{
     TrustCrashCause, TrustCrashRouteBucket, TrustCrashRouteGuard, TrustGenericAcceptedInstanceRow,

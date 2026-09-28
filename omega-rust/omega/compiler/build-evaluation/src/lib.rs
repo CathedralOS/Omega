@@ -48,9 +48,10 @@
 //! Start at `admitted_build_program.rs`: the admission request, the
 //! admitted program and `admit_build_program`. `execution` runs an admitted
 //! program and assembles its checked result. `admission/` owns what the build
-//! program declares and selects (entry selection, vocabulary, grants,
-//! wire protocol, behavior exclusions, configuration), and
-//! package compilation's `build_execution` owner retains filesystem scope,
+//! program declares and selects (entry selection, vocabulary and configuration).
+//! Trust grants, component assumptions and executed exclusions are checked by
+//! realization trust; Psi owns wire-demand decoding and compatibility.
+//! Package compilation's `build_execution` owner retains filesystem scope,
 //! observation identities and output custody. Execution captures interpreter
 //! observations and requests settlement; it cannot construct the summary fields.
 //! `optimization` owns exact optimization selection admission. Provider planning
@@ -65,14 +66,8 @@ pub mod sources;
 #[cfg(test)]
 mod tests;
 
-pub use admission::component_assumptions::{
-    AuthoredComponentAssumptionAcceptance, harvest_component_assumption_acceptances,
-};
 pub use admission::configuration::{
     ApplicationIdentifier, BuildConfig, HostedApplicationIntent, PccRequests,
-};
-pub use admission::declarations::{
-    WireCompatibilityDemand, harvest_behavior_exclusions, harvest_root_grants,
 };
 pub use admission::selection::root_bindings::RootBinding;
 pub use admission::selection::{
@@ -88,6 +83,7 @@ pub use admitted_build_program::{
     RestrictedBuildOperation, RestrictedBuildRequest, admit_build_program,
 };
 pub use build_output::BuildStagedOutputEntryKind;
+pub use build_time_evaluation::wire_compatibility::WireCompatibilityDemand;
 pub use effects::AuthoredBehaviorExclusion;
 pub use execution::execute_admitted_build_program;
 pub use package_compilation::build_execution::{
@@ -104,3 +100,4 @@ pub use package_compilation::build_execution::{
     BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
     prepare_filesystem_scope,
 };
+pub use trust_model::AuthoredComponentAssumptionAcceptance;

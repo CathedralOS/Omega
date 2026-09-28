@@ -12,6 +12,13 @@ The evaluator captures the interpreter observations, validates the returned
 Build configuration, then asks that owner to settle outputs and select generated
 sources. It does not assemble durable filesystem evidence itself.
 
+Authored trust grants, component-assumption acceptances, and executed exclusion
+receipts are checked by [realization trust](../../realization/trust-model/README.md).
+Psi's [wire compatibility owner](../../../psi/interpreter/build-time-evaluation/src/wire_compatibility.rs)
+decodes wire demands and checks their meaning. This evaluator sequences those
+checks and retains their results; package review reconstructs grants through
+the same trust owner without calling the Build evaluator.
+
 Target-declaration preparation, provider-selection decoding and settlement belong to
 [provider planning](../../realization/provider-planning/README.md), not this
 evaluator. The provider planner retains target-declaration custody and consumes

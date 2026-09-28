@@ -1,16 +1,16 @@
 //! Executes one admitted build activation and settles its captured outputs.
 mod machine_evaluation;
 
-use crate::admission::component_assumptions::harvest_component_assumption_acceptances;
 use crate::admission::configuration::{BuildConfig, extract_build_config};
-use crate::admission::declarations::{
-    harvest_behavior_exclusions, harvest_root_grants, harvest_wire_compatibility_demands,
-};
 use crate::admission::selection::root_bindings::collect_root_bindings;
 use crate::admitted_build_program::{AdmittedBuildMachine, SelectedAdmittedBuildMachine};
 use crate::{AdmittedBuildProgram, ComputedBuildConfig};
+use build_time_evaluation::wire_compatibility::harvest_wire_compatibility_demands;
 use diagnostics::Diagnostic;
 use package_compilation::CapturedBuildObservations;
+use trust_model::{
+    harvest_behavior_exclusions, harvest_component_assumption_acceptances, harvest_root_grants,
+};
 
 /// Consume one admitted build activation and extract its durable configuration
 /// and evaluation evidence.

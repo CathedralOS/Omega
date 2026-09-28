@@ -9,6 +9,8 @@ name = "trust_model"
 path = "src/lib.rs"
 
 [dependencies]
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
+checked-interpreter = { path = "../../../psi/interpreter/checked-interpreter" }
 effects = { path = "../../backend/plans/provider-evidence" }
 checked-trees = { path = "../../../psi/representations/checked-trees" }
 checked-trees-to-lowered-psi = { path = "../../../psi/pipeline/05_checked-trees-to-lowered-psi" }
