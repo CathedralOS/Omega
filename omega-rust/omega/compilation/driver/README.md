@@ -24,8 +24,10 @@ the coordinator owns the loop, not those policy decisions.
 It prepares immutable source once, then drives each target's ordinary continuation.
 [Prepared Build products](../products/src/prepared_build.rs)
 retain completed typed continuations by exact Build inputs. `compile_target`
-visibly handles reuse or executes the frontend and Build, then runs each target's
-checking; cache lookup never invokes a stage. Native production consumes each
+calls [the shared checked-source route](src/checked/checking.rs), which owns
+reuse, frontend and Build execution, selected-execution checking and sealing.
+Package review enters that same route without a Build reuse store, so its
+sponsored activations execute independently. Cache lookup never invokes a stage. Native production consumes each
 target's retained Terminal artifact without a second scheduling pass. Product
 reports belong to their product owners; [package.rs](src/compiler/package.rs)
 sequences package custody admission and Terminal production.

@@ -10,9 +10,12 @@ pub use compilation_products::{
 };
 pub use package_compilation::build_execution::RestrictedBuildGrants;
 
-use artifacts::compile_timings::{CompileTimings, counters};
+use artifacts::compile_timings::{
+    BUILD_AND_CHECKED_CONTINUATION, CompileTimings, EXECUTION_SETTLEMENT, StageMeta, counters,
+};
 use compilation_products::{
-    CheckedExecutionRequest, PreparedSourceFrontier, TypedCompilationFrontier,
+    CheckedExecutionRequest, PreparedBuild, PreparedBuilds, PreparedSourceFrontier,
+    TypedCompilationFrontier,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -53,7 +56,7 @@ pub(crate) fn prepare_checked_source(
 
 /// Consume retained frontend work or run assembly and Psi 02-03 explicitly.
 /// The product owner revalidates custody on reuse and retains only completed work.
-pub(crate) fn prepare_typed_frontier(
+fn prepare_typed_frontier(
     source: PreparedCheckedSource,
     child: &CheckedExecutionRequest<'_>,
 ) -> Result<(TypedCompilationFrontier, CompileTimings), Vec<Diagnostic>> {
@@ -130,7 +133,6 @@ fn compile_checked_worker(
             request.collect_timings,
         )?,
     };
-    prepared.admit_root(&request.root_path)?;
     let package_inputs = request.package_inputs.as_ref();
     let child = CheckedExecutionRequest {
         selected_target_profile,
@@ -147,45 +149,99 @@ fn compile_checked_worker(
         permit_unsettled_fused_service_fields: request.permit_unsettled_fused_service_fields,
     };
     let retained_source = request.retain_prepared_source.then(|| prepared.clone());
+    let mut outcome = check_prepared_source(&request.root_path, prepared, child, None)?;
+    if outcome.result.is_ok() {
+        outcome.prepared_source = retained_source;
+    }
+    Ok(outcome)
+}
+
+/// One source-to-checked route for product compilation and package review.
+/// A product batch may retain completed Builds by exact inputs. Sponsored review
+/// activations pass no reuse store and always execute their own Build. Failures
+/// after Build retain its discovery observations, but never a reusable source.
+pub(crate) fn check_prepared_source(
+    root_path: &Path,
+    source: PreparedCheckedSource,
+    child: CheckedExecutionRequest<'_>,
+    builds: Option<&mut PreparedBuilds>,
+) -> Result<CheckedCompileOutcome, Vec<Diagnostic>> {
+    source.admit_root(root_path)?;
     child.admit_package_inputs()?;
-    let (frontier, mut timings) = prepare_typed_frontier(prepared, &child)?;
-    let build_started = std::time::Instant::now();
-    let (built, sources) = build_continuation::evaluate_build_and_continue(
-        &request.root_path,
-        child,
-        frontier,
-        &mut timings,
-    )?;
-    timings.add_completed(
-        artifacts::compile_timings::BUILD_AND_CHECKED_CONTINUATION,
-        build_started.elapsed().as_micros(),
-        artifacts::allocations::AllocationDelta::default(),
-    );
-    let independent_components = built.computed_build_config.independent_components();
-    let settlement_started = std::time::Instant::now();
-    let result = execution_settlement::check_selected_execution(
+    let selected_target_profile = child.selected_target_profile;
+    let package_inputs = child.package_inputs;
+    let rollback = child.optimization_rollback.clone();
+    let permit_unsettled_fused_service_fields = child.permit_unsettled_fused_service_fields;
+
+    // Lookup follows custody admission and never executes a stage. Single
+    // review activations do not construct an unsponsored Build reuse key.
+    let mut reuse = builds.map(|builds| (child.build_execution_inputs(), builds));
+    let completed = reuse
+        .as_mut()
+        .and_then(|(inputs, builds)| builds.begin_target(inputs));
+    let prepared = match completed {
+        Some(prepared) => {
+            drop(source);
+            drop(child);
+            prepared
+        }
+        None => {
+            let (frontier, mut timings) = prepare_typed_frontier(source, &child)?;
+            let (built, build_sources) =
+                timed(&mut timings, BUILD_AND_CHECKED_CONTINUATION, |timings| {
+                    build_continuation::evaluate_build_and_continue(
+                        root_path, child, frontier, timings,
+                    )
+                })?;
+            let prepared = PreparedBuild {
+                built,
+                build_sources,
+                timings,
+            };
+            if let Some((inputs, builds)) = reuse {
+                builds.retain_completed(inputs, &prepared);
+            }
+            prepared
+        }
+    };
+    let PreparedBuild {
         built,
-        selected_target_profile,
-        package_inputs,
-        &request.optimization_rollback,
-        &mut timings,
-        request.permit_unsettled_fused_service_fields,
-    );
-    timings.add_completed(
-        artifacts::compile_timings::EXECUTION_SETTLEMENT,
-        settlement_started.elapsed().as_micros(),
-        artifacts::allocations::AllocationDelta::default(),
-    );
+        build_sources,
+        mut timings,
+    } = prepared;
+    let independent_components = built.computed_build_config.independent_components();
+    let result = timed(&mut timings, EXECUTION_SETTLEMENT, |timings| {
+        execution_settlement::check_selected_execution(
+            built,
+            selected_target_profile,
+            package_inputs,
+            &rollback,
+            timings,
+            permit_unsettled_fused_service_fields,
+        )
+    });
     let result = result.and_then(|execution| {
-        CheckedCompilation::seal(execution, sources, package_inputs, timings)
+        CheckedCompilation::seal(execution, build_sources, package_inputs, timings)
     });
     Ok(CheckedCompileOutcome {
-        prepared_source: if result.is_ok() {
-            retained_source
-        } else {
-            None
-        },
+        prepared_source: None,
         result,
         independent_components,
     })
+}
+
+/// Record an inclusive stage whose subordinate operations also record timings.
+fn timed<T>(
+    timings: &mut CompileTimings,
+    stage: StageMeta,
+    step: impl FnOnce(&mut CompileTimings) -> T,
+) -> T {
+    let started = std::time::Instant::now();
+    let result = step(timings);
+    timings.add_completed(
+        stage,
+        started.elapsed().as_micros(),
+        artifacts::allocations::AllocationDelta::default(),
+    );
+    result
 }
