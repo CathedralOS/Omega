@@ -101,21 +101,46 @@ fn fixture() -> AbstractOperationPlan {
     }
 }
 
-/// The borrowed-call row admits a serviceful Unit callee, but a scalar result
-/// still requires the service-free fixed-native ABI the callee publishes.
+/// Service reach does not change the ABI of an ordinary borrowed scalar call.
 #[test]
-fn borrowed_scalar_call_into_a_serviceful_callee_still_refuses() {
-    let mut source = fixture();
-    let target = NativeTarget::macos_arm64();
-    lower_to_target_operations(&source, TargetLoweringRequest::new(target))
-        .expect("the service-free scalar call lowers");
-    for function in &mut source.functions {
-        function.published_service_ceiling = vec![semantic_vocabulary::ServiceId::new(1).unwrap()];
+fn borrowed_scalar_calls_publish_the_same_abi_with_service_reach() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let mut source = fixture();
+        let without_services =
+            lower_to_target_operations(&source, TargetLoweringRequest::new(native))
+                .expect("the service-free scalar call lowers");
+        for function in &mut source.functions {
+            function.published_service_ceiling =
+                vec![semantic_vocabulary::ServiceId::new(1).unwrap()];
+        }
+        let with_services = lower_to_target_operations(&source, TargetLoweringRequest::new(native))
+            .expect("verified service reach does not change the scalar ABI");
+        crate::validate_abstract_to_target_translation(&source, native, &with_services).unwrap();
+        for (before, after) in without_services
+            .functions
+            .iter()
+            .zip(&with_services.functions)
+        {
+            assert!(after.mixed_structural_scalar_abi.is_some());
+            assert_eq!(
+                before.mixed_structural_scalar_abi,
+                after.mixed_structural_scalar_abi
+            );
+        }
+        let mut forged = with_services.clone();
+        let target_operations::TargetUnitOperation::Call { arguments, .. } =
+            &mut forged.functions[0].graph.blocks[0].operations[0]
+        else {
+            panic!("borrowed scalar call");
+        };
+        arguments[0].access = StructuralAccess::MutableBorrow;
+        assert!(crate::validate_abstract_to_target_translation(&source, native, &forged).is_err());
     }
-    assert!(matches!(
-        lower_to_target_operations(&source, TargetLoweringRequest::new(target)),
-        Err(crate::LoweringError::UnsupportedControlFlow { machine, .. }) if machine == source.functions[0].machine
-    ));
 }
 
 #[test]

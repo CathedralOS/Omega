@@ -240,6 +240,15 @@ impl StateGraphEmission<'_, '_> {
             self.block_ranks
                 .extend(evaluation.blocks.iter().map(|block| (block.id, rank)));
         }
+        crate::scalar_graph::scalar_computations::literals::retain_declarations(
+            &evaluation.literals,
+            evaluation
+                .blocks
+                .iter()
+                .chain(&edge_blocks)
+                .flat_map(|block| &block.operations),
+            &mut self.catalogs.temporary_places,
+        )?;
         self.blocks.extend(evaluation.blocks);
         self.blocks.extend(edge_blocks);
         self.catalogs.next_value = next_value;

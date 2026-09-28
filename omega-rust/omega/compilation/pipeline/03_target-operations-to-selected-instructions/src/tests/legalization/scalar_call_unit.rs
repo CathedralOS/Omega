@@ -4,6 +4,104 @@ use crate::tests::fixtures::scalar_call_unit::scalar_call_unit_fixture;
 use crate::{legalize_target_operations, validate_legalized_operations};
 
 #[test]
+fn scalar_call_service_ceiling_survives_selection_and_mismatches_are_rejected() {
+    use semantic_vocabulary::{FuelScheduleIdentity, ServiceId};
+
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::macos_arm64(),
+    ] {
+        let (mut source, _, _) = scalar_call_unit_fixture();
+        let service = ServiceId::new(1).unwrap();
+        for function in &mut source.functions {
+            function.published_service_ceiling = vec![service];
+        }
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        unit.services = vec![terminal_psi::ServiceDeclaration {
+            id: service,
+            identity: "test::Console".into(),
+            parents: Vec::new(),
+        }]
+        .into();
+        // A permitted service alone performs no service operation or boundary call.
+        assert!(unit.root_service_reach.concrete.is_empty());
+        unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let legalized = legalize_target_operations(&targeted, &source, &unit).unwrap();
+        validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone()).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        // Scalar-only functions retain their ceiling through admitted Unit identity,
+        // without manufacturing a structural parameter or runtime service operand.
+        assert_eq!(selected.plan().functions[0].calls.len(), 3);
+        assert!(
+            selected
+                .plan()
+                .functions
+                .iter()
+                .all(|function| function.structural.is_none())
+        );
+        assert_eq!(selected.receipt().optimization_unit(), unit.identity);
+        assert_eq!(
+            selected.receipt().legalized(),
+            legalized.receipt().identity()
+        );
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+
+        let mut changed = unit.clone();
+        changed.functions[1].published_service_ceiling.clear();
+        changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+        assert_ne!(changed.identity, unit.identity);
+        // Narrowing only the callee leaves ordinary service containment valid.
+        // Rejection must therefore preserve the source/optimized declaration join.
+        optimization_unit_semantics::validate_psi_optimization_unit(&changed).unwrap();
+        assert!(legalize_target_operations(&targeted, &source, &changed).is_err());
+        let mut proposed = legalized.plan().clone();
+        proposed.optimization_unit = changed.identity;
+        assert!(validate_legalized_operations(&targeted, &source, &changed, proposed).is_err());
+
+        let mut changed_source = source.clone();
+        changed_source.functions[1]
+            .published_service_ceiling
+            .clear();
+        assert!(legalize_target_operations(&targeted, &changed_source, &unit).is_err());
+        assert!(
+            validate_legalized_operations(
+                &targeted,
+                &changed_source,
+                &unit,
+                legalized.plan().clone(),
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn bitwise_and_graph_preserves_operand_types_and_independent_replay() {
     bitwise_graph_preserves_operand_types_and_independent_replay(false);
 }

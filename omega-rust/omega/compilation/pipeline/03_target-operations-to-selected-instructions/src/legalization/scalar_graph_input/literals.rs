@@ -18,7 +18,8 @@ pub(super) fn producer(
 }
 
 /// Rejoin one literal independently of unrelated storage or block arrangement.
-/// Whole-unit validation checks producer dominance and borrow availability.
+/// Whole-unit validation checks ordinal density, producer dominance and borrow
+/// availability. A declaration ordinal need not equal its place-roster position.
 pub(super) fn declaration_producer(
     function: &PsiOptimizationFunction,
     source: PlaceId,
@@ -32,20 +33,12 @@ pub(super) fn declaration_producer(
         return None;
     }
     let StructuralPlaceKind::ByteSequenceLiteral {
-        declaration_ordinal,
         structural_type: identity,
+        ..
     } = declaration.kind
     else {
         return None;
     };
-    let ordinal = function
-        .structural_places
-        .iter()
-        .filter(|place| matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. }))
-        .position(|place| place.id == source)?;
-    if usize::try_from(declaration_ordinal).ok()? != ordinal {
-        return None;
-    }
     let mut producers = function
         .blocks
         .iter()

@@ -2179,8 +2179,8 @@ impl Replay<'_> {
     }
 
     /// A scalar-result direct call replays the published fixed-native scalar
-    /// ABI: the callee must be the same service-free family the standalone
-    /// entrance publishes, and the published ABI rows must equal this plan.
+    /// ABI: the callee must have the scalar layout its standalone entrance
+    /// publishes, and the published ABI rows must equal this plan.
     #[allow(clippy::too_many_arguments)]
     fn scalar_call(
         &self,
@@ -2229,7 +2229,6 @@ impl Replay<'_> {
         };
         if !callee_function.structural_parameters.is_empty()
             || !callee_function.entry_claims.is_empty()
-            || !callee_function.published_service_ceiling.is_empty()
             || callee_function.operations.iter().any(|operation| {
                 matches!(
                     operation,
@@ -3313,7 +3312,6 @@ impl Replay<'_> {
                         != Some(actual.shape)
                     || actual.scalar_type != declared.scalar_type
                     || !callee.entry_claims.is_empty()
-                    || !callee.published_service_ceiling.is_empty()
                 {
                     return Err(psi_operation);
                 }

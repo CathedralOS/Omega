@@ -119,11 +119,6 @@ pub(in crate::lowering) fn lower_scalar_call(
         .get(callee)
         .copied()
         .ok_or(LoweringError::UnknownCallTarget(*callee))?;
-    if !callee_function.published_service_ceiling.is_empty() {
-        return Err(LoweringError::UnitScalarCallTargetPublishesServices(
-            *callee,
-        ));
-    }
     if !callee_function.structural_parameters.is_empty() || !callee_function.entry_claims.is_empty()
     {
         return Err(LoweringError::UnitScalarCallTargetShapeUnsupported(*callee));

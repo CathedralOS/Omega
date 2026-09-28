@@ -8,13 +8,14 @@ use semantic_vocabulary::{IeeeFloatFormat, IntegerType, ScalarType};
 use target::NativeTarget;
 use target_operations::{MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi};
 
+// Service ceilings authorize effects; parameter and result layouts determine ABI.
+// Terminal verification checks reach independently of this derived publication.
 pub(super) fn derive_mixed_structural_scalar_function_abi(
     function: &AbstractFunction,
     target: NativeTarget,
     structural_types: &StructuralTypeLookup<'_>,
 ) -> Result<Option<MixedStructuralScalarFunctionAbi>, LoweringError> {
     if function.structural_parameters.is_empty()
-        || !function.published_service_ceiling.is_empty()
         || !function.entry_claims.is_empty()
         || function.operations.iter().any(|operation| {
             matches!(
@@ -79,8 +80,7 @@ pub(super) fn derive_fixed_scalar_function_abi(
     function: &AbstractFunction,
     target: NativeTarget,
 ) -> Result<Option<ScalarFunctionAbi>, LoweringError> {
-    if !function.published_service_ceiling.is_empty()
-        || !function.structural_parameters.is_empty()
+    if !function.structural_parameters.is_empty()
         || !function.entry_claims.is_empty()
         || function.operations.iter().any(|operation| {
             matches!(

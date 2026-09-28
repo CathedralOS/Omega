@@ -147,7 +147,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
         let graph_result = aggregate_results::header(abstracted, targeted, selected);
         // A provider service ceiling is declaration metadata, not a structural
         // argument or an executable permission grant. Retain its exact canonical
-        // source identity even when the Unit ABI has no structural parameters.
+        // source identity independently of scalar or structural ABI placement.
         let mut declarations = current
             .optimized_target()
             .optimized()
@@ -174,9 +174,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 && !unit
                 && !graph_result
                 && targeted.mixed_structural_scalar_abi.is_none())
-            || (structural.is_none()
-                && (!abstracted.entry_claims.is_empty()
-                    || (!unit && !abstracted.published_service_ceiling.is_empty())))
+            || (structural.is_none() && !abstracted.entry_claims.is_empty())
             || (unit
                 && (targeted.scalar_abi.is_some()
                     || targeted.mixed_structural_scalar_abi.is_some()))

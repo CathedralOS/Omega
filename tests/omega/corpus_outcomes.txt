@@ -166,6 +166,7 @@ pass/calls/runtime_value_call_single_execution_exit checked 870ms
 pass/calls/runtime_value_call_statement_recursive_walk_exit checked 831ms
 pass/calls/runtime_value_call_terminal_exit rejected 2453ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 2)
+pass/calls/serviceful_borrowed_scalar_exit checked 883ms @f9a8ced78a89
 pass/calls/statement_call_recursive_overload_compile checked 341ms
 pass/calls/structural_mut_to_shared_argument checked 458ms
 pass/calls/structural_self_rooted_argument checked 477ms

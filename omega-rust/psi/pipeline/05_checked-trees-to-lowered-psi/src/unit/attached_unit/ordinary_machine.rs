@@ -319,6 +319,12 @@ pub(super) fn emit(
         plan.machine,
         structural_types,
     )?;
+    evaluation.literals = crate::scalar_graph::scalar_computations::literals::prepare(
+        checked,
+        plan.machine,
+        structural_types,
+        &mut next_place,
+    )?;
     evaluation.arrays = crate::scalar_graph::scalar_computations::arrays::prepare(
         checked,
         plan.machine,
@@ -741,6 +747,11 @@ pub(super) fn emit(
         },
     });
     evaluation.blocks.sort_by_key(|block| block.id);
+    crate::scalar_graph::scalar_computations::literals::retain_declarations(
+        &evaluation.literals,
+        evaluation.blocks.iter().flat_map(|block| &block.operations),
+        &mut literal_places,
+    )?;
     let computed_array_places = evaluation
         .blocks
         .iter()

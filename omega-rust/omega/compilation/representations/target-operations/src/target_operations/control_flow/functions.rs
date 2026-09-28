@@ -10,9 +10,9 @@ pub struct TargetFunction {
     pub machine: MachineId,
     /// Exact terminal attachment retained for artifact-side nominal cleanup validation.
     pub attachment: Option<StructuralTypeId>,
-    /// Canonical native ABI for the deliberately bounded service-free,
-    /// fixed-integer scalar function family. Other function shapes carry no
-    /// scalar ABI claim.
+    /// Canonical native ABI for supported fixed-width scalar inputs and result.
+    /// Service reach is verified separately and does not change this layout.
+    /// Other function shapes carry no scalar ABI claim.
     pub scalar_abi: Option<ScalarFunctionAbi>,
     /// Canonical ABI for the bounded scalar-result family whose ordered inputs
     /// have a fixed-integer prefix and structural suffix. Results may be a

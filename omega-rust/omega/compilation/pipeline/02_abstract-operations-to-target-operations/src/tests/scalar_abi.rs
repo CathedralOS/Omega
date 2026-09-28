@@ -128,7 +128,7 @@ fn standalone_scalar_entrance_rejects_substituted_rows() {
     }
 }
 
-/// A scalar ABI is derivable only for the scalar-only service-free family.
+/// A scalar ABI is derivable only for supported scalar parameter/result layouts.
 /// A forged entrance on an ineligible function rejects even when its plan is
 /// internally consistent.
 #[test]
