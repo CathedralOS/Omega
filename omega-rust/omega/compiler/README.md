@@ -55,12 +55,13 @@ their before/after physical-source custody checks and final source-consumption
 verification. Retention copies parsed storage for the discovery child and holds
 that frontier until the final child consumes it; it is not a persistent cache.
 
-[Native compilation](src/native/native_product/prepared.rs) prepares and realizes the native
-product; it is not owned by optional optimization or report writing. Re-entry
-from retained Terminal Psi uses `RetainedNativeRealizationRequest`. The current
-API threads a receiving policy alongside the image request; separating its
-mandatory admission gate from ordinary production is tracked by
-`TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`. The
+[Native compilation](src/native/native_product.rs) produces the same retained
+Terminal product as Terminal-only compilation, then consumes it through
+[`realize_retained_native_artifact`](src/native/retained_native_product.rs).
+Fresh compilation and package re-entry share one source-free realization route:
+there is no direct-source native driver, second program-entry artifact, or
+prepared-compilation cache lifecycle. Package acceptance is captured separately
+from the caller's optional receiving policy; neither substitutes for the other. The
 [product contract](../../../wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission)
 requires no receiving policy merely to emit an artifact. Explicit ecosystem
 admission still checks its supplied policy. `CompileOutcomes` returns

@@ -11,7 +11,7 @@ use crate::checked::{
     evaluate_build_and_continue, run_on_compile_thread,
 };
 use crate::compiler::request::{SharedCompileInputs, ValidatedTargetCompilation};
-use crate::native::{NativeInputReuse, prepare_native_product};
+use crate::native::produce_native_report;
 use crate::terminal::produce_terminal_report;
 use crate::{
     CompileOutcomes, CompileReport, CompileRequest, CompileTargetOutcome, OptimizationRollback,
@@ -40,22 +40,14 @@ pub fn compile(request: CompileRequest) -> Result<CompileOutcomes, Vec<Diagnosti
         );
         let target_count = request.targets.len();
         let mut builds = SharedBuilds::for_targets(target_count);
-        let mut native_inputs = NativeInputReuse::default();
         let mut outcomes = Vec::with_capacity(target_count);
         // Checkpoint clones share immutable parsing. repeat_n moves the final
         // copy, so the last (and the only) target consumes the original arenas.
         let sources = std::iter::repeat_n(source, target_count);
         for (target, source) in request.targets.into_iter().zip(sources) {
             let profile = target.profile;
-            let outcome = source.and_then(|source| {
-                compile_target(
-                    &request.shared,
-                    target,
-                    source,
-                    &mut builds,
-                    &mut native_inputs,
-                )
-            });
+            let outcome = source
+                .and_then(|source| compile_target(&request.shared, target, source, &mut builds));
             outcomes.push(CompileTargetOutcome::new(profile, outcome));
         }
         CompileOutcomes::new(outcomes)
@@ -70,7 +62,6 @@ fn compile_target(
     target: ValidatedTargetCompilation,
     source: PreparedCheckedSource,
     builds: &mut SharedBuilds,
-    native_inputs: &mut NativeInputReuse,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let root_path = target.options().root_path.clone();
     let build_dir = target.options().build_dir();
@@ -158,11 +149,9 @@ fn compile_target(
             &target.configuration.terminal_admission_profile,
             &target.configuration.optimization_rollback,
         )?,
-        // Psi 05-07 for the program entry, then Omega 00-09, image emission
-        // and the native report; equal Terminal inputs are prepared once.
+        // The same retained Terminal boundary, then Omega 00-09 and image emission.
         RequestedCompileProduct::NativeArtifact => {
-            let terminal = prepare_native_product(target.into_native_product_request(), checked)?;
-            native_inputs.realize(terminal)?
+            produce_native_report(target.into_native_product_request(), checked)?
         }
     };
     let report = if shared.requested_product != RequestedCompileProduct::Check {

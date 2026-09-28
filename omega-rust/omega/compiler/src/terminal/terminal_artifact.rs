@@ -1,10 +1,8 @@
 //! Checked compilation to the canonical Terminal artifact.
 //!
-//! Two products leave here. The retained Terminal product carries its
-//! callback custody and a native-realization proposal, and returns as the
-//! compiler report; the program-entry artifact is what the direct native
-//! route realizes. Both replay the canonical semantic and proof sections
-//! under the request admission profile before anything downstream sees them.
+//! One product leaves here: retained Terminal with callback custody and a
+//! native-realization proposal. Both Terminal publication and immediate native
+//! production consume this same boundary; no native route reopens checked source.
 
 use crate::checked::{CheckedCompilation, OptimizationRollback};
 use crate::terminal::native_proposal;
@@ -266,7 +264,7 @@ pub fn validate_lowered_integer_comparison_custody(
 /// semantic and proof sections under the request admission profile, and binds
 /// the target-owned native-realization proposal. It does not assemble a
 /// compiler report or enter native realization.
-fn produce_retained_terminal_artifact(
+pub(crate) fn produce_retained_terminal_artifact(
     checked: &mut CheckedCompilation,
     profile: &proof_admission::AdmissionProfile,
     selections: &optimization_core::OptimizationSelections,
@@ -348,138 +346,4 @@ fn produce_retained_terminal_artifact(
         native_realization_proposal,
     )
     .map_err(|message| vec![Diagnostic::error(message)])
-}
-
-/// The Terminal artifact produced for one exact selected program entry, with
-/// the checked receipts and application coverage that native realization
-/// rejoins. Its fields are read only by consuming it.
-pub struct ProgramEntryTerminalArtifact {
-    artifact: terminal_codec::CanonicalTerminalArtifact,
-    checked_program_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
-    checked_boundary_operator_scope:
-        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-    boundary_application_coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
-    callback_placements: Vec<backend_plan::BoundNominalCallbackPlacement>,
-    source_call_occurrences: Vec<lowered_psi::LoweredSourceCallOccurrence>,
-    /// The stage measurements this artifact's production recorded; the caller
-    /// owns merging them back into the checked accumulator it cloned from.
-    stage_timings: CompileTimings,
-}
-
-impl ProgramEntryTerminalArtifact {
-    pub const fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        &self.artifact
-    }
-
-    /// The stage measurements recorded during this artifact's production.
-    pub const fn stage_timings(&self) -> &CompileTimings {
-        &self.stage_timings
-    }
-
-    /// The artifact, its checked program-entry receipt, the checked
-    /// boundary-operator scope, and the boundary application coverage.
-    #[allow(clippy::type_complexity)]
-    pub fn into_parts(
-        self,
-    ) -> (
-        terminal_codec::CanonicalTerminalArtifact,
-        terminal_psi::CheckedProgramEntryTerminalReceipt,
-        lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope,
-        boundary_applications::TerminalBoundaryApplicationCoverage,
-        Vec<backend_plan::BoundNominalCallbackPlacement>,
-        Vec<lowered_psi::LoweredSourceCallOccurrence>,
-    ) {
-        (
-            self.artifact,
-            self.checked_program_entry,
-            self.checked_boundary_operator_scope,
-            self.boundary_application_coverage,
-            self.callback_placements,
-            self.source_call_occurrences,
-        )
-    }
-}
-
-/// Produce the Terminal artifact for one exact selected program entry: the
-/// direct native route's input. The artifact carries the checked entry
-/// receipt, the checked boundary-operator scope and the application coverage
-/// that native realization rejoins; it does not enter realization.
-pub fn produce_program_entry_terminal_artifact(
-    checked: &CheckedCompilation,
-    program_entry: &build_evaluation::SelectedCompilerProgramEntry,
-    optimization_selections: &optimization_core::OptimizationSelections,
-) -> Result<ProgramEntryTerminalArtifact, Vec<Diagnostic>> {
-    // Same admission requirement as the retained product: a settled
-    // `Independent` edge has no product carrier, and the authored exclusions
-    // are verified against the unoptimized composition the direct native
-    // route's artifact is published from.
-    composition_modes::verify_selected_compositions_are_realized(checked)?;
-    let mut stage_timings = checked.timings().clone();
-    let (produced, checked_program_entry) = produce_admitted_entry_artifact(
-        checked,
-        &mut stage_timings,
-        program_entry.source_signature().machine_symbol(),
-        program_entry.source_signature().identity().bytes(),
-        optimization_selections,
-        checked.callback_placements().to_vec(),
-        "native-artifact Terminal",
-    )?;
-    let (
-        artifact,
-        _,
-        _,
-        checked_boundary_operator_scope,
-        callback_placements,
-        source_call_occurrences,
-        selected_ieee_float_comparison_occurrences,
-        selected_integer_comparison_occurrences,
-    ) = produced.into_parts();
-    let module = terminal_codec::decode_module(artifact.semantic_bytes()).map_err(|error| {
-        vec![Diagnostic::error(format!(
-            "native comparison custody could not decode Terminal semantics: {error}"
-        ))]
-    })?;
-    // The direct entrance must perform the same source/provider join as retained
-    // Terminal re-entry. Portable numeric semantics alone do not select a provider.
-    // Realization below retains the exact checked application coverage; ordinary
-    // graph lowering carries each surviving operation into its physical child.
-    terminal_psi_to_abstract_operations::settle_ieee_float_comparison_occurrences(
-        checked,
-        &module,
-        checked.selected_provider_plans(),
-        checked.selected_provider_provenance(),
-        &selected_ieee_float_comparison_occurrences,
-    )?;
-    terminal_psi_to_abstract_operations::settle_integer_comparison_occurrences(
-        checked,
-        &module,
-        checked.selected_provider_plans(),
-        checked.selected_provider_provenance(),
-        &selected_integer_comparison_occurrences,
-    )?;
-    let boundary_application_coverage =
-        terminal_psi_to_abstract_operations::BoundaryApplicationSettlement {
-            checked,
-            selected_provider_plans: checked.selected_provider_plans(),
-            selected_provider_provenance: checked.selected_provider_provenance(),
-            exact_toolchain_sources: checked.exact_toolchain_sources(),
-            target_profile: checked.selected_target_profile(),
-            console_exit_binding: checked.resolved_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            ),
-            process_exit_binding: checked.resolved_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-            ),
-            calling_plan_realizations: checked.boundary_calling_plan_realizations(),
-        }
-        .settle(&artifact, &checked_boundary_operator_scope)?;
-    Ok(ProgramEntryTerminalArtifact {
-        artifact,
-        checked_program_entry,
-        checked_boundary_operator_scope,
-        boundary_application_coverage,
-        callback_placements,
-        source_call_occurrences,
-        stage_timings,
-    })
 }

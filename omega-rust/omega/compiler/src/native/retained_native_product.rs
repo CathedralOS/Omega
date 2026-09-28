@@ -171,6 +171,13 @@ pub fn realize_retained_native_artifact(
             proposal.program_entry().fused_service_establishments(),
         )
         .with_checked_entry(proposal.checked_program_entry());
+        crate::native::validate_native_program_entry_settlement(
+            &artifact,
+            proposal.checked_program_entry(),
+            program_entry,
+            proposal.native_target(),
+        )
+        .map_err(|error| diagnostic("native checked ProgramEntry settlement", error))?;
         crate::native::realize_native_artifact(
             artifact,
             crate::native::NativeRealizationRequest {
