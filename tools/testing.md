@@ -260,6 +260,13 @@ do not describe them as a verified full baseline.
 
 ## Requirements and commands
 
+`python3 tools/doctor.py` checks all of the below in one pass: it compiles,
+links, and runs a probe binary (which is what an Xcode linker older than the
+active SDK breaks), verifies the pinned toolchain resolves, reports mbx and
+cargo-nextest versions, confirms the claims coordination ref answers, and
+checks `pull.rebase`. Exit 1 means a check failed; warnings are degradations
+with the remedy printed beside them.
+
 The selector requires Python 3.9+, Git, the pinned Rust toolchain, and
 `cargo-nextest` 0.9.140 or newer. It uses `mbx` when available, otherwise Cargo.
 Check `mbx nextest --version` (or `cargo nextest --version`); nextest installation
