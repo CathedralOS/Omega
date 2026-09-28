@@ -1,14 +1,14 @@
 use super::{
-    assert_deterministic_fixed_point, fold_with, restage_literal, staged_wrapping_add_inputs,
-    validate,
+    assert_classification_does_not_steer, assert_declines, assert_deterministic_fixed_point,
+    restage_literal, staged_wrapping_add_inputs,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;
 use target::NativeTarget;
 
 #[test]
-fn wrapping_add_zero_fold_rejects_a_nonzero_literal() {
+fn wrapping_add_zero_fold_declines_a_nonzero_literal() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // The literal is the identity element only when it is exactly zero:
@@ -18,56 +18,27 @@ fn wrapping_add_zero_fold_rejects_a_nonzero_literal() {
         for literal_operand in [0u16, 1u16] {
             let mut inputs = staged_wrapping_add_inputs(target, literal_operand);
             restage_literal(&mut inputs, 1);
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "literal at operand {literal_operand} on {target:?}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "literal at operand {literal_operand} on {target:?} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
+                &format!("literal at operand {literal_operand} on {target:?}"),
             );
         }
     }
 }
 
 #[test]
-fn wrapping_add_zero_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
+fn wrapping_add_zero_fold_ignores_a_classification_claiming_another_operand() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        // Each fixture carries the literal at `literal_operand`; claiming the
-        // other `Use` position in the recovery classification selects the
-        // disjoint grammar, whose operand check finds the surviving register
-        // where the victim must sit. Claiming the operand-2 `Def` position
-        // names no grammar's victim position at all.
-        for (literal_operand, claimed_operand, expected) in [
-            (
-                0u16,
-                1u16,
-                LiteralFoldError::ConsumerMismatch { function: 0 },
-            ),
-            (
-                1u16,
-                0u16,
-                LiteralFoldError::ConsumerMismatch { function: 0 },
-            ),
-            (
-                0u16,
-                2u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-            (
-                1u16,
-                2u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-        ] {
+        // Each fixture carries the literal at `literal_operand`; the
+        // recovery classification claims `claimed_operand` instead. The
+        // classification no longer nominates, so the claim neither
+        // redirects nor suppresses the fold the stream itself admits.
+        for (literal_operand, claimed_operand) in
+            [(0u16, 1u16), (1u16, 0u16), (0u16, 2u16), (1u16, 2u16)]
+        {
             let mut inputs = staged_wrapping_add_inputs(target, literal_operand);
             let RecoveryClassification::ImmediateU64RematerializationCandidate {
                 future_uses, ..
@@ -80,21 +51,13 @@ fn wrapping_add_zero_fold_rejects_a_literal_claiming_the_wrong_operand_position(
                 unreachable!()
             };
             future_uses[0].operand = claimed_operand;
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1
-                )
-                .map(|_| ()),
-                Err(expected.clone()),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(expected),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?} \
-                 replay"
+            assert_classification_does_not_steer(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::WRAPPING_ADD_ZERO_V1,
+                &format!(
+                    "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
+                ),
             );
         }
     }

@@ -1,7 +1,7 @@
-use super::{budget, fold_with, restage_literal, staged_and_inputs, validate};
+use super::{assert_declines, budget, restage_literal, staged_and_inputs};
+use crate::LiteralFoldPolicy;
 use crate::analyses::validated_machine_effect_catalog;
 use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
-use crate::{LiteralFoldError, LiteralFoldPolicy};
 use register_environment::baseline_target_register_environment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
@@ -12,7 +12,7 @@ use std::sync::Arc;
 use target::NativeTarget;
 
 #[test]
-fn and_zero_fold_rejects_a_nonzero_literal() {
+fn and_zero_fold_declines_a_nonzero_literal() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // The literal is the annihilator only when it is exactly zero: `x &
@@ -22,20 +22,11 @@ fn and_zero_fold_rejects_a_nonzero_literal() {
         for literal_operand in [0u16, 1u16] {
             let mut inputs = staged_and_inputs(target, literal_operand);
             restage_literal(&mut inputs, 1);
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::BITWISE_AND_ZERO_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "literal at operand {literal_operand} on {target:?}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "literal at operand {literal_operand} on {target:?} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+                &format!("literal at operand {literal_operand} on {target:?}"),
             );
         }
     }
@@ -169,30 +160,15 @@ fn and_zero_fold_drops_a_dead_scratch_def_and_rejects_one_without_dead_custody()
                 assert_eq!(replayed.receipt().applied_count(), 1);
                 assert_eq!(replayed.transformed(), result.transformed());
             } else {
-                assert_eq!(
-                    produced.map(|_| ()),
-                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                    "literal at operand {literal_operand} mutation {mutation}"
-                );
-                assert_eq!(
-                    validate_literal_fold(
-                        &inputs.selected,
-                        &inputs.ranges,
-                        &inputs.legality,
-                        &inputs.spill_choices,
-                        &inputs.recovery,
-                        &inputs.availability,
-                        environment.identity(),
-                        environment.physical(),
-                        environment.constraints(),
-                        environment.reservations(),
-                        &keys,
-                        &effect_catalog,
-                        inputs.selected.plan().clone(),
-                    )
-                    .map(|_| ()),
-                    Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                    "literal at operand {literal_operand} mutation {mutation} replay"
+                // A scratch `Def` another instruction observes is custody the
+                // fold cannot prove: the candidate declines and the replay
+                // refuses a plan claiming it anyway.
+                drop(produced);
+                assert_declines(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::BITWISE_AND_ZERO_V1,
+                    &format!("literal at operand {literal_operand} mutation {mutation}"),
                 );
             }
         }

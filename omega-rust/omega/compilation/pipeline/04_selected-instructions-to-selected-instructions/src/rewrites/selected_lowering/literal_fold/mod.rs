@@ -35,15 +35,26 @@ use register_homes::{
 use register_model::RegisterConstraintKey;
 pub use selected_instructions::LiteralFoldIdentity;
 use selected_instructions::{
-    LiveRangeIdentity, LiveRangePoint, MachineEffectCatalogIdentity, SelectedBlockId,
-    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
-    VirtualRegisterId,
+    LiveRangeIdentity, MachineEffectCatalogIdentity, SelectedBlockId, SelectedInstructionId,
+    SelectedInstructionPlan, SelectedInstructionPlanIdentity, VirtualRegisterId,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 pub(crate) use validate::validate_literal_fold;
 
-/// Fold one classified incoming literal into the enabled consumer that is the
-/// literal's single recorded use later in its block: an unsigned-12-bit
+/// Fold each nominated materialized literal into the enabled consumer that is
+/// the literal's sole use later in its block: nomination scans every
+/// `MaterializeI64` in the function — pressure-recovery victims and ordinary
+/// lowering materializations alike — and keeps the same use/provenance
+/// custody the classification route required: the producer record must be
+/// effect-isolated with a single-operation provenance, the defined register
+/// must occur nowhere else in the function, and the sole `Use` must sit at
+/// one operand of an instruction later in the same block. A record the fold
+/// cannot prove custody over — a register with other occurrences, a use in
+/// another block or a terminator, or a consumer no enabled pair admits —
+/// simply is not nominated: the fold declines it rather than rejecting the
+/// program. A consumer already claimed by an earlier fold in scan order is
+/// declined for the later candidate, so two literal operands of one
+/// instruction fold only the first. An unsigned-12-bit
 /// literal at either operand of the commutative
 /// exact-add, at the right operand of exact-subtract/compare, at the index
 /// operand of the indexed byte load, or at the offset operand of the
@@ -193,7 +204,7 @@ pub(crate) fn fold_selected_incoming_literal<S: ValidatedSelectedAnalysis>(
 }
 
 const LITERAL_FOLD_MAGIC: &[u8; 8] = b"OMGLFD\0\0";
-const LITERAL_FOLD_VERSION: u32 = 12;
+const LITERAL_FOLD_VERSION: u32 = 13;
 
 /// Narrow proof-preserving physical-form fold. This is not a generic constant
 /// fold, instruction scheduler, rematerializer, spill policy, or opt level.
@@ -756,11 +767,11 @@ impl LiteralFoldPlan {
             let raw_machine = u64::from_le_bytes(cursor.array()?);
             let machine = MachineId::new(raw_machine)
                 .ok_or(LiteralFoldDecodeError::InvalidMachineId(raw_machine))?;
-            let action = match cursor.byte()? {
-                0 => None,
-                1 => Some(LiteralFoldAction {
+            let action_count = cursor.length()?;
+            let mut actions = Vec::with_capacity(action_count.min(cursor.remaining()));
+            for _ in 0..action_count {
+                actions.push(LiteralFoldAction {
                     block: SelectedBlockId(u32::from_le_bytes(cursor.array()?)),
-                    pressure_point: LiveRangePoint(u32::from_le_bytes(cursor.array()?)),
                     literal_instruction: SelectedInstructionId(u32::from_le_bytes(cursor.array()?)),
                     victim: VirtualRegisterId(u32::from_le_bytes(cursor.array()?)),
                     consumer_instruction: SelectedInstructionId(u32::from_le_bytes(
@@ -774,10 +785,9 @@ impl LiteralFoldPlan {
                     },
                     immediate: u64::from_le_bytes(cursor.array()?),
                     immediate_constraint: decode_constraint_key(&mut cursor)?,
-                }),
-                tag => return Err(LiteralFoldDecodeError::UnknownOption(tag)),
-            };
-            functions.push(FunctionLiteralFold { machine, action });
+                });
+            }
+            functions.push(FunctionLiteralFold { machine, actions });
         }
         let transformed_selected = SelectedInstructionPlanIdentity::from_bytes(cursor.array()?);
         if cursor.remaining() != 0 {
@@ -810,13 +820,15 @@ impl LiteralFoldPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionLiteralFold {
     pub machine: MachineId,
-    pub action: Option<LiteralFoldAction>,
+    /// Every fold the nomination scan admitted for this function, in block
+    /// and instruction order. Empty when no `MaterializeI64` record met the
+    /// use/provenance custody an enabled pair consumes.
+    pub actions: Vec<LiteralFoldAction>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiteralFoldAction {
     pub block: SelectedBlockId,
-    pub pressure_point: LiveRangePoint,
     pub literal_instruction: SelectedInstructionId,
     pub victim: VirtualRegisterId,
     pub consumer_instruction: SelectedInstructionId,

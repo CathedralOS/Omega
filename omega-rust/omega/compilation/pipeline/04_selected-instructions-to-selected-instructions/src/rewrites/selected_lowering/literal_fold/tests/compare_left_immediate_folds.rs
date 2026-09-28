@@ -12,13 +12,14 @@
 //! successor edges, joins, loops, redefinitions, malformed unit surfaces,
 //! and the producer/replay disagreement matrix.
 use super::{
-    Inputs, fold, fold_with, restage_literal, staged_left_inputs, successor, unsigned, validate,
+    CLASSIFICATION_CORRUPTIONS, Inputs, assert_classification_does_not_steer, assert_declines,
+    corrupt_classification, fold, fold_with, restage_literal, staged_left_inputs, successor,
+    unsigned, validate,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::{
     ValidatedTargetRegisterEnvironment, baseline_target_register_environment,
 };
-use register_homes::{RecoveryClassification, RecoveryVictimRole};
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
     MachineEffectCatalogIdentity, SelectedFunction, SelectedInstruction, SelectedInstructionId,
@@ -228,15 +229,11 @@ fn left_zero_compare_fold_carries_the_reader_flow_audit() {
             4,
             SelectedInstructionKind::MaterializeBooleanI64LessThan,
         );
-        assert_eq!(
-            fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "{target:?} producer"
-        );
-        assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "{target:?} replay"
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::COMPARE_V1,
+            &format!("{target:?} producer"),
         );
 
         // The same staging with an equality-sensing reader folds.
@@ -259,7 +256,7 @@ fn left_zero_compare_fold_carries_the_reader_flow_audit() {
 }
 
 #[test]
-fn left_compare_fold_rejects_every_ordering_sensing_reader_kind() {
+fn left_compare_fold_declines_every_ordering_sensing_reader_kind() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         for kind in [
@@ -270,15 +267,11 @@ fn left_compare_fold_rejects_every_ordering_sensing_reader_kind() {
         ] {
             let mut inputs = staged_left_inputs(target);
             append_reader(&mut inputs, &environment, 0, 4, kind);
-            assert_eq!(
-                fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
-                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                "{kind:?} on {target:?} producer"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                "{kind:?} on {target:?} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::COMPARE_V1,
+                &format!("{kind:?} on {target:?} producer"),
             );
         }
         // The predicate-aware terminators are ordering readers too: the
@@ -305,15 +298,11 @@ fn left_compare_fold_rejects_every_ordering_sensing_reader_kind() {
                     },
                 };
             });
-            assert_eq!(
-                fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
-                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                "{kind:?} on {target:?} producer"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                "{kind:?} on {target:?} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::COMPARE_V1,
+                &format!("{kind:?} on {target:?} producer"),
             );
         }
     }
@@ -347,7 +336,7 @@ fn left_compare_fold_ends_the_carried_flow_at_a_redefinition() {
 }
 
 #[test]
-fn left_compare_fold_refuses_an_unresolved_successor_target() {
+fn left_compare_fold_declines_an_unresolved_successor_target() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // A successor edge naming a block the function does not contain
@@ -357,21 +346,17 @@ fn left_compare_fold_refuses_an_unresolved_successor_target() {
         edit_function(&mut inputs, |function| {
             function.blocks[0].terminator = jump(&environment, 2, 9, 1);
         });
-        assert_eq!(
-            fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "{target:?} producer"
-        );
-        assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-            "{target:?} replay"
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::COMPARE_V1,
+            &format!("{target:?} producer"),
         );
     }
 }
 
 #[test]
-fn left_compare_fold_rejects_decorated_and_misshapen_operands() {
+fn left_compare_fold_declines_decorated_and_misshapen_operands() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     for mutation in 0..6 {
@@ -405,94 +390,35 @@ fn left_compare_fold_rejects_decorated_and_misshapen_operands() {
                 compare.operands.push(extra);
             }),
         }
-        assert_eq!(
-            fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} producer"
-        );
-        assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} replay"
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::COMPARE_V1,
+            &format!("mutation {mutation} producer"),
         );
     }
 }
 
+/// Corrupting only the recovery classification row — role, claimed
+/// operand, carried value, victim, block, or use count — cannot redirect or
+/// suppress the operand-swapped compare fold: nomination reads the stream.
 #[test]
-fn left_compare_fold_rejects_unadmitted_candidate_shapes() {
+fn left_compare_fold_ignores_corrupted_classification_rows() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    for mutation in 0..5 {
+    for corruption in 0..CLASSIFICATION_CORRUPTIONS {
         let mut inputs = staged_left_inputs(target);
-        let slot = inputs.recovery.plan.functions[0]
-            .classification
-            .as_mut()
-            .unwrap();
-        let expected = match mutation {
-            // Only an `Incoming` victim may fold.
-            0 => {
-                slot.role = RecoveryVictimRole::ActiveResident {
-                    current_view: register_model::RegisterViewId(0),
-                    reclaimed_view: register_model::RegisterViewId(0),
-                };
-                LiteralFoldError::UnsupportedVictimRole { function: 0 }
-            }
-            // Claiming the right `Use` names the in-place grammar, whose
-            // operand-1 victim requirement the staged `[victim,
-            // subtrahend]` record does not meet — operand 1 binds the
-            // entry parameter, not the literal register.
-            1 => {
-                let RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    future_uses,
-                    ..
-                } = &mut slot.classification
-                else {
-                    unreachable!()
-                };
-                future_uses[0].operand = 1;
-                LiteralFoldError::ConsumerMismatch { function: 0 }
-            }
-            // An operand position no compare grammar covers.
-            2 => {
-                let RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    future_uses,
-                    ..
-                } = &mut slot.classification
-                else {
-                    unreachable!()
-                };
-                future_uses[0].operand = 7;
-                LiteralFoldError::FutureUseMismatch { function: 0 }
-            }
-            // The classified victim must be the register the literal
-            // record defines and the claimed `Use` binds.
-            3 => {
-                slot.victim = VirtualRegisterId(0);
-                LiteralFoldError::LiteralMismatch { function: 0 }
-            }
-            // A second recorded use means the literal is not single-use.
-            _ => {
-                let RecoveryClassification::ImmediateU64RematerializationCandidate {
-                    future_uses,
-                    ..
-                } = &mut slot.classification
-                else {
-                    unreachable!()
-                };
-                let extra = future_uses[0];
-                future_uses.push(extra);
-                LiteralFoldError::FutureUseMismatch { function: 0 }
-            }
-        };
-        assert_eq!(
-            fold_with(&inputs, &environment, LiteralFoldPolicy::COMPARE_V1).map(|_| ()),
-            Err(expected.clone()),
-            "mutation {mutation} producer"
+        corrupt_classification(&mut inputs, corruption);
+        let result = assert_classification_does_not_steer(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::COMPARE_V1,
+            &format!("corruption {corruption}"),
         );
         assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(expected),
-            "mutation {mutation} replay"
+            result.receipt().applied_count(),
+            1,
+            "corruption {corruption}"
         );
     }
 }
@@ -507,24 +433,11 @@ fn left_compare_fold_replay_rejects_every_decision_field_substitution() {
     for mutation in 0..9 {
         let mut plan = result.plan().clone();
         match mutation {
-            0 => plan.functions[0].action.as_mut().unwrap().result = Some(VirtualRegisterId(0)),
-            1 => plan.functions[0].action.as_mut().unwrap().immediate += 1,
-            2 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .consumer_instruction = SelectedInstructionId(9)
-            }
-            3 => {
-                plan.functions[0]
-                    .action
-                    .as_mut()
-                    .unwrap()
-                    .immediate_constraint
-                    .variant += 1
-            }
-            4 => plan.functions[0].action = None,
+            0 => plan.functions[0].actions[0].result = Some(VirtualRegisterId(0)),
+            1 => plan.functions[0].actions[0].immediate += 1,
+            2 => plan.functions[0].actions[0].consumer_instruction = SelectedInstructionId(9),
+            3 => plan.functions[0].actions[0].immediate_constraint.variant += 1,
+            4 => plan.functions[0].actions.clear(),
             5 => plan.transformed_selected = SelectedInstructionPlanIdentity::from_bytes([99; 32]),
             6 => plan.usage.candidates += 1,
             7 => plan.policy = LiteralFoldPolicy::EXACT_ADD_V1,

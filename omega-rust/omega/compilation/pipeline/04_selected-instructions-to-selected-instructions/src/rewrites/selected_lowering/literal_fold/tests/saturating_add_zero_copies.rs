@@ -1,8 +1,8 @@
 use super::{
-    BlockZeroTerminator, fold_with, staged_saturating_add_carrier_inputs,
-    staged_saturating_add_inputs, validate,
+    BlockZeroTerminator, assert_classification_does_not_steer, assert_declines, fold_with,
+    staged_saturating_add_carrier_inputs, staged_saturating_add_inputs, validate,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;
 use register_model::RegisterOperandAccess;
@@ -11,36 +11,16 @@ use std::sync::Arc;
 use target::NativeTarget;
 
 #[test]
-fn saturating_add_zero_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
+fn saturating_add_zero_fold_ignores_a_classification_claiming_another_operand() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        // Each fixture carries the literal at `literal_operand`; claiming
-        // the other `Use` position in the recovery classification selects
-        // the disjoint grammar, whose operand check finds the surviving
-        // register where the victim must sit. Claiming the operand-2 `Def`
-        // position names no grammar's victim position at all.
-        for (literal_operand, claimed_operand, expected) in [
-            (
-                0u16,
-                1u16,
-                LiteralFoldError::ConsumerMismatch { function: 0 },
-            ),
-            (
-                1u16,
-                0u16,
-                LiteralFoldError::ConsumerMismatch { function: 0 },
-            ),
-            (
-                0u16,
-                2u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-            (
-                1u16,
-                2u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-        ] {
+        // Each fixture carries the literal at `literal_operand`; the
+        // recovery classification claims `claimed_operand` instead. The
+        // classification no longer nominates, so the claim neither
+        // redirects nor suppresses the fold the stream itself admits.
+        for (literal_operand, claimed_operand) in
+            [(0u16, 1u16), (1u16, 0u16), (0u16, 2u16), (1u16, 2u16)]
+        {
             let mut inputs =
                 staged_saturating_add_inputs(target, literal_operand, BlockZeroTerminator::Jump);
             let RecoveryClassification::ImmediateU64RematerializationCandidate {
@@ -54,21 +34,13 @@ fn saturating_add_zero_fold_rejects_a_literal_claiming_the_wrong_operand_positio
                 unreachable!()
             };
             future_uses[0].operand = claimed_operand;
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
-                )
-                .map(|_| ()),
-                Err(expected.clone()),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(expected),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?} \
-                 replay"
+            assert_classification_does_not_steer(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+                &format!(
+                    "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
+                ),
             );
         }
     }
@@ -107,21 +79,13 @@ fn saturating_add_zero_fold_rejects_tied_consumer_operands_but_keeps_the_marks_i
                 inputs.selected = selected;
 
                 if mutation == 1 {
-                    assert_eq!(
-                        fold_with(
-                            &inputs,
-                            &environment,
-                            LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
-                        )
-                        .map(|_| ()),
-                        Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                        "{carrier:?} literal at operand {literal_operand} tied surviving operand"
-                    );
-                    assert_eq!(
-                        validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                        Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                        "{carrier:?} literal at operand {literal_operand} tied surviving \
-                         operand, replay"
+                    assert_declines(
+                        &inputs,
+                        &environment,
+                        LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+                        &format!(
+                            "{carrier:?} literal at operand {literal_operand} tied surviving operand"
+                        ),
                     );
                 } else {
                     let result = fold_with(
@@ -145,7 +109,7 @@ fn saturating_add_zero_fold_rejects_tied_consumer_operands_but_keeps_the_marks_i
 }
 
 #[test]
-fn saturating_add_zero_fold_rejects_a_clamped_consumer_whose_scratch_is_not_custodied() {
+fn saturating_add_zero_fold_declines_a_clamped_consumer_whose_scratch_is_not_custodied() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     // The scratch-defs grammar drops the bound scratch `Def` under
@@ -172,20 +136,11 @@ fn saturating_add_zero_fold_rejects_a_clamped_consumer_whose_scratch_is_not_cust
             let mut selected = inputs.selected.clone();
             selected.transformed = Arc::new(plan);
             inputs.selected = selected;
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_ADD_ZERO_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                "literal at operand {literal_operand} mutation {mutation}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-                "literal at operand {literal_operand} mutation {mutation} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_ADD_ZERO_V1,
+                &format!("literal at operand {literal_operand} mutation {mutation}"),
             );
         }
     }

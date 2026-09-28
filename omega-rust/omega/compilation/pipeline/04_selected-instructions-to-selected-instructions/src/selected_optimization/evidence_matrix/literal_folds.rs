@@ -1410,6 +1410,27 @@ literal_fold_cases! {
         Optimization::SelectedIncomingLiteralCopyMaterialization,
         Optimization::SelectedIncomingWrappingAddZeroIdentityCopy,
         literal_copy_materialization, target::NativeTarget::linux_x64, PRESSURE_PARAMS_X64;
+    // Ordinary literal nomination reaches the next two rules without a
+    // pressure-recovery victim: the narrow-typed literal the u64 recovery
+    // classifier never admits, and the literal index whose `length` operand
+    // always wins the victim pick, are each the sole later-block use of a
+    // custody-carrying `MaterializeI64`.
+    literal_extension_elimination_x64:
+        Optimization::SelectedIncomingLiteralExtensionElimination,
+        Optimization::SelectedIncomingWrappingAddZeroIdentityCopy,
+        literal_extension_elimination, target::NativeTarget::linux_x64, PRESSURE_PARAMS_X64;
+    literal_extension_elimination_aarch64:
+        Optimization::SelectedIncomingLiteralExtensionElimination,
+        Optimization::SelectedIncomingWrappingAddZeroIdentityCopy,
+        literal_extension_elimination, target::NativeTarget::linux_arm64, PRESSURE_PARAMS_AARCH64;
+    u12_load8_indexed_offset_x64:
+        Optimization::SelectedIncomingU12Load8IndexedOffset,
+        Optimization::SelectedIncomingWrappingAddZeroIdentityCopy,
+        u12_load8_indexed_offset, target::NativeTarget::linux_x64, PRESSURE_PARAMS_X64;
+    u12_load8_indexed_offset_aarch64:
+        Optimization::SelectedIncomingU12Load8IndexedOffset,
+        Optimization::SelectedIncomingWrappingAddZeroIdentityCopy,
+        u12_load8_indexed_offset, target::NativeTarget::linux_arm64, PRESSURE_PARAMS_AARCH64;
 }
 
 // -- explicitly justified absent axes ----------------------------------------
@@ -1484,67 +1505,12 @@ mod unwitnessable {
         Optimization::SelectedIncomingWrappingRemainderMinusOneZeroMaterialization
     );
 
-    /// `LiteralExtensionElimination` is unreachable through the public stage:
-    /// every `ZeroExtend*` consumer reads a narrow-typed operand, so the
-    /// materialized literal's register is narrow-typed, while recovery
-    /// classification admits only fixed-u64 victims (`is_fixed_unsigned_u64`)
-    /// — the candidate declines `UnsupportedScalarType` and the stage
-    /// publishes clean with no fold on either ISA.
-    #[test]
-    fn literal_extension_elimination_has_no_executable_workload() {
-        let selections =
-            selections_of(&[Optimization::SelectedIncomingLiteralExtensionElimination]);
-        for (target, pressure) in [
-            (target::NativeTarget::linux_x64(), PRESSURE_PARAMS_X64),
-            (target::NativeTarget::linux_arm64(), PRESSURE_PARAMS_AARCH64),
-        ] {
-            let (module, proof) = literal_extension_elimination(pressure);
-            let output =
-                optimize_selected_instructions(staged(&module, &proof, &selections, target))
-                    .expect("staging publishes without the fold");
-            assert!(
-                !literal_fold_commits(&output.into_replayed_evidence().unwrap()),
-                "no extension fold can commit on {target:?}",
-            );
-        }
-    }
-
-    /// `U12Load8IndexedOffset` is unreachable through the public stage. Every
-    /// `Load8Indexed` emitter pairs the index operand with the view's `length`
-    /// operand, and the length's register outlives the literal index — the
-    /// byte-view retention rows and the memory-access role both re-cite it
-    /// after the load. The spill chooser picks the contender with the maximum
-    /// exclusive end, so the literal is never the selected victim — the rule
-    /// rejects the spill with `UnsupportedVictimRole` on both ISAs. The
-    /// static-extent literal place discharges `index < len` without a guard,
-    /// which would otherwise need a dominating compare — a second literal use
-    /// and the same single-use wall.
-    #[test]
-    fn u12_load8_indexed_offset_never_victim_of_record() {
-        let selections = selections_of(&[Optimization::SelectedIncomingU12Load8IndexedOffset]);
-        for (target, pressure) in [
-            (target::NativeTarget::linux_x64(), PRESSURE_PARAMS_X64),
-            (target::NativeTarget::linux_arm64(), PRESSURE_PARAMS_AARCH64),
-        ] {
-            let (module, proof) = u12_load8_indexed_offset(pressure);
-            let result =
-                optimize_selected_instructions(staged(&module, &proof, &selections, target));
-            assert!(
-                matches!(
-                    &result,
-                    Err(error) if format!("{error:?}").contains("UnsupportedVictimRole")
-                ),
-                "the literal index must lose the victim pick on {target:?}: {result:?}",
-            );
-        }
-    }
-
     /// `U12ByteViewAddressOffset` is unreachable through the public stage.
     /// The only emit path whose operand-1 register could carry a literal is a
     /// first-level `ByteSequenceSubslice`'s `start` — but the same emission
     /// also feeds `start` into the view-length `ExactSubtractI64`, giving the
-    /// literal two uses, which `derive_action` rejects with
-    /// `FutureUseMismatch`. Write-side emits share the bound-obligation wall:
+    /// literal two uses, so ordinary nomination's sole-use custody declines
+    /// it. Write-side emits share the bound-obligation wall:
     /// the index's `index < len` needs a dominating compare (a second use) or
     /// a `len == extent` equation no param-rooted place emits. Element and
     /// runtime-address emits bind computed `scaled`/`O + s` registers, never

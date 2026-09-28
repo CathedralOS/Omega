@@ -1,10 +1,8 @@
 use super::{
-    assert_budget_is_enforced, budget, fold_with, staged_byte_view_address_backing_inputs,
+    assert_budget_is_enforced, assert_declines, fold_with, staged_byte_view_address_backing_inputs,
     staged_byte_view_address_inputs, staged_divide_inputs, staged_load8_indexed_inputs,
 };
-use crate::analyses::validated_machine_effect_catalog;
-use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;
 use register_model::RegisterOperandAccess;
@@ -36,7 +34,7 @@ fn byte_view_address_fold_admits_the_widest_encodable_byte_offset() {
         )
         .expect("the boundary offset folds");
         assert_eq!(result.receipt().applied_count(), 1);
-        assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+        assert_eq!(result.plan().functions[0].actions[0].immediate, 4095);
         assert_eq!(
             result.transformed().functions[0].blocks[0].instructions[0].kind,
             SelectedInstructionKind::AddressOffset { byte_offset: 4095 }
@@ -58,7 +56,7 @@ fn byte_view_address_backing_fold_admits_the_widest_encodable_backing_literal() 
         )
         .expect("the boundary backing literal folds");
         assert_eq!(result.receipt().applied_count(), 1);
-        assert_eq!(result.plan().functions[0].action.unwrap().immediate, 4095);
+        assert_eq!(result.plan().functions[0].actions[0].immediate, 4095);
         assert_eq!(
             result.transformed().functions[0].blocks[0].instructions[0].kind,
             SelectedInstructionKind::AddressOffset { byte_offset: 4095 }
@@ -74,7 +72,7 @@ fn byte_view_address_backing_fold_admits_the_widest_encodable_backing_literal() 
         )
         .expect("the zero backing literal folds");
         assert_eq!(result.receipt().applied_count(), 1);
-        assert_eq!(result.plan().functions[0].action.unwrap().immediate, 0);
+        assert_eq!(result.plan().functions[0].actions[0].immediate, 0);
         assert_eq!(
             result.transformed().functions[0].blocks[0].instructions[0].kind,
             SelectedInstructionKind::AddressOffset { byte_offset: 0 }
@@ -83,13 +81,10 @@ fn byte_view_address_backing_fold_admits_the_widest_encodable_backing_literal() 
 }
 
 #[test]
-fn divide_fold_rejects_a_non_unit_divisor() {
+fn divide_fold_declines_a_non_unit_divisor() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         let keys = environment.allocation_constraint_keys();
-        let effect_catalog =
-            validated_machine_effect_catalog(environment.target(), environment.constraints())
-                .unwrap();
         let inputs = staged_divide_inputs(target);
         let auxiliary_uses = environment
             .constraint(keys.divide_u64)
@@ -116,55 +111,23 @@ fn divide_fold_rejects_a_non_unit_divisor() {
         };
         *value = IntegerValue::Unsigned(2);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::EXACT_DIVIDE_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-            "{target:?} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        inputs.recovery = recovery;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::EXACT_DIVIDE_V1,
+            &format!("{target:?}"),
         );
     }
 }
 
 #[test]
-fn divide_fold_rejects_an_auxiliary_operand_without_zero_custody() {
+fn divide_fold_declines_an_auxiliary_operand_without_zero_custody() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     let keys = environment.allocation_constraint_keys();
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
     let divide_operands = environment
         .constraint(keys.divide_u64)
         .unwrap()
@@ -205,44 +168,13 @@ fn divide_fold_rejects_an_auxiliary_operand_without_zero_custody() {
         let mut selected = inputs.selected.clone();
         selected.transformed = Arc::new(plan);
 
-        assert_eq!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::EXACT_DIVIDE_V1,
-                budget(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation}"
-        );
-        assert_eq!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            ),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} replay"
+        let mut inputs = inputs;
+        inputs.selected = selected;
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::EXACT_DIVIDE_V1,
+            &format!("mutation {mutation}"),
         );
     }
 }

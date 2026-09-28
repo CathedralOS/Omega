@@ -268,7 +268,7 @@ pub(super) fn staged_subtract_inputs(target: NativeTarget) -> Inputs {
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -794,7 +794,7 @@ pub(super) fn staged_add_inputs(target: NativeTarget, literal_operand: u16) -> I
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -1423,7 +1423,7 @@ fn staged_divide_family_inputs(
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -2045,7 +2045,7 @@ fn staged_remainder_family_inputs(
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -2960,7 +2960,7 @@ fn staged_literal_binary_inputs(
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },
@@ -3616,7 +3616,7 @@ fn staged_saturating_divide_family_inputs(
             usage: usage(),
             functions: vec![FunctionLiteralFold {
                 machine,
-                action: None,
+                actions: Vec::new(),
             }],
             transformed_selected: selected_identity,
         },

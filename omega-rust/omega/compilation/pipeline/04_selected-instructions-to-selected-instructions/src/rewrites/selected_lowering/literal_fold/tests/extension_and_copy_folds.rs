@@ -1,10 +1,8 @@
 use super::{
-    assert_deterministic_fixed_point, budget, fold_with, signed, staged_copy_inputs,
-    staged_extension_inputs, unsigned,
+    assert_classification_does_not_steer, assert_declines, assert_deterministic_fixed_point,
+    fold_with, signed, staged_copy_inputs, staged_extension_inputs, unsigned,
 };
-use crate::analyses::validated_machine_effect_catalog;
-use crate::rewrites::{fold_selected_incoming_literal, validate_literal_fold};
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_homes::{RecoveryClassification, RecoveryVictimRole};
 use register_model::RegisterOperandAccess;
@@ -73,7 +71,7 @@ fn extension_elimination_folds_every_unary_consumer_to_a_materialization_on_both
                 });
 
             assert_eq!(result.receipt().applied_count(), 1, "{kind:?}");
-            let action = result.plan().functions[0].action.unwrap();
+            let action = result.plan().functions[0].actions[0];
             assert_eq!(action.result, Some(VirtualRegisterId(2)), "{kind:?}");
             assert_eq!(action.immediate, expected_bits, "{kind:?}");
             assert_eq!(action.surviving, VirtualRegisterId(1), "{kind:?}");
@@ -143,7 +141,7 @@ fn extension_elimination_folds_every_unary_consumer_to_a_materialization_on_both
 }
 
 #[test]
-fn copy_materialization_fold_rejects_unadmitted_candidate_shapes() {
+fn copy_materialization_fold_ignores_corrupted_classification_rows() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
     for mutation in 0..5 {
@@ -194,26 +192,23 @@ fn copy_materialization_fold_rejects_unadmitted_candidate_shapes() {
             }
             _ => unreachable!(),
         }
-        assert_eq!(
-            fold_with(&inputs, &environment, LiteralFoldPolicy::COPY_V1).map(|_| ()),
-            Err(match mutation {
-                0 => LiteralFoldError::UnsupportedVictimRole { function: 0 },
-                1 | 4 => LiteralFoldError::FutureUseMismatch { function: 0 },
-                2 => LiteralFoldError::ConsumerMismatch { function: 0 },
-                _ => LiteralFoldError::LiteralMismatch { function: 0 },
-            }),
-            "mutation {mutation}"
+        // Every mutation corrupts only the recovery classification row;
+        // nomination reads the stream, so the fold still applies to the
+        // literal's real consumer.
+        let result = assert_classification_does_not_steer(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::COPY_V1,
+            &format!("mutation {mutation}"),
         );
+        assert_eq!(result.receipt().applied_count(), 1, "mutation {mutation}");
     }
 }
 
 #[test]
-fn copy_materialization_fold_rejects_result_types_that_cannot_admit_the_literal() {
+fn copy_materialization_fold_declines_result_types_that_cannot_admit_the_literal() {
     let target = NativeTarget::linux_x64();
     let environment = baseline_target_register_environment(target).unwrap();
-    let keys = environment.allocation_constraint_keys();
-    let effect_catalog =
-        validated_machine_effect_catalog(environment.target(), environment.constraints()).unwrap();
     for mutation in 0..4 {
         let inputs = staged_copy_inputs(target, 0x1FF, unsigned(64));
         let mut plan = inputs.selected.transformed().clone();
@@ -235,47 +230,13 @@ fn copy_materialization_fold_rejects_result_types_that_cannot_admit_the_literal(
                 consumer.operands.push(consumer.operands[0]);
             }
         }
-        let mut selected = inputs.selected.clone();
-        selected.transformed = Arc::new(plan);
-
-        assert!(
-            fold_selected_incoming_literal(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                LiteralFoldPolicy::COPY_V1,
-                budget(),
-            )
-            .is_err(),
-            "mutation {mutation}"
-        );
-        assert!(
-            validate_literal_fold(
-                &selected,
-                &inputs.ranges,
-                &inputs.legality,
-                &inputs.spill_choices,
-                &inputs.recovery,
-                &inputs.availability,
-                environment.identity(),
-                environment.physical(),
-                environment.constraints(),
-                environment.reservations(),
-                &keys,
-                &effect_catalog,
-                inputs.selected.plan().clone(),
-            )
-            .is_err(),
-            "mutation {mutation} replay"
+        let mut inputs = inputs;
+        inputs.selected.transformed = Arc::new(plan);
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::COPY_V1,
+            &format!("mutation {mutation}"),
         );
     }
 }

@@ -7,9 +7,9 @@ use crate::{
     ValidatedSelectedAnalysis,
 };
 
-use super::actions::derive_action;
+use super::actions::derive_actions;
 use super::constraints::AdmittedPairs;
-use super::function_rewrite::apply_action;
+use super::function_rewrite::apply_actions;
 
 pub(super) fn derive_function_folds(
     selected: &impl ValidatedSelectedAnalysis,
@@ -33,30 +33,27 @@ pub(super) fn derive_function_folds(
         }
         validate_dense_identifiers(function_index, source)?;
 
-        // A classification row describes only that the victim is a
-        // rematerialization candidate; whether an enabled pair covers its
-        // consumer is a separate admission. When no enabled pair covers
-        // the row's kind or operand position — a partial selection or a
-        // consumer this rule family cannot serve — no fold applies and
-        // the row declines so the spill decision stands untouched.
-        // Records inconsistent with the stream itself still reject.
-        let action = recovery_function
-            .classification
-            .as_ref()
-            .map(|classification| derive_action(function_index, source, classification, rows))
-            .transpose()?
-            .flatten();
-        if let Some(action) = action {
-            apply_action(
+        // Nomination scans the function's own instruction stream rather
+        // than consulting the classification: every `MaterializeI64` whose
+        // record carries the producer custody and whose register's sole
+        // other occurrence is one `Use` operand later in the same block is
+        // a candidate, whichever pressure-recovery role — if any — the
+        // register played. A record the enabled pairs cannot serve
+        // declines so the stream stands untouched; the root binding above
+        // still ties this fold to the exact recovery artifact it ran
+        // alongside.
+        let actions = derive_actions(source, rows);
+        if !actions.is_empty() {
+            apply_actions(
                 function_index,
                 &mut transformed.functions[function_index],
-                action,
+                &actions,
                 rows,
             )?;
         }
         functions.push(FunctionLiteralFold {
             machine: source.machine,
-            action,
+            actions,
         });
     }
 

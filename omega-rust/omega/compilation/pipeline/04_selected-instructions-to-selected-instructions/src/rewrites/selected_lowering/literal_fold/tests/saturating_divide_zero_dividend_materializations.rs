@@ -1,8 +1,8 @@
 use super::{
-    BlockZeroTerminator, fold_with, restage_literal,
-    staged_saturating_divide_zero_dividend_carrier_inputs, validate,
+    BlockZeroTerminator, assert_classification_does_not_steer, assert_declines, fold_with,
+    restage_literal, staged_saturating_divide_zero_dividend_carrier_inputs,
 };
-use crate::{LiteralFoldError, LiteralFoldPolicy};
+use crate::LiteralFoldPolicy;
 use register_environment::baseline_target_register_environment;
 use register_homes::RecoveryClassification;
 use register_model::RegisterOperandAccess;
@@ -14,7 +14,7 @@ use std::sync::Arc;
 use target::NativeTarget;
 
 #[test]
-fn saturating_divide_zero_dividend_fold_rejects_a_non_zero_dividend() {
+fn saturating_divide_zero_dividend_fold_declines_a_non_zero_dividend() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
         // The literal is the zero dividend only under the constant fold:
@@ -30,27 +30,18 @@ fn saturating_divide_zero_dividend_fold_rejects_a_non_zero_dividend() {
                 BlockZeroTerminator::Jump,
             );
             restage_literal(&mut inputs, dividend);
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
-                )
-                .map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} dividend {dividend}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(LiteralFoldError::UnsupportedImmediate { function: 0 }),
-                "{target:?} dividend {dividend} replay"
+            assert_declines(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+                &format!("{target:?} dividend {dividend}"),
             );
         }
     }
 }
 
 #[test]
-fn saturating_divide_zero_dividend_fold_rejects_a_scratch_def_without_dead_custody() {
+fn saturating_divide_zero_dividend_fold_declines_a_scratch_def_without_dead_custody() {
     let target = NativeTarget::linux_arm64();
     let environment = baseline_target_register_environment(target).unwrap();
     // aarch64's clamped signed row writes the bound scratch `Def` at
@@ -79,20 +70,11 @@ fn saturating_divide_zero_dividend_fold_rejects_a_scratch_def_without_dead_custo
         let mut selected = inputs.selected.clone();
         selected.transformed = Arc::new(plan);
         inputs.selected = selected;
-        assert_eq!(
-            fold_with(
-                &inputs,
-                &environment,
-                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
-            )
-            .map(|_| ()),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation}"
-        );
-        assert_eq!(
-            validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-            Err(LiteralFoldError::ConsumerMismatch { function: 0 }),
-            "mutation {mutation} replay"
+        assert_declines(
+            &inputs,
+            &environment,
+            LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+            &format!("mutation {mutation}"),
         );
     }
 }
@@ -182,20 +164,11 @@ fn saturating_divide_zero_dividend_fold_rejects_while_another_instruction_reads_
             inputs.selected = selected;
 
             if target == NativeTarget::linux_arm64() && carrier.is_signed() {
-                assert_eq!(
-                    fold_with(
-                        &inputs,
-                        &environment,
-                        LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
-                    )
-                    .map(|_| ()),
-                    Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                    "{carrier:?} with a block-1 nzcv reader"
-                );
-                assert_eq!(
-                    validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                    Err(LiteralFoldError::EffectSurfaceMismatch { function: 0 }),
-                    "{carrier:?} with a block-1 nzcv reader, replay"
+                assert_declines(
+                    &inputs,
+                    &environment,
+                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+                    &format!("{carrier:?} with a block-1 nzcv reader"),
                 );
             } else {
                 // x86-64's consumer defines no unit — its `rflags`
@@ -216,33 +189,14 @@ fn saturating_divide_zero_dividend_fold_rejects_while_another_instruction_reads_
 }
 
 #[test]
-fn saturating_divide_zero_dividend_fold_rejects_a_literal_claiming_the_wrong_operand_position() {
+fn saturating_divide_zero_dividend_fold_ignores_a_classification_claiming_another_operand() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let environment = baseline_target_register_environment(target).unwrap();
-        // The left-literal grammar folds operand 0 alone: a fixture with
-        // the literal at operand 0 claiming operand 1 or the operand-2
-        // `Def` position names no grammar's victim position, and a
-        // fixture with the literal physically at operand 1 — the refused
-        // `x /| 0` arrangement — claiming operand 0 finds the surviving
-        // register where the victim must sit, a consumer mismatch under
-        // the left-literal grammar.
-        for (literal_operand, claimed_operand, expected) in [
-            (
-                0u16,
-                1u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-            (
-                0u16,
-                2u16,
-                LiteralFoldError::FutureUseMismatch { function: 0 },
-            ),
-            (
-                1u16,
-                0u16,
-                LiteralFoldError::ConsumerMismatch { function: 0 },
-            ),
-        ] {
+        // Each fixture carries the literal at `literal_operand`; the
+        // recovery classification claims `claimed_operand` instead. The
+        // classification no longer nominates, so the claim neither
+        // redirects nor suppresses the fold the stream itself admits.
+        for (literal_operand, claimed_operand) in [(0u16, 1u16), (0u16, 2u16), (1u16, 0u16)] {
             let mut inputs = staged_saturating_divide_zero_dividend_carrier_inputs(
                 target,
                 SaturatingCarrier::U64,
@@ -260,21 +214,13 @@ fn saturating_divide_zero_dividend_fold_rejects_a_literal_claiming_the_wrong_ope
                 unreachable!()
             };
             future_uses[0].operand = claimed_operand;
-            assert_eq!(
-                fold_with(
-                    &inputs,
-                    &environment,
-                    LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1
-                )
-                .map(|_| ()),
-                Err(expected.clone()),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
-            );
-            assert_eq!(
-                validate(&inputs, &environment, inputs.selected.plan().clone()).map(|_| ()),
-                Err(expected),
-                "literal at operand {literal_operand} claiming {claimed_operand} on {target:?} \
-                 replay"
+            assert_classification_does_not_steer(
+                &inputs,
+                &environment,
+                LiteralFoldPolicy::SATURATING_DIVIDE_ZERO_V1,
+                &format!(
+                    "literal at operand {literal_operand} claiming {claimed_operand} on {target:?}"
+                ),
             );
         }
     }

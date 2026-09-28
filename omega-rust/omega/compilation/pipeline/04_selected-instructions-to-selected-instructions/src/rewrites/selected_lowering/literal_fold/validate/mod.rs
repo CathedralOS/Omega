@@ -77,8 +77,8 @@ pub(crate) fn validate_literal_fold<S: ValidatedSelectedAnalysis>(
     }
     let applied_count = expected_functions
         .iter()
-        .filter(|function| function.action.is_some())
-        .count();
+        .map(|function| function.actions.len())
+        .sum();
     let usage = reconstruct_fold_usage(selected, &expected_functions)?;
     if plan.usage != usage {
         return Err(LiteralFoldError::UsageMismatch);
