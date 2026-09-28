@@ -192,8 +192,8 @@ fn window_rows_reject_extent_field_and_home_substitution() {
                 (1, TargetUnitOperation::StoreStructuralField { field, .. }) => {
                     *field = StructuralFieldId::new(1).unwrap()
                 }
-                (2, TargetUnitOperation::StoreStructuralField { value_home, .. }) => {
-                    *value_home = displaced_home.clone()
+                (2, TargetUnitOperation::StoreStructuralField { value, .. }) => {
+                    *value = displaced_home.place()
                 }
                 (
                     3,
@@ -250,4 +250,72 @@ fn window_pair_over_a_shared_root_rejects_in_target_lowering() {
         ),
         "{error:?}"
     );
+}
+
+#[test]
+fn owned_parameter_reseats_window_through_exact_abi_transport() {
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let mut source = source(StructuralAccess::MutableBorrow);
+        // The replacement comes from the caller, not from a synthetic leaf
+        // copy. Keep the move/store pair and its nonzero destination offset.
+        source.functions[0].operations.remove(0);
+        source.functions[0]
+            .structural_parameters
+            .push(StructuralParameterDeclaration {
+                place: place(2),
+                position: 1,
+                is_self: false,
+                structural_type: inner(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            });
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            TargetLoweringRequest::new(native),
+        )
+        .expect("owned argument can reseat the window");
+        let legal = legalize_target_operations(&target, &source, &unit).unwrap();
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legal, &environment);
+        let selected = crate::select_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap();
+        crate::validate_selected_instructions(
+            &legal,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap();
+        let mut changed = target.clone();
+        let TargetUnitOperation::StoreStructuralField { value, .. } =
+            &mut changed.functions[0].graph.blocks[0].operations[1]
+        else {
+            unreachable!()
+        };
+        *value = place(3);
+        assert!(
+            legalize_target_operations(&changed, &source, &unit).is_err(),
+            "the same-typed displaced value cannot replace the declared parameter"
+        );
+    }
 }

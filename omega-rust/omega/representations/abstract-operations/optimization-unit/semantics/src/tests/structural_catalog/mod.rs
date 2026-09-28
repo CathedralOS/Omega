@@ -1,5 +1,6 @@
 //! Optimizer module role: stage group. Structural type, domain, function-catalog, root, and provider validation tests.
 
+mod borrowed_windows;
 mod catalog;
 mod content_projection;
 mod function_catalog;

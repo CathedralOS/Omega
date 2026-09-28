@@ -123,9 +123,9 @@ pub(super) fn operation(
         // the consumed value's producer home, and writes that root.
         AbstractOperation::StoreStructuralField { psi_operation, destination, path, field, value } => {
             graph.blocks.iter().flat_map(|block| &block.operations).filter(|row| match row {
-                TargetUnitOperation::StoreStructuralField { psi_operation: retained, destination: retained_destination, path: retained_path, field: retained_field, value_home, indices, .. }
+                TargetUnitOperation::StoreStructuralField { psi_operation: retained, destination: retained_destination, path: retained_path, field: retained_field, value: retained_value, indices, .. }
                     if retained == psi_operation && retained_destination == destination && retained_path == path
-                        && retained_field == field && value_home.place() == value.place => {
+                        && retained_field == field && *retained_value == value.place => {
                     indices.len() == retained_path.iter().filter(|segment|
                         matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. })).count()
                 }

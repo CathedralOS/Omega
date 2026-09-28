@@ -853,8 +853,7 @@ pass/structural/borrowed_array_state_carry checked 309ms
 pass/structural/case_field_local_store checked 1594ms
 pass/structural/case_field_member_store checked 1683ms
 pass/structural/case_payload_record_member_read checked 1583ms
-pass/structural/element_store rejected 1681ms
-	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(StructuralCatalogMismatch { machine: Some(MachineId(2)) }))
+pass/structural/element_store checked 1681ms
 pass/structural/local_record_receivers checked 293ms
 pass/structural/sum_attachment_receiver_compile checked 319ms
 pass/targets/aarch64_hfa_entry_argument checked 1392ms
