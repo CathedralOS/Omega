@@ -6,7 +6,7 @@ use artifacts::compile_timings::CompileTimings;
 use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
-use package_compilation::source_imports::project_roots;
+use package_compilation::source_imports::ProjectSourceSelection;
 use package_compilation::source_imports::{
     PackageImportPhase, PendingPackageImport, discover_imports, discover_package_imports,
 };
@@ -41,37 +41,12 @@ impl ImmutableSourceParseCheckpoint {
         package_inputs: Option<&PackageCompilationInputs>,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let project_roots = project_roots(root_path);
-        let selected_build_path = project_roots
-            .build
-            .as_deref()
-            .map(|path| {
-                path.canonicalize().map_err(|error| {
-                    vec![Diagnostic::error(format!(
-                        "failed to establish exact build source {}: {error}",
-                        path.display()
-                    ))]
-                })
-            })
-            .transpose()?;
+        let project = ProjectSourceSelection::prepare(root_path)?;
         let mut imports = ImportQueue::default();
-        // Every project root joins as a product-scope instance except the
-        // selected build entry, which joins as a build-scope instance only:
-        // it and the root-local files its instance transitively imports
-        // resolve `build_depend`/`build_depend_as` edges, never product
-        // edges. A root-local file imported from both contexts loads one
-        // checked instance per scope.
-        for root in &project_roots.sources {
-            let canonical = root.canonicalize().ok();
-            let scope = if canonical.is_some() && canonical == selected_build_path {
-                source::DependencyScope::Build
-            } else {
-                source::DependencyScope::Product
-            };
-            imports.seed(root.clone(), scope);
+        for (path, scope) in project.sources() {
+            imports.seed(path.clone(), *scope);
         }
-
-        let mut source_storage = initialize_source_storage(root_path, package_inputs)?;
+        let mut source_storage = SourceStorage::prepare(root_path, package_inputs)?;
         let package_imports = load_target_independent_imports(
             &mut source_storage,
             &mut imports,
@@ -79,32 +54,7 @@ impl ImmutableSourceParseCheckpoint {
             package_inputs,
             timings,
         )?;
-        let build_source_id = selected_build_path
-            .as_deref()
-            .map(|selected| {
-                source_storage
-                    .files
-                    .iter()
-                    .find(|(_, file)| {
-                        file.path
-                            .canonicalize()
-                            .is_ok_and(|loaded| loaded == selected)
-                            && source_storage
-                                .sources
-                                .get(file.source_id)
-                                .is_some_and(|source| {
-                                    source.dependency_scope == source::DependencyScope::Build
-                                })
-                    })
-                    .map(|(_, file)| file.source_id)
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(format!(
-                            "selected build source {} disappeared from the loaded frontier",
-                            selected.display()
-                        ))]
-                    })
-            })
-            .transpose()?;
+        let build_source_id = project.build_source_id(&source_storage)?;
         let application = validate_selected_build_role(&source_storage, build_source_id)?;
         Ok(Self {
             root_path: root_path.to_path_buf(),
@@ -245,51 +195,6 @@ impl ImmutableSourceParseCheckpoint {
             generated_source_custody,
         )?;
         Ok((source_file_count, syntax))
-    }
-}
-
-fn initialize_source_storage(
-    root_path: &Path,
-    package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<SourceStorage, Vec<Diagnostic>> {
-    match package_inputs {
-        Some(package_inputs) => {
-            package_inputs.validate_for_compilation(
-                root_path,
-                &package_compilation::source_imports::bundled_core_root()?,
-            )?;
-            let root_package = package_inputs
-                .package_root(package_inputs.root())
-                .expect("validated package inputs retain their root")
-                .to_path_buf();
-            let mut storage = SourceStorage::for_package_compilation(
-                root_package,
-                package_inputs.root(),
-                package_compilation::source_imports::bundled_core_root()?,
-            );
-            for (identity, source_root) in package_inputs.packages() {
-                storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
-            }
-            // The authorized product dependency roster rides with the
-            // retained source map so later evaluator queries resolve
-            // `alias::path` under each query occurrence's own product scope.
-            // `dependencies()` yields product-purpose edges only; build edges
-            // never authorize product selection.
-            storage
-                .sources
-                .retain_product_dependency_scope(package_inputs.dependencies());
-            Ok(storage)
-        }
-        None => {
-            let root_package = root_path
-                .parent()
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| PathBuf::from("."));
-            Ok(SourceStorage::for_compilation(
-                root_package,
-                package_compilation::source_imports::bundled_omega_root()?,
-            ))
-        }
     }
 }
 

@@ -31,6 +31,50 @@ struct RegisteredPackageRoot {
 }
 
 impl SourceStorage {
+    /// Initialize exact package roots and product dependency authority before loading.
+    /// Build-only dependencies never authorize product source selection.
+    pub fn prepare(
+        root_path: &Path,
+        package_inputs: Option<&crate::PackageCompilationInputs>,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        match package_inputs {
+            Some(package_inputs) => {
+                package_inputs.validate_for_compilation(root_path, &super::bundled_core_root()?)?;
+                let root_package = package_inputs
+                    .package_root(package_inputs.root())
+                    .expect("validated package inputs retain their root")
+                    .to_path_buf();
+                let mut storage = SourceStorage::for_package_compilation(
+                    root_package,
+                    package_inputs.root(),
+                    super::bundled_core_root()?,
+                );
+                for (identity, source_root) in package_inputs.packages() {
+                    storage.register_reconciled_package_root(source_root.to_path_buf(), identity);
+                }
+                // The authorized product dependency roster rides with the
+                // retained source map so later evaluator queries resolve
+                // `alias::path` under each query occurrence's own product scope.
+                // `dependencies()` yields product-purpose edges only; build edges
+                // never authorize product selection.
+                storage
+                    .sources
+                    .retain_product_dependency_scope(package_inputs.dependencies());
+                Ok(storage)
+            }
+            None => {
+                let root_package = root_path
+                    .parent()
+                    .map(Path::to_path_buf)
+                    .unwrap_or_else(|| PathBuf::from("."));
+                Ok(SourceStorage::for_compilation(
+                    root_package,
+                    super::bundled_omega_root()?,
+                ))
+            }
+        }
+    }
+
     pub fn for_compilation(default_package_root: PathBuf, toolchain_root: PathBuf) -> Self {
         Self {
             default_package_root: normalize_directory(default_package_root),
