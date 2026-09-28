@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    builder.application("vec_duplicate_cleanup");
+    builder.depend(Source::Path { location: "../../../../../source/library/alloc" });
+}

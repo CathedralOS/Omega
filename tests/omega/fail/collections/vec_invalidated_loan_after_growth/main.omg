@@ -1,29 +1,19 @@
-// A loan into a vec's storage must not survive growth: `push` needs
-// exclusive `&mut` access to `self.vec`, but the `slots` borrow of
-// `self.vec.items` is still live (it is used after the call), so the
+// A loan into a vec's backing must not survive growth: `grow8to16` needs
+// exclusive `&mut` access to `self.b8` (the resident store), but the `slots`
+// borrow of `self.b8.e` is still live (it is used after the call), so the
 // growth call is rejected while the loan is active.
 
-data GrowVec {
-    items: [i32; 4];
-    length: u64 in Wrapping;
-}
-
-machine GrowVec::push(&mut self, value: i32)
-requires
-    self.length < self.items.len
-{
-    let slots: &mut [i32] = self.items.as_mut_slice();
-    let index: u64 in Wrapping = self.length;
-    slots[index] = value;
-    self.length = self.length + 1;
-}
+use alloc::vec;
 
 data Main {
-    vec: GrowVec;
+    v: Vec;
+    b8: Backing8;
+    b16: Backing16;
 }
 
 machine Main::main(&mut self) {
-    let slots: &mut [i32] = self.vec.items.as_mut_slice();
-    self.vec.push(7);
+    let slots: &mut [u32] = self.b8.e.as_mut_slice();
+    let r16: Request = Request::Denied;
+    _ = self.v.grow8to16(&mut self.b8, &mut self.b16, r16);
     slots[0] = 1;
 }
