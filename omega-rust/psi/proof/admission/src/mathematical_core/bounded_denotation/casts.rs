@@ -98,14 +98,18 @@ impl Denotation {
         }))
     }
 
-    /// `IntLe a' b'` — the denoted `IntLe` application over two already
-    /// interned endpoints.
-    fn integer_less_or_equal_term(
+    /// The chosen strict or inclusive order over two interned endpoints.
+    fn cast_order_term(
         &mut self,
         left: TermHandle,
         right: TermHandle,
+        strict: bool,
     ) -> Result<TermHandle, BoundedDenotationError> {
-        let position = self.integer_less_or_equal()?;
+        let position = if strict {
+            self.integer_less_than()?
+        } else {
+            self.integer_less_or_equal()?
+        };
         let relation = self.constant(position);
         let function = self.arena.insert(Term::Apply {
             function: relation,
@@ -164,12 +168,10 @@ impl Denotation {
         conclusion: &Proposition,
     ) -> Result<Option<TermHandle>, BoundedDenotationError> {
         let goal = self.denote(conclusion)?;
-        let Some(super::IntegerRelation::LessOrEqual {
-            left: goal_left,
-            right: goal_right,
-        }) = self.integer_relation(goal)
-        else {
-            return Ok(None);
+        let (strict, goal_left, goal_right) = match self.integer_relation(goal) {
+            Some(super::IntegerRelation::LessThan { left, right }) => (true, left, right),
+            Some(super::IntegerRelation::LessOrEqual { left, right }) => (false, left, right),
+            _ => return Ok(None),
         };
 
         // The denoted chain edges, in chain order.
@@ -226,81 +228,87 @@ impl Denotation {
         // The initial bound, its type, the fixed endpoint, the moving
         // side's law direction (endpoint 0 = left, 1 = right), and the
         // chain index transport starts at.
-        let (mut bound, mut bound_ty, endpoint, moving_endpoint, start) =
-            if *root_bound == Proposition::Truth {
-                // `min ≤ target` / `target ≤ max` for the surviving interval:
-                // the endpoint originates at the carrier whose own minimum
-                // (maximum) is the interval's, then transports forward.
-                let lower = self.arena.structurally_equal(goal_right, target);
-                let upper = self.arena.structurally_equal(goal_left, target);
-                if lower == upper {
+        let (mut bound, mut bound_ty, endpoint, moving_endpoint, start) = if *root_bound
+            == Proposition::Truth
+        {
+            if strict {
+                return Ok(None);
+            }
+            // `min ≤ target` / `target ≤ max` for the surviving interval:
+            // the endpoint originates at the carrier whose own minimum
+            // (maximum) is the interval's, then transports forward.
+            let lower = self.arena.structurally_equal(goal_right, target);
+            let upper = self.arena.structurally_equal(goal_left, target);
+            if lower == upper {
+                return Ok(None);
+            }
+            if values.len() != chain.carriers().len() {
+                return Ok(None);
+            }
+            let mut selected: Option<usize> = None;
+            let mut selected_bound = 0i128;
+            for (index, carrier) in chain.carriers().iter().enumerate() {
+                let Some((minimum, maximum)) = carrier_interval(*carrier) else {
                     return Ok(None);
-                }
-                if values.len() != chain.carriers().len() {
-                    return Ok(None);
-                }
-                let mut selected: Option<usize> = None;
-                let mut selected_bound = 0i128;
-                for (index, carrier) in chain.carriers().iter().enumerate() {
-                    let Some((minimum, maximum)) = carrier_interval(*carrier) else {
-                        return Ok(None);
-                    };
-                    let candidate = if lower { minimum } else { maximum };
-                    let better = match selected {
-                        None => true,
-                        Some(_) => {
-                            if lower {
-                                candidate > selected_bound
-                            } else {
-                                candidate < selected_bound
-                            }
+                };
+                let candidate = if lower { minimum } else { maximum };
+                let better = match selected {
+                    None => true,
+                    Some(_) => {
+                        if lower {
+                            candidate > selected_bound
+                        } else {
+                            candidate < selected_bound
                         }
-                    };
-                    if better {
-                        selected = Some(index);
-                        selected_bound = candidate;
                     }
+                };
+                if better {
+                    selected = Some(index);
+                    selected_bound = candidate;
                 }
-                let Some(origin) = selected else {
-                    return Ok(None);
-                };
-                let (endpoint_term, evidence) =
-                    self.carrier_bound(&values[origin], lower, &chain.carriers()[origin])?;
-                let endpoint = self.fixed_scalar_term(&endpoint_term)?;
-                let value_term = self.fixed_scalar_term(&values[origin])?;
-                let bound_ty = if lower {
-                    self.integer_less_or_equal_term(endpoint, value_term)?
-                } else {
-                    self.integer_less_or_equal_term(value_term, endpoint)?
-                };
-                // `min ≤ v` moves the right endpoint, `v ≤ max` the left.
-                (evidence, bound_ty, endpoint, usize::from(lower), origin)
-            } else {
-                let root_ty = self.denote(root_bound)?;
-                let Some(super::IntegerRelation::LessOrEqual { left, right }) =
-                    self.integer_relation(root_ty)
-                else {
-                    return Ok(None);
-                };
-                let root = self.fixed_scalar_term(chain.root())?;
-                let (endpoint, moving_endpoint) = if self.arena.structurally_equal(right, root) {
-                    // `lit ≤ root` — the value is the right endpoint.
-                    (left, 1usize)
-                } else if self.arena.structurally_equal(left, root) {
-                    // `root ≤ lit` — the value is the left endpoint.
-                    (right, 0usize)
-                } else {
-                    return Ok(None);
-                };
-                (root_evidence, root_ty, endpoint, moving_endpoint, 0)
+            }
+            let Some(origin) = selected else {
+                return Ok(None);
             };
+            let (endpoint_term, evidence) =
+                self.carrier_bound(&values[origin], lower, &chain.carriers()[origin])?;
+            let endpoint = self.fixed_scalar_term(&endpoint_term)?;
+            let value_term = self.fixed_scalar_term(&values[origin])?;
+            let bound_ty = if lower {
+                self.cast_order_term(endpoint, value_term, false)?
+            } else {
+                self.cast_order_term(value_term, endpoint, false)?
+            };
+            // `min ≤ v` moves the right endpoint, `v ≤ max` the left.
+            (evidence, bound_ty, endpoint, usize::from(lower), origin)
+        } else {
+            let root_ty = self.denote(root_bound)?;
+            let (left, right) = match self.integer_relation(root_ty) {
+                Some(super::IntegerRelation::LessThan { left, right }) if strict => (left, right),
+                Some(super::IntegerRelation::LessOrEqual { left, right }) if !strict => {
+                    (left, right)
+                }
+                _ => return Ok(None),
+            };
+            let root = self.fixed_scalar_term(chain.root())?;
+            let (endpoint, moving_endpoint) = if self.arena.structurally_equal(right, root) {
+                // The root is the right endpoint; the left stays fixed.
+                (left, 1usize)
+            } else if self.arena.structurally_equal(left, root) {
+                // The root is the left endpoint; the right stays fixed.
+                (right, 0usize)
+            } else {
+                return Ok(None);
+            };
+            (root_evidence, root_ty, endpoint, moving_endpoint, 0)
+        };
 
         for edge in &edges[start..] {
             let (equality_ty, equality) = step_equality(self, edge)?;
             let step_goal = if moving_endpoint == 1 {
-                self.integer_less_or_equal_term(endpoint, edge.next)?
+                self.cast_order_term(endpoint, edge.next, strict)?
             } else {
-                self.integer_less_or_equal_term(edge.next, endpoint)?
+                self.cast_order_term(edge.next, endpoint, strict)?
             };
             let Some(next_bound) = self.order_substitution_evidence(
                 bound_ty,
