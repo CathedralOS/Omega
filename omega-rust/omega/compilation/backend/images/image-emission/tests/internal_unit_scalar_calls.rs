@@ -13,6 +13,13 @@
 //! an earlier producer; those substitutions still encode. Each must recompute
 //! a distinct installation fingerprint and be rejected by independent replay
 //! against the unchanged image.
+//!
+//! The still-encoding slack legs of the scalar-call, scalar-ABI and
+//! integer-constant families run through the shared
+//! `run_one_field_substitution_matrix` driver over their declared
+//! `*SlackFieldForTest` inventories. The canonical-projection substitutions
+//! are unrepresentable rows: their encode refusals stay authored explicitly,
+//! as does the byte-level reader fault injection.
 
 use calling_conventions::{
     CallSignature, CallbackMaterialization, CallingPolicy, EntryControl, MachineRegister,
@@ -20,10 +27,10 @@ use calling_conventions::{
     ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use image_emission::{
-    InstallationError, InstalledFunction, InstalledInternalUnitScalarCall,
-    build_installation_record, build_object_artifact, decode_installation_record,
-    emit_direct_executable_image, encode_installation_record, installation_fingerprint,
-    validate_installation_record,
+    ExecutableImage, InstallationError, InstallationFingerprint, InstallationRecord,
+    InstalledFunction, InstalledInternalUnitScalarCall, build_installation_record,
+    build_object_artifact, decode_installation_record, emit_direct_executable_image,
+    encode_installation_record, installation_fingerprint, validate_installation_record,
 };
 use machine_code::{
     InternalCallRelocation, InternalUnitScalarArgumentSourceRecord,
@@ -32,6 +39,9 @@ use machine_code::{
     ScalarControlFlowEvidence, ScalarStackEvidence, SemanticCodeAttribution, SemanticCodeSite,
     StackAdjustmentPair, UnitAffineCleanupRecord, UnitCallStackEvidence, UnitIntegerConstantRecord,
     UnitScalarHomeRecord, UnitStackEvidence,
+};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
 use semantic_vocabulary::{
     EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ProfileDecisionId,
@@ -117,156 +127,21 @@ fn installation_internal_unit_scalar_call_row_rejects_every_one_field_substituti
     let wrong_result_source = wrong_placement.clone();
     let wrong_argument_destination = wrong_placement.clone();
 
-    // Interval and producer slack that survives the canonical shape joins: the
-    // call span may extend past its nested result interval, argument and result
-    // intervals may move inside the call span, the operation ordinal may grow
-    // while roster order and constant precedence survive, and a `Home` source
-    // may name any earlier producer in the same caller. Each substitution
-    // encodes, decodes to the same record, recomputes a distinct installation
-    // identity, and is rejected by independent replay against the unchanged
-    // image.
-    type SlackMutation = (
-        &'static str,
-        usize,
-        Box<dyn Fn(&mut InstalledInternalUnitScalarCall)>,
-    );
-    let slack_mutations: Vec<SlackMutation> = vec![
-        (
-            "operation_ordinal",
-            0,
-            Box::new(|row| {
-                row.custody.operation_ordinal = 2;
-            }),
-        ),
-        (
-            "operation_ordinal::second_call",
-            1,
-            Box::new(|row| {
-                row.custody.operation_ordinal = 3;
-            }),
-        ),
-        (
-            "byte_count",
-            0,
-            Box::new(|row| {
-                row.custody.byte_count = 32;
-            }),
-        ),
-        (
-            "byte_count::second_call",
-            1,
-            Box::new(|row| {
-                row.custody.byte_count = 36;
-            }),
-        ),
-        (
-            "result.code_offset",
-            0,
-            Box::new(|row| {
-                row.custody.result.code_offset = 31;
-            }),
-        ),
-        (
-            "result.byte_count",
-            0,
-            Box::new(|row| {
-                row.custody.result.byte_count = 7;
-            }),
-        ),
-        (
-            "argument.code_offset",
-            0,
-            Box::new(|row| {
-                row.custody.arguments[0].code_offset = 14;
-            }),
-        ),
-        (
-            "argument.byte_count",
-            0,
-            Box::new(|row| {
-                row.custody.arguments[0].byte_count = 9;
-            }),
-        ),
-        (
-            "argument.source::earlier_home",
-            1,
-            Box::new(move |row| {
-                row.custody.arguments[0].source =
-                    InternalUnitScalarArgumentSourceRecord::Home(produced_home);
-            }),
-        ),
-        (
-            "result.code_offset::second_call",
-            1,
-            Box::new(|row| {
-                row.custody.result.code_offset = 62;
-            }),
-        ),
-        (
-            "result.byte_count::second_call",
-            1,
-            Box::new(|row| {
-                row.custody.result.byte_count = 7;
-            }),
-        ),
-        (
-            "argument.code_offset::second_call",
-            1,
-            Box::new(|row| {
-                row.custody.arguments[0].code_offset = 45;
-            }),
-        ),
-        (
-            "argument.byte_count::second_call",
-            1,
-            Box::new(|row| {
-                row.custody.arguments[0].byte_count = 11;
-            }),
-        ),
-    ];
-    for (field, row_index, mutate) in slack_mutations {
-        let mut changed = record.clone();
-        mutate(&mut changed.internal_unit_scalar_calls_mut_for_test()[row_index]);
-        assert_ne!(changed, record, "{field}: substitution changes the row");
-        let bytes = encode_installation_record(&changed)
-            .unwrap_or_else(|error| panic!("{field}: slack substitution encodes: {error:?}"));
-        let replayed = decode_installation_record(&bytes)
-            .unwrap_or_else(|error| panic!("{field}: slack substitution decodes: {error:?}"));
-        assert_eq!(replayed, changed, "{field}: codec round trip is exact");
-        assert_ne!(
-            installation_fingerprint(&replayed).expect("substituted fingerprint"),
-            authentic_fingerprint,
-            "{field}: recomputed identity differs from the authentic record"
-        );
-        assert_eq!(
-            validate_installation_record(&replayed, &image),
-            Err(InstallationError::ImageBindingMismatch),
-            "{field}: independent replay rejects the substituted row"
-        );
-    }
-
-    // Dropped rows keep the surviving roster canonical: each removed call is a
-    // complete row substitution that still encodes, recomputes a distinct
-    // installation identity, and is rejected by independent replay.
-    for dropped in [0_usize, 1_usize] {
-        let mut changed = record.clone();
-        changed
-            .internal_unit_scalar_calls_mut_for_test()
-            .remove(dropped);
-        let bytes = encode_installation_record(&changed).expect("dropped row encodes");
-        let replayed = decode_installation_record(&bytes).expect("dropped row decodes");
-        assert_eq!(replayed, changed);
-        assert_ne!(
-            installation_fingerprint(&replayed).expect("substituted fingerprint"),
-            authentic_fingerprint,
-            "dropped row {dropped}: recomputed identity differs from the authentic record"
-        );
-        assert_eq!(
-            validate_installation_record(&replayed, &image),
-            Err(InstallationError::ImageBindingMismatch),
-            "dropped row {dropped}: independent replay rejects the substitution"
-        );
-    }
+    // Interval and producer slack that survives the canonical shape joins,
+    // plus whole dropped rows that keep the surviving roster canonical, run
+    // through the shared matrix driver over `ScalarCallSlackFieldForTest`.
+    let check = installation_record_check(&image);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation internal Unit scalar call",
+        fields: ScalarCallSlackFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_two_constant_record(),
+        custody: &Clone::clone,
+        substitute: &substitute_scalar_call_slack,
+        check: &check,
+        outcome: &image_binding_mismatch,
+        joined_replay: Some(&fingerprint_moves(authentic_fingerprint)),
+    });
 
     // Every remaining field is a canonical projection bound by the caller's
     // retained homes, constants, and stack evidence or by the callee's scalar
@@ -701,42 +576,20 @@ fn installation_function_scalar_abi_row_rejects_every_one_field_substitution() {
     // Semantic value identities are not part of the recomputed native plan:
     // a fresh parameter or result value still encodes, decodes to the same
     // record, recomputes a distinct installation identity, and is rejected by
-    // independent replay against the unchanged image.
-    type SlackMutation = (&'static str, Box<dyn Fn(&mut InstalledFunction)>);
-    let slack_mutations: Vec<SlackMutation> = vec![
-        (
-            "scalar_abi.parameters[0].value",
-            Box::new(|row| {
-                row.scalar_abi.as_mut().expect("scalar ABI").parameters[0].value = value_id(41);
-            }),
-        ),
-        (
-            "scalar_abi.result.value",
-            Box::new(|row| {
-                row.scalar_abi.as_mut().expect("scalar ABI").result.value = value_id(41);
-            }),
-        ),
-    ];
-    for (field, mutate) in slack_mutations {
-        let mut changed = record.clone();
-        mutate(&mut changed.functions_mut_for_test()[1]);
-        assert_ne!(changed, record, "{field}: substitution changes the row");
-        let bytes = encode_installation_record(&changed)
-            .unwrap_or_else(|error| panic!("{field}: slack substitution encodes: {error:?}"));
-        let replayed = decode_installation_record(&bytes)
-            .unwrap_or_else(|error| panic!("{field}: slack substitution decodes: {error:?}"));
-        assert_eq!(replayed, changed, "{field}: codec round trip is exact");
-        assert_ne!(
-            installation_fingerprint(&replayed).expect("substituted fingerprint"),
-            authentic_fingerprint,
-            "{field}: recomputed identity differs from the authentic record"
-        );
-        assert_eq!(
-            validate_installation_record(&replayed, &image),
-            Err(InstallationError::ImageBindingMismatch),
-            "{field}: independent replay rejects the substituted row"
-        );
-    }
+    // independent replay against the unchanged image. These legs run through
+    // the shared matrix driver over `ScalarAbiSlackFieldForTest`.
+    let check = installation_record_check(&image);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation function scalar ABI",
+        fields: ScalarAbiSlackFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: foreign_two_constant_record(),
+        custody: &Clone::clone,
+        substitute: &substitute_scalar_abi_slack,
+        check: &check,
+        outcome: &image_binding_mismatch,
+        joined_replay: Some(&fingerprint_moves(authentic_fingerprint)),
+    });
 
     // The callee row's own canonical shape recomputes the native call plan
     // from the parameter and result scalar types and requires exact
@@ -1019,31 +872,7 @@ fn installation_function_scalar_abi_row_rejects_every_one_field_substitution() {
 #[test]
 fn installation_function_integer_constant_rows_reject_every_one_field_substitution() {
     let i32_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
-    let mut plan = attached_unit_scalar_call_plan();
-    // A second, call-unreferenced constant: one fresh provenance operation
-    // attributed to zero bytes after the return-edge row.
-    plan.functions[0]
-        .provenance
-        .operations
-        .push(operation_id(4));
-    plan.functions[0]
-        .semantic_code_attribution
-        .push(SemanticCodeAttribution {
-            site: SemanticCodeSite::Operation(operation_id(4)),
-            operation_ordinal: 4,
-            code_offset: 75,
-            byte_count: 0,
-        });
-    plan.functions[0]
-        .unit_integer_constants
-        .push(UnitIntegerConstantRecord {
-            defining_operation: operation_id(4),
-            source_value: value_id(4),
-            scalar_type: i32_type,
-            value: IntegerValue::Signed(41),
-            operation_ordinal: 4,
-        });
-    let artifact = build_object_artifact(&plan).expect("two-constant artifact");
+    let artifact = build_object_artifact(&two_constant_plan()).expect("two-constant artifact");
     let image = emit_direct_executable_image(&artifact, 3).expect("two-constant image");
     let record = build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
         .expect("two-constant installation");
@@ -1075,79 +904,21 @@ fn installation_function_integer_constant_rows_reject_every_one_field_substituti
     // The unreferenced row and whole-roster substitutions remain canonical:
     // each still encodes, decodes to the same record, recomputes a distinct
     // installation identity, and is rejected by independent replay against
-    // the unchanged image.
-    type SlackMutation = (&'static str, Box<dyn Fn(&mut InstalledFunction)>);
-    let slack_mutations: Vec<SlackMutation> = vec![
-        (
-            "unreferenced.defining_operation",
-            Box::new(|row| {
-                row.unit_integer_constants[1].defining_operation = operation_id(7);
-            }),
-        ),
-        (
-            "unreferenced.source_value",
-            Box::new(|row| {
-                row.unit_integer_constants[1].source_value = value_id(7);
-            }),
-        ),
-        (
-            "unreferenced.scalar_type",
-            Box::new(|row| {
-                row.unit_integer_constants[1].scalar_type =
-                    IntegerType::new(IntegerSign::Signed, 64).expect("i64");
-            }),
-        ),
-        (
-            "unreferenced.value",
-            Box::new(|row| {
-                row.unit_integer_constants[1].value = IntegerValue::Signed(42);
-            }),
-        ),
-        (
-            "unreferenced.operation_ordinal",
-            Box::new(|row| {
-                row.unit_integer_constants[1].operation_ordinal = 9;
-            }),
-        ),
-        (
-            "drop_unreferenced",
-            Box::new(|row| {
-                row.unit_integer_constants.remove(1);
-            }),
-        ),
-        (
-            "insert_distinct",
-            Box::new(|row| {
-                row.unit_integer_constants.push(UnitIntegerConstantRecord {
-                    defining_operation: operation_id(8),
-                    source_value: value_id(8),
-                    scalar_type: IntegerType::new(IntegerSign::Signed, 32).expect("i32"),
-                    value: IntegerValue::Signed(7),
-                    operation_ordinal: 10,
-                });
-            }),
-        ),
-    ];
-    for (field, mutate) in slack_mutations {
-        let mut changed = record.clone();
-        mutate(&mut changed.functions_mut_for_test()[0]);
-        assert_ne!(changed, record, "{field}: substitution changes the row");
-        let bytes = encode_installation_record(&changed)
-            .unwrap_or_else(|error| panic!("{field}: slack substitution encodes: {error:?}"));
-        let replayed = decode_installation_record(&bytes)
-            .unwrap_or_else(|error| panic!("{field}: slack substitution decodes: {error:?}"));
-        assert_eq!(replayed, changed, "{field}: codec round trip is exact");
-        assert_ne!(
-            installation_fingerprint(&replayed).expect("substituted fingerprint"),
-            authentic_fingerprint,
-            "{field}: recomputed identity differs from the authentic record"
-        );
-        assert_eq!(
-            validate_installation_record(&replayed, &image),
-            Err(InstallationError::ImageBindingMismatch),
-            "{field}: independent replay rejects the substituted row"
-        );
-    }
+    // the unchanged image. These legs run through the shared matrix driver
+    // over `IntegerConstantSlackFieldForTest`; the donor is the single-constant
+    // scalar-call record, an authentic roster distinct from this fixture.
+    let check = installation_record_check(&image);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "installation function integer constants",
+        fields: IntegerConstantSlackFieldForTest::INVENTORY,
+        honest: &|| record.clone(),
+        donor: honest_scalar_call_record(),
+        custody: &Clone::clone,
+        substitute: &substitute_integer_constant_slack,
+        check: &check,
+        outcome: &image_binding_mismatch,
+        joined_replay: Some(&fingerprint_moves(authentic_fingerprint)),
+    });
 
     // Every field of the call-referenced row is a canonical projection the
     // scalar-call argument sources rejoin: a one-field substitution is
@@ -1629,6 +1400,223 @@ fn attached_unit_scalar_call_plan() -> MachineCodePlan {
                 structural_return: None,
             },
         ],
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One slack axis of the two installed attached-Unit scalar-call rows
+    /// (`First*` names row 0, `Second*` row 1) or of their roster. The call
+    /// span may extend past its nested result interval, argument and result
+    /// intervals may move inside the call span, the operation ordinal may
+    /// grow while roster order and constant precedence survive, a `Home`
+    /// source may name an earlier producer in the same caller, and dropping
+    /// either row keeps the surviving roster canonical. Each substitution
+    /// still encodes and is rejected by `validate_installation_record` as
+    /// `ImageBindingMismatch`.
+    pub enum ScalarCallSlackFieldForTest {
+        FirstOperationOrdinal,
+        SecondOperationOrdinal,
+        FirstByteCount,
+        SecondByteCount,
+        FirstResultCodeOffset,
+        FirstResultByteCount,
+        FirstArgumentCodeOffset,
+        FirstArgumentByteCount,
+        SecondArgumentSourceEarlierHome,
+        SecondResultCodeOffset,
+        SecondResultByteCount,
+        SecondArgumentCodeOffset,
+        SecondArgumentByteCount,
+        DropFirstRow,
+        DropSecondRow,
+    }
+}
+
+fn substitute_scalar_call_slack(
+    record: &mut InstallationRecord,
+    field: ScalarCallSlackFieldForTest,
+    _donor: &InstallationRecord,
+) {
+    use ScalarCallSlackFieldForTest as Field;
+    let rows = record.internal_unit_scalar_calls_mut_for_test();
+    let produced_home = rows[0].custody.result.home;
+    match field {
+        Field::FirstOperationOrdinal => rows[0].custody.operation_ordinal = 2,
+        Field::SecondOperationOrdinal => rows[1].custody.operation_ordinal = 3,
+        Field::FirstByteCount => rows[0].custody.byte_count = 32,
+        Field::SecondByteCount => rows[1].custody.byte_count = 36,
+        Field::FirstResultCodeOffset => rows[0].custody.result.code_offset = 31,
+        Field::FirstResultByteCount => rows[0].custody.result.byte_count = 7,
+        Field::FirstArgumentCodeOffset => rows[0].custody.arguments[0].code_offset = 14,
+        Field::FirstArgumentByteCount => rows[0].custody.arguments[0].byte_count = 9,
+        Field::SecondArgumentSourceEarlierHome => {
+            rows[1].custody.arguments[0].source =
+                InternalUnitScalarArgumentSourceRecord::Home(produced_home);
+        }
+        Field::SecondResultCodeOffset => rows[1].custody.result.code_offset = 62,
+        Field::SecondResultByteCount => rows[1].custody.result.byte_count = 7,
+        Field::SecondArgumentCodeOffset => rows[1].custody.arguments[0].code_offset = 45,
+        Field::SecondArgumentByteCount => rows[1].custody.arguments[0].byte_count = 11,
+        Field::DropFirstRow => {
+            rows.remove(0);
+        }
+        Field::DropSecondRow => {
+            rows.remove(1);
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One semantic value identity of the callee's retained `scalar_abi`.
+    /// Value identities are not part of the recomputed native plan, so a
+    /// fresh value still encodes and is rejected by
+    /// `validate_installation_record` as `ImageBindingMismatch`.
+    pub enum ScalarAbiSlackFieldForTest {
+        ParameterValue,
+        ResultValue,
+    }
+}
+
+fn substitute_scalar_abi_slack(
+    record: &mut InstallationRecord,
+    field: ScalarAbiSlackFieldForTest,
+    _donor: &InstallationRecord,
+) {
+    let abi = record.functions_mut_for_test()[1]
+        .scalar_abi
+        .as_mut()
+        .expect("scalar ABI");
+    match field {
+        ScalarAbiSlackFieldForTest::ParameterValue => abi.parameters[0].value = value_id(41),
+        ScalarAbiSlackFieldForTest::ResultValue => abi.result.value = value_id(41),
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One axis of the caller's call-unreferenced integer constant, or a
+    /// whole-roster substitution that stays canonical. Only roster shape
+    /// binds this row, so each substitution still encodes and is rejected by
+    /// `validate_installation_record` as `ImageBindingMismatch`.
+    pub enum IntegerConstantSlackFieldForTest {
+        UnreferencedDefiningOperation,
+        UnreferencedSourceValue,
+        UnreferencedScalarType,
+        UnreferencedValue,
+        UnreferencedOperationOrdinal,
+        DropUnreferenced,
+        InsertDistinct,
+    }
+}
+
+fn substitute_integer_constant_slack(
+    record: &mut InstallationRecord,
+    field: IntegerConstantSlackFieldForTest,
+    _donor: &InstallationRecord,
+) {
+    use IntegerConstantSlackFieldForTest as Field;
+    let constants = &mut record.functions_mut_for_test()[0].unit_integer_constants;
+    match field {
+        Field::UnreferencedDefiningOperation => {
+            constants[1].defining_operation = operation_id(7);
+        }
+        Field::UnreferencedSourceValue => constants[1].source_value = value_id(7),
+        Field::UnreferencedScalarType => {
+            constants[1].scalar_type = IntegerType::new(IntegerSign::Signed, 64).expect("i64");
+        }
+        Field::UnreferencedValue => constants[1].value = IntegerValue::Signed(42),
+        Field::UnreferencedOperationOrdinal => constants[1].operation_ordinal = 9,
+        Field::DropUnreferenced => {
+            constants.remove(1);
+        }
+        Field::InsertDistinct => constants.push(UnitIntegerConstantRecord {
+            defining_operation: operation_id(8),
+            source_value: value_id(8),
+            scalar_type: IntegerType::new(IntegerSign::Signed, 32).expect("i32"),
+            value: IntegerValue::Signed(7),
+            operation_ordinal: 10,
+        }),
+    }
+}
+
+/// The scalar-call fixture plus a second, call-unreferenced constant: one
+/// fresh provenance operation attributed to zero bytes after the return-edge
+/// row.
+fn two_constant_plan() -> MachineCodePlan {
+    let mut plan = attached_unit_scalar_call_plan();
+    plan.functions[0]
+        .provenance
+        .operations
+        .push(operation_id(4));
+    plan.functions[0]
+        .semantic_code_attribution
+        .push(SemanticCodeAttribution {
+            site: SemanticCodeSite::Operation(operation_id(4)),
+            operation_ordinal: 4,
+            code_offset: 75,
+            byte_count: 0,
+        });
+    plan.functions[0]
+        .unit_integer_constants
+        .push(UnitIntegerConstantRecord {
+            defining_operation: operation_id(4),
+            source_value: value_id(4),
+            scalar_type: IntegerType::new(IntegerSign::Signed, 32).expect("i32"),
+            value: IntegerValue::Signed(41),
+            operation_ordinal: 4,
+        });
+    plan
+}
+
+fn installation_record_for(plan: &MachineCodePlan) -> InstallationRecord {
+    let artifact = build_object_artifact(plan).expect("scalar-call artifact");
+    let image = emit_direct_executable_image(&artifact, 3).expect("scalar-call image");
+    build_installation_record(&image, ProfileDecisionId::new(41).expect("profile"))
+        .expect("scalar-call installation")
+}
+
+/// The authentic single-constant scalar-call installation record.
+fn honest_scalar_call_record() -> InstallationRecord {
+    installation_record_for(&attached_unit_scalar_call_plan())
+}
+
+/// An authentic foreign installation record: the same caller and callee
+/// with a second, call-unreferenced constant. The slack hooks draw no donor
+/// values; the driver only requires it to be genuinely produced and distinct.
+fn foreign_two_constant_record() -> InstallationRecord {
+    installation_record_for(&two_constant_plan())
+}
+
+/// The independent checker shared by the matrices in this file: encode the
+/// substituted record, require an exact codec round trip, then replay
+/// against the unchanged image.
+fn installation_record_check(
+    image: &ExecutableImage,
+) -> impl Fn(&InstallationRecord) -> Result<InstallationRecord, InstallationError> + '_ {
+    move |record| {
+        let bytes = encode_installation_record(record)?;
+        let replayed = decode_installation_record(&bytes)?;
+        assert_eq!(&replayed, record, "codec round trip is exact");
+        validate_installation_record(&replayed, image)?;
+        Ok(replayed)
+    }
+}
+
+/// Every slack leg still encodes and is rejected by image replay.
+fn image_binding_mismatch<F>(_: F) -> MutationOutcome<InstallationError> {
+    MutationOutcome::ExactError(InstallationError::ImageBindingMismatch)
+}
+
+/// Joined assertion: the recomputed installation identity must move.
+fn fingerprint_moves<F: std::fmt::Debug>(
+    authentic: InstallationFingerprint,
+) -> impl Fn(&InstallationRecord, F) {
+    move |record, field| {
+        assert_ne!(
+            installation_fingerprint(record)
+                .unwrap_or_else(|error| panic!("{field:?}: substituted fingerprint: {error:?}")),
+            authentic,
+            "{field:?}: recomputed identity differs from the authentic record"
+        );
     }
 }
 
