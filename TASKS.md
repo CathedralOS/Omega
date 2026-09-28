@@ -1743,130 +1743,98 @@ or trust amendment found here or later goes through [owner questions](OWNER_QUES
 ## Process-exit contract
 
 Finish the [canonical process-exit contract](wiki/spec/language/process_exit.md)
-through Terminal Psi and source-free verification. Core/std declarations, exact
-canonical recognition in the checked interpreter, and selected hosted exit
-realization already exist. They do not establish the portable contract:
-`terminal_module/control_flow/termination.rs` has no external-completion
-terminator, and the Terminal trace codec admits only an empty terminal-external
-group.
+through source-produced Terminal Psi and independent replay. Core/std declarations,
+checked-interpreter canonical recognition and selected native exit custody exist.
+Terminal's [terminator](omega-rust/psi/representations/terminal-psi/src/terminal_module/control_flow/termination.rs)
+has no external-completion variant; the
+[trace codec](omega-rust/psi/representations/terminal-psi/codec/src/sections/terminal_trace_v1_profile.rs) writes zero external rows and
+rejects a nonempty roster. A native nonreturning operation does not fill this gap.
 
-Remaining work:
+- Close native customer gaps using existing `SelectedProcessExit` custody.
+  [Normalized foreign-call custody](omega-rust/omega/backend/images/image-emission/src/object_artifact/normalized_foreign_calls.rs) still accepts
+  scalar homes only from call-result producers; finish general computed-status
+  argument transport and independently replay its selected source. Windows
+  `ProcessExit` already selects kernel32 `ExitProcess` through `DllImport`.
+  Complete the Console byte leaves through `WriteFile`/`ReadFile`; their current
+  `CompilerIntrinsic` declarations have no Windows hosted bundle. Replace the
+  fixed 256 KiB foreign-call reserve with per-callee stack evidence in Omega
+  stage 02's [source-evaluated imports](omega-rust/omega/pipeline/02_abstract-operations-to-target-operations/src/provider_admission/source_evaluated_imports.rs). These native
+  repairs need not wait for portable external-completion representation.
+- Retain exact canonical requirement, domain-bound authority, status and a closed
+  terminal invocation without a normal result/successor through checking,
+  lowering, Terminal, codec, verifier, observations and interpreter. Neither Console reach nor provider
+  selection grants exit authority. Preserve exact semantic `i32` status and
+  preceding output independently of the host's physical status mapping.
+- Conditional helpers retain results, cleanup and postconditions on returning
+  paths. Exit paths abandon in-domain obligations without discharge receipts or
+  a post-exit frontier. Automatic cleanup must return; normal root completion
+  must settle/transfer outstanding task custody. Survivor crossing contracts
+  must account for domain death without a whole-process resource census.
 
-- Psi checking/lowering must retain the exact canonical requirement, bound-domain
-  authority, status argument and no-normal-successor outcome. Carry that through
-  Terminal representation, codec, independent verifier, observations and
-  interpreter. Do not encode successful exit as an ordinary Unit call, crash, or
-  provider-name convention.
-- Model conditional helper exits compositionally: returning paths retain results,
-  cleanup and postconditions; exit paths abandon in-domain obligations without
-  discharge receipts or a post-exit frontier. Automatic cleanup must return.
-  Root return must settle/transfer task custody, and survivor crossing contracts
-  must account for domain death without inventing a whole-process resource census.
-- Preserve exact `i32` semantic status and ordered output through provider
-  conformance and native realization. Reuse `SelectedProcessExit` custody and the
-  canonical host canaries. A boundary-trait leaf
-  realizes through the target's DLL linkage, and as a direct syscall only on
-  an OS with a stable syscall ABI; on `windows_x86_64` the console and
-  process-exit leaves therefore bind kernel32 `ExitProcess` by `DllImport`
-  rather than a hosted intrinsic, and the accepted Console/ProcessExit
-  binding is consumed by that row whatever its realization. Landed 2026-09-23:
-  provider planning follows the machine filter's host fallback, so an
-  unprofiled check plans the leaves it selected; source-evaluated import
-  settlements are minted on both native routes
-  (`native_realization/source_evaluated_imports.rs`, a 256 KiB same-stack
-  reserve because the callee runs on the guard-free receiver stack); the
-  receiving policy classifies the cohort in
-  `terminal_authority_policy/console_host.rs`. Exit-through-console fixtures
-  compile, run and exit 70 on a Windows host. Remaining on Windows:
-  `write_byte` and `read_byte` stay compiler intrinsics with no hosted
-  realization (kernel32 `WriteFile`/`ReadFile` through the same route), and
-  the foreign-entry stack reserve is a constant, not a per-callee declaration.
-- A status computed from a runtime value rejects at native publication
-  ("fragment import lacks selected call custody"): normalized foreign-call
-  argument custody (`image-emission` `foreign_scalar_argument_custody`) admits
-  immediates, parameters and call-result homes only, so
-  `exit_process(selected + 0i32)` over an installed provider's result fails
-  closed. Psi no longer folds a selected top-level requirement's adapter into
-  its caller, so this surfaces for requirement results; the
-  `checked_boundary_requirement_*` fixtures pass the result itself.
-
-Acceptance: source-produced unconditional and conditional/helper exits replay
-independently after serialization. Tampered identities, arguments, completion or
-provider evidence reject. Cover missing authority/reach, lookalike requirements,
-returning/aborting substitutes, missing progress premises, cleanup exits and
-unsupported survivor contracts. Interpreter exit ends only its simulated domain;
-native tests record each available host's status mapping and preceding output.
-Report unavailable hosts, not a cross-target emission as a runtime pass.
-
-The ordinary-production/receiver-admission split is already implemented; further
-receiver work stays in `TWO-AXIS-TERMINAL-AUTHORITY-REVIEW`. General completion
-syntax and other terminal services are not prerequisites.
+Acceptance: serialize and independently replay unconditional and conditional/helper
+exits. Tampered identity, arguments, completion or provider evidence reject, as do
+missing authority/reach/progress, lookalikes, returning/aborting substitutes,
+cleanup exits and unsupported survivor contracts. Reuse the
+`tests/omega/pass/host/process_exit_i32_status_{mapped,ordered}` customers; execute
+on matching hosts and retain ordered output/status oracles. Interpreter exit ends
+only its simulated domain. Cross-target emission is not runtime evidence.
+**TWO-AXIS-TERMINAL-AUTHORITY-REVIEW** owns further receiver admission; no general
+completion syntax or other terminal service is a prerequisite.
 
 ## P1 - Authority, roots, and entry
 
-- **ENTRY-CONTENT-ROOTS.** Finish intrinsic receiver activation/completion
+- **ENTRY-CONTENT-ROOTS.** Complete provisioned receiver activation/completion
   under [entry roots](wiki/spec/build/entry_roots.md) and
   [binding validity](wiki/spec/build/component_publication.md#bindings-and-era-entry).
-  The carrier is declared once, as `Binding<R>` in `source/library/core/binding.omg`
-  (`omega::language::core::binding`); `ForeignBinding` remains the distinct
-  locator in `external_binding.omg`.
-  Verify the real CLI samples and nested-binding helper-return customer after
-  the rename; file-name mismatch is not an intentional compatibility policy.
-  Owners: target package assembly, `program-entry-plan`, Psi
-  `terminal-production`, Omega `compiler/native-realization`,
-  `image-emission` and `external-roots`. Source names spell the carrier
-  `Binding<R>`; the old service-only `Bound` domain is already retired and
-  must not return.
+  Reuse opaque affine `Binding<R>` in `source/library/core/binding.omg`;
+  `ForeignBinding` is a separate locator. No authored `Bound` qualification,
+  source-created binding or provider lookup repairs missing establishment.
 
-  - Finish activation/result/out-parameter joins using exact closed requirement,
-    occurrence and selected-plan validity. Reconcile residual
-    `ensures`/`established by` fixtures with intrinsic binding semantics:
-    adjust an obsolete fixture rather than authorize a source-created binding.
-    Relevant consumers include `facts/qualification_evidence.rs`,
-    `checks/content/call_results.rs` and source domain-route construction.
-    Ordinary library authority domains remain separate; unused type declarations
+  - Complete borrowed `Binding<R>` transport. Psi checking's
+    [carrier placement gate](omega-rust/psi/checking/src/value_custody/type_references.rs)
+    still rejects references to the carrier.
+    Make `capabilities/uses_caller_folder` lend the caller's field to
+    `Librarian::archive(folder: &Binding<Folder>)`; promote
+    `fail/providers/service_borrowed_parameter_rejected` when checking,
+    Unit/Terminal calls, selected dispatch, interpretation and native service
+    effects work. Moving an affine binding from borrowed storage without
+    replacement must still reject. Provider multiplicity, conformance and Fused
+    erasure do not change declaration-owned affine semantics.
+  - Complete activation/result/out-parameter joins while preserving exact closed
+    requirement, occurrence and selected-plan validity through erased fields,
+    Terminal and native replay. Reuse `program-entry-plan`, Psi's
+    `terminal-production` entry receipts, Omega stage 00's `entry_settlement`
+    and `native-artifact::publish_fragment_object`. Intrinsic service validity
+    is separate from ordinary authorized domains; **DOMAIN-ISSUER-ROUTES** owns
+    their result/out-parameter evidence. Migrate obsolete bare-carrier and
+    qualification fixtures without permitting fabrication; unused declarations
     alone demand no provider.
-  - Complete nominal receiver cleanup and callback/signal occupancy through
-    actual activation/completion. Reuse `receiver_eligibility.rs`,
-    `image-emission/src/hosted_receiver.rs` and
-    `ProgramLocalRootInstallationLedger`, including installed aggregate
-    extents. Four hosted bridges and aggregate eligibility already exist;
-    investigate concrete failures instead of adding storage profiles.
-    Windows process-exit realization belongs to the process-exit task.
-  - Carry exact requirement/occurrence/plan custody through source checking,
-    erased Fused fields, Terminal, native settlement and independent replay.
-    Finish remaining bare-carrier fixture/application migration without weakening
-    source rejection or exact application identity. Installation, not compilation,
-    owns actual occurrence custody.
-  - Complete borrowed `Binding<R>` parameter and argument transport. Migrate
-    `capabilities/uses_caller_folder` so `Librarian::archive` takes
-    `folder: &Binding<Folder>` and the borrowed `Main::main` lends its field;
-    preserve its caller-supplied authority and native service effect. Promote
-    `fail/providers/service_borrowed_parameter_rejected` to positive coverage
-    when the same general route works through checking, Unit/Terminal calls,
-    selected dispatch, interpretation, and native realization. Keep a negative
-    control that moving affine `Binding<R>` by value out of borrowed storage
-    without replacement rejects. Provider multiplicity, conformance, and fused
-    erasure must not change the carrier's declaration-owned affine semantics.
+  - Connect ordinary nominal cleanup and callback/signal occupancy to actual
+    receiver completion. ZII/aggregate eligibility, hosted bridges, a retained
+    cleanup marker and `ProgramLocalRootInstallationLedger` already exist.
+    Marker propagation and Rust-ledger retirement tests do not execute an
+    authored destructor. Preserve image-emission's
+    [hosted receiver tests](omega-rust/omega/backend/images/image-emission/tests/artifacts/hosted_receiver.rs)
+    replay controls; installation owns live occurrence custody. Compose
+    application, bridge, provider and callback stack demand, not loader stack-size
+    metadata or another storage profile.
 
-  Acceptance: published `number_guess`, `cli_mvp` and `generic_counters`
-  retain their documented behavior with no test-supplied `self` or service
-  qualifications. Keep `entry_and_abi::hosted_receiver*` controls.
-  Execute `acquires_through_helper_return` through its original `Main::main`
-  nested binding/helper-return chain, preserving exact propagated acquires and
-  provenance. The fixture currently selects empty `Probe::enter`; that
-  publication and checked-report coverage are not Main's native closure.
-  Execute on matching hosts and report unavailable runtime legs explicitly.
-  Missing/incompatible supply, forged zero/literal construction, lookalikes,
-  redirected continuations, non-ZII receiver state, bad backing/alignment,
-  overlapping partitions and stale occurrence/epoch reject. Forwarding preserves
-  distinct applications and affine custody; erasure removes neither
-  initialization nor cleanup obligations.
-  Compose application, bridge, provider and callback stack demand—loader
-  stack-size metadata is not remaining-stack evidence. Targetless checks select
-  no physical entry, and deployment cannot substitute a semantic continuation
-  for its adapter. Descriptor-call customers keep their own dependency; Fused
-  migration does not require an Independent-installation project.
+  At `535d6ad19e9`, `python3 tools/corpus_gate.py --native --filter
+  pass/capabilities/acquires_through_helper_return` builds/publishes the fixture's
+  actual `Main::main` on macOS ARM64. That harness does not execute this fixture.
+  Run the original nested binding/helper-return chain and verify propagated
+  acquires/provenance.
+  Published `number_guess`, `cli_mvp` and `generic_counters` must retain their
+  documented behavior without test-supplied receivers/qualifications;
+  **SAMPLE-CORPUS** owns full sample and host coverage.
+
+  Reject missing/incompatible supply, forged zero/literal construction,
+  lookalikes, redirected continuations, non-ZII state, invalid backing/alignment,
+  overlapping partitions and stale occurrence/epoch. Forwarding keeps distinct
+  applications and affine custody; erasure removes neither initialization nor
+  cleanup. Targetless checks select no physical entry; deployment cannot replace
+  the physical adapter with a semantic continuation. Descriptor-call customers
+  retain their dependency; Fused migration does not wait for Independent installation.
 
 - **UEFI-PHYSICAL-SEMANTIC-ENTRY.** Execute the source-authored two-surface
   bootstrap under [UEFI adapters](wiki/spec/build/uefi_entry.md#authored-firmware-definitions-and-adapters).
