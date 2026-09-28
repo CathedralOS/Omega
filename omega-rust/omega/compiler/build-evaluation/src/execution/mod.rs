@@ -183,7 +183,7 @@ fn execute_admitted_build_occurrence(
     Ok(ComputedBuildConfig {
         config,
         optimization_report_request: optimization_report,
-        evaluation_usage: Some(machine_evaluation::evaluation_usage(
+        evaluation_usage: Some(checked_interpreter::BuildEvaluationUsage::capture(
             usage,
             evaluation_sponsor,
         )),

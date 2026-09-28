@@ -1,12 +1,11 @@
-//! Runs the admitted machine once and retains invocation and sponsor accounting.
+//! Runs the admitted machine once and reports its measured result or failure.
 
-use crate::evidence::observations::BuildEvaluationUsage;
 use build_time_evaluation::{
     BuildEvaluationSponsor, BuildMachineExecutionMode, BuildTimeValue, PreparedBuildMachineEntry,
     PreparedBuildMachineProgram,
 };
 use build_time_evaluation::{BuildMachineInvocation, PreparedBuildMachine};
-use checked_interpreter::{EvaluationUsage, MeasuredBuildMachineEvaluation};
+use checked_interpreter::MeasuredBuildMachineEvaluation;
 use diagnostics::Diagnostic;
 
 /// One measured run of the admitted build machine over its initial `Build`.
@@ -66,42 +65,4 @@ pub(super) fn evaluate_admitted_machine(
             "build-time evaluation of `{machine_name}` failed: {reason}{partial_evidence}"
         ))]
     })
-}
-
-/// Durable accounting from the single execution and its sponsor session.
-pub(super) fn evaluation_usage(
-    usage: EvaluationUsage,
-    sponsor: Option<&BuildEvaluationSponsor>,
-) -> BuildEvaluationUsage {
-    BuildEvaluationUsage {
-        usage_schema_version: usage.schema().schema_version(),
-        step_schedule_marker: usage.schedule().marker(),
-        invocation_fuel_ceiling: usage.fuel_ceiling(),
-        sponsor_schema_version: sponsor.map(|sponsor| sponsor.limits().schema_version()),
-        session_fuel_ceiling: sponsor.map(|sponsor| sponsor.limits().maximum_fuel_units()),
-        session_build_log_byte_ceiling: sponsor
-            .map(|sponsor| sponsor.limits().maximum_build_log_bytes()),
-        session_filesystem_attempt_ceiling: sponsor
-            .map(|sponsor| sponsor.limits().maximum_filesystem_operation_attempts()),
-        session_live_filesystem_handle_ceiling: sponsor
-            .map(|sponsor| sponsor.limits().maximum_live_filesystem_handles()),
-        session_live_cell_ceiling: sponsor.map(|sponsor| sponsor.limits().maximum_live_cells()),
-        session_live_text_byte_ceiling: sponsor
-            .map(|sponsor| sponsor.limits().maximum_live_text_bytes()),
-        session_result_cell_ceiling: sponsor.map(|sponsor| sponsor.limits().maximum_result_cells()),
-        session_result_text_byte_ceiling: sponsor
-            .map(|sponsor| sponsor.limits().maximum_result_text_bytes()),
-        session_peak_live_filesystem_handles: sponsor
-            .map_or(0, BuildEvaluationSponsor::peak_live_filesystem_handles),
-        session_peak_live_cells: sponsor.map_or(0, BuildEvaluationSponsor::peak_live_cells),
-        session_peak_live_text_bytes: sponsor
-            .map_or(0, BuildEvaluationSponsor::peak_live_text_bytes),
-        fuel_units: usage.fuel_units(),
-        build_log_bytes: usage.build_log_bytes(),
-        filesystem_operation_attempts: usage.filesystem_operation_attempts(),
-        peak_live_cells: usage.peak_live_cells(),
-        peak_live_text_bytes: usage.peak_live_text_bytes(),
-        result_cells: usage.result_cells(),
-        result_text_bytes: usage.result_text_bytes(),
-    }
 }
