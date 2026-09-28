@@ -1,24 +1,15 @@
 //! The compile report: which product a compilation produced,
-//! the payload slots each kind may occupy, and the publication of retained
-//! native artifacts into exact executable bytes with their custody receipts.
+//! the payload slots each kind may occupy, and checked publication receipts.
+//! Filesystem orchestration belongs to `artifact_publication`, not this model.
 
-use crate::report::publication::{
-    appended_file_name_path, psi_pair_receipt, remove_stale_companion, stage_psi_pair,
-};
 use crate::report::{
     FinalRealizationEvidenceError, OptimizationRollbackReceipt, PccPublicationReceipt,
     ProductionArtifactIdentity, ProductionCompilationManifest, ProductionCompilationSubject,
     RetainedNativeArtifact, RetainedTerminalArtifact, TerminalNativeRealizationProposal,
 };
 use artifacts::compile_timings::PhaseTiming;
-use native_artifact::build_native_proof_sidecar;
-use native_artifact::{
-    ExecutablePublicationReceipt, NativePackagePublicationReceipt, PreparedExecutablePublication,
-    publish_macos_application_package, validate_native_pair,
-};
-use platform_custody::file_publication::{install_staged_files, stage_exact_bytes};
+use native_artifact::{ExecutablePublicationReceipt, NativePackagePublicationReceipt};
 use std::path::PathBuf;
-use terminal_codec::PreparedPsiProofPair;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompileOutputKind {
@@ -155,11 +146,10 @@ impl CompileReport {
         }
     }
 
-    /// Publish artifact-only files or companions after primary product publication.
-    /// Artifact-only builds need no executable entry or target code emission.
-    pub fn publish_completed_build_outputs(
+    /// Record installed companions; filesystem policy belongs to the publisher.
+    pub(crate) fn record_build_output_publication(
         mut self,
-        build_dir: &std::path::Path,
+        directory: PathBuf,
     ) -> Result<Self, String> {
         if !self.has_consistent_executable_publication_custody()
             || (self.output_kind != CompileOutputKind::BuildArtifacts && !self.wrote_output)
@@ -168,11 +158,56 @@ impl CompileReport {
                 "completed-output publication requires a checked, published primary product".into(),
             );
         }
-        if let Some(outputs) = &mut self.build_outputs {
-            outputs.publish(build_dir)?;
-            self.wrote_output = true;
+        self.build_outputs
+            .as_mut()
+            .ok_or("completed-output publication requires retained files")?
+            .record_publication(directory);
+        self.wrote_output = true;
+        Ok(self)
+    }
+
+    /// Advance custody only after native installation supplies its exact receipts.
+    pub(crate) fn record_native_publication(
+        mut self,
+        receipt: ExecutablePublicationReceipt,
+        proofs: Vec<PccPublicationReceipt>,
+        package: Option<NativePackagePublicationReceipt>,
+    ) -> Result<Self, String> {
+        if self.output_kind != CompileOutputKind::RetainedNativeArtifact || self.wrote_output {
+            return Err("native publication requires exactly one retained native artifact".into());
+        }
+        self.retained_native_artifact = None;
+        self.output_kind = CompileOutputKind::NativeExecutable;
+        self.wrote_output = true;
+        self.executable_publication = Some(receipt);
+        self.pcc_publications = proofs;
+        self.package_publication = package;
+        if !self.has_consistent_executable_publication_custody() {
+            return Err("published native report failed custody replay".into());
         }
         Ok(self)
+    }
+
+    /// Terminal publication retains the portable payload and records its proof pairs.
+    pub(crate) fn record_terminal_publication(
+        mut self,
+        proofs: Vec<PccPublicationReceipt>,
+    ) -> Result<Self, String> {
+        if self.output_kind != CompileOutputKind::TerminalArtifact || self.wrote_output {
+            return Err(
+                "terminal publication requires exactly one retained terminal artifact".into(),
+            );
+        }
+        self.wrote_output = true;
+        self.pcc_publications = proofs;
+        if !self.has_consistent_executable_publication_custody() {
+            return Err("published terminal report failed custody replay".into());
+        }
+        Ok(self)
+    }
+
+    pub(crate) fn retained_terminal_artifact(&self) -> Option<&RetainedTerminalArtifact> {
+        self.artifact.as_ref()
     }
 
     /// A completed check with no retained artifact or executable publication.
@@ -261,321 +296,6 @@ impl CompileReport {
             return Err("compiler report retained inconsistent native-artifact custody");
         }
         Ok(report)
-    }
-
-    /// Publish the retained native product as one flat executable and replace
-    /// pre-publication custody with an exact publication receipt.
-    ///
-    /// Compilation ends before this operation. Path selection and filesystem
-    /// mutation are an explicit product operation, never another compiler
-    /// request route.
-    ///
-    /// A selected macOS GUI product instead installs one complete `.app`
-    /// package whose staged tree includes the requested pairs beside the
-    /// inner executable. On the flat route an unrequested pair cannot be left
-    /// behind: a previous publication's `.psi`/`.proof` companions are removed
-    /// before new executable bytes install, so no stale sidecar is ever
-    /// associated with bytes this report did not write.
-    pub fn publish_retained_native_artifact(
-        self,
-        build_dir: &std::path::Path,
-    ) -> Result<Self, String> {
-        if self.output_kind != CompileOutputKind::RetainedNativeArtifact
-            || self.wrote_output
-            || self.artifact.is_some()
-            || self.executable_publication.is_some()
-        {
-            return Err(
-                "native publication requires exactly one retained native artifact".to_owned(),
-            );
-        }
-        let artifact = self.retained_native_artifact.as_ref().ok_or_else(|| {
-            "native publication requires exactly one retained native artifact".to_owned()
-        })?;
-        artifact
-            .validate()
-            .map_err(|error| format!("refusing to publish an invalid native artifact: {error}"))?;
-        if self
-            .production_manifest
-            .as_ref()
-            .is_some_and(|manifest| !manifest.matches_native_artifact(artifact))
-        {
-            return Err("native publication manifest disagrees with retained artifact".to_owned());
-        }
-        let publication = PreparedExecutablePublication::new(artifact)?;
-        let output = artifact.image().output();
-
-        // A requested native pair is built and self-checked before any byte
-        // is installed: the placed-image evidence must decode canonically and
-        // replay against the exact bytes about to be published under a
-        // self-consistent policy, so a pair that cannot carry its bounded
-        // claim never produces a certified-looking install. The behavioral
-        // remainder of a native claim still reports `Incomplete` to receivers;
-        // that is the honest ceiling of the shipped evidence, and `Reject`
-        // here would be a producer defect rather than a publishable pair.
-        let native_sidecar_bytes = if self.pcc_requests.native {
-            let sidecar = build_native_proof_sidecar(
-                artifact,
-                &self.terminal_admission_profile,
-                &output.bytes,
-            )?;
-            validate_native_pair(&output.bytes, &sidecar, &self.terminal_admission_profile)?;
-            Some(sidecar.to_bytes())
-        } else {
-            None
-        };
-
-        std::fs::create_dir_all(build_dir).map_err(|error| {
-            format!(
-                "failed to create output directory {}: {error}",
-                build_dir.display()
-            )
-        })?;
-
-        // Complete selected macOS GUI output is one `.app` package; every
-        // other selected product keeps the flat executable path. The
-        // retained authored name and identifier — not the emitted leaf or a
-        // re-derived folder name — supply the package shape.
-        let package = artifact.target().object_format == target::ObjectFormat::MachO
-            && matches!(
-                self.application_intent,
-                Some(build_evaluation::HostedApplicationIntent::Gui)
-            );
-        let container_digest = publication.container_digest();
-        let mut pcc_publications = Vec::new();
-        let mut package_publication = None;
-        let output_path = if package {
-            let application_name = self.application_name.clone().ok_or_else(|| {
-                "macOS GUI package publication requires the retained authored application name"
-                    .to_owned()
-            })?;
-            let application_identifier =
-                self.application_identifier.clone().ok_or_else(|| {
-                    "macOS GUI package publication requires the retained authored application identifier"
-                        .to_owned()
-                })?;
-            let mut companions = Vec::new();
-            // Requested artifact/companion pairs assemble inside the package
-            // beside the executable: one staged tree, one rename, so a failed
-            // pair can never leave a certified-looking install.
-            if self.pcc_requests.psi {
-                let pair = PreparedPsiProofPair::new(
-                    artifact.psi_artifact(),
-                    &self.terminal_admission_profile,
-                )
-                .map_err(|error| error.to_string())?;
-                companions.push((".psi".to_owned(), pair.artifact_bytes().to_vec()));
-                companions.push((".psi.proof".to_owned(), pair.sidecar_bytes().to_vec()));
-                let package_root = build_dir.join(format!("{application_name}.app"));
-                let macos_dir = std::path::Path::new("Contents").join("MacOS");
-                let psi_path = package_root.join(macos_dir.join(format!("{application_name}.psi")));
-                pcc_publications.push(psi_pair_receipt(&pair, &psi_path));
-            }
-            // The native companion sits beside the inner executable as
-            // `Contents/MacOS/<name>.proof`; the staged rename makes its
-            // install atomic with the executable it commits to.
-            if let Some(native_sidecar_bytes) = &native_sidecar_bytes {
-                companions.push((".proof".to_owned(), native_sidecar_bytes.clone()));
-                let package_root = build_dir.join(format!("{application_name}.app"));
-                let macos_dir = std::path::Path::new("Contents").join("MacOS");
-                pcc_publications.push(PccPublicationReceipt {
-                    product: terminal_codec::PccProductKind::Native,
-                    artifact_path: package_root.join(macos_dir.join(&application_name)),
-                    artifact_byte_len: output.bytes.len() as u64,
-                    sidecar_path: package_root
-                        .join(macos_dir.join(format!("{application_name}.proof"))),
-                    sidecar_byte_len: native_sidecar_bytes.len() as u64,
-                });
-            }
-            let receipt = publish_macos_application_package(
-                build_dir,
-                &application_name,
-                &application_identifier,
-                &output.bytes,
-                container_digest,
-                &companions,
-            )?;
-            let output_path = receipt.inner_executable_path().ok_or_else(|| {
-                "macOS package publication produced no inner executable component".to_owned()
-            })?;
-            package_publication = Some(receipt);
-            output_path
-        } else {
-            let output_path = build_dir.join(&output.file_name);
-
-            // Every requested artifact/companion pair is staged and validated
-            // before ANY member becomes visible. Publishing them one at a time
-            // was the gap: a failure after the artifact and before its
-            // companion left new bytes beside the previous run's `.proof`, and
-            // "Publication must not associate a stale sidecar with newly
-            // written bytes" (spec, proofs/publication.md). A staging failure
-            // leaves the previous consistent pair untouched; an installation
-            // failure removes the members this attempt installed.
-            let mut staged_products = Vec::new();
-            if self.pcc_requests.psi {
-                let pair = PreparedPsiProofPair::new(
-                    artifact.psi_artifact(),
-                    &self.terminal_admission_profile,
-                )
-                .map_err(|error| error.to_string())?;
-                let psi_path = appended_file_name_path(&output_path, ".psi");
-                pcc_publications.push(stage_psi_pair(&pair, &psi_path, &mut staged_products)?);
-            } else {
-                // An earlier Psi-requested publication's companions must not
-                // survive beside an executable they do not commit to; removing
-                // them cannot create a certified-looking install, so removal
-                // precedes the new bytes. Package publication needs no such
-                // pass: the staged tree rename replaces every prior member.
-                let psi_path = appended_file_name_path(&output_path, ".psi");
-                remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
-                remove_stale_companion(&psi_path)?;
-            }
-            if let Some(native_sidecar_bytes) = &native_sidecar_bytes {
-                let native_sidecar_path = appended_file_name_path(&output_path, ".proof");
-                staged_products.push(stage_exact_bytes(
-                    &native_sidecar_path,
-                    native_sidecar_bytes,
-                    false,
-                )?);
-                pcc_publications.push(PccPublicationReceipt {
-                    product: terminal_codec::PccProductKind::Native,
-                    artifact_path: output_path.clone(),
-                    artifact_byte_len: output.bytes.len() as u64,
-                    sidecar_path: native_sidecar_path,
-                    sidecar_byte_len: native_sidecar_bytes.len() as u64,
-                });
-            } else {
-                // An earlier native-PCC publication's sidecar must not
-                // survive beside executable bytes it does not commit to.
-                remove_stale_companion(&appended_file_name_path(&output_path, ".proof"))?;
-            }
-            // The executable joins the same staged set. Only after every member
-            // stages successfully does sequential installation begin.
-            staged_products.push(stage_exact_bytes(&output_path, &output.bytes, true)?);
-            install_staged_files(&staged_products)?;
-            output_path
-        };
-
-        let receipt = publication.into_receipt(output_path)?;
-
-        let report = Self {
-            build_outputs: self.build_outputs,
-            build_observation: self.build_observation,
-            root_path: self.root_path,
-            source_file_count: self.source_file_count,
-            wrote_output: true,
-            output_kind: CompileOutputKind::NativeExecutable,
-            retained_native_artifact: None,
-            artifact: None,
-            executable_publication: Some(receipt),
-            optimization_rollback: self.optimization_rollback,
-            production_manifest: self.production_manifest,
-            trust_admission_settlement: self.trust_admission_settlement,
-            pcc_requests: self.pcc_requests,
-            terminal_admission_profile: self.terminal_admission_profile,
-            pcc_publications,
-            application_name: self.application_name,
-            application_intent: self.application_intent,
-            application_identifier: self.application_identifier,
-            package_publication,
-            timings: self.timings,
-        };
-        if !report.has_consistent_executable_publication_custody() {
-            return Err("published native report failed custody replay".to_owned());
-        }
-        Ok(report)
-    }
-
-    /// Publish the retained Terminal product as one `<root>.psi` artifact,
-    /// plus its adjacent `.proof` companion when the normalized Build
-    /// requested Psi PCC. Both members are prepared, validated and staged
-    /// before either destination is installed. A native proof request reports
-    /// `Incomplete` rather than downgrading to custody-only success, and an
-    /// earlier publication's unrequested `.proof` is removed before the new
-    /// artifact installs so no stale sidecar binds the new bytes.
-    pub fn publish_retained_terminal_artifact(
-        self,
-        build_dir: &std::path::Path,
-    ) -> Result<Self, String> {
-        if self.output_kind != CompileOutputKind::TerminalArtifact
-            || self.wrote_output
-            || self.retained_native_artifact.is_some()
-            || self.executable_publication.is_some()
-        {
-            return Err(
-                "terminal publication requires exactly one retained terminal artifact".to_owned(),
-            );
-        }
-        // A Terminal stop cannot satisfy a native proof-product request; the
-        // compile route rejects this earlier, and the report fails closed
-        // rather than silently downgrading the requested pair.
-        if self.pcc_requests.native {
-            let outcome = terminal_codec::PccVerificationOutcome::Incomplete(
-                terminal_codec::PccIncompleteness::UnsupportedEvidence {
-                    product: terminal_codec::PccProductKind::Native,
-                },
-            );
-            return Err(format!(
-                "native PCC publication is {outcome:?}: a Terminal stop carries no native product"
-            ));
-        }
-        let artifact = self.artifact.as_ref().ok_or_else(|| {
-            "terminal publication requires exactly one retained terminal artifact".to_owned()
-        })?;
-        artifact.validate().map_err(|error| {
-            format!("refusing to publish an invalid terminal artifact: {error}")
-        })?;
-        let stem = self
-            .root_path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .filter(|stem| !stem.is_empty())
-            .ok_or_else(|| "terminal publication requires a named root file".to_owned())?;
-        std::fs::create_dir_all(build_dir).map_err(|error| {
-            format!(
-                "failed to create output directory {}: {error}",
-                build_dir.display()
-            )
-        })?;
-        let psi_path = build_dir.join(format!("{stem}.psi"));
-        let mut pcc_publications = Vec::new();
-        let mut staged_products = Vec::new();
-        if self.pcc_requests.psi {
-            let pair =
-                PreparedPsiProofPair::new(artifact.artifact(), &self.terminal_admission_profile)
-                    .map_err(|error| error.to_string())?;
-            pcc_publications.push(stage_psi_pair(&pair, &psi_path, &mut staged_products)?);
-        } else {
-            let psi_bytes = artifact.artifact().to_bytes();
-            // Without a Psi proof request no `.proof` companion may remain
-            // beside the artifact bytes about to be replaced: an earlier
-            // publication's sidecar commits to bytes this run did not write.
-            remove_stale_companion(&appended_file_name_path(&psi_path, ".proof"))?;
-            staged_products.push(stage_exact_bytes(&psi_path, &psi_bytes, false)?);
-        }
-        install_staged_files(&staged_products)?;
-        Ok(Self {
-            build_outputs: self.build_outputs,
-            build_observation: self.build_observation,
-            root_path: self.root_path,
-            source_file_count: self.source_file_count,
-            wrote_output: true,
-            output_kind: CompileOutputKind::TerminalArtifact,
-            retained_native_artifact: None,
-            artifact: self.artifact,
-            executable_publication: None,
-            optimization_rollback: self.optimization_rollback,
-            production_manifest: self.production_manifest,
-            trust_admission_settlement: self.trust_admission_settlement,
-            pcc_requests: self.pcc_requests,
-            terminal_admission_profile: self.terminal_admission_profile,
-            pcc_publications,
-            application_name: self.application_name,
-            application_intent: self.application_intent,
-            application_identifier: self.application_identifier,
-            package_publication: None,
-            timings: self.timings,
-        })
     }
 
     pub fn root_path(&self) -> &std::path::Path {

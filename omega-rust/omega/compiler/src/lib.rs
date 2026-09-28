@@ -8,8 +8,10 @@
 //! and generated source set; the folders are the remaining work those steps
 //! call: `checked` evaluates the build and settles checked Psi, `terminal` produces and
 //! verifies the Terminal artifact, `native` realizes it for a target, and
-//! `report` owns the compile report, publication receipts and proof sidecars.
+//! `report` owns retained products and custody records. `artifact_publication`
+//! installs finished products and their proof companions without re-entering compilation.
 
+pub mod artifact_publication;
 mod compiler;
 
 pub mod checked;
