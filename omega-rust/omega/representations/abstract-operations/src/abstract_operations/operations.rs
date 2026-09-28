@@ -284,9 +284,9 @@ pub enum AbstractOperation {
     /// independent coherence recheck
     /// `abstract_operations::happens_before_atomic_coherence_violation`
     /// under the activation's bounded `happens_before` derivation.
-    /// Terminal Psi does not yet emit normalized atomic events;
-    /// consumers must keep rejecting this operation until its producer and
-    /// checked target realization land.
+    /// Terminal Psi produces the serial scalar-result access families.
+    /// Fences and single-attempt outcomes remain outside that producer;
+    /// native consumers additionally require an admitted target encoding.
     AtomicEvent {
         psi_operation: OperationId,
         event: AbstractAtomicEvent,
