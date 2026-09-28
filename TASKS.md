@@ -4892,52 +4892,41 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   and corrupted emitted evidence. Report cross-target byte replay separately
   from hardware execution.
 
-- **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry accepted checked assembly
-  through the ordinary source-to-native pipeline under
-  [assembly](wiki/spec/language/assembly.md) and the
-  [catalog](omega-rust/psi/foundation/language-core/inline_assembly.md).
-  Catalog/checking coverage is not executable support.
+- **ASM-INSTRUCTION-CATALOG-EXPANSION.** Carry checked assembly through
+  ordinary source-to-native production under [assembly](wiki/spec/language/assembly.md)
+  and the [catalog](omega-rust/psi/foundation/language-core/inline_assembly.md).
+  Start with `tests/omega/pass/inline_asm`: runtime port/MSR and AArch64
+  system-register fixtures lack checked operation plans; constant port output
+  reaches native authority review but lacks selected-provider requirement
+  custody. **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** owns that adapter integration.
 
-  Resume at `omega-rust/psi/pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/call_operations.rs`:
-  dedicated asm-call planning handles `AsmPortOut`, while
-  `asm_value_intrinsic_result_types_reach_the_call_operation_frontier` pins
-  missing operation plans for value intrinsics. Complete checked plans,
-  lowering, Terminal encoding, independent verification, target realization
-  and final-span/state evidence together. Reuse ordinary assignments/transitions
-  where they express the operation: canonical unordered `ldr`/`str` already
-  lower through typed places. Do not require a new opcode per source spelling
-  or a separate asm-only body recognizer.
+  `04_typed-trees-to-checked-trees/src/execution/terminal_unit/calls/call_operations.rs`
+  only specially plans constant `AsmPortOut`. Complete checked plans,
+  lowering, Terminal encoding/replay, target realization and final-span/state
+  evidence. Reuse ordinary assignments/transitions where exact: `jmp` and
+  typed-place `ldr`/`str` already build. Preserve catalog target restrictions
+  through that desugaring.
 
-  First acceptance is the existing `canary_suite/inline_asm.rs` x86 fence,
-  interrupt, flags, MSR and control-register byte-emission customers, followed
-  by its checked-only pipeline-directive/cache and AArch64 system-register
-  fixtures. Preserve exact target, operand widths, authority/reach, clobbers,
-  ordering and modeled exits through emitted bytes. Wrong-target, missing
-  authority, stale postcondition, invalid saved-place, omitted clobber and
-  mismatched evidence controls must reject. Cross-compilation/byte assertions
-  do not establish privileged execution on a host.
+  Replace the deleted `canary_suite/inline_asm.rs` and value-intrinsic watcher
+  with source-to-byte acceptance for x86 fences, interrupt control, flags,
+  MSR/control registers, then pipeline directives/cache and AArch64 system
+  registers. Fixtures without entry bindings only check; emitted bytes do not
+  prove privileged execution. Retain exact widths, reach, authority, clobbers,
+  ordering and modeled exits. Wrong-target, missing-authority, stale-postcondition,
+  invalid saved-place, omitted-clobber and substituted-evidence controls reject.
 
-  Further memory, atomic, barrier-option, cache/TLB and mode-transition families
-  need a customer and complete contracted operands/effects, not just more
-  recognized mnemonics. Memory access must retain authorized extent/view,
-  bounds, alignment, initialization and access permission; numeric addresses
-  confer none. Unknown instructions and hidden/unmodeled exits keep rejecting.
-  **PRIVILEGED-PORT-EFFECT-SETTLEMENTS** owns the port-read/write provider
-  adapter integration; do not duplicate that assignment.
+  Extend memory, atomic, barrier-option, cache/TLB and mode-transition families
+  only with customers and complete operand/effect contracts. Preserve authorized
+  extent/view, bounds, alignment, initialization and permission; numeric addresses
+  grant none. Unknown instructions and hidden exits reject. No opcode per spelling
+  or separate asm-body recognizer.
 
-  Preserve the settled build authority route: hosted grants for `port_io` and
-  `interrupt_table` are independent; machine-owner authority remains
-  freestanding-only. Reach is not authority, and helper calls cannot hide
-  obligations. Keep the closed terminal-authority inventory and commitment
-  consistent when catalog mechanisms change; exercise an ordinary native
-  compile so a production inventory assertion cannot hide behind source checks.
-
-  **INTERPRETED-ASSEMBLY** owns the settled interpreted execution route; native
-  support need not wait on it. The checked interpreter's unit-return arms in
-  `interpreter/evaluator/statements_and_calls.rs` do not
-  establish fidelity for unmodeled halt/register/cache effects. Unsupported
-  effects must reject, while genuinely elidable hints retain their catalog
-  meaning; do not silently turn all asm into successful no-ops.
+  Hosted `port_io` and `interrupt_table` grants stay independent;
+  machine-owner authority stays freestanding-only. Helpers cannot hide obligations.
+  Keep the terminal-authority inventory/commitment consistent and exercise native
+  compilation. **INTERPRETED-ASSEMBLY** owns interpretation independently:
+  the checked interpreter's Unit stubs and fabricated flags are not modeled
+  execution. Reject unsupported effects; retain only catalog-permitted no-ops.
 
 - **RUNTIME-SIZED-ACTIVATION-CONTRACT.** Connect the ratified
   [bounded activation claim](wiki/spec/resources/activation_storage.md) to
