@@ -1,6 +1,6 @@
 //! Prepare a retained proposal's provider inputs before native admission.
 //!
-//! This operation owns receiving-policy joins and the callback, import and
+//! This operation owns package-custody joins and the callback, import and
 //! builtin rosters. Derived import evidence stays owned here until admission
 //! and publication have consumed their borrowed execution records.
 
@@ -12,12 +12,11 @@ use crate::provider_admission::{
 };
 use diagnostics::Diagnostic;
 
-/// Independent receiving inputs; none can select or replace retained plans.
-/// No receiving policy means no receiver-admission claim, not an empty policy.
+/// Independent package and realization inputs; none can replace retained plans.
+/// Receiver policy is supplied later to admission of the demanded closure.
 pub struct RetainedNativeProviderInputs<'input> {
     pub optimization_selections: &'input optimization_core::PostTerminalOptimizationSelections,
     pub accepted_package_permissions: &'input TerminalAuthorityPermissionPolicy,
-    pub receiving_permissions: Option<&'input TerminalAuthorityPermissionPolicy>,
     pub imports: &'input [SourceEvaluatedImportSettlement<'input>],
 }
 
@@ -67,7 +66,7 @@ impl PreparedRetainedNativeProviders<'_> {
 }
 
 impl TerminalNativeRealizationProposal {
-    /// Rejoin retained plans to the receiver's exact policies and execution inputs.
+    /// Rejoin retained plans to exact package acceptance and execution inputs.
     /// The caller retains the artifact and proposal throughout native realization.
     pub fn prepare_native_providers<'input>(
         &'input self,
@@ -89,18 +88,6 @@ impl TerminalNativeRealizationProposal {
             self.package_terminal_authority_permissions(),
             inputs.accepted_package_permissions,
         )?;
-        // The receiver-admission join runs only under an explicitly supplied
-        // receiving policy. `None` leaves the accepted package rows as package
-        // evidence only; they are never silently projected into receiver
-        // permissions.
-        if let Some(receiving_policy) = inputs.receiving_permissions {
-            crate::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permissions(
-                inputs.accepted_package_permissions
-                    .rows()
-                    .iter(),
-                receiving_policy,
-            )?;
-        }
         let native_callbacks = crate::provider_admission::admit_native_callback_arguments(
             callback_placements,
             self.occurrences().callbacks.as_slice(),

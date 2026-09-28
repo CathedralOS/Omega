@@ -399,7 +399,7 @@ machine Main::main(&mut self) { }
         /// receiving permission policy alone without the standard library.
         /// The dependency sits inside the workspace directory so `Drop`
         /// cleans it with the rest of the fixture.
-        fn console_project() -> Self {
+        fn console_project(target: target::TargetProfile) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "omega-cli-package-native-console-{}-{}",
                 std::process::id(),
@@ -428,20 +428,26 @@ machine Main::main(&mut self) { }
     machine exit_process(return_code: i32)
     reaches
         Console;
+    machine write_byte(byte: i32)
+    reaches
+        Console;
 }
 
 pub data ConsoleNativeProvider { }
 
 linux_x86_64 boundary machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process;
+linux_x86_64 boundary machine ConsoleNativeProvider::write_byte(byte: i32)
+    satisfies Console::write_byte;
 
 linux_x86_64 machine ConsoleNativeProvider::provider_defaults(defaults: &mut ConsoleNativeProvider) {
     defaults.select_provider<Console, ConsoleNativeProvider>();
 }
-"#,
+"#.replace("linux_x86_64", target.target_name()),
             )
             .expect("write provider package source");
             let dependency = dependency.to_string_lossy().replace('\\', "/");
+            let target_name = target.target_name();
             std::fs::write(
                 path.join("build.omg"),
                 format!(
@@ -450,7 +456,7 @@ machine build(builder: &mut Build) {{
     builder.application("receiving_admission_app");
     builder.depend(Source::Path {{ location: "{dependency}" }});
     builder.select_provider<console_provider::Console, console_provider::ConsoleNativeProvider>();
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
+    builder.roots.bind({target_name}::ProgramEntry, Main::main);
 }}
 "#,
                 ),

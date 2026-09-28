@@ -7,11 +7,11 @@
 //! contract end to end on one accepted customer whose demanded closure is a
 //! package-owned `Console::exit_process` compiler-intrinsic leaf: the artifact
 //! emits without any receiving policy, the same program rejects under every
-//! denying policy — explicit empty, dispositions substituted in either
-//! direction off the accepted rows, and rows keyed to foreign coordinates —
-//! and admits under the policy that rejoins every demanded leaf. Surplus
-//! rows at undemanded coordinates admit and the emitted artifact binds and
-//! replays the supplied policy identity exactly.
+//! denying policy — explicit empty, insufficient dispositions, or rows keyed
+//! to foreign coordinates —
+//! and admits any independently supplied policy covering the demanded leaves.
+//! Package rows for unused operations do not become receiver obligations.
+//! The emitted artifact binds and replays the supplied policy identity exactly.
 
 use super::super::{
     CompilePreparedLocalProjectNativeError, PreparedLocalProjectNativeRequest,
@@ -28,9 +28,9 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 
 fn compile_with_receiving_policy(
     project: &TemporaryProject,
+    target: target::TargetProfile,
     policy: Option<TerminalAuthorityPermissionPolicy>,
 ) -> Result<compiler::CompileReport, CompilePreparedLocalProjectNativeError> {
-    let target = target::TargetProfile::LinuxX64;
     let prepared = prepare_local_project(
         &project.entry(),
         LocalProjectPreparationOptions {
@@ -169,17 +169,61 @@ machine Main::main(&mut self) reaches ProcessControl {
             receipt.identity(),
         )
         .unwrap();
+    if target::TargetProfile::host_if_supported() == Some(target) {
+        assert_native_exit(admitted, &project, 42);
+    }
+}
+
+fn assert_native_exit(report: compiler::CompileReport, project: &TemporaryProject, expected: i32) {
+    let published = compilation_products::publication::publish_compilation(
+        report,
+        &project.workspace.join("receiver-executable"),
+    )
+    .expect("publish the independently admitted program");
+    let output = std::process::Command::new(published.checked_native_executable_path().unwrap())
+        .output()
+        .expect("execute the admitted program");
+    assert_eq!(output.status.code(), Some(expected), "{output:?}");
 }
 
 #[test]
 fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy() {
-    let project = TemporaryProject::console_project();
-    let target = target::TargetProfile::LinuxX64;
-    accept_project(&project, target);
+    let host = target::TargetProfile::host_if_supported();
+    // Source-inferred Console intrinsics are a Unix-hosted supply route.
+    // Windows exercises its explicit DLL supply and native execution above.
+    let target = host
+        .filter(|profile| {
+            matches!(
+                profile,
+                target::TargetProfile::LinuxX64
+                    | target::TargetProfile::LinuxArm64
+                    | target::TargetProfile::MacosArm64
+            )
+        })
+        .unwrap_or(target::TargetProfile::LinuxX64);
+    let project = TemporaryProject::console_project(target);
+    let accepted = accept_project(&project, target);
+    let package_permissions = accepted
+        .target(target)
+        .unwrap()
+        .occurrences()
+        .iter()
+        .flat_map(|occurrence| occurrence.acceptance().rows())
+        .filter(|row| {
+            row.kind() == package_evidence::record::PackagePolicyRowKind::TerminalPermission
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        package_permissions
+            .iter()
+            .any(|row| row.canonical_text().contains("write_byte")),
+        "the accepted package includes the unused output operation"
+    );
+    let accepted_lock = std::fs::read(project.source.join("omega.lock")).unwrap();
 
     // Absent receiving policy: the customer emits, and the artifact records
     // no receiver-admission claim.
-    let unclaimed = compile_with_receiving_policy(&project, None)
+    let unclaimed = compile_with_receiving_policy(&project, target, None)
         .expect("accepted console customer emits without a receiving policy");
     assert_eq!(
         unclaimed.output_kind(),
@@ -233,11 +277,18 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
         .collect::<Vec<_>>();
     let sufficient = terminal_authority_permission_policy_with_rows(rows)
         .expect("leaf-derived receiving policy is well formed");
+    assert!(
+        sufficient
+            .rows()
+            .iter()
+            .all(|row| !row.requirement_identity().contains("write_byte")),
+        "only demanded operations belong in the receiving policy"
+    );
 
-    // The canonical empty receiving policy denies: it omits every accepted
-    // package row.
+    // The canonical empty receiving policy denies: it grants no demanded leaf.
     let denied = compile_with_receiving_policy(
         &project,
+        target,
         Some(current_terminal_authority_permission_policy()),
     );
     assert!(
@@ -249,9 +300,7 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
     );
 
     // A policy holding a row at the same coordinate with a disposition that
-    // does not cover the leaf's exercised classes is a substitution, not a
-    // grant: the program rejects it. Every package-approved coordinate must
-    // replay its accepted row exactly inside the receiving policy.
+    // does not cover the leaf's exercised classes cannot admit the program.
     let substituted = receipt
         .leaves()
         .iter()
@@ -265,7 +314,7 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
         .collect::<Vec<_>>();
     let substituted = terminal_authority_permission_policy_with_rows(substituted)
         .expect("substituted receiving policy is well formed");
-    let denied = compile_with_receiving_policy(&project, Some(substituted));
+    let denied = compile_with_receiving_policy(&project, target, Some(substituted));
     assert!(
         matches!(
             denied,
@@ -288,15 +337,15 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
     .expect("forged-coordinate receiving policy is well formed");
     assert!(
         matches!(
-            compile_with_receiving_policy(&project, Some(forged)),
+            compile_with_receiving_policy(&project, target, Some(forged)),
             Err(CompilePreparedLocalProjectNativeError::Native(_))
         ),
         "a receiving policy keyed to foreign coordinates must reject"
     );
 
-    // The policy rejoining every accepted row admits: the artifact records
+    // The policy covering every demanded leaf admits: the artifact records
     // that policy's identity and replays the recorded admission exactly.
-    let admitted = compile_with_receiving_policy(&project, Some(sufficient.clone()))
+    let admitted = compile_with_receiving_policy(&project, target, Some(sufficient.clone()))
         .expect("the sufficient receiving policy admits the same program");
     let artifact = admitted.retained_native_artifact().unwrap();
     artifact.validate().unwrap();
@@ -325,10 +374,9 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
         "replaying under a different permission policy must reject"
     );
 
-    // Widening is also a substitution: the receiver cannot grant a class the
-    // accepted package permission did not contain. Every accepted coordinate
-    // must replay its approved row exactly — the package axis is the ceiling
-    // for the receiving policy.
+    // Receiver permission is independent of package acceptance. A wider
+    // receiving row still covers the demanded mechanism without modifying
+    // the package's accepted row.
     let mut widened_coordinates = BTreeSet::new();
     let widened = receipt
         .leaves()
@@ -360,13 +408,22 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
         sufficient.identity(),
         "the wider grant is a distinct supplied policy"
     );
-    assert!(
-        matches!(
-            compile_with_receiving_policy(&project, Some(widened)),
-            Err(CompilePreparedLocalProjectNativeError::Native(_))
-        ),
-        "a receiving policy widening an accepted permission must reject"
+    let admitted = compile_with_receiving_policy(&project, target, Some(widened.clone()))
+        .expect("independent receiver permission may exceed the package row");
+    assert_eq!(
+        admitted
+            .retained_native_artifact()
+            .unwrap()
+            .terminal_authority_permission_policy_identity(),
+        Some(widened.identity()),
     );
+    if host == Some(target) {
+        assert_native_exit(admitted, &project, 70);
+    } else {
+        eprintln!(
+            "Console receiver-policy checks compiled for {target:?}; native execution needs that host"
+        );
+    }
 
     // Surplus rows beside the demanded coordinates admit unchanged: the
     // admitted identity is the supplied policy itself, not a canonicalized
@@ -381,7 +438,7 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
     ));
     let surplus = terminal_authority_permission_policy_with_rows(surplus_rows)
         .expect("surplus receiving policy is well formed");
-    let admitted = compile_with_receiving_policy(&project, Some(surplus.clone()))
+    let admitted = compile_with_receiving_policy(&project, target, Some(surplus.clone()))
         .expect("a surplus grant beside sufficient rows still admits");
     let artifact = admitted.retained_native_artifact().unwrap();
     assert_eq!(
@@ -395,4 +452,9 @@ fn accepted_console_customer_receives_admission_only_under_a_sufficient_policy()
             artifact.terminal_authority_closure_review().identity(),
         )
         .expect("the surplus-grant artifact replays its receiver admission");
+    assert_eq!(
+        std::fs::read(project.source.join("omega.lock")).unwrap(),
+        accepted_lock,
+        "receiver policies never rewrite package acceptance"
+    );
 }
