@@ -13,6 +13,32 @@ use selected_instructions::{
     MachineTrapBehavior,
 };
 
+#[test]
+fn scalar_pointer_displacements_follow_the_selected_isa_limits() {
+    for target in [
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::linux_x64(),
+    ] {
+        let environment = baseline_target_register_environment(target).unwrap();
+        for width in [1, 2, 4, 8] {
+            assert!(environment.admits_pointer_displacement(4095 * width, width));
+            if target.architecture == Architecture::Aarch64 {
+                assert!(!environment.admits_pointer_displacement(4096 * width, width));
+                assert_eq!(
+                    environment.admits_pointer_displacement(1, width),
+                    width == 1
+                );
+            } else {
+                assert!(environment.admits_pointer_displacement(i32::MAX as u32, width));
+                assert!(!environment.admits_pointer_displacement(1 << 31, width));
+            }
+        }
+        for width in [0, 3, 16] {
+            assert!(!environment.admits_pointer_displacement(0, width));
+        }
+    }
+}
+
 /// Every selected memory rule key with the semantic family the effect
 /// catalog must declare for it. The sweep is keyed off the validated
 /// environment's selection, never off the effect producer's own roster; the
@@ -354,8 +380,8 @@ fn expected_size(
                 MachineSizeKnowledge::ExactBytes((2 * packed_load_width(semantic) - 1) * 4)
             }
             StorePacked => resolved(24, 56),
-            FrameAddress => resolved(4, 8),
-            Store | AddressOffset | Load8Indexed | Load8 | Load16 | Load32 | Load64 | Store64 => {
+            FrameAddress | AddressOffset => resolved(4, 8),
+            Store | Load8Indexed | Load8 | Load16 | Load32 | Load64 | Store64 => {
                 MachineSizeKnowledge::ExactBytes(4)
             }
             other => panic!("{other:?} is not a selected memory rule"),

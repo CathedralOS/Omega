@@ -758,10 +758,12 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
         ),
         // One unshifted `add` inside the first granule; a shifted plus
         // unshifted pair past it.
-        MachineSemanticKind::FrameAddress => MachineSizeKnowledge::EncoderResolved {
-            minimum_bytes: 4,
-            maximum_bytes: Some(8),
-        },
+        MachineSemanticKind::FrameAddress | MachineSemanticKind::AddressOffset => {
+            MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes: 4,
+                maximum_bytes: Some(8),
+            }
+        }
         // Conditional branches resolve to a 4-byte `B.cond` when the taken
         // edge fits imm19 and widen to `B.<invcond> +8; B target` past it.
         MachineSemanticKind::ConditionalBranchNonZero

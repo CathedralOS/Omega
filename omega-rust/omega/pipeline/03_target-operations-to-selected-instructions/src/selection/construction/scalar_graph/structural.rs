@@ -598,6 +598,37 @@ fn provenance(row: &LegalizedScalarInstruction) -> SelectedInstructionProvenance
         ..Default::default()
     }
 }
+/// Keep native displacement limits separate from semantic storage bounds.
+/// Address staging has no memory effect: callers record the original place
+/// offset on the following access, even when its encoded displacement is zero.
+fn memory_pointer(
+    builder: &mut Builder<'_>,
+    row: &LegalizedScalarInstruction,
+    place: PlaceId,
+    pointer: VirtualRegisterId,
+    byte_offset: u32,
+    byte_size: u32,
+) -> Result<(VirtualRegisterId, u32), SelectedInstructionError> {
+    if builder
+        .environment
+        .admits_pointer_displacement(byte_offset, byte_size)
+    {
+        return Ok((pointer, byte_offset));
+    }
+    let address = transport_register(builder, place, byte_offset)?;
+    builder.emit(
+        SelectedInstructionKind::AddressOffset { byte_offset },
+        builder
+            .constraints
+            .keys
+            .address_offset
+            .ok_or_else(SelectedInstructionError::custody)?,
+        &[pointer, address],
+        provenance(row),
+    )?;
+    Ok((address, 0))
+}
+
 fn memory(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,

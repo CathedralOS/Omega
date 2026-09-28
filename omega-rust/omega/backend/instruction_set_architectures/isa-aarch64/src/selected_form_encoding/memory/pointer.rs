@@ -1,4 +1,6 @@
 //! Pointer stores and constant address offsets with independent instruction replay.
+//! A wide address uses the destination itself for shifted then unshifted ADD;
+//! no undeclared scratch register or temporary modification of the base is needed.
 
 use super::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint, MachineAlternativeFamily,
@@ -44,8 +46,11 @@ fn request(
     if physical.identity() != crate::canonical_aarch64_physical_register_model_identity()
         || alternative != (MachineAlternativeKey { family, variant: 0 })
         || byte_offset != displacement
-        || !displacement.is_multiple_of(scale)
-        || displacement / scale > 4095
+        || if matches!(kind, SelectedInstructionKind::AddressOffset { .. }) {
+            displacement > 0x00ff_ffff
+        } else {
+            !displacement.is_multiple_of(scale) || displacement / scale > 4095
+        }
     {
         return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
     }
@@ -65,16 +70,26 @@ pub(super) fn encode(
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (opcode, scale, base, register) =
         request(physical, kind, alternative, operands, displacement)?;
-    let word =
-        opcode | ((displacement / scale) << 10) | (u32::from(base) << 5) | u32::from(register);
-    validate(
-        physical,
-        kind,
-        alternative,
-        operands,
-        displacement,
-        &word.to_le_bytes(),
-    )
+    let bytes = if matches!(kind, SelectedInstructionKind::AddressOffset { .. })
+        && displacement > 4095
+    {
+        let high = 0x9140_0000
+            | ((displacement >> 12) << 10)
+            | (u32::from(base) << 5)
+            | u32::from(register);
+        let mut bytes = high.to_le_bytes().to_vec();
+        let low = displacement & 4095;
+        if low != 0 {
+            let word = 0x9100_0000 | (low << 10) | (u32::from(register) << 5) | u32::from(register);
+            bytes.extend_from_slice(&word.to_le_bytes());
+        }
+        bytes
+    } else {
+        let word =
+            opcode | ((displacement / scale) << 10) | (u32::from(base) << 5) | u32::from(register);
+        word.to_le_bytes().to_vec()
+    };
+    validate(physical, kind, alternative, operands, displacement, &bytes)
 }
 
 pub(super) fn validate(
@@ -87,19 +102,52 @@ pub(super) fn validate(
 ) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
     let (opcode, scale, base, register) =
         request(physical, kind, alternative, operands, displacement)?;
-    let word = bytes
-        .try_into()
-        .ok()
-        .map(u32::from_le_bytes)
-        .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
-    if word & 0xffc0_0000 != opcode
-        || word & 31 != u32::from(register)
-        || (word >> 5) & 31 != u32::from(base)
-        || ((word >> 10) & 4095) * scale != displacement
-    {
-        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
-    }
     let store = matches!(kind, SelectedInstructionKind::Store { .. });
+    if store {
+        let word = bytes
+            .try_into()
+            .ok()
+            .map(u32::from_le_bytes)
+            .ok_or(Aarch64SelectedFormEncodingError::MalformedEncoding)?;
+        if word & 0xffc0_0000 != opcode
+            || word & 31 != u32::from(register)
+            || (word >> 5) & 31 != u32::from(base)
+            || ((word >> 10) & 4095) * scale != displacement
+        {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+    } else {
+        // Decode every opcode, shift and register before adding its contribution.
+        // Only the first instruction reads the original base, including when the
+        // allocator aliases base and destination.
+        let shifted = displacement > 4095;
+        let count = if shifted && displacement & 4095 != 0 {
+            2
+        } else {
+            1
+        };
+        let (words, remainder) = bytes.as_chunks::<4>();
+        if !remainder.is_empty() || words.len() != count {
+            return Err(Aarch64SelectedFormEncodingError::MalformedEncoding);
+        }
+        let mut decoded_offset = 0;
+        for (position, bytes) in words.iter().enumerate() {
+            let word = u32::from_le_bytes(*bytes);
+            let high = shifted && position == 0;
+            let expected_opcode = if high { 0x9140_0000 } else { 0x9100_0000 };
+            let expected_base = if position == 0 { base } else { register };
+            if word & 0xffc0_0000 != expected_opcode
+                || word & 31 != u32::from(register)
+                || (word >> 5) & 31 != u32::from(expected_base)
+            {
+                return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+            }
+            decoded_offset += ((word >> 10) & 4095) << if high { 12 } else { 0 };
+        }
+        if decoded_offset != displacement {
+            return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+        }
+    }
     Ok(ValidatedAarch64SelectedFormEncoding {
         bytes: bytes.to_vec(),
         footprint: Aarch64SelectedFormFootprint {

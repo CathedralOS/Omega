@@ -115,28 +115,44 @@ pub(in crate::selection) fn read(
     };
     let pointer =
         super::runtime_address::scale(builder, row, place, byte_offset, pointer, indices)?;
+    let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
+        .ok_or_else(|| invalid())?;
+    let (pointer, displacement) = super::memory_pointer(
+        builder,
+        row,
+        place,
+        pointer,
+        byte_offset,
+        u32::from(shape.byte_size),
+    )?;
     let output = builder.register(
         definition.value,
         definition.definition_site,
         definition.scalar_type,
     )?;
-    let shape = crate::selection::scalar_call_abi::scalar_shape(definition.scalar_type)
-        .ok_or_else(|| invalid())?;
     let (instruction, constraint) = match shape.byte_size {
         1 => (
-            SelectedInstructionKind::Load8 { byte_offset },
+            SelectedInstructionKind::Load8 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load8,
         ),
         2 => (
-            SelectedInstructionKind::Load16 { byte_offset },
+            SelectedInstructionKind::Load16 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load16,
         ),
         4 => (
-            SelectedInstructionKind::Load32 { byte_offset },
+            SelectedInstructionKind::Load32 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load32,
         ),
         8 => (
-            SelectedInstructionKind::Load64 { byte_offset },
+            SelectedInstructionKind::Load64 {
+                byte_offset: displacement,
+            },
             builder.constraints.keys.load64,
         ),
         _ => return Err(invalid()),

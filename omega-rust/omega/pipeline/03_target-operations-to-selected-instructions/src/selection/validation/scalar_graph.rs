@@ -70,6 +70,7 @@ pub(in crate::selection) fn validate_with_environment(
         return Err(invalid());
     };
     let mut replay = Replay {
+        environment,
         pending_provenance: SelectedInstructionProvenance::default(),
         required_values: super::value_transport::required_values(source),
         function,
@@ -471,6 +472,7 @@ pub(in crate::selection) fn validate_with_environment(
 }
 
 struct Replay<'a> {
+    environment: &'a register_environment::ValidatedTargetRegisterEnvironment,
     // Zero-payload constructors retain their source position without storage.
     // The next instruction in this same block carries their ordered charges.
     pending_provenance: SelectedInstructionProvenance,

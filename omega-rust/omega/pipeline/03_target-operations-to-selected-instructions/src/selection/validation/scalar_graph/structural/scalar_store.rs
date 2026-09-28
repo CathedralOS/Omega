@@ -127,6 +127,14 @@ pub(super) fn validate(
         pointer,
         indices,
     )?;
+    let (address, displacement) = super::memory_pointer(
+        replay,
+        row,
+        destination.place(),
+        address,
+        byte_offset,
+        u32::from(byte_size),
+    )?;
     super::runtime_address::footprint(
         replay,
         row,
@@ -138,7 +146,7 @@ pub(super) fn validate(
     )?;
     replay.check_instruction(
         SelectedInstructionKind::Store {
-            byte_offset,
+            byte_offset: displacement,
             byte_size,
         },
         replay

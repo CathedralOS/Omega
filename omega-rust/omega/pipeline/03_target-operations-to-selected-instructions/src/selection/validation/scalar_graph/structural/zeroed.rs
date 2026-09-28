@@ -51,6 +51,14 @@ pub(super) fn establish(
         &provenance(row),
     )?;
     for (offset, width) in stores {
+        let (pointer, displacement) = super::memory_pointer(
+            replay,
+            row,
+            established.place,
+            pointer,
+            offset,
+            u32::from(width),
+        )?;
         memory(
             replay,
             row,
@@ -61,7 +69,7 @@ pub(super) fn establish(
         )?;
         replay.check_instruction(
             SelectedInstructionKind::Store {
-                byte_offset: offset,
+                byte_offset: displacement,
                 byte_size: width,
             },
             replay
