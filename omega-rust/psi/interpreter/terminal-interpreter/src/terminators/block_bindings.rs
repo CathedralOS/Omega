@@ -152,6 +152,7 @@ impl TerminalExecution {
         allow_projected: bool,
     ) -> Result<BlockBindings, TerminalInterpretError> {
         let block = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(
@@ -237,6 +238,7 @@ impl TerminalExecution {
                         StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
                     ) || self.owned_block_source(parameter.place) != Some(parameter)
                         || !self
+                            .program
                             .machines
                             .get(&self.current_machine)
                             .is_some_and(|machine| {
@@ -294,7 +296,7 @@ impl TerminalExecution {
                     } else {
                         let root = value.expect("one structural carrier was validated");
                         let view = resolve_structural_arguments(
-                            &self.structural_types,
+                            &self.program.structural_types,
                             &self.structural_values,
                             std::slice::from_ref(argument),
                         )?
@@ -352,7 +354,7 @@ impl TerminalExecution {
                     {
                         return Err(TerminalInterpretError::VerifiedOperationMalformed);
                     }
-                    if matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
+                    if matches!(self.program.structural_types.get(&parameter.structural_type), Some(declaration)
                                             if declaration.shape.is_borrowed_byte_carrier())
                     {
                         // Borrowed byte views join whole: the argument names
@@ -367,7 +369,8 @@ impl TerminalExecution {
                         }
                     } else if self.plain_record_type(parameter.structural_type)
                         || matches!(
-                            self.structural_types
+                            self.program
+                                .structural_types
                                 .get(&parameter.structural_type)
                                 .map(|declaration| &declaration.shape),
                             Some(StructuralTypeShape::PrimitiveScalar(_))
@@ -381,7 +384,7 @@ impl TerminalExecution {
                         // the root either stays untracked or is still held as
                         // one whole frontier entry.
                         let view = resolve_structural_arguments(
-                            &self.structural_types,
+                            &self.program.structural_types,
                             &self.structural_values,
                             std::slice::from_ref(argument),
                         )?
@@ -408,7 +411,7 @@ impl TerminalExecution {
                 }
                 StructuralAccess::MutableBorrow => {
                     if parameter.multiplicity != StructuralMultiplicity::Unrestricted
-                        || !matches!(self.structural_types.get(&parameter.structural_type), Some(declaration)
+                        || !matches!(self.program.structural_types.get(&parameter.structural_type), Some(declaration)
                                                     if declaration.shape.is_borrowed_byte_carrier())
                         || self.live_affine_frontier.iter().any(|entry| {
                             entry.place == argument.place || entry.place == parameter.place
@@ -505,7 +508,7 @@ impl TerminalExecution {
         multiplicity: StructuralMultiplicity,
         scalar_case: bool,
     ) -> bool {
-        let Some(machine) = self.machines.get(&self.current_machine) else {
+        let Some(machine) = self.program.machines.get(&self.current_machine) else {
             return false;
         };
         let Some(declaration) = machine
@@ -572,7 +575,7 @@ impl TerminalExecution {
         &self,
         place: PlaceId,
     ) -> Option<&StructuralParameterDeclaration> {
-        let machine = self.machines.get(&self.current_machine)?;
+        let machine = self.program.machines.get(&self.current_machine)?;
         let declaration = machine
             .structural_places
             .iter()
@@ -585,7 +588,7 @@ impl TerminalExecution {
                         && parameter.is_self == is_self
                 })
             }
-            StructuralPlaceKind::BlockParameter { block, position } => self.machines
+            StructuralPlaceKind::BlockParameter { block, position } => self.program.machines
                 [&self.current_machine]
                 .blocks
                 .get(&block)?

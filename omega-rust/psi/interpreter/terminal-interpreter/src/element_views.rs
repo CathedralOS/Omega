@@ -117,7 +117,7 @@ impl TerminalExecution {
         if *destination != result.place {
             return Err(invalid());
         }
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if !machine.structural_places.iter().any(|place| {
@@ -133,6 +133,7 @@ impl TerminalExecution {
         let Some(&StructuralTypeShape::ElementView {
             element: view_element,
         }) = self
+            .program
             .structural_types
             .get(&result.structural_type)
             .map(|declaration| &declaration.shape)
@@ -148,6 +149,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let Some(&StructuralTypeShape::PrimitiveScalar(element_scalar)) = self
+            .program
             .structural_types
             .get(element)
             .map(|declaration| &declaration.shape)
@@ -155,7 +157,7 @@ impl TerminalExecution {
             return Err(invalid());
         };
         let resolved = crate::custody::resolve_structural_arguments(
-            &self.structural_types,
+            &self.program.structural_types,
             &self.structural_values,
             std::slice::from_ref(source),
         )?
@@ -183,6 +185,7 @@ impl TerminalExecution {
             element: collection_element,
             length: collection_length,
         } = self
+            .program
             .structural_types
             .get(&resolved.structural_type)
             .ok_or_else(invalid)?
@@ -342,7 +345,7 @@ impl TerminalExecution {
         let view = self.element_view_values.get(source).ok_or(
             TerminalInterpretError::VerifiedStructuralPlaceMissing(*source),
         )?;
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         if !machine.structural_places.iter().any(|place| {

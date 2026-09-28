@@ -154,6 +154,7 @@ impl TerminalExecution {
         arguments: &[StructuralArgument],
     ) -> Result<StructuralCallArguments, TerminalInterpretError> {
         let machine = self
+            .program
             .machines
             .get(&callee)
             .ok_or(TerminalInterpretError::VerifiedCallTargetMissing(callee))?;
@@ -193,7 +194,7 @@ impl TerminalExecution {
                     return Err(TerminalInterpretError::VerifiedOperationMalformed);
                 }
             } else if terminal_semantics::scalar_array_leaf_shape(
-                self.structural_types.values(),
+                self.program.structural_types.values(),
                 parameter.structural_type,
             )
             .is_some()
@@ -216,6 +217,7 @@ impl TerminalExecution {
             ) && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && self
+                    .program
                     .structural_types
                     .get(&result.structural_type)
                     .is_some_and(|declaration| {
@@ -235,6 +237,7 @@ impl TerminalExecution {
                         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
                     ) && (machine.result == TerminalMachineResult::Unit || scalar_case_result)))
                     && self
+                        .program
                         .structural_types
                         .get(&parameter.structural_type)
                         .is_some_and(|declaration| {

@@ -66,7 +66,7 @@ impl TerminalExecution {
                 *source,
             ))?
             .immutable()?;
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         // Canonical verification owns unique producer/result IDs. Retain the
@@ -80,7 +80,7 @@ impl TerminalExecution {
                         structural_type: result.structural_type,
                     }
         }) || !matches!(
-            self.structural_types.get(&result.structural_type),
+            self.program.structural_types.get(&result.structural_type),
             Some(declaration)
                 if declaration.shape.is_borrowed_byte_view()
         ) || bytes.len() != length

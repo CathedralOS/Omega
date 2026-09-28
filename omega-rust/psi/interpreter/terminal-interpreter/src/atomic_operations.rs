@@ -30,7 +30,7 @@ impl TerminalExecution {
         event: AtomicAccessEvent,
     ) -> Result<(), TerminalInterpretError> {
         let malformed = || TerminalInterpretError::VerifiedOperationMalformed;
-        let machine = self.machines.get(&self.current_machine).ok_or(
+        let machine = self.program.machines.get(&self.current_machine).ok_or(
             TerminalInterpretError::VerifiedCallTargetMissing(self.current_machine),
         )?;
         let access = machine
@@ -68,7 +68,7 @@ impl TerminalExecution {
             .map(|parameter| parameter.access)
             .ok_or_else(malformed)?;
         let parent = resolve_structural_arguments(
-            &self.structural_types,
+            &self.program.structural_types,
             &self.structural_values,
             &[StructuralArgument {
                 place,
@@ -78,9 +78,12 @@ impl TerminalExecution {
         )?
         .pop()
         .ok_or_else(malformed)?;
-        let scalar_type =
-            direct_scalar_field_type(&self.structural_types, parent.structural_type, field)
-                .ok_or_else(malformed)?;
+        let scalar_type = direct_scalar_field_type(
+            &self.program.structural_types,
+            parent.structural_type,
+            field,
+        )
+        .ok_or_else(malformed)?;
         let cell = StructuralScalarRuntimeField {
             parent: StructuralRuntimePlace::from(&parent),
             field,

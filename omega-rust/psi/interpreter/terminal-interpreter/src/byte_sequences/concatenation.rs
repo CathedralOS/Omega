@@ -21,7 +21,8 @@ impl TerminalExecution {
         };
         let result = operation.result.structural().ok_or_else(invalid)?;
         let StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity }) =
-            self.structural_types
+            self.program
+                .structural_types
                 .get(&result.structural_type)
                 .ok_or_else(invalid)?
                 .shape

@@ -121,24 +121,20 @@ fn execution(terminator: Terminator) -> TerminalExecution {
         .collect();
     TerminalExecution {
         structural_cases: BTreeMap::new(),
-        structural_types: BTreeMap::from([(
-            structural_type,
-            StructuralTypeDeclaration {
-                id: structural_type,
-                identity: "bytes".into(),
-                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                }),
-            },
-        )]),
-        machines: BTreeMap::from([(machine_id, machine)]).into(),
-        dynamic_scalar_calls: BTreeMap::new(),
-        dynamic_descriptor_templates: BTreeMap::new(),
-        dynamic_selection_templates: BTreeMap::new(),
-        dynamic_descriptor_arguments: BTreeMap::new(),
+        program: std::sync::Arc::new(crate::program::AdmittedTerminalProgram::for_test(
+            BTreeMap::from([(machine_id, machine)]),
+            BTreeMap::from([(
+                structural_type,
+                StructuralTypeDeclaration {
+                    id: structural_type,
+                    identity: "bytes".into(),
+                    shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }),
+                },
+            )]),
+        )),
         dynamic_parameters: BTreeMap::new(),
-        boundary_machines: BTreeMap::new(),
-        provider_candidates: Default::default(),
         provider_installation: BTreeMap::new(),
         assumed_bindings: Vec::new(),
         values: BTreeMap::from([
@@ -221,7 +217,8 @@ fn malformed_view_bindings_reject_without_replacing_values() {
                     .structural_type = StructuralTypeId::new(999).unwrap();
             }
             6 => {
-                std::sync::Arc::get_mut(&mut execution.machines)
+                std::sync::Arc::get_mut(&mut execution.program)
+                    .map(|program| &mut program.machines)
                     .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
@@ -268,23 +265,20 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         .expect("the existing immutable-view fixture admits this successor");
     let parent_type = StructuralTypeId::new(2).unwrap();
     let field = StructuralFieldId::new(1).unwrap();
-    execution.structural_types.insert(
-        parent_type,
-        StructuralTypeDeclaration {
-            id: parent_type,
-            identity: "Buffer".into(),
-            shape: StructuralTypeShape::Record {
-                fields: vec![StructuralFieldDeclaration {
-                    id: field,
-                    identity: "bytes".into(),
-                    relevance: BindingRelevance::Relevant,
-                    field_type: StructuralFieldType::ByteSequence(
-                        ByteSequenceCarrier::BoundedOwned { capacity: 8 },
-                    ),
-                }],
-            },
+    execution.insert_structural_type(StructuralTypeDeclaration {
+        id: parent_type,
+        identity: "Buffer".into(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "bytes".into(),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                    capacity: 8,
+                }),
+            }],
         },
-    );
+    });
     let parent_place = PlaceId::new(5).unwrap();
     let parent = TerminalStructuralValue {
         opaque_identity: 105,
@@ -302,7 +296,8 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         .insert(backing.clone(), ByteSequenceView::new(vec![10, 20]));
 
     let loan_place = PlaceId::new(1).unwrap();
-    let mut formal = std::sync::Arc::get_mut(&mut execution.machines)
+    let mut formal = std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -325,7 +320,7 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
     let referent = prepared.values.remove(&loan_place).unwrap();
     let loan = prepared.byte_sequences.remove(&loan_place).unwrap();
     assert!(matches!(loan, ByteSequenceBinding::MutableField { .. }));
-    loan.validate_mutable_referent(&execution.structural_types, &referent)
+    loan.validate_mutable_referent(&execution.program.structural_types, &referent)
         .unwrap();
     execution
         .structural_values
@@ -334,7 +329,8 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
 
     // Retain the real mutable source declaration and distinct block targets,
     // so Owned rejects a loan, not a missing source/declaration or arity error.
-    let target = std::sync::Arc::get_mut(&mut execution.machines)
+    let target = std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -345,7 +341,8 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         parameter.place = PlaceId::new(position as u64 + 3).unwrap();
     }
     let target_parameters = target.structural_parameters.clone();
-    let machine = std::sync::Arc::get_mut(&mut execution.machines)
+    let machine = std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap();
@@ -376,7 +373,8 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
         .bytes()
         .as_ptr();
     for access in [StructuralAccess::SharedBorrow, StructuralAccess::Owned] {
-        std::sync::Arc::get_mut(&mut execution.machines)
+        std::sync::Arc::get_mut(&mut execution.program)
+            .map(|program| &mut program.machines)
             .unwrap()
             .get_mut(&execution.current_machine)
             .unwrap()
@@ -414,7 +412,7 @@ fn mutable_field_loan_cannot_be_rebound_as_a_shared_or_owned_block_value() {
             let binding = &execution.byte_sequence_values[&loan_place];
             assert!(binding.immutable().is_err());
             binding
-                .validate_mutable_referent(&execution.structural_types, &referent)
+                .validate_mutable_referent(&execution.program.structural_types, &referent)
                 .unwrap();
             assert_eq!(
                 execution.structural_byte_sequence_fields[&backing].bytes(),

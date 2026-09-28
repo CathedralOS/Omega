@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use terminal_psi::TerminalModule;
+use terminal_psi::StructuralPlaceDeclaration;
 
 use crate::errors::TerminalInterpretError;
 use crate::values::TerminalStructuralValue;
@@ -25,12 +25,17 @@ impl LocalStructuralIdentities {
         }
     }
 
-    pub(crate) fn new(module: &TerminalModule, arguments: &[TerminalStructuralValue]) -> Self {
+    /// Reserve the identities the admitted program's declared structural
+    /// places own plus every host-supplied argument identity. `places` is the
+    /// program's declared-place iterator — executable bodies live on the
+    /// shared program, not on any one instance.
+    pub(crate) fn new<'a>(
+        structural_places: impl IntoIterator<Item = &'a StructuralPlaceDeclaration>,
+        arguments: &[TerminalStructuralValue],
+    ) -> Self {
         Self {
-            reserved: module
-                .machines
-                .iter()
-                .flat_map(|machine| &machine.structural_places)
+            reserved: structural_places
+                .into_iter()
                 .map(|place| place.id.get())
                 .chain(arguments.iter().map(|value| value.opaque_identity))
                 .collect(),

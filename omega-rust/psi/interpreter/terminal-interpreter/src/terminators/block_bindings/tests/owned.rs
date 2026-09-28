@@ -50,27 +50,26 @@ fn owned_execution(
 ) -> TerminalExecution {
     let mut execution = execution(terminator);
     let structural_type = StructuralTypeId::new(1).unwrap();
-    execution
-        .structural_types
-        .get_mut(&structural_type)
-        .unwrap()
-        .shape = StructuralTypeShape::Record {
-        fields: [
-            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
-            ScalarType::Boolean,
-        ]
-        .into_iter()
-        .enumerate()
-        .map(|(position, scalar_type)| StructuralFieldDeclaration {
-            id: StructuralFieldId::new(position as u64 + 1).unwrap(),
-            identity: format!("field{position}"),
-            relevance: BindingRelevance::Relevant,
-            field_type: StructuralFieldType::Scalar(scalar_type),
-        })
-        .collect(),
-    };
+    execution.mutate_structural_type(structural_type, |declaration| {
+        declaration.shape = StructuralTypeShape::Record {
+            fields: [
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+                ScalarType::Boolean,
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(position, scalar_type)| StructuralFieldDeclaration {
+                id: StructuralFieldId::new(position as u64 + 1).unwrap(),
+                identity: format!("field{position}"),
+                relevance: BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(scalar_type),
+            })
+            .collect(),
+        };
+    });
     execution.byte_sequence_values.clear();
-    let target = std::sync::Arc::get_mut(&mut execution.machines)
+    let target = std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -133,7 +132,8 @@ fn owned_execution(
     let target_id = target.id;
     let parameters = target.parameters.clone();
     let target_parameters = target.structural_parameters.clone();
-    let machine = std::sync::Arc::get_mut(&mut execution.machines)
+    let machine = std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap();
@@ -204,28 +204,25 @@ fn case_payload_copy_checks_the_tag_and_transfers_independent_storage() {
     let sum_type = StructuralTypeId::new(2).unwrap();
     let active = StructuralCaseId::new(1).unwrap();
     let payload = StructuralFieldId::new(3).unwrap();
-    execution.structural_types.insert(
-        sum_type,
-        StructuralTypeDeclaration {
-            id: sum_type,
-            identity: "Choice".into(),
-            shape: StructuralTypeShape::Sum {
-                cases: [1, 2]
-                    .into_iter()
-                    .map(|identity| StructuralCaseDeclaration {
-                        id: StructuralCaseId::new(identity).unwrap(),
-                        identity: format!("Case{identity}"),
-                        fields: vec![StructuralFieldDeclaration {
-                            id: StructuralFieldId::new(identity + 2).unwrap(),
-                            identity: "payload".into(),
-                            relevance: BindingRelevance::Relevant,
-                            field_type: StructuralFieldType::Structural(record_type),
-                        }],
-                    })
-                    .collect(),
-            },
+    execution.insert_structural_type(StructuralTypeDeclaration {
+        id: sum_type,
+        identity: "Choice".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: [1, 2]
+                .into_iter()
+                .map(|identity| StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(identity).unwrap(),
+                    identity: format!("Case{identity}"),
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(identity + 2).unwrap(),
+                        identity: "payload".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Structural(record_type),
+                    }],
+                })
+                .collect(),
         },
-    );
+    });
     let root = execution.structural_values.get_mut(&source).unwrap();
     root.structural_type = sum_type;
     let root = StructuralRuntimePlace::from(&*root);
@@ -326,7 +323,8 @@ fn case_payload_copy_checks_the_tag_and_transfers_independent_storage() {
         }],
         unsigned(7)
     );
-    let machine = std::sync::Arc::get_mut(&mut execution.machines)
+    let machine = std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap();
@@ -520,7 +518,8 @@ fn malformed_owned_handoffs_leave_all_custody_uncommitted() {
                     });
             }
             "source mode" => {
-                std::sync::Arc::get_mut(&mut execution.machines)
+                std::sync::Arc::get_mut(&mut execution.program)
+                    .map(|program| &mut program.machines)
                     .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()
@@ -528,7 +527,8 @@ fn malformed_owned_handoffs_leave_all_custody_uncommitted() {
                     .access = StructuralAccess::SharedBorrow
             }
             "target owner" => {
-                std::sync::Arc::get_mut(&mut execution.machines)
+                std::sync::Arc::get_mut(&mut execution.program)
+                    .map(|program| &mut program.machines)
                     .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()

@@ -90,7 +90,8 @@ fn ordinary_unit_field_presentation_writes_original_backing_and_rejects_substitu
         unreachable!()
     };
     *destination = place(2);
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -122,7 +123,8 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
     let mut execution = writer();
     let binding_block = BlockId::new(4).unwrap();
     let writing_block = BlockId::new(5).unwrap();
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -139,7 +141,8 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
         trivial_affine_discards: Vec::new(),
         residual_affine_discards: Vec::new(),
     };
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -171,7 +174,8 @@ fn dominated_mutable_block_parameter_supports_fresh_length_and_write() {
     };
     *destination = place(4);
     execution.values.insert(scalar(3), unsigned(64, 8));
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -317,7 +321,8 @@ fn fixed_view_write_rejects_bad_operands_binding_and_stale_extent_without_mutati
                     .opaque_identity += 1;
             }
             7 => {
-                std::sync::Arc::get_mut(&mut execution.machines)
+                std::sync::Arc::get_mut(&mut execution.program)
+                    .map(|program| &mut program.machines)
                     .unwrap()
                     .get_mut(&execution.current_machine)
                     .unwrap()

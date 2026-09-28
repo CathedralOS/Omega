@@ -127,24 +127,20 @@ fn execution() -> (TerminalExecution, Operation) {
     };
     let execution = TerminalExecution {
         structural_cases: BTreeMap::new(),
-        structural_types: BTreeMap::from([(
-            structural_type,
-            StructuralTypeDeclaration {
-                id: structural_type,
-                identity: "bytes".into(),
-                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                    access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                }),
-            },
-        )]),
-        machines: BTreeMap::from([(machine_id, machine)]).into(),
-        dynamic_scalar_calls: BTreeMap::new(),
-        dynamic_descriptor_templates: BTreeMap::new(),
-        dynamic_selection_templates: BTreeMap::new(),
-        dynamic_descriptor_arguments: BTreeMap::new(),
+        program: std::sync::Arc::new(crate::program::AdmittedTerminalProgram::for_test(
+            BTreeMap::from([(machine_id, machine)]),
+            BTreeMap::from([(
+                structural_type,
+                StructuralTypeDeclaration {
+                    id: structural_type,
+                    identity: "bytes".into(),
+                    shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    }),
+                },
+            )]),
+        )),
         dynamic_parameters: BTreeMap::new(),
-        boundary_machines: BTreeMap::new(),
-        provider_candidates: Default::default(),
         provider_installation: BTreeMap::new(),
         assumed_bindings: Vec::new(),
         values: BTreeMap::from([
@@ -385,12 +381,11 @@ fn failed_replacement_preserves_descriptors_and_live_custody() {
             }),
             "wrong result type" => result.structural_type = wrong_type,
             "wrong carrier" => {
-                execution
-                    .structural_types
-                    .get_mut(&result.structural_type)
-                    .unwrap()
-                    .shape = StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
-                    capacity: 4,
+                execution.mutate_structural_type(result.structural_type, |declaration| {
+                    declaration.shape =
+                        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {
+                            capacity: 4,
+                        });
                 });
             }
             _ => panic!("unknown mutation"),

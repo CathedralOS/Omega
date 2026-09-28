@@ -7,6 +7,17 @@
 //! interpreter loop. Execution retains immutable code and resumable live
 //! custody; fuel exhaustion is not a semantic program outcome.
 //!
+//! The embedding surface sits beside it, by lifecycle: `program` (one decoded,
+//! verified, immutable artifact — `TerminalProgram` — reusable across
+//! independent instances), `instance` (`TerminalInstance`: one guest
+//! activation whose demanded import slots bind checked host adapters before
+//! `invoke` and release on `close`), and `adapters` (the typed contract a
+//! host implementation declares so a slot can be checked before any effect
+//! runs). Embedding a program goes through `TerminalProgram::load`,
+//! `instantiate`, `bind_import`, `invoke`, `close`; the raw
+//! `TerminalExecution`/`TerminalEffectHandler` surface remains the low-level
+//! control the embedding layer is built over, not a binding API.
+//!
 //! The domains beside them, by responsibility: `structural_inputs` (the
 //! host-supplied entry inputs and their binding), `custody` (claims, the
 //! affine frontier and argument binding), `structural_identities` (execution-wide
@@ -19,6 +30,7 @@
 //! `semantic_value_comparison` (trace-value comparison for differential
 //! checks).
 
+mod adapters;
 mod atomic_operations;
 mod byte_sequences;
 mod calls;
@@ -27,7 +39,9 @@ mod effects;
 mod element_views;
 mod errors;
 mod execution;
+mod instance;
 mod primitive_storage;
+mod program;
 mod record;
 mod reference;
 mod results;
@@ -42,6 +56,10 @@ mod terminal_interpreter;
 mod terminators;
 mod values;
 
+pub use adapters::{
+    TerminalAdapterError, TerminalImportAdapter, TerminalImportSignature,
+    TerminalImportStructuralParameter, TerminalScalarImport, TerminalUnitImport,
+};
 pub use effects::byte_buffers::TerminalBoundaryByteBuffer;
 pub use effects::results::TerminalEffectResult;
 pub use effects::{
@@ -54,6 +72,10 @@ pub use errors::{
     TerminalInterpretError,
 };
 pub use execution::TerminalExecution;
+pub use instance::{
+    TerminalBindingRejection, TerminalInstance, TerminalInstanceCloseError, TerminalInstanceError,
+};
+pub use program::TerminalProgram;
 pub use results::{
     MeasuredTerminalExecution, TerminalCrash, TerminalCrashSite, TerminalExecutionResult,
     TerminalExecutionStatus, TerminalScalarCaseResult, TerminalStructuralResult,

@@ -38,6 +38,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let declaration = self
+            .program
             .structural_types
             .get(&result.structural_type)
             .ok_or_else(invalid)?;
@@ -241,7 +242,7 @@ impl TerminalExecution {
     }
 
     pub(crate) fn retire_unrestricted_aggregates(&mut self) {
-        let Some(machine) = self.machines.get(&self.current_machine) else {
+        let Some(machine) = self.program.machines.get(&self.current_machine) else {
             return;
         };
         let places = machine
@@ -269,7 +270,7 @@ impl TerminalExecution {
                 let plain = match operation.kind {
                     OperationKind::EstablishZeroedStructural { .. } => {
                         terminal_semantics::zeroed_structural_leaves(
-                            self.structural_types.values(),
+                            self.program.structural_types.values(),
                             result.structural_type,
                         )
                         .is_some()
@@ -300,6 +301,7 @@ impl TerminalExecution {
                 continue;
             }
             let Some(StructuralTypeShape::Record { fields }) = self
+                .program
                 .structural_types
                 .get(&identity)
                 .map(|declaration| &declaration.shape)

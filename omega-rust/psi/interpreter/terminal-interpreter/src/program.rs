@@ -1,0 +1,508 @@
+//! Admitted programs: the immutable half of interpretation, shared verbatim
+//! across instances.
+//!
+//! `AdmittedTerminalProgram` is what `TerminalExecution::start_artifact` used
+//! to build privately per execution: the verified module's executable tables
+//! plus the catalog authority instance startup still consults. `TerminalProgram`
+//! is the public handle: decode, verify and admit once, then instantiate any
+//! number of independent executions without re-reading bytes or rechecking
+//! proof. Admission, not construction, is the trust boundary — the struct's
+//! fields are crate-private so a caller cannot mint program content that did
+//! not pass verification.
+//!
+//! Per the embedding contract (wiki/spec/build/embedding.md), a Program is
+//! immutable admitted Psi plus descriptions and execution metadata; instances
+//! and their bindings live in `instance.rs`. Loading accepts canonical
+//! semantic/proof bytes only: it runs no source compiler, touches no
+//! filesystem, and creates no global runtime or thread — compilation remains
+//! the separate upstream authority that produced the bytes.
+
+use crate::errors::{TerminalArtifactInterpretError, TerminalInterpretError};
+use crate::execution::{ExecutableMachine, RuntimeDynamicDescriptorTemplate};
+use crate::instance::TerminalInstance;
+use crate::structural_inputs::TerminalStructuralInputs;
+use crate::values::TerminalScalarValue;
+use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
+use terminal_psi::{
+    BoundaryMachineDeclaration, StructuralArgument, StructuralTypeDeclaration, TerminalModule,
+    TerminalPsiIdentity,
+};
+
+/// The immutable content of one verified Terminal-Psi module, shared verbatim
+/// by every instance of the same admitted program.
+///
+/// Admission splits the module into the execution-ready projections the
+/// interpreter loop reads — `machines`, the indexed declaration maps, the
+/// dynamic dispatch tables — plus `catalogs`, the subset of roster rows a
+/// fresh instance still consults: the entry selector, the direct-entry
+/// placed-view input rows, and the structural type and domain rosters that
+/// placed-view referent validation runs against. Verification-only payloads
+/// (proof vocabularies, dynamic dispatch custody, conformance applications)
+/// are dropped at admission rather than retained per program.
+#[derive(Clone)]
+pub(crate) struct AdmittedTerminalProgram {
+    /// Canonical Terminal-Psi identity of the verified module, computed once
+    /// at admission; provider installations bind to this exact identity.
+    pub(crate) identity: TerminalPsiIdentity,
+    /// Slim module catalog retained per program: `entry`, `placed_view_inputs`,
+    /// `structural_types` and `structural_domains` populated; every other
+    /// roster empty — verification consumed them at admission and nothing
+    /// per-instance reads them back.
+    pub(crate) catalogs: TerminalModule,
+    pub(crate) machines: BTreeMap<MachineId, ExecutableMachine>,
+    pub(crate) structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    pub(crate) boundary_machines: BTreeMap<BoundaryMachineId, BoundaryMachineDeclaration>,
+    /// Boundaries with a checked provider candidate in this artifact. They
+    /// dispatch to the installed provider machine and are never host imports:
+    /// a host binding cannot substitute for a checked provider.
+    pub(crate) provider_candidates: BTreeSet<BoundaryMachineId>,
+    pub(crate) dynamic_scalar_calls: BTreeMap<(MachineId, u32), (MachineId, StructuralArgument)>,
+    pub(crate) dynamic_descriptor_templates:
+        BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
+    pub(crate) dynamic_selection_templates:
+        BTreeMap<(MachineId, u32), RuntimeDynamicDescriptorTemplate>,
+    pub(crate) dynamic_descriptor_arguments:
+        BTreeMap<(MachineId, OperationId), Vec<terminal_psi::TerminalDynamicDescriptorArgument>>,
+}
+
+impl AdmittedTerminalProgram {
+    /// Move one verified module into shared immutable form. The module arrives
+    /// already verified by the caller — admission converts representation,
+    /// never re-checks semantics.
+    pub(crate) fn admit(mut module: TerminalModule) -> Result<Self, TerminalInterpretError> {
+        let terminal_psi = terminal_codec::terminal_psi_identity(&module)
+            .map_err(|_| TerminalInterpretError::VerifiedOperationMalformed)?;
+        let machines = std::mem::take(&mut module.machines)
+            .into_iter()
+            .map(|machine| {
+                (
+                    machine.id,
+                    ExecutableMachine {
+                        parameters: machine.parameters,
+                        structural_parameters: machine.structural_parameters,
+                        structural_places: machine.structural_places,
+                        entry_claims: machine.entry_claims,
+                        content_entry_claims: machine.content_entry_claims,
+                        result: machine.result,
+                        entry: machine.entry,
+                        blocks: machine
+                            .blocks
+                            .into_iter()
+                            .map(|block| (block.id, block))
+                            .collect(),
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut dynamic_scalar_calls = module
+            .dynamic_dispatch
+            .indirect_dispatches
+            .iter()
+            .map(|dispatch| {
+                let descriptor = module
+                    .dynamic_dispatch
+                    .rebound_descriptors
+                    .iter()
+                    .find(|descriptor| {
+                        descriptor.owner == dispatch.owner
+                            && descriptor.ordinal == dispatch.descriptor_ordinal
+                    })
+                    .expect("verified indirect dispatch has one descriptor");
+                let selection = module
+                    .dynamic_dispatch
+                    .selections
+                    .iter()
+                    .find(|selection| {
+                        selection.owner == descriptor.owner
+                            && selection.ordinal == descriptor.rebound_selection_ordinal
+                    })
+                    .expect("verified descriptor has one latest selection");
+                (
+                    (dispatch.owner, dispatch.descriptor_ordinal),
+                    (dispatch.realization, selection.source.clone()),
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        for dispatch in &module.dynamic_dispatch.stored_dispatches {
+            let descriptor = module
+                .dynamic_dispatch
+                .stored_descriptors
+                .iter()
+                .find(|descriptor| {
+                    descriptor.owner == dispatch.owner
+                        && descriptor.ordinal == dispatch.descriptor_ordinal
+                })
+                .expect("verified stored dispatch has one descriptor");
+            let selection = module
+                .dynamic_dispatch
+                .selections
+                .iter()
+                .find(|selection| {
+                    selection.owner == descriptor.owner
+                        && selection.ordinal == descriptor.selection_ordinal
+                })
+                .expect("verified stored descriptor has one selection");
+            assert!(
+                dynamic_scalar_calls
+                    .insert(
+                        (dispatch.owner, dispatch.descriptor_ordinal),
+                        (dispatch.realization, selection.source.clone()),
+                    )
+                    .is_none(),
+                "verified dynamic descriptor coordinates must be disjoint"
+            );
+        }
+        let dynamic_selection_templates = module
+            .dynamic_dispatch
+            .selections
+            .iter()
+            .map(|selection| {
+                let application = module
+                    .closed_conformance_applications
+                    .iter()
+                    .find(|application| {
+                        application.owner == selection.owner
+                            && application.report_fingerprint
+                                == selection.conformance_application_report_fingerprint
+                            && application.commitment
+                                == selection.conformance_application_commitment
+                    })
+                    .expect("verified selection has one conformance application");
+                let callables = application
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        row.realization_callable_identity.as_ref().map(|identity| {
+                            application
+                                .realization_callables
+                                .iter()
+                                .find(|callable| callable.source_callable_identity == *identity)
+                                .map(|callable| callable.machine)
+                                .expect("verified dynamic row has one callable")
+                        })
+                    })
+                    .collect();
+                (
+                    (selection.owner, selection.ordinal),
+                    RuntimeDynamicDescriptorTemplate {
+                        source: selection.source.clone(),
+                        callables,
+                    },
+                )
+            })
+            .collect::<BTreeMap<_, _>>();
+        let mut dynamic_descriptor_templates = module
+            .dynamic_dispatch
+            .rebound_descriptors
+            .iter()
+            .map(|descriptor| {
+                let template = dynamic_selection_templates
+                    .get(&(descriptor.owner, descriptor.rebound_selection_ordinal))
+                    .expect("verified descriptor has one latest selection")
+                    .clone();
+                ((descriptor.owner, descriptor.ordinal), template)
+            })
+            .collect::<BTreeMap<_, _>>();
+        for descriptor in &module.dynamic_dispatch.stored_descriptors {
+            let template = dynamic_selection_templates
+                .get(&(descriptor.owner, descriptor.selection_ordinal))
+                .expect("verified stored descriptor has one selection")
+                .clone();
+            assert!(
+                dynamic_descriptor_templates
+                    .insert((descriptor.owner, descriptor.ordinal), template)
+                    .is_none(),
+                "verified dynamic descriptor coordinates must be disjoint"
+            );
+        }
+        let mut dynamic_descriptor_arguments = BTreeMap::<
+            (MachineId, OperationId),
+            Vec<terminal_psi::TerminalDynamicDescriptorArgument>,
+        >::new();
+        for argument in &module.dynamic_dispatch.arguments {
+            dynamic_descriptor_arguments
+                .entry((argument.owner, argument.operation))
+                .or_default()
+                .push(argument.clone());
+        }
+        let boundary_machines = module
+            .boundary_machines
+            .iter()
+            .cloned()
+            .map(|boundary| (boundary.id, boundary))
+            .collect::<BTreeMap<_, _>>();
+        let structural_types = module
+            .structural_types
+            .iter()
+            .cloned()
+            .map(|declaration| (declaration.id, declaration))
+            .collect();
+        let provider_candidates = module
+            .provider_candidates
+            .iter()
+            .map(|candidate| candidate.boundary)
+            .collect();
+        let mut catalogs = TerminalModule::for_entry(module.entry);
+        catalogs.placed_view_inputs = std::mem::take(&mut module.placed_view_inputs);
+        catalogs.structural_types = std::mem::take(&mut module.structural_types);
+        catalogs.structural_domains = std::mem::take(&mut module.structural_domains);
+        Ok(Self {
+            identity: terminal_psi,
+            catalogs,
+            machines,
+            structural_types,
+            boundary_machines,
+            provider_candidates,
+            dynamic_scalar_calls,
+            dynamic_descriptor_templates,
+            dynamic_selection_templates,
+            dynamic_descriptor_arguments,
+        })
+    }
+
+    /// The declared boundary a demanded import slot names, when `slot` is a
+    /// host-bindable import of this program.
+    pub(crate) fn import_declaration(
+        &self,
+        slot: BoundaryMachineId,
+    ) -> Option<&BoundaryMachineDeclaration> {
+        if self.provider_candidates.contains(&slot) {
+            return None;
+        }
+        self.boundary_machines.get(&slot)
+    }
+
+    #[cfg(test)]
+    /// Shared content for unit tests that build execution state by hand
+    /// instead of admitting an artifact. The placeholder identity is never
+    /// compared because these constructions carry no provider installation.
+    pub(crate) fn for_test(
+        machines: BTreeMap<MachineId, ExecutableMachine>,
+        structural_types: BTreeMap<StructuralTypeId, StructuralTypeDeclaration>,
+    ) -> Self {
+        let entry = machines
+            .keys()
+            .next()
+            .copied()
+            .unwrap_or_else(|| MachineId::new(1).unwrap());
+        Self {
+            identity: TerminalPsiIdentity {
+                vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+                program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([0; 32]),
+            },
+            catalogs: TerminalModule::for_entry(entry),
+            machines,
+            structural_types,
+            boundary_machines: BTreeMap::new(),
+            provider_candidates: BTreeSet::new(),
+            dynamic_scalar_calls: BTreeMap::new(),
+            dynamic_descriptor_templates: BTreeMap::new(),
+            dynamic_selection_templates: BTreeMap::new(),
+            dynamic_descriptor_arguments: BTreeMap::new(),
+        }
+    }
+}
+
+/// One admitted Terminal-Psi program: decoded, verified, immutable and
+/// shareable across every independent instance it instantiates.
+///
+/// `load` is the whole authority here — admission replays the canonical
+/// decode and the interpreter's verification once, then keeps the result.
+/// Cloning shares the same admitted program; it does not re-verify.
+/// The program's demanded imports are described exactly by `imports`; each
+/// instance establishes them through `TerminalInstance::bind_import`.
+#[derive(Clone)]
+pub struct TerminalProgram {
+    pub(crate) program: std::sync::Arc<AdmittedTerminalProgram>,
+}
+
+impl std::fmt::Debug for TerminalProgram {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TerminalProgram")
+            .field("identity", &self.program.identity)
+            .finish()
+    }
+}
+
+impl TerminalProgram {
+    /// Decode canonical semantic and proof sections, verify them under the
+    /// interpreter's admission profile, and retain the admitted program.
+    ///
+    /// Loading consumes bytes only — no source compiler, filesystem, package
+    /// authority, global runtime or thread. Producing those bytes from source
+    /// is a separate compilation authority that stays upstream of this API.
+    pub fn load(
+        semantic_bytes: &[u8],
+        proof_bytes: &[u8],
+        profile: &proof_admission::AdmissionProfile,
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        let module = terminal_codec::decode_module(semantic_bytes)
+            .map_err(TerminalArtifactInterpretError::SemanticDecode)?;
+        // The proof section must be sealed for this exact module, the same
+        // requirement `TerminalExecution::start_artifact` enforces.
+        let proof = terminal_codec::decode_proof_section_for(&module, proof_bytes)
+            .map_err(TerminalArtifactInterpretError::ProofDecode)?;
+        let _verified =
+            terminal_verifier::verify_module_for_interpretation(&module, &proof, profile)
+                .map_err(TerminalArtifactInterpretError::Verification)?;
+        Ok(Self {
+            program: std::sync::Arc::new(
+                AdmittedTerminalProgram::admit(module)
+                    .map_err(TerminalArtifactInterpretError::Execution)?,
+            ),
+        })
+    }
+
+    /// Decode one complete portable Terminal-Psi envelope and admit it as a
+    /// reusable program. The envelope carries no checked-tree or build object.
+    pub fn load_envelope(
+        artifact_bytes: &[u8],
+        profile: &proof_admission::AdmissionProfile,
+    ) -> Result<Self, TerminalArtifactInterpretError> {
+        let artifact = terminal_codec::CanonicalTerminalArtifact::from_bytes(artifact_bytes)
+            .map_err(TerminalArtifactInterpretError::ArtifactDecode)?;
+        Self::load(artifact.semantic_bytes(), artifact.proof_bytes(), profile)
+    }
+
+    /// The exact Terminal-Psi identity this program was admitted under.
+    pub fn terminal_psi(&self) -> TerminalPsiIdentity {
+        self.program.identity
+    }
+
+    /// The demanded host imports: each declared boundary machine with no
+    /// checked provider candidate. Provider-realized boundaries satisfy their
+    /// requirement through an admitted installation instead and never appear
+    /// here. The declaration returned is the exact contract — signature,
+    /// requirements, crash routes and guarantees — not a display summary.
+    pub fn imports(&self) -> impl Iterator<Item = &BoundaryMachineDeclaration> {
+        let candidates = &self.program.provider_candidates;
+        self.program
+            .boundary_machines
+            .values()
+            .filter(move |declaration| !candidates.contains(&declaration.id))
+    }
+
+    /// The exact import description for one demanded slot, absent when `slot`
+    /// is not a host-bindable import of this program.
+    pub fn import(&self, slot: BoundaryMachineId) -> Option<&BoundaryMachineDeclaration> {
+        self.program.import_declaration(slot)
+    }
+
+    /// Resolve an import's display name to its exact slot. A matching name
+    /// identifies the slot; it establishes neither interface compatibility
+    /// nor call authority — binding still checks the full declared contract.
+    pub fn import_by_identity(&self, identity: &str) -> Option<BoundaryMachineId> {
+        self.imports()
+            .find(|declaration| declaration.identity == identity)
+            .map(|declaration| declaration.id)
+    }
+
+    /// Start one instance of this program with its scalar arguments and every
+    /// structural entry input in one record. No demanded import is invoked
+    /// until `invoke`; establish each through
+    /// [`TerminalInstance::bind_import`] first.
+    ///
+    /// The instance shares this program's admitted content verbatim — the
+    /// second and later instances of one program decode and verify nothing.
+    pub fn instantiate<'host>(
+        &self,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
+    ) -> Result<TerminalInstance<'host>, TerminalArtifactInterpretError> {
+        self.instantiate_with(scalar_arguments, structural_inputs, None)
+    }
+
+    /// Start one instance under a provider installation previously admitted
+    /// against this exact program identity.
+    pub fn instantiate_installed<'host>(
+        &self,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
+        installation: &crate::effects::AdmittedProviderInstallation,
+    ) -> Result<TerminalInstance<'host>, TerminalArtifactInterpretError> {
+        self.instantiate_with(scalar_arguments, structural_inputs, Some(installation))
+    }
+
+    /// Wrap an already-admitted program as the public handle — the route the
+    /// bare-artifact start entries take after their own decode and verify.
+    pub(crate) fn from_admitted(program: AdmittedTerminalProgram) -> Self {
+        Self {
+            program: std::sync::Arc::new(program),
+        }
+    }
+
+    /// Bind the complete host input record to one fresh execution on this
+    /// admitted program — the shared tail of `instantiate` and the bare
+    /// `TerminalExecution` artifact starts, so every entry accepts the same
+    /// `TerminalStructuralInputs` lanes.
+    ///
+    /// Boolean field values convert into the scalar-field lane before
+    /// binding; a conversion failure is reported back under the boolean
+    /// argument shape the host actually supplied. Cases and fixed byte-array
+    /// backings bind after construction and before any operation runs.
+    pub(crate) fn start_execution(
+        &self,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
+        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+    ) -> Result<crate::execution::TerminalExecution, TerminalArtifactInterpretError> {
+        let converted_boolean_fields;
+        let scalar_fields = if structural_inputs.boolean_fields.is_empty() {
+            structural_inputs.scalar_fields
+        } else {
+            converted_boolean_fields = structural_inputs
+                .boolean_fields
+                .iter()
+                .map(crate::structural_inputs::scalar_fields::TerminalStructuralScalarFieldValue::from)
+                .collect::<Vec<_>>();
+            &converted_boolean_fields
+        };
+        let mut execution = crate::execution::TerminalExecution::start_with_program(
+            std::sync::Arc::clone(&self.program),
+            scalar_arguments,
+            structural_inputs.arguments,
+            scalar_fields,
+            structural_inputs.primitive_values,
+            structural_inputs.placed_view_establishments,
+            installation,
+        )
+        .map_err(TerminalArtifactInterpretError::Execution)
+        .map_err(|error| match error {
+            TerminalArtifactInterpretError::Execution(
+                TerminalInterpretError::StructuralScalarFieldArgumentInvalid {
+                    argument_index,
+                    field,
+                },
+            ) if !structural_inputs.boolean_fields.is_empty() => {
+                TerminalArtifactInterpretError::Execution(
+                    TerminalInterpretError::StructuralBooleanFieldArgumentInvalid {
+                        argument_index,
+                        field,
+                    },
+                )
+            }
+            other => other,
+        })?;
+        execution
+            .bind_structural_cases(structural_inputs.cases)
+            .map_err(TerminalArtifactInterpretError::Execution)?;
+        if !structural_inputs.byte_arrays.is_empty() {
+            execution
+                .bind_byte_arrays(structural_inputs.byte_arrays)
+                .map_err(TerminalArtifactInterpretError::Execution)?;
+        }
+        Ok(execution)
+    }
+
+    fn instantiate_with<'host>(
+        &self,
+        scalar_arguments: &[TerminalScalarValue],
+        structural_inputs: TerminalStructuralInputs<'_>,
+        installation: Option<&crate::effects::AdmittedProviderInstallation>,
+    ) -> Result<TerminalInstance<'host>, TerminalArtifactInterpretError> {
+        let execution = self.start_execution(scalar_arguments, structural_inputs, installation)?;
+        Ok(TerminalInstance::new(self.clone(), execution))
+    }
+}

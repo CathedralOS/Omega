@@ -40,7 +40,7 @@ impl TerminalExecution {
             .get(destination)
             .ok_or_else(invalid)?;
         binding.validate_mutable_referent(
-            &self.structural_types,
+            &self.program.structural_types,
             self.structural_values
                 .get(destination)
                 .ok_or_else(invalid)?,

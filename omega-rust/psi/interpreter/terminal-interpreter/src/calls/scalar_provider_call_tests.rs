@@ -293,7 +293,9 @@ fn scalar_provider_result_type_drift_rejects_at_verification_and_dispatch() {
     module.provider_candidates.clear();
     let mut execution =
         TerminalExecution::start_verified_module(module, &[], &[], &[], &[], &[], None).unwrap();
-    execution.provider_candidates.insert(boundary_id(1));
+    std::sync::Arc::make_mut(&mut execution.program)
+        .provider_candidates
+        .insert(boundary_id(1));
     execution
         .provider_installation
         .insert(boundary_id(1), machine_id(2));

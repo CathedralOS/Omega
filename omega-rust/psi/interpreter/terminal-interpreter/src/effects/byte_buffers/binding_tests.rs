@@ -107,54 +107,52 @@ fn execution() -> TerminalExecution {
     let current_machine = MachineId::new(1).unwrap();
     TerminalExecution {
         structural_cases: BTreeMap::new(),
-        structural_types: BTreeMap::from([
-            (
-                structural_type(1),
-                StructuralTypeDeclaration {
-                    id: structural_type(1),
-                    identity: "record".into(),
-                    shape: StructuralTypeShape::Record {
-                        fields: vec![StructuralFieldDeclaration {
-                            id: StructuralFieldId::new(1).unwrap(),
-                            identity: "bytes".into(),
-                            relevance: BindingRelevance::Relevant,
-                            field_type: StructuralFieldType::ByteSequence(
-                                ByteSequenceCarrier::BoundedOwned { capacity: 8 },
-                            ),
-                        }],
+        program: std::sync::Arc::new(crate::program::AdmittedTerminalProgram::for_test(
+            machines,
+            BTreeMap::from([
+                (
+                    structural_type(1),
+                    StructuralTypeDeclaration {
+                        id: structural_type(1),
+                        identity: "record".into(),
+                        shape: StructuralTypeShape::Record {
+                            fields: vec![StructuralFieldDeclaration {
+                                id: StructuralFieldId::new(1).unwrap(),
+                                identity: "bytes".into(),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::ByteSequence(
+                                    ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                                ),
+                            }],
+                        },
                     },
-                },
-            ),
-            (
-                structural_type(2),
-                StructuralTypeDeclaration {
-                    id: structural_type(2),
-                    identity: "array".into(),
-                    shape: StructuralTypeShape::FixedArray {
-                        element: structural_type(1),
-                        length: 2,
+                ),
+                (
+                    structural_type(2),
+                    StructuralTypeDeclaration {
+                        id: structural_type(2),
+                        identity: "array".into(),
+                        shape: StructuralTypeShape::FixedArray {
+                            element: structural_type(1),
+                            length: 2,
+                        },
                     },
-                },
-            ),
-            (
-                structural_type(3),
-                StructuralTypeDeclaration {
-                    id: structural_type(3),
-                    identity: "view".into(),
-                    shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
-                        access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-                    }),
-                },
-            ),
-        ]),
-        machines: machines.into(),
-        dynamic_scalar_calls: BTreeMap::new(),
-        dynamic_descriptor_templates: BTreeMap::new(),
-        dynamic_selection_templates: BTreeMap::new(),
-        dynamic_descriptor_arguments: BTreeMap::new(),
+                ),
+                (
+                    structural_type(3),
+                    StructuralTypeDeclaration {
+                        id: structural_type(3),
+                        identity: "view".into(),
+                        shape: StructuralTypeShape::ByteSequence(
+                            ByteSequenceCarrier::BorrowedView {
+                                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                            },
+                        ),
+                    },
+                ),
+            ]),
+        )),
         dynamic_parameters: BTreeMap::new(),
-        boundary_machines: BTreeMap::new(),
-        provider_candidates: BTreeSet::new(),
         provider_installation: BTreeMap::new(),
         assumed_bindings: Vec::new(),
         values: BTreeMap::new(),
@@ -214,7 +212,10 @@ fn enter_provider(execution: &mut TerminalExecution) {
     let prepared = prepared.into_call_arguments(&[parameter(2)]).unwrap();
     assert_eq!(ordinary.values, prepared.values);
     ordinary.byte_sequences[&place(2)]
-        .validate_mutable_referent(&execution.structural_types, &prepared.values[&place(2)])
+        .validate_mutable_referent(
+            &execution.program.structural_types,
+            &prepared.values[&place(2)],
+        )
         .unwrap();
     execution
         .begin_unit_call(
@@ -312,14 +313,11 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
     let mut execution = execution();
     let callee_id = MachineId::new(2).unwrap();
     let token_type = structural_type(4);
-    execution.structural_types.insert(
-        token_type,
-        StructuralTypeDeclaration {
-            id: token_type,
-            identity: "token".into(),
-            shape: StructuralTypeShape::Record { fields: Vec::new() },
-        },
-    );
+    execution.insert_structural_type(StructuralTypeDeclaration {
+        id: token_type,
+        identity: "token".into(),
+        shape: StructuralTypeShape::Record { fields: Vec::new() },
+    });
     let token = TerminalStructuralValue {
         opaque_identity: 202,
         structural_type: token_type,
@@ -344,7 +342,8 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
     };
-    let callee = std::sync::Arc::get_mut(&mut execution.machines)
+    let callee = std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&callee_id)
         .unwrap();
@@ -364,7 +363,8 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
         trivial_affine_discards: Vec::new(),
     };
     let callee_parameters = callee.structural_parameters.clone();
-    std::sync::Arc::get_mut(&mut execution.machines)
+    std::sync::Arc::get_mut(&mut execution.program)
+        .map(|program| &mut program.machines)
         .unwrap()
         .get_mut(&execution.current_machine)
         .unwrap()
@@ -391,7 +391,7 @@ fn structural_result_entry_uses_prepared_field_loan_and_preserves_writeback_on_r
     // The ordinary resolver cannot represent this inline byte field as a view.
     assert!(
         resolve_structural_arguments(
-            &execution.structural_types,
+            &execution.program.structural_types,
             &execution.structural_values,
             &actuals
         )
@@ -535,26 +535,21 @@ fn mutable_field_reborrow_rejects_absent_or_mismatched_binding_and_immutable_use
 #[test]
 fn shared_bounded_owner_preserves_qualification_and_snapshot_when_forwarded() {
     let mut execution = execution();
-    execution
-        .structural_types
-        .get_mut(&structural_type(3))
-        .unwrap()
-        .shape =
-        StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 });
+    execution.mutate_structural_type(structural_type(3), |declaration| {
+        declaration.shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned { capacity: 8 });
+    });
     let mut predicates = terminal_psi::ByteSequencePredicateSet::EMPTY;
     predicates.insert(terminal_psi::ByteSequencePredicate::ValidUtf8);
-    let StructuralTypeShape::Record { fields } = &mut execution
-        .structural_types
-        .get_mut(&structural_type(1))
-        .unwrap()
-        .shape
-    else {
-        unreachable!();
-    };
-    fields[0].field_type = StructuralFieldType::PredicateByteSequence {
-        carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
-        predicates,
-    };
+    execution.mutate_structural_type(structural_type(1), |declaration| {
+        let StructuralTypeShape::Record { fields } = &mut declaration.shape else {
+            unreachable!();
+        };
+        fields[0].field_type = StructuralFieldType::PredicateByteSequence {
+            carrier: ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+            predicates,
+        };
+    });
     let qualification = semantic_vocabulary::StructuralDomainId::new(1).unwrap();
     let mut formal = parameter(2);
     formal.access = StructuralAccess::SharedBorrow;

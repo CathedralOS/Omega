@@ -74,6 +74,7 @@ impl TerminalExecution {
     ) -> Result<(PrimitiveStorage, ScalarType), TerminalInterpretError> {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let machine = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
@@ -131,14 +132,14 @@ impl TerminalExecution {
             })
             .ok_or_else(invalid)?;
         let path = terminal_semantics::canonical_primitive_path(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             structural_type,
             path,
         )
         .ok_or_else(invalid)?;
         let path = path.as_slice();
         let scalar_type = terminal_semantics::primitive_place_type(
-            self.structural_types.values(),
+            self.program.structural_types.values(),
             structural_type,
             path,
         )
@@ -158,6 +159,7 @@ impl TerminalExecution {
                     return Err(invalid());
                 };
                 let terminal_psi::StructuralTypeShape::FixedArray { element, length } = self
+                    .program
                     .structural_types
                     .get(&carrier)
                     .ok_or_else(invalid)?
@@ -169,6 +171,7 @@ impl TerminalExecution {
                     return Err(invalid());
                 }
                 let leaf_count = match self
+                    .program
                     .structural_types
                     .get(&element)
                     .ok_or_else(invalid)?
@@ -177,7 +180,7 @@ impl TerminalExecution {
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => 1,
                     _ => {
                         terminal_semantics::scalar_array_leaf_shape(
-                            self.structural_types.values(),
+                            self.program.structural_types.values(),
                             element,
                         )
                         .ok_or_else(invalid)?
@@ -211,7 +214,11 @@ impl TerminalExecution {
         let mut projected = view.clone();
         let mut carrier = structural_type;
         for segment in path {
-            let declaration = self.structural_types.get(&carrier).ok_or_else(invalid)?;
+            let declaration = self
+                .program
+                .structural_types
+                .get(&carrier)
+                .ok_or_else(invalid)?;
             match (segment, &declaration.shape) {
                 (
                     semantic_vocabulary::CanonicalStructuralPathSegment::Field(identity),
@@ -317,8 +324,13 @@ impl TerminalExecution {
                 (value.opaque_identity == view.opaque_identity).then_some(value.structural_type)
             })
             .ok_or_else(invalid)?;
-        let parent = resolve_structural_path_type(&self.structural_types, root, parent_path)?;
-        let declaration = self.structural_types.get(&parent).ok_or_else(invalid)?;
+        let parent =
+            resolve_structural_path_type(&self.program.structural_types, root, parent_path)?;
+        let declaration = self
+            .program
+            .structural_types
+            .get(&parent)
+            .ok_or_else(invalid)?;
         let fields = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Record { fields }
             | terminal_psi::StructuralTypeShape::Mixed { fields, .. } => fields,
@@ -352,6 +364,7 @@ impl TerminalExecution {
         let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
         let result = operation.result.structural().ok_or_else(invalid)?;
         let machine = self
+            .program
             .machines
             .get(&self.current_machine)
             .ok_or_else(invalid)?;
@@ -364,6 +377,7 @@ impl TerminalExecution {
             return Err(invalid());
         }
         let Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(expected)) = self
+            .program
             .structural_types
             .get(&result.structural_type)
             .map(|entry| &entry.shape)
@@ -522,7 +536,8 @@ impl TerminalExecution {
     }
 
     pub(crate) fn primitive_local_count(&self) -> usize {
-        self.machines
+        self.program
+            .machines
             .get(&self.current_machine)
             .map_or(0, |machine| {
                 self.structural_values
@@ -533,7 +548,7 @@ impl TerminalExecution {
     }
 
     pub(crate) fn retire_plain_locals(&mut self) {
-        let Some(machine) = self.machines.get(&self.current_machine) else {
+        let Some(machine) = self.program.machines.get(&self.current_machine) else {
             return;
         };
         for place in &machine.structural_places {
