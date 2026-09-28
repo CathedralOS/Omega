@@ -12,6 +12,10 @@ consumes the result; it does not implement these decisions.
 
 The narrower operations are:
 
+- [Constant evaluation](src/constant_evaluation.rs): join exact selected execution,
+  resume pending Psi continuations in order, then rejoin the final checked
+  occurrences and replay folded array lengths. Selection rows and folds remain
+  private to this owner; Psi still defines evaluation and fold validation.
 - [Dispatch](src/selected_dispatch.rs): selected operator associations and
   float comparison facts. It retains Psi's checked execution plans.
 - [Boundary dispatch](src/boundary_dispatch.rs): exact requirement-to-adapter

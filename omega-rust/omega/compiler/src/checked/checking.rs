@@ -3,7 +3,6 @@
 pub(crate) mod build_continuation;
 pub(crate) mod checked_compilation;
 pub(crate) mod compile_thread;
-mod const_evaluation;
 pub(crate) mod execution_settlement;
 pub(crate) mod phase_transitions;
 

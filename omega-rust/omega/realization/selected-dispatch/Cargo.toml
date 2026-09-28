@@ -10,6 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 backend-plan = { path = "../../backend/plans/backend-plan" }
+build-time-evaluation = { path = "../../../psi/interpreter/build-time-evaluation" }
 representation-planning = { path = "../../../psi/checking/representation-planning" }
 trust-model = { path = "../trust-model" }
 task-plans = { path = "../../backend/runtime/task-plans" }
