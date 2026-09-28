@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-//! Compiler-neutral syntactic projection of the authoritative project role in
+//! Shared Build declarations and syntactic projection of the project role in
 //! an Omega `build.omg`.
 //!
 //! Projection parses syntax but never evaluates build code, follows imports,
@@ -11,10 +11,14 @@
 //! parts. `syntax_projection` reads one from source, `declaration_errors`
 //! names every rejection, and `dependencies` projects the dependency rows
 //! beside the role.
+//! `prelude` supplies the toolchain-authored Build API as ordinary source,
+//! projecting optimization names from their shared catalog. These static
+//! declarations confer no interpreter authority.
 
 mod build_declaration;
 mod declaration_errors;
 mod dependencies;
+mod prelude;
 mod syntax_projection;
 #[cfg(test)]
 mod tests;
@@ -29,6 +33,7 @@ pub use dependencies::{
     CONDITIONAL_DEPENDENCY_CALL_NAMES, DependencyOperation, DependencyPurpose, DependencyRow,
     DependencyRowError, is_dependency_call_name, project_dependency_rows,
 };
+pub use prelude::build_prelude_source;
 pub use syntax_projection::{
     BuildDeclarationSyntaxProjection, BuildEntrySyntaxProjection, extract_build_declaration,
     project_build_declaration_from_source, project_build_declaration_from_syntax_trees,

@@ -1,14 +1,28 @@
-//! Build-prelude text for the closed optimization vocabulary.
-//!
-//! `optimization-core`'s `optimization_vocabulary!` declaration is the only
-//! enumeration of case names and counter fields; this module owns the
-//! Omega-source shape of the injected `Optimization`/`Optimizations` data and
-//! the `enable`/`emit_report` machines, projected from `Optimization::ALL` so
-//! a new variant cannot leave the injected vocabulary a row short.
+//! Project the shared optimization catalog into the toolchain Build API.
 
 use optimization_core::Optimization;
 
-pub(super) fn declarations() -> String {
+const DECLARATIONS_SLOT: &str = "// compiler-owned optimization declarations\n";
+const ENABLE_SLOT: &str = "// compiler-owned optimization enable machine\n";
+const REPORT_SLOT: &str = "// compiler-owned optimization report machine\n";
+
+pub(super) fn install(base: &str) -> String {
+    for slot in [DECLARATIONS_SLOT, ENABLE_SLOT, REPORT_SLOT] {
+        assert_eq!(
+            base.matches(slot).count(),
+            1,
+            "build prelude must contain exactly one `{}` slot",
+            slot.trim()
+        );
+    }
+    let declarations = declarations();
+    let enable_machine = enable_machine();
+    base.replacen(DECLARATIONS_SLOT, &declarations, 1)
+        .replacen(ENABLE_SLOT, &enable_machine, 1)
+        .replacen(REPORT_SLOT, REPORT_MACHINE, 1)
+}
+
+fn declarations() -> String {
     let mut text = String::from("pub data Optimization {\n");
     for optimization in Optimization::ALL {
         text.push_str(&format!("    case {};\n", optimization.build_case_name()));
@@ -24,7 +38,7 @@ pub(super) fn declarations() -> String {
     text
 }
 
-pub(super) fn enable_machine() -> String {
+fn enable_machine() -> String {
     let mut text = String::from(
         "pub machine Optimizations::enable(&mut self, optimization: Optimization) {\n    transition optimization {\n",
     );
@@ -46,7 +60,7 @@ pub(super) fn enable_machine() -> String {
     text
 }
 
-pub(super) const REPORT_MACHINE: &str = r#"pub machine Optimizations::emit_report(&mut self) {
+const REPORT_MACHINE: &str = r#"pub machine Optimizations::emit_report(&mut self) {
     self.human_report = self.human_report + 1;
 }
 "#;

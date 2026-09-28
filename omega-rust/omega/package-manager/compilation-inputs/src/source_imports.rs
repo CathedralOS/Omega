@@ -6,12 +6,14 @@
 //! This owner does not schedule lexing, parsing, or source-program checking.
 
 mod bindings;
+mod build_prelude;
 mod frontier;
 mod package_selection;
 mod paths;
 mod project;
 
 pub use bindings::{PendingPackageImport, ResolvedSourceImport, retain_module_import_bindings};
+pub use build_prelude::{BuildPrelude, prepare_build_prelude};
 pub use frontier::{
     SourceFile, SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };

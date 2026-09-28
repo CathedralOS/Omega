@@ -1,26 +1,18 @@
-//! Generated `build` prelude content. The toolchain-provided build vocabulary
-//! (`BUILD_PRELUDE` plus its compiler-owned slots) and the injected
-//! build-machine fragment live here: literal generated source content owned
-//! beside `build_vocabulary`, not sequencing in the assembly entry file.
+//! Toolchain-authored Build declarations consumed as ordinary Omega source.
+//!
+//! These declarations supply static shapes only. Evaluation admits exact
+//! toolchain provenance and activation-local values before granting any access.
+//! Optimization cases and counters are projected from the shared catalog.
 
-use super::build_vocabulary;
-use artifacts::compile_timings::CompileTimings;
-use artifacts::compile_timings::{SOURCE_FILES_TO_TOKENS, TOKENS_TO_SYNTAX_TREES};
-use diagnostics::Diagnostic;
-use package_compilation::source_imports::SourceStorage;
-use source_files_to_tokens::lex_sources;
-use tokens_to_syntax_trees::parse_sources;
+mod optimizations;
 
-/// Toolchain-provided build vocabulary (wiki/spec/build/declarations.md): a
-/// build.omg has exactly one free `machine build(builder: &mut Build) { ... }`
-/// entry. The `Build` / `Subsystem` types are CORE-DEFINED, never authored per
-/// file. When a build.omg root declares that build-machine shape and no `Build` data of
-/// its own, the build-machine fragment is injected as a virtual source (a
-/// program-declared `Build` wins, which keeps migration and deliberate
-/// overrides possible). Package identity uses the same injected `Build`
-/// surface through `builder.package(name)`; there is no second declaration
-/// type or compiler-only constant shape.
-pub(super) const BUILD_PRELUDE: &str = r#"
+/// Construct the target-neutral Build API with the exact optimization catalog.
+/// Loading and parsing this source do not grant build-host authority.
+pub fn build_prelude_source() -> String {
+    optimizations::install(BUILD_PRELUDE)
+}
+
+const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary.
 pub data Subsystem {
     case Console;
@@ -61,7 +53,10 @@ pub data PhysicalAuthorityClass [copy] {
     case RootMemoryAccess;
     case ProcessInput;
 }
-// compiler-owned X86DeploymentFeatures declaration
+pub data X86DeploymentFeatures {
+    case Baseline;
+    case AvxFma3;
+}
 // compiler-owned optimization declarations
 // Compiler-owned package-build path carrier. The evaluator replaces values
 // produced by `resolve` with activation-local rooted authority; an authored
@@ -144,7 +139,7 @@ pub data PrivilegedServices {
     interrupt_table: bool;
 }
 pub data Build {
-    // compiler-owned Build.x86_deployment_features field
+    x86_deployment_features: X86DeploymentFeatures;
     subsystem: Subsystem;
     freestanding: bool;
     // Authored application identifier (wiki/spec/build/macos_application.md):
@@ -299,104 +294,3 @@ pub machine BuildProduct::provider(&self, path: &[u8]) -> ProductProviderRef {
 // compiler-owned optimization enable machine
 // compiler-owned optimization report machine
 "#;
-
-const BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT: &str =
-    "    // compiler-owned Build.x86_deployment_features field\n";
-const BUILD_X86_DEPLOYMENT_FEATURES_FIELD: &str =
-    "    x86_deployment_features: X86DeploymentFeatures;\n";
-const BUILD_X86_DEPLOYMENT_FEATURES_SLOT: &str =
-    "// compiler-owned X86DeploymentFeatures declaration\n";
-const BUILD_X86_DEPLOYMENT_FEATURES: &str = r#"pub data X86DeploymentFeatures {
-    case Baseline;
-    case AvxFma3;
-}
-"#;
-
-/// The toolchain Build has one shape on every route. It carries no target:
-/// build evaluation cannot observe or branch on a target, and every
-/// target-dependent selection is a row keyed by target
-/// (`wiki/spec/build/configuration.md#multi-target-compilation`).
-pub(super) fn construct_build_prelude(base: &str) -> String {
-    assert_eq!(
-        base.matches(BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT)
-            .count(),
-        1,
-        "build prelude must contain exactly one compiler-owned x86 deployment-feature field slot"
-    );
-    assert_eq!(
-        base.matches(BUILD_X86_DEPLOYMENT_FEATURES_SLOT).count(),
-        1,
-        "build prelude must contain exactly one compiler-owned x86 deployment-feature declaration slot"
-    );
-    let with_features = base
-        .replacen(
-            BUILD_X86_DEPLOYMENT_FEATURES_SLOT,
-            BUILD_X86_DEPLOYMENT_FEATURES,
-            1,
-        )
-        .replacen(
-            BUILD_X86_DEPLOYMENT_FEATURES_FIELD_SLOT,
-            BUILD_X86_DEPLOYMENT_FEATURES_FIELD,
-            1,
-        );
-    build_vocabulary::install(&with_features)
-}
-
-pub(super) fn inject_build_prelude(
-    source_storage: &mut SourceStorage,
-    build_source_id: Option<source::SourceId>,
-    timings: &mut CompileTimings,
-) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
-    let mut has_build_machine = false;
-    let mut build_source_declares_build_data = false;
-    let mut program_declares_build_data = false;
-    for (_, file) in source_storage.files.iter() {
-        let is_build_file = Some(file.source_id) == build_source_id;
-        for root_item in &file.root_items {
-            match source_storage.syntax_trees.root_item(*root_item) {
-                syntax_trees::item::Item::Machine(machine)
-                    if is_build_file && machine.name.as_str() == "build" =>
-                {
-                    has_build_machine = true;
-                }
-                syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
-                    if is_build_file {
-                        build_source_declares_build_data = true;
-                    } else {
-                        program_declares_build_data = true;
-                    }
-                }
-                _ => {}
-            }
-        }
-    }
-    let inject_build_vocabulary = has_build_machine && !build_source_declares_build_data;
-    if !inject_build_vocabulary {
-        return Ok(Vec::new());
-    }
-
-    let prelude = construct_build_prelude(BUILD_PRELUDE);
-
-    let first_source_id = source_storage.next_source_id();
-    let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
-        let sources = source_files_to_tokens::load_injected_source(
-            "<build-prelude>",
-            &prelude,
-            first_source_id,
-        );
-        lex_sources(sources)
-    })?;
-    let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
-        parse_sources(lexed, &mut source_storage.syntax_trees)
-    })?;
-    source_storage.extend(parsed)?;
-    let bindings = match (program_declares_build_data, build_source_id) {
-        (true, Some(build_source_id)) => vec![symbols::SourceScopedTopLevelBinding::new(
-            build_source_id,
-            source::SourceId(first_source_id),
-            "Build",
-        )],
-        _ => Vec::new(),
-    };
-    Ok(bindings)
-}
