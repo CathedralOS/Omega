@@ -387,8 +387,12 @@ pub(super) fn append_operation(
     )? {
         axioms.push(equation);
     }
-    if let OperationKind::StructuralByteSequenceFieldStore { length, obligation, .. }
-        | OperationKind::ByteSequenceStore { length, obligation, .. } = &operation.kind
+    if let OperationKind::StructuralByteSequenceFieldStore {
+        length, obligation, ..
+    }
+    | OperationKind::ByteSequenceStore {
+        length, obligation, ..
+    } = &operation.kind
     {
         let capacity = if matches!(operation.kind, OperationKind::ByteSequenceStore { .. }) {
             crate::validation::byte_sequence_store_capacity(module, machine, operation)?
@@ -613,7 +617,7 @@ pub(super) fn append_operation(
         | OperationKind::PrimitiveScalarRead { .. }
         | OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ByteSequenceStore { .. }
-            | OperationKind::StructuralByteSequenceFieldStore { .. }
+        | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. }

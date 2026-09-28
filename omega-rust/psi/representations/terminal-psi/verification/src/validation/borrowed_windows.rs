@@ -234,7 +234,11 @@ fn touched_regions(
         } else {
             primitive_region(destination, path)
         }],
-        OperationKind::ByteSequenceStore { destination, source, .. } => vec![(*destination, Vec::new()), (*source, Vec::new())],
+        OperationKind::ByteSequenceStore {
+            destination,
+            source,
+            ..
+        } => vec![(*destination, Vec::new()), (*source, Vec::new())],
         OperationKind::StructuralByteSequenceFieldStore {
             destination,
             path,

@@ -716,9 +716,19 @@ pub(crate) fn ordinary_projected_call_is_supported(
                                 || ((field_path
                                     || indexed_fields.is_some_and(|fields| !fields.is_empty()))
                                     && byte_sequence_carrier(program, target.type_reference, &[])
-                                        .is_some_and(
-                                            checked_trees::CheckedByteSequenceCarrier::is_borrowed,
-                                        )))
+                                        .is_some_and(|carrier| {
+                                            carrier.is_borrowed()
+                                                // A bounded owner field can be lent out of an
+                                                // affine record without moving its siblings.
+                                                // Argument construction retains the exact loan;
+                                                // receiving replay checks capacity and restores
+                                                // both directions of its predicate contract.
+                                                || (source.multiplicity == Multiplicity::Affine
+                                                    && matches!(
+                                                        carrier,
+                                                        checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
+                                                    ))
+                                        })))
                     }
                     CheckedStructuralAccess::WriteOnlyBorrow => {
                         matches!(

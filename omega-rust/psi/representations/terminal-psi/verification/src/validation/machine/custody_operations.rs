@@ -232,7 +232,8 @@ pub(super) fn register_custody_operation(
             | OperationKind::WriteOnlyPrimitiveStore { .. }
             | OperationKind::StructuralScalarFieldStore { .. }
             | OperationKind::StoreStructuralField { .. }
-            | OperationKind::ByteSequenceStore { .. } | OperationKind::StructuralByteSequenceFieldStore { .. }
+            | OperationKind::ByteSequenceStore { .. }
+            | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::ByteSequenceWrite { .. }
             | OperationKind::PortWrite { .. }
@@ -244,7 +245,8 @@ pub(super) fn register_custody_operation(
             return Err(ModuleError::UnitOperationHasScalarResult(operation.id));
         }
         validate_unit_operation_static(module, machine, machines, operation)?;
-        if let OperationKind::ByteSequenceStore { obligation, .. } | OperationKind::StructuralByteSequenceFieldStore { obligation, .. }
+        if let OperationKind::ByteSequenceStore { obligation, .. }
+        | OperationKind::StructuralByteSequenceFieldStore { obligation, .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { obligation, .. }
         | OperationKind::ByteSequenceWrite { obligation, .. } = &operation.kind
         {

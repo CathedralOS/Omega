@@ -69,6 +69,17 @@ independently check access, derived shape, placement, and argument/home identity
 A correctly derived callee signature does not validate an unrelated caller
 pointer, copied argument, or substituted plan.
 
+An ordinary call may borrow a whole `BoundedOwned` byte owner or an inline
+bounded-owned field through its original root and complete static path. The
+callee's carrier capacity must equal the selected owner's capacity. Shared
+access may require fewer primitive byte predicates than the owner guarantees;
+mutable or write-only access requires implication in both directions, so the
+callee cannot return bytes that violate the caller's field invariant. These
+predicate checks neither establish disjointness nor create loan authority:
+ordinary access attenuation, overlap, lifetime and restoration checks still
+apply. In particular, a write-only parent cannot supply a readable child, and
+passing a restricted field to a bare mutable byte view is rejected.
+
 ## Write-only authority
 
 `&write T` borrows an existing valid `T`; it is not uninitialized output storage.
@@ -195,6 +206,7 @@ unit, charged before execution.
 | `WriteOnlyPrimitiveStore` | Original destination root, path to a primitive structural leaf (empty for a whole primitive), and already-defined, exactly typed SSA value. Path elements may be `RuntimeIndex` segments, each with the obligation the store owns. The referent is not represented as a synthetic record. |
 | `StructuralScalarFieldStore` | Destination structural home, ordered path to the carrier record, final relevant scalar field identity, and already-defined, exactly typed SSA value. The carrier composes record fields and fixed-array elements, literal or `RuntimeIndex`, in any order; each runtime element's bound is an obligation the store owns. A whole, unqualified, claim-free owned record home (entry, block parameter, or completed establishment/call result) supplies write authority directly; mutable and write-only borrowed parameters retain their existing authority. An empty carrier path denotes a field directly on the root record. |
 | `StructuralByteSequenceFieldStore` | Destination parameter, carrier path, final bounded-owned byte field, whole immutable source (borrowed view or established owned concatenation), exact dominating source-length observation, and capacity obligation. |
+| `ByteSequenceStore` | Whole bounded-owned destination parameter, whole immutable source, exact dominating source-length observation, and capacity obligation. The destination's primitive byte qualifications remain required after replacement. |
 | `StructuralByteSequenceFieldByteStore` | Destination parameter, carrier path, bounded-owned field, exact runtime `u64` index, `u8` value, current field-length observation, and index obligation. |
 | `ByteSequenceWrite` | Whole mutable borrowed view, exact runtime `u64` index, `u8` value, current same-view length observation, and index obligation. It needs no synthetic record or field identity. |
 
@@ -260,9 +272,11 @@ frames so a completed write remains visible to the caller.
 
 `EstablishByteSequenceConcatenation` establishes an ordinary structural operation
 result with a `BoundedOwned` byte carrier. Each operand retains its exact live
-length and either a whole immutable byte source or a readable bounded byte field
-identified by root, complete carrier path, and final field. A field operand needs
-shared read authority; write-only access cannot supply its contents. Its length
+length and either a readable whole byte source or a readable bounded byte field
+identified by root, complete carrier path, and final field. A whole owner may be
+read through shared or mutable access; literals and completed owned results
+remain immutable. A field operand needs shared read authority; write-only access
+cannot supply its contents. Its length
 observation dominates concatenation, and no overlapping content mutation may
 intervene, including length-preserving writes or mutation on a backedge.
 
@@ -273,28 +287,56 @@ is published; replacing an aliasing destination afterward cannot change either
 operand. Each execution establishes fresh activation-owned backing. The admitted
 result is unrestricted, unqualified and claim-free, remains immutable, and enters
 ordinary structural result availability checks. Length reads, byte reads and
-whole-field replacement may consume this exact owned result without inventing a
-borrowed view or granting mutable access. Its backing follows activation lifetime
-and needs no affine disposal frontier entry.
+whole-owner or whole-field replacement may consume this exact owned result
+without inventing a borrowed view or granting mutable access. Its backing follows
+activation lifetime and needs no affine disposal frontier entry.
 
-Concatenation costs one logical operation unit, charged before execution. Encoding
-predicates remain independent source-level evidence: neither capacity nor the new
-owned carrier establishes `Utf8`. A subsequent field replacement proves its own
+Concatenation costs one logical operation unit, charged before execution. Neither
+capacity nor owned custody establishes `Utf8`. Primitive byte predicates replay
+independently from exact literal octets, declared field invariants, qualified
+formal parameters, and the predicates preserved by concatenating both inputs.
+Literal qualification rosters must agree with their actual octets. A qualified
+formal's domain must name that exact byte carrier and a recognized primitive
+predicate, with no content projection or establishment route; arbitrary semantic
+domains do not become byte predicates. A subsequent replacement proves its own
 receiving bound against the completed result's live length; larger operand carrier
 capacities do not by themselves refute that bound.
 
 Bounded byte replacement writes the source's live bytes and live length together,
 without observing displaced contents. The verifier resolves capacity from the
-exact destination field declaration and reconstructs `length <= capacity`;
-neither an asserted capacity nor another view's length supplies that evidence.
-Empty and shorter replacements are legal, and unused capacity is not live content.
-This is not raw fixed-array assignment, which retains its exact-length rule.
-The admitted destination is an unqualified, claim-free mutable or write-only
-parameter with unrestricted or affine multiplicity and a static carrier path.
-Source encoding predicates still require source-level proof. Immutable source
-backing may be shared, provided later writes cannot mutate that source or aliases.
-The store costs one logical operation unit and invalidates destination observations;
-it creates no new ownership frontier entry.
+exact destination declaration and reconstructs `length <= capacity`; neither an
+asserted capacity nor another source's length supplies that evidence. Empty and
+shorter replacements are legal when the destination predicates permit them, and
+unused capacity is not live content. This is not raw fixed-array assignment,
+which retains its exact-length rule.
+
+`StructuralByteSequenceFieldStore` retains a static carrier path below an
+unqualified, claim-free mutable or write-only parameter with unrestricted or
+affine multiplicity. `ByteSequenceStore` instead replaces a whole `BoundedOwned`
+formal with mutable or write-only access and unrestricted multiplicity. That
+formal may carry exact primitive byte qualifications; projected qualifications
+and claims remain unsupported. Both stores require a distinct immutable source,
+its current dominating length observation, and independently reconstructed source
+predicates implying every destination predicate. A readable mutable owner may
+feed concatenation but cannot directly serve as an immutable replacement source.
+Immutable source backing may be shared only while writes cannot mutate it or its
+aliases. The store costs one logical operation unit, invalidates destination
+observations, and creates no new ownership frontier entry.
+
+A `PredicateByteSequence` field retains a nonempty set of primitive byte
+predicates alongside its bounded-owned carrier. The supported predicates are
+valid UTF-8, ASCII-only, no NUL, and nonempty. Receiving validation checks these
+invariants independently of source checking and repeats the check after
+optimization. Zero-initialized attachment storage requires every contained byte
+field predicate to hold for the empty sequence. Bounds-only indexed writes to
+predicate-bearing fields reject: a bound alone cannot preserve their contents'
+invariants. General predicate-preserving indexed mutation remains unsupported.
+
+`ByteSequenceLength` on a whole bounded owner observes current live-length
+metadata through shared, mutable, or write-only access. Metadata access grants
+no readable payload authority through a write-only loan. A replacement or
+potentially overlapping mutable call invalidates that observation, including
+when it occurs on a backedge.
 
 Indexed replacement changes one byte without changing live length.
 `StructuralByteSequenceFieldLength` observes the selected field's current live
