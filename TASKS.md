@@ -4709,60 +4709,54 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   controls. Early import rejection suffices; do not weaken assembly to obtain
   a second provider diagnostic. Std remains replaceable, splittable or absent.
 
-- **COMPONENT-SUBSTRATE.** Deliver independently selected component products
-  and their admission/replacement closure under the
+- **COMPONENT-SUBSTRATE.** First execute an ordinary two-package call with
+  root-selected `Independent` composition under the
   [component publication contract](wiki/spec/build/component_publication.md).
-  Runtime packages or Cathedral own deployment, acquisition and update policy.
+  Then close stable-slot replacement. Runtime packages or Cathedral own
+  deployment, acquisition and update policy.
 
-  Description publication and checked `Independent` settlement already have a
-  production path through package-manager dependency compilation,
-  `compiler::published_independent_component_description` and
-  `component-description::verify_component`. The current product boundary
-  remains `checked-compilation-to-terminal-artifact`'s
-  `terminal_artifact/composition_modes.rs`: both Terminal and native products
-  reject settled independent edges because symbolic imports/exports,
-  entry/leave resources and installation/replacement custody are absent.
-  Remove that fence only when the requested independent product exists; never
-  emit a silently fused substitute.
+  Package-manager dependency compilation already calls
+  `compiler::published_independent_component_description`; the consuming
+  compilation runs `component-description::verify_component`. Preserve
+  `review_publishes_the_named_component_description_for_an_independent_selection`:
+  its consumer entry is empty, so it proves review, not a crossing call.
+  `compiler/src/terminal/terminal_artifact/composition_modes.rs` rejects
+  Independent before Terminal/native production. Replace that fence only with
+  actual independent products carrying symbolic imports/exports, entry/leave
+  resources and installation/replacement obligations; never silently fuse.
 
-  Carry the exact import/export, complete entry/outgoing-authority, service,
-  mapping, lease, stack and retained-provider inventories into the product.
-  `CustodyKind` and `ObligationKind` already have Mapping/Lease vocabulary;
-  supply actual producer facts, independent reconstruction and per-occurrence
-  discharge, not more enum-only scaffolding. Connect native
-  `component-candidate::describe_component`'s derived stack and realization
-  identity to publication. A Psi-only capsule correctly has no native facts;
-  do not fabricate them to fill the fields.
+  Complete entry, outgoing-authority, service, mapping, lease, stack and
+  retained-provider inventories, with producer facts, independent reconstruction
+  and per-occurrence discharge. Mapping/Lease enum variants already exist.
+  Connect `component-candidate::describe_component`'s native stack and
+  realization identity to publication; Psi-only descriptions carry no native
+  facts. Join deployment/admission/replacement to the verified-description
+  contract used by **TOPOLOGY-PLAN-VERIFICATION**, preserving exact artifact,
+  profile, authority and resource correspondence. `component-deployment`
+  currently joins candidate/installed bytes directly and rejects registries
+  retaining live external roots; finish their owned teardown custody.
 
-  Independent admission/replacement must consume the same verified-description
-  contract as **TOPOLOGY-PLAN-VERIFICATION**, retaining exact artifact, profile,
-  authority and resource correspondence. `component-deployment` currently
-  binds candidate/installed-byte custody directly, not a verified description;
-  preserve those checks while joining the shared contract. Topology's simulated
-  replacement-profile controls do not establish loaded execution or retirement.
-  **BOUNDED-INSTALLATION-REACH-ROWS** needs this complete component contract;
-  **WIRE-RUNTIME-AND-INSTALLATION** owns platform installation/execution and
-  **PSI-COMPONENT-REPLACEMENT** owns the interpreted embedding customer.
+  Acceptance: the two-package build publishes and consumes its dependency
+  description without test-side attachment, emits independent products and
+  executes the crossing. Source-free replay covers exact subject/schema/profile,
+  all entries and outgoing authority (startup, callbacks, timers, cleanup),
+  custody, retained providers and inseparable assumptions. Corrupt/truncated,
+  stale/substituted/unrelated, early-frontier, omitted/forged, duplicate
+  dependency/plan and unaccepted-assumption cases reject. Descriptions grant
+  no callable/install authority; each installation needs fresh admission.
 
-  Acceptance: an ordinary two-package build selecting `Independent` emits
-  the independent products and publishes/consumes the dependency description
-  without test-side attachment. A source-free consumer checks exact subject,
-  profile, schema, all entries/outgoing authority, custody, retained providers
-  and inseparable assumptions, including startup, callbacks, timers and cleanup.
-  Preserve corrupt/truncated, substituted/stale/unrelated, early-frontier,
-  omitted/forged inventory, duplicate dependency/plan and unaccepted-assumption
-  rejection. Reading a description grants no callable or installation authority;
-  installation facts require fresh per-occurrence admission.
-
-  Exercise actual authorized stable-slot replacement: compatible imports/exports
-  and behavior exclusions, fresh candidate resource/profile admission, new calls
-  entering the new era, old sessions retaining theirs, and retirement only after
-  every activation, registration, returned object and claim has a valid disposition.
-  Pin state migration/retention, coexistence capacity and failure behavior.
-  Unauthorized, incompatible, weaker-policy, underprovisioned and premature
-  operations reject without losing custody. Continuity-free replacement need not
-  drain every old era before publication; stronger continuity needs its explicit
-  contract. Keep model-level checks distinct from this execution acceptance.
+  Reuse `component-publication`'s era-entry and sealed-entry custody.
+  Replacement preserves compatible imports/exports and behavior exclusions;
+  new calls enter the new era, existing sessions retain theirs. Admit candidate
+  resources/profile within the frozen envelope and peak coexistence; specify
+  state migration/retention and failure behavior. Retire only after every
+  activation, registration,
+  returned object and claim has a valid disposition. Unauthorized, incompatible,
+  weaker-policy, underprovisioned or premature operations preserve custody on
+  rejection. Continuity-free publication may precede old-era drain; stronger
+  continuity needs its explicit contract. **BOUNDED-INSTALLATION-REACH-ROWS**
+  consumes this closure; **WIRE-RUNTIME-AND-INSTALLATION** owns platform
+  invocation and **PSI-COMPONENT-REPLACEMENT** the interpreted customer.
 
 - **FFIVAL.** Complete and run the Windows user32 boundary-coherence
   customer at `tests/omega/pending/host/user32_window_procedure_registration`,
