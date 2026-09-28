@@ -4781,41 +4781,38 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   diagnostic watchers alone do not establish foreign invocation. Other hosts
   explicitly report this runtime leg unavailable.
 
-- **WIRE-RUNTIME-AND-INSTALLATION.** Connect the admitted executable
-  installation lifecycle to an authored/package provider route and a
-  matching-host executor under [executable installation](wiki/spec/build/executable_installation.md).
+- **WIRE-RUNTIME-AND-INSTALLATION.** Execute an authored program through
+  an admitted artifact's receiving-provider installation and matching-host
+  invocation under [executable installation](wiki/spec/build/executable_installation.md).
   Reuse `executable-installation`'s linear transitions, required-fact gates,
-  sealed entry references, replacement/quarantine joins and
-  `image-emission/installed_artifact.rs` custody binding.
-  `OwnedImageProvider` performs convention-controlled buffer operations and
-  its driver composes their gates; its resident-byte borrow does not establish
-  physical invocation or platform execute/cache operations.
+  sealed entries, replacement/quarantine joins and
+  `image-emission/installed_artifact.rs`'s exact byte/custody binding.
 
-  Complete the receiving-provider/executor join: exact admitted content,
-  placement, audience and installed occurrence; target-appropriate
-  write/execute and fetch-visibility completion; invocation through a
-  requirement-compatible sealed entry; live-root/provider custody through
-  return, retirement and replacement. Keep platform operations with their
-  provider rather than adding OS policy to the generic lifecycle model.
-  `ConventionOnly` is permitted when honestly reported; do not universally
-  require hardware enforcement or accept `Unsupported`. Ordinary executable
-  file emission is not receiving installation. The lifecycle states are not
-  prescribed source type names and do not by themselves require new grammar.
+  The `OwnedImageProvider` drivers install, patch, seal and retire resident
+  buffers. `call_code` hands back borrowed resident bytes; its entry/replacement
+  tests assert those bytes and custody flags, without a physical call.
+  Supply the authored/package provider and executor join: exact admitted
+  content, placement, audience, installed occurrence, requirement-compatible
+  entry and live-root/provider custody through return and retirement.
+  Target write/execute and fetch-visibility operations belong to that provider.
+  Keep honest `ConventionOnly` support; reject `Unsupported`. File emission
+  does not establish receiving installation, and lifecycle states prescribe
+  neither source type names nor new grammar.
 
-  Acceptance: an authored program reuses an admitted artifact across distinct
-  linear placements, materializes/freezes/validates exact final bytes and
-  footprint, installs through the contracted provider and actually invokes on
-  a matching host. Retirement requires quiescence, execute removal, restored
-  write authority and demanded facts; incomplete drain quarantines.
-  Replacement patches only declared sites with bound admitted fragments and
-  establishes visibility/write re-suspension before draining old custody.
+  Acceptance: reuse one admitted artifact across distinct linear placements;
+  materialize, freeze and validate exact final bytes/footprint, install, then
+  invoke and observe the authored result on a matching host. Retirement needs
+  quiescence, execute removal, restored write authority and required completion
+  facts; incomplete drain quarantines. Replacement uses bound admitted
+  fragments at declared sites, establishes visibility and suspends writes
+  before draining old custody. The current buffer patcher rejects relocated
+  fragments; wider support needs the exact target resolver and replay.
+
   Reject substituted bytes/authority/contracts, transplanted validation,
-  double-spent placement, missing completion facts and unsupported W^X;
-  failed transitions return their inputs. Keep arbitrary bytes-to-code,
-  JIT and numeric-address-to-execution routes unsupported; inert address
-  observation belongs to **ADDRESS-EXPOSURE**, not installation authority.
-  **COMPONENT-SUBSTRATE** owns component closure; this row owns generic
-  executable custody.
+  double-spent placement, missing facts and unsupported W^X; failed transitions
+  return all inputs. Arbitrary bytes-to-code, JIT and numeric-address execution
+  remain unsupported. **ADDRESS-EXPOSURE** owns inert address observation;
+  **COMPONENT-SUBSTRATE** owns component closure and stable-slot replacement.
 
 - **FLOAT-IDENTITY-LITERAL-CARRIER.** Complete named floating constant calls
   and payloadless-NaN evaluation under [constant materialization](wiki/spec/language/constants.md#materialization)
