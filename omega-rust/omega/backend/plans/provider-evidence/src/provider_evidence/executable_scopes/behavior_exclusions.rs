@@ -57,6 +57,11 @@
 //! checks settled mechanism evidence without consulting receiver permissions.
 //! Build authoring and source-spanned selection provenance remain with build
 //! evaluation. Neither semantic nor physical checking executes the Build.
+//! `attribution` owns the producer's typed-declaration join and human evidence
+//! descriptions; independent receiver replay does not use that source join.
+
+mod attribution;
+pub use attribution::boundary_trait_identity;
 
 use crate::TerminalAuthorityClass;
 use diagnostics::Diagnostic;
