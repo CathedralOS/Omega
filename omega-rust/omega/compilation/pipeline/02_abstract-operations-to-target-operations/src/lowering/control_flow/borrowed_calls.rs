@@ -80,16 +80,11 @@ pub(super) fn lower(
     // carries them unchanged. Ownership transfers still need their own
     // realization.
     //
-    // A callee's published service ceiling is verified reach, not a custody
-    // or ABI change: the caller's own ceiling already covers it, and the
-    // retained call row keeps the callee identity that authority review walks
-    // to the callee's ceiling. A Unit call therefore lowers exactly as the
-    // parameter-rooted Unit-call route does. A scalar result still needs the
-    // service-free fixed-native ABI the callee publishes, which is the same
-    // bound the call-row replay enforces.
+    // Service reach is already verified against the caller's ceiling. The call
+    // retains the exact callee identity; Unit and scalar results use the same
+    // borrow custody checks and their declared native result placement.
     if !claims.is_empty()
         || !callee_function.entry_claims.is_empty()
-        || (result.is_some() && !callee_function.published_service_ceiling.is_empty())
         || values.len() != callee_function.parameters.len()
         || arguments.len() != callee_function.structural_parameters.len()
         || result.map(|result| result.scalar_type)

@@ -442,6 +442,227 @@ const LITERAL_LOCALS: &str = r#"
     }
 "#;
 
+const COMPUTED_LITERAL_CALLS: &str = r#"
+    boundary trait Output { machine observe(value: u64) reaches Output; }
+    data Helper {}
+    machine Helper::measure(bytes: &[u8]) -> u64 reaches Output {
+        Output::observe(bytes.len);
+        bytes.len
+    }
+    machine Helper::show(bytes: &[u8]) reaches Output { Output::observe(bytes.len); }
+    machine Helper::pair(left: &[u8], right: &[u8]) -> u64 reaches Output {
+        Output::observe(left.len);
+        Output::observe(99);
+        Output::observe(right.len);
+        right.len
+    }
+    machine identity(value: u64) -> u64 { value }
+    data Root {}
+    machine Root::enter() reaches Output {
+        let named: &[u8] = "q";
+        Helper::show(named);
+        Helper::show("x");
+        let first: u64 = Helper::measure("abc");
+        Output::observe(first);
+        let repeated: u64 = Helper::measure("abc");
+        Output::observe(repeated);
+        let empty: u64 = Helper::measure("");
+        Output::observe(empty);
+        let nested: u64 = identity(Helper::measure("nested"));
+        Output::observe(nested);
+        let pair: u64 = Helper::pair("twin", "twin");
+        Output::observe(pair);
+    }
+"#;
+
+fn assert_computed_literal_declarations(module: &terminal_psi::TerminalModule) -> usize {
+    let mut count = 0;
+    for machine in &module.machines {
+        let mut ordinals = Vec::new();
+        for declaration in &machine.structural_places {
+            let semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal,
+                ..
+            } = declaration.kind
+            else {
+                continue;
+            };
+            ordinals.push(declaration_ordinal);
+            let producers = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .filter(|operation| {
+                    matches!(operation.kind,
+                    terminal_psi::OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                        if destination == declaration.id)
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(
+                producers.len(),
+                1,
+                "each literal occurrence owns one establishment"
+            );
+            assert_eq!(producers[0].result, terminal_psi::OperationResult::Unit);
+            count += 1;
+        }
+        ordinals.sort_unstable();
+        assert_eq!(
+            ordinals,
+            (0..u32::try_from(ordinals.len()).unwrap()).collect::<Vec<_>>()
+        );
+    }
+    count
+}
+
+#[test]
+fn computed_literal_calls_share_unit_storage_with_named_and_ordinary_literals() {
+    let lowered = lower(COMPUTED_LITERAL_CALLS).expect("computed literal operands lower");
+    assert_eq!(
+        assert_computed_literal_declarations(&lowered.semantic_module),
+        8
+    );
+    assert_eq!(
+        execute(COMPUTED_LITERAL_CALLS),
+        vec![1, 1, 3, 3, 3, 3, 0, 0, 6, 6, 4, 99, 4, 4]
+    );
+    let (caller, arguments) = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| match &operation.kind {
+                    terminal_psi::OperationKind::CallStructuralScalar {
+                        structural_arguments,
+                        ..
+                    } if structural_arguments.len() == 2 => Some((machine, structural_arguments)),
+                    _ => None,
+                })
+        })
+        .expect("two literal operands at one scalar call");
+    assert_ne!(arguments[0].place, arguments[1].place);
+    for argument in arguments {
+        assert!(
+            caller
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(&operation.kind,
+                terminal_psi::OperationKind::EstablishByteSequenceLiteral { destination, bytes, .. }
+                    if *destination == argument.place && bytes.as_slice() == b"twin")
+                })
+        );
+    }
+    let mut missing = lowered.semantic_module;
+    let producer = missing
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .find(|block| {
+            block.operations.iter().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::EstablishByteSequenceLiteral { .. }
+                )
+            })
+        })
+        .expect("literal establishment");
+    let index = producer
+        .operations
+        .iter()
+        .position(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::EstablishByteSequenceLiteral { .. }
+            )
+        })
+        .unwrap();
+    producer.operations.remove(index);
+    assert!(matches!(
+        terminal_verifier::validate_module(&missing),
+        Err(terminal_verifier::ModuleError::ByteSequenceLiteralEstablishmentMismatch(_))
+    ));
+}
+
+#[test]
+fn computed_literal_calls_establish_distinct_places_across_unit_states() {
+    let source = r#"
+        boundary trait Output { machine observe(value: u64) reaches Output; }
+        data Helper {}
+        machine Helper::measure(bytes: &[u8]) -> u64 reaches Output {
+            Output::observe(bytes.len);
+            bytes.len
+        }
+        data Root {}
+        machine Root::enter() reaches Output {
+            let first: u64 = Helper::measure("abc");
+            transition { _ -> next(first) }
+            state next(previous: u64) {
+                Output::observe(previous);
+                let second: u64 = Helper::measure("abc");
+                Output::observe(second);
+                Output::observe(Helper::measure(""));
+            }
+        }
+    "#;
+    let lowered = lower(source).expect("each Unit state prepares its computed literal operands");
+    assert_eq!(
+        assert_computed_literal_declarations(&lowered.semantic_module),
+        3
+    );
+    assert_eq!(execute(source), vec![3, 3, 3, 3, 0, 0]);
+}
+
+#[test]
+fn computed_literal_calls_reject_changed_source_bytes_type_and_access() {
+    let original = crate::front_end::checked_program(COMPUTED_LITERAL_CALLS);
+    for mutation in 0..3 {
+        let mut changed = original.clone();
+        let arguments = &mut changed
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments;
+        let handle = arguments.iter().find_map(|(handle, argument)| match argument {
+            checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)
+                if matches!(argument.source,
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { .. }) => Some(handle),
+            _ => None,
+        }).expect("computed literal source");
+        let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) =
+            arguments.get_mut(handle)
+        else {
+            panic!("literal place argument");
+        };
+        match mutation {
+            0 => {
+                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                    bytes,
+                } = &mut argument.source
+                else {
+                    panic!("literal bytes");
+                };
+                bytes.push(b'!');
+            }
+            1 => argument.type_identity = "u64".into(),
+            _ => argument.access = checked_trees::CheckedStructuralAccess::Owned,
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::enter"),
+            )
+            .is_err(),
+            "computed literal source mutation {mutation}"
+        );
+    }
+}
+
 #[test]
 fn byte_literal_locals_compose_with_primitive_storage_calls_and_subslices() {
     let lowered = lower(LITERAL_LOCALS).expect("ordinary literal locals lower");

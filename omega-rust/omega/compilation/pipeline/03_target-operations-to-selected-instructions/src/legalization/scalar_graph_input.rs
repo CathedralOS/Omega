@@ -236,18 +236,8 @@ pub(super) fn match_input(
     } else {
         function_abi(native.target, target, abstracted, optimized)?
     };
-    // Only the Unit-body target reader currently rejoins executable boundary
-    // settlements. An unused scalar-tree row is not a builtin realization witness.
-    if optimized
-        .blocks
-        .iter()
-        .flat_map(|block| &block.nodes)
-        .any(|node| matches!(node.operation, AbstractOperation::BoundaryCall { .. }))
-        && !(abstracted.result == AbstractFunctionResult::Unit
-            || abstracted.result.structural().is_some())
-    {
-        return Err(LegalizationError::custody());
-    }
+    // Ordered target graph replay rejoins every boundary row to its admitted
+    // execution and exact source occurrence, independently of the result ABI.
     if optimized.blocks.is_empty()
         || optimized.entry != abstracted.entry
         || abstracted.block_entries.len() != optimized.blocks.len()

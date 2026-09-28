@@ -325,6 +325,7 @@ impl Expansion<'_> {
                 ))?;
         let structural_arguments = structural_arguments::lower(
             self.checked,
+            source_call,
             target_machine,
             target_state,
             site.state,
@@ -468,7 +469,11 @@ impl Expansion<'_> {
                     let slot = self
                         .literals
                         .iter()
-                        .find(|slot| slot.bytes == *bytes)
+                        .find(|slot| {
+                            slot.source_call == source_call
+                                && slot.argument_ordinal == structural_ordinal
+                                && slot.bytes.as_slice() == bytes
+                        })
                         .ok_or(LoweringError::Unsupported(
                             "computed literal has no reserved place",
                         ))?

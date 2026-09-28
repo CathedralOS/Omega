@@ -137,7 +137,6 @@ pub enum LoweringError {
     UnsupportedStructuralReturnPlacement(MachineId),
     UnitCallTargetKindMismatch(MachineId),
     UnitScalarCallTargetShapeUnsupported(MachineId),
-    UnitScalarCallTargetPublishesServices(MachineId),
     UnitScalarCallIntegerTypeUnsupported(ValueId),
     UnitScalarCallResultTypeMismatch {
         callee: MachineId,

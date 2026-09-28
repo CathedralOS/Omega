@@ -16,9 +16,9 @@ pub struct ScalarAbiValue {
     pub placement: ValuePlacement,
 }
 
-/// Exact canonical target ABI for one service-free scalar function whose
-/// complete parameter and result roster consists of fixed 8/16/32/64-bit
-/// integers and canonical Boolean values.
+/// Exact canonical target ABI for one scalar function whose complete parameter
+/// and result roster consists of fixed 8/16/32/64-bit integers, Boolean values,
+/// or binary32/binary64 floats. Service reach does not affect value placement.
 ///
 /// `call_plan` retains policy, clobbers, stack alignment, and entry control;
 /// the ordered semantic rows bind its otherwise anonymous placements back to

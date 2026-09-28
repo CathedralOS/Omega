@@ -181,3 +181,284 @@ fn borrowed_view_roster_rejects_changed_case_result_custody() {
         );
     }
 }
+
+fn literal_order_fixture(
+    native: ::target::NativeTarget,
+    scalar_return: bool,
+) -> (
+    AbstractOperationPlan,
+    TargetOperationPlan,
+    PsiOptimizationUnit,
+) {
+    use abstract_operations::{
+        AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractResult,
+    };
+    use semantic_vocabulary::MachineId;
+    use terminal_psi::{
+        SemanticFingerprint, StructuralPlaceDeclaration, TerminalPsiIdentity, VocabularyMarker,
+    };
+
+    let machine = MachineId::new(1).unwrap();
+    let block = BlockId::new(1).unwrap();
+    let structural_type = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: "literal-order::Bytes".into(),
+        shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(StructuralAccess::SharedBorrow),
+        }),
+    };
+    let scalar_type = ScalarType::Integer(super::super::u64_type());
+    let result = ValueId::new(3).unwrap();
+    let mut operations = Vec::new();
+    // Place IDs and source declaration ordinals are independent coordinates.
+    // The canonical place roster will retain ordinal 1 before ordinal 0.
+    for (ordinal, place, bytes) in [(0, 3, vec![97, 98, 99]), (1, 2, Vec::new())] {
+        let place = StructuralPlaceDeclaration {
+            id: PlaceId::new(place).unwrap(),
+            kind: StructuralPlaceKind::ByteSequenceLiteral {
+                declaration_ordinal: ordinal,
+                structural_type: structural_type.id,
+            },
+        };
+        operations.push(AbstractOperation::EstablishByteSequenceLiteral {
+            psi_operation: OperationId::new(u64::from(ordinal) * 2 + 1).unwrap(),
+            place,
+            structural_type: structural_type.clone(),
+            bytes,
+            qualifications: Vec::new(),
+        });
+        operations.push(AbstractOperation::ByteSequenceLength {
+            psi_operation: OperationId::new(u64::from(ordinal) * 2 + 2).unwrap(),
+            result: AbstractResult {
+                value: ValueId::new(u64::from(ordinal) + 1).unwrap(),
+                scalar_type,
+            },
+            source: place.id,
+        });
+    }
+    operations.push(if scalar_return {
+        AbstractOperation::Return {
+            psi_edge: EdgeId::new(1).unwrap(),
+            result,
+            value: ValueId::new(2).unwrap(),
+            scalar_type,
+            cleanup_actions: Vec::new(),
+        }
+    } else {
+        AbstractOperation::ReturnUnit {
+            psi_edge: EdgeId::new(1).unwrap(),
+            cleanup_actions: Vec::new(),
+        }
+    });
+    let plan = AbstractOperationPlan {
+        psi: TerminalPsiIdentity {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            program_fingerprint: SemanticFingerprint::from_bytes([0x71; 32]),
+        },
+        entry: machine,
+        structural_types: vec![structural_type.clone()].into(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                position: 0,
+                is_self: false,
+                structural_type: structural_type.id,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::SharedBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }],
+            result: if scalar_return {
+                AbstractFunctionResult::Scalar(AbstractResult {
+                    value: result,
+                    scalar_type,
+                })
+            } else {
+                AbstractFunctionResult::Unit
+            },
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block,
+                structural_parameters: Vec::new(),
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations,
+        }],
+    };
+    let target = abstract_operations_to_target_operations::lower_to_target_operations(
+        &plan,
+        abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+    )
+    .unwrap();
+    let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+        &plan,
+        FuelScheduleIdentity::new(1).unwrap(),
+    )
+    .unwrap();
+    // Recreate the place-ID roster published by the native source pipeline;
+    // seed reconstruction alone retains operation encounter order.
+    unit.functions[0]
+        .structural_places
+        .sort_by_key(|place| place.id);
+    unit.functions[0].declared_places = unit.functions[0]
+        .structural_places
+        .iter()
+        .map(|place| place.id)
+        .collect();
+    unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+    optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+    (plan, target, unit)
+}
+
+#[test]
+fn literal_ordinals_are_independent_of_place_roster_order() {
+    for native in [
+        ::target::NativeTarget::linux_x64(),
+        ::target::NativeTarget::macos_arm64(),
+    ] {
+        for scalar_return in [false, true] {
+            let (plan, target, unit) = literal_order_fixture(native, scalar_return);
+            let ordinals = unit.functions[0]
+                .structural_places
+                .iter()
+                .filter_map(|place| match place.kind {
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        declaration_ordinal,
+                        ..
+                    } => Some(declaration_ordinal),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(ordinals, [1, 0]);
+            let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
+            crate::validate_legalized_operations(&target, &plan, &unit, legal.plan().clone())
+                .unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legal, &environment);
+            let selected = crate::select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            assert_eq!(selected.plan().functions[0].local_storage_slots.len(), 2);
+            crate::validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+        }
+    }
+}
+
+#[test]
+fn literal_ordinal_density_and_exact_producer_custody_still_reject() {
+    let (plan, target, unit) = literal_order_fixture(::target::NativeTarget::macos_arm64(), false);
+    let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
+    let source = PlaceId::new(3).unwrap();
+    for mutation in [
+        "duplicate ordinal",
+        "sparse ordinal",
+        "producer ordinal",
+        "producer type",
+        "missing producer",
+        "duplicate producer",
+    ] {
+        let mut changed = unit.clone();
+        let function = &mut changed.functions[0];
+        match mutation {
+            "duplicate ordinal" | "sparse ordinal" => {
+                let ordinal = if mutation == "duplicate ordinal" {
+                    1
+                } else {
+                    u32::MAX
+                };
+                let declaration = function
+                    .structural_places
+                    .iter_mut()
+                    .find(|place| place.id == source)
+                    .unwrap();
+                let StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    ..
+                } = &mut declaration.kind
+                else {
+                    panic!("literal declaration")
+                };
+                *declaration_ordinal = ordinal;
+                let AbstractOperation::EstablishByteSequenceLiteral { place, .. } =
+                    &mut function.blocks[0].nodes[0].operation
+                else {
+                    panic!("literal producer")
+                };
+                *place = *declaration;
+            }
+            "producer ordinal" => {
+                let AbstractOperation::EstablishByteSequenceLiteral { place, .. } =
+                    &mut function.blocks[0].nodes[0].operation
+                else {
+                    panic!("literal producer")
+                };
+                let StructuralPlaceKind::ByteSequenceLiteral {
+                    declaration_ordinal,
+                    ..
+                } = &mut place.kind
+                else {
+                    panic!("literal declaration")
+                };
+                *declaration_ordinal = 1;
+            }
+            "producer type" => {
+                let AbstractOperation::EstablishByteSequenceLiteral {
+                    structural_type, ..
+                } = &mut function.blocks[0].nodes[0].operation
+                else {
+                    panic!("literal producer")
+                };
+                structural_type.id = StructuralTypeId::new(99).unwrap();
+            }
+            "missing producer" => {
+                function.blocks[0].nodes.remove(0);
+            }
+            "duplicate producer" => {
+                let producer = function.blocks[0].nodes[0].clone();
+                function.blocks[0].nodes.push(producer);
+            }
+            _ => unreachable!(),
+        }
+        if !matches!(mutation, "duplicate ordinal" | "sparse ordinal") {
+            assert!(
+                super::super::literals::declaration_producer(function, source).is_none(),
+                "{mutation}"
+            );
+        }
+        changed.identity = optimization_unit::recompute_psi_optimization_unit_identity(&changed);
+        assert!(
+            optimization_unit_semantics::validate_psi_optimization_unit(&changed).is_err(),
+            "{mutation}"
+        );
+        assert!(
+            crate::legalize_target_operations(&target, &plan, &changed).is_err(),
+            "{mutation}"
+        );
+        let mut proposed = legal.plan().clone();
+        proposed.optimization_unit = changed.identity;
+        assert!(
+            crate::validate_legalized_operations(&target, &plan, &changed, proposed).is_err(),
+            "{mutation}"
+        );
+    }
+}

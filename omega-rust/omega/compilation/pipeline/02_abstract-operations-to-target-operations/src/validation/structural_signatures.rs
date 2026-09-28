@@ -229,8 +229,8 @@ fn entrance(
 }
 
 /// The published scalar-only ABI a function receives standalone calls through.
-/// `derive_fixed_scalar_function_abi` admits only the service-free family with
-/// no structural parameters, entry claims, or dynamic descriptors, and only
+/// `derive_fixed_scalar_function_abi` admits functions with no structural
+/// parameters, entry claims, or dynamic descriptors, and only
 /// fixed native shapes; a present ABI on any other function is forged no
 /// matter how consistent its plan looks.
 fn scalar_entrance(
@@ -240,7 +240,6 @@ fn scalar_entrance(
 ) -> Option<()> {
     if !source.structural_parameters.is_empty()
         || !source.entry_claims.is_empty()
-        || !source.published_service_ceiling.is_empty()
         || source.operations.iter().any(|operation| {
             matches!(
                 operation,
@@ -278,7 +277,6 @@ fn mixed_entrance(
 ) -> Option<()> {
     if source.structural_parameters.is_empty()
         || !source.entry_claims.is_empty()
-        || !source.published_service_ceiling.is_empty()
         || source.operations.iter().any(|operation| {
             matches!(
                 operation,

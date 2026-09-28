@@ -262,7 +262,7 @@ fn unit_float_literal_calls_retain_raw_bits_and_prior_call_results() {
 }
 
 #[test]
-fn unit_scalar_calls_preserve_free_callers_and_require_service_free_scalar_callees() {
+fn unit_scalar_calls_preserve_free_callers_and_serviceful_scalar_callees() {
     let mut unattached = attached_unit_scalar_call_plan();
     unattached.functions[0].attachment = None;
     let lowered = lower_to_target_operations(
@@ -281,19 +281,29 @@ fn unit_scalar_calls_preserve_free_callers_and_require_service_free_scalar_calle
         2
     );
 
-    let mut serviceful = attached_unit_scalar_call_plan();
-    serviceful.functions[1]
-        .published_service_ceiling
-        .push(semantic_vocabulary::ServiceId::new(1).expect("service"));
-    assert_eq!(
-        lower_to_target_operations(
-            &serviceful,
-            TargetLoweringRequest::new(NativeTarget::linux_x64())
-        ),
-        Err(LoweringError::UnitScalarCallTargetPublishesServices(
-            MachineId::new(2).unwrap()
-        ))
-    );
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let mut serviceful = attached_unit_scalar_call_plan();
+        let baseline =
+            lower_to_target_operations(&serviceful, TargetLoweringRequest::new(native)).unwrap();
+        for function in &mut serviceful.functions {
+            function
+                .published_service_ceiling
+                .push(semantic_vocabulary::ServiceId::new(1).unwrap());
+        }
+        let lowered = lower_to_target_operations(&serviceful, TargetLoweringRequest::new(native))
+            .expect("service reach is independent of scalar ABI layout");
+        crate::validate_abstract_to_target_translation(&serviceful, native, &lowered).unwrap();
+        assert!(lowered.functions[1].scalar_abi.is_some());
+        assert_eq!(
+            baseline.functions[1].scalar_abi,
+            lowered.functions[1].scalar_abi
+        );
+    }
 }
 
 #[test]

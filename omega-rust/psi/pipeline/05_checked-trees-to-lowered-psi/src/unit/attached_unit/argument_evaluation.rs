@@ -72,6 +72,7 @@ pub(crate) struct Evaluation {
         Vec<crate::expression_preparation::bindings::structural_cases::LocalCaseBinding>,
     pub(crate) subslices: Vec<crate::scalar_graph::scalar_computations::subslices::Slot>,
     pub(crate) arrays: Vec<crate::scalar_graph::scalar_computations::arrays::Slot>,
+    pub(crate) literals: Vec<crate::scalar_graph::scalar_computations::literals::Slot>,
     pub(crate) cases: Vec<crate::scalar_graph::scalar_computations::cases::Slot>,
     pub(crate) record_fields: Vec<crate::scalar_graph::scalar_computations::fields::Binding>,
     pub primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
@@ -136,6 +137,7 @@ impl Evaluation {
             element_views: self.element_views.clone(),
             local_cases: self.local_cases.clone(),
             arrays: self.arrays.clone(),
+            literals: self.literals.clone(),
             subslices: self.subslices.clone(),
             cases: self.cases.clone(),
             record_fields: self.record_fields.clone(),
@@ -618,6 +620,7 @@ impl Evaluation {
             element_views: std::collections::BTreeMap::new(),
             local_cases: Vec::new(),
             arrays: Vec::new(),
+            literals: Vec::new(),
             subslices: Vec::new(),
             cases: Vec::new(),
             record_fields: Vec::new(),
@@ -860,6 +863,7 @@ impl Evaluation {
             1,
         )
         .with_arrays(&self.arrays)
+        .with_literals(&self.literals)
         .with_subslices(&self.subslices)
         .with_cases(&self.cases)
         .enter_proof_scope(&self.erased_proof_formals)
@@ -974,6 +978,7 @@ impl Evaluation {
             1,
         )
         .with_arrays(&self.arrays)
+        .with_literals(&self.literals)
         .with_subslices(&self.subslices)
         .with_cases(&self.cases)
         .enter_proof_scope(&self.erased_proof_formals)

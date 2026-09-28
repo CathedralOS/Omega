@@ -7,6 +7,7 @@ use super::{
 };
 pub(super) fn lower(
     checked: &CheckedTrees,
+    source_call: arena::Handle<checked_trees::FlowCallFact>,
     target_machine: symbols::SymbolHandle,
     target_state: symbols::SymbolHandle,
     caller_state: symbols::SymbolHandle,
@@ -39,7 +40,8 @@ pub(super) fn lower(
     arguments
         .iter()
         .zip(target.structural_parameters())
-        .map(|(argument, parameter)| {
+        .enumerate()
+        .map(|(argument_ordinal, (argument, parameter))| {
             let argument = match argument {
                 checked_trees::CheckedScalarComputationStructuralArgument::Case(subject) => {
                     let slot = cases
@@ -215,9 +217,16 @@ pub(super) fn lower(
                     });
                 }
                 if let Some(bytes) = literals::source_bytes(argument) {
-                    let slot = literals.iter().find(|slot| slot.bytes == *bytes).ok_or(
-                        LoweringError::Unsupported("computed literal has no reserved place"),
-                    )?;
+                    let slot = literals
+                        .iter()
+                        .find(|slot| {
+                            slot.source_call == source_call
+                                && slot.argument_ordinal == argument_ordinal
+                                && slot.bytes.as_slice() == bytes
+                        })
+                        .ok_or(LoweringError::Unsupported(
+                            "computed literal has no reserved place",
+                        ))?;
                     if !argument.path.is_empty() {
                         return unsupported("computed literal cannot project its view");
                     }
