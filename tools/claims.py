@@ -569,8 +569,18 @@ class Claims:
                   "version": snapshot["version"]})
             return 0
         if options.command == "notes":
-            pending = pending_notes(record)
-            emit({"state": "notes", "notes": pending, "count": len(pending)})
+            # Pending is the default because it is the coordinator's drain
+            # list; --all adds swept history for audit reads. Every note
+            # carries owner/created_utc from the claim that wrote it.
+            notes = (record.get("notes", []) if options.all
+                     else pending_notes(record))
+            if options.ticket:
+                notes = [note for note in notes
+                         if note["ticket"].startswith(options.ticket)]
+            if options.owner:
+                notes = [note for note in notes
+                         if options.owner in (note.get("owner") or "")]
+            emit({"state": "notes", "notes": notes, "count": len(notes)})
             return 0
         items = board_items(self.repository, options.board)
         claimed_items = {claim["item"] for claim in live}
@@ -614,7 +624,18 @@ def main(argv=None):
     note = subparsers.add_parser("note")
     note.add_argument("--ticket", required=True)
     note.add_argument("--text", required=True)
-    subparsers.add_parser("notes")
+    notes = subparsers.add_parser("notes")
+    notes.add_argument(
+        "--ticket",
+        help="only notes attached to this ticket; unambiguous prefixes work "
+             "(e.g. 686326 for 68632641d3634d468d3a6b0e30fffef7)")
+    notes.add_argument(
+        "--owner",
+        help="only notes whose claim owner contains this substring, like "
+             "sweep --owner (e.g. the wave name)")
+    notes.add_argument(
+        "--all", action="store_true",
+        help="include swept notes, not just pending ones — the audit trail")
     sweep = subparsers.add_parser(
         "sweep", help="mark pending worker notes as consumed")
     sweep.add_argument(

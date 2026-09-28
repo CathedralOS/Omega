@@ -369,6 +369,35 @@ class ClaimsTests(unittest.TestCase):
         self.run_claims(self.a, "note", "--ticket", claimed["ticket"],
                         "--text", "x" * 2001, expected=1)
 
+    def test_notes_filter_by_ticket_owner_and_swept(self):
+        first = self.claim(self.a, owner="wave one")
+        second = self.claim(self.b, "BETA-ITEM", "wave two")
+        self.run_claims(self.a, "note", "--ticket", first["ticket"],
+                        "--text", "finding one")
+        self.run_claims(self.b, "note", "--ticket", second["ticket"],
+                        "--text", "finding two")
+        everything = self.run_claims(self.b, "notes")
+        self.assertEqual(everything["count"], 2)
+        by_prefix = self.run_claims(self.b, "notes", "--ticket",
+                                    first["ticket"][:6])
+        self.assertEqual([note["text"] for note in by_prefix["notes"]],
+                         ["finding one"])
+        self.assertEqual(by_prefix["notes"][0]["ticket"], first["ticket"])
+        by_owner = self.run_claims(self.b, "notes", "--owner", "wave two")
+        self.assertEqual([note["text"] for note in by_owner["notes"]],
+                         ["finding two"])
+        self.assertEqual(self.run_claims(self.b, "notes", "--ticket",
+                                         first["ticket"], "--owner",
+                                         "wave two")["count"], 0)
+        self.run_claims(self.b, "sweep")
+        self.assertEqual(self.run_claims(self.b, "notes")["count"], 0)
+        swept = self.run_claims(self.b, "notes", "--all")
+        self.assertEqual(swept["count"], 2)
+        self.assertTrue(all(note["swept_utc"] for note in swept["notes"]))
+        self.assertEqual(self.run_claims(
+            self.b, "notes", "--all", "--ticket", second["ticket"])["count"],
+            1)
+
     def test_notes_survive_record_rewrite_and_concurrent_claims(self):
         claimed = self.claim(self.a, owner="A")
         self.run_claims(self.a, "note", "--ticket", claimed["ticket"],
