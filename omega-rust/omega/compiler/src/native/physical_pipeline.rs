@@ -1,4 +1,4 @@
-//! Optimizer module role: executable entrance. Compiler-facing physical optimizer coordination.
+//! Coordinate the physical stages for one validated target program.
 //!
 //! This entrance consumes validated target operations, reads the exact selected
 //! phase set, and runs selection, analysis, allocation, and machine construction

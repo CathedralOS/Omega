@@ -82,8 +82,6 @@ target-operations-to-selected-instructions = { path = "../pipeline/03_target-ope
 register-environment = { path = "../backend/register-environment" }
 terminal-fuel = { path = "../../psi/representations/terminal-psi/fuel" }
 function-identity = { path = "../foundation/function-identity" }
-object-file = { path = "../backend/object/object-file" }
-optimization-unit = { path = "../representations/abstract-operations/optimization-unit" }
 abstract-operations = { path = "../representations/abstract-operations" }
 image-emission = { path = "../backend/images/image-emission" }
 isa-x86_64 = { path = "../backend/instruction_set_architectures/isa-x86_64" }
@@ -98,6 +96,7 @@ image = { path = "../backend/images/image" }
 image-macho = { path = "../backend/images/image-macho" }
 
 [dev-dependencies]
+object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../package-manager/compilation-inputs", features = ["test-support"] }
 

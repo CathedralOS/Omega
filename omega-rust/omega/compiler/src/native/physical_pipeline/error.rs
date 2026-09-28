@@ -1,4 +1,3 @@
-use abstract_operations_to_target_operations::LoweringError;
 use machine_emission::FunctionRelativeOptimizationRealizationError;
 use register_homes_to_post_allocation_machine::OptimizedPostAllocationMachinePipelineError;
 use target_operations_to_selected_instructions::OptimizedSelectionPipelineError;
@@ -10,7 +9,6 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     ),
     PostTerminalSelectionMismatch,
     UnconsumedPostTerminalPhase(optimization_core::OptimizationExecutionPhase),
-    TargetLowering(LoweringError),
     RegisterEnvironment(register_environment::TargetRegisterEnvironmentValidationError),
     Selection(OptimizedSelectionPipelineError),
     RegisterAllocation(selected_instructions_to_register_homes::RegisterAllocationError),
