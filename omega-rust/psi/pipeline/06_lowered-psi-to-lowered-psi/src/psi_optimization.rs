@@ -1,6 +1,7 @@
 //! Execute selected target-neutral passes and return their validated publication result.
 
 use crate::optimization_error::PsiOptimizationStageError;
+use crate::rewrite_refusal::PsiRewriteRefusal;
 
 use crate::{
     control_flow_cleanup, copy_propagation, dead_scalar_elimination, global_value_numbering,
@@ -32,6 +33,7 @@ pub fn run_psi_optimization(
     selections: PsiOptimizationSelections,
 ) -> Result<PsiOptimizationStageResult, PsiOptimizationStageError> {
     let (input_semantic, input_proof) = validate_carrier(&lowered)?;
+    let mut refusals = Vec::new();
     for selected in selections.as_slice() {
         match selected {
             PsiOptimization::ControlFlowCleanup => {
@@ -41,13 +43,13 @@ pub fn run_psi_optimization(
                 lowered = sparse_conditional_constant_propagation::propagate(lowered)?;
             }
             PsiOptimization::CopyPropagation => {
-                lowered = copy_propagation::propagate(lowered)?;
+                lowered = copy_propagation::propagate(lowered, &mut refusals)?;
             }
             PsiOptimization::GlobalValueNumbering => {
                 lowered = global_value_numbering::number(lowered)?;
             }
             PsiOptimization::DeadPureScalarElimination => {
-                lowered = dead_scalar_elimination::eliminate(lowered)?;
+                lowered = dead_scalar_elimination::eliminate(lowered, &mut refusals)?;
             }
             PsiOptimization::ProofCheckElision => {
                 lowered = proof_check_elision::elide(lowered)?;
@@ -76,7 +78,7 @@ pub fn run_psi_optimization(
     )
     .map_err(PsiOptimizationStageError::InvalidExecutionRecord)?;
     Ok(PsiOptimizationStageResult::new(
-        lowered, selections, execution,
+        lowered, selections, execution, refusals,
     ))
 }
 
@@ -108,6 +110,7 @@ pub struct PsiOptimizationStageResult {
     lowered: LoweredPsi,
     selections: PsiOptimizationSelections,
     execution: PsiOptimizationExecutionRecord,
+    refusals: Vec<PsiRewriteRefusal>,
 }
 
 impl PsiOptimizationStageResult {
@@ -115,11 +118,13 @@ impl PsiOptimizationStageResult {
         lowered: LoweredPsi,
         selections: PsiOptimizationSelections,
         execution: PsiOptimizationExecutionRecord,
+        refusals: Vec<PsiRewriteRefusal>,
     ) -> Self {
         Self {
             lowered,
             selections,
             execution,
+            refusals,
         }
     }
 
@@ -133,6 +138,14 @@ impl PsiOptimizationStageResult {
 
     pub const fn execution(&self) -> &PsiOptimizationExecutionRecord {
         &self.execution
+    }
+
+    /// Selected passes that proposed a rewrite and deliberately withheld it,
+    /// in execution order. Empty when every selected pass either rewrote or
+    /// found nothing to rewrite. Producer-side explanation only: it is not
+    /// encoded in the canonical execution record.
+    pub fn refusals(&self) -> &[PsiRewriteRefusal] {
+        &self.refusals
     }
 
     pub fn into_lowered(self) -> LoweredPsi {

@@ -12,7 +12,8 @@
 //! Inside a proof-bearing module a collapse survives only while the
 //! reconstructed proof question is unchanged; a substitution the question
 //! cannot carry verbatim refuses until proof-context transport lets the
-//! question move with the rewrite.
+//! question move with the rewrite. The refusal is recorded as a
+//! `PsiRewriteRefusal` on the stage result.
 //!
 //! Resolution proposes substitutions; the independent verifier checks the
 //! exact before/after relation and proof questions.
@@ -20,7 +21,9 @@
 mod copies;
 
 use crate::PsiOptimizationStageError;
+use crate::rewrite_refusal::{PsiRewriteRefusal, PsiRewriteRefusalReason};
 use lowered_psi::LoweredPsi;
+use optimization::PsiOptimization;
 use std::collections::BTreeSet;
 use terminal_psi::DebugSubject;
 use terminal_verifier::{
@@ -28,7 +31,10 @@ use terminal_verifier::{
     validate_module_for_optimization,
 };
 
-pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizationStageError> {
+pub(super) fn propagate(
+    before: LoweredPsi,
+    refusals: &mut Vec<PsiRewriteRefusal>,
+) -> Result<LoweredPsi, PsiOptimizationStageError> {
     let validated = validate_module_for_optimization(&before.semantic_module)
         .map_err(PsiOptimizationStageError::InvalidModule)?;
     let questions = reconstruct_optimizable_terminal_obligations(validated)
@@ -66,14 +72,23 @@ pub(super) fn propagate(before: LoweredPsi) -> Result<LoweredPsi, PsiOptimizatio
     if let Err(error) = validate_copy_propagation(&before.semantic_module, &after.semantic_module) {
         // Without proof-context transport a proof-bearing input keeps only a
         // rewrite the reconstructed question survives unchanged; a refused
-        // rewrite leaves the module as authored.
-        if proof_bearing
-            && matches!(
-                error,
-                terminal_verifier::CopyPropagationRewriteError::InvalidModule(_)
-                    | terminal_verifier::CopyPropagationRewriteError::ChangedProofQuestion
-            )
-        {
+        // rewrite leaves the module as authored and is reported as a
+        // decision, so the identity output is not mistaken for "nothing to
+        // rewrite".
+        let reason = match error {
+            terminal_verifier::CopyPropagationRewriteError::ChangedProofQuestion => {
+                Some(PsiRewriteRefusalReason::ChangedProofQuestion)
+            }
+            terminal_verifier::CopyPropagationRewriteError::InvalidModule(_) => {
+                Some(PsiRewriteRefusalReason::ProposalLeftProofContextDangling)
+            }
+            _ => None,
+        };
+        if let Some(reason) = reason.filter(|_| proof_bearing) {
+            refusals.push(PsiRewriteRefusal::new(
+                PsiOptimization::CopyPropagation,
+                reason,
+            ));
             return Ok(before);
         }
         return Err(PsiOptimizationStageError::InvalidCopyPropagationRewrite(
