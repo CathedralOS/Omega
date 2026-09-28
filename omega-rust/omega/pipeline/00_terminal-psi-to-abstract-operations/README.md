@@ -28,6 +28,10 @@ The entry map is [lib.rs](src/lib.rs). Responsibilities are separate modules:
   checked-body or intrinsic realizations, and opaque ABI application custody.
   The coordinator supplies borrowed selection inputs; the stage owns role
   selection, const/type identity validation and retained-provenance replay.
+  Direct native retention and retained-Terminal re-entry share its exact
+  occurrence-coverage check. Missing source scope is not an empty-scope proof:
+  only a sealed empty scope permits synthesizing empty coverage, and supplied
+  coverage must rejoin the sealed artifact and its complete occurrence roster.
 - [comparison_settlement.rs](src/comparison_settlement.rs): join emitted IEEE
   and integer comparisons to their exact authored application, selected plan,
   retained provenance and rederived intrinsic execution. Retained output, direct

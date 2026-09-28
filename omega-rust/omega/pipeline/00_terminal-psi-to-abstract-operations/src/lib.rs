@@ -32,7 +32,8 @@ pub use artifact_admission::{
     TerminalPlacedViewEstablishment, VerifiedNativeArtifactInput, lower_artifact,
 };
 pub use boundary_application_settlement::{
-    BoundaryApplicationSettlement, validate_terminal_boundary_application_coverage,
+    BoundaryApplicationSettlement, retain_terminal_boundary_application_coverage,
+    validate_terminal_boundary_application_coverage,
 };
 pub use callback_settlement::{
     CallbackRegistrarOccurrence, settle_callback_registrar_imports,

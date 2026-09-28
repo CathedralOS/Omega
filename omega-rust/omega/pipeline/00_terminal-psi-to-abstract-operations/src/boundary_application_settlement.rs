@@ -494,6 +494,44 @@ fn project_opaque_applications(
     boundary_applications::BoundaryOpaqueRepresentationApplications::new(rows)
 }
 
+/// Retain native coverage through the same exact-scope replay as a Terminal
+/// proposal. An absent source scope permits only absent coverage; only a
+/// sealed empty scope permits constructing empty coverage without a supplied
+/// companion. A nonempty scope always requires its produced coverage.
+pub fn retain_terminal_boundary_application_coverage(
+    artifact: &terminal_codec::CanonicalTerminalArtifact,
+    checked_scope: Option<&lowered_psi_to_terminal_psi::CheckedBoundaryOperatorApplicationScope>,
+    supplied: Option<&boundary_applications::TerminalBoundaryApplicationCoverage>,
+) -> Result<Option<boundary_applications::TerminalBoundaryApplicationCoverage>, &'static str> {
+    use boundary_applications::{
+        TerminalBoundaryApplicationCoverage, TerminalBoundaryApplicationDemands,
+        TerminalBoundaryApplicationRealizations,
+    };
+
+    let Some(checked_scope) = checked_scope else {
+        if supplied.is_some() {
+            return Err("D29 coverage requires the exact checked source-to-Terminal scope");
+        }
+        return Ok(None);
+    };
+    let coverage = match supplied {
+        Some(coverage) => coverage.clone(),
+        None if checked_scope.is_empty() => {
+            let demands = TerminalBoundaryApplicationDemands::new(
+                artifact.manifest().semantic(),
+                Vec::new(),
+            )?;
+            let realizations = TerminalBoundaryApplicationRealizations::new(&demands, Vec::new())?;
+            TerminalBoundaryApplicationCoverage::new(demands, realizations)?
+        }
+        None => {
+            return Err("a nonempty checked D29 scope requires exact compiler-produced coverage");
+        }
+    };
+    validate_terminal_boundary_application_coverage(artifact, checked_scope, &coverage)?;
+    Ok(Some(coverage))
+}
+
 /// Replay retained source-free demands against their sealed artifact-bound scope.
 /// A public demand roster cannot substitute its own occurrence count or identities.
 pub fn validate_terminal_boundary_application_coverage(
@@ -513,9 +551,7 @@ pub fn validate_terminal_boundary_application_coverage(
                 demand.terminal_operation() == occurrence.terminal_operation()
             })
     {
-        return Err(
-            "Terminal native proposal source-free boundary demands differ from checked occurrence custody",
-        );
+        return Err("source-free D29 coverage differs from exact checked occurrence custody");
     }
 
     Ok(())
