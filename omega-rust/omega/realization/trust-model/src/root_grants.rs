@@ -12,6 +12,9 @@ use crate::{
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
 
+mod authored;
+pub use authored::harvest_root_grants;
+
 pub(crate) struct ResolvedRootGrants<'a> {
     pub(crate) providers: Vec<ResolvedSelectedProviderGrant>,
     pub(crate) non_providers: Vec<(&'a str, NonProviderTrustGrant)>,

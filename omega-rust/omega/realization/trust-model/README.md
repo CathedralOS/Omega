@@ -19,6 +19,15 @@ reported first. Report reconstruction borrows those meanings and still replays
 selected candidates, selected grants, and report evidence. No prepared grant
 value crosses the public API or survives into another compilation.
 
+Its [authored grant checker](src/root_grants/authored.rs) reconstructs static
+acceptances with their exact source occurrences. Build execution and package
+review both call it directly. [Component assumptions](src/component_assumptions.rs)
+retain exact accepted digests and reject malformed declarations.
+The [exclusion selection checker](src/behavior_exclusions/selections.rs)
+rejoins executed interpreter receipts to exact toolchain cases or boundary
+traits; unreachable calls still select nothing. These are typed-source admission
+boundaries, not claims that this package is already a Terminal-only consumer.
+
 The earlier typed package gate and standalone report reconstruction each resolve
 their own inputs. Their independent checking boundaries remain explicit.
 

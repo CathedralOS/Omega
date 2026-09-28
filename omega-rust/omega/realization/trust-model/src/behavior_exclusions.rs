@@ -18,12 +18,15 @@
 //! converted into the other.
 
 use checked_trees::CheckedTrees;
+
+mod selections;
 use checked_trees_to_lowered_psi::LoweredMachineProvenance;
 use diagnostics::Diagnostic;
 use effects::{AuthoredBehaviorExclusion, authored_behavior_exclusion_set_in};
 use effects::{
     BehaviorExclusionReport, BehaviorExclusionVerdict, establish_behavior_exclusions_with_owners,
 };
+pub use selections::harvest_behavior_exclusions;
 
 /// Verify the authored exclusions against the selected program entry's
 /// unoptimized composition: the lowered module Terminal production retained

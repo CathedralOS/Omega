@@ -136,7 +136,7 @@ fn validate_authored_activation(
             ));
         }
     }
-    let authored = build_evaluation::harvest_root_grants(&compilation.typed, build)
+    let authored = trust_model::harvest_root_grants(&compilation.typed, build)
         .map_err(|diagnostic| vec![diagnostic])?;
     let grants = trust_model::resolve_authored_selected_provider_grants(
         compilation.custody.provider_plans(),
