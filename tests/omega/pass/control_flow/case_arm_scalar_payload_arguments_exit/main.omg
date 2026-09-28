@@ -1,0 +1,93 @@
+// Arm-bound payload scalars as successor arguments: `Case { p } ->
+// target(p, ...)` arms mint scalar expression rows for their bound payload
+// fields so the successor's scalar-argument guard admits them — alongside
+// literal actuals, on both the machine's own receiver sum (the api
+// `at(response, position)` shape) and a call-produced local subject (the
+// cli `got_line(count, false)` shape). Exits 70 only when every arm's
+// payload scalars arrive at their named states.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data NextToken {
+    case Token(start: u64, end: u64);
+    case End;
+}
+
+// Self-subject scalar payload arm: the receiver sum binds `start`/`end` and
+// forwards both through a named state.
+machine NextToken::span(&self) -> u64 {
+    transition self {
+        NextToken::Token { start, end } -> at(start, end)
+        _ -> (0)
+    }
+    state at(&self, start: u64, end: u64) -> u64 {
+        transition { _ -> (end) }
+    }
+}
+
+data LineRead {
+    case LineComplete(count: u64);
+    case EndOfInput(count: u64);
+    case Empty;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::next_token(&mut self) -> NextToken {
+    transition { _ -> (NextToken::Token { start: 2, end: 3 }) }
+}
+
+machine Main::line_read(&mut self) -> LineRead {
+    transition { _ -> (LineRead::LineComplete { count: 30 }) }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let root: NextToken = self.next_token();
+    transition root {
+        NextToken::Token { start, end } -> root_token(start, end)
+        _ -> refused()
+    }
+
+    state root_token(&mut self, start: u64, end: u64) {
+        transition start == 2 && end == 3 {
+            true -> attached()
+            _ -> refused()
+        }
+    }
+    state attached(&mut self) {
+        let token: NextToken = NextToken::Token { start: 5, end: 7 };
+        transition token.span() == 7 {
+            true -> read_line()
+            _ -> refused()
+        }
+    }
+    state read_line(&mut self) {
+        let result: LineRead = self.line_read();
+        transition result {
+            LineRead::LineComplete { count } -> got_line(count, false)
+            LineRead::EndOfInput { count } -> got_line(count, true)
+            _ -> refused()
+        }
+    }
+    state got_line(&mut self, count: u64, end_after: bool) {
+        transition end_after {
+            true -> refused()
+            false -> check_count(count)
+        }
+    }
+    state check_count(&mut self, count: u64) {
+        transition count == 30 {
+            true -> done()
+            _ -> refused()
+        }
+    }
+    state done(&mut self) {
+        self.console.exit_process(70);
+    }
+    state refused(&mut self) {
+        self.console.exit_process(71);
+    }
+}
