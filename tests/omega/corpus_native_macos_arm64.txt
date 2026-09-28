@@ -738,6 +738,7 @@ pass/providers/external_leaf_dllimport_compile rejected 255ms
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 626ms exit:41
 pass/providers/provider_type_target_default_override built 257ms
 pass/providers/runtime_adapter_dispatch_exit built 576ms exit:70
+pass/providers/runtime_boundary_primitive_array_argument_exit built 901ms exit:70
 pass/providers/runtime_result_domain_requirement_overload_exit built 613ms exit:70
 pass/providers/service_fused_root_establishment built 256ms
 pass/providers/specialized_mixed_structural_result_operator_hosted_native built 448ms exit:0

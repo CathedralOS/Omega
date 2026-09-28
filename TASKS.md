@@ -391,32 +391,41 @@ backend-visible; full corpus runs only at the end of an item.
   `samples/cli/systems/vending_machine` must retain **3** sales, the delivered
   extra remainder **20**, and checksum/exit **70**.
 
-- **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Carry authored by-value
-  fixed primitive arrays through boundary arguments and results. The formal,
-  source-parameter and result refusals in `calls/trait_boundary_call.rs` use
-  `is_closed_primitive_array_type` (nested literal extents ending in Boolean,
-  fixed-width integer or IEEE elements). Removing the argument guard was
-  recorded to advance only to `completion`. Rejoin by-value presentation and
-  completion together: `return_unit_affine_discards` in
-  `terminal_unit/types/mod.rs` classifies owned projections as moves and refuses
-  borrowed roots. Preserve legitimate copies, moves and remaining caller storage.
+- **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
+  fixed primitive arrays through boundary arguments and results under
+  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `635cf2c9ebc`
+  on macOS ARM64, `omega run --target macos_arm64
+  tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit/main.omg`
+  compiles and runs; native corpus execution exits **70**. Its selected checked
+  provider reads all four bytes between two scalar arguments, and the caller
+  observes its result and unchanged source field. Borrowed field projections
+  use `StructuralLeafCopy`; whole array locals keep their existing payload
+  identity. Source replay, codec reload and verification retain exact authored
+  positions, type/extent, readable custody and dominance.
+
+  Remaining: execute whole local/parameter and literal sources, nested arrays,
+  scalar/reference controls, and array results across trait and direct boundary
+  calls. Psi05 `structural_calls/result_uses.rs` still refuses whole array
+  parameters at boundaries. Psi04 `values/scalar/array_constructions.rs` and
+  Psi05 `source_custody/array_sources.rs` exclude boundary literal construction;
+  direct calls also retain array gates in `calls/structural_arguments.rs`.
+  Result guards remain in `calls/{trait_boundary_call,call_operations}.rs`, and
   Stage 05's `scalar_array_source/call_results.rs` still deliberately rejects
-  boundary array results, even empty or discarded ones; ordinary array-call
-  support does not establish boundary payload transport.
-  `tests/omega/pending/providers/boundary_primitive_array_argument` selects a
-  macOS provider that ignores the array and returns constant **7**. Make the
-  provider inspect transferred elements and the caller observe the result;
-  retain its valid Build identity, selected provider and demanded entry. Cover
-  field/literal/local sources, scalar/reference controls, nested arrays and
-  array results across trait and direct boundary calls. Validate exact payload,
-  extent, scalar/structural interleave and selected requirement/provider custody
-  under [boundary calls](wiki/spec/terminal-psi/boundary_calls.md), through
-  Terminal reload/verification and native execution.
-  Customers: `samples/gui/{window_app,window_demo,image_viewer}` pass class
-  arrays of **7** bytes and titles of **10/11/13** bytes. Acceptance retains
-  these by-value signatures and realizes their calls; domain/reference rewrites
-  evade the task. Track later provider or GUI failures under **SAMPLE-CORPUS**
-  rather than treating a changed omission label as success.
+  boundary array results, including empty/discarded ones. Native result
+  forwarding must rejoin boundary producers; the Terminal interpreter still
+  needs concrete array payload transfer through installed-provider calls.
+  Harden/promote `tests/omega/pending/providers/boundary_primitive_array_argument`
+  with element-reading provider and observable caller result, preserving its
+  valid Build identity, selected provider and demanded entry. Acceptance must
+  cover exact payload and scalar/structural interleave through Terminal
+  reload/verification and native execution; ordinary-array support alone is
+  insufficient.
+
+  Customers `samples/gui/{window_app,window_demo,image_viewer}` retain their
+  by-value class/title signatures. The complete `window_demo` now reaches the
+  selected `F64::from_i32` realization dependency under **OPERATOR-BOUNDARY-CALLS**;
+  **SAMPLE-CORPUS** retains full GUI execution. Domain/reference rewrites or a
+  changed omission label do not satisfy this task.
 
 - **OPERATOR-BOUNDARY-CALLS.** (split-of:PROVIDER-SELECTION-AFTER-TERMINAL)
   Finish requirement-level calls and Omega stage 00 installation for legacy
@@ -977,7 +986,7 @@ the complete product bar; focused successes below do not establish that baseline
   | `collections/entity_list`, `rendering/bouncing_particles`, `algorithms/dutch_flag` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pending/collections/runtime_indexed_record_field_store` and `pending/control_flow/runtime_indexed_case_dispatch`. `dutch_flag` must construct, read and swap the actual Color array, interact with Console and exit 70; integer substitutes are not acceptance. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. Retain `dungeon_render`'s field/glyph evidence under **NOMINAL-FIELD-FLOW** while verifying its complete program; transition transport is already implemented. |
-  | `gui/{image_viewer,window_app,window_demo}` | **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** owns the authored by-value primitive-array boundary arguments/results. On macOS ARM64 at `7c17208d59`, `omega --check samples/gui/window_demo/main.omg` gets past the missing direct float import and anonymous bitmap-height arithmetic, then rejects `Gui::window_create(self.cls, self.title, ...)` at state 0, statement 22 (`call operation: boundary arguments`). Resume argument custody in `04_typed-trees-to-checked-trees/src/execution/terminal_unit/`; acceptance remains the complete native GUI run. Changing parameters to domain carriers or references evades that acceptance. Exact fixture/sample provider selection remains required. |
+  | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the rejection rule and many explicit casts are implemented. Recheck the previously affected cohort without changing arithmetic policy or algorithms: `longest_run`, `maze_flood`, `collatz_sequence`, `prime_sieve`, `multiplication_table`, `heat_grid`, `dice_histogram`, `dungeon_crawler_cli`, `rpn_calculator`, `stack_calculator`, `self_mutation_between_calls`, `histogram`, `game_of_life`, `rule_30`, `luhn_checksum`, `substring_search`, and `windowed_calculator`. Re-measure the current set instead of treating an old refusal count as a baseline. |
   | Clock-bearing samples | Complete declared-host provider wiring for `binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`, `tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant`, and `random_walk`. Existing macOS wiring is in `samples/gui/window_app` and `source/library/std/macos_gui.omg`: exact Clock selection and sleep through `darwin_poll`. Missing host selection is distinct from a lowering failure. |
