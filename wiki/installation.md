@@ -30,9 +30,24 @@ brew upgrade cathedralos/omega/omega
 brew uninstall cathedralos/omega/omega
 ```
 
-Windows users can use the archive instructions below. WinGet catalog publication
-is pending; generating and testing a manifest does not make it available through
-`winget install` yet.
+## Windows installer
+
+When a release includes `omega-VERSION-x86_64-pc-windows-msvc.msi`, download it
+and its `.sha256` companion from that release. Verify its hash with the
+PowerShell checksum steps below (substitute the MSI filename), then open the
+MSI. It installs the complete bundle for your user under
+`%LOCALAPPDATA%\Programs\Omega`, without administrator rights, and registers
+`bin` on your user PATH. Open a new terminal and run `omega --version`.
+
+Run a newer MSI to upgrade; use Windows' Installed apps to uninstall. Uninstall
+removes the bundle and its PATH entry, not projects, dependency locks, or caches.
+Do not mix MSI, WinGet, and manually extracted copies on PATH. Install Git
+separately if your projects acquire Git dependencies. These initial MSIs are
+unsigned and may produce Windows publisher warnings.
+
+WinGet catalog publication is pending; generating and testing a manifest does
+not make it available through `winget install` yet. Archives remain available
+independently of either installer channel.
 
 ## Install an archive
 
