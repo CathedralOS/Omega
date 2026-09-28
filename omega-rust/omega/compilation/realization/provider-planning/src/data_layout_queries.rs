@@ -327,6 +327,89 @@ mod tests {
         }
     }
 
+    /// Reads the materialized `const` initializer's folded value by name.
+    fn materialized_const_value(program: &CheckedTrees, name: &str) -> i64 {
+        let declaration = program
+            .typed
+            .tables
+            .const_declarations
+            .iter()
+            .map(|(_, declaration)| declaration)
+            .find(|declaration| program.typed.symbols.name(declaration.symbol) == name)
+            .unwrap_or_else(|| panic!("const `{name}`"));
+        folded_value(program, declaration.materialized_initializer).0
+    }
+
+    #[test]
+    fn fixed_arrays_measure_literal_extent_and_zero_length() {
+        let mut checked = checked_fixture(
+            r#"
+            const ARR_BYTES: u64 = size_of<[u64; 3]>();
+            const ARR_ALIGN: u64 = align_of<[u64; 3]>();
+            const ZERO_BYTES: u64 = size_of<[u8; 0]>();
+            "#,
+        )
+        .expect("array operand fixture checks");
+        fold_data_layout_queries(&mut checked.typed, target::NativeTarget::host(), &[])
+            .expect("host fold");
+        assert_eq!(materialized_const_value(&checked, "ARR_BYTES"), 24);
+        assert_eq!(materialized_const_value(&checked, "ARR_ALIGN"), 8);
+        // A zero-length array is a validated zero-sized layout answering a
+        // real 0; the unresolved-length fallback shares this tuple only on
+        // the reject path exercised below.
+        assert_eq!(materialized_const_value(&checked, "ZERO_BYTES"), 0);
+    }
+
+    #[test]
+    fn slice_reference_reports_the_fat_descriptor() {
+        let mut checked = checked_fixture(
+            r#"
+            const VIEW_BYTES: u64 = size_of<&[u8]>();
+            const VIEW_ALIGN: u64 = align_of<&[u8]>();
+            "#,
+        )
+        .expect("slice-view operand fixture checks");
+        fold_data_layout_queries(&mut checked.typed, target::NativeTarget::host(), &[])
+            .expect("host fold");
+        // `&[u8]` retains its `{pointer, length}` descriptor: two pointer
+        // slots at pointer alignment, not the element's 1/1 and not a thin
+        // pointer.
+        let host = target::NativeTarget::host();
+        assert_eq!(
+            materialized_const_value(&checked, "VIEW_BYTES"),
+            i64::try_from(2 * host.pointer_size).unwrap(),
+        );
+        assert_eq!(
+            materialized_const_value(&checked, "VIEW_ALIGN"),
+            i64::try_from(host.pointer_alignment).unwrap(),
+        );
+    }
+
+    #[test]
+    fn unresolved_array_length_rejects_instead_of_zero_sizing() {
+        let mut typed = typed_fixture("data Main {}");
+        // Synthesize the shape a surviving unresolved length produces: the
+        // layout builder's (0, 1) fallback for it is bit-identical to a real
+        // zero-sized layout, so the operand walk must reject before that
+        // fallback is read as an answer.
+        let element = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: symbols::SymbolHandle::invalid(),
+            name: typed_trees::name::Identifier::from("u8"),
+        });
+        let unresolved = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::FixedArray {
+                element_type: element,
+                length: FixedArrayLength::ConstParameter {
+                    symbol: symbols::SymbolHandle::invalid(),
+                    name: typed_trees::name::Identifier::from("N"),
+                },
+            });
+        let reason = reject_unresolved_layout_operands(&typed, unresolved)
+            .expect_err("an unbound const length is not a validated zero");
+        assert!(reason.contains("not resolved to a constant"), "{reason}");
+    }
+
     #[test]
     fn proof_only_carrier_is_rejected_not_zero_sized() {
         let mut checked = checked_fixture(
