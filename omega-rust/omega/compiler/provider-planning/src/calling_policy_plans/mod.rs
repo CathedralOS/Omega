@@ -8,8 +8,9 @@
 //! `plan_computation.rs` evaluates the policy into plans,
 //! `callback_bindings.rs` binds and closes callbacks, `value_shapes.rs`
 //! derives value shapes and `build_time_decoding.rs` decodes the build-time
-//! values; `callback_layout_catalog`, `native_parameters` and
-//! `opaque_representations` stay as they were.
+//! values. `callback_layout_catalog` associates backend-owned callback layouts
+//! with exact boundary parameters and demands; `native_parameters` and
+//! `opaque_representations` retain their respective signature associations.
 
 mod boundary_signatures;
 mod build_time_decoding;
@@ -31,7 +32,7 @@ pub use callback_bindings::{
     BoundaryCallingPlanRealization, close_outbound_callback_materializations,
     validate_nominal_callback_placement_bindings,
 };
-pub use callback_layout_catalog::{BoundaryCallbackInlineField, BoundaryCallbackLayoutEntry};
+pub use callback_layout_catalog::BoundaryCallbackLayoutEntry;
 pub use opaque_representations::{
     BoundaryOpaqueRepresentationMovement, BoundaryOpaqueRepresentationMovementRole,
     BoundaryOpaqueRepresentationPathElement, BoundaryOpaqueRepresentationUse,

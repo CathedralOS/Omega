@@ -1,7 +1,6 @@
 //! Replay the retained named catalog's joins, not the compiler proofs that
 //! originally closed its layouts and selected conformance applications.
 
-mod geometry;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -11,10 +10,7 @@ use super::super::{
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
 };
 use super::BoundaryCallbackLayoutEntry;
-use calling_conventions::{
-    NativeCallbackDemand, NativePlace, callback_layout_field_slot_id, callback_layout_slot_id,
-    callback_requirement_id,
-};
+use calling_conventions::{NativeCallbackDemand, NativePlace};
 
 pub(in crate::calling_policy_plans) fn validate(
     signature: &MaterializedBoundarySignature,
@@ -36,7 +32,7 @@ pub(in crate::calling_policy_plans) fn validate(
             "callback layout catalog is missing a declared private field demand".to_owned()
         })?;
         if entry.destination != demand.destination
-            || entry.terminal_slot.requirement != demand.requirement
+            || entry.terminal_slot().requirement != demand.requirement
         {
             return Err("callback layout catalog changed its exact field demand".to_owned());
         }
@@ -76,7 +72,7 @@ fn validate_entry(
                 || usize::from(*shape) >= signature.shapes.len()
         })
         || !native.layout_data_symbol.is_valid()
-        || native.layout_data_symbol != entry.root_layout.data_symbol
+        || native.layout_data_symbol != entry.root_layout().data_symbol
         || signature
             .native_parameters
             .iter()
@@ -93,31 +89,7 @@ fn validate_entry(
                 .to_owned(),
         );
     }
-    let terminal = &entry.terminal_slot;
-    if terminal.slot_identity.is_empty()
-        || terminal.callback_requirement_identity.is_empty()
-        || terminal.slot != callback_layout_slot_id(terminal.layout, &terminal.slot_identity)
-        || terminal.requirement != callback_requirement_id(&terminal.callback_requirement_identity)
-        || !terminal.slot_application.declaration.is_valid()
-        || !terminal.slot_application.trait_definition.is_valid()
-        || terminal.slot_application.commitment.is_zero()
-    {
-        return Err("callback layout catalog lost its named slot application".to_owned());
-    }
-    let expected = if let Some(field) = &entry.inline_field {
-        NativePlace::Field {
-            parameter: *parameter,
-            layout: entry.root_layout.layout,
-            field_path: vec![
-                callback_layout_field_slot_id(entry.root_layout.layout, &field.identity),
-                terminal.slot,
-            ],
-        }
-    } else {
-        terminal.native_demand(*parameter).destination
-    };
-    if entry.destination != expected {
-        return Err("callback layout catalog changed its exact ordered field path".to_owned());
-    }
-    geometry::validate(entry, signature.native_target)
+    entry
+        .layout
+        .validate(&entry.destination, signature.native_target)
 }

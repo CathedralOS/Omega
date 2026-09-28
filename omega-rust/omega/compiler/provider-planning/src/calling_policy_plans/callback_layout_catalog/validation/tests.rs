@@ -1,14 +1,17 @@
-use super::super::{BoundaryCallbackInlineField, BoundaryCallbackLayoutEntry};
+use super::super::BoundaryCallbackLayoutEntry;
 use super::{
     BoundaryNativeParameterOrigin, BoundaryNativeParameterShape, MaterializedBoundarySignature,
-    NativePlace, callback_layout_field_slot_id, callback_layout_slot_id, callback_requirement_id,
-    validate,
+    NativePlace, validate,
 };
 use crate::calling_policy_plans::materialized_boundary_signature_from_abi;
 use crate::calling_policy_plans::plan_computation::boundary_plan_application_identity;
-use calling_conventions::{CallSignature, LayoutPlanId, NativeParameterId, ValueShape};
+use calling_conventions::{
+    CallSignature, LayoutPlanId, NativeParameterId, ValueShape, callback_layout_field_slot_id,
+    callback_layout_slot_id, callback_requirement_id,
+};
 use layout::{
-    TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand, TypeLayout,
+    FieldLayout, TargetClosedPlanLaidDataLayoutIdentity, TargetClosedPrivateCallbackDemand,
+    TargetClosedTwoHopPrivateCallbackPath, TypeLayout,
 };
 use symbols::SymbolHandle;
 use target::NativeTarget;
@@ -53,27 +56,20 @@ pub(in crate::calling_policy_plans) fn signature_fixture() -> MaterializedBounda
         alignment,
     };
     let demand = terminal_slot.native_demand(parameter.identity);
+    let layouts = [TargetClosedPlanLaidDataLayoutIdentity {
+        data_symbol,
+        data_identity: "fixture::Record".into(),
+        layout_subject_identity: terminal_slot.layout_subject_identity.clone(),
+        // Named root and legacy terminal layouts intentionally use different IDs.
+        layout: LayoutPlanId::new(139).unwrap(),
+        physical: TypeLayout {
+            size: 4 * pointer,
+            alignment,
+        },
+    }];
     signature
         .callback_layout_catalog
-        .push(BoundaryCallbackLayoutEntry {
-            formal_ordinal: 0,
-            native_ordinal: 0,
-            destination: demand.destination.clone(),
-            root_layout: TargetClosedPlanLaidDataLayoutIdentity {
-                data_symbol,
-                data_identity: "fixture::Record".into(),
-                layout_subject_identity: terminal_slot.layout_subject_identity.clone(),
-                // Named root and legacy terminal layouts intentionally use different IDs.
-                layout: LayoutPlanId::new(139).unwrap(),
-                physical: TypeLayout {
-                    size: 4 * pointer,
-                    alignment,
-                },
-            },
-            inline_field: None,
-            terminal_slot,
-            composed_offset: pointer,
-        });
+        .push(BoundaryCallbackLayoutEntry::direct(parameter, &layouts, &terminal_slot).unwrap());
     signature.callback_demands.push(demand);
     signature
 }
@@ -82,38 +78,42 @@ fn two_hop_fixture() -> MaterializedBoundarySignature {
     let mut signature = signature_fixture();
     let pointer = signature.native_target.pointer_size;
     let alignment = signature.native_target.pointer_alignment;
-    let entry = &mut signature.callback_layout_catalog[0];
+    let entry = &signature.callback_layout_catalog[0];
     let child_symbol = SymbolHandle::from_arena_index(149);
-    entry.terminal_slot.data_symbol = child_symbol;
-    entry.terminal_slot.layout_subject_identity = "fixture::ChildLayout".into();
+    let mut terminal_demand = entry.terminal_slot().clone();
+    terminal_demand.data_symbol = child_symbol;
+    terminal_demand.layout_subject_identity = "fixture::ChildLayout".into();
     let field_identity = "fixture::Record::child";
-    entry.inline_field = Some(BoundaryCallbackInlineField {
-        symbol: SymbolHandle::from_arena_index(151),
-        identity: field_identity.into(),
-        offset: pointer,
-        extent: 2 * pointer,
-        alignment,
+    let path = TargetClosedTwoHopPrivateCallbackPath {
+        root_layout_index: 0,
+        root_layout: entry.root_layout().clone(),
+        field_symbol: SymbolHandle::from_arena_index(151),
+        field: arena::Handle::invalid(),
+        field_layout: FieldLayout::default(),
+        field_identity: field_identity.into(),
+        field_slot: callback_layout_field_slot_id(entry.root_layout().layout, field_identity),
+        field_relative_offset: pointer,
+        field_extent: 2 * pointer,
+        field_alignment: alignment,
+        child_layout_index: 1,
         child_layout: TargetClosedPlanLaidDataLayoutIdentity {
             data_symbol: child_symbol,
             data_identity: "fixture::Child".into(),
-            layout_subject_identity: entry.terminal_slot.layout_subject_identity.clone(),
+            layout_subject_identity: terminal_demand.layout_subject_identity.clone(),
             layout: LayoutPlanId::new(157).unwrap(),
             physical: TypeLayout {
                 size: 2 * pointer,
                 alignment,
             },
         },
-    });
-    entry.composed_offset = 2 * pointer;
-    entry.destination = NativePlace::Field {
-        parameter: signature.native_parameters[0].identity,
-        layout: entry.root_layout.layout,
-        field_path: vec![
-            callback_layout_field_slot_id(entry.root_layout.layout, field_identity),
-            entry.terminal_slot.slot,
-        ],
+        terminal_demand_index: 0,
+        terminal_demand,
+        composed_offset: 2 * pointer,
     };
-    signature.callback_demands[0].destination = entry.destination.clone();
+    let parameter = &signature.native_parameters[0];
+    signature.callback_layout_catalog[0] =
+        BoundaryCallbackLayoutEntry::two_hop(parameter, &path).unwrap();
+    signature.callback_demands[0] = path.native_demand(parameter.identity);
     signature
 }
 
@@ -147,18 +147,15 @@ fn named_catalog_preserves_existing_boundary_application_bytes() {
 #[test]
 fn catalog_requires_every_field_demand_once_in_exact_order() {
     let mut signature = signature_fixture();
-    let mut second = signature.callback_layout_catalog[0].clone();
-    second.terminal_slot.slot_identity = "fixture::SecondSlot".into();
-    second.terminal_slot.slot = callback_layout_slot_id(
-        second.terminal_slot.layout,
-        &second.terminal_slot.slot_identity,
-    );
-    second.terminal_slot.offset *= 2;
-    second.composed_offset = second.terminal_slot.offset;
-    let demand = second
-        .terminal_slot
-        .native_demand(signature.native_parameters[0].identity);
-    second.destination = demand.destination.clone();
+    let entry = &signature.callback_layout_catalog[0];
+    let mut terminal = entry.terminal_slot().clone();
+    terminal.slot_identity = "fixture::SecondSlot".into();
+    terminal.slot = callback_layout_slot_id(terminal.layout, &terminal.slot_identity);
+    terminal.offset *= 2;
+    let layouts = [entry.root_layout().clone()];
+    let parameter = &signature.native_parameters[0];
+    let demand = terminal.native_demand(parameter.identity);
+    let second = BoundaryCallbackLayoutEntry::direct(parameter, &layouts, &terminal).unwrap();
     signature.callback_layout_catalog.push(second);
     signature.callback_demands.push(demand);
     signature
@@ -236,73 +233,30 @@ fn catalog_rejects_native_and_semantic_parameter_drift() {
 }
 
 #[test]
-fn catalog_rejects_named_slot_path_and_geometry_drift_without_panicking() {
-    let mutations: &[fn(&mut BoundaryCallbackLayoutEntry)] = &[
-        |entry| entry.terminal_slot.slot_identity = "fixture::ForeignSlot".into(),
-        |entry| entry.terminal_slot.callback_requirement_identity = "fixture::Foreign::call".into(),
-        |entry| entry.terminal_slot.requirement = callback_requirement_id("fixture::Foreign::call"),
-        |entry| entry.terminal_slot.slot_application.declaration = SymbolHandle::invalid(),
-        |entry| entry.terminal_slot.slot_application.trait_definition = SymbolHandle::invalid(),
-        |entry| {
-            entry.terminal_slot.slot_application.commitment =
-                ClosedConformanceApplicationCommitment::default()
-        },
-        |entry| entry.terminal_slot.layout_subject_identity = "fixture::ForeignLayout".into(),
-        |entry| entry.terminal_slot.data_symbol = SymbolHandle::from_arena_index(173),
-        |entry| entry.terminal_slot.offset = usize::MAX,
-        |entry| entry.terminal_slot.byte_size = usize::MAX,
-        |entry| entry.terminal_slot.alignment = 0,
-        |entry| entry.root_layout.physical.size = 0,
-        |entry| entry.root_layout.physical.alignment = 0,
-        |entry| entry.root_layout.data_identity = "".into(),
-        |entry| entry.composed_offset = usize::MAX,
-        |entry| {
-            let NativePlace::Field { field_path, .. } = &mut entry.destination else {
-                unreachable!()
-            };
-            field_path.clear();
-        },
-    ];
-    for fixture in [signature_fixture, two_hop_fixture] {
-        for (index, mutate) in mutations.iter().enumerate() {
-            let mut signature = fixture();
-            mutate(&mut signature.callback_layout_catalog[0]);
-            // Keep the outer demand join intact so inner association checks run.
-            signature.callback_demands[0].destination =
-                signature.callback_layout_catalog[0].destination.clone();
-            assert!(
-                validate(&signature, &signature.callback_demands).is_err(),
-                "mutation {index}"
-            );
-        }
-    }
-}
-
-#[test]
-fn two_hop_catalog_rejects_child_field_and_composition_drift() {
-    let mutations: &[fn(&mut BoundaryCallbackInlineField)] = &[
-        |field| field.symbol = SymbolHandle::invalid(),
-        |field| field.identity = "fixture::Record::foreign".into(),
-        |field| field.offset = usize::MAX,
-        |field| field.extent = usize::MAX,
-        |field| field.alignment = 0,
-        |field| field.child_layout.data_symbol = SymbolHandle::invalid(),
-        |field| field.child_layout.data_symbol = SymbolHandle::from_arena_index(179),
-        |field| field.child_layout.layout_subject_identity = "fixture::ForeignChild".into(),
-        |field| field.child_layout.physical.size = 0,
-        |field| field.child_layout.physical.alignment = 0,
-    ];
-    for (index, mutate) in mutations.iter().enumerate() {
-        let mut signature = two_hop_fixture();
-        mutate(
-            signature.callback_layout_catalog[0]
-                .inline_field
-                .as_mut()
-                .unwrap(),
-        );
+fn catalog_replays_backend_path_and_target_geometry() {
+    for signature in [signature_fixture(), two_hop_fixture()] {
+        validate(&signature, &signature.callback_demands).unwrap();
+        let mut changed = signature.clone();
+        let NativePlace::Field { field_path, .. } =
+            &mut changed.callback_layout_catalog[0].destination
+        else {
+            unreachable!()
+        };
+        field_path.clear();
+        changed.callback_demands[0].destination =
+            changed.callback_layout_catalog[0].destination.clone();
         assert!(
-            validate(&signature, &signature.callback_demands).is_err(),
-            "mutation {index}"
+            validate(&changed, &changed.callback_demands)
+                .unwrap_err()
+                .contains("exact ordered field path")
+        );
+
+        let mut changed = signature;
+        changed.native_target.pointer_size *= 2;
+        assert!(
+            validate(&changed, &changed.callback_demands)
+                .unwrap_err()
+                .contains("target pointer geometry")
         );
     }
 }

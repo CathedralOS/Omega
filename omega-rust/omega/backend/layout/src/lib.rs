@@ -5,11 +5,14 @@
 //! carries. `builder.rs` turns a checked type reference into a `TypeLayout`
 //! whose descriptor records packed fields, bit-field fragments, and case
 //! payloads; `field_paths` resolves a field path to its offset;
+//! `callback_layout` retains and checks private callback field paths and
+//! their target geometry independently of source-parameter association;
 //! `sum_materialization` projects conventional sum layouts for the
 //! layout-plans foundation. Layout never authorizes an access; it only fixes
 //! where a value's bytes live.
 
 mod builder;
+mod callback_layout;
 mod field_paths;
 mod layout_plan;
 mod packing;
@@ -17,6 +20,7 @@ mod sizing;
 mod sum_materialization;
 
 pub use builder::{build_layout_plan, layout_type_reference};
+pub use callback_layout::{PrivateCallbackInlineField, PrivateCallbackLayout};
 pub use field_paths::{field_data_layout_fields, field_machine_layout, field_path_offset};
 pub use layout_plan::{
     BitFieldFragment, BitFieldLayout, DataLayout, DataShape, ENUM_TAG_BYTES, FieldLayout,
