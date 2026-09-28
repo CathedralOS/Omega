@@ -1,8 +1,10 @@
 //! Optimizer module role: executable entrance. Selected instructions to register homes.
 //!
 //! The route, in order: replay the selected X-to-X evidence; a completed
-//! selected-lowering or pre-allocation run takes `assignment::transformed`
-//! homes; otherwise an
+//! selected-lowering or pre-allocation run probes assignment over its final
+//! facts — success takes `assignment::transformed` homes while residual
+//! `NoCompatibleHome` pressure hands the proven run, ledger and completion
+//! identity included, to `assignment::runtime_spill`; otherwise an
 //! admitted recovery rule takes `assignment::recovery`; otherwise legality is
 //! staged and the direct assignment either succeeds into `assignment::baseline`
 //! homes, splits authenticated entry-fixed-view transitions through the
@@ -27,6 +29,7 @@ mod selected_rewrite_tests;
 use crate::assignment::recovery::{
     stage_active_resident_register_allocation,
     stage_leaf_local_fixed_view_register_allocation_composing,
+    stage_pre_allocation_register_allocation, stage_selected_lowering_register_allocation,
     stage_shared_entry_fixed_view_register_allocation,
 };
 use optimization_core::{Optimization, OptimizationExecutionPhase};
@@ -54,17 +57,16 @@ pub fn stage_register_allocation(
         .map_err(RegisterAllocationError::SelectedOptimization)?
     {
         SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
+        // A completed rewrite run composes with pressure recovery like every
+        // other prefix: assignment probes the run's final facts, success keeps
+        // the transformed-homes route, and residual `NoCompatibleHome` hands
+        // the run — not a rebuilt legality — to runtime spill so the produced
+        // manifest keeps the suite's ledger and completion identity.
         SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
-            let homes =
-                crate::assignment::transformed::stage_optimized_register_homes_after_selected_lowering(run)
-                .map_err(RegisterAllocationError::TransformedHomes)?;
-            return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
+            return stage_selected_lowering_register_allocation(run);
         }
         SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
-            let homes =
-                crate::assignment::transformed::stage_optimized_register_homes_after_pre_allocation(run)
-                .map_err(RegisterAllocationError::PreAllocationHomes)?;
-            return RetainedAllocation::try_from(homes).map_err(RegisterAllocationError::Replay);
+            return stage_pre_allocation_register_allocation(run);
         }
     };
     let selections = ranges.selections().clone();

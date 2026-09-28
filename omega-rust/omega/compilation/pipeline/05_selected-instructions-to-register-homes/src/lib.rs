@@ -11,9 +11,10 @@
 //! Module map, in route order:
 //! - `register_allocation` owns the entry and its exact route.
 //! - `assignment` holds the stages that route sequences: `transformed` homes
-//!   after selected lowering, the optional `recovery` rules, `runtime_spill`
-//!   pressure recovery, `baseline` homes over `home_assignment`, and the
-//!   `post_allocation_manifest` every route publishes.
+//!   after a completed rewrite run, the optional `recovery` rules,
+//!   `runtime_spill` pressure recovery — including residual pressure a
+//!   completed run hands over — `baseline` homes over `home_assignment`, and
+//!   the `post_allocation_manifest` every route publishes.
 //! - `rewrites` stages active-resident rematerialization for a recovery rule.
 //! - `output` owns current allocation facts and their separate replay evidence.
 //! - `preservation` derives allocation-visible callee-saved requirements.
@@ -65,6 +66,7 @@ pub use assignment::post_allocation_manifest::{
 pub use assignment::recovery::{
     stage_active_resident_register_allocation, stage_leaf_local_fixed_view_register_allocation,
     stage_leaf_local_fixed_view_register_allocation_composing,
+    stage_pre_allocation_register_allocation, stage_selected_lowering_register_allocation,
     stage_shared_entry_fixed_view_register_allocation,
 };
 pub use assignment::runtime_spill::RuntimeSpillAllocationError;

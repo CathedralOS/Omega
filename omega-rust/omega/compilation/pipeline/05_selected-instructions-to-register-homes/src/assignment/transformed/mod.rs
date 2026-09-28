@@ -60,6 +60,56 @@ pub fn stage_optimized_register_homes_after_pre_allocation(
     Ok(staged)
 }
 
+/// Assignment probe over a completed selected-lowering run's final facts.
+/// Computing the assignment without consuming the run lets the route answer
+/// residual `NoCompatibleHome` pressure with runtime spill instead of
+/// post-lowering homes.
+pub(crate) fn assign_optimized_register_homes_after_selected_lowering(
+    run: &StagedSelectedLoweringOptimizationRun,
+) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+    construction::assign_register_homes_after_selected_lowering(run)
+}
+
+/// The staged-homes form over an already-computed assignment, for the
+/// composing route that probed assignment while it still owned the run.
+pub(crate) fn stage_optimized_register_homes_after_selected_lowering_with_assignment(
+    run: StagedSelectedLoweringOptimizationRun,
+    homes: ValidatedRegisterHomes,
+) -> Result<
+    StagedOptimizedRegisterHomesAfterSelectedLowering,
+    OptimizedPostSelectedLoweringHomeCustodyError,
+> {
+    let staged =
+        construction::construct_register_homes_after_selected_lowering_with_assignment(run, homes)?;
+    validate_optimized_register_home_after_selected_lowering_custody(&staged)?;
+    Ok(staged)
+}
+
+/// Assignment probe over a completed pre-allocation run's final facts.
+/// Computing the assignment without consuming the run lets the route answer
+/// residual `NoCompatibleHome` pressure with runtime spill instead of
+/// post-run homes.
+pub(crate) fn assign_optimized_register_homes_after_pre_allocation(
+    run: &StagedPreAllocationOptimizationRun,
+) -> Result<ValidatedRegisterHomes, RegisterHomeError> {
+    construction::assign_register_homes_after_pre_allocation(run)
+}
+
+/// The staged-homes form over an already-computed assignment, for the
+/// composing route that probed assignment while it still owned the run.
+pub(crate) fn stage_optimized_register_homes_after_pre_allocation_with_assignment(
+    run: StagedPreAllocationOptimizationRun,
+    homes: ValidatedRegisterHomes,
+) -> Result<
+    StagedOptimizedRegisterHomesAfterPreAllocation,
+    OptimizedPostPreAllocationHomeCustodyError,
+> {
+    let staged =
+        construction::construct_register_homes_after_pre_allocation_with_assignment(run, homes)?;
+    validate_optimized_register_home_after_pre_allocation_custody(&staged)?;
+    Ok(staged)
+}
+
 /// Strict homes after one or more separately requested literal folds. The
 /// complete append-only fold chain remains owned and the manifest ledger is
 /// derived from it rather than accepted from a caller.

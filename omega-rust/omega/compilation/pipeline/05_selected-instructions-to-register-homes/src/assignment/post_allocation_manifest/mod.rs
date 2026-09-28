@@ -82,6 +82,31 @@ pub(crate) fn project_post_allocation_optimization_manifest_after_pre_allocation
     )
 }
 
+/// The general projection: binds whichever executed rewrite suites the
+/// source prefix ran under. Runtime-spill recovery over a completed
+/// selected-lowering or pre-allocation run records that suite's completion
+/// identity beside the prefix ledger, so composed custody does not
+/// downgrade the manifest to an unrun-suite shape.
+pub(crate) fn project_post_allocation_optimization_manifest_with_suite_completions(
+    pre_physical: PrePhysicalOptimizationManifestIdentity,
+    selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
+    selected_transformations: &[PostAllocationSelectedTransformation],
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+    homes: &ValidatedRegisterHomes,
+) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
+    projection::project(
+        pre_physical,
+        selected_lowering_completion,
+        pre_allocation_completion,
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )
+}
+
 pub fn validate_post_allocation_optimization_manifest(
     candidate: &PostAllocationOptimizationManifest,
     pre_physical: PrePhysicalOptimizationManifestIdentity,
@@ -137,6 +162,32 @@ pub(crate) fn validate_post_allocation_optimization_manifest_after_pre_allocatio
         pre_physical,
         None,
         Some(completion),
+        selected_transformations,
+        ranges,
+        legality,
+        homes,
+    )
+}
+
+/// The general admission form matching
+/// [`project_post_allocation_optimization_manifest_with_suite_completions`]:
+/// independent replay binds the same suite completions the source prefix
+/// ran under.
+pub(crate) fn validate_post_allocation_optimization_manifest_with_suite_completions(
+    candidate: &PostAllocationOptimizationManifest,
+    pre_physical: PrePhysicalOptimizationManifestIdentity,
+    selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pre_allocation_completion: Option<PreAllocationOptimizationCompletionIdentity>,
+    selected_transformations: &[PostAllocationSelectedTransformation],
+    ranges: &ValidatedLiveRanges,
+    legality: &ValidatedAllocationLegality,
+    homes: &ValidatedRegisterHomes,
+) -> Result<ValidatedPostAllocationOptimizationManifest, PostAllocationOptimizationManifestError> {
+    validation::validate(
+        candidate,
+        pre_physical,
+        selected_lowering_completion,
+        pre_allocation_completion,
         selected_transformations,
         ranges,
         legality,

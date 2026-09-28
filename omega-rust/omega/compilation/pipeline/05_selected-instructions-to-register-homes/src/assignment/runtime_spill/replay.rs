@@ -19,7 +19,7 @@ pub(super) fn inadmissible(error: &RuntimeSpillError) -> bool {
 
 pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpillAllocationError> {
     let source = &staged.source;
-    let (upstream_manifest, prefix) = source.upstream_manifest()?;
+    let base = source.upstream_manifest()?;
     let environment = source.register_environment();
     let mut failure = require_pressure(assign(environment, source.ranges(), source.legality()))?;
     let budget = source.budget_per_pass();
@@ -191,10 +191,12 @@ pub(crate) fn validate(staged: &RuntimeSpillAllocation) -> Result<(), RuntimeSpi
         staged.homes.plan().clone(),
     )
     .map_err(RuntimeSpillAllocationError::Homes)?;
-    let manifest = crate::validate_post_allocation_optimization_manifest(
+    let manifest = crate::assignment::post_allocation_manifest::validate_post_allocation_optimization_manifest_with_suite_completions(
         staged.manifest.record(),
-        upstream_manifest,
-        &transformations(&prefix, &staged.steps),
+        base.pre_physical,
+        base.selected_lowering_completion,
+        base.pre_allocation_completion,
+        &transformations(&base.prefix, &staged.steps),
         &ranges,
         &legality,
         &homes,
