@@ -4,6 +4,7 @@
 
 mod atomic_events;
 mod borrowed_storage_windows;
+mod byte_literal_order;
 mod byte_sequence_literal;
 mod dynamic_descriptor_join;
 mod dynamic_dispatch;

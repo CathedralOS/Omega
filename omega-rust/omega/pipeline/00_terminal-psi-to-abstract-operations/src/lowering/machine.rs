@@ -81,7 +81,6 @@ pub(super) fn lower_machine(
         })
         .collect::<Vec<_>>();
     let mut lowered_unit_affine_locals = Vec::new();
-    let mut lowered_byte_sequence_literals = 0_usize;
 
     for block in &machine.blocks {
         block_entries.push(AbstractBlockEntry {
@@ -119,7 +118,6 @@ pub(super) fn lower_machine(
                 &byte_sequence_literals,
                 &unit_affine_locals,
                 &mut lowered_unit_affine_locals,
-                &mut lowered_byte_sequence_literals,
                 &mut operations,
             )?;
         }

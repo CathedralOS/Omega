@@ -25,7 +25,6 @@ pub(super) fn lower(
     byte_sequence_literals: &[StructuralLiteral<'_>],
     unit_affine_locals: &[StructuralLiteral<'_>],
     lowered_unit_affine_locals: &mut Vec<LoweredAffineLocal>,
-    lowered_byte_sequence_literals: &mut usize,
 ) -> Result<AbstractOperation, LoweringError> {
     match &operation.kind {
         OperationKind::EstablishReference { source } => {
@@ -386,7 +385,6 @@ pub(super) fn lower(
             byte_sequence_literals,
             unit_affine_locals,
             lowered_unit_affine_locals,
-            lowered_byte_sequence_literals,
         ),
         OperationKind::CallUnit { .. }
         | OperationKind::CallStructuralScalar { .. }
