@@ -1,4 +1,7 @@
-//! Prepare invocation-independent storage for an authored scalar state loop.
+//! Find an authored scalar state graph's natural loops. Each feedback edge
+//! must return to a header that dominates it; only a re-entered entry needs
+//! invocation-independent loop-header storage, because every later row
+//! already binds its values as block parameters.
 use super::super::{allocate_dense, place_id};
 use super::{
     CheckedScalarBranchDestination, CheckedScalarMachineGraph, CheckedScalarStateTerminator,
@@ -19,10 +22,121 @@ use terminal_psi::StructuralTypeShape;
 mod tests;
 
 pub(crate) struct ScalarLoopPlan {
-    /// Full binding roster: the receiver keeps its machine place, while
-    /// explicit state formals receive fresh loop-header places.
-    pub parameters: Vec<StructuralParameterDeclaration>,
+    pub entry: ScalarLoopEntry,
     pub rank: Option<checked_trees::CheckedStructuralRankedSccPlan>,
+}
+
+/// How the graph's entry row relates to its cycles. Every other row is an
+/// ordinary block whose parameters already carry the values its incoming
+/// edges bind, so a feedback edge into it needs no rebinding.
+pub(crate) enum ScalarLoopEntry {
+    /// A feedback edge re-enters the entry row. The full binding roster: the
+    /// receiver keeps its machine place, while explicit state formals receive
+    /// fresh loop-header places.
+    Reentered {
+        parameters: Vec<StructuralParameterDeclaration>,
+    },
+    /// Every feedback edge re-enters a later row; the entry runs once as the
+    /// loop prologue and binds its roster on the machine signature only.
+    Prologue,
+}
+
+impl ScalarLoopPlan {
+    /// The loop-header roster that replaces the entry's machine namespace,
+    /// present only when a feedback edge re-enters the entry row.
+    pub(crate) fn entry_header_parameters(&self) -> Option<&[StructuralParameterDeclaration]> {
+        match &self.entry {
+            ScalarLoopEntry::Reentered { parameters } => Some(parameters),
+            ScalarLoopEntry::Prologue => None,
+        }
+    }
+
+    pub(crate) fn reenters_entry(&self) -> bool {
+        self.entry_header_parameters().is_some()
+    }
+}
+
+/// Row successors of the authored graph: the targets of each unconditional
+/// jump and each conditional arm that jumps, as dense row indices. A target
+/// outside the rows is left to successor lowering, which rejects it.
+fn row_successors(graph: &CheckedScalarMachineGraph) -> Vec<Vec<usize>> {
+    let row = |successor: &CheckedScalarSuccessor| {
+        graph
+            .states
+            .iter()
+            .position(|state| state.state == successor.target)
+    };
+    let jump = |destination: &CheckedScalarBranchDestination| match destination {
+        CheckedScalarBranchDestination::Jump(successor) => row(successor),
+        _ => None,
+    };
+    graph
+        .states
+        .iter()
+        .map(|state| match &state.terminator {
+            CheckedScalarStateTerminator::Jump(successor) => row(successor).into_iter().collect(),
+            CheckedScalarStateTerminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => jump(when_true)
+                .into_iter()
+                .chain(jump(when_false))
+                .collect(),
+            _ => Vec::new(),
+        })
+        .collect()
+}
+
+/// Feedback edges `(source, header)` of a depth-first walk from the entry row:
+/// each targets a row still on the walk's active path.
+fn feedback_edges(successors: &[Vec<usize>]) -> Vec<(usize, usize)> {
+    let mut feedback = Vec::new();
+    let mut visited = vec![false; successors.len()];
+    let mut active = vec![false; successors.len()];
+    // Each frame is a row and the index of its next unvisited successor.
+    let mut path = vec![(0usize, 0usize)];
+    visited[0] = true;
+    active[0] = true;
+    while let Some((row, next)) = path.last_mut() {
+        let row = *row;
+        let Some(&target) = successors[row].get(*next) else {
+            active[row] = false;
+            path.pop();
+            continue;
+        };
+        *next += 1;
+        if active[target] {
+            feedback.push((row, target));
+        } else if !visited[target] {
+            visited[target] = true;
+            active[target] = true;
+            path.push((target, 0));
+        }
+    }
+    feedback
+}
+
+/// Whether every path from the entry row to `row` passes through `header`.
+fn dominates(successors: &[Vec<usize>], header: usize, row: usize) -> bool {
+    if header == 0 || header == row {
+        return true;
+    }
+    let mut reached = vec![false; successors.len()];
+    reached[0] = true;
+    let mut pending = vec![0usize];
+    while let Some(current) = pending.pop() {
+        if current == row {
+            return false;
+        }
+        for &target in &successors[current] {
+            if target != header && !reached[target] {
+                reached[target] = true;
+                pending.push(target);
+            }
+        }
+    }
+    true
 }
 
 pub(super) fn prepare(
@@ -32,31 +146,90 @@ pub(super) fn prepare(
     structural_types: &[StructuralTypeDeclaration],
     next_place: &mut u64,
 ) -> Result<Option<ScalarLoopPlan>, LoweringError> {
-    // The graph's dispatch entry is its first row; a fused graph reenters it
-    // when any member's terminator jumps back, not only the single authored
-    // state the unfused shape carried.
+    // The graph's dispatch entry is its first row. A cycle may re-enter it or
+    // any later row: a fused graph reenters the entry when any member's
+    // terminator jumps back, while a multi-state machine whose entry only
+    // seeds its loop re-enters the state that tests the loop condition.
     let Some(entry) = graph.states.first() else {
         return Ok(None);
     };
-    let returns_to_entry = |destination: &CheckedScalarBranchDestination| matches!(destination, CheckedScalarBranchDestination::Jump(successor) if successor.target == entry.state);
-    let reentered = graph.states.iter().any(|state| match &state.terminator {
-        CheckedScalarStateTerminator::Jump(successor) => successor.target == entry.state,
-        CheckedScalarStateTerminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => returns_to_entry(when_true) || returns_to_entry(when_false),
-        _ => false,
-    });
-    if !reentered {
+    let successors = row_successors(graph);
+    let feedback = feedback_edges(&successors);
+    if feedback.is_empty() {
         if graph.ranked_scc.is_some() {
             return unsupported("scalar loop ranking has no retained source backedge");
         }
         return Ok(None);
     }
-    let (machine, source) = source_custody::authored_state(checked, entry.state)?;
+    // Every feedback edge must return to a header that dominates its source,
+    // so each cycle is a natural loop entered only through that header. The
+    // header's block parameters then carry every loop value, and emission
+    // needs no second entry into the loop body.
+    if feedback
+        .iter()
+        .any(|&(source, header)| !dominates(&successors, header, source))
+    {
+        return unsupported("scalar graph cycle has no dominating loop header");
+    }
+    let (machine, _) = source_custody::authored_state(checked, entry.state)?;
     if machine.symbol != graph.machine {
         return unsupported("scalar loop has a foreign source state");
+    }
+    let mut headers = feedback
+        .iter()
+        .map(|&(_, header)| header)
+        .collect::<Vec<_>>();
+    headers.sort_unstable();
+    headers.dedup();
+    let rank = graph.ranked_scc.clone();
+    if let Some(rank) = &rank {
+        // One ranked component re-enters one header; its authored source is
+        // the rank coordinate every covered edge descends from.
+        let [header] = headers.as_slice() else {
+            return unsupported("scalar loop ranking requires one loop header");
+        };
+        let (header_machine, header_source) =
+            source_custody::authored_state(checked, graph.states[*header].state)?;
+        if header_machine.symbol != graph.machine
+            || header_machine
+                .termination_plan
+                .implementation_witness
+                .is_none()
+        {
+            return unsupported("scalar loop lost or substituted its authored ranking witness");
+        }
+        validate_rank(checked, header_machine, header_source, graph, rank)?;
+    }
+    for header in headers {
+        let (header_machine, _) =
+            source_custody::authored_state(checked, graph.states[header].state)?;
+        let Some(witness) = &header_machine.termination_plan.implementation_witness else {
+            continue;
+        };
+        // The checker judged only the dispatch machine's witness for this
+        // graph. A fused member's own witness has no retained judgment here,
+        // so its loop is not lowered as if it were unranked.
+        if header_machine.symbol != graph.machine {
+            return unsupported("scalar loop header's ranking witness has no graph judgment");
+        }
+        // The Nat countdown is only one ranking order: a cyclic machine proven
+        // under another order (`Slice::Length`, struct views) keeps its
+        // judgment in the shared natural ranks and lowers here without a
+        // ranked-SCC certificate rather than substituting one.
+        if rank.is_none()
+            && witness.ranking_view == language_semantics::RankingViewId::NAT_DESCENDING
+        {
+            return unsupported("scalar loop lost or substituted its authored ranking witness");
+        }
+    }
+    if feedback.iter().all(|&(_, header)| header != 0) {
+        // The entry roster binds once on the machine signature, before any
+        // cycle; later rows carry scalar formals only, which their own block
+        // parameters rebind on every feedback edge.
+        return Ok(Some(ScalarLoopPlan {
+            entry: ScalarLoopEntry::Prologue,
+            rank,
+        }));
     }
     if parameters.iter().any(|parameter| {
         // Signature replay preserves the receiver's exact shared or mutable
@@ -96,23 +269,6 @@ pub(super) fn prepare(
     }) {
         return unsupported("scalar loop requires whole plain-owned state parameters");
     }
-    let rank = graph.ranked_scc.clone();
-    match (&machine.termination_plan.implementation_witness, &rank) {
-        (None, None) => {}
-        (Some(_), Some(rank)) => validate_rank(checked, machine, source, graph, rank)?,
-        (Some(witness), None) => {
-            // The Nat countdown is only one ranking order: a cyclic machine
-            // proven under another order (`Slice::Length`, struct views) keeps
-            // its judgment in the shared natural ranks and lowers here without
-            // a ranked-SCC certificate rather than substituting one.
-            if witness.ranking_view == language_semantics::RankingViewId::NAT_DESCENDING {
-                return unsupported("scalar loop lost or substituted its authored ranking witness");
-            }
-        }
-        (None, Some(_)) => {
-            return unsupported("scalar loop lost or substituted its authored ranking witness");
-        }
-    }
     let mut loop_parameters = parameters.to_vec();
     for (position, parameter) in loop_parameters
         .iter_mut()
@@ -124,7 +280,9 @@ pub(super) fn prepare(
         parameter.place = place_id(allocate_dense(next_place)?);
     }
     Ok(Some(ScalarLoopPlan {
-        parameters: loop_parameters,
+        entry: ScalarLoopEntry::Reentered {
+            parameters: loop_parameters,
+        },
         rank,
     }))
 }

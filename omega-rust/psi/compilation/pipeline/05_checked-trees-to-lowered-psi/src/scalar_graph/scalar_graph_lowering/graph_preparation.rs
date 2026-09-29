@@ -196,11 +196,16 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         structural_types,
         next_place,
     )?;
-    // A re-entered body rebinds its roster as the loop header's parameters
-    // (`cycles::prepare`), which checks each back-edge transfer itself.
+    // A re-entered entry rebinds its roster as the loop header's parameters
+    // (`cycles::prepare`), which checks each back-edge transfer itself. A loop
+    // re-entering only later rows leaves the entry's machine namespace intact.
+    let reenters_entry = loop_plan
+        .as_ref()
+        .is_some_and(cycles::ScalarLoopPlan::reenters_entry);
     let structural_parameters = loop_plan
         .as_ref()
-        .map_or(structural_parameters, |plan| plan.parameters.as_slice());
+        .and_then(cycles::ScalarLoopPlan::entry_header_parameters)
+        .unwrap_or(structural_parameters);
     let entry_namespace = entry_state
         .structural_parameters
         .iter()
@@ -589,7 +594,7 @@ fn prepare_scalar_graph_machine_with_contract_mode(
         };
         *degree += 1;
     }
-    if (indegree[0] != 0 && loop_plan.is_none()) || indegree[1..].contains(&0) {
+    if (indegree[0] != 0 && !reenters_entry) || indegree[1..].contains(&0) {
         return unsupported(
             "scalar graph control must be rooted at the machine entry and reach every state",
         );

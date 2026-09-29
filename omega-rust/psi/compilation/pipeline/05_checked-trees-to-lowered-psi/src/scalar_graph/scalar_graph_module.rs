@@ -17,6 +17,7 @@ use super::{
 use crate::emission::boolean_control::PendingNestedBlockGroup;
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
+use crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan;
 use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
     PreparedScalarContract,
@@ -195,14 +196,19 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .map(|(_, parameter)| parameter.clone())
         .collect();
     // A retained receiver remains a machine parameter across every iteration.
-    // The loop header owns only the explicit formals carried by source edges.
-    let loop_header_parameters = loop_plan.map(|plan| {
-        plan.parameters
-            .iter()
-            .filter(|parameter| !parameter.is_self)
-            .cloned()
-            .collect::<Vec<_>>()
-    });
+    // A re-entered entry's loop header owns only the explicit formals carried
+    // by source edges; a loop re-entering later rows leaves the entry as the
+    // machine's own prologue block.
+    let reenters_entry = loop_plan.is_some_and(ScalarLoopPlan::reenters_entry);
+    let loop_header_parameters = loop_plan
+        .and_then(ScalarLoopPlan::entry_header_parameters)
+        .map(|parameters| {
+            parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .cloned()
+                .collect::<Vec<_>>()
+        });
     let parameters = states[0]
         .parameter_types
         .iter()
@@ -256,7 +262,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
         .map(|state| state.erased_proof_formals.clone())
         .collect::<Vec<_>>();
     for (position, state) in states.iter().enumerate() {
-        if position == 0 && loop_plan.is_none() {
+        if position == 0 && !reenters_entry {
             state_parameters.push(parameters.clone());
             state_erased_formals.push(erased_scalar_formals.clone());
             continue;
@@ -763,7 +769,6 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     if let Some(plan) = loop_plan {
         ranking::retain(
             &mut lowered.semantic_module.machines[0],
-            graph_entry,
             state_symbols,
             identity_base,
             plan,
