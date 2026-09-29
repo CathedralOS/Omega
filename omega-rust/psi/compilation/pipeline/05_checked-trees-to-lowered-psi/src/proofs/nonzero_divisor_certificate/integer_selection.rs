@@ -69,7 +69,7 @@ pub(super) fn build_with_machine_parameters(
     }
     definitions.begin_build_proof(goal, machine_parameter_values);
     let ordinary = |goal: &Proposition, assumptions: &[Proposition]| {
-        build_without_implications(
+        build_without_cases(
             context,
             goal,
             assumptions,
@@ -107,7 +107,7 @@ pub(super) fn prove_relaxed_with_machine_parameters(
     }
     definitions.begin_relaxed_proof(goal, machine_parameter_values);
     let ordinary = |goal: &Proposition, assumptions: &[Proposition]| {
-        build_without_implications(
+        build_without_cases(
             context,
             goal,
             assumptions,
@@ -135,7 +135,7 @@ pub(super) fn prove_relaxed_with_machine_parameters(
     proof
 }
 
-fn build_without_implications(
+fn build_without_cases(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
@@ -144,15 +144,17 @@ fn build_without_implications(
 ) -> Option<ProofNode> {
     // This is the `ordinary` leaf inside every implication search: sibling
     // searches under this exact scope discharge the same premises, so the
-    // composed answer is memoized per `(goal, parameter roster)` instead of
-    // re-running the cascade for each of them. The in-progress marker turns
-    // a cyclic re-entry into `None` rather than recursion.
+    // leaf answer is memoized per `(goal, parameter roster)` instead of
+    // re-running the cascade for each of them. Implications and case splits
+    // belong to the shared search, never this leaf: splitting here makes every
+    // premise probe enumerate alternatives before the search can retain its
+    // already-provable consequences. The in-progress marker stops re-entry.
     let mut definitions = DefinitionIndex::new(context, assumptions, semantic_axioms);
     if let Some(proof) = definitions.cached_selection_proof(goal, machine_parameter_values) {
         return proof;
     }
     definitions.begin_selection_proof(goal, machine_parameter_values);
-    let proof = build_without_implications_uncached(
+    let proof = build_without_cases_uncached(
         context,
         goal,
         assumptions,
@@ -163,47 +165,7 @@ fn build_without_implications(
     proof
 }
 
-fn build_without_implications_uncached(
-    context: &PropositionContext,
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    machine_parameter_values: &BTreeSet<ValueId>,
-) -> Option<ProofNode> {
-    if let Some(proof) = build_without_cases(
-        context,
-        goal,
-        assumptions,
-        semantic_axioms,
-        machine_parameter_values,
-    ) {
-        return Some(proof);
-    }
-    // Keep whole-goal correlated proofs above this split. Independent
-    // conjuncts need their own cases, not a Cartesian product of all cases.
-    if let Proposition::Conjunction(conjuncts) = goal {
-        return logical::prove_conjunction(goal, conjuncts, |part| {
-            build_without_implications(
-                context,
-                part,
-                assumptions,
-                semantic_axioms,
-                machine_parameter_values,
-            )
-        });
-    }
-    case_analysis::prove(goal, assumptions, semantic_axioms, |assumptions| {
-        build_without_cases(
-            context,
-            goal,
-            assumptions,
-            semantic_axioms,
-            machine_parameter_values,
-        )
-    })
-}
-
-fn build_without_cases(
+fn build_without_cases_uncached(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],

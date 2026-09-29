@@ -1,38 +1,34 @@
 # Maze flood
 
-Run breadth-first search through the authored 5×5 maze and render every cell's
-shortest distance from the top-left. From the repository root:
+From the repository root, run with a built Omega CLI:
 
 ```text
-mbx run -p omega -- run samples/cli/algorithms/maze_flood/main.omg
+omega run --both samples/cli/algorithms/maze_flood/main.omg
 ```
 
-Use Cargo if `mbx` is unavailable. Complete the ordinary
-[package review](../../../../omega-rust/omega/application/cli/README.md#command-surface)
-when requested. Leave `--target` off `run` to execute on the matching host.
-Enter or EOF closes the native program.
-
-The five rows must be exactly the following quoted strings; the quotes are
-not printed. Each row is 16 ASCII bytes followed by LF, including two trailing
-spaces:
+Press Enter at the closing prompt (EOF also works). Native execution and the
+checked interpreter must both exit **0**. The maze's shortest distances are:
 
 ```text
-" 0  1  2  3  4  "
-"## ## ## ##  5  "
-"10  9  8  7  6  "
-"11 ## ## ## ##  "
-"12 13 14 15 16  "
+ 0  1  2  3  4
+## ## ## ##  5
+10  9  8  7  6
+11 ## ## ## ##
+12 13 14 15 16
 ```
 
-The banner is `maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)`.
-After the grid, print `PASS: distance map rendered, far corner is 16 away (exit 0)`
-and `[press Enter to close]`, each on its own line. Native execution exits 0;
-the CLI reports `native exit 0` on stderr.
+This example composes guarded array reads/writes, loops, integer arithmetic,
+and byte rendering. Proof search must retain proved consequences and share case
+selection across those operations; retrying permutations of the same facts can
+make compilation time out without changing which obligations are provable.
 
-Acceptance checks all 25 cells, the wall positions, padding and exit status.
-The banner's hard-coded `16` does not establish that the algorithm computed
-the distance. The five rows above follow independent breadth-first traversal
-of the literal wall map.
+For noninteractive native acceptance with package-review preparation, use
+Python 3 (`python3` on macOS; `python` on Windows):
 
-This complete oracle was verified on macOS ARM64. The other declared hosted
-targets still require matching-host execution.
+```text
+python3 tools/sample_native_gate.py --cli target/release/omega --filter algorithms/maze_flood --jobs 1 --timeout 45
+```
+
+On Windows, use `target/release/omega.exe` for `--cli`. The gate checks the
+authored exit/output fragments and accepts package review for measurement;
+it is not a package audit.

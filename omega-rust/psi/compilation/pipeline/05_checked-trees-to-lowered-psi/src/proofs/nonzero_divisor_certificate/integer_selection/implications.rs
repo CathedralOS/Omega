@@ -11,6 +11,9 @@
 //! Otherwise a stronger unavailable guard can spend the whole search budget on
 //! permutations of weaker implications before a usable bound is considered.
 //! This changes search order only; every selected law keeps its original citation.
+//! Once a premise is proved, retain its consequence for the rest of this goal's
+//! search. Returning to the weaker scope on failure only permutes proved lemmas:
+//! the stronger scope already tries the remaining implications and alternatives.
 
 use std::collections::BTreeMap;
 
@@ -32,7 +35,7 @@ pub(super) fn prove(
         active: Vec::new(),
         proved: BTreeMap::new(),
     }
-    .goal(goal, assumptions, 0, true)
+    .goal(goal, assumptions, 0)
 }
 
 struct Search<'input, Ordinary> {
@@ -70,7 +73,6 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         goal: &Proposition,
         assumptions: &[Proposition],
         depth: usize,
-        allow_cases: bool,
     ) -> Option<ProofNode> {
         if depth >= 64 {
             return None;
@@ -112,10 +114,10 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         }
         let logical = match goal {
             Proposition::Conjunction(parts) => logical::prove_conjunction(goal, parts, |part| {
-                self.goal(part, assumptions, depth + 1, allow_cases)
+                self.goal(part, assumptions, depth + 1)
             }),
             Proposition::Disjunction(parts) => logical::prove_disjunction(goal, parts, |part| {
-                self.goal(part, assumptions, depth + 1, allow_cases)
+                self.goal(part, assumptions, depth + 1)
             }),
             Proposition::Implication {
                 premise,
@@ -126,7 +128,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
                 // and case analysis cannot leak a conditional fact outward.
                 let mut scoped = assumptions.to_vec();
                 scoped.push(*premise.clone());
-                self.goal(conclusion, &scoped, depth + 1, allow_cases)
+                self.goal(conclusion, &scoped, depth + 1)
                     .map(|body| ProofNode {
                         conclusion: goal.clone(),
                         rule: ProofRule::ImplicationIntroduction {
@@ -161,7 +163,7 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
             }
             self.remaining = self.remaining.checked_sub(1)?;
             self.active.push(fact.proposition.clone());
-            let premise = self.goal(premise, assumptions, depth + 1, allow_cases);
+            let premise = self.goal(premise, assumptions, depth + 1);
             if let Some(premise) = premise {
                 let consequence = ProofNode {
                     conclusion: *conclusion.clone(),
@@ -172,47 +174,112 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
                 };
                 let mut scoped = assumptions.to_vec();
                 scoped.push(*conclusion.clone());
-                let body = self.goal(goal, &scoped, depth + 1, allow_cases);
+                let body = self.goal(goal, &scoped, depth + 1);
                 self.active.pop();
-                if let Some(body) = body {
-                    return Some(ProofNode {
-                        conclusion: goal.clone(),
-                        rule: ProofRule::ImplicationElimination {
-                            implication: Box::new(ProofNode {
-                                conclusion: Proposition::Implication {
-                                    premise: conclusion.clone(),
-                                    conclusion: Box::new(goal.clone()),
-                                },
-                                rule: ProofRule::ImplicationIntroduction {
-                                    body: Box::new(body),
-                                },
-                            }),
-                            premise: Box::new(consequence),
-                        },
-                    });
-                }
+                // The consequence is proved, not a guessed case. Every search
+                // available in this scope also exists in the stronger one;
+                // no sibling ordering can supply evidence it lacks. Keep the
+                // original citation and discharge the added local assumption
+                // even though failure now stops instead of permuting lemmas.
+                return body.map(|body| ProofNode {
+                    conclusion: goal.clone(),
+                    rule: ProofRule::ImplicationElimination {
+                        implication: Box::new(ProofNode {
+                            conclusion: Proposition::Implication {
+                                premise: conclusion.clone(),
+                                conclusion: Box::new(goal.clone()),
+                            },
+                            rule: ProofRule::ImplicationIntroduction {
+                                body: Box::new(body),
+                            },
+                        }),
+                        premise: Box::new(consequence),
+                    },
+                });
             } else {
                 self.active.pop();
             }
         }
-        // Case analysis appends only the currently selected disjunct. Reuse
-        // its finite case roster rather than recursively selecting it again.
-        allow_cases.then(|| {
-            case_analysis::prove(goal, assumptions, self.semantic_axioms, |branch| {
-                self.goal(goal, branch, depth + 1, false)
-            })
-        })?
+        // Each branch returns here with its one new assumption. This owner
+        // discovers both remaining cases and newly implied cases in that exact
+        // scope, under the same work/depth limits; ordinary leaves never split.
+        case_analysis::prove(goal, assumptions, self.semantic_axioms, |branch| {
+            self.goal(goal, branch, depth + 1)
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::cell::Cell;
     use std::collections::BTreeSet;
 
     use proof_admission::check_certificate;
     use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId};
 
     use crate::proofs::nonzero_divisor_certificate::produce_checked_canonical_integer_proof;
+
+    #[test]
+    fn established_consequences_do_not_permute_failed_search_scopes() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let scalar_type = ScalarType::Integer(integer_type);
+        let value = ScalarTerm::value(ValueId::new(1).unwrap(), scalar_type);
+        let guard = Proposition::Equal(
+            ScalarTerm::value(ValueId::new(2).unwrap(), ScalarType::Boolean),
+            ScalarTerm::Boolean(true),
+        );
+        let literal =
+            |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
+        let bounds = (1..=8)
+            .map(|number| Proposition::LessOrEqual(value.clone(), literal(number)))
+            .collect::<Vec<_>>();
+        let mut axioms = vec![guard.clone()];
+        axioms.extend(bounds.iter().map(|bound| Proposition::Implication {
+            premise: Box::new(guard.clone()),
+            conclusion: Box::new(bound.clone()),
+        }));
+        let attempts = Cell::new(0);
+        // Citation-only leaves make the number of searched scopes observable,
+        // independent of arithmetic shortcuts or wall-clock scheduling.
+        let ordinary = |goal: &Proposition, assumptions: &[Proposition]| {
+            attempts.set(attempts.get() + 1);
+            crate::proofs::nonzero_divisor_certificate::integer_evidence::projected_facts(
+                assumptions,
+                &axioms,
+            )
+            .into_iter()
+            .find(|fact| fact.proposition == goal)
+            .map(|fact| fact.proof())
+        };
+        assert!(
+            super::prove(
+                &Proposition::LessThan(value, literal(0)),
+                &[],
+                &axioms,
+                ordinary,
+            )
+            .is_none()
+        );
+        assert!(
+            attempts.get() <= 2 * (bounds.len() + 1),
+            "proved consequences must grow one scope, not revisit their permutations: {} leaves",
+            attempts.get()
+        );
+
+        let context = PropositionContext::from_value_types([
+            (ValueId::new(1).unwrap(), scalar_type),
+            (ValueId::new(2).unwrap(), ScalarType::Boolean),
+        ])
+        .unwrap();
+        let goal = Proposition::Conjunction(bounds);
+        let proof = super::prove(&goal, &[], &axioms, ordinary)
+            .expect("independently cited consequences still compose");
+        check_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+        axioms[0] = Proposition::Truth;
+        assert!(check_certificate(&context, &goal, &[], &axioms, &proof).is_err());
+    }
 
     #[test]
     fn conditional_boolean_alternatives_prove_a_compound_result() {

@@ -81,44 +81,6 @@ pub(super) fn projected_facts<'a>(
     facts
 }
 
-/// Disjunction leaves a branch's own pushed assumption exposes through its
-/// conjunction children. A case split only assumes the selected alternative;
-/// alternatives nested inside it are facts of that branch alone, so the caller
-/// scopes each returned case to the assumption at `index` rather than the
-/// ambient roster.
-pub(super) fn nested_case_facts<'a>(index: usize, root: &'a Proposition) -> Vec<ProjectedFact<'a>> {
-    let mut facts = Vec::new();
-    let mut pending = vec![(root, Vec::new())];
-    while let Some((proposition, projection)) = pending.pop() {
-        match proposition {
-            Proposition::Conjunction(parts) => {
-                for (conjunct, part) in parts.iter().enumerate().rev() {
-                    let mut child_projection = projection.clone();
-                    child_projection.push(conjunct);
-                    pending.push((part, child_projection));
-                }
-            }
-            // Alternatives nested inside another disjunction's branches stay
-            // conditional on that branch's own selection; only conjunction
-            // descent is an unconditional fact here.
-            Proposition::Disjunction(_)
-                if !facts
-                    .iter()
-                    .any(|fact: &ProjectedFact<'_>| fact.proposition == proposition) =>
-            {
-                facts.push(ProjectedFact {
-                    citation: Citation::Assumption(index),
-                    root,
-                    projection,
-                    proposition,
-                });
-            }
-            _ => {}
-        }
-    }
-    facts
-}
-
 pub(super) fn closed_integer_relation(conclusion: Proposition) -> Option<ProofNode> {
     let (strict, left, right) = match &conclusion {
         Proposition::LessThan(left, right) => (true, left, right),
