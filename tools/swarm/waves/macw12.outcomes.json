@@ -1,0 +1,194 @@
+{
+ "native_scoreboard": {
+  "target": "macos_arm64",
+  "golden": "tests/omega/corpus_native_macos_arm64.txt",
+  "head_rev": null,
+  "head": {
+   "fixtures": 759,
+   "built": 237,
+   "checked": 288,
+   "rejected": 234,
+   "other": 0,
+   "executed": 187,
+   "authored": 81,
+   "unverified": 106,
+   "oracle_mismatch": [],
+   "stdout_match": 3,
+   "stdout_differs": 0
+  },
+  "provenance": {
+   "stamped": 15,
+   "legacy": 744,
+   "unknown_revisions": 2,
+   "oldest": {
+    "revision": "e75f61cc4333",
+    "commits_behind": 292
+   }
+  },
+  "base_rev": "7badd87bf572d660069f3da59d9f6be01c0c7e1e",
+  "base_golden": null,
+  "base_label": "7badd87bf572d660069f3da59d9f6be01c0c7e1e",
+  "base": {
+   "fixtures": 751,
+   "built": 229,
+   "checked": 288,
+   "rejected": 234,
+   "other": 0,
+   "executed": 180,
+   "authored": 74,
+   "unverified": 106,
+   "oracle_mismatch": [],
+   "stdout_match": 3,
+   "stdout_differs": 0
+  },
+  "authored_delta": 7,
+  "executed_delta": 7,
+  "gained": [
+   "pass/calls/mutable_receiver_scalar_destinations_exit",
+   "pass/calls/nested_indexed_scalar_arguments_exit",
+   "pass/calls/ordered_field_selector_calls_exit",
+   "pass/calls/runtime_indexed_scalar_calls_exit",
+   "pass/calls/unread_multistate_receiver_exit",
+   "pass/float/builtin_extrema_field_store_exit",
+   "pass/optimizer/copied_call_operand_selection_exit"
+  ],
+  "lost": [],
+  "executed_gained": [
+   "pass/calls/mutable_receiver_scalar_destinations_exit",
+   "pass/calls/nested_indexed_scalar_arguments_exit",
+   "pass/calls/ordered_field_selector_calls_exit",
+   "pass/calls/runtime_indexed_scalar_calls_exit",
+   "pass/calls/unread_multistate_receiver_exit",
+   "pass/float/builtin_extrema_field_store_exit",
+   "pass/optimizer/copied_call_operand_selection_exit"
+  ],
+  "executed_lost": [],
+  "exit_changed": []
+ },
+ "wave": "macw12",
+ "state": "drained",
+ "base": "7badd87bf572d660069f3da59d9f6be01c0c7e1e",
+ "head_at_drain": "c8ead404f0",
+ "slots": [
+  {
+   "slot": "condition-materialization",
+   "result": "landed",
+   "commits": [
+    "48c44018a6"
+   ],
+   "item_closed": false,
+   "notes": "condition_materialization descriptors (15 rules over compare producers/materialization consumers) moved into rewrites/constant_boolean and drive the executed fold with catalog-identity and effect-surface validation, independent replay, work budget, AArch64 evidence; staged implementation deleted. Remaining on DECLARATIVE-PEEPHOLES: projected_access (staged \u2014 producer can never fire on emitted plans) and validator independence (shared condition_flow::reaching_event)."
+  },
+  {
+   "slot": "rep-case-membership",
+   "result": "landed",
+   "commits": [
+    "2c086a6a"
+   ],
+   "item_closed": false,
+   "notes": "StructuralCaseMembership crosses case-payload StructuralLeafCopy paths via PathStep ordinary+canonical steps and Position payload-field rosters, with mirrored independent replay. Remaining: ordinary-path copies (need field-name-to-id mapping), call-produced children (INTERPROCEDURAL-SUMMARIES), runtime-index source admission."
+  },
+  {
+   "slot": "general-licm-3",
+   "result": "landed",
+   "commits": [
+    "0770fd8000"
+   ],
+   "item_closed": false,
+   "notes": "Loop-invariant motion copies whole-root Owned call arguments produced by member establishments (EstablishRecord/EstablishCase/EstablishScalarArray/CallStructural) when unrestricted, claim-free, qualification-free, projection-free. Remaining: affine/linear, claimed/qualified/projected roots, structural predicates in crash rosters, profitability, multi-block motion."
+  },
+  {
+   "slot": "spill-slot-reuse",
+   "result": "landed",
+   "commits": [
+    "6516219849"
+   ],
+   "item_closed": false,
+   "notes": "Spill slot reuse generalized to storage-window intervals: reaching-definition fixpoint over pending stores, per-window incumbent selection, private fallback, independent replay. Corpus structural move list byte-identical. Remaining: foreign-class admission, entry-bound victims, recovery composition, external entry roots."
+  },
+  {
+   "slot": "custody-image-regions",
+   "result": "landed",
+   "commits": [
+    "af926ae2da"
+   ],
+   "item_closed": false,
+   "notes": "image crate executable-region, data-region and footprint-certificate custody matrices on the shared driver; initialized_data_envelope stays hand-written (public API cannot recompute inventory identity). Remaining: provider-evidence ledger (done by provider-evidence-ledger), selected-dispatch recheck, compiler-test families, coverage audit."
+  },
+  {
+   "slot": "allocation-split-restrictions",
+   "result": "landed",
+   "commits": [
+    "a0a624873e"
+   ],
+   "item_closed": false,
+   "notes": "Early-clobber participants admitted to fixed-precolored split requirements; tied registers still reject. Compiler-produced early-clobber customer executes natively exit 70 on macOS arm64. Surfaced downstream fixed_view_copy UnsupportedSourceRegister (i64), fixed by allocation-fixed-view-i64."
+  },
+  {
+   "slot": "benchmarks",
+   "result": "landed",
+   "commits": [
+    "d630b0a1e5"
+   ],
+   "item_closed": false,
+   "notes": "Coordinator slot. First omega-benchmark-record/2 rows committed on macos_arm64 (prime_counter exit 8, cli_mvp exit 0, wrapping_square_sum authored six-rule sel exit 0, standalone + structural_proofs compile-only); every row binds rollback receipt via catalog probe and binary sha256/version. settle_package_review now judges omega.lock presence \u2014 depend-free subjects published the lock on first update while the resume exited 'no pending package review'. 45/45 tests, 33 records validate, matrix regenerated. Remaining: other hosts' legs."
+  },
+  {
+   "slot": "allocation-fixed-view-i64",
+   "result": "landed",
+   "commits": [
+    "3f3832dd2d"
+   ],
+   "item_closed": false,
+   "notes": "fixed_view_copy source gate widened is_u64 -> is_i64 (any 64-bit integer; CopyI64 is bit-preserving), producer and replay symmetric. Controlled before/after: the signed-divide to shift-count customer publishes a linux_x86_64 ELF with the fix and rejects UnsupportedSourceRegister without it; saturating_signed_divide_min_by_neg_one runs exit 70 on macOS arm64 from a scratch copy (golden move was stale drift, not this change)."
+  },
+  {
+   "slot": "copied-call-operand",
+   "result": "landed",
+   "commits": [
+    "839cdad6e2"
+   ],
+   "item_closed": false,
+   "notes": "copied_call_operand executes in the pre-allocation joint fixed point: CopyI64->Call* Use rebinding retaining the copy, ABI pins, implicit uses/defs, clobbers, trap/control effects and call-stack lifecycle; admission and replay require rebound pins to coincide with all fixed views on the source register. Manifest tag CopiedCallOperand, codec v16; pass/optimizer/copied_call_operand_selection_exit executes natively exit 70 on macOS arm64."
+  },
+  {
+   "slot": "provider-evidence-ledger",
+   "result": "landed",
+   "commits": [
+    "cef536a369"
+   ],
+   "item_closed": false,
+   "notes": "component_era_entry_ledger replays pin typed rejection enums (publish/enter/leave/quiescence/retire/epoch-lease acquire-validate-release) instead of diagnostic strings; seven custody inventories migrated to the shared driver with ExactError pins, all substitution values preserved. Caveat: Cargo.lock was committed while unclaimed (CASE-FIELD-TYPE-STORE-SHAPES held it) \u2014 the dep edge predates under the reaped ticket and --locked gates required it; disclosed on the claim."
+  },
+  {
+   "slot": "board-sweep",
+   "result": "landed",
+   "commits": [
+    "c8ead404f0"
+   ],
+   "item_closed": false,
+   "notes": "Coordinator sweep: updated the seven touched item frontiers in TASKS_OPTIMIZER.md; preserved user's TASKS.md and OWNER_QUESTIONS.md edits."
+  }
+ ],
+ "parked_branches": [],
+ "retained_wip": [],
+ "verified_closed_items": [],
+ "friction": [
+  "Model rate limits killed the first spawn round and one backfill round; resume-in-place recovered every agent without loss.",
+  "Landing-queue lease (180s) expired mid-verify for copied-call-operand and provider-evidence-ledger once each; both re-enqueued and published on retry.",
+  "provider-evidence-ledger's work claim was reaped on expiry during context compaction; re-claimed and released after landing.",
+  "copied-call-operand committed corpus golden rows under paths listed by two other live claims (expected shared-surface re-record) and its Cargo.lock dep edge landed under a foreign-held lockfile ticket; both disclosed in claim notes.",
+  "Partial launcher materialization: tools/swarm/launch.py local printed a plan without --create-worktrees on re-run and created only some worktrees; the last two were created manually.",
+  "Host disk hit 100% during one verify (mbx cache ~490G logical); mbx gc freed ~30GiB \u2014 other sessions may hit ENOSPC.",
+  "copied-call-operand edited its own TASKS_OPTIMIZER.md paragraph inside its commit; coordinator merged the remaining stale bullets during the sweep."
+ ],
+ "totals": {
+  "slots": 11,
+  "landed": 11,
+  "commits": 11,
+  "items_closed": 0,
+  "items_touched": 7,
+  "executed_delta": 7,
+  "lost": 0
+ }
+}

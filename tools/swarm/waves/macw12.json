@@ -1,0 +1,187 @@
+{
+ "wave": "macw12",
+ "max_acu_limit": 1,
+ "bypass_approval": false,
+ "resumable": true,
+ "tags": [],
+ "owner_label_prefix": "Devin / macw12",
+ "exclusions": [
+  "EXACT-MACHINE-SIMPLIFICATIONS",
+  "ALIAS-AWARE-MEMORY",
+  "INTERPROCEDURAL-SUMMARIES",
+  "PER-RULE-COVERAGE",
+  "WORKSPACE-ROLLOUT"
+ ],
+ "sessions": [
+  {
+   "name": "condition-materialization",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "DECLARATIVE-PEEPHOLES",
+   "host": "local",
+   "owning_paths": [
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/constant_boolean",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/constant_boolean.rs",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/mod.rs",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/module_catalog.rs"
+   ],
+   "suggested_first_slice": "move the staged condition_materialization descriptor family into rewrites/constant_boolean the way a6268b2b4c moved terminator_pair into rewrites/constant_branch: rules drive the executed constant-boolean fold, admission and replay cross-check the machine-effect catalog, staged copy deleted",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "rep-case-membership",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "REPRESENTATION-SPECIALIZATION",
+   "host": "local",
+   "owning_paths": [
+    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/representation_specialization",
+    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/field_value_specialization",
+    "omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates/field_value_specialization"
+   ],
+   "suggested_first_slice": "add a Case path step so StructuralCaseMembership can follow an EstablishCase payload copy (or lift ordinary-path copies with the field-name-to-id mapping), with an independent optimization-unit-semantics replay",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "general-licm-3",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "GENERAL-LICM",
+   "host": "local",
+   "owning_paths": [
+    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/ranked_rewrites/loop_invariant_scalar_motion",
+    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/invariant_calls.rs",
+    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/place_observations.rs",
+    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/invariant_operations.rs",
+    "omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/validation/context/ranked_cycles/freeze/relocated_scalars.rs"
+   ],
+   "suggested_first_slice": "admit one more custody family: affine/linear Owned argument transfers or claim transfers through the existing proposal/validation/application route with independent replay",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "spill-slot-reuse",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "SPILL-REALIZATION",
+   "host": "local",
+   "owning_paths": [
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill"
+   ],
+   "suggested_first_slice": "generalize interval-based LocalStorageSlotId::Spill reuse in rewrites/runtime_spill/slot.rs beyond last-writer replay for its supported store/load forms, keeping independent validation and rejection of interleaving windows",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "custody-image-regions",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "CUSTODY-MUTATION-COVERAGE",
+   "host": "local",
+   "owning_paths": [
+    "omega-rust/omega/compilation/backend/images/image/src/final_image/executable_regions/tests.rs",
+    "omega-rust/omega/compilation/backend/images/image/src/footprint_certificate/tests.rs",
+    "omega-rust/omega/compilation/backend/images/image/tests/initialized_data_envelope.rs",
+    "omega-rust/omega/compilation/backend/images/image/Cargo.toml"
+   ],
+   "suggested_first_slice": "move the image crate's executable-region and footprint-certificate one-field custody matrices onto the shared mutation-matrix driver per the staged plan on released ticket 61fd07e264d6474098b7bf11edd01560 (claims.py notes may no longer show it; reproduce from tests), then write the inventory-to-driver coverage audit for the remaining families as a claim note",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "allocation-split-restrictions",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "ALLOCATION-REFINEMENT",
+   "host": "local",
+   "owning_paths": [
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_split",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_split.rs",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/replay.rs",
+    "omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/mod.rs"
+   ],
+   "suggested_first_slice": "lift one fixed-split restriction (tied/early-clobber definitions and reads, structural transports or case payloads naming the value, or the cyclic/multiple-incoming-connector restrictions in fixed_precolored_split_requirements) with independent replay, driven by a compiler-produced pressure customer",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "benchmarks",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "BENCHMARKS",
+   "host": "local",
+   "owning_paths": [
+    "tools/benchmark",
+    "tools/tests/test_benchmark.py",
+    "wiki/drafts/measurements/benchmarks.md"
+   ],
+   "suggested_first_slice": "produce and commit the first omega-benchmark-record/2 records for the macos_arm64 legs measurable on this host with a current-binary build, then regenerate the matrix",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "allocation-fixed-view-i64",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "ALLOCATION-REFINEMENT",
+   "host": "local",
+   "layer": 1,
+   "owning_paths": [
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/mod.rs",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements"
+   ],
+   "suggested_first_slice": "extend fixed_view_copy's is_u64 gate (compute/apply.rs:178, compute/site.rs:63, validate/site.rs:76) so the signed-64 divide to shift-count shape admitted by a0a624873e can materialize, with symmetric replay; or lift the next fixed-split restriction",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "copied-call-operand",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "DECLARATIVE-PEEPHOLES",
+   "host": "local",
+   "layer": 1,
+   "owning_paths": [
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/copied_call_operand",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/copied_call_operand.rs",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/mod.rs",
+    "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/module_catalog.rs"
+   ],
+   "suggested_first_slice": "execute the staged copied_call_operand descriptor family at its real semantic owner (ABI pins, implicit uses/defs, clobbers, trap/control effects, call-stack lifecycle while rebinding copied arguments) the way a6268b2b4c and 48c44018a6 executed terminator_pair and condition_materialization",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  },
+  {
+   "name": "provider-evidence-ledger",
+   "board": "TASKS_OPTIMIZER.md",
+   "item": "CUSTODY-MUTATION-COVERAGE",
+   "host": "local",
+   "layer": 1,
+   "owning_paths": [
+    "omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/component_eras/component_era_entry_ledger",
+    "omega-rust/omega/compilation/backend/plans/provider-evidence/src/provider_evidence/component_eras/component_era_entry_ledger.rs",
+    "omega-rust/omega/compilation/backend/plans/provider-evidence/Cargo.toml"
+   ],
+   "suggested_first_slice": "pin a checkable judgment type for component_era_entry_ledger's replays (they currently produce diagnostic strings, not exact errors), then migrate its custody matrix to the shared driver; preserve every substitution value",
+   "host_gates": [
+    "which mbx || which cargo"
+   ],
+   "probe_only": false
+  }
+ ]
+}
