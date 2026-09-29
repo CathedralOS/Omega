@@ -106,12 +106,14 @@ impl StateGraphEmission<'_, '_> {
         // A `&`-primitive state parameter arrives by edge argument: its
         // referent storage joins the state's primitive-storage table exactly
         // as a machine-level `&` parameter's does, so a bare referent read
-        // resolves the loaned scalar.
+        // resolves the loaned scalar. `state_parameters` carry authored
+        // positions, not the dense signature index.
         evaluation.primitive_storage =
             crate::expression_preparation::source_custody::primitive_references::bindings(
                 checked,
                 state.state,
                 &evaluation.structural_parameters,
+                crate::expression_preparation::source_custody::primitive_references::ParameterNumbering::Authored,
                 &self.catalogs.structural_types,
             )?;
         let mut values = self.state_values[position].clone();

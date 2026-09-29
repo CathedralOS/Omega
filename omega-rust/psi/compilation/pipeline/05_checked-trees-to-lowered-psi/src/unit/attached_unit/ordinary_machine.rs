@@ -363,6 +363,7 @@ pub(super) fn emit(
             checked,
             plan.state,
             &evaluation.structural_parameters,
+            crate::expression_preparation::source_custody::primitive_references::ParameterNumbering::Dense,
             structural_types,
         )?;
     let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
