@@ -34,15 +34,11 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
         ScalarType::Integer(integer) => fixed_native_integer_shape(integer).is_some(),
         ScalarType::IeeeFloat(_) => false,
     };
-    if !result_supported
-        || function.parameters.iter().any(|parameter| {
-            parameter.scalar_type != ScalarType::Boolean
-                && !matches!(parameter.scalar_type, ScalarType::Integer(integer)
-                if fixed_native_integer_shape(integer).is_some())
-        })
-    {
+    if !result_supported {
         return Ok(None);
     }
+    // Ordinary signature preparation owns parameter support and placement.
+    // A structural neighbor does not change a scalar argument's carrier.
     let Ok(prepared) =
         super::function_signature::prepare_function_signature(function, target, structural_types)
     else {
@@ -50,23 +46,12 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
         // The ordinary function lowerer retains authority for diagnostics.
         return Ok(None);
     };
-    let scalar_count = function.parameters.len();
     let result_placement = prepared.call_plan.result.clone().ok_or(
         LoweringError::FixedIntegerScalarAbiPlanMissingResult(function.machine),
     )?;
-    let scalar_parameters = function
-        .parameters
-        .iter()
-        .zip(&prepared.call_plan.parameters[..scalar_count])
-        .map(|(parameter, placement)| ScalarAbiValue {
-            value: parameter.value,
-            scalar_type: parameter.scalar_type,
-            placement: placement.clone(),
-        })
-        .collect();
     Ok(Some(MixedStructuralScalarFunctionAbi {
         call_plan: prepared.call_plan,
-        scalar_parameters,
+        scalar_parameters: prepared.scalar_parameters,
         structural_parameters: prepared.parameters,
         result: ScalarAbiValue {
             value: result.value,
@@ -274,6 +259,89 @@ mod tests {
             published_service_ceiling: Vec::new(),
             block_entries: Vec::new(),
             operations: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn mixed_abi_preserves_float_arguments_in_registers_and_on_stack() {
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            let scalar_type = ScalarType::IeeeFloat(format);
+            let width = match format {
+                IeeeFloatFormat::Binary32 => 4,
+                IeeeFloatFormat::Binary64 => 8,
+            };
+            let mut mixed = function();
+            mixed.result = AbstractFunctionResult::Scalar(AbstractResult {
+                value: ValueId::new(11).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Signed, 32).unwrap(),
+                ),
+            });
+            mixed.parameters = (1..=10)
+                .map(|ordinal| AbstractParameter {
+                    value: ValueId::new(ordinal).unwrap(),
+                    scalar_type,
+                })
+                .collect();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            mixed
+                .structural_parameters
+                .push(terminal_psi::StructuralParameterDeclaration {
+                    place: PlaceId::new(1).unwrap(),
+                    position: 0,
+                    is_self: false,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::MutableBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                });
+            let catalog = vec![StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "float".into(),
+                shape: StructuralTypeShape::PrimitiveScalar(scalar_type),
+            }]
+            .into();
+            let declarations = StructuralTypeLookup::new(&catalog);
+            for target in [
+                NativeTarget::linux_x64(),
+                NativeTarget::linux_arm64(),
+                NativeTarget::windows_x64(),
+                NativeTarget::macos_arm64(),
+            ] {
+                let abi =
+                    derive_mixed_structural_scalar_function_abi(&mixed, target, &declarations)
+                        .unwrap()
+                        .unwrap();
+                assert_eq!(abi.scalar_parameters.len(), 10);
+                assert_eq!(abi.call_plan.parameters.len(), 11);
+                for (position, parameter) in abi.scalar_parameters.iter().enumerate() {
+                    assert_eq!(parameter.value, mixed.parameters[position].value);
+                    assert_eq!(parameter.scalar_type, scalar_type);
+                    assert_eq!(parameter.placement, abi.call_plan.parameters[position]);
+                    assert_eq!(parameter.placement.shape, ValueShape::float(width));
+                }
+                assert!(abi.scalar_parameters.iter().any(|parameter| {
+                    parameter
+                        .placement
+                        .locations
+                        .iter()
+                        .any(|location| matches!(location, ValueLocation::Stack { .. }))
+                }));
+                assert_eq!(
+                    abi.structural_parameters[0].shape,
+                    ValueShape::borrowed_reference(u32::from(width), width)
+                );
+                assert_eq!(
+                    abi.structural_parameters[0].placement,
+                    abi.call_plan.parameters[10]
+                );
+                assert_eq!(
+                    abi.result.scalar_type,
+                    mixed.result.scalar().unwrap().scalar_type
+                );
+                assert_eq!(abi.result.placement.shape, ValueShape::integer(4, 4));
+            }
         }
     }
 

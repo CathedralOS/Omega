@@ -266,9 +266,9 @@ fn scalar_entrance(
 }
 
 /// The published mixed ABI for a scalar-result function whose parameter
-/// roster ends in structural parameters. The scalar prefix and result admit
-/// only Booleans and fixed native integers; the structural suffix replays
-/// through the shared entrance check.
+/// roster ends in structural parameters. Scalar arguments keep the ordinary
+/// native carrier rules; the structural suffix replays through the shared
+/// entrance check. Mixed results currently admit Booleans and fixed integers.
 fn mixed_entrance(
     source: &AbstractFunction,
     signature: &CallSignature,
@@ -286,7 +286,7 @@ fn mixed_entrance(
         || source
             .parameters
             .iter()
-            .any(|parameter| fixed_integer_or_boolean_shape(parameter.scalar_type).is_none())
+            .any(|parameter| fixed_native_scalar_shape(parameter.scalar_type).is_none())
     {
         return None;
     }
@@ -348,7 +348,7 @@ pub(super) fn fixed_native_scalar_shape(scalar_type: ScalarType) -> Option<Value
     }
 }
 
-/// The narrower mixed-ABI scalar family: Booleans and fixed native integers.
+/// The currently supported mixed-ABI result family.
 fn fixed_integer_or_boolean_shape(scalar_type: ScalarType) -> Option<ValueShape> {
     match scalar_type {
         ScalarType::Boolean => Some(ValueShape::integer(1, 1)),
