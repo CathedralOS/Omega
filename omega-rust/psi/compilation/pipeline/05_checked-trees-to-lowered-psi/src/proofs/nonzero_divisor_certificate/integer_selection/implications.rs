@@ -18,7 +18,7 @@
 use std::collections::BTreeMap;
 
 use proof_admission::{ProofNode, ProofRule};
-use semantic_vocabulary::Proposition;
+use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
 use super::{case_analysis, logical};
 
@@ -68,6 +68,26 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         }
     }
 
+    /// Split each unresolved connected case in turn and prove every branch
+    /// with the ordinary leaf alone. A branch the leaf cannot prove splits the
+    /// next case; implications and goal splits stay with `goal`. The first
+    /// failing branch ends the elimination, as in `goal`'s own case split.
+    fn ordinary_cases(
+        &mut self,
+        goal: &Proposition,
+        assumptions: &[Proposition],
+        depth: usize,
+    ) -> Option<ProofNode> {
+        if depth >= 64 {
+            return None;
+        }
+        case_analysis::prove(goal, assumptions, self.semantic_axioms, |branch| {
+            self.remaining = self.remaining.checked_sub(1)?;
+            self.ordinary_proof(goal, branch)
+                .or_else(|| self.ordinary_cases(goal, branch, depth + 1))
+        })
+    }
+
     fn goal(
         &mut self,
         goal: &Proposition,
@@ -111,6 +131,27 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
                     },
                 });
             }
+        }
+        // A goal that chooses between its own alternatives eliminates the
+        // question's cases under ordinary leaves before splitting the goal or
+        // searching implications. `x <= -1 || 1 <= x` follows from
+        // `y <= -1 || 1 <= y` and `x == y` only once a case chooses the
+        // disjunct, and `b == b'` across a chain of negations only once every
+        // alternative is fixed. The logical split asks for one disjunct in
+        // the unsplit scope, and the implication search reaches its own case
+        // split only after premise probes that can spend the whole budget on
+        // premises no alternative supplies. An atomic relation such as
+        // `x <= 5` chooses nothing: the ordinary leaf composes its bounds, and
+        // the case split that ends this search stays its only case owner.
+        // Eliminating its cases first would open a fresh leaf scope per branch
+        // even for the speculative bounds the invariant search proposes and
+        // rejects. Premise probes, implication bodies and case branches keep
+        // the shared search's order, so this runs once per question.
+        if depth == 0
+            && chooses_an_alternative(goal)
+            && let Some(proof) = self.ordinary_cases(goal, assumptions, depth)
+        {
+            return Some(proof);
         }
         let logical = match goal {
             Proposition::Conjunction(parts) => logical::prove_conjunction(goal, parts, |part| {
@@ -206,6 +247,24 @@ impl<Ordinary: Fn(&Proposition, &[Proposition]) -> Option<ProofNode>> Search<'_,
         case_analysis::prove(goal, assumptions, self.semantic_axioms, |branch| {
             self.goal(goal, branch, depth + 1)
         })
+    }
+}
+
+/// A goal whose proof chooses one of its own alternatives: a disjunction, or
+/// an equality of two Boolean terms, an equivalence that holds in a case
+/// exactly when both sides agree there. A Boolean literal side makes the
+/// equality one value's polarity, an atomic fact. A conjunction chooses
+/// nothing either, and eliminating cases over it would multiply its
+/// independent conjuncts' cases.
+fn chooses_an_alternative(goal: &Proposition) -> bool {
+    match goal {
+        Proposition::Disjunction(_) => true,
+        Proposition::Equal(left, right) => {
+            left.scalar_type() == ScalarType::Boolean
+                && !matches!(left, ScalarTerm::Boolean(_))
+                && !matches!(right, ScalarTerm::Boolean(_))
+        }
+        _ => false,
     }
 }
 
