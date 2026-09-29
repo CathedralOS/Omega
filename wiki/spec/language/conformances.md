@@ -10,9 +10,9 @@ satisfaction edge implements one requirement; it does not claim the whole map.
 pub SaturatingIncrement:
     Counter satisfies Incrementable
 {
-    machine increment(&mut self) {
-        if self.value < i32::Maximum {
-            self.value = self.value + 1;
+    machine increment(counter: &mut Counter) {
+        if counter.value < i32::Maximum {
+            counter.value = counter.value + 1;
         }
     }
 }
@@ -21,6 +21,9 @@ pub SaturatingIncrement:
 Here `Counter` has an `i32` value and `Incrementable` requires only the callable
 shape, with no strict-increment law. The named implementation intentionally
 saturates; its guard proves representability of the addition.
+The requirement likewise declares its explicit mutable argument. Selecting
+`Counter` as the conformance subject supplies no implicit value argument;
+requirement matching substitutes the subject type into ordinary parameter types.
 
 The conformance has its own package-scoped name, visibility, binder telescope,
 optional subject, instantiated trait application, complete row map, laws, and

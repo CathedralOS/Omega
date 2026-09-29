@@ -8,8 +8,7 @@ language behavior, not the current compiler's supported expression shapes.
 
 | Form | Evaluation order |
 | --- | --- |
-| Attached call | Receiver, then authored arguments left to right. |
-| Free or path-qualified call | Authored arguments left to right. |
+| Named machine call | All authored arguments left to right. |
 | Strict binary operator | Left operand, then right operand. |
 | `left && right` | Left; right only when left is true. |
 | `left || right` | Left; right only when left is false. |
@@ -47,9 +46,13 @@ and cleanup under the permitted observation contract.
 
 A call invokes a machine; an internal state jump transfers within the current
 machine. Transition dispatch may also select a final call whose result completes
-the enclosing machine. A path-qualified call uses a static namespace, not an
-implicit value receiver. Calls obey the exact [suspension/blocking acknowledgement and position
-rules](effects.md#call-site-acknowledgements).
+the enclosing machine. A named machine call selects a static path and supplies
+every ordinary parameter explicitly. A qualified declaration such as
+`Buffer::clear(buffer: &mut Buffer)` is called as `Buffer::clear(&mut buffer)`,
+not `buffer.clear()`. The qualification establishes a namespace and semantic
+home, not an implicit receiver. Dot access remains data-field projection; it
+does not select or invoke a machine. Calls obey the exact
+[suspension/blocking acknowledgement and position rules](effects.md#call-site-acknowledgements).
 
 Machine invocations require their full ordinary argument list. Application of
 a [mathematical function term](../proofs/mathematical_bindings.md#named-mathematical-definitions)
@@ -61,7 +64,7 @@ the term. Expected-type and executable-demand checks still apply.
 `address_of<Selected<Arguments>>()` exposes a selected executable entry;
 `address_of(reference)` exposes the referenced storage location. These are
 compiler-known core queries, not casts or equal-size bit reinterpretation.
-An attached machine name does not capture a receiver. See
+A qualified machine name does not capture a data instance. See
 [address exposure](counts_and_addresses.md#address-exposure). `size_of<T>()`
 and `align_of<T>()` query a data layout; `code_layout<Selected<Arguments>>()`
 queries late native code regions. Static arguments select types or exact machine
@@ -78,10 +81,10 @@ ordinary call, suspension and completion obligations.
 
 Temporary storage must outlive every derived borrow and receive cleanup on
 every cleanup-bearing exit. Shared lending may be implicit at a shared-reference
-parameter under ordinary argument-admission rules. For non-receiver arguments,
+parameter under ordinary argument-admission rules. For named machine calls,
 mutable and write-only lending require explicit `&mut` and `&write` expressions.
-Attached calls instead form the receiver loan required by the declared receiver
-access, including when spelled through [indexing](#indexing-and-ranges).
+The token-specific collection adaptation for [indexing](#indexing-and-ranges)
+does not change named-call argument admission.
 Checked identity and published consumers retain the access kind and
 rejoin the explicit argument with its declared parameter type; source spelling
 cannot substitute for that identity.
@@ -145,17 +148,16 @@ refinement alone cannot distinguish overloads. Fixed operator syntax is
 operand-directed; explicit named calls may additionally use
 [result-domain selection](domains.md#result-domain-overloads).
 
-An attached receiver occupies normalized operand position zero with its exact
-ownership/access mode; otherwise the first ordinary parameter occupies zero.
-Both forms use the complete operand telescope. Being an operator grants no
-mutation: mutation requires an admitted mutable operand shape. Checked consumers
+Ordinary parameters occupy normalized operand positions in declaration order,
+starting at zero, with their exact ownership/access modes. There is no hidden
+receiver operand. Selection uses the complete operand telescope. Being an
+operator grants no mutation: mutation requires an admitted mutable operand shape. Checked consumers
 retain the authored selection occurrence, not a guess from the leaf name.
 
-Attached token-bearing machines use the same receiver adaptation as their named
-method calls. Merely occupying operand position zero does not turn an ordinary
-parameter into a receiver. Explicit operands retain ordinary argument-admission
+Merely occupying operand position zero does not grant receiver status or an
+implicit loan. Explicit operands retain ordinary argument-admission
 rules and the specified collection-view adaptations; operator syntax adds no
-general search for borrowed variants of operands. An owned receiver remains
+general search for borrowed variants of operands. An owned operand remains
 owned. If permitted adaptations leave competing candidates, ordinary ambiguity
 rejection applies, not an implicit preference for an owned or borrowed overload.
 
@@ -276,19 +278,24 @@ slices may share the syntax without sharing their bounds evidence. Mutable
 forms additionally require the appropriate loans and write authority. Descriptor
 construction implements the selected contract but cannot establish its proofs.
 
-For an attached index machine such as `machine [] Buffer::at(&self, index: u64)`,
-`buffer[index]` supplies the collection as the receiver, with the same shared
-receiver borrowing as `buffer.at(index)`. An admitted mutable-receiver index
-machine similarly requires and forms an exclusive receiver loan. Authors do not
-need `(&buffer)[index]` or a distinct `&[]` operator to request ordinary receiver
-borrowing. A first ordinary parameter spelled `items: &Buffer` is not an attached
-receiver; its admission still follows ordinary argument rules.
+For a static index machine such as
+`machine [] Buffer::at(buffer: &Buffer, index: u64)`, `buffer[index]`
+supplies the collection at operand zero and forms the shared loan required by
+that parameter. An admitted index machine whose collection parameter is
+`&mut Buffer` similarly requires and forms an exclusive collection loan.
+This is the existing token-specific collection adaptation for `[]` and `[..]`,
+independent of receiver identity; it is not method-call sugar. Authors do not
+need `(&buffer)[index]` or a distinct `&[]` operator. Named calls remain ordinary
+static calls: `Buffer::at(buffer, index)` follows shared argument admission,
+and a mutable collection parameter requires an explicit `&mut buffer` argument.
+This rule introduces neither write-only collection adaptation nor automatic
+borrowing for other operator operands.
 
-Receiver borrowing does not copy or move the collection, weaken bounds or loan
+Collection borrowing does not copy or move the collection, weaken bounds or loan
 checks, or permit mutable access through shared authority. Collection and index
 expressions are each evaluated once, collection first, and the resulting loan
 retains its exact captured place and lifetime. The index argument keeps its own
-declared access and multiplicity; borrowing the receiver does not borrow an owned
+declared access and multiplicity; borrowing the collection does not borrow an owned
 index argument. Explicit conformance selection and provider requirements are
 unchanged.
 
@@ -297,8 +304,9 @@ or borrowed views. There is no universal reference-return requirement or
 implicit dereference of every user-defined index result. Writing through an index
 requires the selected operation to supply writable storage under its declared
 contract; returning a value does not make it an assignable place. This adds no
-result-type-directed operator selection. The same receiver rule applies to an
-attached range-slicing machine; existing core collection adaptations remain valid.
+result-type-directed operator selection. The same collection-parameter rule
+applies to a static range-slicing machine; existing core collection adaptations
+remain valid.
 
 `a..b` is exclusive; `a..=b` is inclusive. Open forms are `a..`, `..b`, and `..`.
 Omitted endpoints use zero and collection length. Inclusive ranges normalize

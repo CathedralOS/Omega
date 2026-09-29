@@ -14,8 +14,9 @@ not internal states. An internal state jump adds no call frame or return address
 and never resumes the departed state by returning. A transition dispatch may
 instead select a terminal value or a terminal machine call as specified below.
 
-A target state's declared receiver retains the machine attachment and is not
-repeated among ordinary jump arguments. This does not permit receiver rebinding.
+A target state has only ordinary explicit parameters. Context records and their
+borrows are supplied on each jump like other arguments; no receiver is retained
+or rebound implicitly.
 An ordinary terminal value, explicit return, or permitted implicit Unit
 completion ends the invocation and owes its declared result/return contract.
 
@@ -23,12 +24,13 @@ A transition explicitly supplies the target state's values. Executable uses name
 the exact current-state declarations or preceding local bindings; state arrival
 contracts use that state's parameters. Entry and sibling bindings cannot be
 recovered by matching spelling. Nominal member and case selection retains the
-declared owner, including payload projections rooted at `self`.
+declared owner, including payload projections rooted at an explicit context argument.
 
 Machine `requires` applies at machine entry. Internal named-state jumps establish
 the target state's requirements without importing machine return guarantees or
-assuming machine-entry requirements again. A `self` backedge to entry must
-re-establish machine preconditions and declared field domains. Actual invocations
+assuming machine-entry requirements again. A recursive call explicitly names
+the machine and supplies its arguments; it must re-establish machine preconditions
+and declared field domains. Actual invocations
 retain both sides of the invoked contract.
 
 Arrival substitution is simultaneous and identity-based. Scalar arguments retain

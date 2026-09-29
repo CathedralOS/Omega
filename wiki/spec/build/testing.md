@@ -62,18 +62,20 @@ tests; it is not evidence that any test passed.
 
 ## Entry contracts and ordinary calls
 
-A runnable entry has no ordinary invocation arguments and no observed result.
-It is either a free machine or an attached machine with one `&mut self`
-receiver. The requirement declares the corresponding shape. Reuse
+A runnable entry has no caller-supplied invocation arguments and no observed result.
+It is a static machine with either no parameters or one ordinary mutable context
+parameter designated for provisioning. The requirement declares that exact
+parameter shape; a qualified machine name adds no implicit argument. Reuse
 [entry provisioning](entry_roots.md#entry-shape-and-arrival-bridge): initialize
-ordinary receiver fields only when ZII-valid and establish each direct
+ordinary context fields only when ZII-valid and establish each direct
 `Binding<R>` field against the selected authorized binding before entry.
 Provider selection alone cannot construct arbitrary service values. Missing
-bindings or unestablishable receiver fields reject before invocation. Other
+bindings or unestablishable context fields reject before invocation. Other
 fixture construction and parameterized helper calls are ordinary test code.
 
-For a receiver requirement, each satisfier identifies its concrete receiver
-carrier through ordinary `Self` matching. That is not a guessed generic test
+For a context-bearing requirement, each satisfier identifies its concrete context
+carrier through ordinary subject-type substitution in the explicit parameter.
+That is not a guessed generic test
 argument or a synthesized implementation of the whole containing trait.
 
 The runner establishes all entry preconditions; registration grants none.
@@ -166,7 +168,7 @@ The lifecycle is:
    provider closures for each selected package/target occurrence.
 3. Reconstruct test-time authority requests, check lock agreement and actual
    grants, and verify Terminal Psi and entry provisioning before execution.
-4. Run every enabled test with fresh activation, receiver, captured-output and
+4. Run every enabled test with fresh activation, context, captured-output and
    mock-provider state. Settle its ordinary owned resources on normal completion.
 5. Require all enabled tests to pass before publishing the new successful build
    result set. Preserve diagnostics on failure; live effects have no rollback.
@@ -261,7 +263,7 @@ that target.
 ## Implementation acceptance
 
 Use one small package with two satisfiers of one registered requirement, then
-vary it through the same path: a failing check, a receiver with a virtual
+vary it through the same path: a failing check, a context with a virtual
 filesystem, and a second group. Require exact discovery, fresh state, distinct
 failure/incomplete diagnostics, and application outputs free of test-only roots.
 Keep negative controls for inherited-identity aliases, unresolved generic tests,
