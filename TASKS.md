@@ -573,8 +573,8 @@ the complete product bar; focused successes below do not establish that baseline
   Reproduce the reported long checks for `gui/windowed_calculator` and
   `cli/simulation/game_of_life_glider` on a current binary and locate the cost;
   the historical stall did not establish a provider-selection or proof-search
-  cause. Reuse unchanged compilation inputs under **CHECK-CLOSURE-ONCE**, and
-  measure the complete sweep. Non-tail self recursion in `arithmetic/stats_compute`
+  cause. Reuse unchanged compilation inputs through the check-once memo and
+  persisted review cache, and measure the complete sweep. Non-tail self recursion in `arithmetic/stats_compute`
   remains a separate execution customer. GUI product acceptance remains
   **MACOS-APPLICATION-PUBLICATION**.
 
@@ -804,9 +804,9 @@ the complete product bar; focused successes below do not establish that baseline
   workaround or application-specific compiler behavior. Artifact production keeps
   [conditional loading premises](wiki/spec/build/component_publication.md#products-and-authority),
   without a fabricated runtime installation grant or mandatory Rust supervisor.
-  **CHECK-CLOSURE-ONCE** owns repeated checking: reuse only exact inputs and
-  authority receipts, keep live runs to a verdict, and record timeout separately
-  from source rejection.
+  Repeated checking reuses only exact inputs and authority receipts, keeps
+  live runs to a verdict, and records timeout separately from source
+  rejection.
 
 - **VEC-NATIVE-GROWTH.** (split-of:BUMP-ALLOCATOR-CANARY) Complete ordinary
   library `Vec<T>` for Squalr's scan results under the
@@ -897,35 +897,6 @@ the complete product bar; focused successes below do not establish that baseline
   and does not postpone bundle-placement checks. Record unavailable macOS runtime
   coverage. Resources and `image_viewer` bundle-relative lookup remain outside v1;
   do not silently change working directories.
-
-- **CHECK-CLOSURE-ONCE.** (new-scope) Make a std-importing `omega --check`
-  invocation check the library once across package discovery, binding and
-  production. Owners: package-manager's
-  [candidate compilation](omega-rust/omega/packages/package-manager/src/review/candidate/compilation.rs)
-  and compiler's `checked/checking/`.
-
-  Exact-input check memoization, typed-frontier reuse and carrying unchanged
-  package compilations already exist. `ImmutableBoundLookup` also shares one
-  index per frozen program; constructing another lookup no longer rebuilds it.
-  The remaining preliminary/settled split belongs to BUILD-EVALUATES-ONCE.
-  Changed provider bindings currently change checked products: do not erase
-  them from reuse keys to manufacture a cache hit.
-
-  `compilation/tests.rs::bound_pass_compiles_only_the_occurrences_its_bindings_changed`
-  carries one unchanged dependency and reuses typed frontiers for two changed
-  occurrences, but still requests preliminary and settled checks for each.
-  It does not prove the complete CLI/std invocation checks once. Keep source
-  drift, exact request identity, per-pass custody and restricted-grant checks.
-  Reuse must retain preparation outputs and component discovery and reconcile
-  sponsored evaluation, including discarded attempts; carried evaluations are
-  charged only to the session that ran them, with zero usage for an empty one.
-
-  Acceptance: `omega --check --timings samples/cli/basics/print_squares/main.omg`
-  plus an owner regression proves one actual whole-program library check per
-  invocation. Use existing per-package/pass compilation, carry, frontier-reuse
-  and check timing counters; distinguish memo requests from executed checks.
-  Changed sources or authority must still revalidate. Profile residual costs
-  against that current route rather than treating historical timings as a gate.
 
 - **TERMINATION-RANKING-CHECKS.** Carry exact rank/endpoint evidence through
   ordinary calls, named states and native execution under the
@@ -2555,23 +2526,6 @@ completion syntax or other terminal service is a prerequisite.
   [instruction interpretation](wiki/spec/language/assembly.md#interpreted-execution)
   and adds no indirect-call syntax, arbitrary patching or native-address
   interchange for interpreter IDs.
-
-- **DATA-LAYOUT-QUERIES.** (new-scope) Implement core `size_of<T>()` and
-  `align_of<T>()` from the selected target's validated layout, following
-  [layout queries](wiki/spec/layouts/plans.md#size-and-alignment-queries).
-  Add source admission and semantic evaluation using existing
-  `build-time-evaluation::compute_native_layout_plan`,
-  `LayoutPlanReport::{size, align}` and `layout::layout_type_reference`, then
-  ordinary constant materialization. Preserve exact schema, target and policy
-  custody; no second size calculator or keyword. The native layout builder's
-  unresolved-array fallback is `TypeLayout::default()` (size 0, alignment 1);
-  a query must distinguish that absence from a validated zero-sized layout.
-  Acceptance: default/custom layouts report size including padding and alignment
-  in authored constants and runtime uses; erased fields, zero-sized layouts,
-  reference-versus-referent storage, and target variation agree with actual
-  layout/ABI. Reject unavailable fixed size, missing runtime layout, circular
-  layout queries and machine declarations. A known alignment may remain available
-  for a dynamic-size plan; no interpreter-host allocation size escapes.
 
 - **NATIVE-CODE-LAYOUT-QUERIES.** (new-scope) Deliver
   [`code_layout<Machine>()`](wiki/spec/language/counts_and_addresses.md#native-code-layout-queries)
@@ -4950,12 +4904,14 @@ topology IR or trusted graph axiom.
   `topology-plan`'s `composition_build` test
   `the_package_composes_and_a_source_free_consumer_verifies` targets actual
   composition, required-output publication and independent Rust verification.
-  At `c6a81ec63ea` on macOS arm64 it fails in `copy_fixture`: committed
-  `request.bin` differs from `build_scope_inputs()`, before Omega compilation.
-  Reconcile derived inputs and rerun that test; do not claim publication passes.
-  Its admissions come from Rust-built Terminal modules, and it does not exercise
-  the Omega consumer. Join ordinary component-description production/admission;
+  Committed `request.bin`/`components.bin` are regenerated from the fixture's
+  own `build_scope_inputs()` boundary-kind encoding and the test is green.
+  Its admissions still come from Rust-built Terminal modules and it does not
+  exercise the Omega consumer: `source/library/topology/verify.omg` has no
+  driver test. Join ordinary component-description production/admission;
   **BUILD-SNAPSHOT-OUTPUTS** owns confined inputs and output publication.
+  `wiki/spec/packages/topology.md`'s Acceptance status cites deleted test
+  names; refresh it when the consumer leg lands.
 
   Acceptance: admit three component descriptions, publish `payments.plan`, and
   verify source-free against independently supplied current `TopologyRequest`.

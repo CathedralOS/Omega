@@ -82,24 +82,6 @@ Rust remains a comparator, not bootstrap authority. Optimization matters where
 measured execution or audit feasibility requires it, not as an unbounded
 prerequisite to every lower-rung milestone.
 
-## Alpha execution hardening
-
-- **ALPHA-WINDOWS-DIV-TRAP.** (split-of:ALPHA-WINDOWS-CONFORMANCE) Windows
-  x64 execution is measured and recorded in
-  [bounds conformance](tests/alpha/README.md#bounds-conformance); one real
-  divergence remains. `div`/`mod` traps take the hardware divide faults
-  (`0xC0000094` for a zero divisor, `0xC0000095` for `INT64_MIN / -1`)
-  rather than the audited illegal-instruction routine every other trap
-  class uses; conforming means carrying the divisor pre-check the Linux
-  and arm64 seeds already use for this hardware/OS mismatch, then
-  re-forging, re-auditing, and re-pinning the Windows inventory identities.
-  Escalate to `OWNER_QUESTIONS.md` only if accepting `#DE` as the Windows
-  trap form instead. The gate's byte-level expected values also need a
-  native-shell observation route or a normalized 127 surface on MSYS hosts:
-  sign-bit-set `halt` codes observe 127 through Git Bash even though the
-  seed emits the correct raw exit code. Owners: `bootstrap/0_alpha/` and
-  `tests/alpha/`.
-
 ## P1 - Gamma checker and first complete encoding proof
 
 - **GAMMA-DERIVATION-CHECKER.** Close the first artifact-specific encoding proof
