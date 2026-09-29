@@ -102,18 +102,6 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                 _ => None,
             }),
     );
-    eprintln!(
-        "loan-debug type_roots={:?} successors={:?}",
-        type_roots,
-        states
-            .iter()
-            .flat_map(|state| state.successors())
-            .flat_map(|s| s
-                .transfers
-                .iter()
-                .map(|t| format!("{:?}", std::mem::discriminant(&t.source))))
-            .collect::<Vec<_>>()
-    );
     let unit_roots = targets
         .iter()
         .map(|(target, _)| target.entry().map(|entry| entry.machine))
