@@ -17,6 +17,65 @@ use checked_trees::{
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::Terminator;
 
+const SCALAR_BOUNDARY_SOURCE: &str = "
+    pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+    machine choose(left: f64, right: f64, take: bool) -> f64 {
+        match take { true -> left + right, _ -> right }
+    }
+    machine launch() { let result: f64 = choose(0.5f64, 0.5f64, true); }
+";
+
+#[test]
+fn scalar_graph_boundary_catalog_is_shared_by_direct_entries_and_unit_callees() {
+    let checked = crate::front_end::checked_program(SCALAR_BOUNDARY_SOURCE);
+    for entry in ["choose", "launch"] {
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name(entry))
+            .expect("reachable boundary applications retain the shared declaration catalog");
+        assert!(lowered.semantic_module.machines.iter().any(|machine| {
+            machine.blocks.iter().any(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::BoundaryCall { .. }
+                    )
+                })
+            })
+        }));
+    }
+}
+
+#[test]
+fn scalar_graph_boundary_catalog_rejects_missing_invocation_custody() {
+    let mut checked = crate::front_end::checked_program(SCALAR_BOUNDARY_SOURCE);
+    let computations = &mut checked.facts.values.scalar_computations;
+    let application = computations
+        .nodes
+        .iter()
+        .find_map(|(handle, node)| {
+            matches!(
+                node.kind,
+                checked_trees::CheckedScalarComputationKind::BoundaryCall { .. }
+            )
+            .then_some(handle)
+        })
+        .expect("computed match subject contains a boundary application");
+    let checked_trees::CheckedScalarComputationKind::BoundaryCall { source_call, .. } =
+        &mut computations.nodes.get_mut(application).kind
+    else {
+        unreachable!("selected boundary application")
+    };
+    *source_call = arena::Handle::invalid();
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("launch"))
+        .expect_err("a catalog cannot replace exact invocation evidence");
+    assert!(
+        matches!(
+            error,
+            LoweringError::Unsupported("nested boundary application has no live source call")
+        ),
+        "wrong rejection: {error:?}"
+    );
+}
+
 #[test]
 fn scalar_graph_replays_parameter_qualification_contracts_from_source() {
     let original = crate::front_end::checked_program(include_str!(

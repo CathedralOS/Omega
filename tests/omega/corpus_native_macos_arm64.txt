@@ -386,8 +386,7 @@ pass/expressions/match_domain_results checked 199ms
 pass/expressions/match_float_interpretation checked 394ms
 pass/expressions/match_float_patterns built 1570ms exit:70
 pass/expressions/match_float_results checked 222ms
-pass/expressions/match_float_subjects rejected 419ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime scalar field observation requires an integer field"))
+pass/expressions/match_float_subjects built 1556ms exit:0 @de036fe72b0b+wt
 pass/expressions/match_fresh_owned checked 181ms
 pass/expressions/match_ordered_duplicate_patterns checked 182ms
 pass/expressions/mixed_integer_comparison_places built 2323ms exit:70
@@ -407,6 +406,7 @@ pass/expressions/runtime_flat_boolean_logic_exit built 786ms exit:70
 pass/expressions/runtime_numeric_cast_exit rejected 1523ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: pure source: scalar expression row` (state 0, statement 2)
 pass/expressions/runtime_widened_comparison_exit built 853ms exit:70
+pass/expressions/scalar_match_boundary_composition_exit built 1964ms exit:70 @de036fe72b0b
 pass/filesystem/cross_linux_value_syscalls checked 2659ms
 pass/filesystem/dir_walk_wrappers_exit rejected 2807ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Filesystem::create_dir_all`), which was itself omitted at local construction at `scalar field store sequence: write frame agreement`

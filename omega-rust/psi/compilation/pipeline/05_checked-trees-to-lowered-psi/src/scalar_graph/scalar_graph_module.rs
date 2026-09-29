@@ -3,6 +3,9 @@
 //! `GraphEmission` (`state_emission`, `short_circuit_staging`), finalizes the
 //! reserved groups (`pending_blocks`), then assembles the machine, contract
 //! and proof bundle.
+//! Boundary applications borrow the enclosing closure's admitted declarations,
+//! just like ordinary calls borrow its machine identities. Scalar result shape
+//! does not create a separate provider namespace or bypass invocation custody.
 use super::{
     BTreeMap, Block, ContentPartitionComposition, ContractClause, EvidenceRoute, KnownDirectScalar,
     LoweredContentIdentityReshuffles, LoweredContentPartitionCompositions, LoweredPsi,
@@ -165,6 +168,7 @@ pub(crate) fn build_scalar_graph_module(
         machine_ids,
         requirement_counts,
         &[],
+        &[],
         &scalar_contracts::ContractViewNamespace::EMPTY,
         literal_places,
         loop_plan,
@@ -185,6 +189,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     identity_base: u64,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
+    boundary_parameters: &[crate::unit::attached_unit::BoundaryParameters],
     view_parameters: &[(u32, StructuralParameterDeclaration)],
     views: &scalar_contracts::ContractViewNamespace<'_>,
     literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
@@ -310,7 +315,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     let call_emission = CallEmissionContext {
         machine_ids,
         requirement_counts,
-        boundaries: &[],
+        boundaries: boundary_parameters,
         next_obligation_identity: call_obligation_base,
         obligation_limit: identity_base
             .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE)

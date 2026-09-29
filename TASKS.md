@@ -1729,9 +1729,13 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `rendering/mandelbrot_zoom` stop at their `Main::clock` Fused provider;
     `gui/{window_demo,windowed_calculator}` stop after their float statements
     at a borrowed byte-array element argument and `gui/window_app` at a
-    structural field store destination parameter. Pure scalar-graph machines
-    carry no boundary roster, so nested applications there reject
-    (`expressions/match_float_subjects`).
+    structural field store destination parameter. Scalar graphs and ordinary
+    bodies share the closure's exact boundary declarations. On macOS ARM64,
+    `omega run tests/omega/pass/expressions/match_float_subjects/main.omg`
+    exits **0** unchanged; `expressions/scalar_match_boundary_composition_exit`
+    exits **70**, checking nested applications, ordinary helper operands,
+    intervening calls and match fallthrough in both float formats. Direct
+    scalar entries use the same catalog; missing invocation custody rejects.
     Whole-value boundary results inside scalar helpers use the ordinary
     operation sequence: a bodyless declaration cannot acquire a competing
     direct-body call graph. On macOS ARM64,
