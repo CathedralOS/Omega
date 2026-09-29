@@ -1,9 +1,12 @@
 //! The aliasing checks between every pair of structural arguments.
 
-use super::{CallShape, structural_access_is_exclusive, structural_paths_may_overlap};
+use super::{
+    CallShape, interior_member_borrow, structural_access_is_exclusive, structural_paths_may_overlap,
+};
 use crate::validation::{
     ModuleError, OperationId, OperationKind, StructuralAccess, StructuralArgument,
-    StructuralMultiplicity, StructuralPlaceKind, TerminalMachine, TerminalModule,
+    StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceKind, TerminalMachine,
+    TerminalModule,
 };
 
 /// Every pair of arguments: two loans of the same root may not alias
@@ -13,6 +16,7 @@ pub(in crate::validation) fn validate_argument_pairs(
     module: &TerminalModule,
     caller: &TerminalMachine,
     arguments: &[StructuralArgument],
+    expected: &[StructuralParameterDeclaration],
     operation: OperationId,
     shape: &CallShape<'_>,
 ) -> Result<(), ModuleError> {
@@ -21,6 +25,7 @@ pub(in crate::validation) fn validate_argument_pairs(
         call_kind,
         ..
     } = *shape;
+    let receiver = expected.iter().position(|parameter| parameter.is_self);
     for first in 0..arguments.len() {
         for second in first + 1..arguments.len() {
             let left = &arguments[first];
@@ -59,10 +64,19 @@ pub(in crate::validation) fn validate_argument_pairs(
                     caller, left.place,
                 )
                 .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted);
+            // The receiver's claim is the callee's own context: a borrow
+            // strictly inside it is a subloan formed inside that authority —
+            // a frozen or suspended child under the loan table — never an
+            // independent second claim on the caller's custody.
+            let interior_loan = receiver.is_some_and(|index| {
+                (first == index && interior_member_borrow(left, right))
+                    || (second == index && interior_member_borrow(right, left))
+            });
             if left.place == right.place
                 && structural_paths_may_overlap(&left.path, &right.path)
                 && !copied_array
                 && !copied_case
+                && !interior_loan
                 && (structural_access_is_exclusive(left.access)
                     || structural_access_is_exclusive(right.access)
                     || ((left.access == StructuralAccess::Owned
