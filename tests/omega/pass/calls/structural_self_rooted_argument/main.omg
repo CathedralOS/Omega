@@ -10,8 +10,8 @@ machine Filter::clone(filter: &Filter) -> Filter {
     Filter { count: filter.count }
 }
 
-machine Filter::cloned_count(&self) -> u64 {
-    let cloned: Filter = Filter::clone(self);
+machine Filter::cloned_count(filter: &Filter) -> u64 {
+    let cloned: Filter = Filter::clone(filter);
     cloned.count
 }
 

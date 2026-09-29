@@ -99,4 +99,4 @@ machine Main::forward_with_local_and_drop(
     region
 }
 
-machine Main::main(&mut self) {}
+machine Main::main(main: &mut Main) {}

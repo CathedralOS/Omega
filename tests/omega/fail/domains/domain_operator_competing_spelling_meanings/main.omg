@@ -28,12 +28,11 @@ machine + Quantity::Cyclic::add(left: Quantity, right: Quantity) -> Quantity {
 
 data Main {}
 
-machine Main::combine(
-    &self,
+machine Main::combine(main: &Main,
     left: Quantity in Linear,
     right: Quantity in Cyclic
 ) {
     let sum: Quantity = left + right;
 }
 
-machine Main::main(&mut self) {}
+machine Main::main(main: &mut Main) {}

@@ -28,7 +28,7 @@ data Plan {
 }
 
 data CompactBits { }
-machine CompactBits::plan(&mut self, schema: Schema) -> Plan {
+machine CompactBits::plan(compact_bits: &mut CompactBits, schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -49,8 +49,8 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) {
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) {
+    main.console.exit_process(0);
 }
 
 const NEVER_INSTANTIATED: u64 = size_of<CompactBits<Flags>>();

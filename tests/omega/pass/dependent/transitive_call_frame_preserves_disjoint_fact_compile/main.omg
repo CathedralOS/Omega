@@ -3,16 +3,16 @@
 data Main {
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let mut stable: u32 = 5;
-    self.middle();
+    Main::middle(main);
     let mut result: u32 = stable + 1;
 }
 
-machine Main::middle(&mut self) {
-    self.touch();
+machine Main::middle(main: &mut Main) {
+    Main::touch(main);
 }
 
-machine Main::touch(&mut self) {
+machine Main::touch(main: &mut Main) {
     let mut touched: u32 = 1;
 }

@@ -5,16 +5,16 @@ data Main {
     result: u32;
 }
 
-machine Main::main(&mut self) {
-    self.stable = 5;
-    self.middle();
-    self.result = self.stable + 1;
+machine Main::main(main: &mut Main) {
+    main.stable = 5;
+    Main::middle(main);
+    main.result = main.stable + 1;
 }
 
-machine Main::middle(&mut self) {
-    self.touch();
+machine Main::middle(main: &mut Main) {
+    Main::touch(main);
 }
 
-machine Main::touch(&mut self) {
-    self.stable = 1;
+machine Main::touch(main: &mut Main) {
+    main.stable = 1;
 }

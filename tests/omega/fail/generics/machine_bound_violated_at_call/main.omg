@@ -11,9 +11,9 @@ data Main {
     h: Heavy;
 }
 
-machine Main::copy_it<T [copy]>(&self, x: &T) {
+machine Main::copy_it<T [copy]>(main: &Main, x: &T) {
 }
 
-machine Main::main(&mut self) {
-    self.copy_it(&self.h);
+machine Main::main(main: &mut Main) {
+    Main::copy_it(main, &main.h);
 }

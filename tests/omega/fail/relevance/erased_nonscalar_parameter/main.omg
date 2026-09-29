@@ -13,10 +13,10 @@ data Proof {
 data Main {
 }
 
-machine Main::main(&mut self) {
-    self.record(Proof { tag: 1, table: [7, 8] }, 4);
+machine Main::main(main: &mut Main) {
+    Main::record(main, Proof { tag: 1, table: [7, 8] }, 4);
 }
 
-machine Main::record(&mut self, w [erased]: Proof, y: i32) {
+machine Main::record(main: &mut Main, w [erased]: Proof, y: i32) {
     let mut value: i32 = y;
 }

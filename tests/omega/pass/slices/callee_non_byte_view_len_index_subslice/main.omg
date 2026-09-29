@@ -13,25 +13,25 @@ data Main {
     entries: [Entry; 4];
 }
 
-machine Main::main(&mut self) -> i32 {
-    self.entries[1].value = 9;
+machine Main::main(main: &mut Main) -> i32 {
+    main.entries[1].value = 9;
 
-    let view: &[Entry] = self.entries.as_slice();
+    let view: &[Entry] = main.entries.as_slice();
     let index: u64 = 1;
 
     transition {
-        _ -> self.inspect(view, index)
+        _ -> Main::inspect(main, view, index)
     }
 }
 
-machine Main::inspect(&mut self, sub: &[Entry], index: u64) -> i32 {
+machine Main::inspect(main: &mut Main, sub: &[Entry], index: u64) -> i32 {
     transition sub.len >= 1 && index < sub.len {
-        true -> self.confirm(sub[1..], sub[index].value)
+        true -> Main::confirm(main, sub[1..], sub[index].value)
         false -> 0
     }
 }
 
-machine Main::confirm(&mut self, tail: &[Entry], chosen: i32) -> i32 {
+machine Main::confirm(main: &mut Main, tail: &[Entry], chosen: i32) -> i32 {
     transition tail.len >= 1 {
         true -> emit(tail[0].value)
         false -> chosen

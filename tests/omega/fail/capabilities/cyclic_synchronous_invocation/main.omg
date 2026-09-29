@@ -17,18 +17,18 @@ data AlphaProvider {
     beta: Binding<Beta>;
 }
 
-machine AlphaProvider::alpha_checked(&mut self)
+machine AlphaProvider::alpha_checked(alpha_provider: &mut AlphaProvider)
 satisfies Alpha::alpha
 {
-    self.beta.beta();
+    alpha_provider.beta.beta();
 }
 
 data BetaProvider {
     alpha: Binding<Alpha>;
 }
 
-machine BetaProvider::beta_checked(&mut self)
+machine BetaProvider::beta_checked(beta_provider: &mut BetaProvider)
 satisfies Beta::beta
 {
-    self.alpha.alpha();
+    beta_provider.alpha.alpha();
 }
