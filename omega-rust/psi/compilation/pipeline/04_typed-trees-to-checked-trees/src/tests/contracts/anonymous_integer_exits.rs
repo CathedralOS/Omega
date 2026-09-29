@@ -58,6 +58,9 @@ fn guarded_return_values_land_at_the_declared_destination() {
 
 #[test]
 fn anonymous_operator_meaning_requires_intact_selection_custody() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+    };
     let mut program = parse_typed_trees("machine value() -> u8 { 3 + 4 }");
     let root = program
         .expression_table
@@ -70,7 +73,10 @@ fn anonymous_operator_meaning_requires_intact_selection_custody() {
     program.retain_authored_declaration_selections(Default::default());
     assert!(!validation::has_anonymous_operator_meaning(&program, root));
 
-    let program = parse_typed_trees(
+    // Wholly anonymous arithmetic keeps its exact rational meaning beside a
+    // visible primitive overload: visible declarations do not land anonymous
+    // operands (numeric_values.md, "Literal landing and destinations").
+    let mut program = parse_typed_trees(
         r#"
         boundary operator + u8::custom(left: u8, right: u8) -> u8;
         machine value() -> u8 { 3 + 4 }
@@ -83,6 +89,21 @@ fn anonymous_operator_meaning_requires_intact_selection_custody() {
             matches!(node, typed_trees::expression::ExpressionNode::Binary(_)).then_some(handle)
         })
         .unwrap();
+    assert!(validation::has_anonymous_operator_meaning(&program, root));
+    // A retained selection of that declaration at this occurrence still
+    // withdraws builtin meaning.
+    let custom = program.operators()[0].symbol;
+    let occurrence = program
+        .record_resolved_authored_declaration_selection_once(
+            program.expression_table.source_span(root),
+            AuthoredDeclarationSelectionExposure::PrivateImplementation,
+            AuthoredDeclarationSelectionKind::Operator,
+            custom,
+        )
+        .expect("retained declaration selection");
+    program
+        .expression_table
+        .attach_authored_selection_occurrences(root, [occurrence]);
     assert!(!validation::has_anonymous_operator_meaning(&program, root));
 }
 
