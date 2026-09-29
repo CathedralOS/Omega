@@ -16,8 +16,8 @@ data NextToken {
 
 // Self-subject scalar payload arm: the receiver sum binds `start`/`end` and
 // forwards both through a named state.
-machine NextToken::span(&self) -> u64 {
-    transition self {
+machine NextToken::span(next_token: &NextToken) -> u64 {
+    transition next_token {
         NextToken::Token { start, end } -> at(start, end)
         _ -> (0)
     }
@@ -59,7 +59,7 @@ machine Main::main(&mut self) reaches Console {
     }
     state attached(&mut self) {
         let token: NextToken = NextToken::Token { start: 5, end: 7 };
-        transition token.span() == 7 {
+        transition NextToken::span(&token) == 7 {
             true -> read_line()
             _ -> refused()
         }

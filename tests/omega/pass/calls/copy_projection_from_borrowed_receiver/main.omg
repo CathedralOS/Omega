@@ -1,5 +1,4 @@
-// Copy-projection call argument: `self.target.initialize(
-// self.holder.source.id, ...)` reads a `[copy]` record out of a nested field
+// Copy-projection call argument: `Target::initialize(&mut self.target, // self.holder.source.id, ...)` reads a `[copy]` record out of a nested field
 // of a borrowed receiver and passes it to a by-value parameter. The callee
 // must observe the copied value and the caller's source must be left
 // unchanged — a copy projection duplicates the place, it does not move it.
@@ -11,8 +10,8 @@ data Src { id: SourceId; length: u32 in Trapping; }
 data Holder { source: Src; }
 data Target { seen: u32 in Trapping; }
 
-machine Target::initialize(&mut self, id: SourceId, length: u64 in Trapping) {
-    self.seen = id.value;
+machine Target::initialize(target: &mut Target, id: SourceId, length: u64 in Trapping) {
+    target.seen = id.value;
 }
 
 data Main { console: Binding<Console>; holder: Holder; target: Target; }
@@ -21,8 +20,7 @@ machine Main::main(&mut self) reaches Console {
     state parse(&mut self) {
         self.holder.source.id.value = 7;
         self.holder.source.length = 3;
-        self.target.initialize(
-            self.holder.source.id,
+        Target::initialize(&mut self.target, self.holder.source.id,
             self.holder.source.length as u64 in Trapping
         );
         transition { _ -> done() }

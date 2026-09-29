@@ -25,9 +25,9 @@ data List {
     enabled: bool;
 }
 
-machine List::probe(&self, i: u64) -> Item requires i <= 3 {
-    transition self.enabled {
-        true -> (Item::clone(&self.items[i]))
+machine List::probe(list: &List, i: u64) -> Item requires i <= 3 {
+    transition list.enabled {
+        true -> (Item::clone(&list.items[i]))
         _ -> (Item { value: 0 })
     }
 }
@@ -38,7 +38,7 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     let l: List = List { enabled: true };
-    let cloned: Item = l.probe(0);
+    let cloned: Item = List::probe(&l, 0);
 
     transition cloned.value == 70 {
         true -> done()

@@ -9,15 +9,15 @@ data Main {
     counter: Counter;
 }
 
-machine Counter::double(&mut self, value: i32 in Wrapping) -> i32 in Wrapping {
-    self.count = self.count + 1;
+machine Counter::double(counter: &mut Counter, value: i32 in Wrapping) -> i32 in Wrapping {
+    counter.count = counter.count + 1;
     value * 2
 }
 
 machine Main::main(&mut self) reaches Console {
     self.base = 10;
     self.counter.count = 0;
-    let result: i32 in Wrapping = self.base + self.counter.double(6) * 3;
+    let result: i32 in Wrapping = self.base + Counter::double(&mut self.counter, 6) * 3;
     transition { _ -> observe(result) }
     state observe(&mut self, result: i32 in Wrapping) {
         transition result == 46 {

@@ -12,7 +12,7 @@ data MarkerRecord [copy] { value: u64; }
 machine Output::make<'region>(input: Input) -> Output<'region> {
     Output { value: ((input.value as u64 in Wrapping) + (20 as u64 in Wrapping)) as u64 }
 }
-machine Output::read_value(&self) -> u64 { self.value }
+machine Output::read_value(output: &Output) -> u64 { output.value }
 machine Envelope::select() -> Marker { Marker::Expected }
 machine Envelope::marker(marker: Marker) -> u64 {
     transition marker {
@@ -20,12 +20,12 @@ machine Envelope::marker(marker: Marker) -> u64 {
         Marker::Unexpected -> (0)
     }
 }
-machine Envelope::read_marker(&self) -> u64 { self.marker }
-machine Envelope::read_observed(&self) -> u64 { self.observed }
+machine Envelope::read_marker(envelope: &Envelope) -> u64 { envelope.marker }
+machine Envelope::read_observed(envelope: &Envelope) -> u64 { envelope.observed }
 machine Envelope::literal(marker_record: MarkerRecord) -> u64 { marker_record.value }
-machine Envelope::read_literal(&self) -> u64 { self.literal_result }
+machine Envelope::read_literal(envelope: &Envelope) -> u64 { envelope.literal_result }
 machine Envelope::wrap<'region>(output: Output<'region>) -> Envelope<'region> {
-    let observed_value: u64 = output.read_value();
+    let observed_value: u64 = Output::read_value(output);
     let selected_marker: Marker = Envelope::select();
     let selected_record: MarkerRecord = MarkerRecord { value: 70 };
     // The moved field must retain the record root and the following call.
@@ -41,11 +41,11 @@ machine Envelope::wrap<'region>(output: Output<'region>) -> Envelope<'region> {
 data Main { console: Binding<Console>; }
 machine Main::main(&mut self) reaches Console {
     let output: Output = Output::make(Input { value: 50 });
-    let result: u64 = output.read_value();
+    let result: u64 = Output::read_value(output);
     let envelope: Envelope = Envelope::wrap(output);
-    let marker: u64 = envelope.read_marker();
-    let observed: u64 = envelope.read_observed();
-    let literal: u64 = envelope.read_literal();
+    let marker: u64 = Envelope::read_marker(envelope);
+    let observed: u64 = Envelope::read_observed(envelope);
+    let literal: u64 = Envelope::read_literal(envelope);
     transition result == 70 && marker == 70 && observed == 70 && literal == 70 {
         true -> passed()
         false -> failed()

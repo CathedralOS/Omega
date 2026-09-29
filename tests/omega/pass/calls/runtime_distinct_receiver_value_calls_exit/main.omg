@@ -9,18 +9,18 @@ use omega::language::core::binding;
 
 data Tally { count: i32 in Wrapping; }
 
-machine Tally::get(&mut self) -> i32 in Wrapping {
-    transition true { true -> done(self.count) }
+machine Tally::get(tally: &mut Tally) -> i32 in Wrapping {
+    transition true { true -> done(tally.count) }
     state done(value: i32 in Wrapping) -> i32 in Wrapping { value }
 }
 
 data Holder { first: Tally; second: Tally; }
 
-machine Holder::run(&mut self) -> i32 in Wrapping {
-    self.first.count = 7;
-    self.second.count = 9;
-    let a: i32 in Wrapping = self.first.get();
-    let b: i32 in Wrapping = self.second.get();
+machine Holder::run(holder: &mut Holder) -> i32 in Wrapping {
+    holder.first.count = 7;
+    holder.second.count = 9;
+    let a: i32 in Wrapping = Tally::get(&mut holder.first);
+    let b: i32 in Wrapping = Tally::get(&mut holder.second);
     transition true { true -> done(a, b) }
     state done(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping { b }
 }
@@ -32,7 +32,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.flag = self.holder.run();
+    self.flag = Holder::run(&mut self.holder);
     transition self.flag == 9 {
         true -> good()
         _ -> bad()
