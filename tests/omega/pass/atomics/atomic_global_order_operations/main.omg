@@ -17,43 +17,40 @@
 // operation data, and the canary pins checked-level admission of exactly the
 // surface that evidence must cover.
 
-data Main {
-    counter: AtomicU32;
-    wide: AtomicU64;
-    flag: AtomicBool;
-}
-
-machine Main::main(&mut self) -> u32 {
-    self.counter.store(10, GlobalOrder);
-    let observed: u32 in Wrapping = self.counter.load(GlobalOrder);
-    let prior: u32 in Wrapping = self.counter.fetch_add(5, ReceivePublish);
-    let displaced: u32 in Wrapping = self.counter.swap(20, GlobalOrder);
-    let cas_prior: u32 in Wrapping = self.counter.compare_exchange(20, 30, GlobalOrder, Receive);
+machine main() -> u32 {
+    let mut counter: AtomicU32;
+    let mut wide: AtomicU64;
+    let mut flag: AtomicBool;
+    counter.store(10, GlobalOrder);
+    let observed: u32 in Wrapping = counter.load(GlobalOrder);
+    let prior: u32 in Wrapping = counter.fetch_add(5, ReceivePublish);
+    let displaced: u32 in Wrapping = counter.swap(20, GlobalOrder);
+    let cas_prior: u32 in Wrapping = counter.compare_exchange(20, 30, GlobalOrder, Receive);
 
     // AtomicU64: the same admitted ordering surface at a second width —
     // GlobalOrder load/store, ReceivePublish fetch and swap, and a
     // GlobalOrder read-only failure beneath GlobalOrder success.
-    self.wide.store(7, GlobalOrder);
-    let wide_observed: u64 in Wrapping = self.wide.load(GlobalOrder);
-    let wide_prior: u64 in Wrapping = self.wide.fetch_sub(3, ReceivePublish);
-    let wide_displaced: u64 in Wrapping = self.wide.swap(20, ReceivePublish);
-    let wide_cas: u64 in Wrapping = self.wide.compare_exchange(20, 30, GlobalOrder, GlobalOrder);
+    wide.store(7, GlobalOrder);
+    let wide_observed: u64 in Wrapping = wide.load(GlobalOrder);
+    let wide_prior: u64 in Wrapping = wide.fetch_sub(3, ReceivePublish);
+    let wide_displaced: u64 in Wrapping = wide.swap(20, ReceivePublish);
+    let wide_cas: u64 in Wrapping = wide.compare_exchange(20, 30, GlobalOrder, GlobalOrder);
 
     // AtomicBool: the non-arithmetic ordering pair — a Publish store observed
     // through a Receive load. Fetch, swap, and compare-exchange arithmetic
     // carriers do not apply to a boolean resident.
-    self.flag.store(true, Publish);
-    let flag_seen: bool = self.flag.load(Receive);
+    flag.store(true, Publish);
+    let flag_seen: bool = flag.load(Receive);
 
     // Remaining legal ordering pairings on the u32 cell: Publish store
     // ordered before a Receive observation, ReceivePublish swap, and
     // compare-exchange success/failure beneath ReceivePublish and NoOrdering.
-    self.counter.store(77, Publish);
-    let received: u32 in Wrapping = self.counter.load(Receive);
-    let republished: u32 in Wrapping = self.counter.swap(55, ReceivePublish);
+    counter.store(77, Publish);
+    let received: u32 in Wrapping = counter.load(Receive);
+    let republished: u32 in Wrapping = counter.swap(55, ReceivePublish);
     let cas_relaxed_failure: u32 in Wrapping =
-        self.counter.compare_exchange(55, 1, ReceivePublish, NoOrdering);
+        counter.compare_exchange(55, 1, ReceivePublish, NoOrdering);
     let cas_relaxed: u32 in Wrapping =
-        self.counter.compare_exchange(1, 2, NoOrdering, NoOrdering);
+        counter.compare_exchange(1, 2, NoOrdering, NoOrdering);
     transition { _ -> ((observed + prior + displaced + cas_prior + received + republished + cas_relaxed_failure + cas_relaxed) as u32) }
 }
