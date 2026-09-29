@@ -222,8 +222,8 @@ pub(super) fn validate(
                 .ok_or(LegalizationError::custody())?;
             let roster = common
                 .iter()
-                .filter(|field| !field.relevance.is_erased())
                 .chain(&case.fields)
+                .filter(|field| !field.relevance.is_erased())
                 .collect::<Vec<_>>();
             if fields.len() != roster.len() {
                 return Err(LegalizationError::custody());

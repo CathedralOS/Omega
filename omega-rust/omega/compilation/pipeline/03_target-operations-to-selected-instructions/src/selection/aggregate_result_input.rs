@@ -158,15 +158,14 @@ pub(super) fn membership_layout(
     let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return None;
     };
+    // Erased payload members hold no storage, so they shape no payload slot.
     let payloads = cases
         .iter()
         .map(|case| {
             case.fields
                 .iter()
+                .filter(|field| !field.relevance.is_erased())
                 .map(|field| {
-                    if field.relevance.is_erased() {
-                        return None;
-                    }
                     crate::structural_inputs::structural_reference_input::field_shape(
                         &field.field_type,
                         &signature.structural_types,
@@ -583,15 +582,15 @@ pub(super) fn fields(
     if cases.iter().filter(|case| case.id == *result_case).count() != 1 {
         return None;
     }
+    // Erased payload members hold no storage: the layout and the roster both
+    // skip them, matching legalization's `sum_type_layout`.
     let payloads = cases
         .iter()
         .map(|case| {
             case.fields
                 .iter()
+                .filter(|field| !field.relevance.is_erased())
                 .map(|field| {
-                    if field.relevance.is_erased() {
-                        return None;
-                    }
                     crate::structural_inputs::structural_reference_input::field_shape(
                         &field.field_type,
                         &signature.structural_types,
@@ -601,15 +600,20 @@ pub(super) fn fields(
                 .collect::<Option<Vec<_>>>()
         })
         .collect::<Option<Vec<_>>>()?;
+    let payload = cases[ordinal]
+        .fields
+        .iter()
+        .filter(|field| !field.relevance.is_erased())
+        .collect::<Vec<_>>();
     if calling_conventions::evaluate_conventional_sum_layout(&common_shapes, &payloads).ok()?
         != *layout
-        || fields.len() != common.len() + cases[ordinal].fields.len()
+        || fields.len() != common.len() + payload.len()
     {
         return None;
     }
     fields
         .iter()
-        .zip(common.iter().copied().chain(&cases[ordinal].fields))
+        .zip(common.iter().copied().chain(payload))
         .zip(
             layout
                 .common_fields

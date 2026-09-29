@@ -112,8 +112,8 @@ pub(crate) fn case_establishment_matches(
             cases.iter().any(|case| {
                 let roster = common
                     .iter()
-                    .filter(|field| !field.relevance.is_erased())
                     .chain(&case.fields)
+                    .filter(|field| !field.relevance.is_erased())
                     .cloned()
                     .collect::<Vec<_>>();
                 case.id == *result_case
