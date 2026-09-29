@@ -1,0 +1,29 @@
+// Run-tier witness — exclusive `&mut`-record loan member access.
+// `let m: &mut Desc = &mut self.desc` then `m.tag = v` writes and `m.tag`
+// reads resolve through the captured established place plus the referee's
+// structural declaration, the mutable sibling of the shared-loan arm.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Desc {
+    tag: u32;
+}
+
+data Main {
+    console: Binding<Console>;
+    desc: Desc;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let m: &mut Desc = &mut self.desc;
+    m.tag = 9;
+    transition m.tag == 9 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

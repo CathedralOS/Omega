@@ -654,7 +654,7 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             _ => {}
         }
     }
-    // A shared record loan's referee is a structural surface no signature,
+    // A record loan's referee is a structural surface no signature,
     // parameter, or operation names: member reads through the loan observe
     // the borrowed record's fields, so its shape must reach the catalog for
     // the member read's namespace resolution to find it.
@@ -679,7 +679,9 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
                 };
                 let TypeReferenceNode::Reference {
                     referee,
-                    access: language_semantics::ReferenceAccess::Shared,
+                    access:
+                        language_semantics::ReferenceAccess::Shared
+                        | language_semantics::ReferenceAccess::Mutable,
                     ..
                 } = program
                     .type_reference_table

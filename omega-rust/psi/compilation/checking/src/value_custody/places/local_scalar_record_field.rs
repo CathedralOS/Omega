@@ -252,8 +252,8 @@ fn local_plain_record(
     {
         return None;
     }
-    // A shared-borrow local presents its referent's record storage: `view.f`
-    // reads field `f` of `T` out of the borrowed place without moving custody.
+    // A borrow local presents its referent's record storage: `view.f` reads
+    // field `f` of `T` out of the borrowed place without moving custody.
     // The returned `type_reference` stays the referent so downstream carriers
     // and structural type identities keep naming the record, not `&T`.
     let carrier = match program
@@ -262,7 +262,9 @@ fn local_plain_record(
     {
         TypeReferenceNode::Reference {
             referee,
-            access: language_semantics::ReferenceAccess::Shared,
+            access:
+                language_semantics::ReferenceAccess::Shared
+                | language_semantics::ReferenceAccess::Mutable,
             ..
         } => *referee,
         _ => local.type_reference,
