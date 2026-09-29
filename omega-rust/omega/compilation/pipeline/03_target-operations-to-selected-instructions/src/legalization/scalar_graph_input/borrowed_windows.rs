@@ -37,7 +37,7 @@ pub(in crate::legalization) struct WindowExtent {
 }
 
 /// Resolve the window `root` + `path` + `field`. The root must be this
-/// function's own mutable-borrowed parameter row, exactly as declared; the
+/// function's own mutable-borrowed entry or block parameter row, exactly as declared; the
 /// leaf must be a non-erased plain structural member of the record the path
 /// reaches, or an element selection beneath it — `field` then names the
 /// array's own declaration in the last record crossed. A reference-bearing
@@ -53,7 +53,15 @@ pub(in crate::legalization) fn extent(
     let root_type = match root {
         abstract_operations::StructuralWindowRoot::BorrowedParameter(root) => {
             if root.access != StructuralAccess::MutableBorrow
-                || !function.structural_parameters.contains(root)
+                || !(function.structural_parameters.contains(root)
+                    || (function
+                        .blocks
+                        .iter()
+                        .any(|block| block.structural_parameters.contains(root))
+                        && abstract_operations::control_flow::address_joins::is_address_join_in(
+                            root,
+                            &plan.structural_types,
+                        )))
                 || !function.entry_claims.is_empty()
             {
                 return Err(invalid());

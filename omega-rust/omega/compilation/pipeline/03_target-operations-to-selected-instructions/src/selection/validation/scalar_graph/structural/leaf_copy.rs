@@ -123,13 +123,16 @@ pub(super) fn reseat(
     };
     let destination_admits = match destination {
         abstract_operations::StructuralWindowRoot::BorrowedParameter(destination) => {
-            source.structural.as_ref().is_some_and(|signature| {
-                destination.access == terminal_psi::StructuralAccess::MutableBorrow
-                    && signature
+            destination.access == terminal_psi::StructuralAccess::MutableBorrow
+                && (source.structural.as_ref().is_some_and(|signature| {
+                    signature
                         .parameters
                         .iter()
                         .any(|parameter| parameter.semantic == *destination)
-            })
+                }) || source
+                    .blocks
+                    .iter()
+                    .any(|block| block.structural_parameters.contains(destination)))
         }
         // An owned completed home's authority is its live transport pointer,
         // resolved against `destination.place` below.

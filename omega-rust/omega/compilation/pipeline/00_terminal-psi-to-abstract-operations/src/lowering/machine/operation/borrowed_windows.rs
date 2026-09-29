@@ -1,7 +1,7 @@
 //! Borrowed-storage restoration windows transported into abstract custody.
 //!
 //! `MoveStructuralField` vacates one declared structural field beneath a
-//! mutable-borrowed machine parameter; `StoreStructuralField` reseats exactly
+//! mutable-borrowed parameter; `StoreStructuralField` reseats exactly
 //! that vacancy with an already-owned subtree of the declared type. The
 //! Terminal verifier already proved the dynamic invariant — the move opens
 //! restoration debt keyed by the hole's canonical field path, no operation,
@@ -141,7 +141,7 @@ fn lower_store(
     })
 }
 
-/// The root a window operation may name: a mutable-borrowed machine parameter
+/// The root a window operation may name: a mutable-borrowed entry or block parameter
 /// (borrow authority, a transferable multiplicity, and no qualifications or
 /// entry claims, resolved through the exact parameter row), or an owned local
 /// home a producer operation completed under the same custody — the exact
@@ -149,7 +149,10 @@ fn lower_store(
 /// `borrowed_field_store_root_type` apply. The abstract operation carries the
 /// authority the verifier admitted rather than a bare place.
 fn borrowed_window_root(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralWindowRoot> {
-    if let Some(parameter) = exact_parameter(machine, place)
+    // A block arrival retains its own declaration and place. Edge verification
+    // transfers the loan; it does not turn that arrival into an ABI parameter.
+    if let Some(parameter) =
+        exact_parameter(machine, place).or_else(|| block_parameter(machine, place).cloned())
         && parameter.access == StructuralAccess::MutableBorrow
         && matches!(
             parameter.multiplicity,
