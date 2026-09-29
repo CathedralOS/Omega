@@ -5,6 +5,52 @@ use super::{
 use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
 use std::collections::{BTreeMap, BTreeSet};
 
+#[test]
+fn multiply_then_add_keeps_selected_format_and_distinct_fused_identity() {
+    use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
+    use symbols::BuiltinFunction;
+    use target_operations::{CompilerBuiltinExecution, IeeeFloatArithmeticOperation};
+
+    for (function, format) in [
+        (BuiltinFunction::FloatMultiplyThenAddF32, Binary32),
+        (BuiltinFunction::FloatMultiplyThenAddF64, Binary64),
+    ] {
+        // The selected builtin carries its format; a proposed signature
+        // cannot retarget it. Signature admission separately rejects that
+        // mismatch, rather than authenticating a same-shaped declaration.
+        for proposed in [None, Some(Binary32), Some(Binary64)] {
+            assert_eq!(
+                super::compiler_builtin_execution(
+                    CompilerIntrinsicExecutionIdentity::BuiltinFunction(function),
+                    proposed,
+                ),
+                Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                    operation: IeeeFloatArithmeticOperation::MultiplyThenAdd,
+                    format,
+                }),
+            );
+        }
+    }
+    for function in [
+        BuiltinFunction::FloatFusedMultiplyAddF32,
+        BuiltinFunction::FloatFusedMultiplyAddF64,
+    ] {
+        assert!(
+            !matches!(
+                super::compiler_builtin_execution(
+                    CompilerIntrinsicExecutionIdentity::BuiltinFunction(function),
+                    Some(Binary32),
+                ),
+                Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                    operation: IeeeFloatArithmeticOperation::MultiplyThenAdd,
+                    ..
+                })
+            ),
+            "a fused requirement cannot select two roundings"
+        );
+    }
+}
+
 #[derive(Clone)]
 struct RetainedPlan {
     plan: ProviderPlan,

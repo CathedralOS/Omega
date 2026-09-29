@@ -7,7 +7,8 @@
 //! unique declaration with exactly the operation's signature at its result
 //! format and no structural, claim or authority rows, the builtin execution
 //! that pairs with this realization, a supporting target, and every argument
-//! source (one or two, by the operation) available in authored order. The projected instruction then carries only the
+//! source available in authored order, with the exact operation arity. The
+//! projected instruction then carries only the
 //! operation, format and SSA operands; nothing else can reach selection.
 
 use super::LegalizationError;
@@ -67,8 +68,7 @@ pub(in crate::legalization) fn validate(
             execution,
             realization,
             result_home,
-            left,
-            right,
+            arguments: target_arguments,
         },
         AbstractOperation::BoundaryCall {
             psi_operation: expected_operation,
@@ -137,11 +137,11 @@ pub(in crate::legalization) fn validate(
         || arguments.len() != realization.operation.operand_count()
         || !arguments
             .iter()
-            .zip(std::iter::once(left).chain(right))
+            .zip(target_arguments)
             .all(|(expected, source)| {
                 source.scalar_type() == operand && exactly_available(expected, source)
             })
-        || arguments.len() != 1 + usize::from(right.is_some())
+        || arguments.len() != target_arguments.len()
     {
         return Err(LegalizationError::custody());
     }

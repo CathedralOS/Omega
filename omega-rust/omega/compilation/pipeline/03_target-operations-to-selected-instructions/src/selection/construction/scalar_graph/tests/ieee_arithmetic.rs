@@ -1,6 +1,6 @@
 //! Selection and independent replay of inline nearest-even float operations.
 //!
-//! Each case computes one operation on one or two constants (IEEE payloads
+//! Each case computes one operation on its ordered constants (IEEE payloads
 //! or integers) and compares the result with the exact nearest-even payload,
 //! whose truncated alternative differs for every rounding operation. The actual selected stream is executed (the arithmetic form by
 //! the host's own round-to-nearest-even operation), and replay rejects a
@@ -22,8 +22,8 @@ use semantic_vocabulary::{
 /// strictly smaller or greater, as `FloatSemantics::minimum`/`maximum` do.
 pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, Negate, SquareRoot,
-        Subtract, TruncateToInteger,
+        Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, MultiplyThenAdd,
+        Negate, SquareRoot, Subtract, TruncateToInteger,
     };
     use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32};
     let left = operands[0];
@@ -53,6 +53,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                     Add => a + b,
                     Subtract => a - b,
                     Multiply => a * b,
+                    MultiplyThenAdd => a * b + f32::from_bits(operands[2] as u32),
                     Divide => a / b,
                     Minimum => {
                         if a < b {
@@ -89,6 +90,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                 Add => a + b,
                 Subtract => a - b,
                 Multiply => a * b,
+                MultiplyThenAdd => a * b + f64::from_bits(operands[2]),
                 Divide => a / b,
                 Minimum => {
                     if a < b {
@@ -126,8 +128,8 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
 /// minimum/maximum case has a NaN first operand, which yields the second.
 fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, Negate, SquareRoot,
-        Subtract, TruncateToInteger,
+        Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, MultiplyThenAdd,
+        Negate, SquareRoot, Subtract, TruncateToInteger,
     };
     use IeeeFloatFormat::{Binary32, Binary64};
     use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32};
@@ -167,6 +169,8 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
         };
     }
     match (form.format, form.operation) {
+        (Binary32, MultiplyThenAdd) => [0x3f80_0001, 0x3f80_0001, 0],
+        (Binary64, MultiplyThenAdd) => [0x3ff0_0000_0000_0001, 0x3ff0_0000_0000_0001, 0],
         // 1 + 3*2^-54 -> 1 + 2^-52
         (Binary64, Add) => [
             0x3ff0_0000_0000_0000,
@@ -241,6 +245,14 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
     }
 }
 
+// Cancellation distinguishes two roundings from FMA's nonzero residual.
+fn multiply_add_addend(form: IeeeFloatArithmeticForm) -> u64 {
+    match form.format {
+        IeeeFloatFormat::Binary32 => 0xbf80_0002,
+        IeeeFloatFormat::Binary64 => 0xbff0_0000_0000_0002,
+    }
+}
+
 fn arithmetic_source(
     target: target::NativeTarget,
     form: IeeeFloatArithmeticForm,
@@ -283,29 +295,46 @@ fn arithmetic_source(
         }];
         row
     };
+    let mut arguments = vec![left_value];
+    if form.operand_count() >= 2 {
+        arguments.push(right_value);
+    }
+    if form.operand_count() == 3 {
+        let addend = row(
+            &block.instructions[1],
+            18,
+            2,
+            scalar,
+            LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(
+                multiply_add_addend(form),
+            ))),
+        );
+        block.instructions.push(addend);
+        arguments.push(ValueId::new(18).unwrap());
+    }
+    let next_node = block.instructions.len() as u32;
     let expected_row = row(
         &block.instructions[1],
         17,
-        2,
+        next_node,
         scalar,
         LegalizedScalarInstructionKind::Constant(IntegerValue::Unsigned(u128::from(expected))),
     );
     let arithmetic = row(
         &compare,
         16,
-        3,
+        next_node + 1,
         scalar,
         LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
             boundary: BoundaryMachineId::new(1).unwrap(),
             operation: form.operation,
             format: form.format,
-            left: left_value,
-            right: (form.operand_count() == 2).then_some(right_value),
+            arguments,
         },
     );
     compare.result.as_mut().unwrap().definition_site = ValueDefinitionSite::Node {
         block: block_id,
-        node: 4,
+        node: next_node + 2,
     };
     compare.kind = if matches!(scalar, ScalarType::IeeeFloat(_)) {
         LegalizedScalarInstructionKind::IeeeFloatCompare {
@@ -350,13 +379,14 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
         };
         for form in IeeeFloatArithmeticForm::ALL {
             let [left, right, expected] = case(form);
-            let operands = &[left, right][..form.operand_count()];
+            let operands = &[left, right, multiply_add_addend(form)][..form.operand_count()];
             assert_eq!(host(form, operands), expected, "{form:?}");
-            let key = if form.operand_count() == 2 {
-                constraints.keys.ieee_float_arithmetic.unwrap()
-            } else {
-                constraints.keys.ieee_float_unary.unwrap()
-            };
+            let key = constraints
+                .keys
+                .for_semantic(
+                    selected_instructions::MachineSemanticKind::NearestIeeeFloatArithmetic(form),
+                )
+                .unwrap();
             let source = arithmetic_source(target, form);
             let selected = build(
                 0,
@@ -419,7 +449,7 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
             // in one field (the other format, the adjacent operations, which
             // include the other domain of a truncation) and one form of the
             // other arity cover every substitution class without replaying
-            // all 59 others on every target.
+            // every other form on every target.
             let ordinal = usize::from(form.ordinal());
             let neighbours = [
                 ordinal ^ 1,
@@ -438,11 +468,13 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
                     assert!(validate(&substituted).is_err(), "{form:?} -> {other:?}");
                 }
             }
-            let mut swapped = selected.clone();
-            swapped.blocks[0].instructions[*position]
-                .operands
-                .swap(0, 1);
-            assert!(validate(&swapped).is_err());
+            for operand in 1..instruction.operands.len() {
+                let mut swapped = selected.clone();
+                swapped.blocks[0].instructions[*position]
+                    .operands
+                    .swap(0, operand);
+                assert!(validate(&swapped).is_err());
+            }
         }
     }
 }

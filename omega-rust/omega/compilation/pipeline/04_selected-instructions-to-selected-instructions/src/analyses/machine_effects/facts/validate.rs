@@ -275,6 +275,7 @@ fn copied_selected_keys(keys: &TargetRegisterEnvironmentConstraintKeys) -> Selec
         bits_to_float64: keys.bits_to_float64,
         ieee_float_arithmetic: keys.ieee_float_arithmetic,
         ieee_float_unary: keys.ieee_float_unary,
+        ieee_float_ternary: keys.ieee_float_ternary,
         add_i64: keys.add_i64,
         subtract_i64: keys.subtract_i64,
         multiply_i64: keys.multiply_i64,

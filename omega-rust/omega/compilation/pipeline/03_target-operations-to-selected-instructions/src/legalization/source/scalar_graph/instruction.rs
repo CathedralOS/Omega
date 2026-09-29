@@ -227,22 +227,15 @@ pub(super) fn project(
             else {
                 return Err(Error::custody());
             };
-            let (left, right) = match arguments.as_slice() {
-                [left] if realization.operation.operand_count() == 1 => (*left, None),
-                [left, right] if realization.operation.operand_count() == 2 => {
-                    (*left, Some(*right))
-                }
-                _ => return Err(Error::custody()),
-            };
-            if row_boundary != boundary {
+            if arguments.len() != realization.operation.operand_count() || row_boundary != boundary
+            {
                 return Err(Error::custody());
             }
             LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
                 boundary: *boundary,
                 operation: realization.operation,
                 format: realization.format,
-                left,
-                right,
+                arguments: arguments.clone(),
             }
         }
         AbstractOperation::BoundaryCall {

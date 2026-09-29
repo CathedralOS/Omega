@@ -4,13 +4,15 @@
 //! and plan-index custody live in `retained`. Neither replaces admission.
 //!
 //! Hosted builtins settle as call-shaped rows. Selected float arithmetic,
-//! minimum, maximum, negation, square root, conversion into a float format
-//! and Exact or Saturating conversion to an integer settle as
+//! minimum, maximum, negation, square root, two-rounding multiply-then-add,
+//! conversion into a float format and Exact or Saturating conversion to an integer settle as
 //! `NearestIeeeFloatArithmetic`, which stage 02 realizes inline as one IEEE
-//! operation: its admission additionally requires the boundary's exact
+//! semantic operation (not necessarily one machine instruction): admission
+//! requires the boundary's exact
 //! signature for that operation and format (`(format, format) -> format`,
 //! `(format) -> format`, `(other) -> format`, `(integer) -> format` or
-//! `(format) -> integer`), so a row selected for another format, carrier or
+//! `(format) -> integer`, or `(format, format, format) -> format`), so a row
+//! selected for another format, carrier or
 //! shape cannot stand in.
 
 mod proposals;
@@ -257,6 +259,14 @@ fn compiler_intrinsic_execution_identity(
                 Arithmetic::Minimum => builtin(symbols::BuiltinFunction::Min),
                 Arithmetic::Maximum => builtin(symbols::BuiltinFunction::Max),
                 Arithmetic::SquareRoot => builtin(symbols::BuiltinFunction::Sqrt),
+                Arithmetic::MultiplyThenAdd => builtin(match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                        symbols::BuiltinFunction::FloatMultiplyThenAddF32
+                    }
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                        symbols::BuiltinFunction::FloatMultiplyThenAddF64
+                    }
+                }),
                 Arithmetic::Negate => {
                     CompilerIntrinsicExecutionIdentity::NamedFloatNegation(float_format)
                 }

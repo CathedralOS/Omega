@@ -902,6 +902,7 @@ pub fn x86_64_register_constraint_catalog(
     for (key, inputs) in [
         (crate::X86_64_IEEE_FLOAT_ARITHMETIC, 2),
         (crate::X86_64_IEEE_FLOAT_UNARY, 1),
+        (crate::X86_64_IEEE_FLOAT_TERNARY, 3),
     ] {
         let mut operands = (0..inputs)
             .map(|index| allocatable(index, RegisterOperandAccess::Use, GPR64))

@@ -54,6 +54,13 @@ pub const AARCH64_IEEE_FLOAT_UNARY: RegisterConstraintKey = RegisterConstraintKe
     variant: 786,
 };
 
+/// Three general-register inputs and one result, with the same floating
+/// controls and scratch-register effects as the unary and binary forms.
+pub const AARCH64_IEEE_FLOAT_TERNARY: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 787,
+};
+
 pub const AARCH64_COPY_BYTES: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 752,
@@ -381,7 +388,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 104] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 105] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -591,4 +598,5 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 104] = 
     AARCH64_ATOMIC_COMPARE_EXCHANGE,
     AARCH64_IEEE_FLOAT_ARITHMETIC,
     AARCH64_IEEE_FLOAT_UNARY,
+    AARCH64_IEEE_FLOAT_TERNARY,
 ];

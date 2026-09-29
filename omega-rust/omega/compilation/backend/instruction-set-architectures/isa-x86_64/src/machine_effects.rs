@@ -336,6 +336,7 @@ fn selected_keys(
         bits_to_float64: Some(crate::X86_64_BITS_TO_FLOAT64),
         ieee_float_arithmetic: Some(crate::X86_64_IEEE_FLOAT_ARITHMETIC),
         ieee_float_unary: Some(crate::X86_64_IEEE_FLOAT_UNARY),
+        ieee_float_ternary: Some(crate::X86_64_IEEE_FLOAT_TERNARY),
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
         multiply_i64: crate::X86_64_MULTIPLY_I64,

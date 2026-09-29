@@ -19,25 +19,23 @@ pub(super) fn validate(
     let LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
         operation: arithmetic,
         format,
-        left,
-        right,
+        arguments: values,
         ..
-    } = operation.kind
+    } = &operation.kind
     else {
         return Err(SelectedInstructionError::custody());
     };
     let form = IeeeFloatArithmeticForm {
-        operation: arithmetic,
-        format,
+        operation: *arithmetic,
+        format: *format,
     };
-    let scalar = arithmetic.result_type(format);
-    let operand = arithmetic.operand_type(format);
-    let values = std::iter::once(left).chain(right).collect::<Vec<_>>();
+    let scalar = arithmetic.result_type(*format);
+    let operand = arithmetic.operand_type(*format);
     if result.scalar_type != scalar || values.len() != form.operand_count() {
         return Err(SelectedInstructionError::custody());
     }
     let mut registers = Vec::with_capacity(values.len() + 1);
-    for value in &values {
+    for value in values {
         let (_, register, _, value_type) = state
             .resolve(*value)
             .ok_or_else(SelectedInstructionError::custody)?;
@@ -47,12 +45,9 @@ pub(super) fn validate(
         registers.push(register);
     }
     let keys = &state.constraints.keys;
-    let key = if form.operand_count() == 2 {
-        keys.ieee_float_arithmetic
-    } else {
-        keys.ieee_float_unary
-    }
-    .ok_or_else(SelectedInstructionError::custody)?;
+    let key = keys
+        .for_semantic(selected_instructions::MachineSemanticKind::NearestIeeeFloatArithmetic(form))
+        .ok_or_else(SelectedInstructionError::custody)?;
     let output = state.result_register(result.value, result.definition_site, scalar)?;
     registers.push(output);
     state.check_instruction(
@@ -61,7 +56,7 @@ pub(super) fn validate(
         &registers,
         &SelectedInstructionProvenance {
             operations: vec![operation.operation],
-            values: values.into_iter().chain([result.value]).collect(),
+            values: values.iter().copied().chain([result.value]).collect(),
             fuel: operation.fuel.clone(),
             ..Default::default()
         },

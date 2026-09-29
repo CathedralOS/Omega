@@ -596,6 +596,26 @@ pub(crate) fn lower_scalar_expression(
         )),
         ExpressionNode::Cast(cast) if !cast.form.is_recast() && cast.semantic_domain.is_empty() => {
             let target_type = program.primitive_type_reference(cast.target_type)?;
+            if matches!(target_type, PrimitiveType::F32 | PrimitiveType::F64)
+                && cast.domain == ArithmeticDomain::Exact
+            {
+                // Arithmetic policy changes later operations, not stored bits.
+                // Explicit same-format erasure therefore retains the ordinary
+                // operand read. Format conversions still need their selected
+                // boundary operation; never reinterpret a different carrier.
+                let (operand, _) = lower_scalar_expression(
+                    program,
+                    operators,
+                    cast.value,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                )?;
+                return (scalar_expression_type(&operand) == Some(target_type))
+                    .then_some((operand, ArithmeticDomain::Exact));
+            }
             if !is_integer(target_type) {
                 return None;
             }

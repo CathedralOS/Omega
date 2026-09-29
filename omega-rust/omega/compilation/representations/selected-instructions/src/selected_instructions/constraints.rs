@@ -57,6 +57,7 @@ pub struct SelectedConstraintKeys {
     /// The same IEEE forms with one general-register input (negation,
     /// square root and conversions) and one result.
     pub ieee_float_unary: Option<RegisterConstraintKey>,
+    pub ieee_float_ternary: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
     pub multiply_i64: RegisterConstraintKey,

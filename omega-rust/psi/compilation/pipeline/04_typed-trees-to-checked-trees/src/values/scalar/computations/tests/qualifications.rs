@@ -4,6 +4,33 @@ use crate::values::scalar::computations::tests::checked_source;
 use crate::values::scalar::semantic_casts;
 
 #[test]
+fn same_format_float_policy_erasure_retains_scalar_payloads() {
+    for carrier in ["f32", "f64"] {
+        for (parameters, operand) in [
+            (format!("value: {carrier} in Saturating"), "value"),
+            ("record: &Record".to_owned(), "record.value"),
+        ] {
+            let checked = checked_source(
+                &format!(
+                    "data Record {{ value: {carrier} in Saturating; }}
+                     machine erase({parameters}) -> {carrier} {{ {operand} as {carrier} }}"
+                ),
+                false,
+            );
+            assert!(
+                !checked
+                    .facts
+                    .values
+                    .scalar_expressions
+                    .expressions
+                    .is_empty(),
+                "{carrier} policy erasure must preserve the scalar payload of {operand}"
+            );
+        }
+    }
+}
+
+#[test]
 fn bare_scalar_tag_erasure_retains_the_authored_cast() {
     for carrier in ["i64", "bool", "f64"] {
         let checked = checked_source(
