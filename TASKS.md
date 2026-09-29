@@ -1657,7 +1657,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
   named operators and compiler-known float realizations under
   [boundary applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
   Token-bearing machines and nongeneric legacy named operators enter the
-  ordinary requirement-call route. At `53c2dd03e0e` plus this change on macOS
+  ordinary requirement-call route. At `3dd73f4494f7` plus codec fixture closure on macOS
   ARM64, `python3 tools/corpus_gate.py --native --filter
   providers/checked_boundary_operator_physical_custody,providers/checked_fixed_operator_dispatch_exit,providers/token_machine_family_override_exit,float/named_provider_negate_is_nan_exit`
   executes the named customer and both controls with exit **70**; the float
@@ -1676,7 +1676,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
     and both diagnostic-only adapter/intrinsic scanners are retired. Missing
     plans retain the checked producer's phase and dependency. The unchanged
     `named_provider_negate_is_nan_exit` customer passes named-call write-frame
-    and result-type planning at `d854042ec3d` plus this change on macOS ARM64.
+    and result-type planning at the revision above on macOS ARM64.
     The four-fixture native command above still executes all three integer
     controls with exit **70**; the float customer now stops at
     `statement sequence: local data: scalar local: pure initializer`
@@ -1693,10 +1693,12 @@ crash and native exit behavior. Use affected check/native corpus slices under
     through selected-plan settlement and physical-child replay. Reuse stage
     00's `boundary_application_settlement.rs`; `ClosedReachApplication`,
     a template alias or equal runtime signatures cannot authenticate the
-    specialization. Re-drive
-    `providers/specialized_mixed_structural_result_operator_hosted_native`:
-    its recorded stop is now native physical replay's exact selected-plan
-    rejoin, not the old zero-row authority review. The native replay owner is
+    specialization. The existing
+    `providers/specialized_mixed_structural_result_operator_hosted_native`
+    control now executes with exit **0** in the 40-fixture provider/float
+    cohort at the revision above; its old selected-plan rejoin stop is closed.
+    The remaining matrix must retain substitution rejection as well as execution.
+    The native replay owner is
     `native-artifact/src/physical/derivation/evidence.rs`. The new
     `boundary_internal_call_evidence` test covers a nongeneric requirement's
     internal physical child, not this whole generic matrix.
