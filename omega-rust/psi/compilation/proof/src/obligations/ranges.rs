@@ -207,9 +207,27 @@ pub(crate) fn integer_binary_range(
                 maximum: left.maximum.min(right.maximum),
             })
         }
+        BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor => {
+            // `x | y` and `x ^ y` set no bit above either operand's widest
+            // set bit: with BOTH operands provably non-negative the result
+            // stays under the all-ones mask at the wider bound's bit width
+            // -- `[0,1] | [0,1]` folds to `[0,1]`, where endpoint addition
+            // would falsely claim `[0,2]`. A possibly-negative operand
+            // (sign bits) stays unfolded.
+            if left.minimum.is_negative() || right.minimum.is_negative() {
+                return None;
+            }
+            let bits = left.maximum.clone().max(right.maximum).bit_length();
+            Some(IntegerRange {
+                minimum: if matches!(operator, BinaryOperator::BitwiseOr) {
+                    left.minimum.max(right.minimum)
+                } else {
+                    BigInt::zero()
+                },
+                maximum: BigInt::from_i64(1).shl_bits(bits).sub(&one),
+            })
+        }
         BinaryOperator::And
-        | BinaryOperator::BitwiseOr
-        | BinaryOperator::BitwiseXor
         | BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual

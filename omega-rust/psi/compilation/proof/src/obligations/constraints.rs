@@ -16,7 +16,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, 
 use typed_trees::machine::Machine;
 use typed_trees::name::Identifier;
 use typed_trees::state::State;
-use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn expression_constraints(
     program: &TypedTrees,
@@ -59,7 +59,29 @@ pub(crate) fn expression_constraints(
 
             ConstraintBuffer::new()
         }
-        ExpressionNode::Cast(cast) => expression_constraints(program, machine, state, cast.value),
+        ExpressionNode::Cast(cast) => {
+            let mut constraints = expression_constraints(program, machine, state, cast.value);
+            // `bool as <integer>` produces exactly 0 or 1: the conversion
+            // itself bounds the result, whatever facts the source carried.
+            if expression_type_reference(program, machine, state, cast.value)
+                .and_then(|source| program.primitive_type_reference(source))
+                == Some(PrimitiveType::Bool)
+                && program
+                    .primitive_type_reference(cast.target_type)
+                    .is_some_and(|primitive| primitive.accepts_integer_literal())
+            {
+                if !has_named_constraint(&constraints, "non_negative") {
+                    constraints.push(ProofConstraint::Named(Identifier::generated_static(
+                        "non_negative",
+                    )));
+                }
+                constraints.push(ProofConstraint::IntegerRange {
+                    minimum: BigInt::zero(),
+                    maximum: BigInt::from_i64(1),
+                });
+            }
+            constraints
+        }
         ExpressionNode::Unary(unary) => {
             expression_constraints(program, machine, state, unary.operand)
         }
