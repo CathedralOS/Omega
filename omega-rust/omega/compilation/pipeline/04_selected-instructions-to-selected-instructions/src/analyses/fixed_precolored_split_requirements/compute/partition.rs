@@ -22,7 +22,6 @@ pub(super) fn register(
     legality: &VirtualRegisterAllocationLegality,
     fixed: &[FixedPrecoloredInterval],
     tied: bool,
-    early_clobber: bool,
     work: &mut Work,
 ) -> Result<FixedPrecoloredRegisterSplitRequirements, FixedPrecoloredSplitRequirementError> {
     work.register(
@@ -37,14 +36,6 @@ pub(super) fn register(
     if tied {
         return Err(
             FixedPrecoloredSplitRequirementError::UnsupportedTiedRegister { function, register },
-        );
-    }
-    if early_clobber {
-        return Err(
-            FixedPrecoloredSplitRequirementError::UnsupportedEarlyClobberDomain {
-                function,
-                register,
-            },
         );
     }
 

@@ -18,10 +18,6 @@ pub enum FixedPrecoloredSplitRequirementError {
         function: usize,
         register: u32,
     },
-    UnsupportedEarlyClobberDomain {
-        function: usize,
-        register: u32,
-    },
     MissingSourceFragment {
         function: usize,
         register: u32,

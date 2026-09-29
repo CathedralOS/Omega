@@ -21,7 +21,7 @@ pub(super) fn reconstruct(
     work: &mut Work,
 ) -> Result<FunctionFixedPrecoloredSplitRequirements, FixedPrecoloredSplitRequirementError> {
     let tied = tied_registers(ranges);
-    let (early, early_uses) = early_clobber_registers(ranges)?;
+    let early_uses = early_clobber_uses(ranges)?;
     work.function(
         ranges.tied_pairs.len(),
         ranges.early_clobbers.len(),
@@ -46,7 +46,6 @@ pub(super) fn reconstruct(
             legality,
             &fixed,
             tied.contains(&range.virtual_register),
-            early.contains(&range.virtual_register),
             work,
         )?);
     }
@@ -97,19 +96,18 @@ fn tied_registers(ranges: &FunctionLiveRanges) -> BTreeSet<VirtualRegisterId> {
     result
 }
 
-fn early_clobber_registers(
+// Mirrors the compute admission: early-clobber participants partition
+// identically because no `early_clobber_points` row enters a source domain;
+// the hazard is enforced on the reanalyzed plan. Only the use count feeds
+// work accounting.
+fn early_clobber_uses(
     ranges: &FunctionLiveRanges,
-) -> Result<(BTreeSet<VirtualRegisterId>, usize), FixedPrecoloredSplitRequirementError> {
-    let mut result = BTreeSet::new();
+) -> Result<usize, FixedPrecoloredSplitRequirementError> {
     let mut use_count = 0usize;
     for row in &ranges.early_clobbers {
-        result.insert(row.def_virtual_register);
-        for used in &row.uses {
-            result.insert(used.virtual_register);
-            use_count = use_count
-                .checked_add(1)
-                .ok_or(FixedPrecoloredSplitRequirementError::WorkOverflow)?;
-        }
+        use_count = use_count
+            .checked_add(row.uses.len())
+            .ok_or(FixedPrecoloredSplitRequirementError::WorkOverflow)?;
     }
-    Ok((result, use_count))
+    Ok(use_count)
 }

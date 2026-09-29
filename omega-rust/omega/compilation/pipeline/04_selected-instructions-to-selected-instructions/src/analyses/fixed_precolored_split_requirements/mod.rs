@@ -7,6 +7,8 @@
 mod compute;
 mod error;
 mod replay;
+#[cfg(test)]
+mod tests;
 mod validation;
 
 pub use error::FixedPrecoloredSplitRequirementError;
