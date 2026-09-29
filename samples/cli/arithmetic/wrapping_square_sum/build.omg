@@ -5,10 +5,10 @@
 
 machine build(builder: &mut Build) {
     builder.application("wrapping_square_sum");
-    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
-    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_arm64::ProgramEntry, main);
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
     // The staged Psi-phase promotion records cite this subject's benchmark
     // rows as measurement evidence; enabling the complete six-rule selection
     // here lets each rule's `disabled` row measure its marginal cost.
