@@ -66,303 +66,303 @@ pub machine Lexer::reject(
 // Decode one Unicode scalar at an exact byte coordinate. The source buffer is
 // not assumed valid before this operation; overlong forms, surrogates, and
 // values beyond U+10FFFF all fail.
-machine Lexer::decode_at(&mut self, index: u64 in Trapping) {
-    self.decode_valid = false;
-    self.scalar = 0;
-    self.scalar_width = 0;
-    transition index < self.source.length {
-        true -> first(index)
+machine Lexer::decode_at(lexer: &mut Lexer, index: u64 in Trapping) {
+    lexer.decode_valid = false;
+    lexer.scalar = 0;
+    lexer.scalar_width = 0;
+    transition index < lexer.source.length {
+        true -> first(lexer, index)
         _ -> done()
     }
 
-    state first(&mut self, index: u64 in Trapping) {
-        let source_byte: u8 = self.source.byte_or_nul(index);
-        self.byte0 = source_byte as u32 in Trapping;
-        transition self.byte0 < 128 {
-            true -> ascii()
-            _ -> two_lead(index)
+    state first(lexer: &mut Lexer, index: u64 in Trapping) {
+        let source_byte: u8 = lexer.source.byte_or_nul(index);
+        lexer.byte0 = source_byte as u32 in Trapping;
+        transition lexer.byte0 < 128 {
+            true -> ascii(lexer)
+            _ -> two_lead(lexer, index)
         }
     }
 
-    state ascii(&mut self) {
-        self.scalar = self.byte0;
-        self.scalar_width = 1;
-        self.decode_valid = true;
+    state ascii(lexer: &mut Lexer) {
+        lexer.scalar = lexer.byte0;
+        lexer.scalar_width = 1;
+        lexer.decode_valid = true;
     }
 
-    state two_lead(&mut self, index: u64 in Trapping) {
-        transition self.byte0 >= 194 && self.byte0 <= 223 {
-            true -> two_bound(index)
-            _ -> three_lead(index)
+    state two_lead(lexer: &mut Lexer, index: u64 in Trapping) {
+        transition lexer.byte0 >= 194 && lexer.byte0 <= 223 {
+            true -> two_bound(lexer, index)
+            _ -> three_lead(lexer, index)
         }
     }
 
-    state two_bound(&mut self, index: u64 in Trapping) {
-        self.index1 = index + 1;
-        transition self.index1 < self.source.length {
-            true -> two_tail()
+    state two_bound(lexer: &mut Lexer, index: u64 in Trapping) {
+        lexer.index1 = index + 1;
+        transition lexer.index1 < lexer.source.length {
+            true -> two_tail(lexer)
             _ -> done()
         }
     }
 
-    state two_tail(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.index1);
-        self.byte1 = source_byte as u32 in Trapping;
-        transition self.byte1 >= 128 && self.byte1 <= 191 {
-            true -> two_value()
+    state two_tail(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.index1);
+        lexer.byte1 = source_byte as u32 in Trapping;
+        transition lexer.byte1 >= 128 && lexer.byte1 <= 191 {
+            true -> two_value(lexer)
             _ -> done()
         }
     }
 
-    state two_value(&mut self) {
-        self.scalar = (self.byte0 - 192) * 64 + (self.byte1 - 128);
-        self.scalar_width = 2;
-        self.decode_valid = true;
+    state two_value(lexer: &mut Lexer) {
+        lexer.scalar = (lexer.byte0 - 192) * 64 + (lexer.byte1 - 128);
+        lexer.scalar_width = 2;
+        lexer.decode_valid = true;
     }
 
-    state three_lead(&mut self, index: u64 in Trapping) {
-        transition self.byte0 >= 224 && self.byte0 <= 239 {
-            true -> three_bound(index)
-            _ -> four_lead(index)
+    state three_lead(lexer: &mut Lexer, index: u64 in Trapping) {
+        transition lexer.byte0 >= 224 && lexer.byte0 <= 239 {
+            true -> three_bound(lexer, index)
+            _ -> four_lead(lexer, index)
         }
     }
 
-    state three_bound(&mut self, index: u64 in Trapping) {
-        self.index1 = index + 1;
-        self.index2 = index + 2;
-        transition self.index2 < self.source.length {
-            true -> three_bytes()
+    state three_bound(lexer: &mut Lexer, index: u64 in Trapping) {
+        lexer.index1 = index + 1;
+        lexer.index2 = index + 2;
+        transition lexer.index2 < lexer.source.length {
+            true -> three_bytes(lexer)
             _ -> done()
         }
     }
 
-    state three_bytes(&mut self) {
-        let first_tail: u8 = self.source.byte_or_nul(self.index1);
-        let second_tail: u8 = self.source.byte_or_nul(self.index2);
-        self.byte1 = first_tail as u32 in Trapping;
-        self.byte2 = second_tail as u32 in Trapping;
-        transition self.byte2 >= 128 && self.byte2 <= 191 {
-            true -> three_second()
+    state three_bytes(lexer: &mut Lexer) {
+        let first_tail: u8 = lexer.source.byte_or_nul(lexer.index1);
+        let second_tail: u8 = lexer.source.byte_or_nul(lexer.index2);
+        lexer.byte1 = first_tail as u32 in Trapping;
+        lexer.byte2 = second_tail as u32 in Trapping;
+        transition lexer.byte2 >= 128 && lexer.byte2 <= 191 {
+            true -> three_second(lexer)
             _ -> done()
         }
     }
 
-    state three_second(&mut self) {
-        transition self.byte0 == 224 {
-            true -> three_e0()
-            _ -> three_ed_check()
+    state three_second(lexer: &mut Lexer) {
+        transition lexer.byte0 == 224 {
+            true -> three_e0(lexer)
+            _ -> three_ed_check(lexer)
         }
     }
 
-    state three_e0(&mut self) {
-        transition self.byte1 >= 160 && self.byte1 <= 191 {
-            true -> three_value()
+    state three_e0(lexer: &mut Lexer) {
+        transition lexer.byte1 >= 160 && lexer.byte1 <= 191 {
+            true -> three_value(lexer)
             _ -> done()
         }
     }
 
-    state three_ed_check(&mut self) {
-        transition self.byte0 == 237 {
-            true -> three_ed()
-            _ -> three_regular()
+    state three_ed_check(lexer: &mut Lexer) {
+        transition lexer.byte0 == 237 {
+            true -> three_ed(lexer)
+            _ -> three_regular(lexer)
         }
     }
 
-    state three_ed(&mut self) {
-        transition self.byte1 >= 128 && self.byte1 <= 159 {
-            true -> three_value()
+    state three_ed(lexer: &mut Lexer) {
+        transition lexer.byte1 >= 128 && lexer.byte1 <= 159 {
+            true -> three_value(lexer)
             _ -> done()
         }
     }
 
-    state three_regular(&mut self) {
-        transition self.byte1 >= 128 && self.byte1 <= 191 {
-            true -> three_value()
+    state three_regular(lexer: &mut Lexer) {
+        transition lexer.byte1 >= 128 && lexer.byte1 <= 191 {
+            true -> three_value(lexer)
             _ -> done()
         }
     }
 
-    state three_value(&mut self) {
-        self.scalar = (self.byte0 - 224) * 4096
-            + (self.byte1 - 128) * 64
-            + (self.byte2 - 128);
-        self.scalar_width = 3;
-        self.decode_valid = true;
+    state three_value(lexer: &mut Lexer) {
+        lexer.scalar = (lexer.byte0 - 224) * 4096
+            + (lexer.byte1 - 128) * 64
+            + (lexer.byte2 - 128);
+        lexer.scalar_width = 3;
+        lexer.decode_valid = true;
     }
 
-    state four_lead(&mut self, index: u64 in Trapping) {
-        transition self.byte0 >= 240 && self.byte0 <= 244 {
-            true -> four_bound(index)
+    state four_lead(lexer: &mut Lexer, index: u64 in Trapping) {
+        transition lexer.byte0 >= 240 && lexer.byte0 <= 244 {
+            true -> four_bound(lexer, index)
             _ -> done()
         }
     }
 
-    state four_bound(&mut self, index: u64 in Trapping) {
-        self.index1 = index + 1;
-        self.index2 = index + 2;
-        self.index3 = index + 3;
-        transition self.index3 < self.source.length {
-            true -> four_bytes()
+    state four_bound(lexer: &mut Lexer, index: u64 in Trapping) {
+        lexer.index1 = index + 1;
+        lexer.index2 = index + 2;
+        lexer.index3 = index + 3;
+        transition lexer.index3 < lexer.source.length {
+            true -> four_bytes(lexer)
             _ -> done()
         }
     }
 
-    state four_bytes(&mut self) {
-        let first_tail: u8 = self.source.byte_or_nul(self.index1);
-        let second_tail: u8 = self.source.byte_or_nul(self.index2);
-        let third_tail: u8 = self.source.byte_or_nul(self.index3);
-        self.byte1 = first_tail as u32 in Trapping;
-        self.byte2 = second_tail as u32 in Trapping;
-        self.byte3 = third_tail as u32 in Trapping;
-        transition self.byte2 >= 128 && self.byte2 <= 191
-            && self.byte3 >= 128 && self.byte3 <= 191 {
-            true -> four_second()
+    state four_bytes(lexer: &mut Lexer) {
+        let first_tail: u8 = lexer.source.byte_or_nul(lexer.index1);
+        let second_tail: u8 = lexer.source.byte_or_nul(lexer.index2);
+        let third_tail: u8 = lexer.source.byte_or_nul(lexer.index3);
+        lexer.byte1 = first_tail as u32 in Trapping;
+        lexer.byte2 = second_tail as u32 in Trapping;
+        lexer.byte3 = third_tail as u32 in Trapping;
+        transition lexer.byte2 >= 128 && lexer.byte2 <= 191
+            && lexer.byte3 >= 128 && lexer.byte3 <= 191 {
+            true -> four_second(lexer)
             _ -> done()
         }
     }
 
-    state four_second(&mut self) {
-        transition self.byte0 == 240 {
-            true -> four_f0()
-            _ -> four_f4_check()
+    state four_second(lexer: &mut Lexer) {
+        transition lexer.byte0 == 240 {
+            true -> four_f0(lexer)
+            _ -> four_f4_check(lexer)
         }
     }
 
-    state four_f0(&mut self) {
-        transition self.byte1 >= 144 && self.byte1 <= 191 {
-            true -> four_value()
+    state four_f0(lexer: &mut Lexer) {
+        transition lexer.byte1 >= 144 && lexer.byte1 <= 191 {
+            true -> four_value(lexer)
             _ -> done()
         }
     }
 
-    state four_f4_check(&mut self) {
-        transition self.byte0 == 244 {
-            true -> four_f4()
-            _ -> four_regular()
+    state four_f4_check(lexer: &mut Lexer) {
+        transition lexer.byte0 == 244 {
+            true -> four_f4(lexer)
+            _ -> four_regular(lexer)
         }
     }
 
-    state four_f4(&mut self) {
-        transition self.byte1 >= 128 && self.byte1 <= 143 {
-            true -> four_value()
+    state four_f4(lexer: &mut Lexer) {
+        transition lexer.byte1 >= 128 && lexer.byte1 <= 143 {
+            true -> four_value(lexer)
             _ -> done()
         }
     }
 
-    state four_regular(&mut self) {
-        transition self.byte1 >= 128 && self.byte1 <= 191 {
-            true -> four_value()
+    state four_regular(lexer: &mut Lexer) {
+        transition lexer.byte1 >= 128 && lexer.byte1 <= 191 {
+            true -> four_value(lexer)
             _ -> done()
         }
     }
 
-    state four_value(&mut self) {
-        self.scalar = (self.byte0 - 240) * 262144
-            + (self.byte1 - 128) * 4096
-            + (self.byte2 - 128) * 64
-            + (self.byte3 - 128);
-        self.scalar_width = 4;
-        self.decode_valid = true;
+    state four_value(lexer: &mut Lexer) {
+        lexer.scalar = (lexer.byte0 - 240) * 262144
+            + (lexer.byte1 - 128) * 4096
+            + (lexer.byte2 - 128) * 64
+            + (lexer.byte3 - 128);
+        lexer.scalar_width = 4;
+        lexer.decode_valid = true;
     }
 
     state done() {}
 }
 
-machine Lexer::is_whitespace(&mut self, scalar: u32 in Trapping) {
-    self.predicate_result = false;
+machine Lexer::is_whitespace(lexer: &mut Lexer, scalar: u32 in Trapping) {
+    lexer.predicate_result = false;
     transition scalar {
-        9 -> yes()
-        10 -> yes()
-        13 -> yes()
-        32 -> yes()
-        _ -> no()
+        9 -> yes(lexer)
+        10 -> yes(lexer)
+        13 -> yes(lexer)
+        32 -> yes(lexer)
+        _ -> no(lexer)
     }
-    state yes(&mut self) { self.predicate_result = true; }
-    state no(&mut self) { self.predicate_result = false; }
+    state yes(lexer: &mut Lexer) { lexer.predicate_result = true; }
+    state no(lexer: &mut Lexer) { lexer.predicate_result = false; }
 }
 
-machine Lexer::is_identifier_start(&mut self, scalar: u32 in Trapping) {
-    self.predicate_result = false;
+machine Lexer::is_identifier_start(lexer: &mut Lexer, scalar: u32 in Trapping) {
+    lexer.predicate_result = false;
     transition scalar == 95 {
-        true -> yes()
-        _ -> upper(scalar)
+        true -> yes(lexer)
+        _ -> upper(lexer, scalar)
     }
-    state upper(scalar: u32 in Trapping) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower(scalar) } }
-    state lower(scalar: u32 in Trapping) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> no() } }
-    state yes(&mut self) { self.predicate_result = true; }
-    state no(&mut self) { self.predicate_result = false; }
+    state upper(lexer: &mut Lexer, scalar: u32 in Trapping) { transition scalar >= 65 && scalar <= 90 { true -> yes(lexer) _ -> lower(lexer, scalar) } }
+    state lower(lexer: &mut Lexer, scalar: u32 in Trapping) { transition scalar >= 97 && scalar <= 122 { true -> yes(lexer) _ -> no(lexer) } }
+    state yes(lexer: &mut Lexer) { lexer.predicate_result = true; }
+    state no(lexer: &mut Lexer) { lexer.predicate_result = false; }
 }
 
-machine Lexer::is_identifier_continue(&mut self, scalar: u32 in Trapping) {
-    self.predicate_result = false;
+machine Lexer::is_identifier_continue(lexer: &mut Lexer, scalar: u32 in Trapping) {
+    lexer.predicate_result = false;
     transition scalar == 95 {
-        true -> yes()
-        _ -> upper(scalar)
+        true -> yes(lexer)
+        _ -> upper(lexer, scalar)
     }
-    state upper(scalar: u32 in Trapping) { transition scalar >= 65 && scalar <= 90 { true -> yes() _ -> lower(scalar) } }
-    state lower(scalar: u32 in Trapping) { transition scalar >= 97 && scalar <= 122 { true -> yes() _ -> digit(scalar) } }
-    state digit(scalar: u32 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> yes() _ -> no() } }
-    state yes(&mut self) { self.predicate_result = true; }
-    state no(&mut self) { self.predicate_result = false; }
+    state upper(lexer: &mut Lexer, scalar: u32 in Trapping) { transition scalar >= 65 && scalar <= 90 { true -> yes(lexer) _ -> lower(lexer, scalar) } }
+    state lower(lexer: &mut Lexer, scalar: u32 in Trapping) { transition scalar >= 97 && scalar <= 122 { true -> yes(lexer) _ -> digit(lexer, scalar) } }
+    state digit(lexer: &mut Lexer, scalar: u32 in Trapping) { transition scalar >= 48 && scalar <= 57 { true -> yes(lexer) _ -> no(lexer) } }
+    state yes(lexer: &mut Lexer) { lexer.predicate_result = true; }
+    state no(lexer: &mut Lexer) { lexer.predicate_result = false; }
 }
 
-machine Lexer::validate_utf8(&mut self) {
-    self.cursor = 0;
-    transition { _ -> step() }
+machine Lexer::validate_utf8(lexer: &mut Lexer) {
+    lexer.cursor = 0;
+    transition { _ -> step(lexer) }
 
-    state step(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> decode()
+    state step(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> decode(lexer)
             _ -> complete()
         }
     }
 
-    state decode(&mut self) {
-        self.decode_at(self.cursor);
-        transition self.decode_valid {
-            true -> advance()
-            _ -> invalid()
+    state decode(lexer: &mut Lexer) {
+        Lexer::decode_at(lexer, lexer.cursor);
+        transition lexer.decode_valid {
+            true -> advance(lexer)
+            _ -> invalid(lexer)
         }
     }
 
-    state advance(&mut self) {
-        self.cursor = self.cursor + self.scalar_width;
-        transition { _ -> step() }
+    state advance(lexer: &mut Lexer) {
+        lexer.cursor = lexer.cursor + lexer.scalar_width;
+        transition { _ -> step(lexer) }
     }
 
-    state invalid(&mut self) {
-        self.reject(LexDiagnosticCode::InvalidUtf8, self.cursor, self.cursor + 1);
+    state invalid(lexer: &mut Lexer) {
+        lexer.reject(LexDiagnosticCode::InvalidUtf8, lexer.cursor, lexer.cursor + 1);
     }
 
     state complete() {}
 }
 
-machine Lexer::push_token(&mut self, kind: Token) {
-    self.retain_token(kind);
+machine Lexer::push_token(lexer: &mut Lexer, kind: Token) {
+    Lexer::retain_token(lexer, kind);
 }
 
-machine Lexer::retain_token(&mut self, kind: Token) {
-    let retained_decoded_start: u64 in Trapping = self.decoded_start;
+machine Lexer::retain_token(lexer: &mut Lexer, kind: Token) {
+    let retained_decoded_start: u64 in Trapping = lexer.decoded_start;
     let retained_decoded_end: u64 in Trapping =
-        self.output.decoded_length as u64 in Trapping;
+        lexer.output.decoded_length as u64 in Trapping;
     let retained_decoded_length: u64 in Trapping =
         retained_decoded_end - retained_decoded_start;
     let mut token: Token = kind;
-    token.source = self.source.id.value;
-    token.start = self.token_start;
-    token.end = self.token_end;
+    token.source = lexer.source.id.value;
+    token.start = lexer.token_start;
+    token.end = lexer.token_end;
     token.decoded_start = retained_decoded_start;
     token.decoded_length = retained_decoded_length;
-    self.output.push(token);
-    transition self.output.last_retained {
+    lexer.output.push(token);
+    transition lexer.output.last_retained {
         true -> done()
-        _ -> full()
+        _ -> full(lexer)
     }
-    state full(&mut self) {
-        self.reject(
+    state full(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::TokenCapacityExceeded,
-            self.token_start,
-            self.token_end
+            lexer.token_start,
+            lexer.token_end
         );
     }
     state done() {}
@@ -385,975 +385,975 @@ machine Lexer::push_decoded(&mut self, byte: u8) {
 }
 
 machine Lexer::span_equals(
-    &mut self,
+    lexer: &mut Lexer,
     start: u64 in Trapping,
     end: u64 in Trapping,
     candidate: &[u8]
 ) {
-    self.predicate_result = false;
+    lexer.predicate_result = false;
     transition end - start == candidate.len {
-        true -> scan(start, candidate, 0)
-        _ -> no()
+        true -> scan(lexer, start, candidate, 0)
+        _ -> no(lexer)
     }
 
-    state scan(start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
+    state scan(lexer: &mut Lexer, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
         transition index < candidate.len {
-            true -> address(start, candidate, index)
-            _ -> yes()
+            true -> address(lexer, start, candidate, index)
+            _ -> yes(lexer)
         }
     }
 
-    state address(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
-        self.candidate_cursor = start + index;
-        transition { _ -> compare(start, candidate, index) }
+    state address(lexer: &mut Lexer, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
+        lexer.candidate_cursor = start + index;
+        transition { _ -> compare(lexer, start, candidate, index) }
     }
 
-    state compare(&mut self, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
-        let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
+    state compare(lexer: &mut Lexer, start: u64 in Trapping, candidate: &[u8], index: u64 in Trapping) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.candidate_cursor);
         let candidate_byte: u8 = candidate[index];
         transition source_byte == candidate_byte {
-            true -> scan(start, candidate, index + 1)
-            _ -> no()
+            true -> scan(lexer, start, candidate, index + 1)
+            _ -> no(lexer)
         }
     }
 
-    state yes(&mut self) { self.predicate_result = true; }
-    state no(&mut self) { self.predicate_result = false; }
+    state yes(lexer: &mut Lexer) { lexer.predicate_result = true; }
+    state no(lexer: &mut Lexer) { lexer.predicate_result = false; }
 }
 
-machine Lexer::classify_keyword(&mut self) {
-    self.span_equals(self.token_start, self.token_end, "as"); let matched: bool = self.predicate_result;
-    transition matched { true -> as_kw() _ -> calling_convention_kw() }
-    state calling_convention_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "calling_convention"); let matched: bool = self.predicate_result; transition matched { true -> calling_convention_yes() _ -> capability_kw() } }
-    state capability_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "capability"); let matched: bool = self.predicate_result; transition matched { true -> capability_yes() _ -> contains_kw() } }
-    state contains_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "contains"); let matched: bool = self.predicate_result; transition matched { true -> contains_yes() _ -> data_kw() } }
-    state data_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "data"); let matched: bool = self.predicate_result; transition matched { true -> data_yes() _ -> else_kw() } }
-    state else_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "else"); let matched: bool = self.predicate_result; transition matched { true -> else_yes() _ -> false_kw() } }
-    state false_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "false"); let matched: bool = self.predicate_result; transition matched { true -> false_yes() _ -> foreign_kw() } }
-    state foreign_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "foreign"); let matched: bool = self.predicate_result; transition matched { true -> foreign_yes() _ -> host_kw() } }
-    state host_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "host"); let matched: bool = self.predicate_result; transition matched { true -> host_yes() _ -> if_kw() } }
-    state if_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "if"); let matched: bool = self.predicate_result; transition matched { true -> if_yes() _ -> let_kw() } }
-    state let_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "let"); let matched: bool = self.predicate_result; transition matched { true -> let_yes() _ -> library_kw() } }
-    state library_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "library"); let matched: bool = self.predicate_result; transition matched { true -> library_yes() _ -> loop_kw() } }
-    state loop_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "loop"); let matched: bool = self.predicate_result; transition matched { true -> loop_yes() _ -> machine_kw() } }
-    state machine_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "machine"); let matched: bool = self.predicate_result; transition matched { true -> machine_yes() _ -> match_kw() } }
-    state match_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "match"); let matched: bool = self.predicate_result; transition matched { true -> match_yes() _ -> owns_kw() } }
-    state owns_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "owns"); let matched: bool = self.predicate_result; transition matched { true -> owns_yes() _ -> platform_kw() } }
-    state platform_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "platform"); let matched: bool = self.predicate_result; transition matched { true -> platform_yes() _ -> pub_kw() } }
-    state pub_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "pub"); let matched: bool = self.predicate_result; transition matched { true -> pub_yes() _ -> return_kw() } }
-    state return_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "return"); let matched: bool = self.predicate_result; transition matched { true -> return_yes() _ -> self_type_kw() } }
-    state self_type_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "Self"); let matched: bool = self.predicate_result; transition matched { true -> self_type_yes() _ -> self_value_kw() } }
-    state self_value_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "self"); let matched: bool = self.predicate_result; transition matched { true -> self_value_yes() _ -> state_kw() } }
-    state state_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "state"); let matched: bool = self.predicate_result; transition matched { true -> state_yes() _ -> struct_kw() } }
-    state struct_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "struct"); let matched: bool = self.predicate_result; transition matched { true -> struct_yes() _ -> target_kw() } }
-    state target_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "target"); let matched: bool = self.predicate_result; transition matched { true -> target_yes() _ -> transition_kw() } }
-    state transition_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "transition"); let matched: bool = self.predicate_result; transition matched { true -> transition_yes() _ -> true_kw() } }
-    state true_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "true"); let matched: bool = self.predicate_result; transition matched { true -> true_yes() _ -> use_kw() } }
-    state use_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "use"); let matched: bool = self.predicate_result; transition matched { true -> use_yes() _ -> when_kw() } }
-    state when_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "when"); let matched: bool = self.predicate_result; transition matched { true -> when_yes() _ -> while_kw() } }
-    state while_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "while"); let matched: bool = self.predicate_result; transition matched { true -> while_yes() _ -> case_kw() } }
-    state case_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "case"); let matched: bool = self.predicate_result; transition matched { true -> case_yes() _ -> copy_kw() } }
-    state copy_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "copy"); let matched: bool = self.predicate_result; transition matched { true -> copy_yes() _ -> linear_kw() } }
-    state linear_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "linear"); let matched: bool = self.predicate_result; transition matched { true -> linear_yes() _ -> identifier() } }
+machine Lexer::classify_keyword(lexer: &mut Lexer) {
+    Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "as"); let matched: bool = lexer.predicate_result;
+    transition matched { true -> as_kw(lexer) _ -> calling_convention_kw(lexer) }
+    state calling_convention_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "calling_convention"); let matched: bool = lexer.predicate_result; transition matched { true -> calling_convention_yes(lexer) _ -> capability_kw(lexer) } }
+    state capability_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "capability"); let matched: bool = lexer.predicate_result; transition matched { true -> capability_yes(lexer) _ -> contains_kw(lexer) } }
+    state contains_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "contains"); let matched: bool = lexer.predicate_result; transition matched { true -> contains_yes(lexer) _ -> data_kw(lexer) } }
+    state data_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "data"); let matched: bool = lexer.predicate_result; transition matched { true -> data_yes(lexer) _ -> else_kw(lexer) } }
+    state else_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "else"); let matched: bool = lexer.predicate_result; transition matched { true -> else_yes(lexer) _ -> false_kw(lexer) } }
+    state false_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "false"); let matched: bool = lexer.predicate_result; transition matched { true -> false_yes(lexer) _ -> foreign_kw(lexer) } }
+    state foreign_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "foreign"); let matched: bool = lexer.predicate_result; transition matched { true -> foreign_yes(lexer) _ -> host_kw(lexer) } }
+    state host_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "host"); let matched: bool = lexer.predicate_result; transition matched { true -> host_yes(lexer) _ -> if_kw(lexer) } }
+    state if_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "if"); let matched: bool = lexer.predicate_result; transition matched { true -> if_yes(lexer) _ -> let_kw(lexer) } }
+    state let_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "let"); let matched: bool = lexer.predicate_result; transition matched { true -> let_yes(lexer) _ -> library_kw(lexer) } }
+    state library_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "library"); let matched: bool = lexer.predicate_result; transition matched { true -> library_yes(lexer) _ -> loop_kw(lexer) } }
+    state loop_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "loop"); let matched: bool = lexer.predicate_result; transition matched { true -> loop_yes(lexer) _ -> machine_kw(lexer) } }
+    state machine_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "machine"); let matched: bool = lexer.predicate_result; transition matched { true -> machine_yes(lexer) _ -> match_kw(lexer) } }
+    state match_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "match"); let matched: bool = lexer.predicate_result; transition matched { true -> match_yes(lexer) _ -> owns_kw(lexer) } }
+    state owns_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "owns"); let matched: bool = lexer.predicate_result; transition matched { true -> owns_yes(lexer) _ -> platform_kw(lexer) } }
+    state platform_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "platform"); let matched: bool = lexer.predicate_result; transition matched { true -> platform_yes(lexer) _ -> pub_kw(lexer) } }
+    state pub_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "pub"); let matched: bool = lexer.predicate_result; transition matched { true -> pub_yes(lexer) _ -> return_kw(lexer) } }
+    state return_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "return"); let matched: bool = lexer.predicate_result; transition matched { true -> return_yes(lexer) _ -> self_type_kw(lexer) } }
+    state self_type_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "Self"); let matched: bool = lexer.predicate_result; transition matched { true -> self_type_yes(lexer) _ -> self_value_kw(lexer) } }
+    state self_value_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "lexer"); let matched: bool = lexer.predicate_result; transition matched { true -> self_value_yes(lexer) _ -> state_kw(lexer) } }
+    state state_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "state"); let matched: bool = lexer.predicate_result; transition matched { true -> state_yes(lexer) _ -> struct_kw(lexer) } }
+    state struct_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "struct"); let matched: bool = lexer.predicate_result; transition matched { true -> struct_yes(lexer) _ -> target_kw(lexer) } }
+    state target_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "target"); let matched: bool = lexer.predicate_result; transition matched { true -> target_yes(lexer) _ -> transition_kw(lexer) } }
+    state transition_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "transition"); let matched: bool = lexer.predicate_result; transition matched { true -> transition_yes(lexer) _ -> true_kw(lexer) } }
+    state true_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "true"); let matched: bool = lexer.predicate_result; transition matched { true -> true_yes(lexer) _ -> use_kw(lexer) } }
+    state use_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "use"); let matched: bool = lexer.predicate_result; transition matched { true -> use_yes(lexer) _ -> when_kw(lexer) } }
+    state when_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "when"); let matched: bool = lexer.predicate_result; transition matched { true -> when_yes(lexer) _ -> while_kw(lexer) } }
+    state while_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "while"); let matched: bool = lexer.predicate_result; transition matched { true -> while_yes(lexer) _ -> case_kw(lexer) } }
+    state case_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "case"); let matched: bool = lexer.predicate_result; transition matched { true -> case_yes(lexer) _ -> copy_kw(lexer) } }
+    state copy_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "copy"); let matched: bool = lexer.predicate_result; transition matched { true -> copy_yes(lexer) _ -> linear_kw(lexer) } }
+    state linear_kw(lexer: &mut Lexer) { Lexer::span_equals(lexer, lexer.token_start, lexer.token_end, "linear"); let matched: bool = lexer.predicate_result; transition matched { true -> linear_yes(lexer) _ -> identifier(lexer) } }
 
-    state as_kw(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::As }); }
-    state calling_convention_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::CallingConvention }); }
-    state capability_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Capability }); }
-    state contains_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Contains }); }
-    state data_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Data }); }
-    state else_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Else }); }
-    state false_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::False }); }
-    state foreign_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Foreign }); }
-    state host_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Host }); }
-    state if_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::If }); }
-    state let_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Let }); }
-    state library_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Library }); }
-    state loop_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Loop }); }
-    state machine_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Machine }); }
-    state match_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Match }); }
-    state owns_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Owns }); }
-    state platform_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Platform }); }
-    state pub_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Pub }); }
-    state return_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Return }); }
-    state self_type_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::SelfType }); }
-    state self_value_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::SelfValue }); }
-    state state_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::State }); }
-    state struct_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Struct }); }
-    state target_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Target }); }
-    state transition_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Transition }); }
-    state true_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::True }); }
-    state use_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Use }); }
-    state when_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::When }); }
-    state while_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::While }); }
-    state case_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Case }); }
-    state copy_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Copy }); }
-    state linear_yes(&mut self) { self.push_token(Token::Keyword { keyword: KeywordKind::Linear }); }
-    state identifier(&mut self) { self.push_token(Token::Identifier); }
+    state as_kw(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::As }); }
+    state calling_convention_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::CallingConvention }); }
+    state capability_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Capability }); }
+    state contains_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Contains }); }
+    state data_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Data }); }
+    state else_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Else }); }
+    state false_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::False }); }
+    state foreign_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Foreign }); }
+    state host_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Host }); }
+    state if_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::If }); }
+    state let_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Let }); }
+    state library_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Library }); }
+    state loop_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Loop }); }
+    state machine_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Machine }); }
+    state match_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Match }); }
+    state owns_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Owns }); }
+    state platform_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Platform }); }
+    state pub_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Pub }); }
+    state return_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Return }); }
+    state self_type_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::SelfType }); }
+    state self_value_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::SelfValue }); }
+    state state_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::State }); }
+    state struct_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Struct }); }
+    state target_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Target }); }
+    state transition_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Transition }); }
+    state true_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::True }); }
+    state use_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Use }); }
+    state when_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::When }); }
+    state while_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::While }); }
+    state case_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Case }); }
+    state copy_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Copy }); }
+    state linear_yes(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Keyword { keyword: KeywordKind::Linear }); }
+    state identifier(lexer: &mut Lexer) { Lexer::push_token(lexer, Token::Identifier); }
 }
 
-machine Lexer::lex_identifier(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length as u64 in Trapping;
-    self.decode_at(self.cursor);
-    self.cursor = self.cursor + self.scalar_width;
-    transition { _ -> continue_scan() }
+machine Lexer::lex_identifier(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    Lexer::decode_at(lexer, lexer.cursor);
+    lexer.cursor = lexer.cursor + lexer.scalar_width;
+    transition { _ -> continue_scan(lexer) }
 
-    state continue_scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> decode_next()
-            _ -> finish()
+    state continue_scan(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> decode_next(lexer)
+            _ -> finish(lexer)
         }
     }
 
-    state decode_next(&mut self) {
-        self.decode_at(self.cursor);
-        self.is_identifier_continue(self.scalar); let continues: bool = self.predicate_result;
+    state decode_next(lexer: &mut Lexer) {
+        Lexer::decode_at(lexer, lexer.cursor);
+        Lexer::is_identifier_continue(lexer, lexer.scalar); let continues: bool = lexer.predicate_result;
         transition continues {
-            true -> advance()
-            _ -> finish()
+            true -> advance(lexer)
+            _ -> finish(lexer)
         }
     }
 
-    state advance(&mut self) {
-        self.cursor = self.cursor + self.scalar_width;
-        transition { _ -> continue_scan() }
+    state advance(lexer: &mut Lexer) {
+        lexer.cursor = lexer.cursor + lexer.scalar_width;
+        transition { _ -> continue_scan(lexer) }
     }
 
-    state finish(&mut self) {
-        self.token_end = self.cursor;
-        self.classify_keyword();
+    state finish(lexer: &mut Lexer) {
+        lexer.token_end = lexer.cursor;
+        Lexer::classify_keyword(lexer);
     }
 }
 
-machine Lexer::lex_whitespace(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length as u64 in Trapping;
-    transition { _ -> scan() }
+machine Lexer::lex_whitespace(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    transition { _ -> scan(lexer) }
 
-    state scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> decode()
-            _ -> finish()
+    state scan(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> decode(lexer)
+            _ -> finish(lexer)
         }
     }
 
-    state decode(&mut self) {
-        self.decode_at(self.cursor);
-        self.is_whitespace(self.scalar); let whitespace: bool = self.predicate_result;
+    state decode(lexer: &mut Lexer) {
+        Lexer::decode_at(lexer, lexer.cursor);
+        Lexer::is_whitespace(lexer, lexer.scalar); let whitespace: bool = lexer.predicate_result;
         transition whitespace {
-            true -> advance()
-            _ -> finish()
+            true -> advance(lexer)
+            _ -> finish(lexer)
         }
     }
 
-    state advance(&mut self) {
-        self.cursor = self.cursor + self.scalar_width;
-        transition { _ -> scan() }
+    state advance(lexer: &mut Lexer) {
+        lexer.cursor = lexer.cursor + lexer.scalar_width;
+        transition { _ -> scan(lexer) }
     }
 
-    state finish(&mut self) {
-        self.token_end = self.cursor;
-        self.push_token(Token::Whitespace);
+    state finish(lexer: &mut Lexer) {
+        lexer.token_end = lexer.cursor;
+        Lexer::push_token(lexer, Token::Whitespace);
     }
 }
 
-machine Lexer::lex_line_comment(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length as u64 in Trapping;
-    self.cursor = self.cursor + 2;
-    transition { _ -> scan() }
+machine Lexer::lex_line_comment(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.cursor = lexer.cursor + 2;
+    transition { _ -> scan(lexer) }
 
-    state scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> byte()
-            _ -> finish()
+    state scan(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> byte(lexer)
+            _ -> finish(lexer)
         }
     }
 
-    state byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+    state byte(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
         transition source_byte == 10 {
-            true -> consume_newline()
-            _ -> advance()
+            true -> consume_newline(lexer)
+            _ -> advance(lexer)
         }
     }
 
-    state advance(&mut self) {
-        self.cursor = self.cursor + 1;
-        transition { _ -> scan() }
+    state advance(lexer: &mut Lexer) {
+        lexer.cursor = lexer.cursor + 1;
+        transition { _ -> scan(lexer) }
     }
 
-    state consume_newline(&mut self) {
-        self.token_end = self.cursor;
-        self.cursor = self.cursor + 1;
-        self.push_token(Token::LineComment);
+    state consume_newline(lexer: &mut Lexer) {
+        lexer.token_end = lexer.cursor;
+        lexer.cursor = lexer.cursor + 1;
+        Lexer::push_token(lexer, Token::LineComment);
     }
 
-    state finish(&mut self) {
-        self.token_end = self.cursor;
-        self.push_token(Token::LineComment);
+    state finish(lexer: &mut Lexer) {
+        lexer.token_end = lexer.cursor;
+        Lexer::push_token(lexer, Token::LineComment);
     }
 }
 
-machine Lexer::lex_block_comment(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length as u64 in Trapping;
-    self.cursor = self.cursor + 2;
-    self.comment_depth = 1;
-    transition { _ -> scan() }
+machine Lexer::lex_block_comment(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.cursor = lexer.cursor + 2;
+    lexer.comment_depth = 1;
+    transition { _ -> scan(lexer) }
 
-    state scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> pair_bound()
-            _ -> unterminated()
+    state scan(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> pair_bound(lexer)
+            _ -> unterminated(lexer)
         }
     }
 
-    state pair_bound(&mut self) {
-        self.index1 = self.cursor + 1;
-        transition self.index1 < self.source.length {
-            true -> open_check()
-            _ -> advance()
+    state pair_bound(lexer: &mut Lexer) {
+        lexer.index1 = lexer.cursor + 1;
+        transition lexer.index1 < lexer.source.length {
+            true -> open_check(lexer)
+            _ -> advance(lexer)
         }
     }
 
-    state open_check(&mut self) {
-        let first_byte: u8 = self.source.byte_or_nul(self.cursor);
-        let second_byte: u8 = self.source.byte_or_nul(self.index1);
+    state open_check(lexer: &mut Lexer) {
+        let first_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        let second_byte: u8 = lexer.source.byte_or_nul(lexer.index1);
         transition first_byte == 47 && second_byte == 42 {
-            true -> open()
-            _ -> close_check()
+            true -> open(lexer)
+            _ -> close_check(lexer)
         }
     }
 
-    state open(&mut self) {
-        self.comment_depth = self.comment_depth + 1;
-        self.cursor = self.cursor + 2;
-        transition { _ -> scan() }
+    state open(lexer: &mut Lexer) {
+        lexer.comment_depth = lexer.comment_depth + 1;
+        lexer.cursor = lexer.cursor + 2;
+        transition { _ -> scan(lexer) }
     }
 
-    state close_check(&mut self) {
-        let first_byte: u8 = self.source.byte_or_nul(self.cursor);
-        let second_byte: u8 = self.source.byte_or_nul(self.index1);
+    state close_check(lexer: &mut Lexer) {
+        let first_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        let second_byte: u8 = lexer.source.byte_or_nul(lexer.index1);
         transition first_byte == 42 && second_byte == 47 {
-            true -> close()
-            _ -> advance()
+            true -> close(lexer)
+            _ -> advance(lexer)
         }
     }
 
-    state close(&mut self) {
-        self.comment_depth = self.comment_depth - 1;
-        self.cursor = self.cursor + 2;
-        transition self.comment_depth == 0 {
-            true -> finish()
-            _ -> scan()
+    state close(lexer: &mut Lexer) {
+        lexer.comment_depth = lexer.comment_depth - 1;
+        lexer.cursor = lexer.cursor + 2;
+        transition lexer.comment_depth == 0 {
+            true -> finish(lexer)
+            _ -> scan(lexer)
         }
     }
 
-    state advance(&mut self) {
-        self.cursor = self.cursor + 1;
-        transition { _ -> scan() }
+    state advance(lexer: &mut Lexer) {
+        lexer.cursor = lexer.cursor + 1;
+        transition { _ -> scan(lexer) }
     }
 
-    state finish(&mut self) {
-        self.token_end = self.cursor;
-        self.push_token(Token::BlockComment);
+    state finish(lexer: &mut Lexer) {
+        lexer.token_end = lexer.cursor;
+        Lexer::push_token(lexer, Token::BlockComment);
     }
 
-    state unterminated(&mut self) {
-        self.reject(
+    state unterminated(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::UnterminatedBlockComment,
-            self.token_start,
-            self.source.length as u64 in Trapping
+            lexer.token_start,
+            lexer.source.length as u64 in Trapping
         );
     }
 }
 
-machine Lexer::hex_digit_value(&mut self, byte: u32 in Trapping) {
-    self.digit_value = 4294967295;
+machine Lexer::hex_digit_value(lexer: &mut Lexer, byte: u32 in Trapping) {
+    lexer.digit_value = 4294967295;
     transition byte >= 48 && byte <= 57 {
-        true -> decimal(byte)
-        _ -> lower(byte)
+        true -> decimal(lexer, byte)
+        _ -> lower(lexer, byte)
     }
-    state decimal(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 48; }
-    state lower(byte: u32 in Trapping) { transition byte >= 97 && byte <= 102 { true -> lower_yes(byte) _ -> upper(byte) } }
-    state lower_yes(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 87; }
-    state upper(byte: u32 in Trapping) { transition byte >= 65 && byte <= 70 { true -> upper_yes(byte) _ -> done() } }
-    state upper_yes(&mut self, byte: u32 in Trapping) { self.digit_value = byte - 55; }
+    state decimal(lexer: &mut Lexer, byte: u32 in Trapping) { lexer.digit_value = byte - 48; }
+    state lower(lexer: &mut Lexer, byte: u32 in Trapping) { transition byte >= 97 && byte <= 102 { true -> lower_yes(lexer, byte) _ -> upper(lexer, byte) } }
+    state lower_yes(lexer: &mut Lexer, byte: u32 in Trapping) { lexer.digit_value = byte - 87; }
+    state upper(lexer: &mut Lexer, byte: u32 in Trapping) { transition byte >= 65 && byte <= 70 { true -> upper_yes(lexer, byte) _ -> done() } }
+    state upper_yes(lexer: &mut Lexer, byte: u32 in Trapping) { lexer.digit_value = byte - 55; }
     state done() {}
 }
 
-machine Lexer::copy_source_to_decoded(&mut self) {
-    transition { _ -> scan() }
+machine Lexer::copy_source_to_decoded(lexer: &mut Lexer) {
+    transition { _ -> scan(lexer) }
 
-    state scan(&mut self) {
-        transition self.copy_cursor < self.copy_end {
-        true -> copy()
+    state scan(lexer: &mut Lexer) {
+        transition lexer.copy_cursor < lexer.copy_end {
+        true -> copy(lexer)
         _ -> done()
         }
     }
-    state copy(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.copy_cursor);
-        self.push_decoded(source_byte);
-        self.copy_cursor = self.copy_cursor + 1;
-        transition self.output.accepted { true -> scan() _ -> done() }
+    state copy(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.copy_cursor);
+        lexer.push_decoded(source_byte);
+        lexer.copy_cursor = lexer.copy_cursor + 1;
+        transition lexer.output.accepted { true -> scan(lexer) _ -> done() }
     }
     state done() {}
 }
 
-machine Lexer::lex_cooked_string(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length as u64 in Trapping;
-    self.cursor = self.cursor + 1;
-    transition { _ -> scan() }
+machine Lexer::lex_cooked_string(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.cursor = lexer.cursor + 1;
+    transition { _ -> scan(lexer) }
 
-    state scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> decode()
-            _ -> unterminated()
+    state scan(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> decode(lexer)
+            _ -> unterminated(lexer)
         }
     }
 
-    state decode(&mut self) {
-        self.decode_at(self.cursor);
-        transition self.scalar == 34 {
-            true -> finish()
-            _ -> newline_check()
+    state decode(lexer: &mut Lexer) {
+        Lexer::decode_at(lexer, lexer.cursor);
+        transition lexer.scalar == 34 {
+            true -> finish(lexer)
+            _ -> newline_check(lexer)
         }
     }
 
-    state newline_check(&mut self) {
-        transition self.scalar == 10 || self.scalar == 13 {
-            true -> outside_profile_line()
-            _ -> slash()
+    state newline_check(lexer: &mut Lexer) {
+        transition lexer.scalar == 10 || lexer.scalar == 13 {
+            true -> outside_profile_line(lexer)
+            _ -> slash(lexer)
         }
     }
 
-    state slash(&mut self) {
-        transition self.scalar == 92 {
-            true -> escape_begin()
-            _ -> copy_scalar()
+    state slash(lexer: &mut Lexer) {
+        transition lexer.scalar == 92 {
+            true -> escape_begin(lexer)
+            _ -> copy_scalar(lexer)
         }
     }
 
-    state copy_scalar(&mut self) {
-        self.copy_cursor = self.cursor;
-        self.copy_end = self.cursor + self.scalar_width;
-        self.copy_source_to_decoded();
-        self.cursor = self.copy_end;
-        transition self.output.accepted { true -> scan() _ -> done() }
+    state copy_scalar(lexer: &mut Lexer) {
+        lexer.copy_cursor = lexer.cursor;
+        lexer.copy_end = lexer.cursor + lexer.scalar_width;
+        Lexer::copy_source_to_decoded(lexer);
+        lexer.cursor = lexer.copy_end;
+        transition lexer.output.accepted { true -> scan(lexer) _ -> done() }
     }
 
-    state escape_begin(&mut self) {
-        self.escape_start = self.cursor;
-        self.cursor = self.cursor + 1;
-        transition self.cursor < self.source.length {
-            true -> escape_byte()
-            _ -> unterminated_escape()
+    state escape_begin(lexer: &mut Lexer) {
+        lexer.escape_start = lexer.cursor;
+        lexer.cursor = lexer.cursor + 1;
+        transition lexer.cursor < lexer.source.length {
+            true -> escape_byte(lexer)
+            _ -> unterminated_escape(lexer)
         }
     }
 
-    state escape_byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        self.byte0 = source_byte as u32 in Trapping;
-        transition self.byte0 {
-            34 -> escaped_quote()
-            92 -> escaped_slash()
-            110 -> escaped_n()
-            114 -> escaped_r()
-            116 -> escaped_t()
-            48 -> escaped_zero()
-            120 -> hex_begin()
-            117 -> outside_profile_escape()
-            _ -> unsupported_escape()
+    state escape_byte(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        lexer.byte0 = source_byte as u32 in Trapping;
+        transition lexer.byte0 {
+            34 -> escaped_quote(lexer)
+            92 -> escaped_slash(lexer)
+            110 -> escaped_n(lexer)
+            114 -> escaped_r(lexer)
+            116 -> escaped_t(lexer)
+            48 -> escaped_zero(lexer)
+            120 -> hex_begin(lexer)
+            117 -> outside_profile_escape(lexer)
+            _ -> unsupported_escape(lexer)
         }
     }
 
-    state escaped_quote(&mut self) { self.push_decoded(34); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
-    state escaped_slash(&mut self) { self.push_decoded(92); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
-    state escaped_n(&mut self) { self.push_decoded(10); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
-    state escaped_r(&mut self) { self.push_decoded(13); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
-    state escaped_t(&mut self) { self.push_decoded(9); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
-    state escaped_zero(&mut self) { self.push_decoded(0); self.cursor = self.cursor + 1; transition self.output.accepted { true -> scan() _ -> done() } }
+    state escaped_quote(lexer: &mut Lexer) { lexer.push_decoded(34); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer) _ -> done() } }
+    state escaped_slash(lexer: &mut Lexer) { lexer.push_decoded(92); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer) _ -> done() } }
+    state escaped_n(lexer: &mut Lexer) { lexer.push_decoded(10); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer) _ -> done() } }
+    state escaped_r(lexer: &mut Lexer) { lexer.push_decoded(13); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer) _ -> done() } }
+    state escaped_t(lexer: &mut Lexer) { lexer.push_decoded(9); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer) _ -> done() } }
+    state escaped_zero(lexer: &mut Lexer) { lexer.push_decoded(0); lexer.cursor = lexer.cursor + 1; transition lexer.output.accepted { true -> scan(lexer) _ -> done() } }
 
-    state hex_begin(&mut self) {
-        self.index1 = self.cursor + 1;
-        self.index2 = self.cursor + 2;
-        transition self.index2 < self.source.length {
-            true -> hex_first()
-            _ -> hex_unterminated()
+    state hex_begin(lexer: &mut Lexer) {
+        lexer.index1 = lexer.cursor + 1;
+        lexer.index2 = lexer.cursor + 2;
+        transition lexer.index2 < lexer.source.length {
+            true -> hex_first(lexer)
+            _ -> hex_unterminated(lexer)
         }
     }
 
-    state hex_first(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.index1);
-        self.hex_digit_value(source_byte as u32 in Trapping);
-        self.byte1 = self.digit_value;
-        transition self.byte1 < 16 {
-            true -> hex_second()
-            _ -> hex_invalid_first()
+    state hex_first(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.index1);
+        Lexer::hex_digit_value(lexer, source_byte as u32 in Trapping);
+        lexer.byte1 = lexer.digit_value;
+        transition lexer.byte1 < 16 {
+            true -> hex_second(lexer)
+            _ -> hex_invalid_first(lexer)
         }
     }
 
-    state hex_second(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.index2);
-        self.hex_digit_value(source_byte as u32 in Trapping);
-        self.byte2 = self.digit_value;
-        transition self.byte2 < 16 {
-            true -> hex_emit()
-            _ -> hex_invalid_second()
+    state hex_second(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.index2);
+        Lexer::hex_digit_value(lexer, source_byte as u32 in Trapping);
+        lexer.byte2 = lexer.digit_value;
+        transition lexer.byte2 < 16 {
+            true -> hex_emit(lexer)
+            _ -> hex_invalid_second(lexer)
         }
     }
 
-    state hex_emit(&mut self) {
-        self.push_decoded((self.byte1 * 16 + self.byte2) as u8);
-        self.cursor = self.cursor + 3;
-        transition self.output.accepted { true -> scan() _ -> done() }
+    state hex_emit(lexer: &mut Lexer) {
+        lexer.push_decoded((lexer.byte1 * 16 + lexer.byte2) as u8);
+        lexer.cursor = lexer.cursor + 3;
+        transition lexer.output.accepted { true -> scan(lexer) _ -> done() }
     }
 
-    state finish(&mut self) {
-        self.cursor = self.cursor + 1;
-        self.token_end = self.cursor;
-        self.push_token(Token::StringLiteral);
+    state finish(lexer: &mut Lexer) {
+        lexer.cursor = lexer.cursor + 1;
+        lexer.token_end = lexer.cursor;
+        Lexer::push_token(lexer, Token::StringLiteral);
     }
 
-    state unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringLiteral, self.token_start, self.source.length as u64 in Trapping); }
-    state unterminated_escape(&mut self) { self.reject(LexDiagnosticCode::UnterminatedStringEscape, self.token_start, self.source.length as u64 in Trapping); }
-    state unsupported_escape(&mut self) { self.reject(LexDiagnosticCode::UnsupportedEscape, self.escape_start, self.cursor + 1); }
-    state hex_unterminated(&mut self) { self.reject(LexDiagnosticCode::UnterminatedHexEscape, self.escape_start, self.source.length as u64 in Trapping); }
-    state hex_invalid_first(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 1, self.cursor + 2); }
-    state hex_invalid_second(&mut self) { self.reject(LexDiagnosticCode::InvalidHexEscapeDigit, self.cursor + 2, self.cursor + 3); }
-    state outside_profile_escape(&mut self) {
-        self.reject(
+    state unterminated(lexer: &mut Lexer) { lexer.reject(LexDiagnosticCode::UnterminatedStringLiteral, lexer.token_start, lexer.source.length as u64 in Trapping); }
+    state unterminated_escape(lexer: &mut Lexer) { lexer.reject(LexDiagnosticCode::UnterminatedStringEscape, lexer.token_start, lexer.source.length as u64 in Trapping); }
+    state unsupported_escape(lexer: &mut Lexer) { lexer.reject(LexDiagnosticCode::UnsupportedEscape, lexer.escape_start, lexer.cursor + 1); }
+    state hex_unterminated(lexer: &mut Lexer) { lexer.reject(LexDiagnosticCode::UnterminatedHexEscape, lexer.escape_start, lexer.source.length as u64 in Trapping); }
+    state hex_invalid_first(lexer: &mut Lexer) { lexer.reject(LexDiagnosticCode::InvalidHexEscapeDigit, lexer.cursor + 1, lexer.cursor + 2); }
+    state hex_invalid_second(lexer: &mut Lexer) { lexer.reject(LexDiagnosticCode::InvalidHexEscapeDigit, lexer.cursor + 2, lexer.cursor + 3); }
+    state outside_profile_escape(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::OutsideLexicalProfile,
-            self.escape_start,
-            self.cursor + 1
+            lexer.escape_start,
+            lexer.cursor + 1
         );
     }
-    state outside_profile_line(&mut self) {
-        self.reject(
+    state outside_profile_line(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::OutsideLexicalProfile,
-            self.cursor,
-            self.cursor + 1
+            lexer.cursor,
+            lexer.cursor + 1
         );
     }
     state done() {}
 }
 
-machine Lexer::digit_in_base(&mut self, byte: u32 in Trapping, base: NumericBase) {
-    self.predicate_result = false;
+machine Lexer::digit_in_base(lexer: &mut Lexer, byte: u32 in Trapping, base: NumericBase) {
+    lexer.predicate_result = false;
     transition base {
-        NumericBase::Binary -> binary(byte)
-        NumericBase::Octal -> octal(byte)
-        NumericBase::Decimal -> decimal(byte)
-        NumericBase::Hexadecimal -> hex(byte)
+        NumericBase::Binary -> binary(lexer, byte)
+        NumericBase::Octal -> octal(lexer, byte)
+        NumericBase::Decimal -> decimal(lexer, byte)
+        NumericBase::Hexadecimal -> hex(lexer, byte)
     }
-    state binary(byte: u32 in Trapping) { transition byte >= 48 && byte <= 49 { true -> yes() _ -> no() } }
-    state octal(byte: u32 in Trapping) { transition byte >= 48 && byte <= 55 { true -> yes() _ -> no() } }
-    state decimal(byte: u32 in Trapping) { transition byte >= 48 && byte <= 57 { true -> yes() _ -> no() } }
-    state hex(byte: u32 in Trapping) {
+    state binary(lexer: &mut Lexer, byte: u32 in Trapping) { transition byte >= 48 && byte <= 49 { true -> yes(lexer) _ -> no(lexer) } }
+    state octal(lexer: &mut Lexer, byte: u32 in Trapping) { transition byte >= 48 && byte <= 55 { true -> yes(lexer) _ -> no(lexer) } }
+    state decimal(lexer: &mut Lexer, byte: u32 in Trapping) { transition byte >= 48 && byte <= 57 { true -> yes(lexer) _ -> no(lexer) } }
+    state hex(lexer: &mut Lexer, byte: u32 in Trapping) {
         transition byte >= 48 && byte <= 57 {
-            true -> yes()
-            _ -> hex_alpha(byte)
+            true -> yes(lexer)
+            _ -> hex_alpha(lexer, byte)
         }
     }
-    state hex_alpha(byte: u32 in Trapping) {
+    state hex_alpha(lexer: &mut Lexer, byte: u32 in Trapping) {
         transition byte >= 65 && byte <= 70 {
-            true -> yes()
-            _ -> hex_lower(byte)
+            true -> yes(lexer)
+            _ -> hex_lower(lexer, byte)
         }
     }
-    state hex_lower(byte: u32 in Trapping) { transition byte >= 97 && byte <= 102 { true -> yes() _ -> no() } }
-    state yes(&mut self) { self.predicate_result = true; }
-    state no(&mut self) { self.predicate_result = false; }
+    state hex_lower(lexer: &mut Lexer, byte: u32 in Trapping) { transition byte >= 97 && byte <= 102 { true -> yes(lexer) _ -> no(lexer) } }
+    state yes(lexer: &mut Lexer) { lexer.predicate_result = true; }
+    state no(lexer: &mut Lexer) { lexer.predicate_result = false; }
 }
 
-machine Lexer::consume_digits(&mut self) {
-    self.numeric_saw_digit = false;
-    transition { _ -> scan() }
-    state scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> byte()
+machine Lexer::consume_digits(lexer: &mut Lexer) {
+    lexer.numeric_saw_digit = false;
+    transition { _ -> scan(lexer) }
+    state scan(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> byte(lexer)
             _ -> done()
         }
     }
-    state byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        self.byte0 = source_byte as u32 in Trapping;
-        transition self.byte0 == 95 {
-            true -> underscore()
-            _ -> digit()
+    state byte(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        lexer.byte0 = source_byte as u32 in Trapping;
+        transition lexer.byte0 == 95 {
+            true -> underscore(lexer)
+            _ -> digit(lexer)
         }
     }
-    state underscore(&mut self) { self.cursor = self.cursor + 1; transition { _ -> scan() } }
-    state digit(&mut self) {
-        self.digit_in_base(self.byte0, self.numeric_base); let digit: bool = self.predicate_result;
+    state underscore(lexer: &mut Lexer) { lexer.cursor = lexer.cursor + 1; transition { _ -> scan(lexer) } }
+    state digit(lexer: &mut Lexer) {
+        Lexer::digit_in_base(lexer, lexer.byte0, lexer.numeric_base); let digit: bool = lexer.predicate_result;
         transition digit {
-            true -> consume()
+            true -> consume(lexer)
             _ -> done()
         }
     }
-    state consume(&mut self) { self.numeric_saw_digit = true; self.cursor = self.cursor + 1; transition { _ -> scan() } }
+    state consume(lexer: &mut Lexer) { lexer.numeric_saw_digit = true; lexer.cursor = lexer.cursor + 1; transition { _ -> scan(lexer) } }
     state done() {}
 }
 
-machine Lexer::consume_suffix(&mut self) {
-    self.numeric_has_suffix = false;
-    transition self.cursor < self.source.length {
-        true -> decode_first()
+machine Lexer::consume_suffix(lexer: &mut Lexer) {
+    lexer.numeric_has_suffix = false;
+    transition lexer.cursor < lexer.source.length {
+        true -> decode_first(lexer)
         _ -> done()
     }
-    state decode_first(&mut self) {
-        self.decode_at(self.cursor);
-        self.is_identifier_start(self.scalar); let starts: bool = self.predicate_result;
+    state decode_first(lexer: &mut Lexer) {
+        Lexer::decode_at(lexer, lexer.cursor);
+        Lexer::is_identifier_start(lexer, lexer.scalar); let starts: bool = lexer.predicate_result;
         transition starts {
-            true -> consume()
+            true -> consume(lexer)
             _ -> done()
         }
     }
-    state consume(&mut self) {
-        self.numeric_has_suffix = true;
-        self.cursor = self.cursor + self.scalar_width;
-        transition self.cursor < self.source.length { true -> decode_next() _ -> done() }
+    state consume(lexer: &mut Lexer) {
+        lexer.numeric_has_suffix = true;
+        lexer.cursor = lexer.cursor + lexer.scalar_width;
+        transition lexer.cursor < lexer.source.length { true -> decode_next(lexer) _ -> done() }
     }
-    state decode_next(&mut self) {
-        self.decode_at(self.cursor);
-        self.is_identifier_continue(self.scalar); let continues: bool = self.predicate_result;
-        transition continues { true -> consume() _ -> done() }
+    state decode_next(lexer: &mut Lexer) {
+        Lexer::decode_at(lexer, lexer.cursor);
+        Lexer::is_identifier_continue(lexer, lexer.scalar); let continues: bool = lexer.predicate_result;
+        transition continues { true -> consume(lexer) _ -> done() }
     }
     state done() {}
 }
 
-machine Lexer::dot_starts_float(&mut self) {
-    self.predicate_result = false;
-    transition self.cursor + 1 < self.source.length {
-        true -> decode_after()
-        _ -> yes()
+machine Lexer::dot_starts_float(lexer: &mut Lexer) {
+    lexer.predicate_result = false;
+    transition lexer.cursor + 1 < lexer.source.length {
+        true -> decode_after(lexer)
+        _ -> yes(lexer)
     }
-    state decode_after(&mut self) {
-        self.decode_at(self.cursor + 1);
-        transition self.scalar >= 48 && self.scalar <= 57 {
-            true -> yes()
-            _ -> dotdot()
+    state decode_after(lexer: &mut Lexer) {
+        Lexer::decode_at(lexer, lexer.cursor + 1);
+        transition lexer.scalar >= 48 && lexer.scalar <= 57 {
+            true -> yes(lexer)
+            _ -> dotdot(lexer)
         }
     }
-    state dotdot(&mut self) {
-        transition self.scalar == 46 {
-            true -> no()
-            _ -> identifier()
+    state dotdot(lexer: &mut Lexer) {
+        transition lexer.scalar == 46 {
+            true -> no(lexer)
+            _ -> identifier(lexer)
         }
     }
-    state identifier(&mut self) {
-        self.is_identifier_start(self.scalar);
-        transition self.predicate_result { true -> no() _ -> yes() }
+    state identifier(lexer: &mut Lexer) {
+        Lexer::is_identifier_start(lexer, lexer.scalar);
+        transition lexer.predicate_result { true -> no(lexer) _ -> yes(lexer) }
     }
-    state yes(&mut self) { self.predicate_result = true; }
-    state no(&mut self) { self.predicate_result = false; }
+    state yes(lexer: &mut Lexer) { lexer.predicate_result = true; }
+    state no(lexer: &mut Lexer) { lexer.predicate_result = false; }
 }
 
-machine Lexer::lex_number(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length as u64 in Trapping;
-    self.numeric_base = NumericBase::Decimal;
-    self.numeric_empty_digits = false;
-    self.numeric_has_suffix = false;
-    self.numeric_is_float = false;
-    self.numeric_has_exponent = false;
-    self.numeric_empty_exponent = false;
-    let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+machine Lexer::lex_number(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    lexer.numeric_base = NumericBase::Decimal;
+    lexer.numeric_empty_digits = false;
+    lexer.numeric_has_suffix = false;
+    lexer.numeric_is_float = false;
+    lexer.numeric_has_exponent = false;
+    lexer.numeric_empty_exponent = false;
+    let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
     transition source_byte == 46 {
-        true -> leading_dot()
-        _ -> integer_begin()
+        true -> leading_dot(lexer)
+        _ -> integer_begin(lexer)
     }
 
-    state leading_dot(&mut self) {
-        self.numeric_is_float = true;
-        self.cursor = self.cursor + 1;
-        self.consume_digits();
-        transition { _ -> exponent_check() }
+    state leading_dot(lexer: &mut Lexer) {
+        lexer.numeric_is_float = true;
+        lexer.cursor = lexer.cursor + 1;
+        Lexer::consume_digits(lexer);
+        transition { _ -> exponent_check(lexer) }
     }
 
-    state integer_begin(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        self.byte0 = source_byte as u32 in Trapping;
-        self.cursor = self.cursor + 1;
-        transition self.byte0 == 48 {
-            true -> prefix_bound()
-            _ -> decimal_digits()
+    state integer_begin(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        lexer.byte0 = source_byte as u32 in Trapping;
+        lexer.cursor = lexer.cursor + 1;
+        transition lexer.byte0 == 48 {
+            true -> prefix_bound(lexer)
+            _ -> decimal_digits(lexer)
         }
     }
 
-    state prefix_bound(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> prefix()
-            _ -> dot_check()
+    state prefix_bound(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> prefix(lexer)
+            _ -> dot_check(lexer)
         }
     }
 
-    state prefix(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        self.byte1 = source_byte as u32 in Trapping;
-        transition self.byte1 == 98 || self.byte1 == 66 {
-            true -> binary_prefix()
-            _ -> octal_check()
+    state prefix(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        lexer.byte1 = source_byte as u32 in Trapping;
+        transition lexer.byte1 == 98 || lexer.byte1 == 66 {
+            true -> binary_prefix(lexer)
+            _ -> octal_check(lexer)
         }
     }
-    state binary_prefix(&mut self) { self.numeric_base = NumericBase::Binary; self.cursor = self.cursor + 1; transition { _ -> based_digits() } }
-    state octal_check(&mut self) { transition self.byte1 == 111 || self.byte1 == 79 { true -> octal_prefix() _ -> hex_check() } }
-    state octal_prefix(&mut self) { self.numeric_base = NumericBase::Octal; self.cursor = self.cursor + 1; transition { _ -> based_digits() } }
-    state hex_check(&mut self) { transition self.byte1 == 120 || self.byte1 == 88 { true -> hex_prefix() _ -> decimal_digits() } }
-    state hex_prefix(&mut self) { self.numeric_base = NumericBase::Hexadecimal; self.cursor = self.cursor + 1; transition { _ -> based_digits() } }
-    state based_digits(&mut self) {
-        self.consume_digits();
-        self.numeric_empty_digits = !self.numeric_saw_digit;
-        transition { _ -> suffix() }
+    state binary_prefix(lexer: &mut Lexer) { lexer.numeric_base = NumericBase::Binary; lexer.cursor = lexer.cursor + 1; transition { _ -> based_digits(lexer) } }
+    state octal_check(lexer: &mut Lexer) { transition lexer.byte1 == 111 || lexer.byte1 == 79 { true -> octal_prefix(lexer) _ -> hex_check(lexer) } }
+    state octal_prefix(lexer: &mut Lexer) { lexer.numeric_base = NumericBase::Octal; lexer.cursor = lexer.cursor + 1; transition { _ -> based_digits(lexer) } }
+    state hex_check(lexer: &mut Lexer) { transition lexer.byte1 == 120 || lexer.byte1 == 88 { true -> hex_prefix(lexer) _ -> decimal_digits(lexer) } }
+    state hex_prefix(lexer: &mut Lexer) { lexer.numeric_base = NumericBase::Hexadecimal; lexer.cursor = lexer.cursor + 1; transition { _ -> based_digits(lexer) } }
+    state based_digits(lexer: &mut Lexer) {
+        Lexer::consume_digits(lexer);
+        lexer.numeric_empty_digits = !lexer.numeric_saw_digit;
+        transition { _ -> suffix(lexer) }
     }
-    state decimal_digits(&mut self) { self.consume_digits(); transition { _ -> dot_check() } }
+    state decimal_digits(lexer: &mut Lexer) { Lexer::consume_digits(lexer); transition { _ -> dot_check(lexer) } }
 
-    state dot_check(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> dot_byte()
-            _ -> exponent_check()
+    state dot_check(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> dot_byte(lexer)
+            _ -> exponent_check(lexer)
         }
     }
-    state dot_byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+    state dot_byte(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
         transition source_byte == 46 {
-            true -> dot_decision()
-            _ -> exponent_check()
+            true -> dot_decision(lexer)
+            _ -> exponent_check(lexer)
         }
     }
-    state dot_decision(&mut self) {
-        self.dot_starts_float(); let starts: bool = self.predicate_result;
+    state dot_decision(lexer: &mut Lexer) {
+        Lexer::dot_starts_float(lexer); let starts: bool = lexer.predicate_result;
         transition starts {
-            true -> dot_consume()
-            _ -> exponent_check()
+            true -> dot_consume(lexer)
+            _ -> exponent_check(lexer)
         }
     }
-    state dot_consume(&mut self) {
-        self.numeric_is_float = true;
-        self.cursor = self.cursor + 1;
-        self.consume_digits();
-        transition { _ -> exponent_check() }
+    state dot_consume(lexer: &mut Lexer) {
+        lexer.numeric_is_float = true;
+        lexer.cursor = lexer.cursor + 1;
+        Lexer::consume_digits(lexer);
+        transition { _ -> exponent_check(lexer) }
     }
 
-    state exponent_check(&mut self) {
-        transition self.numeric_base == NumericBase::Decimal
-            && self.cursor < self.source.length {
-            true -> exponent_byte()
-            _ -> suffix()
+    state exponent_check(lexer: &mut Lexer) {
+        transition lexer.numeric_base == NumericBase::Decimal
+            && lexer.cursor < lexer.source.length {
+            true -> exponent_byte(lexer)
+            _ -> suffix(lexer)
         }
     }
-    state exponent_byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        self.byte0 = source_byte as u32 in Trapping;
-        transition self.byte0 == 101 || self.byte0 == 69 {
-            true -> exponent_begin()
-            _ -> suffix()
+    state exponent_byte(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        lexer.byte0 = source_byte as u32 in Trapping;
+        transition lexer.byte0 == 101 || lexer.byte0 == 69 {
+            true -> exponent_begin(lexer)
+            _ -> suffix(lexer)
         }
     }
-    state exponent_begin(&mut self) {
-        self.numeric_is_float = true;
-        self.numeric_has_exponent = true;
-        self.cursor = self.cursor + 1;
-        transition self.cursor < self.source.length { true -> exponent_sign() _ -> exponent_digits() }
+    state exponent_begin(lexer: &mut Lexer) {
+        lexer.numeric_is_float = true;
+        lexer.numeric_has_exponent = true;
+        lexer.cursor = lexer.cursor + 1;
+        transition lexer.cursor < lexer.source.length { true -> exponent_sign(lexer) _ -> exponent_digits(lexer) }
     }
-    state exponent_sign(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
-        self.byte0 = source_byte as u32 in Trapping;
-        transition self.byte0 == 43 || self.byte0 == 45 { true -> exponent_sign_consume() _ -> exponent_digits() }
+    state exponent_sign(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+        lexer.byte0 = source_byte as u32 in Trapping;
+        transition lexer.byte0 == 43 || lexer.byte0 == 45 { true -> exponent_sign_consume(lexer) _ -> exponent_digits(lexer) }
     }
-    state exponent_sign_consume(&mut self) { self.cursor = self.cursor + 1; transition { _ -> exponent_digits() } }
-    state exponent_digits(&mut self) {
-        self.numeric_base = NumericBase::Decimal;
-        self.consume_digits();
-        self.numeric_empty_exponent = !self.numeric_saw_digit;
-        transition { _ -> suffix() }
+    state exponent_sign_consume(lexer: &mut Lexer) { lexer.cursor = lexer.cursor + 1; transition { _ -> exponent_digits(lexer) } }
+    state exponent_digits(lexer: &mut Lexer) {
+        lexer.numeric_base = NumericBase::Decimal;
+        Lexer::consume_digits(lexer);
+        lexer.numeric_empty_exponent = !lexer.numeric_saw_digit;
+        transition { _ -> suffix(lexer) }
     }
 
-    state suffix(&mut self) {
-        self.consume_suffix();
-        transition { _ -> finish() }
+    state suffix(lexer: &mut Lexer) {
+        Lexer::consume_suffix(lexer);
+        transition { _ -> finish(lexer) }
     }
-    state finish(&mut self) {
-        self.token_end = self.cursor;
-        transition self.numeric_is_float { true -> emit_float() _ -> emit_integer() }
+    state finish(lexer: &mut Lexer) {
+        lexer.token_end = lexer.cursor;
+        transition lexer.numeric_is_float { true -> emit_float(lexer) _ -> emit_integer(lexer) }
     }
-    state emit_float(&mut self) {
-        self.push_token(Token::Float {
-            has_exponent: self.numeric_has_exponent,
-            empty_exponent: self.numeric_empty_exponent,
-            has_suffix: self.numeric_has_suffix
+    state emit_float(lexer: &mut Lexer) {
+        Lexer::push_token(lexer, Token::Float {
+            has_exponent: lexer.numeric_has_exponent,
+            empty_exponent: lexer.numeric_empty_exponent,
+            has_suffix: lexer.numeric_has_suffix
         });
     }
-    state emit_integer(&mut self) {
-        self.push_token(Token::Integer {
-            base: self.numeric_base,
-            empty_digits: self.numeric_empty_digits,
-            has_suffix: self.numeric_has_suffix
+    state emit_integer(lexer: &mut Lexer) {
+        Lexer::push_token(lexer, Token::Integer {
+            base: lexer.numeric_base,
+            empty_digits: lexer.numeric_empty_digits,
+            has_suffix: lexer.numeric_has_suffix
         });
     }
 }
 
-machine Lexer::lex_punctuation(&mut self) {
-    self.token_start = self.cursor;
-    self.decoded_start = self.output.decoded_length as u64 in Trapping;
-    let first_byte: u8 = self.source.byte_or_nul(self.cursor);
-    self.byte0 = first_byte as u32 in Trapping;
-    self.byte1 = 4294967295;
-    self.byte2 = 4294967295;
-    self.index1 = self.cursor + 1;
-    self.index2 = self.cursor + 2;
-    transition self.index1 < self.source.length { true -> second() _ -> classify() }
-    state second(&mut self) { let source_byte: u8 = self.source.byte_or_nul(self.index1); self.byte1 = source_byte as u32 in Trapping; transition self.index2 < self.source.length { true -> third() _ -> classify() } }
-    state third(&mut self) { let source_byte: u8 = self.source.byte_or_nul(self.index2); self.byte2 = source_byte as u32 in Trapping; transition { _ -> classify() } }
+machine Lexer::lex_punctuation(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.decoded_start = lexer.output.decoded_length as u64 in Trapping;
+    let first_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
+    lexer.byte0 = first_byte as u32 in Trapping;
+    lexer.byte1 = 4294967295;
+    lexer.byte2 = 4294967295;
+    lexer.index1 = lexer.cursor + 1;
+    lexer.index2 = lexer.cursor + 2;
+    transition lexer.index1 < lexer.source.length { true -> second(lexer) _ -> classify(lexer) }
+    state second(lexer: &mut Lexer) { let source_byte: u8 = lexer.source.byte_or_nul(lexer.index1); lexer.byte1 = source_byte as u32 in Trapping; transition lexer.index2 < lexer.source.length { true -> third(lexer) _ -> classify(lexer) } }
+    state third(lexer: &mut Lexer) { let source_byte: u8 = lexer.source.byte_or_nul(lexer.index2); lexer.byte2 = source_byte as u32 in Trapping; transition { _ -> classify(lexer) } }
 
-    state classify(&mut self) {
-        transition self.byte0 {
-            38 -> ampersand()
-            39 -> single_apostrophe()
-            42 -> asterisk()
-            94 -> single_caret()
-            58 -> colon()
-            44 -> single_comma()
-            46 -> dot()
-            61 -> equal()
-            33 -> exclamation()
-            62 -> greater()
-            35 -> single_hash()
-            123 -> single_left_brace()
-            91 -> single_left_bracket()
-            40 -> single_left_paren()
-            60 -> less()
-            45 -> minus()
-            37 -> percent()
-            124 -> pipe()
-            43 -> plus()
-            125 -> single_right_brace()
-            93 -> single_right_bracket()
-            41 -> single_right_paren()
-            59 -> single_semicolon()
-            47 -> slash()
-            126 -> single_tilde()
-            _ -> unsupported()
+    state classify(lexer: &mut Lexer) {
+        transition lexer.byte0 {
+            38 -> ampersand(lexer)
+            39 -> single_apostrophe(lexer)
+            42 -> asterisk(lexer)
+            94 -> single_caret(lexer)
+            58 -> colon(lexer)
+            44 -> single_comma(lexer)
+            46 -> dot(lexer)
+            61 -> equal(lexer)
+            33 -> exclamation(lexer)
+            62 -> greater(lexer)
+            35 -> single_hash(lexer)
+            123 -> single_left_brace(lexer)
+            91 -> single_left_bracket(lexer)
+            40 -> single_left_paren(lexer)
+            60 -> less(lexer)
+            45 -> minus(lexer)
+            37 -> percent(lexer)
+            124 -> pipe(lexer)
+            43 -> plus(lexer)
+            125 -> single_right_brace(lexer)
+            93 -> single_right_bracket(lexer)
+            41 -> single_right_paren(lexer)
+            59 -> single_semicolon(lexer)
+            47 -> slash(lexer)
+            126 -> single_tilde(lexer)
+            _ -> unsupported(lexer)
         }
     }
 
-    state ampersand(&mut self) { transition self.byte1 == 38 { true -> and_and() _ -> single_ampersand() } }
-    state colon(&mut self) { transition self.byte1 == 58 { true -> colon_colon() _ -> single_colon() } }
-    state dot(&mut self) { transition self.byte1 == 46 { true -> dotdot() _ -> single_dot() } }
-    state dotdot(&mut self) { transition self.byte2 == 61 { true -> dotdot_equal() _ -> dotdot_plain() } }
-    state equal(&mut self) { transition self.byte1 == 61 { true -> equal_equal() _ -> single_equal() } }
-    state exclamation(&mut self) { transition self.byte1 == 61 { true -> exclamation_equal() _ -> single_exclamation() } }
-    state greater(&mut self) { transition self.byte1 == 62 { true -> greater_greater() _ -> greater_equal_check() } }
-    state greater_equal_check(&mut self) { transition self.byte1 == 61 { true -> greater_equal() _ -> single_greater() } }
-    state less(&mut self) { transition self.byte1 == 60 { true -> less_less() _ -> less_equal_check() } }
-    state less_equal_check(&mut self) { transition self.byte1 == 61 { true -> less_equal() _ -> single_less() } }
-    state minus(&mut self) { transition self.byte1 == 62 { true -> arrow() _ -> minus_equal_check() } }
-    state minus_equal_check(&mut self) { transition self.byte1 == 61 { true -> minus_equal() _ -> single_minus() } }
-    state percent(&mut self) { transition self.byte1 == 61 { true -> percent_equal() _ -> single_percent() } }
-    state pipe(&mut self) { transition self.byte1 == 124 { true -> pipe_pipe() _ -> single_pipe() } }
-    state plus(&mut self) { transition self.byte1 == 61 { true -> plus_equal() _ -> single_plus() } }
-    state asterisk(&mut self) { transition self.byte1 == 61 { true -> asterisk_equal() _ -> single_asterisk() } }
-    state slash(&mut self) { transition self.byte1 == 61 { true -> slash_equal() _ -> single_slash() } }
+    state ampersand(lexer: &mut Lexer) { transition lexer.byte1 == 38 { true -> and_and(lexer) _ -> single_ampersand(lexer) } }
+    state colon(lexer: &mut Lexer) { transition lexer.byte1 == 58 { true -> colon_colon(lexer) _ -> single_colon(lexer) } }
+    state dot(lexer: &mut Lexer) { transition lexer.byte1 == 46 { true -> dotdot(lexer) _ -> single_dot(lexer) } }
+    state dotdot(lexer: &mut Lexer) { transition lexer.byte2 == 61 { true -> dotdot_equal(lexer) _ -> dotdot_plain(lexer) } }
+    state equal(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> equal_equal(lexer) _ -> single_equal(lexer) } }
+    state exclamation(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> exclamation_equal(lexer) _ -> single_exclamation(lexer) } }
+    state greater(lexer: &mut Lexer) { transition lexer.byte1 == 62 { true -> greater_greater(lexer) _ -> greater_equal_check(lexer) } }
+    state greater_equal_check(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> greater_equal(lexer) _ -> single_greater(lexer) } }
+    state less(lexer: &mut Lexer) { transition lexer.byte1 == 60 { true -> less_less(lexer) _ -> less_equal_check(lexer) } }
+    state less_equal_check(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> less_equal(lexer) _ -> single_less(lexer) } }
+    state minus(lexer: &mut Lexer) { transition lexer.byte1 == 62 { true -> arrow(lexer) _ -> minus_equal_check(lexer) } }
+    state minus_equal_check(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> minus_equal(lexer) _ -> single_minus(lexer) } }
+    state percent(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> percent_equal(lexer) _ -> single_percent(lexer) } }
+    state pipe(lexer: &mut Lexer) { transition lexer.byte1 == 124 { true -> pipe_pipe(lexer) _ -> single_pipe(lexer) } }
+    state plus(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> plus_equal(lexer) _ -> single_plus(lexer) } }
+    state asterisk(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> asterisk_equal(lexer) _ -> single_asterisk(lexer) } }
+    state slash(lexer: &mut Lexer) { transition lexer.byte1 == 61 { true -> slash_equal(lexer) _ -> single_slash(lexer) } }
 
-    state single_ampersand(&mut self) { self.emit_punctuation(PunctuationKind::Ampersand, 1); }
-    state and_and(&mut self) { self.emit_punctuation(PunctuationKind::AndAnd, 2); }
-    state single_apostrophe(&mut self) { self.emit_punctuation(PunctuationKind::Apostrophe, 1); }
-    state arrow(&mut self) { self.emit_punctuation(PunctuationKind::Arrow, 2); }
-    state single_asterisk(&mut self) { self.emit_punctuation(PunctuationKind::Asterisk, 1); }
-    state single_caret(&mut self) { self.emit_punctuation(PunctuationKind::Caret, 1); }
-    state single_colon(&mut self) { self.emit_punctuation(PunctuationKind::Colon, 1); }
-    state colon_colon(&mut self) { self.emit_punctuation(PunctuationKind::ColonColon, 2); }
-    state single_comma(&mut self) { self.emit_punctuation(PunctuationKind::Comma, 1); }
-    state single_dot(&mut self) { self.emit_punctuation(PunctuationKind::Dot, 1); }
-    state dotdot_plain(&mut self) { self.emit_punctuation(PunctuationKind::DotDot, 2); }
-    state dotdot_equal(&mut self) { self.emit_punctuation(PunctuationKind::DotDotEqual, 3); }
-    state single_equal(&mut self) { self.emit_punctuation(PunctuationKind::Equal, 1); }
-    state equal_equal(&mut self) { self.emit_punctuation(PunctuationKind::EqualEqual, 2); }
-    state single_exclamation(&mut self) { self.emit_punctuation(PunctuationKind::Exclamation, 1); }
-    state exclamation_equal(&mut self) { self.emit_punctuation(PunctuationKind::ExclamationEqual, 2); }
-    state single_greater(&mut self) { self.emit_punctuation(PunctuationKind::Greater, 1); }
-    state greater_equal(&mut self) { self.emit_punctuation(PunctuationKind::GreaterEqual, 2); }
-    state greater_greater(&mut self) { self.emit_punctuation(PunctuationKind::GreaterGreater, 2); }
-    state single_hash(&mut self) { self.emit_punctuation(PunctuationKind::Hash, 1); }
-    state single_left_brace(&mut self) { self.emit_punctuation(PunctuationKind::LeftBrace, 1); }
-    state single_left_bracket(&mut self) { self.emit_punctuation(PunctuationKind::LeftBracket, 1); }
-    state single_left_paren(&mut self) { self.emit_punctuation(PunctuationKind::LeftParen, 1); }
-    state single_less(&mut self) { self.emit_punctuation(PunctuationKind::Less, 1); }
-    state less_equal(&mut self) { self.emit_punctuation(PunctuationKind::LessEqual, 2); }
-    state less_less(&mut self) { self.emit_punctuation(PunctuationKind::LessLess, 2); }
-    state single_minus(&mut self) { self.emit_punctuation(PunctuationKind::Minus, 1); }
-    state minus_equal(&mut self) { self.emit_punctuation(PunctuationKind::MinusEqual, 2); }
-    state single_percent(&mut self) { self.emit_punctuation(PunctuationKind::Percent, 1); }
-    state percent_equal(&mut self) { self.emit_punctuation(PunctuationKind::PercentEqual, 2); }
-    state single_pipe(&mut self) { self.emit_punctuation(PunctuationKind::Pipe, 1); }
-    state pipe_pipe(&mut self) { self.emit_punctuation(PunctuationKind::PipePipe, 2); }
-    state single_plus(&mut self) { self.emit_punctuation(PunctuationKind::Plus, 1); }
-    state plus_equal(&mut self) { self.emit_punctuation(PunctuationKind::PlusEqual, 2); }
-    state asterisk_equal(&mut self) { self.emit_punctuation(PunctuationKind::AsteriskEqual, 2); }
-    state slash_equal(&mut self) { self.emit_punctuation(PunctuationKind::SlashEqual, 2); }
-    state single_right_brace(&mut self) { self.emit_punctuation(PunctuationKind::RightBrace, 1); }
-    state single_right_bracket(&mut self) { self.emit_punctuation(PunctuationKind::RightBracket, 1); }
-    state single_right_paren(&mut self) { self.emit_punctuation(PunctuationKind::RightParen, 1); }
-    state single_semicolon(&mut self) { self.emit_punctuation(PunctuationKind::Semicolon, 1); }
-    state single_slash(&mut self) { self.emit_punctuation(PunctuationKind::Slash, 1); }
-    state single_tilde(&mut self) { self.emit_punctuation(PunctuationKind::Tilde, 1); }
-    state unsupported(&mut self) {
-        self.reject(
+    state single_ampersand(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Ampersand, 1); }
+    state and_and(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::AndAnd, 2); }
+    state single_apostrophe(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Apostrophe, 1); }
+    state arrow(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Arrow, 2); }
+    state single_asterisk(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Asterisk, 1); }
+    state single_caret(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Caret, 1); }
+    state single_colon(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Colon, 1); }
+    state colon_colon(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::ColonColon, 2); }
+    state single_comma(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Comma, 1); }
+    state single_dot(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Dot, 1); }
+    state dotdot_plain(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::DotDot, 2); }
+    state dotdot_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::DotDotEqual, 3); }
+    state single_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Equal, 1); }
+    state equal_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::EqualEqual, 2); }
+    state single_exclamation(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Exclamation, 1); }
+    state exclamation_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::ExclamationEqual, 2); }
+    state single_greater(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Greater, 1); }
+    state greater_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::GreaterEqual, 2); }
+    state greater_greater(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::GreaterGreater, 2); }
+    state single_hash(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Hash, 1); }
+    state single_left_brace(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::LeftBrace, 1); }
+    state single_left_bracket(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::LeftBracket, 1); }
+    state single_left_paren(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::LeftParen, 1); }
+    state single_less(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Less, 1); }
+    state less_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::LessEqual, 2); }
+    state less_less(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::LessLess, 2); }
+    state single_minus(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Minus, 1); }
+    state minus_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::MinusEqual, 2); }
+    state single_percent(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Percent, 1); }
+    state percent_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::PercentEqual, 2); }
+    state single_pipe(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Pipe, 1); }
+    state pipe_pipe(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::PipePipe, 2); }
+    state single_plus(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Plus, 1); }
+    state plus_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::PlusEqual, 2); }
+    state asterisk_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::AsteriskEqual, 2); }
+    state slash_equal(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::SlashEqual, 2); }
+    state single_right_brace(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::RightBrace, 1); }
+    state single_right_bracket(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::RightBracket, 1); }
+    state single_right_paren(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::RightParen, 1); }
+    state single_semicolon(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Semicolon, 1); }
+    state single_slash(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Slash, 1); }
+    state single_tilde(lexer: &mut Lexer) { Lexer::emit_punctuation(lexer, PunctuationKind::Tilde, 1); }
+    state unsupported(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::OutsideLexicalProfile,
-            self.token_start,
-            self.token_start + self.scalar_width
+            lexer.token_start,
+            lexer.token_start + lexer.scalar_width
         );
     }
 }
 
-machine Lexer::emit_punctuation(&mut self, kind: PunctuationKind, length: u64 in Trapping) {
-    self.cursor = self.cursor + length;
-    self.token_end = self.cursor;
-    self.push_token(Token::Punctuation { punctuation: kind });
+machine Lexer::emit_punctuation(lexer: &mut Lexer, kind: PunctuationKind, length: u64 in Trapping) {
+    lexer.cursor = lexer.cursor + length;
+    lexer.token_end = lexer.cursor;
+    Lexer::push_token(lexer, Token::Punctuation { punctuation: kind });
 }
 
-machine Lexer::reject_raw_string_candidate(&mut self) {
-    self.token_start = self.cursor;
-    self.cursor = self.cursor + 1;
-    transition { _ -> scan() }
+machine Lexer::reject_raw_string_candidate(lexer: &mut Lexer) {
+    lexer.token_start = lexer.cursor;
+    lexer.cursor = lexer.cursor + 1;
+    transition { _ -> scan(lexer) }
 
-    state scan(&mut self) {
-        transition self.cursor < self.source.length {
-            true -> byte()
-            _ -> reject_prefix()
+    state scan(lexer: &mut Lexer) {
+        transition lexer.cursor < lexer.source.length {
+            true -> byte(lexer)
+            _ -> reject_prefix(lexer)
         }
     }
 
-    state byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+    state byte(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
         transition source_byte == 35 {
-            true -> hash()
-            _ -> quote()
+            true -> hash(lexer)
+            _ -> quote(lexer)
         }
     }
 
-    state hash(&mut self) {
-        self.cursor = self.cursor + 1;
-        transition { _ -> scan() }
+    state hash(lexer: &mut Lexer) {
+        lexer.cursor = lexer.cursor + 1;
+        transition { _ -> scan(lexer) }
     }
 
-    state quote(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.cursor);
+    state quote(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.cursor);
         transition source_byte == 34 {
-            true -> reject_quote()
-            _ -> reject_prefix()
+            true -> reject_quote(lexer)
+            _ -> reject_prefix(lexer)
         }
     }
 
-    state reject_quote(&mut self) {
-        self.reject(
+    state reject_quote(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::OutsideLexicalProfile,
-            self.token_start,
-            self.cursor + 1
+            lexer.token_start,
+            lexer.cursor + 1
         );
     }
 
-    state reject_prefix(&mut self) {
-        self.reject(
+    state reject_prefix(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::OutsideLexicalProfile,
-            self.token_start,
-            self.cursor
+            lexer.token_start,
+            lexer.cursor
         );
     }
 }
 
-machine Lexer::is_raw_string_candidate(&mut self) {
-    self.predicate_result = false;
-    self.candidate_cursor = self.cursor + 1;
-    transition { _ -> scan() }
+machine Lexer::is_raw_string_candidate(lexer: &mut Lexer) {
+    lexer.predicate_result = false;
+    lexer.candidate_cursor = lexer.cursor + 1;
+    transition { _ -> scan(lexer) }
 
-    state scan(&mut self) {
-        transition self.candidate_cursor < self.source.length {
-            true -> byte()
-            _ -> no()
+    state scan(lexer: &mut Lexer) {
+        transition lexer.candidate_cursor < lexer.source.length {
+            true -> byte(lexer)
+            _ -> no(lexer)
         }
     }
 
-    state byte(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
+    state byte(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.candidate_cursor);
         transition source_byte == 35 {
-            true -> hash()
-            _ -> quote()
+            true -> hash(lexer)
+            _ -> quote(lexer)
         }
     }
 
-    state hash(&mut self) {
-        self.candidate_cursor = self.candidate_cursor + 1;
-        transition { _ -> scan() }
+    state hash(lexer: &mut Lexer) {
+        lexer.candidate_cursor = lexer.candidate_cursor + 1;
+        transition { _ -> scan(lexer) }
     }
 
-    state quote(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.candidate_cursor);
+    state quote(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.candidate_cursor);
         transition source_byte == 34 {
-            true -> yes()
-            _ -> no()
+            true -> yes(lexer)
+            _ -> no(lexer)
         }
     }
 
-    state yes(&mut self) { self.predicate_result = true; }
-    state no(&mut self) { self.predicate_result = false; }
+    state yes(lexer: &mut Lexer) { lexer.predicate_result = true; }
+    state no(lexer: &mut Lexer) { lexer.predicate_result = false; }
 }
 
-machine Lexer::lex_next(&mut self) {
-    self.decode_at(self.cursor);
-    transition self.scalar >= 128 {
-        true -> outside_profile_syntax()
-        _ -> whitespace_check()
+machine Lexer::lex_next(lexer: &mut Lexer) {
+    Lexer::decode_at(lexer, lexer.cursor);
+    transition lexer.scalar >= 128 {
+        true -> outside_profile_syntax(lexer)
+        _ -> whitespace_check(lexer)
     }
-    state outside_profile_syntax(&mut self) {
-        self.reject(
+    state outside_profile_syntax(lexer: &mut Lexer) {
+        lexer.reject(
             LexDiagnosticCode::OutsideLexicalProfile,
-            self.cursor,
-            self.cursor + self.scalar_width
+            lexer.cursor,
+            lexer.cursor + lexer.scalar_width
         );
     }
-    state whitespace_check(&mut self) {
-        self.is_whitespace(self.scalar); let whitespace: bool = self.predicate_result;
+    state whitespace_check(lexer: &mut Lexer) {
+        Lexer::is_whitespace(lexer, lexer.scalar); let whitespace: bool = lexer.predicate_result;
         transition whitespace {
-            true -> whitespace()
-            _ -> line_comment_bound()
+            true -> whitespace(lexer)
+            _ -> line_comment_bound(lexer)
         }
     }
-    state whitespace(&mut self) { self.lex_whitespace(); }
-    state line_comment_bound(&mut self) { self.index1 = self.cursor + 1; transition self.scalar == 47 && self.index1 < self.source.length { true -> comment_second() _ -> raw_check() } }
-    state comment_second(&mut self) {
-        let source_byte: u8 = self.source.byte_or_nul(self.index1);
-        self.byte0 = source_byte as u32 in Trapping;
-        transition self.byte0 == 47 { true -> line_comment() _ -> block_comment_check() }
+    state whitespace(lexer: &mut Lexer) { Lexer::lex_whitespace(lexer); }
+    state line_comment_bound(lexer: &mut Lexer) { lexer.index1 = lexer.cursor + 1; transition lexer.scalar == 47 && lexer.index1 < lexer.source.length { true -> comment_second(lexer) _ -> raw_check(lexer) } }
+    state comment_second(lexer: &mut Lexer) {
+        let source_byte: u8 = lexer.source.byte_or_nul(lexer.index1);
+        lexer.byte0 = source_byte as u32 in Trapping;
+        transition lexer.byte0 == 47 { true -> line_comment(lexer) _ -> block_comment_check(lexer) }
     }
-    state line_comment(&mut self) { self.lex_line_comment(); }
-    state block_comment_check(&mut self) { transition self.byte0 == 42 { true -> block_comment() _ -> raw_check() } }
-    state block_comment(&mut self) { self.lex_block_comment(); }
-    state raw_check(&mut self) {
-        transition self.scalar == 114 {
-            true -> raw_candidate()
-            _ -> identifier_check()
+    state line_comment(lexer: &mut Lexer) { Lexer::lex_line_comment(lexer); }
+    state block_comment_check(lexer: &mut Lexer) { transition lexer.byte0 == 42 { true -> block_comment(lexer) _ -> raw_check(lexer) } }
+    state block_comment(lexer: &mut Lexer) { Lexer::lex_block_comment(lexer); }
+    state raw_check(lexer: &mut Lexer) {
+        transition lexer.scalar == 114 {
+            true -> raw_candidate(lexer)
+            _ -> identifier_check(lexer)
         }
     }
-    state raw_candidate(&mut self) {
-        self.is_raw_string_candidate(); let candidate: bool = self.predicate_result;
+    state raw_candidate(lexer: &mut Lexer) {
+        Lexer::is_raw_string_candidate(lexer); let candidate: bool = lexer.predicate_result;
         transition candidate {
-            true -> raw()
-            _ -> identifier_check()
+            true -> raw(lexer)
+            _ -> identifier_check(lexer)
         }
     }
-    state raw(&mut self) { self.reject_raw_string_candidate(); }
-    state identifier_check(&mut self) { self.is_identifier_start(self.scalar); let starts: bool = self.predicate_result; transition starts { true -> identifier() _ -> number_check() } }
-    state identifier(&mut self) { self.lex_identifier(); }
-    state number_check(&mut self) { transition self.scalar >= 48 && self.scalar <= 57 { true -> number() _ -> leading_dot_check() } }
-    state leading_dot_check(&mut self) { self.index1 = self.cursor + 1; transition self.scalar == 46 && self.index1 < self.source.length { true -> leading_dot_second() _ -> string_check() } }
-    state leading_dot_second(&mut self) { let source_byte: u8 = self.source.byte_or_nul(self.index1); self.byte0 = source_byte as u32 in Trapping; transition self.byte0 >= 48 && self.byte0 <= 57 { true -> number() _ -> string_check() } }
-    state number(&mut self) { self.lex_number(); }
-    state string_check(&mut self) { transition self.scalar == 34 { true -> string() _ -> punctuation() } }
-    state string(&mut self) { self.lex_cooked_string(); }
-    state punctuation(&mut self) { self.lex_punctuation(); }
+    state raw(lexer: &mut Lexer) { Lexer::reject_raw_string_candidate(lexer); }
+    state identifier_check(lexer: &mut Lexer) { Lexer::is_identifier_start(lexer, lexer.scalar); let starts: bool = lexer.predicate_result; transition starts { true -> identifier(lexer) _ -> number_check(lexer) } }
+    state identifier(lexer: &mut Lexer) { Lexer::lex_identifier(lexer); }
+    state number_check(lexer: &mut Lexer) { transition lexer.scalar >= 48 && lexer.scalar <= 57 { true -> number(lexer) _ -> leading_dot_check(lexer) } }
+    state leading_dot_check(lexer: &mut Lexer) { lexer.index1 = lexer.cursor + 1; transition lexer.scalar == 46 && lexer.index1 < lexer.source.length { true -> leading_dot_second(lexer) _ -> string_check(lexer) } }
+    state leading_dot_second(lexer: &mut Lexer) { let source_byte: u8 = lexer.source.byte_or_nul(lexer.index1); lexer.byte0 = source_byte as u32 in Trapping; transition lexer.byte0 >= 48 && lexer.byte0 <= 57 { true -> number(lexer) _ -> string_check(lexer) } }
+    state number(lexer: &mut Lexer) { Lexer::lex_number(lexer); }
+    state string_check(lexer: &mut Lexer) { transition lexer.scalar == 34 { true -> string(lexer) _ -> punctuation(lexer) } }
+    state string(lexer: &mut Lexer) { Lexer::lex_cooked_string(lexer); }
+    state punctuation(lexer: &mut Lexer) { Lexer::lex_punctuation(lexer); }
 }
 
 // Bounded array reads carry their collection's Trapping policy, so tokenizing
@@ -1362,7 +1362,7 @@ pub machine Lexer::tokenize(&mut self)
 crashes Trap
 {
     self.output.clear(self.source.id);
-    self.validate_utf8();
+    Lexer::validate_utf8(&mut self);
     transition self.output.accepted {
         true -> begin()
         _ -> done()
@@ -1375,7 +1375,7 @@ crashes Trap
         }
     }
     state token(&mut self) {
-        self.lex_next();
+        Lexer::lex_next(&mut self);
         transition self.output.accepted { true -> scan() _ -> done() }
     }
     state done() {}
