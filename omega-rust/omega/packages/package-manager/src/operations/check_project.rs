@@ -5,7 +5,6 @@ use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::review::{
     CandidateSourcePreparation, CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
     compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
-    compile_resolved_package_candidate_for_check_with_checkpoint,
 };
 #[cfg(test)]
 use compiler::CompileOutputKind;
@@ -161,6 +160,8 @@ pub struct CheckedProjectTargetOutcome {
 /// Run scoped candidate checking and report its final checked root. Generated
 /// source and semantic bindings enter through the candidate pipeline; reporting
 /// uses the retained result after staging disposal without another build run.
+/// This is the per-target route of [`check_prepared_local_project_for_targets`]
+/// for one target, staging directly into `build_dir`.
 pub fn check_prepared_local_project(
     request: PreparedLocalProjectCheckRequest,
 ) -> Result<CompileReport, CheckPreparedLocalProjectError> {
@@ -183,52 +184,19 @@ pub fn check_prepared_local_project(
     let (entry_path, source_closure, accepted_target) = prepared
         .into_review_parts(target_profile)
         .map_err(CheckPreparedLocalProjectError::Prepare)?;
-    // Checked reporting consumes the compile's generated sources, so it is
-    // an executor of the accepted policy, not an observational review: the
-    // retained target's restricted-request checkpoint arms the pass, and a
-    // projected request the accepted rows do not grant rejects before its
-    // own build effect executes.
-    let (checked, _reviews) = match (accepted_target.as_ref(), verify) {
-        // A verify check keeps the lock's source pins but grants nothing it
-        // recorded: the root's own projected requests surface ungranted and
-        // its findings arrive without recorded admissions settling them.
-        (Some(accepted), false) => compile_resolved_package_candidate_for_check_with_checkpoint(
-            &source_closure.for_exact_target(target_profile),
-            &build_dir,
-            &entry_path,
-            build_snapshot.as_ref(),
-            &RestrictedBuildCheckpoint::derive(accepted),
-            timings,
-        ),
-        _ => compile_resolved_package_candidate_for_check(
-            &source_closure.for_exact_target(target_profile),
-            &build_dir,
-            &entry_path,
-            build_snapshot.as_ref(),
-            timings,
-        ),
-    }
-    .map_err(CheckPreparedLocalProjectError::Review)?;
-    let options = CompileOptions {
-        root_path: entry_path,
-        build_dir: Some(build_dir),
-        target_name: Some(target_profile.target_name().to_owned()),
-    };
-    let empty_admissions: &[TrustAdmission] = &[];
-    let settlement = checked
-        .admit_trust(if verify {
-            empty_admissions
-        } else {
-            &accepted_trust_admissions
-        })
-        .map_err(CheckPreparedLocalProjectError::TrustAdmission)?;
-    checked
-        .check_report(
-            options.root_path,
-            &compiler::OptimizationRollback::default(),
-            settlement,
-        )
-        .map_err(CheckPreparedLocalProjectError::ProofProduct)
+    check_one_prepared_target(
+        PreparedProjectTarget {
+            profile: target_profile,
+            accepted: Ok(accepted_target),
+        },
+        &source_closure,
+        &entry_path,
+        &build_dir,
+        build_snapshot.as_ref(),
+        &accepted_trust_admissions,
+        verify,
+        &mut CandidateSourcePreparation::for_closure(&source_closure).collecting_timings(timings),
+    )
 }
 
 /// The same check for every requested target under one prepared source union.
@@ -263,7 +231,7 @@ pub fn check_prepared_local_project_for_targets(
                 prepared_target,
                 &source_closure,
                 &entry_path,
-                &build_dir,
+                &build_dir.join(profile.target_name()),
                 build_snapshot.as_ref(),
                 &accepted_trust_admissions,
                 verify,
@@ -277,16 +245,16 @@ pub fn check_prepared_local_project_for_targets(
         .collect()
 }
 
-/// Check one prepared target inside the shared request. Checked reporting
-/// consumes the compile's generated sources, so it is an executor of the
-/// accepted policy, not an observational review: the target's own
+/// Check one prepared target, staging into `target_build_dir`. Checked
+/// reporting consumes the compile's generated sources, so it is an executor
+/// of the accepted policy, not an observational review: the target's own
 /// restricted-request checkpoint arms the pass, and a projected request the
 /// accepted rows do not grant rejects before its own build effect executes.
 fn check_one_prepared_target(
     prepared_target: PreparedProjectTarget,
     source_closure: &crate::resolution::graph::ResolvedPackageSourceClosure,
     entry_path: &Path,
-    build_dir: &Path,
+    target_build_dir: &Path,
     build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     accepted_trust_admissions: &[TrustAdmission],
     verify: bool,
@@ -296,7 +264,6 @@ fn check_one_prepared_target(
     let accepted_target = prepared_target
         .accepted
         .map_err(CheckPreparedLocalProjectError::Prepare)?;
-    let target_build_dir = build_dir.join(profile.target_name());
     // A verify check withholds the accepted target's granted request
     // meanings: each occurrence still compiles under the retained pins, but
     // its projected restricted requests stand or fall on this pass alone.
@@ -309,7 +276,7 @@ fn check_one_prepared_target(
     };
     let (checked, _reviews) = compile_candidate_for_check_reusing(
         &source_closure.for_exact_target(profile),
-        &target_build_dir,
+        target_build_dir,
         entry_path,
         build_snapshot,
         checkpoint.as_ref(),
@@ -318,7 +285,7 @@ fn check_one_prepared_target(
     .map_err(CheckPreparedLocalProjectError::Review)?;
     let options = CompileOptions {
         root_path: entry_path.to_path_buf(),
-        build_dir: Some(target_build_dir),
+        build_dir: Some(target_build_dir.to_path_buf()),
         target_name: Some(profile.target_name().to_owned()),
     };
     let empty_admissions: &[TrustAdmission] = &[];
