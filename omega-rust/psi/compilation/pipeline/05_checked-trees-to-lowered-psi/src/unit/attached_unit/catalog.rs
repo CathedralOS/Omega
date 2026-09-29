@@ -236,6 +236,9 @@ pub(super) fn lower_unit_structural_types_including(
         roots.extend(crate::scalar_graph::scalar_computations::cases::type_roots(
             checked, *symbol,
         )?);
+        roots.extend(crate::scalar_graph::scalar_computations::fields::type_roots(
+            checked, *symbol,
+        )?);
         let body = UnitBody::find(plans, *symbol)?;
         if !matches!(body, UnitBody::Ordinary(plan) if plan.scalar_result.is_some() || plan.scalar_control.is_some())
             && let checked_trees::CheckedControlResultPlan::Structural(result) = body.result()?

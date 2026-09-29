@@ -1,0 +1,28 @@
+// A `&`-record loan local mints no established place: the member read
+// `plain.tag` resolves the structural parameter the loan captured plus the
+// canonical `desc` prefix below it, so the referee record's leaf verifies.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Desc {
+    tag: u32;
+}
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+    desc: Desc;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let plain: &Desc = &self.desc;
+    transition plain.tag == self.buf[0] as u32 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

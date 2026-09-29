@@ -1,10 +1,13 @@
-// PENDING pin — use-through admitted loans: `borrowed.tag` member read
-// through a recast `as &Desc` shared loan. --check passes; the run tier
-// omits at 'record read has no structural namespace'
-// (scalar_computations/fields.rs): the recast referee record `Desc` never
-// reaches the machine's structural declaration roster, so the member
-// read's root identity matches nothing. Repair = minting the referee's
-// structural declaration, a wider arm than a read resolver.
+// PENDING pin — `borrowed.tag` member read through a recast `as &Desc`
+// shared loan over byte storage. --check passes; the run tier now omits at
+// 'record read carrier path changed its declared type': the member read
+// resolves the captured place (`self.buf[0]`) and the canonical
+// `[Field(buf), FixedIndex(0)]` prefix, but that path ends on the `u8`
+// element — the scalar-read vocabulary has no segment that reinterprets
+// byte-array storage as a record referee. The repair is a byte-carrier
+// record-overlay arm (canonical reinterpret segment or block-carrier
+// establishment), not a declaration-minting problem — adjacent to the
+// BLOCK-WINDOW machinery.
 use omega_language_std::console;
 use omega::language::core::binding;
 

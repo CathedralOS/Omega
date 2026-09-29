@@ -7,7 +7,7 @@
 //! conflating reads by final field identity or projected type alone.
 use super::super::{
     PrimitiveType, StructuralFieldId, StructuralFieldType, StructuralTypeDeclaration,
-    StructuralTypeShape, terminal_scalar_type,
+    StructuralTypeId, StructuralTypeShape, terminal_scalar_type,
 };
 use super::{
     CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, storage, unsupported,
@@ -16,14 +16,291 @@ use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
+use checked_trees::types::TypeReferenceNode;
+use typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use typed_trees::statement::StatementNode;
 
 #[derive(Clone)]
 pub(crate) struct Binding {
     symbol: symbols::SymbolHandle,
     subject: CheckedUnitStructuralArgumentPlan,
+    /// The established place this read resolves through when the subject is a
+    /// shared `&`-record loan local rather than an established place of its
+    /// own. The captured place supplies the source and the canonical prefix
+    /// already leads `path`; `None` for ordinary established-local subjects.
+    loan_source: Option<LoanedSource>,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     field: StructuralFieldId,
     scalar_type: ScalarType,
+}
+
+/// One authored segment of a shared loan's captured place: a declared record
+/// member projection or a literal index into a fixed array.
+enum LoanedPathSegment {
+    Field(String),
+    FixedIndex(u64),
+}
+
+/// The established place a shared record loan resolves to at observation: a
+/// structural parameter (by dense roster index) or an owned structural local
+/// (by symbol, resolved through the ordinary argument join).
+#[derive(Clone, Copy)]
+enum LoanedSource {
+    Parameter(u32),
+    Local(symbols::SymbolHandle),
+}
+
+/// Walk an authored expression back to its root symbol, collecting member and
+/// literal-index segments in authored order. Only expression shapes that name
+/// an established storage place admit a captured path; a recast peels to the
+/// expression it reinterprets.
+fn captured_subject_path(
+    checked: &CheckedTrees,
+    expression: ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, Vec<LoanedPathSegment>)> {
+    match checked.expression_table.expression(expression) {
+        ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+            captured_subject_path(checked, cast.value)
+        }
+        ExpressionNode::Name(path) => {
+            let mut members = checked
+                .expression_table
+                .name_path_member_symbols(path.member_symbols)
+                .iter();
+            let root = members.next().copied().filter(|symbol| symbol.is_valid())?;
+            Some((
+                root,
+                members
+                    .map(|member| {
+                        LoanedPathSegment::Field(checked.symbols.name(*member).to_string())
+                    })
+                    .collect(),
+            ))
+        }
+        ExpressionNode::Member(member) => {
+            let (root, mut segments) = captured_subject_path(checked, member.receiver)?;
+            segments.push(LoanedPathSegment::Field(
+                checked.symbols.name(member.member_symbol).to_string(),
+            ));
+            Some((root, segments))
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let (root, mut segments) = captured_subject_path(checked, indexed.collection)?;
+            let index = checked
+                .expression_table
+                .constant_integer_value(indexed.index)
+                .and_then(|index| u64::try_from(index).ok())?;
+            segments.push(LoanedPathSegment::FixedIndex(index));
+            Some((root, segments))
+        }
+        _ => None,
+    }
+}
+
+/// A shared `&`-record local is a silent loan marker: it mints no established
+/// place of its own, so a member read through it must resolve the structural
+/// parameter the loan captured plus the canonical path from that root to the
+/// referee. `None` means the local is not such a loan; `Some` carries the
+/// dense structural-parameter index, the canonical prefix, and the declared
+/// type the prefix ends on so the ordinary subject walk can continue there.
+fn shared_loan_subject(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    symbol: symbols::SymbolHandle,
+    types: &[StructuralTypeDeclaration],
+) -> Result<
+    Option<(
+        LoanedSource,
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        StructuralTypeId,
+    )>,
+    LoweringError,
+> {
+    let (source_machine, source_state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    if source_machine.symbol != machine {
+        return Ok(None);
+    }
+    let Some(local) = checked
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .iter()
+        .find_map(|node| match node {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+            _ => None,
+        })
+    else {
+        return Ok(None);
+    };
+    if local.is_mutable {
+        return Ok(None);
+    }
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = checked
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return Ok(None);
+    };
+    if *access != language_core::ReferenceAccess::Shared
+        || !matches!(
+            checked.type_reference_table.type_reference(*referee),
+            TypeReferenceNode::Named { .. }
+        )
+    {
+        return Ok(None);
+    }
+    let mut initializer = local.initial_value;
+    let target = loop {
+        match checked.expression_table.expression(initializer) {
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => initializer = cast.value,
+            ExpressionNode::Borrow(borrow)
+                if borrow.access == language_core::ReferenceAccess::Shared =>
+            {
+                break borrow.target
+            }
+            _ => return Ok(None),
+        }
+    };
+    let Some((root, segments)) = captured_subject_path(checked, target) else {
+        return unsupported("shared record loan captured an unreadable place");
+    };
+    let parameters = checked.state_parameters(&source_state);
+    // A `self`-rooted capture names the machine's own declared symbol rather
+    // than a parameter spelling; it resolves to the `is_self` parameter, the
+    // same join the shared borrow rosters make. A local-rooted capture keeps
+    // that local's established place — the owned record is established storage
+    // even though the `&` loan binding itself stays a silent marker.
+    let authored_index = parameters
+        .iter()
+        .position(|parameter| parameter.symbol == root)
+        .or_else(|| {
+            (root == source_machine.symbol)
+                .then(|| parameters.iter().position(|parameter| parameter.is_self))?
+        });
+    let (source, mut type_reference) = match authored_index {
+        Some(authored_index) => {
+            let Some(state_plan) = checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(machine)
+                .and_then(|plan| plan.states.iter().find(|plan| plan.state == state))
+            else {
+                return unsupported("shared record loan's state left the composed plan");
+            };
+            let Some(parameter_index) = state_plan
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.position as usize == authored_index)
+            else {
+                return unsupported(
+                    "shared record loan captured a non-structural parameter",
+                );
+            };
+            (
+                LoanedSource::Parameter(parameter_index as u32),
+                parameters[authored_index].type_reference,
+            )
+        }
+        None => {
+            let Some(root_local) = checked
+                .statement_table
+                .statements(source_state.statement_nodes)
+                .iter()
+                .find_map(|node| match node {
+                    StatementNode::LocalData(local) if local.symbol == root => Some(local),
+                    _ => None,
+                })
+            else {
+                return unsupported("shared record loan captured no declared storage");
+            };
+            (LoanedSource::Local(root), root_local.type_reference)
+        }
+    };
+    while let TypeReferenceNode::Reference { referee, .. } = checked
+        .type_reference_table
+        .type_reference(type_reference)
+    {
+        type_reference = *referee;
+    }
+    // The receiver's authored type names the machine itself; its structural
+    // carrier is the attached data record the machine's states operate on.
+    let root_identity = match checked
+        .type_reference_table
+        .type_reference(type_reference)
+    {
+        TypeReferenceNode::Named {
+            symbol: named_symbol,
+            ..
+        } if *named_symbol == source_machine.symbol => format!(
+            "named(name({}))",
+            checked.symbols.name(source_machine.attached_data_symbol)
+        ),
+        _ => checked.normalized_type_identity(type_reference).into_string(),
+    };
+    let mut declaration = types
+        .iter()
+        .find(|declaration| declaration.identity == root_identity)
+        .ok_or(LoweringError::Unsupported(
+            "shared record loan's captured root has no structural namespace",
+        ))?;
+    let mut path = Vec::new();
+    for segment in segments {
+        match segment {
+            LoanedPathSegment::Field(identity) => {
+                let StructuralTypeShape::Record { fields } = &declaration.shape else {
+                    return unsupported(
+                        "shared record loan's captured path left its record namespace",
+                    );
+                };
+                let mut matching = fields.iter().filter(|field| field.identity == identity);
+                let selected = matching.next().ok_or(LoweringError::Unsupported(
+                    "shared record loan's captured field is absent",
+                ))?;
+                let StructuralFieldType::Structural(nested) = selected.field_type else {
+                    return unsupported("shared record loan's captured field is not structural");
+                };
+                if matching.next().is_some() || selected.relevance.is_erased() {
+                    return unsupported(
+                        "shared record loan's captured field is ambiguous or erased",
+                    );
+                }
+                path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                    selected.id,
+                ));
+                declaration = types
+                    .iter()
+                    .find(|declaration| declaration.id == nested)
+                    .ok_or(LoweringError::Unsupported(
+                        "shared record loan's captured type is absent",
+                    ))?;
+            }
+            LoanedPathSegment::FixedIndex(index) => {
+                let StructuralTypeShape::FixedArray { element, length } = &declaration.shape
+                else {
+                    return unsupported(
+                        "shared record loan's captured index left its array namespace",
+                    );
+                };
+                if index >= *length {
+                    return unsupported("shared record loan's captured index is out of bounds");
+                }
+                path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(
+                    index,
+                ));
+                declaration = types
+                    .iter()
+                    .find(|declaration| declaration.id == *element)
+                    .ok_or(LoweringError::Unsupported(
+                        "shared record loan's captured element type is absent",
+                    ))?;
+            }
+        }
+    }
+    Ok(Some((source, path, declaration.id)))
 }
 
 pub(crate) fn prepare(
@@ -87,17 +364,40 @@ pub(crate) fn prepare(
             .ok_or(LoweringError::Unsupported(
                 "record read lost its source declaration path",
             ))?;
-            let root_identity = checked.normalized_type_identity(source.type_reference);
-            let mut declarations = types
-                .iter()
-                .filter(|declaration| declaration.identity == root_identity.as_str());
-            let mut declaration = declarations.next().ok_or(LoweringError::Unsupported(
-                "record read has no structural namespace",
-            ))?;
-            if declarations.next().is_some() {
-                return unsupported("record read has ambiguous structural namespaces");
-            }
-            let mut path = Vec::new();
+            let loan = match subject.source {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                    symbol,
+                } => shared_loan_subject(checked, machine, root.state, symbol, types)?,
+                _ => None,
+            };
+            let (loan_source, mut path, mut declaration) = match loan {
+                Some((source, prefix, terminal)) => (
+                    Some(source),
+                    prefix,
+                    types
+                        .iter()
+                        .find(|declaration| declaration.id == terminal)
+                        .ok_or(LoweringError::Unsupported(
+                            "record read's loaned carrier type is absent",
+                        ))?,
+                ),
+                None => {
+                    let root_identity =
+                        checked.normalized_type_identity(source.type_reference);
+                    let mut declarations = types
+                        .iter()
+                        .filter(|declaration| declaration.identity == root_identity.as_str());
+                    let declaration = declarations.next().ok_or(LoweringError::Unsupported(
+                        "record read has no structural namespace",
+                    ))?;
+                    if declarations.next().is_some() {
+                        return unsupported(
+                            "record read has ambiguous structural namespaces",
+                        );
+                    }
+                    (None, Vec::new(), declaration)
+                }
+            };
             for segment in &subject.path {
                 let checked_trees::CheckedUnitStructuralPathSegment::Field(identity) = segment
                 else {
@@ -150,6 +450,7 @@ pub(crate) fn prepare(
             bindings.push(Binding {
                 symbol: *field,
                 subject: subject.clone(),
+                loan_source,
                 path,
                 field: retained.id,
                 scalar_type,
@@ -157,6 +458,49 @@ pub(crate) fn prepare(
         }
     }
     Ok(bindings)
+}
+
+/// A member read's referee record can be owned by no signature, parameter,
+/// result, or operation: a shared-loan local peels to its captured record
+/// before the member projection, so the referee reaches the catalog only
+/// through the read itself.
+pub(crate) fn type_roots(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+) -> Result<Vec<String>, LoweringError> {
+    let plans = &checked.facts.values.scalar_computations;
+    let mut types = Vec::new();
+    for (_, root) in plans
+        .roots
+        .iter()
+        .filter(|(_, root)| root.machine == machine)
+    {
+        for handle in super::reachable_nodes(checked, &[root.root])? {
+            let CheckedScalarComputationKind::StructuralField {
+                source_expression,
+                ..
+            } = &plans.nodes.get(handle).kind
+            else {
+                continue;
+            };
+            let Some(source) = validation::local_scalar_record_field(
+                &checked.typed,
+                machine,
+                root.state,
+                root.statement_ordinal,
+                *source_expression,
+            ) else {
+                continue;
+            };
+            let identity = checked
+                .normalized_type_identity(source.type_reference)
+                .into_string();
+            if !types.contains(&identity) {
+                types.push(identity);
+            }
+        }
+    }
+    Ok(types)
 }
 
 pub(super) fn observation(
@@ -180,10 +524,45 @@ pub(super) fn observation(
     }
     // The ordinary shared-argument join already resolves an exact live local
     // without transferring it. Field replay admits only StructuralLocal sources;
-    // use that same current storage mapping instead of a parallel read map.
-    let source = bindings
-        .shared_structural_argument(subject, machine, parameters)?
-        .place;
+    // use that same current storage mapping instead of a parallel read map. A
+    // shared `&`-record loan local never enters that roster — it mints no place
+    // — so the read resolves the captured parameter's place directly and lets
+    // the emitted canonical path name the referee below it.
+    let source = match binding.loan_source {
+        Some(LoanedSource::Parameter(parameter_index)) => bindings
+            .shared_structural_argument(
+                &CheckedUnitStructuralArgumentPlan {
+                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                        parameter_index,
+                    },
+                    path: Vec::new(),
+                    type_identity: subject.type_identity.clone(),
+                    access: subject.access,
+                },
+                machine,
+                parameters,
+            )?
+            .place,
+        Some(LoanedSource::Local(symbol)) => bindings
+            .shared_structural_argument(
+                &CheckedUnitStructuralArgumentPlan {
+                    source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
+                        symbol,
+                    },
+                    path: Vec::new(),
+                    type_identity: subject.type_identity.clone(),
+                    access: subject.access,
+                },
+                machine,
+                parameters,
+            )?
+            .place,
+        None => {
+            bindings
+                .shared_structural_argument(subject, machine, parameters)?
+                .place
+        }
+    };
     Ok(match scalar_type {
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
