@@ -72,6 +72,7 @@ pub use allocation_recovery::{
 pub use constant_boolean::{ConstantBooleanError, ValidatedConstantBoolean};
 pub(crate) use constant_boolean::{
     fold_selected_constant_boolean, measured_steps as constant_boolean_measured_steps,
+    surface_sizes as constant_boolean_surface_sizes,
 };
 pub use constant_branch::{ConstantBranchError, ValidatedConstantBranch};
 pub(crate) use constant_branch::{

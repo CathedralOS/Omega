@@ -26,16 +26,16 @@
 //!   from `constant_branch/pair`, with the control-flow relationship
 //!   (`ConditionalRelativeBranchV1` to `UnconditionalRelativeBranchV1`)
 //!   bound to the stage's machine-effect catalog on both sides.
-//! - `condition_materialization` declares the decided condition-state
-//!   materialization family: a `MaterializeBoolean*` instruction — the
-//!   flag-consuming form no operand-carrying descriptor could name, whose
-//!   whole input arrives through implicit physical units — whose flag uses
-//!   resolve to one constant-operand producer becomes the `MaterializeI64`
-//!   publishing the decided zero or one. Its consumer is the first
-//!   instruction-position flag consumer: the uses retire exactly as the
-//!   constant-branch family's do, at a body read position rather than a
-//!   terminator one. Its execution owner is `rewrites::constant_boolean`,
-//!   the same integration the branch family completed.
+//! - The decided condition-state materialization family formerly staged
+//!   here as `condition_materialization` — a `MaterializeBoolean*`
+//!   instruction, the flag-consuming form no operand-carrying descriptor
+//!   could name, whose flag uses resolve to one constant-operand producer
+//!   becomes the `MaterializeI64` publishing the decided zero or one — now
+//!   drives the executed `rewrites::constant_boolean` rule
+//!   (`SelectedConstantBooleanFoldV1`) from `constant_boolean/pair`, the
+//!   same integration the branch family completed. Its flag-reaching walk
+//!   and operand grammars live in the shared `rewrites::condition_state`
+//!   vocabulary; the staged `condition_flow` copy left with it.
 //! - `projected_access` declares the address-projection access family: an
 //!   `AddressOffset` producer whose projected register feeds operand 0 of a
 //!   `Load8`, `Load16`, `Load32`, `Load64`, or `Store` becomes the same
@@ -62,22 +62,9 @@
 //!   (`CallReturnAddressLifecycleV1` on stack-pushing targets,
 //!   `UnchangedV1` under a link register) — verbatim.
 //!
-//! `condition_flow` owns the staged materialization family's flag-reaching
-//! walk and unique-materialization lookup; the producer operand grammars
-//! and the resolved unit-surface contract it names are the executed
-//! `rewrites::condition_state` vocabulary the constant-branch descriptors
-//! bind.
-
-mod condition_flow;
-mod condition_materialization;
 mod copied_call_operand;
 mod projected_access;
 
-pub use condition_materialization::{
-    ConditionMaterializationError, ConditionMaterializationReceipt,
-    ValidatedConditionMaterialization, fold_selected_condition_materialization,
-    validate_condition_materialization_fold,
-};
 pub use copied_call_operand::{
     CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand,
     fold_selected_copied_call_operand, validate_copied_call_operand_fold,

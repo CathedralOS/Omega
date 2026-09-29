@@ -58,18 +58,33 @@
 //! own direction (`left - right`), so no swapped subtraction or consumer
 //! audit is needed.
 //!
+//! Admission is descriptor-driven: the
+//! [`ConditionMaterializationRule`](pair::ConditionMaterializationRule)
+//! table in `pair` names every (producer kind, consumer kind) pair the
+//! family admits — the three compare producers against the five boolean
+//! consumers — along with the operand grammar that decides the predicate,
+//! the unit-flow axis that retires the flag uses and preserves every
+//! other unit role, and the effect axis bound against the stage's
+//! validated machine-effect catalog. The table was staged as
+//! `rewrites::unexecuted::peepholes::condition_materialization` beside
+//! this family and moved here to drive the executed fold, the same
+//! integration the constant-branch `pair` descriptors completed for the
+//! terminator grammar.
+//!
 //! Validation consumes the proposed program, requires the instruction at
 //! the materialization's position to equal the independently computed
 //! fold, and restores the complete source by content: every other
 //! instruction, register, roster row, call, and settlement is retained
 //! bit-identical. The validator re-derives the fold's preconditions on
 //! its own audit — the flag-reader shape, the one compare every used
-//! unit's reaching event must resolve to, and the constant operands the
-//! predicate outcome is decided from — never consulting the producer's
-//! `admission` routine; only the module's shared condition-state walk and
-//! operand audit are common to both sides.
+//! unit's reaching event must resolve to, the constant operands the
+//! predicate outcome is decided from, and the catalog effect surface
+//! restated from the bound declarations — never consulting the producer's
+//! `admission` routine or its descriptor table; only the module's shared
+//! condition-state walk and operand audit are common to both sides.
 
 mod admission;
+mod pair;
 mod rewrite;
 mod validation;
 
@@ -83,7 +98,7 @@ use selected_instructions::{
 use semantic_vocabulary::FuelScheduleIdentity;
 
 pub(crate) use rewrite::fold_selected_constant_boolean;
-pub(crate) use validation::{measured_steps, validate_constant_boolean_fold};
+pub(crate) use validation::{measured_steps, surface_sizes, validate_constant_boolean_fold};
 
 #[cfg(test)]
 mod tests;
@@ -184,6 +199,11 @@ pub enum ConstantBooleanError {
     UnsupportedProducer,
     UnsupportedLiteral,
     ConstraintMismatch,
+    /// The bound machine-effect catalog does not describe this plan's
+    /// target and constraint inventory, or no declaration pairs the
+    /// consumer's semantic with its bound row, or a declaration's encoded
+    /// alternatives carry an effect surface the rewrite does not isolate.
+    EffectSurfaceMismatch,
     WorkBudgetExceeded,
     IdentityOverflow,
     ReplayMismatch,

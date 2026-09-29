@@ -176,12 +176,12 @@ pub(crate) fn constant_operands(
 /// on — `left - right` in the compare's own direction.
 ///
 /// Each variant binds one producer kind's operand grammar: a declarative
-/// pair descriptor (`constant_branch::pair`, and the staged
-/// `condition_materialization` family) names the grammar rather than
-/// leaving admission to infer it from operand counts, and the independent
-/// validators restate the same grammar from the producer's kind alone. The
-/// grammars are producer-side facts shared by every condition-state pair
-/// family, so this executed owner holds the one vocabulary.
+/// pair descriptor (`constant_branch::pair`, `constant_boolean::pair`)
+/// names the grammar rather than leaving admission to infer it from
+/// operand counts, and the independent validators restate the same grammar
+/// from the producer's kind alone. The grammars are producer-side facts
+/// shared by every condition-state pair family, so this executed owner
+/// holds the one vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConditionOperandResolution {
     /// `CompareI64`: two plain `Use` operands. Each register resolves to the

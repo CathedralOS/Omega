@@ -1,26 +1,37 @@
 //! Independent validation of constant condition materialization.
 //!
-//! The validator never calls [`super::admission`]: it re-derives the
+//! The validator never calls [`super::admission`] and never reads the
+//! `pair` descriptor table the producer consults: it re-derives the
 //! fold's legality from the source records — the named instruction's
 //! `MaterializeBoolean*` kind and emitted `[def result]` shape, the flag
-//! units it reads resolving through the shared condition-state walk to
-//! one compare's published definitions, that compare's compile-time
-//! constant operands, and the target's own materialize row the rewritten
-//! instruction is built from — then rebuilds the instruction the contract
-//! demands and requires the proposal to carry it at the materialization's
-//! position. Reinserting the source boolean must restore the complete
-//! source by content: every other instruction, register, call, and
-//! function included. A producer admission error therefore fails
+//! units it reads partitioned against the environment's own compare rows
+//! and resolving through the shared condition-state walk to one compare's
+//! published definitions, that compare's compile-time constant operands,
+//! and the target's own materialize row the rewritten instruction is
+//! built from — then rebuilds the instruction the contract demands and
+//! requires the proposal to carry it at the materialization's position.
+//! The catalog effect surface is restated here too: the consumer's row
+//! must encode an effect-isolated fall-through whose implicit uses stay
+//! inside the flag universe, and the materialize row an isolated
+//! fall-through with no implicit unit traffic at all — read off the bound
+//! catalog directly. Reinserting the source boolean must restore the
+//! complete source by content: every other instruction, register, call,
+//! and function included. A producer admission error therefore fails
 //! validation even when the proposal is exactly what that producer
 //! emitted.
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
-use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
+use register_model::{RegisterInstructionConstraint, RegisterOperandAccess, RegisterUnitId};
 use selected_instructions::{
-    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionPlan, SelectedInstructionProvenance, SelectedOperand, VirtualRegisterId,
+    MachineAlternative, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
+    MachineEffectDeclaration, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
+    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
+    MachineSemanticKind, MachineTrapBehavior, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan,
+    SelectedInstructionProvenance, SelectedOperand, ValidatedMachineEffectCatalog,
 };
 use semantic_vocabulary::IntegerValue;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -34,9 +45,10 @@ use crate::rewrites::condition_state::{
 
 /// The validator's own reconstruction of the fold the contract permits:
 /// the admitted materialization's coordinates and emitted provenance, the
-/// boolean result register and folded predicate outcome, the target's
+/// `Def` operand record carrying verbatim onto the rewritten
+/// materialization, the folded predicate outcome, the target's
 /// materialize row, the resolved-index successor lists the shared walk
-/// ran over, and the flag-use count for the measured-step contract. It
+/// ran over, and the surface sizes for the measured-step contract. It
 /// shares no state with the producer's `admission` record.
 struct Reconstructed<'source> {
     function: &'source SelectedFunction,
@@ -44,11 +56,14 @@ struct Reconstructed<'source> {
     materialization_index: usize,
     materialization_id: SelectedInstructionId,
     provenance: SelectedInstructionProvenance,
-    result: VirtualRegisterId,
-    value: bool,
+    operand: SelectedOperand,
+    value: IntegerValue,
     row: &'source RegisterInstructionConstraint,
     successors: Vec<Vec<usize>>,
     implicit_uses: usize,
+    flag_universe: usize,
+    materialize_surface: usize,
+    producer_defs: usize,
 }
 
 /// The constant a flag-reading `MaterializeBoolean*` materializes when
@@ -72,13 +87,36 @@ fn predicate_outcome(kind: SelectedInstructionKind, left: u64, right: u64) -> Op
     }
 }
 
-/// The boolean result register of an emitted `[def result]` flag reader,
-/// or none: the validator re-decides the emitted shape — one plain
-/// definition, no implicit definitions or clobbers, and a nonempty
-/// flag-use roster, since a boolean observing no condition state has no
-/// constant to evaluate.
-fn flag_reader(instruction: &SelectedInstruction) -> Option<VirtualRegisterId> {
-    if predicate_outcome(instruction.kind, 0, 0).is_none()
+/// The materialization semantic the validator reads off the instruction
+/// kind alone — never the producer's descriptor table.
+fn materialization_semantic(kind: SelectedInstructionKind) -> Option<MachineSemanticKind> {
+    match kind {
+        SelectedInstructionKind::MaterializeBooleanEqual => {
+            Some(MachineSemanticKind::MaterializeBooleanEqual)
+        }
+        SelectedInstructionKind::MaterializeBooleanU64LessThan => {
+            Some(MachineSemanticKind::MaterializeBooleanU64LessThan)
+        }
+        SelectedInstructionKind::MaterializeBooleanI64LessThan => {
+            Some(MachineSemanticKind::MaterializeBooleanI64LessThan)
+        }
+        SelectedInstructionKind::MaterializeBooleanU64LessOrEqual => {
+            Some(MachineSemanticKind::MaterializeBooleanU64LessOrEqual)
+        }
+        SelectedInstructionKind::MaterializeBooleanI64LessOrEqual => {
+            Some(MachineSemanticKind::MaterializeBooleanI64LessOrEqual)
+        }
+        _ => None,
+    }
+}
+
+/// The `Def` operand record of an emitted `[def result]` flag reader, or
+/// none: the validator re-decides the emitted shape — a consumer kind the
+/// materialization grammar names, one plain definition, no implicit
+/// definitions or clobbers, and a nonempty flag-use roster, since a
+/// boolean observing no condition state has no constant to evaluate.
+fn flag_reader(instruction: &SelectedInstruction) -> Option<SelectedOperand> {
+    if materialization_semantic(instruction.kind).is_none()
         || instruction.operands.len() != 1
         || instruction.implicit_uses.is_empty()
         || !instruction.implicit_defs.is_empty()
@@ -95,7 +133,75 @@ fn flag_reader(instruction: &SelectedInstruction) -> Option<VirtualRegisterId> {
     {
         return None;
     }
-    Some(result.virtual_register)
+    Some(*result)
+}
+
+/// The single catalog declaration for `semantic` bound to `constraint`, or
+/// none when the catalog does not declare exactly one such form — the
+/// validator's own lookup.
+fn declaration_for(
+    catalog: &ValidatedMachineEffectCatalog,
+    semantic: MachineSemanticKind,
+    constraint: register_model::RegisterConstraintKey,
+) -> Option<&MachineEffectDeclaration> {
+    let mut matches = catalog.catalog().declarations.iter().filter(|declaration| {
+        declaration.semantic == semantic && declaration.constraint == constraint
+    });
+    let declaration = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(declaration)
+}
+
+/// The effect surface a decided-materialization declaration must carry,
+/// restated from the catalog row alone: no declared memory, trap,
+/// barrier, call, or cleanup effect — the plain fall-through isolation
+/// both the flag read and the literal materialization publish.
+fn isolated_declaration(declaration: &MachineEffectDeclaration) -> bool {
+    declaration.memory == MachineMemoryEffect::NoneV1
+        && declaration.trap == MachineTrapBehavior::NeverV1
+        && declaration.barrier == MachineBarrier::None
+        && declaration.call == MachineCallEffect::NoneV1
+        && declaration.cleanup == MachineCleanupEffect::NoneV1
+}
+
+/// The encoded surface a condition-reading alternative must carry,
+/// restated from the catalog row alone: no memory access, unchanged
+/// stack, no trap surface, a plain fall-through — and implicit uses only
+/// inside `flag_universe`, with no implicit definitions or clobbers: the
+/// condition-state read is the whole input.
+fn condition_reading_alternative(
+    alternative: &MachineAlternative,
+    flag_universe: &BTreeSet<RegisterUnitId>,
+) -> bool {
+    let encoded = &alternative.encoded;
+    encoded.memory == MachineEncodedMemoryEffect::NoneV1
+        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
+        && encoded.control == MachineEncodedControlEffect::FallThroughV1
+        && !encoded.implicit_unit_uses.is_empty()
+        && encoded
+            .implicit_unit_uses
+            .iter()
+            .all(|unit| flag_universe.contains(unit))
+        && encoded.implicit_unit_defs.is_empty()
+        && encoded.implicit_unit_clobbers.is_empty()
+}
+
+/// The encoded surface a literal-materialization alternative must carry,
+/// restated from the catalog row alone: no memory access, unchanged
+/// stack, no trap surface, a plain fall-through — and no implicit unit
+/// traffic at all.
+fn materialize_alternative(alternative: &MachineAlternative) -> bool {
+    let encoded = &alternative.encoded;
+    encoded.memory == MachineEncodedMemoryEffect::NoneV1
+        && encoded.stack == MachineEncodedStackEffect::UnchangedV1
+        && encoded.trap == MachineEncodedTrapBehavior::NeverV1
+        && encoded.control == MachineEncodedControlEffect::FallThroughV1
+        && encoded.implicit_unit_uses.is_empty()
+        && encoded.implicit_unit_defs.is_empty()
+        && encoded.implicit_unit_clobbers.is_empty()
 }
 
 /// The family's own mapping of a shared condition-state rejection onto
@@ -112,21 +218,35 @@ fn condition_error(error: ConditionStateError) -> ConstantBooleanError {
 
 /// Reconstruct the legality of folding `materialization` from first
 /// principles: locate the instruction, verify the emitted flag-reader
-/// shape and the result register, resolve every used unit's reaching
+/// shape and the result register, partition the used units against the
+/// environment's own compare rows, resolve each flag unit's reaching
 /// event on the module's shared condition-state walk and require the one
-/// compare site whose published definitions cover them all, prove the
-/// compare's operands compile-time constant, and check the target's
+/// compare site whose published definitions cover them all, restate the
+/// unit-flow and effect-surface relationships the rewrite asserts, prove
+/// the compare's operands compile-time constant, and check the target's
 /// materialize row against the contract the rewrite assumes. Nothing in
-/// this audit reads the producer's admission decision.
+/// this audit reads the producer's admission decision or its descriptor
+/// table.
+#[allow(clippy::too_many_lines)]
 fn reconstruct<'source>(
     source: &'source impl ValidatedSelectedAnalysis,
     function_index: usize,
     materialization: SelectedInstructionId,
     environment: &'source ValidatedTargetRegisterEnvironment,
+    effect_catalog: &ValidatedMachineEffectCatalog,
 ) -> Result<Reconstructed<'source>, ConstantBooleanError> {
     let plan = source.selected_plan();
     if plan.target != environment.target() {
         return Err(ConstantBooleanError::SourceMismatch);
+    }
+    // The validator re-derives the catalog binding: the bound catalog must
+    // describe this plan's target, constraint catalog, and selected keys.
+    let catalog = effect_catalog.catalog();
+    if catalog.target != plan.target
+        || catalog.register_constraints != environment.constraints().identity()
+        || catalog.selected_keys != environment.selected_keys()
+    {
+        return Err(ConstantBooleanError::EffectSurfaceMismatch);
     }
     let function = plan
         .functions
@@ -146,13 +266,83 @@ fn reconstruct<'source>(
         .ok_or(ConstantBooleanError::SourceMismatch)?;
     let materialization_instruction =
         &function.blocks[block_index].instructions[materialization_index];
-    let result = flag_reader(materialization_instruction)
+    let operand = flag_reader(materialization_instruction)
         .ok_or(ConstantBooleanError::UnsupportedInstruction)?;
+    let result = operand.virtual_register;
     let result_register = function
         .virtual_registers
         .iter()
         .find(|register| register.id == result)
         .ok_or(ConstantBooleanError::UnsupportedUse)?;
+    let keys = environment.selected_keys();
+    // The consumer's bound row must carry the same single-`Def` shape the
+    // record does.
+    let consumer_row = environment
+        .constraint(materialization_instruction.constraint)
+        .ok_or(ConstantBooleanError::ConstraintMismatch)?;
+    if !(consumer_row.operands.len() == 1
+        && consumer_row.operands[0].operand == 0
+        && consumer_row.operands[0].access == RegisterOperandAccess::Def)
+    {
+        return Err(ConstantBooleanError::ConstraintMismatch);
+    }
+    // The rewritten instruction is the target's own materialize row,
+    // named by its `MaterializeI64` semantic: a single `[def]` at the
+    // boolean result's class carrying no unit traffic — the fold drops
+    // the flag uses, and any implicit definition or clobber the row added
+    // would publish unit state the source instruction never had.
+    let row = environment
+        .constraint(
+            keys.for_semantic(MachineSemanticKind::MaterializeI64)
+                .ok_or(ConstantBooleanError::ConstraintMismatch)?,
+        )
+        .ok_or(ConstantBooleanError::ConstraintMismatch)?;
+    if row.operands.len() != 1
+        || row.operands[0].operand != 0
+        || row.operands[0].access != RegisterOperandAccess::Def
+        || row.operands[0].class != result_register.class
+        || row.operands[0].fixed_view.is_some()
+        || row.operands[0].tied_to.is_some()
+        || row.operands[0].early_clobber
+        || !row.implicit_uses.is_empty()
+        || !row.implicit_defs.is_empty()
+        || !row.clobbers.is_empty()
+    {
+        return Err(ConstantBooleanError::ConstraintMismatch);
+    }
+    // The flag universe is the environment's own vocabulary: the implicit
+    // units the three condition-state producer rows define. The validator
+    // computes it from the selected keys directly, not from the declared
+    // table.
+    let mut flag_universe = BTreeSet::new();
+    for key in [
+        keys.compare_i64,
+        keys.compare_i64_immediate,
+        keys.compare_i64_zero,
+    ] {
+        flag_universe.extend(
+            environment
+                .constraint(key)
+                .ok_or(ConstantBooleanError::ConstraintMismatch)?
+                .implicit_defs
+                .iter()
+                .copied(),
+        );
+    }
+    let mut flag_uses = Vec::new();
+    let mut plain_uses = Vec::new();
+    for unit in &materialization_instruction.implicit_uses {
+        if flag_universe.contains(unit) {
+            flag_uses.push(*unit);
+        } else {
+            plain_uses.push(*unit);
+        }
+    }
+    if flag_uses.is_empty() {
+        // A materialization observing no condition state has no predicate
+        // to decide.
+        return Err(ConstantBooleanError::UnsupportedUse);
+    }
     // The flag walk crosses block boundaries: build the block-indexed
     // adjacency once, locate the entry block whose unseeded condition
     // state bounds every path, and mark the cone of blocks that can reach
@@ -169,7 +359,7 @@ fn reconstruct<'source>(
     // reaching event on its own, so a producer that admitted divergent
     // sites or an uncovered unit cannot pass validation.
     let mut compare_site = None;
-    for unit in &materialization_instruction.implicit_uses {
+    for unit in &flag_uses {
         let event = reaching_event(
             function,
             entry,
@@ -187,10 +377,26 @@ fn reconstruct<'source>(
     }
     let compare_site = compare_site.ok_or(ConstantBooleanError::UnsupportedUse)?;
     let compare_instruction = instruction_at(function, compare_site);
-    if materialization_instruction
-        .implicit_uses
+    if flag_uses
         .iter()
         .any(|unit| !compare_instruction.implicit_defs.contains(unit))
+    {
+        return Err(ConstantBooleanError::UnsupportedUse);
+    }
+    // The validator restates the unit-flow relationship from the records:
+    // the flag uses retire, every non-flag use must stay read on the
+    // rewritten row, and the consumer's implicit definitions and clobbers
+    // republish verbatim — the materialize row reads nothing, so a
+    // consumer using anything outside the flag universe cannot fold.
+    if plain_uses
+        .iter()
+        .any(|unit| !row.implicit_uses.contains(unit))
+        || row.implicit_defs != materialization_instruction.implicit_defs
+        || row.clobbers != materialization_instruction.clobbers
+        || row
+            .implicit_uses
+            .iter()
+            .any(|unit| !materialization_instruction.implicit_uses.contains(unit))
     {
         return Err(ConstantBooleanError::UnsupportedUse);
     }
@@ -198,51 +404,119 @@ fn reconstruct<'source>(
         constant_operands(function, compare_instruction).map_err(condition_error)?;
     let value = predicate_outcome(materialization_instruction.kind, left, right)
         .ok_or(ConstantBooleanError::UnsupportedInstruction)?;
-    // The rewritten instruction is the target's own materialize row: a
-    // single `[def]` at the boolean result's class carrying no unit
-    // traffic — the fold drops the flag uses, and any implicit definition
-    // or clobber the row added would publish unit state the source
-    // instruction never had.
-    let row = environment
-        .constraint(environment.selected_keys().materialize_i64)
-        .ok_or(ConstantBooleanError::ConstraintMismatch)?;
-    if row.operands.len() != 1
-        || row.operands[0].operand != 0
-        || row.operands[0].access != RegisterOperandAccess::Def
-        || row.operands[0].class != result_register.class
-        || row.operands[0].fixed_view.is_some()
-        || row.operands[0].tied_to.is_some()
-        || row.operands[0].early_clobber
-        || !row.implicit_uses.is_empty()
-        || !row.implicit_defs.is_empty()
-        || !row.clobbers.is_empty()
+    // The effect relationship, restated on the bound catalog: the
+    // consumer's condition read and the rewritten materialization are
+    // both effect-isolated fall-through rows, the consumer's encoded
+    // implicit uses stay inside the flag universe, and the rewritten
+    // alternatives carry no implicit unit traffic at all. A target whose
+    // rows encode anything else cannot carry the fold.
+    let semantic = materialization_semantic(materialization_instruction.kind)
+        .ok_or(ConstantBooleanError::UnsupportedInstruction)?;
+    let consumer_declaration = declaration_for(
+        effect_catalog,
+        semantic,
+        materialization_instruction.constraint,
+    )
+    .ok_or(ConstantBooleanError::EffectSurfaceMismatch)?;
+    let rewritten_declaration =
+        declaration_for(effect_catalog, MachineSemanticKind::MaterializeI64, row.key)
+            .ok_or(ConstantBooleanError::EffectSurfaceMismatch)?;
+    if !(isolated_declaration(consumer_declaration)
+        && isolated_declaration(rewritten_declaration)
+        && consumer_declaration
+            .alternatives
+            .iter()
+            .all(|alternative| condition_reading_alternative(alternative, &flag_universe))
+        && rewritten_declaration
+            .alternatives
+            .iter()
+            .all(materialize_alternative))
     {
-        return Err(ConstantBooleanError::ConstraintMismatch);
+        return Err(ConstantBooleanError::EffectSurfaceMismatch);
     }
+    let materialize_surface = row
+        .implicit_uses
+        .iter()
+        .chain(row.implicit_defs.iter())
+        .chain(row.clobbers.iter())
+        .collect::<BTreeSet<_>>()
+        .len();
     Ok(Reconstructed {
         function,
         block_index,
         materialization_index,
         materialization_id: materialization,
         provenance: materialization_instruction.provenance.clone(),
-        result,
-        value,
+        operand,
+        value: IntegerValue::Unsigned(u128::from(value)),
         row,
         successors,
         implicit_uses: materialization_instruction.implicit_uses.len(),
+        flag_universe: flag_universe.len(),
+        materialize_surface,
+        producer_defs: compare_instruction.implicit_defs.len(),
     })
+}
+
+/// The flag-universe and materialize-surface sizes the measured-step
+/// contract charges — the union of the target's three compare rows'
+/// implicit definitions and the materialize row's implicit surface, under
+/// the same deduplication the audit's own sets apply. Discovery charges
+/// these once per pass, and the reached compare's published definitions
+/// stay bounded by the flag universe they are drawn from.
+pub(crate) fn surface_sizes(
+    environment: &ValidatedTargetRegisterEnvironment,
+) -> Result<(usize, usize), ConstantBooleanError> {
+    let keys = environment.selected_keys();
+    let mut flag_universe = BTreeSet::new();
+    for key in [
+        keys.compare_i64,
+        keys.compare_i64_immediate,
+        keys.compare_i64_zero,
+    ] {
+        flag_universe.extend(
+            environment
+                .constraint(key)
+                .ok_or(ConstantBooleanError::ConstraintMismatch)?
+                .implicit_defs
+                .iter()
+                .copied(),
+        );
+    }
+    let materialize_row = environment
+        .constraint(
+            keys.for_semantic(MachineSemanticKind::MaterializeI64)
+                .ok_or(ConstantBooleanError::ConstraintMismatch)?,
+        )
+        .ok_or(ConstantBooleanError::ConstraintMismatch)?;
+    let materialize_surface: BTreeSet<RegisterUnitId> = materialize_row
+        .implicit_uses
+        .iter()
+        .chain(materialize_row.implicit_defs.iter())
+        .chain(materialize_row.clobbers.iter())
+        .copied()
+        .collect();
+    Ok((flag_universe.len(), materialize_surface.len()))
 }
 
 /// The validation work this audit performs, in the measured-step contract
 /// the family publishes: one step per block plus one per instruction
 /// across the plan, two scans of the reconstructed function's blocks for
 /// the producer audit, and the shared walk's setup and fixpoint bound at
-/// one per used flag unit.
+/// one per used unit — flag or not — so the bound stays independent of
+/// the partition split. The `flag_universe`, `materialize_surface`, and
+/// `producer_defs` surface sizes are caller-supplied so discovery can
+/// charge the contract before admission runs; a pre-admission caller
+/// bounds `producer_defs` by `flag_universe`, which covers the published
+/// definitions of every compare row the union was built from.
 pub(crate) fn measured_steps(
     plan: &SelectedInstructionPlan,
     function: &SelectedFunction,
     successors: &[Vec<usize>],
     implicit_uses: usize,
+    flag_universe: usize,
+    materialize_surface: usize,
+    producer_defs: usize,
 ) -> Result<u64, ConstantBooleanError> {
     let function_scan = function
         .blocks
@@ -258,7 +532,9 @@ pub(crate) fn measured_steps(
     let block_count = function.blocks.len();
     // The shared walk's setup resolves every edge's target index, fills
     // the predecessor lists, and marks the backward cone. Each used unit
-    // scans the materialization block's prefix and — on an in-block
+    // then pays its partition checks — flag-universe and
+    // materialize-surface membership and the producer-definitions lookup —
+    // plus, for a flag unit, the block-prefix scan and — on an in-block
     // miss — every block's stream for its last event, after which
     // entry-set propagation requeues a block only while its set grows:
     // a set holds at most one element per event site plus the unknown
@@ -283,6 +559,13 @@ pub(crate) fn measured_steps(
         .checked_add(block_count)
         .and_then(|total| total.checked_add(pops))
         .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
+        .and_then(|total| {
+            total.checked_add(
+                flag_universe
+                    .checked_add(materialize_surface)?
+                    .checked_add(producer_defs)?,
+            )
+        })
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
     let walk_setup = edge_count
         .checked_mul(
@@ -292,6 +575,8 @@ pub(crate) fn measured_steps(
         )
         .and_then(|total| total.checked_add(block_count))
         .and_then(|total| total.checked_add(edge_count))
+        .and_then(|total| total.checked_add(flag_universe))
+        .and_then(|total| total.checked_add(materialize_surface))
         .ok_or(ConstantBooleanError::IdentityOverflow)?;
     let reach_scan = implicit_uses
         .checked_mul(per_unit)
@@ -315,34 +600,19 @@ pub(crate) fn measured_steps(
 }
 
 /// Build the instruction the contract demands from the validator's own
-/// record: the target's materialize row supplies the operand interface
-/// while the boolean's result register, instruction identity, and
-/// provenance stay with the result. The folded constant is the predicate
-/// outcome the retained compare publishes. The producer's `rewritten`
-/// constructor is not consulted; both sides derive the same instruction
-/// from the source alone.
+/// record: the target's materialize row supplies the implicit surface
+/// while the consumer's instruction identity, provenance, and `Def`
+/// operand record stay — the decided value lands in the same register
+/// home. The producer's `rewritten` constructor is not consulted; both
+/// sides derive the same instruction from the source alone.
 fn expected(reconstructed: &Reconstructed<'_>) -> SelectedInstruction {
     SelectedInstruction {
         id: reconstructed.materialization_id,
         kind: SelectedInstructionKind::MaterializeI64 {
-            value: IntegerValue::Unsigned(u128::from(u8::from(reconstructed.value))),
+            value: reconstructed.value,
         },
         constraint: reconstructed.row.key,
-        operands: reconstructed
-            .row
-            .operands
-            .iter()
-            .zip([reconstructed.result])
-            .map(|(operand, register)| SelectedOperand {
-                operand: operand.operand,
-                virtual_register: register,
-                access: operand.access,
-                class: operand.class,
-                fixed_view: operand.fixed_view,
-                tied_to: operand.tied_to,
-                early_clobber: operand.early_clobber,
-            })
-            .collect(),
+        operands: vec![reconstructed.operand],
         implicit_uses: reconstructed.row.implicit_uses.clone(),
         implicit_defs: reconstructed.row.implicit_defs.clone(),
         clobbers: reconstructed.row.clobbers.clone(),
@@ -390,15 +660,25 @@ pub fn validate_constant_boolean_fold(
     function_index: usize,
     materialization: SelectedInstructionId,
     environment: &ValidatedTargetRegisterEnvironment,
+    effect_catalog: &ValidatedMachineEffectCatalog,
     budget: OptimizationWorkBudget,
     proposed: SelectedInstructionPlan,
 ) -> Result<ValidatedConstantBoolean, ConstantBooleanError> {
-    let reconstructed = reconstruct(source, function_index, materialization, environment)?;
+    let reconstructed = reconstruct(
+        source,
+        function_index,
+        materialization,
+        environment,
+        effect_catalog,
+    )?;
     if measured_steps(
         source.selected_plan(),
         reconstructed.function,
         &reconstructed.successors,
         reconstructed.implicit_uses,
+        reconstructed.flag_universe,
+        reconstructed.materialize_surface,
+        reconstructed.producer_defs,
     )? > budget.validation_steps()
     {
         return Err(ConstantBooleanError::WorkBudgetExceeded);
@@ -438,7 +718,8 @@ mod independence_tests {
     use selected_instructions::{
         SelectedBlock, SelectedBlockId, SelectedBlockOrigin, SelectedFunction, SelectedInstruction,
         SelectedInstructionId, SelectedInstructionKind, SelectedInstructionPlan, SelectedOperand,
-        SelectedTerminator, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
+        SelectedTerminator, ValidatedMachineEffectCatalog, VirtualRegister, VirtualRegisterId,
+        VirtualRegisterOrigin,
     };
     use semantic_vocabulary::{
         BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -452,6 +733,9 @@ mod independence_tests {
         ConstantBooleanError, ConstantBooleanReceipt, ValidatedConstantBoolean,
         validate_constant_boolean_fold,
     };
+    use crate::analyses::validated_machine_effect_catalog;
+    use register_environment::ValidatedTargetRegisterEnvironment;
+    use register_model::RegisterUnitId;
 
     const MATERIALIZE_A: SelectedInstructionId = SelectedInstructionId(2);
     const MATERIALIZE_AGAIN: SelectedInstructionId = SelectedInstructionId(3);
@@ -499,7 +783,233 @@ mod independence_tests {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
     }
 
-    /// `ra = materialize 3; ra = materialize 3 again; rb = materialize 5;
+    /// `ra = materialize 3; rb = materialize 5; compare ra, rb;
+    /// rout = boolean; return` — a legal fold where the equality decides
+    /// zero. Each test mutates one legality premise, so the source names a
+    /// fold the contract must refuse while a defective producer would
+    /// still emit it.
+    fn plan(
+        environment: &ValidatedTargetRegisterEnvironment,
+        target: NativeTarget,
+    ) -> SelectedInstructionPlan {
+        let keys = environment.selected_keys();
+        let materialize = environment.constraint(keys.materialize_i64).unwrap();
+        let compare = environment.constraint(keys.compare_i64).unwrap();
+        let boolean = environment.constraint(keys.materialize_boolean).unwrap();
+        let terminal_row = environment.constraint(keys.return_unit).unwrap();
+        let class = compare.operands[0].class;
+        let machine = MachineId::new(1).unwrap();
+        SelectedInstructionPlan {
+            psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
+            },
+            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
+            target,
+            entry: machine,
+            functions: vec![SelectedFunction {
+                machine,
+                attachment: None,
+                provenance: Default::default(),
+                structural: None,
+                local_storage_slots: Vec::new(),
+                outgoing_arguments: Vec::new(),
+                calls: Vec::new(),
+                normalized_foreign_calls: Vec::new(),
+                memory_accesses: Vec::new(),
+                boundary_settlements: Vec::new(),
+                entry_block: SelectedBlockId(0),
+                virtual_registers: vec![
+                    VirtualRegister {
+                        id: LITA,
+                        scalar_type: u64_scalar(),
+                        class,
+                        origin: VirtualRegisterOrigin::InstructionResult {
+                            instruction: MATERIALIZE_A,
+                            source_value: ValueId::new(2).unwrap(),
+                        },
+                        definition_site: None,
+                        entry_fixed_view: None,
+                    },
+                    VirtualRegister {
+                        id: LITB,
+                        scalar_type: u64_scalar(),
+                        class,
+                        origin: VirtualRegisterOrigin::InstructionResult {
+                            instruction: MATERIALIZE_B,
+                            source_value: ValueId::new(3).unwrap(),
+                        },
+                        definition_site: None,
+                        entry_fixed_view: None,
+                    },
+                    VirtualRegister {
+                        id: OUTPUT,
+                        scalar_type: u64_scalar(),
+                        class,
+                        origin: VirtualRegisterOrigin::InstructionResult {
+                            instruction: BOOLEAN,
+                            source_value: ValueId::new(4).unwrap(),
+                        },
+                        definition_site: None,
+                        entry_fixed_view: None,
+                    },
+                ],
+                blocks: vec![SelectedBlock {
+                    id: SelectedBlockId(0),
+                    origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
+                    instructions: vec![
+                        instruction(
+                            MATERIALIZE_A,
+                            SelectedInstructionKind::MaterializeI64 {
+                                value: IntegerValue::Unsigned(3),
+                            },
+                            materialize,
+                            &[LITA],
+                        ),
+                        instruction(
+                            MATERIALIZE_B,
+                            SelectedInstructionKind::MaterializeI64 {
+                                value: IntegerValue::Unsigned(5),
+                            },
+                            materialize,
+                            &[LITB],
+                        ),
+                        instruction(
+                            COMPARE,
+                            SelectedInstructionKind::CompareI64,
+                            compare,
+                            &[LITA, LITB],
+                        ),
+                        instruction(
+                            BOOLEAN,
+                            SelectedInstructionKind::MaterializeBooleanEqual,
+                            boolean,
+                            &[OUTPUT],
+                        ),
+                    ],
+                    terminator: SelectedTerminator::Return {
+                        instruction: instruction(
+                            TERMINAL,
+                            SelectedInstructionKind::ReturnUnit,
+                            terminal_row,
+                            &[],
+                        ),
+                        psi_return_edge: EdgeId::new(2).unwrap(),
+                    },
+                }],
+            }]
+            .into(),
+        }
+    }
+
+    fn source(plan: SelectedInstructionPlan) -> ValidatedConstantBoolean {
+        let identity = selected_instruction_plan_identity(&plan);
+        ValidatedConstantBoolean {
+            receipt: ConstantBooleanReceipt {
+                source_selected: identity,
+                transformed_selected: identity,
+                optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
+                fuel_schedule: plan.fuel_schedule,
+                function_index: 0,
+                materialization: BOOLEAN,
+            },
+            transformed: Arc::new(plan),
+        }
+    }
+
+    /// The proposal a defective producer emits for this source: the boolean
+    /// folded to the `MaterializeI64` of zero under the target's own
+    /// materialize row — the edit the contract demands only when the
+    /// fold's legality actually holds.
+    fn forged_materialize(
+        source: &ValidatedConstantBoolean,
+        environment: &ValidatedTargetRegisterEnvironment,
+    ) -> SelectedInstructionPlan {
+        let materialize_row = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap();
+        let mut proposed = source.transformed().clone();
+        let consumer_index = proposed.functions[0].blocks[0]
+            .instructions
+            .iter()
+            .position(|instruction| instruction.id == BOOLEAN)
+            .unwrap();
+        let consumer = &proposed.functions[0].blocks[0].instructions[consumer_index];
+        proposed.functions[0].blocks[0].instructions[consumer_index] = SelectedInstruction {
+            id: consumer.id,
+            kind: SelectedInstructionKind::MaterializeI64 {
+                value: IntegerValue::Unsigned(0),
+            },
+            constraint: materialize_row.key,
+            operands: consumer.operands.clone(),
+            implicit_uses: materialize_row.implicit_uses.clone(),
+            implicit_defs: materialize_row.implicit_defs.clone(),
+            clobbers: materialize_row.clobbers.clone(),
+            provenance: consumer.provenance.clone(),
+        };
+        proposed
+    }
+
+    fn budget() -> OptimizationWorkBudget {
+        OptimizationWorkBudget::new(100, 100, 100_000, 100, 100).unwrap()
+    }
+
+    /// The machine-effect catalog the stage binds for `environment`.
+    fn catalog(environment: &ValidatedTargetRegisterEnvironment) -> ValidatedMachineEffectCatalog {
+        validated_machine_effect_catalog(environment.target(), environment.constraints())
+            .unwrap()
+            .as_ref()
+            .clone()
+    }
+
+    /// The boolean record is rebound to the materialize row's constraint
+    /// key: the bound catalog declares no `MaterializeBoolean*` semantic
+    /// under that key, so nothing attests the decided-materialization
+    /// relationship. A producer that skipped the catalog binding still
+    /// emits the `MaterializeI64`; the validator's own catalog restatement
+    /// refuses with `EffectSurfaceMismatch`. A catalog bound to another
+    /// target refuses the untouched legal source the same way.
+    #[test]
+    fn validator_refuses_a_materialize_surface_the_catalog_never_declared() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut plan = plan(&environment, target);
+        let materialize_key = environment.selected_keys().materialize_i64;
+        plan.functions[0].blocks[0].instructions[3].constraint = materialize_key;
+        let rebound = source(plan);
+        let proposed = forged_materialize(&rebound, &environment);
+        assert_eq!(
+            validate_constant_boolean_fold(
+                &rebound,
+                0,
+                BOOLEAN,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
+            ConstantBooleanError::EffectSurfaceMismatch
+        );
+        let legal = source(self::plan(&environment, target));
+        let foreign = baseline_target_register_environment(NativeTarget::linux_arm64()).unwrap();
+        let proposed = forged_materialize(&legal, &environment);
+        assert_eq!(
+            validate_constant_boolean_fold(
+                &legal,
+                0,
+                BOOLEAN,
+                &environment,
+                &catalog(&foreign),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
+            ConstantBooleanError::EffectSurfaceMismatch
+        );
+    }
+
+    /// `ra = materialize 3; ra = materialize 9; rb = materialize 5;
     /// compare ra, rb; rout = boolean; return` — the compare's left
     /// operand has two producers, so its value is not pinned
     /// function-wide and the fold's constant was never proven. A
@@ -513,169 +1023,95 @@ mod independence_tests {
     fn validator_refuses_a_proposal_its_own_audit_rejects() {
         let target = NativeTarget::linux_x64();
         let environment = baseline_target_register_environment(target).unwrap();
-        let keys = environment.selected_keys();
-        let materialize_row = environment.constraint(keys.materialize_i64).unwrap();
-        let compare_row = environment.constraint(keys.compare_i64).unwrap();
-        let boolean_row = environment.constraint(keys.materialize_boolean).unwrap();
-        let return_row = environment.constraint(keys.return_unit).unwrap();
-        let class = compare_row.operands[0].class;
-        let machine = MachineId::new(1).unwrap();
-        let function = SelectedFunction {
-            machine,
-            attachment: None,
-            provenance: Default::default(),
-            structural: None,
-            local_storage_slots: Vec::new(),
-            outgoing_arguments: Vec::new(),
-            calls: Vec::new(),
-            normalized_foreign_calls: Vec::new(),
-            memory_accesses: Vec::new(),
-            boundary_settlements: Vec::new(),
-            entry_block: SelectedBlockId(0),
-            virtual_registers: vec![
-                VirtualRegister {
-                    id: LITA,
-                    scalar_type: u64_scalar(),
-                    class,
-                    origin: VirtualRegisterOrigin::InstructionResult {
-                        instruction: MATERIALIZE_A,
-                        source_value: ValueId::new(2).unwrap(),
-                    },
-                    definition_site: None,
-                    entry_fixed_view: None,
+        let materialize = environment
+            .constraint(environment.selected_keys().materialize_i64)
+            .unwrap();
+        let mut plan = plan(&environment, target);
+        plan.functions[0].blocks[0].instructions.insert(
+            1,
+            instruction(
+                MATERIALIZE_AGAIN,
+                SelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(9),
                 },
-                VirtualRegister {
-                    id: LITB,
-                    scalar_type: u64_scalar(),
-                    class,
-                    origin: VirtualRegisterOrigin::InstructionResult {
-                        instruction: MATERIALIZE_B,
-                        source_value: ValueId::new(3).unwrap(),
-                    },
-                    definition_site: None,
-                    entry_fixed_view: None,
-                },
-                VirtualRegister {
-                    id: OUTPUT,
-                    scalar_type: u64_scalar(),
-                    class,
-                    origin: VirtualRegisterOrigin::InstructionResult {
-                        instruction: BOOLEAN,
-                        source_value: ValueId::new(4).unwrap(),
-                    },
-                    definition_site: None,
-                    entry_fixed_view: None,
-                },
-            ],
-            blocks: vec![SelectedBlock {
-                id: SelectedBlockId(0),
-                origin: SelectedBlockOrigin::Source(BlockId::new(1).unwrap()),
-                instructions: vec![
-                    instruction(
-                        MATERIALIZE_A,
-                        SelectedInstructionKind::MaterializeI64 {
-                            value: IntegerValue::Unsigned(3),
-                        },
-                        materialize_row,
-                        &[LITA],
-                    ),
-                    instruction(
-                        MATERIALIZE_AGAIN,
-                        SelectedInstructionKind::MaterializeI64 {
-                            value: IntegerValue::Unsigned(3),
-                        },
-                        materialize_row,
-                        &[LITA],
-                    ),
-                    instruction(
-                        MATERIALIZE_B,
-                        SelectedInstructionKind::MaterializeI64 {
-                            value: IntegerValue::Unsigned(5),
-                        },
-                        materialize_row,
-                        &[LITB],
-                    ),
-                    instruction(
-                        COMPARE,
-                        SelectedInstructionKind::CompareI64,
-                        compare_row,
-                        &[LITA, LITB],
-                    ),
-                    instruction(
-                        BOOLEAN,
-                        SelectedInstructionKind::MaterializeBooleanEqual,
-                        boolean_row,
-                        &[OUTPUT],
-                    ),
-                ],
-                terminator: SelectedTerminator::Return {
-                    instruction: instruction(
-                        TERMINAL,
-                        SelectedInstructionKind::ReturnUnit,
-                        return_row,
-                        &[],
-                    ),
-                    psi_return_edge: EdgeId::new(2).unwrap(),
-                },
-            }],
-        };
-        let plan = SelectedInstructionPlan {
-            psi: TerminalPsiIdentity {
-                vocabulary_marker: VocabularyMarker::CURRENT,
-                program_fingerprint: SemanticFingerprint::from_bytes([1; 32]),
-            },
-            fuel_schedule: FuelScheduleIdentity::new(1).unwrap(),
-            target,
-            entry: machine,
-            functions: vec![function].into(),
-        };
-        let identity = selected_instruction_plan_identity(&plan);
-        let source = ValidatedConstantBoolean {
-            receipt: ConstantBooleanReceipt {
-                source_selected: identity,
-                transformed_selected: identity,
-                optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
-                fuel_schedule: plan.fuel_schedule,
-                function_index: 0,
-                materialization: BOOLEAN,
-            },
-            transformed: Arc::new(plan),
-        };
-        // The proposal a defective producer would emit: the boolean
-        // folded to a constant materialize even though the compare's
-        // operand was never proven compile-time constant — the literal
-        // the fold publishes was never established.
-        let mut proposed = source.transformed().clone();
-        proposed.functions[0].blocks[0].instructions[4] = SelectedInstruction {
-            id: BOOLEAN,
-            kind: SelectedInstructionKind::MaterializeI64 {
-                value: IntegerValue::Unsigned(0),
-            },
-            constraint: materialize_row.key,
-            operands: materialize_row
-                .operands
-                .iter()
-                .zip([OUTPUT])
-                .map(|(operand, register)| SelectedOperand {
-                    operand: operand.operand,
-                    virtual_register: register,
-                    access: operand.access,
-                    class: operand.class,
-                    fixed_view: operand.fixed_view,
-                    tied_to: operand.tied_to,
-                    early_clobber: operand.early_clobber,
-                })
-                .collect(),
-            implicit_uses: materialize_row.implicit_uses.clone(),
-            implicit_defs: materialize_row.implicit_defs.clone(),
-            clobbers: materialize_row.clobbers.clone(),
-            provenance: Default::default(),
-        };
-        let budget = OptimizationWorkBudget::new(100, 100, 1000, 100, 100).unwrap();
+                materialize,
+                &[LITA],
+            ),
+        );
+        let source = source(plan);
+        let proposed = forged_materialize(&source, &environment);
         assert_eq!(
-            validate_constant_boolean_fold(&source, 0, BOOLEAN, &environment, budget, proposed)
-                .unwrap_err(),
+            validate_constant_boolean_fold(
+                &source,
+                0,
+                BOOLEAN,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
             ConstantBooleanError::UnsupportedProducer
+        );
+    }
+
+    /// The boolean's use roster gains a unit that is neither a flag the
+    /// fold decides nor a unit on the materialize row's implicit surface —
+    /// the rebuilt instruction would silently drop the observation. A
+    /// producer that skipped the use partition still emits the
+    /// `MaterializeI64`; the validator's own partition refuses with
+    /// `UnsupportedUse`.
+    #[test]
+    fn validator_refuses_an_observation_the_materialize_cannot_carry() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut plan = plan(&environment, target);
+        plan.functions[0].blocks[0].instructions[3]
+            .implicit_uses
+            .push(RegisterUnitId(u16::MAX));
+        let source = source(plan);
+        let proposed = forged_materialize(&source, &environment);
+        assert_eq!(
+            validate_constant_boolean_fold(
+                &source,
+                0,
+                BOOLEAN,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
+            ConstantBooleanError::UnsupportedUse
+        );
+    }
+
+    /// The compare is gone: every flag unit the boolean reads reaches only
+    /// the entry's unknown state. A producer that mistook the read for a
+    /// resolved one still emits the `MaterializeI64`; the validator's own
+    /// reaching walk refuses with `UnsupportedUse`.
+    #[test]
+    fn validator_refuses_flags_that_never_reached_a_compare() {
+        let target = NativeTarget::linux_x64();
+        let environment = baseline_target_register_environment(target).unwrap();
+        let mut plan = plan(&environment, target);
+        plan.functions[0].blocks[0]
+            .instructions
+            .retain(|instruction| instruction.id != COMPARE);
+        let source = source(plan);
+        let proposed = forged_materialize(&source, &environment);
+        assert_eq!(
+            validate_constant_boolean_fold(
+                &source,
+                0,
+                BOOLEAN,
+                &environment,
+                &catalog(&environment),
+                budget(),
+                proposed
+            )
+            .unwrap_err(),
+            ConstantBooleanError::UnsupportedUse
         );
     }
 }
