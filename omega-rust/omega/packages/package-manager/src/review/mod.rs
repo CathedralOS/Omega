@@ -11,8 +11,7 @@ mod timings;
 
 pub(crate) use candidate::{
     compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
-    compile_resolved_package_candidate_for_check_with_checkpoint, production_candidate_reusing,
-    verify_transitive_source_custody,
+    production_candidate_reusing, verify_transitive_source_custody,
 };
 
 pub use audit::{
@@ -28,10 +27,8 @@ pub use candidate::{
     CompilerIssuedPackageReviewSet, ConsumerScopedSemanticBindingReviewInput,
     PackageSourceVerificationPhase, ReviewOnlySourceConsumptionCommitment,
     ReviewedPackageProductionCandidate, SemanticBindingReview, SemanticBindingReviewCandidate,
-    compile_resolved_package_candidate_for_production,
-    compile_resolved_package_candidate_for_production_with_checkpoint,
-    compile_resolved_package_reviews, compile_resolved_package_reviews_reusing,
-    compile_resolved_package_reviews_with_checkpoint,
+    compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
+    compile_resolved_package_reviews_reusing, compile_resolved_package_reviews_with_checkpoint,
 };
 pub use compare::{
     LockedPolicyComparisonError, PackagePolicyChangeError, PackagePolicyChangeFingerprint,
