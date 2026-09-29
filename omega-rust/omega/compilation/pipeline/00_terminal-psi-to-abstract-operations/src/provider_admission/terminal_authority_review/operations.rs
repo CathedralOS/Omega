@@ -25,6 +25,19 @@ pub(super) enum AuthorityEdge<'operation> {
 /// decision rather than silently treating a new call/physical role as pure.
 pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_> {
     match operation {
+        AbstractOperation::CallStructuralScalar {
+            callee,
+            dynamic_arguments,
+            ..
+        }
+        | AbstractOperation::CallUnit {
+            callee,
+            dynamic_arguments,
+            ..
+        } if !dynamic_arguments.is_empty() => AuthorityEdge::InternalWithDynamicArguments {
+            callee: *callee,
+            arguments: dynamic_arguments,
+        },
         AbstractOperation::CallUnit { callee, .. }
         | AbstractOperation::CallStructuralScalar { callee, .. }
         | AbstractOperation::CallStructural { callee, .. }
@@ -39,19 +52,6 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
             AbstractDynamicDispatch::Parameter(dispatch) => {
                 AuthorityEdge::DynamicParameterDispatch(dispatch)
             }
-        },
-        AbstractOperation::CallStructuralScalarWithDynamicArguments {
-            callee,
-            dynamic_arguments,
-            ..
-        }
-        | AbstractOperation::CallUnitWithDynamicArguments {
-            callee,
-            dynamic_arguments,
-            ..
-        } => AuthorityEdge::InternalWithDynamicArguments {
-            callee: *callee,
-            arguments: dynamic_arguments,
         },
         AbstractOperation::BoundaryCall { boundary, .. } => AuthorityEdge::Boundary(*boundary),
         AbstractOperation::PortWrite { service, port, .. } => AuthorityEdge::CheckedPortWrite {

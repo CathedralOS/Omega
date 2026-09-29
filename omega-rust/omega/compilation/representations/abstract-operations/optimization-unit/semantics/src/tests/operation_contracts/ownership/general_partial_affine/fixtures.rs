@@ -169,6 +169,7 @@ fn build_unit(
                 path: path.clone(),
                 access: StructuralAccess::Owned,
             }],
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),

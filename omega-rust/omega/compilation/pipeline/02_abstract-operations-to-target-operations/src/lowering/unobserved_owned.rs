@@ -79,6 +79,13 @@ pub(super) fn accepts(
                     .iter()
                     .any(|parameter| parameter.place == *destination)
         }
+        // A call that forwards descriptors needs its own realization.
+        AbstractOperation::CallStructuralScalar {
+            dynamic_arguments, ..
+        }
+        | AbstractOperation::CallUnit {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => false,
         AbstractOperation::CallStructuralScalar {
             structural_arguments,
             ..

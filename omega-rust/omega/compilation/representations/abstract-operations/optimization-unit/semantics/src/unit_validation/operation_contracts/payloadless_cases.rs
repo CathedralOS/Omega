@@ -141,9 +141,7 @@ pub(crate) fn exact_payloadless_case_return_exits(
                     node.operation,
                     O::Call { .. }
                         | O::CallUnit { .. }
-                        | O::CallUnitWithDynamicArguments { .. }
                         | O::CallStructuralScalar { .. }
-                        | O::CallStructuralScalarWithDynamicArguments { .. }
                         | O::CallDynamic {
                             dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(_)
                                 | abstract_operations::AbstractDynamicDispatch::Parameter(_),

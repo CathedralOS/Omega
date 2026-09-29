@@ -194,16 +194,13 @@ pub(crate) fn derive_root_service_reach(
             .map(|node| &node.operation)
         {
             match operation {
-                O::Call { callee, .. }
-                | O::CallUnit { callee, .. }
-                | O::CallStructuralScalar { callee, .. }
-                | O::CallStructural { callee, .. } => pending.push(*callee),
-                O::CallStructuralScalarWithDynamicArguments {
+                O::Call { callee, .. } | O::CallStructural { callee, .. } => pending.push(*callee),
+                O::CallStructuralScalar {
                     callee,
                     dynamic_arguments,
                     ..
                 }
-                | O::CallUnitWithDynamicArguments {
+                | O::CallUnit {
                     callee,
                     dynamic_arguments,
                     ..

@@ -37,10 +37,11 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
-    let AbstractOperation::CallStructuralScalarWithDynamicArguments {
+    let AbstractOperation::CallStructuralScalar {
         psi_operation,
         result,
         callee,
+        arguments,
         structural_arguments,
         dynamic_arguments,
         claim_transfers,
@@ -56,7 +57,8 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
     };
     // A non-entry helper may forward its own borrowed descriptor parameters
     // without an attachment; projected or rebound sources still require the
-    // attached structural-parameter lane they read from.
+    // attached structural-parameter lane they read from. A call forwarding
+    // descriptors carries no scalar arguments.
     if (function.attachment.is_none()
         && dynamic_arguments.iter().any(|argument| {
             !matches!(
@@ -64,6 +66,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
                 AbstractDynamicDescriptorSource::Parameter(_)
             )
         }))
+        || !arguments.is_empty()
         || !structural_arguments.is_empty()
         || dynamic_arguments.is_empty()
     {
@@ -187,9 +190,10 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let AbstractOperation::CallUnitWithDynamicArguments {
+    let AbstractOperation::CallUnit {
         psi_operation,
         callee,
+        arguments,
         structural_arguments,
         dynamic_arguments,
         claim_transfers,
@@ -212,6 +216,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
                 AbstractDynamicDescriptorSource::Parameter(_)
             )
         }))
+        || !arguments.is_empty()
         || !structural_arguments.is_empty()
         || dynamic_arguments.is_empty()
     {

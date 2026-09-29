@@ -73,6 +73,7 @@ fn owned_record_payload_arguments_replay_root_relative_offsets() {
                     path: vec![StructuralPathSegment::Field("payload".into())],
                     access: StructuralAccess::Owned,
                 }],
+                dynamic_arguments: Vec::new(),
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),

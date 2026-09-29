@@ -256,8 +256,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::CallUnitWithDynamicArguments { .. }
-        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamic { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }

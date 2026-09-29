@@ -41,31 +41,20 @@ pub(super) fn lower(
                 dynamic_dispatch,
                 closed_conformance_applications,
             )?;
-            if dynamic_arguments.is_empty() {
-                AbstractOperation::CallUnit {
-                    psi_operation: operation.id,
-                    callee,
-                    arguments,
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                }
-            } else {
-                if !arguments.is_empty() {
-                    return Err(LoweringError::UnsupportedUnitCallScalarAndDynamicArguments(
-                        operation.id,
-                    ));
-                }
-                AbstractOperation::CallUnitWithDynamicArguments {
-                    psi_operation: operation.id,
-                    callee,
-                    structural_arguments,
-                    dynamic_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                }
+            if !dynamic_arguments.is_empty() && !arguments.is_empty() {
+                return Err(LoweringError::UnsupportedUnitCallScalarAndDynamicArguments(
+                    operation.id,
+                ));
+            }
+            AbstractOperation::CallUnit {
+                psi_operation: operation.id,
+                callee,
+                arguments,
+                structural_arguments,
+                dynamic_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
             }
         }
         OperationKind::CallStructuralScalar {
@@ -86,34 +75,26 @@ pub(super) fn lower(
                 dynamic_dispatch,
                 closed_conformance_applications,
             )?;
-            if dynamic_arguments.is_empty() {
-                AbstractOperation::CallStructuralScalar {
-                    psi_operation: operation.id,
-                    result: AbstractResult {
-                        value: result.id,
-                        scalar_type: result.scalar_type,
-                    },
-                    callee,
-                    arguments,
-                    structural_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                }
+            // A call that forwards descriptors drops its scalar arguments
+            // instead of rejecting them as the Unit call does.
+            let arguments = if dynamic_arguments.is_empty() {
+                arguments
             } else {
-                AbstractOperation::CallStructuralScalarWithDynamicArguments {
-                    psi_operation: operation.id,
-                    result: AbstractResult {
-                        value: result.id,
-                        scalar_type: result.scalar_type,
-                    },
-                    callee,
-                    structural_arguments,
-                    dynamic_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                }
+                Vec::new()
+            };
+            AbstractOperation::CallStructuralScalar {
+                psi_operation: operation.id,
+                result: AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                },
+                callee,
+                arguments,
+                structural_arguments,
+                dynamic_arguments,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
             }
         }
         OperationKind::CallDynamicScalar {

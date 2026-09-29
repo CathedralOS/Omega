@@ -101,6 +101,14 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                     source: destination,
                     ..
                 } => super::primitive_locals::producer(function, *destination).is_some(),
+                // Mirrors target lowering: a call that forwards descriptors
+                // needs its own realization.
+                AbstractOperation::CallUnit {
+                    dynamic_arguments, ..
+                }
+                | AbstractOperation::CallStructuralScalar {
+                    dynamic_arguments, ..
+                } if !dynamic_arguments.is_empty() => false,
                 AbstractOperation::CallUnit {
                     structural_arguments,
                     ..

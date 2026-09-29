@@ -461,9 +461,7 @@ fn operation_observations(
         | O::StructuralByteSequenceFieldRead { .. }
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }
-        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
-        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamic { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),

@@ -90,11 +90,11 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
             .operations
             .iter()
             .find_map(|operation| match operation {
-                AbstractOperation::CallUnitWithDynamicArguments {
+                AbstractOperation::CallUnit {
                     callee,
                     dynamic_arguments,
                     ..
-                } => Some((*callee, dynamic_arguments)),
+                } if !dynamic_arguments.is_empty() => Some((*callee, dynamic_arguments)),
                 _ => None,
             })
             .expect("caller retains the forwarded Unit descriptor argument");
@@ -172,7 +172,11 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
                         dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
                         result: abstract_operations::AbstractDynamicCallResult::Unit,
                         ..
-                    } | AbstractOperation::CallUnitWithDynamicArguments { .. }
+                    }
+                ) || matches!(
+                    &node.operation,
+                    AbstractOperation::CallUnit { dynamic_arguments, .. }
+                        if !dynamic_arguments.is_empty()
                 )
             })
         {

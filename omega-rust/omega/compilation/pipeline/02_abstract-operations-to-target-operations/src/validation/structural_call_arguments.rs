@@ -534,11 +534,6 @@ pub(super) fn validate(
                 | AbstractOperation::CallStructural { psi_operation, .. }
                 | AbstractOperation::BoundaryCall { psi_operation, .. }
                 | AbstractOperation::Call { psi_operation, .. }
-                | AbstractOperation::CallUnitWithDynamicArguments { psi_operation, .. }
-                | AbstractOperation::CallStructuralScalarWithDynamicArguments {
-                    psi_operation,
-                    ..
-                }
                 | AbstractOperation::CallDynamic { psi_operation, .. }
                 | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. } => psi_operation,
                 _ => return None,
@@ -588,15 +583,18 @@ pub(super) fn validate(
 
     for (position, operation) in source.operations.iter().enumerate() {
         match operation {
+            // A call that forwards descriptors replays through
+            // `dynamic_arguments_call` below.
             AbstractOperation::CallUnit {
                 psi_operation,
                 callee,
                 arguments,
                 structural_arguments,
+                dynamic_arguments,
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-            } => replay.structural_call(
+            } if dynamic_arguments.is_empty() => replay.structural_call(
                 *psi_operation,
                 *callee,
                 BoundResult::Unit,
@@ -614,10 +612,11 @@ pub(super) fn validate(
                 callee,
                 arguments,
                 structural_arguments,
+                dynamic_arguments,
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-            } => replay.structural_call(
+            } if dynamic_arguments.is_empty() => replay.structural_call(
                 *psi_operation,
                 *callee,
                 BoundResult::Scalar(result),
@@ -694,9 +693,22 @@ pub(super) fn validate(
                 crash_continuations,
                 target_calls.get(psi_operation),
             )?,
-            AbstractOperation::CallUnitWithDynamicArguments {
+            // A call forwarding descriptors carries no scalar arguments; the
+            // lowering refuses that mix and so does this replay.
+            AbstractOperation::CallUnit {
+                psi_operation,
+                arguments,
+                ..
+            }
+            | AbstractOperation::CallStructuralScalar {
+                psi_operation,
+                arguments,
+                ..
+            } if !arguments.is_empty() => return Err(*psi_operation),
+            AbstractOperation::CallUnit {
                 psi_operation,
                 callee,
+                arguments: _,
                 structural_arguments,
                 dynamic_arguments,
                 claim_transfers,
@@ -713,10 +725,11 @@ pub(super) fn validate(
                 crash_continuations,
                 target_calls.get(psi_operation),
             )?,
-            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            AbstractOperation::CallStructuralScalar {
                 psi_operation,
                 result,
                 callee,
+                arguments: _,
                 structural_arguments,
                 dynamic_arguments,
                 claim_transfers,
@@ -3634,11 +3647,6 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             ..
         }
         | AbstractOperation::CallStructuralScalar {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::CallStructuralScalarWithDynamicArguments {
             psi_operation,
             result,
             ..

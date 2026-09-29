@@ -241,6 +241,13 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::EstablishCase { .. }
         | O::EstablishRecord { .. }
         | O::Call { .. } => true,
+        // A call that forwards descriptors is never on the whitelist.
+        O::CallUnit {
+            dynamic_arguments, ..
+        }
+        | O::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => false,
         O::CallUnit {
             structural_arguments,
             claim_transfers,
@@ -303,6 +310,12 @@ fn exclusive_borrow_call_preserves_place_observations(
     node: &OptimizationNode,
 ) -> bool {
     let (structural_arguments, claim_transfers) = match &node.operation {
+        O::CallUnit {
+            dynamic_arguments, ..
+        }
+        | O::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => return false,
         O::CallUnit {
             structural_arguments,
             claim_transfers,
@@ -510,11 +523,17 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
             references.insert(destination.place());
         }
         // The three structural-signature call variants whose complete place
-        // surface is `structural_arguments`: a dynamic-argument sibling's
-        // descriptor arguments and a boundary call's completion claim
-        // sources carry place surfaces this scan does not model, and a
-        // `ReturnStructural` spells its returned place plus owned
-        // declaration and discard rosters — all of those fail closed below.
+        // surface is `structural_arguments`. A call's forwarded descriptor
+        // arguments carry a place surface this scan does not model and fail
+        // closed here; a boundary call's completion claim sources and a
+        // `ReturnStructural`'s returned place plus owned declaration and
+        // discard rosters fail closed below.
+        O::CallUnit {
+            dynamic_arguments, ..
+        }
+        | O::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => return false,
         O::CallUnit {
             structural_arguments,
             ..
@@ -704,15 +723,7 @@ pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
             structural_arguments,
             ..
         }
-        | O::CallUnitWithDynamicArguments {
-            structural_arguments,
-            ..
-        }
         | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalarWithDynamicArguments {
             structural_arguments,
             ..
         }

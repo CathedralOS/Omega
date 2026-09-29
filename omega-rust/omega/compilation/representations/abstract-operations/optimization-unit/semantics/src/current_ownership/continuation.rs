@@ -28,11 +28,15 @@ pub(super) fn validate_partial_continuation_roster(
     for node in &block.nodes {
         let O::CallUnit {
             structural_arguments,
+            dynamic_arguments,
             ..
         } = &node.operation
         else {
             continue;
         };
+        if !dynamic_arguments.is_empty() {
+            continue;
+        }
         for argument in structural_arguments {
             if argument.access != StructuralAccess::Owned || argument.path.is_empty() {
                 continue;

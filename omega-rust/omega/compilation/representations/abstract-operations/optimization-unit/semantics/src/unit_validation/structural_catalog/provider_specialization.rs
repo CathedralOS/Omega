@@ -119,12 +119,15 @@ pub(crate) fn validate_provider_attachment_specialization(
                     return Err(invalid());
                 }
             }
+            // Only a Unit call that forwards no descriptors is checked here.
             O::CallUnit {
                 structural_arguments,
+                dynamic_arguments,
                 ..
-            } if structural_arguments
-                .iter()
-                .any(|argument| provider_places.contains(&argument.place)) =>
+            } if dynamic_arguments.is_empty()
+                && structural_arguments
+                    .iter()
+                    .any(|argument| provider_places.contains(&argument.place)) =>
             {
                 return Err(invalid());
             }

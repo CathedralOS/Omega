@@ -172,15 +172,7 @@ pub(crate) fn validate_operation_places(
             require(destination.place(), known)?;
             require(value.place, known)?;
         }
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         }
@@ -192,12 +184,12 @@ pub(crate) fn validate_operation_places(
                 require(argument.place, known)?;
             }
         }
-        O::CallStructuralScalarWithDynamicArguments {
+        O::CallStructuralScalar {
             structural_arguments,
             dynamic_arguments,
             ..
         }
-        | O::CallUnitWithDynamicArguments {
+        | O::CallUnit {
             structural_arguments,
             dynamic_arguments,
             ..

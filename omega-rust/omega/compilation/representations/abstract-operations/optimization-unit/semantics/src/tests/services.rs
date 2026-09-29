@@ -257,6 +257,7 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
@@ -267,6 +268,7 @@ fn replays_every_call_reach_lane_and_provider_service_refinement() {
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
@@ -666,6 +668,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
@@ -679,6 +682,7 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             callee,
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
@@ -744,9 +748,10 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
         },
         // The descriptor lane carries the realization: the static callee is the
         // caller itself and contributes no new service effects.
-        AbstractOperation::CallUnitWithDynamicArguments {
+        AbstractOperation::CallUnit {
             psi_operation: id(748, OperationId::new),
             callee: caller,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             dynamic_arguments: vec![descriptor_argument(
                 caller,
@@ -758,13 +763,14 @@ fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_ef
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
         },
-        AbstractOperation::CallStructuralScalarWithDynamicArguments {
+        AbstractOperation::CallStructuralScalar {
             psi_operation: id(750, OperationId::new),
             result: AbstractResult {
                 value: id(751, ValueId::new),
                 scalar_type: ScalarType::Boolean,
             },
             callee: caller,
+            arguments: Vec::new(),
             structural_arguments: Vec::new(),
             dynamic_arguments: vec![descriptor_argument(
                 caller,

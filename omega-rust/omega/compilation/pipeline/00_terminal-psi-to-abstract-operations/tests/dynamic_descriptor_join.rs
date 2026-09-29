@@ -100,12 +100,14 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            AbstractOperation::CallStructuralScalar {
                 psi_operation,
                 callee,
                 dynamic_arguments,
                 ..
-            } => Some((*psi_operation, *callee, dynamic_arguments)),
+            } if !dynamic_arguments.is_empty() => {
+                Some((*psi_operation, *callee, dynamic_arguments))
+            }
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -174,10 +176,9 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .iter()
         .flat_map(|block| &block.nodes)
         .find_map(|node| match &node.operation {
-            AbstractOperation::CallStructuralScalarWithDynamicArguments {
-                dynamic_arguments,
-                ..
-            } => Some(dynamic_arguments[0].source.clone()),
+            AbstractOperation::CallStructuralScalar {
+                dynamic_arguments, ..
+            } if !dynamic_arguments.is_empty() => Some(dynamic_arguments[0].source.clone()),
             _ => None,
         })
         .expect("first joined optimization source");
@@ -190,10 +191,9 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .filter_map(|node| match &mut node.operation {
-            AbstractOperation::CallStructuralScalarWithDynamicArguments {
-                dynamic_arguments,
-                ..
-            } => Some(dynamic_arguments),
+            AbstractOperation::CallStructuralScalar {
+                dynamic_arguments, ..
+            } if !dynamic_arguments.is_empty() => Some(dynamic_arguments),
             _ => None,
         })
         .nth(1)
@@ -203,5 +203,71 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
     assert!(
         validate_psi_optimization_unit(&collapsed).is_err(),
         "one predecessor's source cannot replace the other"
+    );
+
+    // Scalar arguments beside forwarded descriptors are a shape stage 00
+    // never produces for a scalar-result call. The unit contract refuses it
+    // independently: the added scalar is the caller's own parameter, defined
+    // on entry, so only the contract's empty-scalar-roster rule rejects it.
+    let mut mixed = plan.clone();
+    let caller = mixed
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("joined caller");
+    let [choose_first] = caller.parameters.as_slice() else {
+        panic!("joined caller declares one scalar parameter")
+    };
+    let choose_first = choose_first.value;
+    let arguments = caller
+        .operations
+        .iter_mut()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallStructuralScalar {
+                arguments,
+                dynamic_arguments,
+                ..
+            } if !dynamic_arguments.is_empty() => Some(arguments),
+            _ => None,
+        })
+        .expect("joined caller retains a forwarding scalar call");
+    assert!(arguments.is_empty());
+    arguments.push(choose_first);
+    let mixed = reconstruct_psi_optimization_unit_seed(
+        &mixed,
+        FuelScheduleIdentity::new(1).expect("nonzero test fuel schedule"),
+    )
+    .expect("the mixed call still reconstructs");
+    let caller = mixed
+        .functions
+        .iter()
+        .find(|function| function.machine == plan.entry)
+        .expect("joined optimization caller");
+    let (block, node) = caller
+        .blocks
+        .iter()
+        .find_map(|block| {
+            block
+                .nodes
+                .iter()
+                .position(|node| {
+                    matches!(&node.operation, AbstractOperation::CallStructuralScalar {
+                        arguments,
+                        dynamic_arguments,
+                        ..
+                    } if !arguments.is_empty() && !dynamic_arguments.is_empty())
+                })
+                .map(|node| (block.id, node))
+        })
+        .expect("mixed call node");
+    assert_eq!(
+        validate_psi_optimization_unit(&mixed),
+        Err(
+            optimization_unit_semantics::OptimizationUnitValidationError::ScalarOperationContractMismatch {
+                machine: caller.machine,
+                block,
+                node: u32::try_from(node).expect("node index fits u32"),
+            }
+        )
     );
 }

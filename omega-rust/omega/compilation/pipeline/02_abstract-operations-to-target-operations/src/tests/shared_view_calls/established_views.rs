@@ -76,6 +76,7 @@ fn unit_subslice_calls() -> AbstractOperationPlan {
                     callee,
                     arguments,
                     structural_arguments,
+                    dynamic_arguments: Vec::new(),
                     claim_transfers,
                     requirement_obligations,
                     crash_continuations,

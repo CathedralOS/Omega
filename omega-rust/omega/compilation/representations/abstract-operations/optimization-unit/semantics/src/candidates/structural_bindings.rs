@@ -132,15 +132,7 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
             structural_arguments,
             ..
         }
-        | O::CallUnitWithDynamicArguments {
-            structural_arguments,
-            ..
-        }
         | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalarWithDynamicArguments {
             structural_arguments,
             ..
         }

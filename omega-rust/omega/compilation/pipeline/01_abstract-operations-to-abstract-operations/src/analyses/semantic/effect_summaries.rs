@@ -144,28 +144,18 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                     .flat_map(|edge| edge.provenance.iter().copied()),
             );
             match &node.operation {
-                O::CallUnit { callee, .. }
-                | O::CallStructuralScalar { callee, .. }
-                | O::CallStructural { callee, .. }
-                | O::Call { callee, .. } => {
-                    summary.callees.insert(*callee);
-                    if !machines.contains(callee) {
-                        summary.observable = EffectKnowledge::May;
-                        summary.structural_state = EffectKnowledge::May;
-                        summary.crash = EffectKnowledge::May;
-                        summary.suspension = EffectKnowledge::May;
-                    }
-                }
-                O::CallStructuralScalarWithDynamicArguments {
+                // A call that forwards descriptors also reaches every
+                // realization its descriptors select.
+                O::CallStructuralScalar {
                     callee,
                     dynamic_arguments,
                     ..
                 }
-                | O::CallUnitWithDynamicArguments {
+                | O::CallUnit {
                     callee,
                     dynamic_arguments,
                     ..
-                } => {
+                } if !dynamic_arguments.is_empty() => {
                     summary.callees.insert(*callee);
                     for argument in dynamic_arguments {
                         if let abstract_operations::AbstractDynamicDescriptorSource::Selection {
@@ -190,6 +180,18 @@ fn transitive_function_effects(unit: &PsiOptimizationUnit) -> Vec<FunctionEffect
                         .iter()
                         .any(|callee| !machines.contains(callee))
                     {
+                        summary.observable = EffectKnowledge::May;
+                        summary.structural_state = EffectKnowledge::May;
+                        summary.crash = EffectKnowledge::May;
+                        summary.suspension = EffectKnowledge::May;
+                    }
+                }
+                O::CallUnit { callee, .. }
+                | O::CallStructuralScalar { callee, .. }
+                | O::CallStructural { callee, .. }
+                | O::Call { callee, .. } => {
+                    summary.callees.insert(*callee);
+                    if !machines.contains(callee) {
                         summary.observable = EffectKnowledge::May;
                         summary.structural_state = EffectKnowledge::May;
                         summary.crash = EffectKnowledge::May;
@@ -387,9 +389,7 @@ fn operation_effect(
             )
         }
         O::CallUnit { .. }
-        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
-        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamic { .. }
         | O::CallStructural { .. }
         | O::Call { .. } => (EffectClass::InternalCall, May, May, May, May),

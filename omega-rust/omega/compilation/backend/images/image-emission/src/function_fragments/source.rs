@@ -25,12 +25,15 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         }
         if let AbstractOperation::CallStructuralScalar {
             structural_arguments,
+            dynamic_arguments,
             ..
         }
         | AbstractOperation::CallUnit {
             structural_arguments,
+            dynamic_arguments,
             ..
         } = operation
+            && dynamic_arguments.is_empty()
             && structural_arguments
                 .iter()
                 .any(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
@@ -287,6 +290,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::PrimitiveScalarRead { .. } => {
                     super::structural::primitive_operation_retained(abstracted, selected, operation)
                 }
+                // A call that forwards descriptors has no shared-image lane.
+                AbstractOperation::CallStructuralScalar { dynamic_arguments, .. }
+                | AbstractOperation::CallUnit { dynamic_arguments, .. }
+                    if !dynamic_arguments.is_empty() => false,
                 AbstractOperation::CallStructuralScalar { psi_operation, callee, result, .. } => {
                     let (body, target) = function(source, *callee)?;
                     // Structural-call semantics can retain a scalar-only callee

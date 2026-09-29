@@ -347,40 +347,33 @@ pub enum AbstractOperation {
     },
     /// Invoke one Unit-result machine with exact caller-local scalar and
     /// structural arguments. Physical ABI placement remains downstream.
+    ///
+    /// `dynamic_arguments` forwards exact existential descriptors into the
+    /// callee's declared dynamic parameter interface. A call that forwards
+    /// descriptors carries no scalar `arguments`: stage 00 rejects that mix,
+    /// and the optimization-unit contract and stage 02 refuse it. Every
+    /// consumer routes a nonempty `dynamic_arguments` row apart from the
+    /// plain call.
     CallUnit {
         psi_operation: OperationId,
         callee: MachineId,
         arguments: Vec<ValueId>,
-        structural_arguments: Vec<StructuralArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    /// Invoke one Unit-result machine while forwarding exact existential
-    /// descriptor arguments into its declared dynamic parameter interface.
-    CallUnitWithDynamicArguments {
-        psi_operation: OperationId,
-        callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
         crash_continuations: Vec<CrashRouteBucket>,
     },
+    /// Invoke one scalar-result machine with exact caller-local scalar and
+    /// structural arguments. `dynamic_arguments` has the same meaning and the
+    /// same empty-`arguments` rule as on `CallUnit`, except that stage 00
+    /// drops the scalar arguments of a forwarding call instead of rejecting
+    /// them.
     CallStructuralScalar {
         psi_operation: OperationId,
         result: AbstractResult,
         callee: MachineId,
         arguments: Vec<ValueId>,
-        structural_arguments: Vec<StructuralArgument>,
-        claim_transfers: Vec<ClaimTransfer>,
-        requirement_obligations: Vec<semantic_vocabulary::ObligationId>,
-        crash_continuations: Vec<CrashRouteBucket>,
-    },
-    CallStructuralScalarWithDynamicArguments {
-        psi_operation: OperationId,
-        result: AbstractResult,
-        callee: MachineId,
         structural_arguments: Vec<StructuralArgument>,
         dynamic_arguments: Vec<AbstractDynamicDescriptorArgument>,
         claim_transfers: Vec<ClaimTransfer>,
@@ -865,15 +858,7 @@ impl AbstractOperation {
                 structural_arguments,
                 ..
             }
-            | Self::CallUnitWithDynamicArguments {
-                structural_arguments,
-                ..
-            }
             | Self::CallStructuralScalar {
-                structural_arguments,
-                ..
-            }
-            | Self::CallStructuralScalarWithDynamicArguments {
                 structural_arguments,
                 ..
             }
@@ -924,9 +909,7 @@ impl AbstractOperation {
             | Self::ReleaseReference { psi_operation, .. }
             | Self::AtomicEvent { psi_operation, .. }
             | Self::CallUnit { psi_operation, .. }
-            | Self::CallUnitWithDynamicArguments { psi_operation, .. }
             | Self::CallStructuralScalar { psi_operation, .. }
-            | Self::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
             | Self::CallDynamic { psi_operation, .. }
             | Self::CallStructural { psi_operation, .. }
             | Self::BoundaryCall { psi_operation, .. }

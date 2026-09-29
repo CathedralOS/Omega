@@ -453,7 +453,7 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            AbstractOperation::CallStructuralScalar {
                 callee,
                 result,
                 dynamic_arguments,

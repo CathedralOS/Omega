@@ -140,16 +140,6 @@ pub(super) fn validate(
                 psi_operation,
                 structural_arguments,
                 ..
-            }
-            | AbstractOperation::CallUnitWithDynamicArguments {
-                psi_operation,
-                structural_arguments,
-                ..
-            }
-            | AbstractOperation::CallStructuralScalarWithDynamicArguments {
-                psi_operation,
-                structural_arguments,
-                ..
             } => (*psi_operation, structural_arguments.as_slice()),
             _ => continue,
         };

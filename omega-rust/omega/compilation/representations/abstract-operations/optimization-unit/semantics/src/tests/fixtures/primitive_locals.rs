@@ -95,6 +95,7 @@ pub(crate) fn primitive_local_call_plan() -> AbstractOperationPlan {
                 path: Vec::new(),
                 access: parameter.access,
             }],
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),

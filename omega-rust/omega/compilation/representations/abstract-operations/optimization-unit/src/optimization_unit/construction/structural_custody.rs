@@ -157,16 +157,18 @@ pub(super) fn collect_places(operation: &AbstractOperation, places: &mut BTreeSe
             // A received descriptor names no caller-local source place.
             abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
         },
-        O::CallStructuralScalarWithDynamicArguments {
+        // Only a descriptor-forwarding call declares its argument places
+        // here; a plain call adds none.
+        O::CallStructuralScalar {
             structural_arguments,
             dynamic_arguments,
             ..
         }
-        | O::CallUnitWithDynamicArguments {
+        | O::CallUnit {
             structural_arguments,
             dynamic_arguments,
             ..
-        } => {
+        } if !dynamic_arguments.is_empty() => {
             places.extend(structural_arguments.iter().map(|argument| argument.place));
             for argument in dynamic_arguments {
                 match &argument.source {
@@ -307,9 +309,6 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
         O::CallUnit {
             claim_transfers, ..
         }
-        | O::CallUnitWithDynamicArguments {
-            claim_transfers, ..
-        }
         | O::CallStructuralScalar {
             claim_transfers, ..
         } => {
@@ -320,14 +319,6 @@ pub(super) fn operation_ownership(operation: &AbstractOperation) -> Vec<Ownershi
                     .collect(),
             )]
         }
-        O::CallStructuralScalarWithDynamicArguments {
-            claim_transfers, ..
-        } => vec![OwnershipEvent::ClaimTransfer(
-            claim_transfers
-                .iter()
-                .map(|transfer| transfer.claim)
-                .collect(),
-        )],
         O::CallStructural {
             claim_transfers, ..
         } => vec![OwnershipEvent::ClaimTransfer(

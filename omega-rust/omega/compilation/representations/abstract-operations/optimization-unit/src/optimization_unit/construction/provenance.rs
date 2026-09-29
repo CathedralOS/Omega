@@ -50,9 +50,7 @@ pub(super) fn operation_node_provenance(operation: &AbstractOperation) -> Vec<Ps
         | O::StructuralLeafCopy { psi_operation, .. }
         | O::EstablishRecord { psi_operation, .. }
         | O::CallUnit { psi_operation, .. }
-        | O::CallUnitWithDynamicArguments { psi_operation, .. }
         | O::CallStructuralScalar { psi_operation, .. }
-        | O::CallStructuralScalarWithDynamicArguments { psi_operation, .. }
         | O::CallDynamic { psi_operation, .. }
         | O::CallStructural { psi_operation, .. }
         | O::BoundaryCall { psi_operation, .. }

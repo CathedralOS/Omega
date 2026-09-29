@@ -204,10 +204,7 @@ pub(super) fn lower(
             | AbstractOperation::CallDynamic {
                 result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
                 ..
-            }
-            | AbstractOperation::CallStructuralScalarWithDynamicArguments { result, .. } => {
-                Some(result.value)
-            }
+            } => Some(result.value),
             _ => None,
         };
         if let Some(result) = result

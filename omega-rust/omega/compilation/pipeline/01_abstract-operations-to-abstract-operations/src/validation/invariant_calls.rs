@@ -123,6 +123,7 @@ fn unit_call_shape(
         psi_operation,
         callee,
         arguments,
+        dynamic_arguments,
         claim_transfers,
         crash_continuations,
         ..
@@ -130,7 +131,9 @@ fn unit_call_shape(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    // A call that forwards descriptors is never a relocation candidate.
+    (dynamic_arguments.is_empty()
+        && node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
         && node.definitions.is_empty()
         && node.uses.len() == arguments.len()
         && node
@@ -217,6 +220,7 @@ fn structural_scalar_call_shape(
         result,
         callee,
         arguments,
+        dynamic_arguments,
         claim_transfers,
         crash_continuations,
         ..
@@ -224,7 +228,9 @@ fn structural_scalar_call_shape(
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    // A call that forwards descriptors is never a relocation candidate.
+    (dynamic_arguments.is_empty()
+        && node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
         && node.definitions.len() == 1
         && node.definitions[0].value == result.value
         && node.definitions[0].scalar_type == result.scalar_type
@@ -1216,6 +1222,12 @@ fn scalar_call_callee_pure(effects: &crate::EffectSummaryAnalysis, callee: Machi
 /// static callee here and stay unresolvable.
 fn member_call_target(operation: &O) -> Option<MachineId> {
     match operation {
+        O::CallUnit {
+            dynamic_arguments, ..
+        }
+        | O::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => None,
         O::Call { callee, .. }
         | O::CallUnit { callee, .. }
         | O::CallStructuralScalar { callee, .. }
@@ -1253,15 +1265,21 @@ fn component_members_unobservable(
                     }
                 }
                 None => {
-                    if matches!(
-                        node.operation,
-                        O::CallUnitWithDynamicArguments { .. }
-                            | O::CallStructuralScalarWithDynamicArguments { .. }
-                            | O::CallDynamic {
+                    let forwards_descriptors = matches!(
+                        &node.operation,
+                        O::CallUnit { dynamic_arguments, .. }
+                            | O::CallStructuralScalar { dynamic_arguments, .. }
+                            if !dynamic_arguments.is_empty()
+                    );
+                    if forwards_descriptors
+                        || matches!(
+                            node.operation,
+                            O::CallDynamic {
                                 dispatch: AbstractDynamicDispatch::Parameter(_),
                                 ..
                             }
-                    ) {
+                        )
+                    {
                         return false;
                     }
                     let observable = effects

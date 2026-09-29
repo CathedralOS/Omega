@@ -1016,6 +1016,13 @@ fn same_relocated_node(
             | abstract_operations::AbstractOperation::CallStructural { .. }
     );
     let carries_routes = match &operation {
+        // No admission lane moves a call that forwards descriptors.
+        abstract_operations::AbstractOperation::CallUnit {
+            dynamic_arguments, ..
+        }
+        | abstract_operations::AbstractOperation::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => false,
         abstract_operations::AbstractOperation::Call {
             crash_continuations,
             ..

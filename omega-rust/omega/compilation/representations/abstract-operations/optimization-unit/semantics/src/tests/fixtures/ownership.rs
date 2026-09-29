@@ -148,6 +148,7 @@ pub(crate) fn partial_affine_place_unit() -> PsiOptimizationUnit {
                             path: vec![terminal_psi::StructuralPathSegment::Field("right".into())],
                             access: terminal_psi::StructuralAccess::Owned,
                         }],
+                        dynamic_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),

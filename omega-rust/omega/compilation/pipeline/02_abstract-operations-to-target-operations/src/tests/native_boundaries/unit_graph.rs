@@ -38,6 +38,7 @@ fn call(identity: u64, argument: ValueId) -> AbstractOperation {
         callee: MachineId::new(901).unwrap(),
         arguments: vec![argument],
         structural_arguments: Vec::new(),
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),

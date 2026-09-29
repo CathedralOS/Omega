@@ -473,15 +473,7 @@ fn written_or_exclusive(operation: &O) -> Vec<PlaceId> {
             structural_arguments,
             ..
         }
-        | O::CallUnitWithDynamicArguments {
-            structural_arguments,
-            ..
-        }
         | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalarWithDynamicArguments {
             structural_arguments,
             ..
         }

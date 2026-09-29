@@ -84,15 +84,17 @@ pub(super) fn lower_operation(
     // Call paths that do not lower reference-aware arguments reject any
     // structural argument that touches live custody outright.
     let blind_arguments: &[terminal_psi::StructuralArgument] = match operation {
-        AbstractOperation::CallStructuralScalarWithDynamicArguments {
+        AbstractOperation::CallStructuralScalar {
             structural_arguments,
+            dynamic_arguments,
             ..
         }
-        | AbstractOperation::CallUnitWithDynamicArguments {
+        | AbstractOperation::CallUnit {
             structural_arguments,
+            dynamic_arguments,
             ..
-        }
-        | AbstractOperation::BoundaryCall {
+        } if !dynamic_arguments.is_empty() => structural_arguments.as_slice(),
+        AbstractOperation::BoundaryCall {
             structural_arguments,
             ..
         } => structural_arguments.as_slice(),
@@ -201,7 +203,12 @@ pub(super) fn lower_operation(
             }
             Ok(())
         }
-        AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
+        // A call that forwards descriptors lowers through the descriptor-pair
+        // ABI. These two arms must stay ahead of the plain CallStructuralScalar
+        // and CallUnit arms below, which do not test `dynamic_arguments`.
+        AbstractOperation::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => {
             let home = crate::lowering::unit::lower_dynamic_argument_scalar_call(
                 operation,
                 function,
@@ -221,7 +228,9 @@ pub(super) fn lower_operation(
             }
             Ok(())
         }
-        AbstractOperation::CallUnitWithDynamicArguments { .. } => {
+        AbstractOperation::CallUnit {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => {
             crate::lowering::unit::lower_dynamic_argument_unit_call(
                 operation,
                 function,
