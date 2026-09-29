@@ -14,6 +14,7 @@ use selected_instructions::{
 use semantic_vocabulary::ScalarType;
 
 pub(super) fn emit(
+    function: usize,
     source: &LegalizedScalarFunction,
     row: &LegalizedScalarInstruction,
     builder: &mut Builder<'_>,
@@ -30,11 +31,13 @@ pub(super) fn emit(
     };
     let form = crate::selection::atomic_access::form(source, row)
         .ok_or_else(SelectedInstructionError::custody)?;
+    // The catalog admitting no constraint for an atomic form names the
+    // target's implementation limit, not a producer or consumer defect.
     let constraint = builder
         .constraints
         .keys
         .for_semantic(MachineSemanticKind::AtomicAccess(form))
-        .ok_or_else(SelectedInstructionError::custody)?;
+        .ok_or_else(|| SelectedInstructionError::unsupported_shape(function))?;
     let scalar_type = ScalarType::Integer(*scalar_type);
     let address =
         super::structural::place_pointer(builder, row, location.place, *field_byte_offset)?;

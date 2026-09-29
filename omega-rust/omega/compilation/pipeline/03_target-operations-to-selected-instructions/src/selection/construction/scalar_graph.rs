@@ -296,7 +296,7 @@ fn select_function(
             {
                 continue;
             }
-            if atomic_access::emit(source, operation, &mut builder)? {
+            if atomic_access::emit(function, source, operation, &mut builder)? {
                 continue;
             }
             if structural::operation(
