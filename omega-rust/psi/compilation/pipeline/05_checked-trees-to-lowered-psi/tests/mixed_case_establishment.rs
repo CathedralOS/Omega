@@ -93,3 +93,51 @@ fn mixed_case_literal_zero_initializes_unnamed_common_fields() {
         module
     );
 }
+
+/// An erased payload member holds no runtime slot: the literal may omit it
+/// when its unique nullary constructor determines it, and the establishment
+/// binds only the runtime payload.
+#[test]
+fn case_literal_leaves_erased_payload_members_out_of_the_roster() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data Evidence { case Only; }
+        data Certified {
+            case Pending;
+            case Proven(value: i32, proof [erased]: Evidence);
+        }
+        data Main { record: Certified; }
+        machine Main::run(&mut self) {
+            self.record = Certified::Proven { value: 70 };
+        }
+    "#,
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("a case with an erased payload member lowers");
+    let module = &lowered.semantic_module;
+    let [fields] = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::EstablishStructuralCase { fields, .. } => Some(fields),
+            _ => None,
+        })
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("one case establishment");
+    };
+    assert_eq!(fields.len(), 1, "only `value` takes a roster position");
+    terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the erased-member establishment independently verifies");
+    let bytes = terminal_codec::encode_module(module).expect("encode");
+    assert_eq!(
+        &terminal_codec::decode_module(&bytes).expect("decode the roster"),
+        module
+    );
+}
