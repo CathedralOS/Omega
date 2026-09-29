@@ -1,14 +1,13 @@
 //! Independently replay resultless argument transport and the exact Unit call row.
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterOrigin,
+    SelectedInstructionKind, SelectedInstructionProvenance,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
 use calling_conventions::ValueLocation;
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::SelectedCallContract;
-use terminal_psi::StructuralAccess;
 
 pub(super) fn validate(
     source: &LegalizedScalarFunction,
@@ -40,111 +39,11 @@ pub(super) fn validate(
         constraint,
         environment,
     )?;
-    let mut operands = Vec::new();
-    for (argument_index, argument) in call.arguments.iter().enumerate() {
-        match argument {
-            LegalizedScalarArgument::Structural {
-                semantic,
-                target,
-                indices,
-            } => {
-                if semantic.access == StructuralAccess::Owned {
-                    for register in super::aggregate_argument::argument(
-                        source,
-                        operation,
-                        argument_index,
-                        semantic,
-                        target,
-                        replay,
-                    )? {
-                        operands.push((argument_index, register));
-                    }
-                    continue;
-                }
-                if let Some(pointer) = super::scalar_call::argument_pointer(
-                    replay,
-                    source,
-                    operation,
-                    argument_index,
-                    semantic,
-                    target,
-                    indices,
-                )? {
-                    operands.push((argument_index, pointer));
-                }
-            }
-            LegalizedScalarArgument::Scalar {
-                source: value,
-                placement,
-            } => {
-                if super::scalar_stack::argument(
-                    replay,
-                    operation,
-                    argument_index,
-                    *value,
-                    placement,
-                )? {
-                    continue;
-                }
-                let (_, input, site, scalar_type) =
-                    replay.resolve(*value).ok_or_else(|| replay.invalid())?;
-                if crate::selection::scalar_call_abi::scalar_shape(scalar_type)
-                    != Some(placement.shape)
-                {
-                    return Err(replay.invalid());
-                }
-                let output = if let Some((kind, key)) =
-                    crate::selection::scalar_call_abi::outgoing_float_transfer(
-                        scalar_type,
-                        &replay.constraints.keys,
-                    ) {
-                    let class = environment
-                        .constraint(key)
-                        .and_then(|row| row.operands.get(1))
-                        .ok_or_else(|| replay.invalid())?
-                        .class;
-                    let output = replay.check_register_class(
-                        class,
-                        site,
-                        scalar_type,
-                        VirtualRegisterOrigin::InstructionResult {
-                            instruction: SelectedInstructionId(
-                                replay
-                                    .instruction_cursor
-                                    .try_into()
-                                    .map_err(|_| replay.invalid())?,
-                            ),
-                            source_value: *value,
-                        },
-                        None,
-                    )?;
-                    replay.check_instruction(
-                        kind,
-                        key,
-                        &[input, output],
-                        &SelectedInstructionProvenance {
-                            values: vec![*value],
-                            ..Default::default()
-                        },
-                    )?;
-                    output
-                } else {
-                    replay.check_copy(input, *value, site, scalar_type)?
-                };
-                operands.push((argument_index, output));
-            }
-        }
-    }
-    let order = crate::selection::scalar_call_abi::register_argument_order(call);
-    let mut operands = order
-        .iter()
-        .flat_map(|index| {
-            operands
-                .iter()
-                .filter(move |(argument, _)| argument == index)
-                .map(|(_, register)| *register)
-        })
-        .collect::<Vec<_>>();
+    let invalid = replay.invalid();
+    let mut operands =
+        super::call_arguments::replay(source, operation, call, replay, environment, move || {
+            invalid.clone()
+        })?;
     let hidden = super::structural::indirect_results::prepare_call(source, operation, replay)?;
     let mut result_registers = Vec::new();
     if let Some(pointer) = hidden {

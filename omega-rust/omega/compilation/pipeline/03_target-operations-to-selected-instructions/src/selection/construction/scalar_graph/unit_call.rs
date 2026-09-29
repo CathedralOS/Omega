@@ -1,13 +1,12 @@
-//! Resultless calls copy scalar arguments and transport original borrowed pointers.
+//! Resultless and aggregate-result calls marshal their arguments and publish their result home.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstructionKind, SelectedInstructionId,
     SelectedInstructionKind, SelectedInstructionProvenance, ValueLocation,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::row;
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarInstruction};
+use legalized_operations::LegalizedScalarInstruction;
 use selected_instructions::SelectedCallContract;
-use terminal_psi::StructuralAccess;
 
 pub(super) fn emit(
     function: usize,
@@ -37,98 +36,13 @@ pub(super) fn emit(
         row(builder.catalog, key)?,
         environment,
     )?;
-    let mut operands = Vec::new();
-    for (argument_index, argument) in call.arguments.iter().enumerate() {
-        match argument {
-            LegalizedScalarArgument::Structural {
-                semantic,
-                target,
-                indices,
-            } => {
-                if semantic.access == StructuralAccess::Owned {
-                    for register in super::aggregate_argument::argument(
-                        source,
-                        operation,
-                        argument_index,
-                        semantic,
-                        target,
-                        builder,
-                    )? {
-                        operands.push((argument_index, register));
-                    }
-                    continue;
-                }
-                if let Some(pointer) = super::scalar_call::argument_pointer(
-                    builder,
-                    source,
-                    operation,
-                    argument_index,
-                    semantic,
-                    target,
-                    indices,
-                )? {
-                    operands.push((argument_index, pointer));
-                }
-            }
-            LegalizedScalarArgument::Scalar {
-                source: value,
-                placement,
-            } => {
-                if super::scalar_stack::argument(
-                    builder,
-                    operation,
-                    argument_index,
-                    *value,
-                    placement,
-                )? {
-                    continue;
-                }
-                let (_, input, site, scalar_type) = builder
-                    .resolve(*value)
-                    .ok_or_else(|| SelectedInstructionError::custody())?;
-                if crate::selection::scalar_call_abi::scalar_shape(scalar_type)
-                    != Some(placement.shape)
-                {
-                    return Err(SelectedInstructionError::custody());
-                }
-                let output = if let Some((kind, key)) =
-                    crate::selection::scalar_call_abi::outgoing_float_transfer(
-                        scalar_type,
-                        &builder.constraints.keys,
-                    ) {
-                    let output = builder.register(*value, site, scalar_type)?;
-                    builder.registers[output.0 as usize].class = row(builder.catalog, key)?
-                        .operands
-                        .get(1)
-                        .ok_or_else(|| SelectedInstructionError::custody())?
-                        .class;
-                    builder.emit(
-                        kind,
-                        key,
-                        &[input, output],
-                        SelectedInstructionProvenance {
-                            values: vec![*value],
-                            ..Default::default()
-                        },
-                    )?;
-                    output
-                } else {
-                    builder.copy(input, *value, site, scalar_type)?
-                };
-                operands.push((argument_index, output));
-            }
-        }
-    }
-    let order = crate::selection::scalar_call_abi::register_argument_order(call);
-    let mut operands = order
-        .iter()
-        .flat_map(|index| {
-            operands
-                .iter()
-                .filter(move |(argument, _)| argument == index)
-                .map(|(_, register)| *register)
-        })
-        .collect::<Vec<_>>();
+    let mut operands = super::call_arguments::marshal(
+        source,
+        operation,
+        call,
+        builder,
+        SelectedInstructionError::custody,
+    )?;
     let hidden = super::structural::indirect_results::prepare_call(source, operation, builder)?;
     let mut result_registers = Vec::new();
     if let Some(pointer) = hidden {
