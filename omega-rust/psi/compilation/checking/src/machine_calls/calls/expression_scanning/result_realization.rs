@@ -50,9 +50,9 @@ pub fn result_initializer_call_is_supported(
         || boundary_return::is_supported(program, machine, value)
 }
 
-/// Free scalar graph initializers and immutable scalar result calls in a Unit body
-/// retain nested operands through checked computation lowering. Other value
-/// destinations keep the realization fence until they use that evaluation path.
+/// Scalar initializers retain their entire ordinary call in the computation
+/// graph. Result operations and reference-result custody keep their own admission;
+/// other destinations retain the fence until they have ordered evaluation.
 pub(crate) fn report_nested_call_in_local_initializer(
     program: &TypedTrees,
     machine: &Machine,
@@ -60,7 +60,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
     value: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if scalar_computation_call(program, machine, value, true)
+    if scalar_initializer_computation_is_supported(program, machine, value)
         || result_initializer_call_is_supported(program, machine, value)
         || reference_result_nested_operand_call_is_supported(program, machine, value)
     {
@@ -628,9 +628,13 @@ pub(crate) fn report_nested_call_in_local_assignment(
                     matches!(statement, StatementNode::LocalData(local)
                         if local.symbol == path.symbol
                             && local.is_mutable
-                            && program.primitive_type_reference(local.type_reference).is_some())
+                            && program.primitive_type_reference(local.type_reference).is_some()
+                            && program.primitive_type_reference(local.type_reference)
+                                == ordinary_scalar_call_result_primitive(program, assignment.value))
                 })
-                && scalar_computation_call(program, machine, assignment.value, false)
+                && program
+                    .primitive_type_reference(state.return_type)
+                    .is_some()
             {
                 return;
             }
@@ -658,7 +662,7 @@ pub(crate) fn report_nested_call_in_local_assignment(
 }
 
 /// The call-shape gate every unit store assignment shares: the outer call is a
-/// direct, ordinary checked-body call to a free scalar callee. The evaluator
+/// direct, ordinary checked-body call with a primitive result. The evaluator
 /// recurses into each argument itself, so this admission intentionally covers
 /// only the root call shape — argument custody, structural operands, and flow
 /// call ordinals still resolve in the checked builder, which rejects anything
@@ -679,29 +683,12 @@ fn unit_store_call_result_primitive(
     {
         return None;
     }
-    let ExpressionNode::Call(call) = program.expression_table.expression(assignment.value) else {
-        return None;
-    };
-    if call.receiver.is_valid()
-        || !call.carries_only_positional_arguments()
-        || !call.selects_only_nominal_route()
-    {
-        return None;
-    }
-    let entry = program
-        .machine_holding_state(call.target_symbol)
-        .filter(|owner| {
-            owner.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                && free_scalar_machine(program, owner)
-        })
-        .and_then(|owner| program.machine_states(owner).first())
-        .filter(|entry| entry.symbol == call.target_symbol)?;
-    program.primitive_type_reference(entry.return_type)
+    ordinary_scalar_call_result_primitive(program, assignment.value)
 }
 
 /// Mirrors the checked `AssignmentValue` computation admission for a call
 /// stored through the unit statement sequence: the outer call is a direct,
-/// ordinary checked-body call to a free scalar callee whose declared result
+/// ordinary checked-body call whose declared result
 /// primitive is exactly the destination's stored primitive.
 fn unit_scalar_store_assignment_is_supported(
     program: &TypedTrees,
@@ -1327,186 +1314,52 @@ fn field_store_domain_free(
     }
 }
 
-fn scalar_computation_call(
+/// The computation evaluator owns every ordinary scalar call, including calls
+/// through borrowed receivers. This queries the exact declared result, not the
+/// callee's incidental parameter mix or the receiver's access spelling. Operand
+/// support and authority are independently established by computation planning
+/// and source replay; a missing computation cannot supply a result.
+///
+/// Bodyless boundary/external calls remain result operations, so broadening this
+/// query must not change `result_initializer_call_is_supported`'s ownership test.
+fn ordinary_scalar_call_result_primitive(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+) -> Option<typed_trees::types::PrimitiveType> {
+    if !program.expression_table.expression_is_valid(value) {
+        return None;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+        return None;
+    };
+    if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
+        return None;
+    }
+    let owner = program.machine_holding_state(call.target_symbol)?;
+    if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+        return None;
+    }
+    let entry = program.machine_states(owner).first()?;
+    (entry.symbol == call.target_symbol)
+        .then(|| program.primitive_type_reference(entry.return_type))
+        .flatten()
+}
+
+fn scalar_initializer_computation_is_supported(
     program: &TypedTrees,
     machine: &Machine,
     value: ExpressionHandle,
-    allow_static_local: bool,
 ) -> bool {
-    if !value.is_valid() {
-        return false;
-    }
-    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+    let Some(result_primitive) = ordinary_scalar_call_result_primitive(program, value) else {
         return false;
     };
-    // Receiver calls retain their whole expression in the scalar computation
-    // graph. Both immutable and storage initializers use that ordered evaluator;
-    // this admission must not reclassify the call as a result operation.
-    if allow_static_local
-        && call.receiver.is_valid()
-        && call.machine_arguments.is_empty()
-        && call.evidence_arguments.is_empty()
-        && call.static_requirement_dispatch.is_none()
-        && call.quotient_operation.is_none()
-        && call.private_layout_operation.is_none()
-        && program
-            .machine_holding_state(call.target_symbol)
-            .is_some_and(|target| {
-                let Some(entry) = program.machine_states(target).first() else {
-                    return false;
-                };
-                let Some(result_type) = program.primitive_type_reference(entry.return_type)
-                else {
-                    return false;
-                };
-                let parameters = program.state_parameters(entry);
-                target.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-                    && entry.symbol == call.target_symbol
-                    && parameters.first().is_some_and(|parameter| {
-                        parameter.is_self
-                            && !parameter.is_const
-                            && matches!(program.type_reference_table.type_reference(parameter.type_reference),
-                                typed_trees::types::TypeReferenceNode::Reference {
-                                    access: language_semantics::ReferenceAccess::Shared,
-                                    referee, ..
-                                } if matches!(program.type_reference_table.type_reference(*referee),
-                                    typed_trees::types::TypeReferenceNode::Named { .. }))
-                    })
-                    && parameters.iter().filter(|parameter| parameter.is_self).count() == 1
-                    && program.machine_states(machine).iter().any(|state| {
-                        program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                            matches!(statement, StatementNode::LocalData(local)
-                                if local.initial_value == value
-                                    && program.primitive_type_reference(local.type_reference) == Some(result_type))
-                        })
-                    })
-            })
-    {
-        return true;
-    }
-    (free_scalar_machine(program, machine)
-        || (allow_static_local && static_scalar_local(program, machine, value)))
-        && !call.receiver.is_valid()
-        && call.machine_arguments.is_empty()
-        && call.evidence_arguments.is_empty()
-        && call.static_requirement_dispatch.is_none()
-        && program
-            .machine_holding_state(call.target_symbol)
-            .is_some_and(|target| {
-                free_scalar_machine(program, target)
-                    && program
-                        .machine_states(target)
-                        .first()
-                        .is_some_and(|entry| entry.symbol == call.target_symbol)
-            })
-}
-
-fn static_scalar_local(program: &TypedTrees, machine: &Machine, value: ExpressionHandle) -> bool {
-    let [state] = program.machine_states(machine) else {
-        return false;
-    };
-    // This is only an admission check. Do not classify the destination as a
-    // result operation: nested calls retain their existing whole-call graph.
-    if program
-        .primitive_type_reference(state.return_type)
-        .is_none()
-        || !machine.type_parameters.is_empty()
-        || !machine.lifetime_parameters.is_empty()
-        || !machine.conformance_bounds.is_empty()
-        || !machine.owned_data.is_empty()
-        || program.state_parameters(state).iter().any(|parameter| {
-            parameter.is_self
-                || parameter.is_const
-                || parameter.is_mutable
-                || program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
+    program.machine_states(machine).iter().any(|state| {
+        program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
+            matches!(statement, StatementNode::LocalData(local)
+                if local.initial_value == value
+                    && program.primitive_type_reference(local.type_reference) == Some(result_primitive))
         })
-    {
-        return false;
-    }
-    let mut locals = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (local.initial_value == value).then_some(local)
-        });
-    let Some(local) = locals.next() else {
-        return false;
-    };
-    locals.next().is_none()
-        && !local.is_mutable
-        && program
-            .primitive_type_reference(local.type_reference)
-            .is_some()
-}
-
-fn free_scalar_machine(program: &TypedTrees, machine: &Machine) -> bool {
-    let states = program.machine_states(machine);
-    machine.attached_data.is_none()
-        && machine.type_parameters.is_empty()
-        && machine.owned_data.is_empty()
-        && !states.is_empty()
-        && states.iter().all(|state| {
-            let parameters = program.state_parameters(state);
-            let mixed = parameters.iter().any(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-            });
-            // Mixed scalar roots retain primitive borrows and whole owned inputs.
-            // Structural state forwarding remains outside this graph slice;
-            // exact computation and borrow custody are still checked downstream.
-            if mixed && states.len() != 1 {
-                return false;
-            }
-            program
-                .primitive_type_reference(state.return_type)
-                .is_some()
-                && parameters.iter().all(|parameter| {
-                    let reference = if mixed {
-                        match program
-                            .type_reference_table
-                            .type_reference(parameter.type_reference)
-                        {
-                            typed_trees::types::TypeReferenceNode::Reference {
-                                referee, ..
-                            } => *referee,
-                            _ => parameter.type_reference,
-                        }
-                    } else {
-                        parameter.type_reference
-                    };
-                    !parameter.is_self
-                        && !parameter.is_const
-                        && (!parameter.is_mutable
-                            || matches!(
-                                program
-                                    .type_reference_table
-                                    .type_reference(parameter.type_reference),
-                                typed_trees::types::TypeReferenceNode::Reference { .. }
-                            ))
-                        && (!mixed
-                            || matches!(
-                                program.type_reference_table.type_reference(reference),
-                                typed_trees::types::TypeReferenceNode::Named { .. }
-                            ))
-                        && (program.primitive_type_reference(reference).is_some()
-                            || (reference == parameter.type_reference
-                                && matches!(
-                                    program.type_multiplicity(reference),
-                                    language_semantics::Multiplicity::Affine
-                                        | language_semantics::Multiplicity::Unrestricted
-                                )
-                                && crate::has_plain_owned_contents_with_numeric_constraints(
-                                    program, reference,
-                                )))
-                })
-        })
+    })
 }
 
 /// Destinations without ordinary computation or result-operand evaluation must

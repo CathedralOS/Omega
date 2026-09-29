@@ -100,6 +100,7 @@ pass/calls/guarded_value_call_arm_exit checked 1768ms
 pass/calls/machine_self_call_recursion_compile checked 442ms
 pass/calls/mutable_output_host_call checked 2265ms
 pass/calls/mutable_receiver_computation_exit checked 659ms @7886524fee80+wt
+pass/calls/mutable_receiver_scalar_destinations_exit checked 846ms @1501ceb0073+wt
 pass/calls/mutual_cycle_tail_admitted_exit checked 1797ms
 pass/calls/named_target_payload_dispatch checked 1934ms
 pass/calls/nested_call_init_transition checked 1482ms

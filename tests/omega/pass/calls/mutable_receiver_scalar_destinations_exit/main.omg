@@ -1,0 +1,71 @@
+// Every scalar destination evaluates the inner receiver call before the outer
+// call, exactly once. Result, hit count and decimal trace all contribute to 70.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    hits: u64 in Wrapping;
+    trace: u64 in Wrapping;
+    saved: u64 in Wrapping;
+}
+
+machine Main::bump(&mut self, value: u64 in Wrapping) -> u64 in Wrapping {
+    self.hits = self.hits + 1;
+    self.trace = self.trace * 10 + value;
+    value + 1
+}
+
+machine Main::returned(&mut self) -> u64 in Wrapping {
+    self.bump(self.bump(3))
+}
+
+machine Main::initialized(&mut self) -> u64 in Wrapping {
+    let value: u64 in Wrapping = self.bump(self.bump(5));
+    value
+}
+
+machine Main::assigned(&mut self) -> u64 in Wrapping {
+    let mut value: u64 in Wrapping = 0;
+    value = self.bump(self.bump(7));
+    value
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.hits = 0;
+    self.trace = 0;
+    let value: u64 in Wrapping = self.returned();
+    transition value == 5 && self.hits == 2 && self.trace == 34 {
+        true -> initializer()
+        false -> bad(71)
+    }
+    state initializer(&mut self) {
+        self.hits = 0;
+        self.trace = 0;
+        let value: u64 in Wrapping = self.initialized();
+        transition value == 7 && self.hits == 2 && self.trace == 56 {
+            true -> assignment()
+            false -> bad(72)
+        }
+    }
+    state assignment(&mut self) {
+        self.hits = 0;
+        self.trace = 0;
+        let value: u64 in Wrapping = self.assigned();
+        transition value == 9 && self.hits == 2 && self.trace == 78 {
+            true -> field_store()
+            false -> bad(73)
+        }
+    }
+    state field_store(&mut self) {
+        self.hits = 0;
+        self.trace = 0;
+        self.saved = self.bump(self.bump(9));
+        transition self.saved == 11 && self.hits == 2 && self.trace == 100 {
+            true -> good()
+            false -> bad(74)
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
