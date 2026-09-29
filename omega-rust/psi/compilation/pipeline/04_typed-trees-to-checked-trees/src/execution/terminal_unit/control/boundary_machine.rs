@@ -1,7 +1,8 @@
 //! Building boundary machines and their static boundary requirements.
 
 use crate::execution::terminal_unit::calls::{
-    exact_external_leaf_boundary_requirement, structural_scalar_signature,
+    exact_external_leaf_boundary_requirement, free_structural_scalar_signature,
+    structural_scalar_signature,
 };
 use crate::execution::terminal_unit::types::{
     ShapeCollector, boundary_domain_requirements, fold_authorized_result_domains, is_unit,
@@ -35,8 +36,33 @@ pub(crate) fn build_boundary_machine(
     {
         return None;
     }
+    // A qualified top-level requirement need not name a data attachment:
+    // Float::multiply, for example, owns a semantic namespace, not a receiver.
+    // Its explicit parameter telescope already supplies the whole runtime
+    // signature. Do not fabricate a data type merely to form its call plan.
+    // Actual data attachments retain their existing identity and custody.
+    let has_data_attachment = machine.attached_data.as_ref().is_some_and(|name| {
+        program
+            .data_definitions()
+            .iter()
+            .any(|data| data.name == *name)
+    });
     let (attachment_type_identity, structural_parameters, scalar_parameters) =
-        structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+        if machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+            && !has_data_attachment
+            && !program
+                .state_parameters(state)
+                .iter()
+                .any(|parameter| parameter.is_self)
+        {
+            let (structural, scalar) =
+                free_structural_scalar_signature(program, shapes, state, &binders)?;
+            (None, structural, scalar)
+        } else {
+            let (attachment, structural, scalar) =
+                structural_scalar_signature(program, shapes, machine, state, &binders, false)?;
+            (Some(attachment), structural, scalar)
+        };
     let domain_requirements = boundary_domain_requirements(
         program,
         facts,
@@ -55,7 +81,7 @@ pub(crate) fn build_boundary_machine(
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,
         contract_owner: machine.symbol,
-        attachment_type_identity: Some(attachment_type_identity),
+        attachment_type_identity,
         structural_parameters,
         scalar_parameters,
         result,

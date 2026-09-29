@@ -26,6 +26,67 @@ const PREFIX: &str = r#"
 "#;
 
 #[test]
+fn canonical_float_comparison_cannot_bypass_a_present_machine_body() {
+    let mut typed = crate::tests::front_end::typed_program(
+        "boundary machine > Float::greater(left: f64, right: f64) -> bool;
+         machine compare(left: f64, right: f64) -> bool { left > right }",
+    );
+    let machine = typed
+        .machines_mut()
+        .iter_mut()
+        .find(|machine| machine.spelling.is_some())
+        .unwrap();
+    machine.body_is_present = true;
+    let symbol = machine.symbol;
+    let bound = crate::operators::bind_token_bound_machine_calls(&mut typed)
+        .expect("a body-bearing comparison must use ordinary call supply");
+    assert_eq!(bound, 1);
+    let machine = crate::lookup::machine_by_symbol(&typed, symbol).unwrap();
+    let entry = typed.machine_states(machine)[0].symbol;
+    assert!(typed.expression_table.iter_expressions().any(
+        |(_, expression)| matches!(expression, typed_trees::expression::ExpressionNode::Call(call)
+            if call.target_symbol == entry)
+    ));
+}
+
+#[test]
+fn selected_float_field_guards_retain_declared_and_literal_operands() {
+    for declaration in ["boundary operator >", "boundary machine >"] {
+        for operand in ["other", "211.5", "211.5f64"] {
+            let source = format!(
+                r#"
+                {declaration} Float::greater(left: f64, right: f64) -> bool;
+                data Main {{ result: f64; }}
+                data Helper {{}}
+                machine Helper::quiet(code: i32) {{}}
+                machine Main::choose(&mut self, other: f64) {{
+                    self.result = other;
+                    transition self.result > {operand} {{
+                        true -> above()
+                        _ -> below()
+                    }}
+                    state above(&mut self) {{ Helper::quiet(70); }}
+                    state below(&mut self) {{ Helper::quiet(71); }}
+                }}
+                "#,
+            );
+            let checked = checked(&source);
+            let machine = machine_named(&checked, "choose");
+            assert!(
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .composed_for_machine(machine)
+                    .is_some(),
+                "{declaration}, {operand}: omissions={:?}",
+                checked.facts.flow.terminal_unit_effects.omissions,
+            );
+        }
+    }
+}
+
+#[test]
 fn general_scalar_prefix_and_successors_require_exact_facts_and_custody() {
     let checked = checked(PREFIX);
     let machine = machine_named(&checked, "writer");
