@@ -100,13 +100,25 @@ pub(crate) fn case_establishment_matches(
         && result.qualification_establishments.is_empty()
         && super::records::plain_owned_shape(types, result.structural_type)
         && types.get(&result.structural_type).is_some_and(|declaration| {
-            matches!(
-                &declaration.shape,
-                terminal_psi::StructuralTypeShape::Sum { cases }
-                    if cases.iter().any(|case| case.id == *result_case
-                        && super::records::field_initializers_match(function, result, &case.fields, fields))
-
-            )
+            // A mixed case binds its runtime common fields in declaration
+            // order, then the selected payload, as Terminal verification did.
+            let (common, cases) = match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                    (fields.as_slice(), cases)
+                }
+                _ => return false,
+            };
+            cases.iter().any(|case| {
+                let roster = common
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .chain(&case.fields)
+                    .cloned()
+                    .collect::<Vec<_>>();
+                case.id == *result_case
+                    && super::records::field_initializers_match(function, result, &roster, fields)
+            })
         })
 }
 

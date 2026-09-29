@@ -1208,9 +1208,50 @@ pub(crate) fn field_read(
     {
         return None;
     }
-    plain_record_shape(structural_type, declarations)?;
+    let root = plain_record_shape(structural_type, declarations)?;
+    if let Some(read) = mixed_common_field_read(structural_type, path, field, scalar, declarations)
+    {
+        return (u64::from(read.0).checked_add(u64::from(read.1))? <= u64::from(root.byte_size))
+            .then_some(read);
+    }
     scalar_field_geometry(structural_type, path, field, scalar, declarations, false)
         .map(|(offset, bytes, _)| (offset, bytes))
+}
+
+/// A mixed shape's common field sits on the carrier beside the tag whatever
+/// case is active, at its offset among the conventional layout's common
+/// fields: the layout mixed case establishment writes. `None` when the carrier
+/// `path` reaches is not a mixed shape declaring this relevant scalar field.
+fn mixed_common_field_read(
+    structural_type: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    field: StructuralFieldId,
+    scalar: ScalarType,
+    declarations: &[StructuralTypeDeclaration],
+) -> Option<(u32, u8)> {
+    let (carrier, carrier_offset) = project(structural_type, path, declarations)?;
+    let StructuralTypeShape::Mixed { fields, .. } = &declarations
+        .iter()
+        .find(|declaration| declaration.id == carrier)?
+        .shape
+    else {
+        return None;
+    };
+    let (position, declaration) = fields
+        .iter()
+        .filter(|candidate| !candidate.relevance.is_erased())
+        .enumerate()
+        .find(|(_, candidate)| candidate.id == field)?;
+    if declaration.field_type.scalar_type() != Some(scalar) {
+        return None;
+    }
+    let placed = case_layout(carrier, declarations)?
+        .common_fields
+        .get(position)
+        .copied()?;
+    let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
+    (placed.shape.byte_size == u32::from(bytes))
+        .then_some((carrier_offset.checked_add(placed.byte_offset)?, bytes))
 }
 
 /// Case payload geometry for one scalar observation. `path` is the runtime

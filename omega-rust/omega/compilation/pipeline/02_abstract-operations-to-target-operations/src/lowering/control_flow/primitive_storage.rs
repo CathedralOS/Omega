@@ -374,8 +374,14 @@ pub(super) fn lower(
             let declaration = types
                 .get(&carrier)
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+            // A mixed shape's common field needs no `Case` step: it sits on the
+            // carrier beside the tag whatever case is active.
             let fields = match (&declaration.shape, case) {
-                (StructuralTypeShape::Record { fields }, None) => fields,
+                (
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. },
+                    None,
+                ) => fields,
                 (
                     StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. },
                     Some(case),

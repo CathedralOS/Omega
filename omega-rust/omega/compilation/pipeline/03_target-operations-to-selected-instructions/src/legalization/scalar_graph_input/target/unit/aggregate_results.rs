@@ -207,17 +207,28 @@ pub(super) fn validate(
                 .iter()
                 .find(|declaration| declaration.id == result.structural_type)
                 .ok_or(LegalizationError::custody())?;
-            let terminal_psi::StructuralTypeShape::Sum { cases } = &declaration.shape else {
-                return Err(LegalizationError::custody());
+            // A mixed case binds its runtime common fields, then the selected
+            // payload, in the order Terminal verification checked.
+            let (common, cases) = match &declaration.shape {
+                terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
+                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
+                    (fields.as_slice(), cases)
+                }
+                _ => return Err(LegalizationError::custody()),
             };
             let case = cases
                 .iter()
                 .find(|case| case.id == *result_case)
                 .ok_or(LegalizationError::custody())?;
-            if fields.len() != case.fields.len() {
+            let roster = common
+                .iter()
+                .filter(|field| !field.relevance.is_erased())
+                .chain(&case.fields)
+                .collect::<Vec<_>>();
+            if fields.len() != roster.len() {
                 return Err(LegalizationError::custody());
             }
-            for (field, declared) in fields.iter().zip(&case.fields) {
+            for (field, declared) in fields.iter().zip(roster) {
                 if field.field != declared.id || declared.relevance.is_erased() {
                     return Err(LegalizationError::custody());
                 }
