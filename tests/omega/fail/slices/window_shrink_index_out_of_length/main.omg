@@ -1,4 +1,4 @@
-data Entry {
+data Entry [copy] {
     value: i32;
 }
 
