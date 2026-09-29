@@ -14,11 +14,10 @@
 use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;
 use super::{
-    BoundaryMachineDeclaration, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitProviderCandidate, LoweringError, MachineId, Multiplicity,
-    ProviderCandidateConformance, ProviderParameterRefinement, ProviderRefinement,
-    ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody, lookup_machine_id,
-    unique_unit_boundary, unsupported,
+    BoundaryMachineDeclaration, CheckedTrees, CheckedUnitProviderCandidate, LoweringError,
+    MachineId, Multiplicity, ProviderCandidateConformance, ProviderParameterRefinement,
+    ProviderRefinement, ProviderSignature, ProviderSignatureParameter, TerminalMachine, UnitBody,
+    lookup_machine_id, unique_unit_boundary, unsupported,
 };
 use checked_trees::machine::{Machine, TraitConformance};
 use validation::{
@@ -582,13 +581,11 @@ pub(super) fn checked_unit_provider_candidates(
     let mut boundary_symbols = bodies
         .into_iter()
         .flat_map(UnitBody::operations)
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
-                Some(*target_machine)
-            }
-            _ => None,
+        .filter_map(|operation| {
+            operation
+                .call()
+                .filter(|call| call.is_boundary())
+                .map(|call| call.target_machine())
         })
         .collect::<Vec<_>>();
     boundary_symbols.sort_by_key(|symbol| (symbol.arena_index(), symbol.generation()));

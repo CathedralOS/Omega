@@ -14,8 +14,8 @@ use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::view_locals;
 use checked_trees::{
-    CheckedStorageRoot, CheckedSubsliceSite, CheckedUnitStructuralArgumentPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
+    CheckedStorageRoot, CheckedSubsliceSite, CheckedUnitCallResult,
+    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
 
 pub(super) fn arguments(
@@ -64,13 +64,15 @@ pub(super) fn emit(
     else {
         return unsupported("subslice schedule names a different argument kind");
     };
-    let coordinate = match operation {
-        CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. } => *coordinate,
-        _ => return unsupported("subslice schedule has no call coordinate"),
+    // Boundary calls of any result and ordinary Unit calls; ordinary scalar
+    // and structural calls are refused.
+    let Some(call) = operation
+        .call()
+        .filter(|call| call.is_boundary() || call.result() == CheckedUnitCallResult::Unit)
+    else {
+        return unsupported("subslice schedule has no call coordinate");
     };
+    let coordinate = call.coordinate();
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked, plan.state, coordinate,
     )?;

@@ -203,13 +203,11 @@ pub(super) fn emit(
     let called_boundaries = plan
         .operations
         .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
-                Some(*target_machine)
-            }
-            _ => None,
+        .filter_map(|operation| {
+            operation
+                .call()
+                .filter(|call| call.is_boundary())
+                .map(|call| call.target_machine())
         })
         .collect::<Vec<_>>();
     let provider_boundaries = lowered_boundary_parameters
@@ -961,12 +959,12 @@ fn establish_call_literals(
 ) -> Result<(Vec<StructuralPlaceDeclaration>, OperationBuffer), LoweringError> {
     let mut literal_arguments = Vec::new();
     for operation in &plan.operations {
-        let structural_arguments = operation.call_structural_arguments();
-        let Some(target_machine) = call_target_machine(operation) else {
+        let Some(call) = operation.call() else {
             continue;
         };
+        let target_machine = call.target_machine();
         literal_arguments.extend(
-            structural_arguments
+            call.structural_arguments()
                 .iter()
                 .enumerate()
                 .filter(|(_, argument)| argument.byte_sequence_literal().is_some())
@@ -1382,22 +1380,5 @@ impl<'a> MachineEmission<'a> {
                 local_places: &self.local_places,
             },
         }
-    }
-}
-
-/// The callee of an ordinary call that may carry structural arguments.
-fn call_target_machine(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> Option<symbols::SymbolHandle> {
-    match operation {
-        CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. }
-        | CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. }
-        | CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
-            Some(*target_machine)
-        }
-        _ => None,
     }
 }

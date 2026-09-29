@@ -19,6 +19,7 @@ use crate::unit::attached_unit::catalog::{
 };
 use crate::unit::attached_unit::operation_frame::BoundaryParameters;
 use crate::unit::attached_unit::signatures::MachineSignature;
+use checked_trees::CheckedUnitCallResult;
 use std::borrow::Cow;
 
 /// Standalone roots own their publication tables; shared callees borrow the
@@ -81,25 +82,25 @@ fn lower_composed_services(
         .flat_map(|state| state.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
-        let service_reach = match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
-            CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_) => continue,
-            _ => return unsupported("composed Unit control contains a non-call operation"),
+        // A boundary scalar call falls to the refusal with non-call operations.
+        let Some(call) = operation.call().filter(|call| {
+            !(call.is_boundary() && matches!(call.result(), CheckedUnitCallResult::Scalar(_)))
+        }) else {
+            match operation {
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::AtomicAccess(_) => continue,
+                _ => return unsupported("composed Unit control contains a non-call operation"),
+            }
         };
-        collect_service_summary(&facts.rows, service_reach, &mut selected)?;
+        collect_service_summary(&facts.rows, call.service_reach(), &mut selected)?;
     }
     for (boundary, _) in boundaries {
         collect_published_contract_services(

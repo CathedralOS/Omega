@@ -2,7 +2,7 @@
 use super::super::super::CheckedComposedUnitControlTerminatorPlan;
 use super::super::{CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan, unsupported};
 use super::{CheckedTrees, LoweringError};
-use checked_trees::CheckedCallScalarArgument;
+use checked_trees::{CheckedCallScalarArgument, CheckedUnitCallResult};
 
 pub(crate) use crate::scalar_graph::scalar_call_closure::embedded::EmbeddedScalarCalls as ComposedScalarCalls;
 
@@ -160,35 +160,31 @@ fn selected_roots(
                 }
                 continue;
             }
-            let arguments = match operation {
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    scalar_arguments, ..
+            // A boundary scalar call falls to the refusal with non-call
+            // operations.
+            let Some(call) = operation.call().filter(|call| {
+                !(call.is_boundary() && matches!(call.result(), CheckedUnitCallResult::Scalar(_)))
+            }) else {
+                match operation {
+                    CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
+                    | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                    | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                    // Whole structural moves and stores evaluate no scalar.
+                    | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
+                    | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
+                    // A view-subslice local replays its own endpoints at emission.
+                    | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                    | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
+                        continue;
+                    }
+                    _ => {
+                        return unsupported(
+                            "composed scalar selection contains a non-call operation",
+                        );
+                    }
                 }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    scalar_arguments, ..
-                }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
-                    scalar_arguments, ..
-                }
-                | CheckedUnitEffectOperationPlan::ScalarCall {
-                    scalar_arguments, ..
-                }
-                | CheckedUnitEffectOperationPlan::CallUnit {
-                    scalar_arguments, ..
-                } => scalar_arguments,
-                CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-                // Whole structural moves and stores evaluate no scalar.
-                | CheckedUnitEffectOperationPlan::MoveStructuralField { .. }
-                | CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
-                // A view-subslice local replays its own endpoints at emission.
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. } => {
-                    continue;
-                }
-                _ => return unsupported("composed scalar selection contains a non-call operation"),
             };
+            let arguments = call.scalar_arguments();
             crate::emission::call_source_custody::validate_operation(
                 checked,
                 machine,

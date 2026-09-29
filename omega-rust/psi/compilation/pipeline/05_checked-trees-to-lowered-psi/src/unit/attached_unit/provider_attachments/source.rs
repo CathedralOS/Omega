@@ -18,27 +18,13 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
     operation: &CheckedUnitEffectOperationPlan,
     requirements: &[CheckedProviderAttachmentRequirementPlan],
 ) -> Result<(), LoweringError> {
-    let (coordinate, boundary) = match operation {
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            target_machine,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            target_machine,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            target_machine,
-            ..
-        } => (coordinate, target_machine),
-        _ => return Ok(()),
+    let Some(planned) = operation.call().filter(|planned| planned.is_boundary()) else {
+        return Ok(());
     };
+    let (coordinate, boundary) = (planned.coordinate(), planned.target_machine());
     let Some(requirement) = requirements
         .iter()
-        .find(|requirement| requirement.boundary == *boundary)
+        .find(|requirement| requirement.boundary == boundary)
     else {
         // Complete-set validation separately rejects missing required roots.
         return Ok(());
@@ -97,7 +83,7 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
         return unsupported("provider field call changed its authored carrier");
     }
     let authored =
-        crate::emission::call_source_custody::authored::locate_source(checked, state, *coordinate)?;
+        crate::emission::call_source_custody::authored::locate_source(checked, state, coordinate)?;
     match authored.source_site {
         Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
             let Some(StatementNode::Call(call)) = checked

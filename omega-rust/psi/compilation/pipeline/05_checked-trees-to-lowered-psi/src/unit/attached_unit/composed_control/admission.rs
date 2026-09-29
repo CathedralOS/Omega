@@ -388,13 +388,8 @@ pub(super) fn admit_calls<'a>(
         for operation in state.operation_dependencies() {
             admit_call(checked, plans, &caller, operation, &mut boundaries)?;
             match operation {
-                CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                | CheckedUnitEffectOperationPlan::CallUnit { .. }
-                | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                _ if operation.call().is_some() => {}
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                 | CheckedUnitEffectOperationPlan::ElementViewWrite(_)

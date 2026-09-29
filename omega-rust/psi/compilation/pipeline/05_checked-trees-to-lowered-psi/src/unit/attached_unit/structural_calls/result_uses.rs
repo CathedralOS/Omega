@@ -175,34 +175,11 @@ fn validate_linear_result_consumer(
         return unsupported("linear result operand changes the returned input claim lineage");
     }
     for earlier in &operations[producer_index + 1..=consumer_index] {
-        let arguments = match earlier {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                ..
-            } => structural_arguments,
-            _ => continue,
+        let Some(call) = earlier.call() else {
+            continue;
         };
-        if arguments
+        if call
+            .structural_arguments()
             .iter()
             .enumerate()
             .any(|(argument_position, candidate)| {
@@ -234,44 +211,16 @@ fn validate_argument_construction_consumer(
     source_position: u32,
 ) -> Result<(), LoweringError> {
     let (machine, state, operations) = (caller.machine, caller.state, caller.operations);
-    let (coordinate, structural_arguments) = match operation {
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::ScalarCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            structural_arguments,
-            ..
-        } => (coordinate, structural_arguments),
-        _ => return unsupported("argument construction requires an ordinary or boundary call"),
+    let Some(call) = operation.call() else {
+        return unsupported("argument construction requires an ordinary or boundary call");
     };
-    let argument = structural_arguments
-        .get(argument_index)
-        .ok_or(LoweringError::Unsupported(
-            "argument construction has no argument slot",
-        ))?;
+    let coordinate = call.coordinate();
+    let argument =
+        call.structural_arguments()
+            .get(argument_index)
+            .ok_or(LoweringError::Unsupported(
+                "argument construction has no argument slot",
+            ))?;
     let binding_ordinal =
         argument
             .source_structural_result_binding_ordinal()
@@ -297,7 +246,7 @@ fn validate_argument_construction_consumer(
         return unsupported("argument operand is not its call's own construction");
     };
     if source.operation_index >= consumer_index
-        || !source.precedes_consumer(*coordinate)
+        || !source.precedes_consumer(coordinate)
         || source.discard
         || parameter_position != source_position
         || !argument.path.is_empty()
@@ -315,33 +264,7 @@ fn validate_argument_construction_consumer(
     super::validate_custody(checked, machine, state, operation)?;
     let owned_uses = operations
         .iter()
-        .flat_map(|candidate| match candidate {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                ..
-            } => structural_arguments.as_slice(),
-            _ => &[],
-        })
+        .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
         .filter(|candidate| {
             candidate.source_structural_result_binding_ordinal() == Some(binding_ordinal)
         })
@@ -971,66 +894,28 @@ pub(crate) fn validate_usage(
             consumed = result.multiplicity != Multiplicity::Unrestricted;
             continue;
         }
-        let (CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::ScalarCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            structural_arguments,
-            ..
-        }) = operation
-        else {
+        let Some(call) = operation.call() else {
             continue;
         };
-        for argument in structural_arguments {
+        let coordinate = call.coordinate();
+        for argument in call.structural_arguments() {
             if argument.source_structural_result_binding_ordinal() != Some(result.binding_ordinal) {
                 continue;
             }
-            let source_order = producer.precedes_consumer(*coordinate);
+            let source_order = producer.precedes_consumer(coordinate);
             if consumed || disposed || operation_index <= producer.operation_index || !source_order
             {
                 return unsupported(
                     "Unit structural result is consumed before production or twice",
                 );
             }
+            // Either call family, ordinary or boundary, may borrow the result.
             if matches!(
                 argument.access,
                 checked_trees::CheckedStructuralAccess::SharedBorrow
                     | checked_trees::CheckedStructuralAccess::MutableBorrow
                     | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-            ) && (matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::CallUnit { .. }
-                    | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            ) || matches!(
-                operation,
-                CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-            )) && producer.coordinate.call_ordinal == 0
+            ) && producer.coordinate.call_ordinal == 0
             {
                 if projected_paths.iter().any(|earlier| {
                     earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
@@ -1046,15 +931,7 @@ pub(crate) fn validate_usage(
                 // Copies retain their source after either call family. Exact
                 // boundary type eligibility is rejoined by validate_consumer;
                 // this walk checks the produced value's use and lifetime.
-                if !matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::CallUnit { .. }
-                        | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                ) || argument.access != checked_trees::CheckedStructuralAccess::Owned
+                if argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || !argument.path.is_empty()
                     || argument.type_identity != result.type_identity
                 {
@@ -1103,7 +980,7 @@ pub(crate) fn validate_usage(
                         if scalar_arguments.is_empty() && structural_arguments.len() == 1)
                     || !matches!(caller.operations.get(operation_index + 1),
                         Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate: cleanup, affine_discards })
-                            if cleanup == coordinate && affine_discards.len() == 1
+                            if *cleanup == coordinate && affine_discards.len() == 1
                                 && affine_discards[0].source == argument.source))
             {
                 return unsupported("anonymous shared result has no dying Unit call continuation");
@@ -1174,79 +1051,18 @@ pub(crate) fn validate_consumer(
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
     target_entry_claims: &[checked_trees::CheckedUnitEntryClaimPlan],
 ) -> Result<(), LoweringError> {
-    let (coordinate, target_machine, target_state, structural_arguments, claim_transfers) =
-        match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                claim_transfers,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                claim_transfers,
-                ..
-            } => (
-                coordinate,
-                *target_machine,
-                *target_state,
-                structural_arguments,
-                claim_transfers.as_slice(),
-            ),
-            // A structural call keeps its transfers in its custody record.
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                custody,
-                ..
-            } => (
-                coordinate,
-                *target_machine,
-                *target_state,
-                structural_arguments,
-                custody.claim_transfers.as_slice(),
-            ),
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                completion_receipts,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                completion_receipts,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                completion_receipts,
-                ..
-            } => (
-                coordinate,
-                *target_machine,
-                *target_state,
-                structural_arguments,
-                completion_receipts.as_slice(),
-            ),
-            _ => {
-                return unsupported("structural result use requires an ordinary or boundary call");
-            }
-        };
+    let Some(call) = operation.call() else {
+        return unsupported("structural result use requires an ordinary or boundary call");
+    };
+    // A structural call keeps its transfers in its custody record; a boundary
+    // call's are its completion receipts.
+    let (coordinate, target_machine, target_state, structural_arguments, claim_transfers) = (
+        call.coordinate(),
+        call.target_machine(),
+        call.target_state(),
+        call.structural_arguments(),
+        call.claim_transfers(),
+    );
     // A borrowed receiver the callee leaves ambient on its attachment carrier
     // still occupies its authored slot among the call's structural arguments;
     // it owns no forwarded formal, so the walk skips that position. The gap is
@@ -1290,7 +1106,7 @@ pub(crate) fn validate_consumer(
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked,
         caller.state,
-        *coordinate,
+        coordinate,
     )?;
     let authored_nested = authored
         .structural_arguments
@@ -1358,12 +1174,7 @@ pub(crate) fn validate_consumer(
         let binding_ordinal = argument.source_structural_result_binding_ordinal();
         if let Some(expression) = expression
             && super::super::reference_results::validate_consumer(
-                checked,
-                caller,
-                *coordinate,
-                argument,
-                parameter,
-                expression,
+                checked, caller, coordinate, argument, parameter, expression,
             )?
         {
             if authored.boundary
@@ -1464,7 +1275,7 @@ pub(crate) fn validate_consumer(
         validate_operand_producers(
             checked,
             caller,
-            coordinate,
+            &coordinate,
             &authored,
             source_machine,
             statements,
@@ -1478,7 +1289,7 @@ pub(crate) fn validate_consumer(
         };
         let producer = producer(caller.operations, binding_ordinal)?;
         let result = producer.result;
-        let source_order = producer.precedes_consumer(*coordinate);
+        let source_order = producer.precedes_consumer(coordinate);
         let shared_view_argument = shared_view_binding(checked, caller.state, result)?
             && argument.path.is_empty()
             && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow;
@@ -1511,7 +1322,7 @@ pub(crate) fn validate_consumer(
                 caller,
                 operation,
                 operation_index,
-                *coordinate,
+                coordinate,
                 authored.source_target,
                 target_machine,
                 target_state,
@@ -1566,7 +1377,7 @@ pub(crate) fn validate_consumer(
         if whole_local_array_loan(
             checked,
             caller,
-            *coordinate,
+            coordinate,
             authored.source_target,
             result,
             argument,
@@ -1634,13 +1445,7 @@ pub(crate) fn validate_consumer(
                 result.multiplicity,
                 Multiplicity::Affine | Multiplicity::Unrestricted
             ) || (result.multiplicity == Multiplicity::Unrestricted
-                && (!matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::CallUnit { .. }
-                        | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-                        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                ) && !boundary_array_argument
-                    && !shared_view_argument
+                && (call.is_boundary() && !boundary_array_argument && !shared_view_argument
                     || !argument.path.is_empty()
                     || !matches!(
                         argument.access,
@@ -2434,33 +2239,7 @@ fn claimed_result_consumer(
         .iter()
         .flat_map(|operation| operation.with_value_calls())
     {
-        let arguments = match candidate {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                ..
-            } => structural_arguments,
-            _ => continue,
-        };
+        let arguments = candidate.call_structural_arguments();
         if arguments.iter().enumerate().any(|(position, argument)| {
             argument.source_structural_result_binding_ordinal() == Some(result.binding_ordinal)
                 && argument.access == checked_trees::CheckedStructuralAccess::Owned
@@ -2532,20 +2311,13 @@ fn validate_nested_execution_order(
     )?;
     let mut actual = Vec::new();
     for operation in caller.operations {
-        let coordinate = match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
-                if coordinate.statement_index == statement_index =>
-            {
-                coordinate
-            }
-            _ => continue,
+        let Some(call) = operation.call() else {
+            continue;
         };
-        actual.push(coordinate.call_ordinal);
+        let coordinate = call.coordinate();
+        if coordinate.statement_index == statement_index {
+            actual.push(coordinate.call_ordinal);
+        }
     }
     if !actual
         .iter()

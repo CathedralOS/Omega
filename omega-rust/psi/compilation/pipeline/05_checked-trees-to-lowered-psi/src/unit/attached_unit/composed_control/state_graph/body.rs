@@ -1170,14 +1170,6 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
             Some(result.statement_index)
         }
-        CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. } => {
-            Some(coordinate.statement_index)
-        }
         CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store.statement_index),
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
             Some(store.statement_index)
@@ -1194,7 +1186,10 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             statement_index, ..
         } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::AtomicAccess(access) => Some(access.statement_index),
-        _ => continued_statement(operation),
+        _ => match operation.call() {
+            Some(call) => Some(call.coordinate().statement_index),
+            None => continued_statement(operation),
+        },
     }
 }
 
@@ -1293,7 +1288,7 @@ fn statement_continuations(
             }
             if began_with_argument
                 && authored_statement(operation) == current
-                && (argument_construction(operation) || call_operation(operation))
+                && (argument_construction(operation) || operation.call().is_some())
             {
                 return Ok(true);
             }
@@ -1329,19 +1324,6 @@ fn argument_construction(operation: &CheckedUnitEffectOperationPlan) -> bool {
             ),
             ..
         }
-    )
-}
-
-/// An operation that performs its statement's call.
-fn call_operation(operation: &CheckedUnitEffectOperationPlan) -> bool {
-    matches!(
-        operation,
-        CheckedUnitEffectOperationPlan::CallUnit { .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
     )
 }
 
