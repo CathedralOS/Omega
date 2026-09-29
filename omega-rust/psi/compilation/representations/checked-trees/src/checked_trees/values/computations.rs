@@ -190,6 +190,23 @@ pub enum CheckedScalarComputationKind {
         arguments: HandleSpan<CheckedScalarComputationHandle>,
         structural_arguments: HandleSpan<CheckedScalarComputationStructuralArgument>,
     },
+    /// One bodyless boundary application nested under an enclosing operand,
+    /// such as the product in `a * b + c`. Its dense scalar operands complete
+    /// left to right, then the exact source call runs once and its scalar
+    /// result becomes the enclosing operand. A boundary call that is itself a
+    /// statement's value stays that statement's result operation; this node
+    /// exists only where no statement can own the invocation. Only
+    /// receiver-free, scalar-only signatures qualify, so the application
+    /// carries no structural arguments, claims or completion receipts.
+    BoundaryCall {
+        source_call: Handle<crate::FlowCallFact>,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+        /// Authored occurrence identity, not its position in execution order.
+        call_ordinal: u32,
+        /// Dense scalar operands in authored formal-position order.
+        arguments: HandleSpan<CheckedScalarComputationHandle>,
+    },
     Select {
         /// Exact conditional occurrence, retained when an enclosing constant
         /// condition folds away and the destination root names that outer form.

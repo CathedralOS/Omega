@@ -64,6 +64,7 @@ mod argument_schedule;
 pub(crate) mod bodies;
 mod composed_control;
 mod operation_frame;
+pub(crate) use operation_frame::BoundaryParameters;
 mod ordinary_machine;
 mod provider_attachments;
 

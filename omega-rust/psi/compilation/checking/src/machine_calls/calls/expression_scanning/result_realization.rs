@@ -644,6 +644,18 @@ pub(crate) fn report_nested_call_in_local_assignment(
             return;
         }
     }
+    // A field store whose value is a tree of scalar boundary applications
+    // (`self.f = a * b + c`) keeps its outer application as the statement's
+    // result operation; every nested application is an ordered computation
+    // operand of it. Other nested calls, and local-name destinations, keep
+    // the fence until their destinations plan the same composition.
+    if matches!(
+        program.expression_table.expression(assignment.target),
+        ExpressionNode::Member(_)
+    ) && nested_boundary_applications_compose(program, assignment.value)
+    {
+        return;
+    }
     report_nested_call_in_bound_value_call(
         program,
         machine,
@@ -1392,6 +1404,89 @@ pub(crate) fn report_nested_call_in_bound_value_call(
             return;
         }
     }
+}
+
+/// True when `value` is a bodyless scalar boundary application whose every
+/// nested non-builtin call is also one. Such a tree composes as one statement
+/// result operation over ordered nested application operands; a checked-body
+/// or structural call anywhere inside still needs the fence.
+pub fn nested_boundary_applications_compose(program: &TypedTrees, value: ExpressionHandle) -> bool {
+    fn scalar_parameters(
+        program: &TypedTrees,
+        parameters: &[typed_trees::signature::StateParameter],
+    ) -> bool {
+        parameters.iter().all(|parameter| {
+            !parameter.is_self
+                && !parameter.is_const
+                && !parameter.is_mutable
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+        })
+    }
+    fn scalar_boundary_application(
+        program: &TypedTrees,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> bool {
+        // A nongeneric legacy named operator (`F64::from_i32`): its qualifier
+        // is not an operand.
+        if let Some(operator) = program
+            .operators()
+            .iter()
+            .find(|operator| operator.symbol == call.target_symbol && operator.is_boundary)
+        {
+            return program.operator_type_parameters(operator).is_empty()
+                && program
+                    .primitive_type_reference(operator.return_type)
+                    .is_some()
+                && scalar_parameters(program, program.operator_parameters(operator));
+        }
+        let Some(owner) = program.machine_holding_state(call.target_symbol) else {
+            return false;
+        };
+        let Some(entry) = program.machine_states(owner).first() else {
+            return false;
+        };
+        owner.supply_mode.is_boundary_declaration()
+            && !owner.body_is_present
+            && entry.symbol == call.target_symbol
+            && !call.receiver.is_valid()
+            && program
+                .primitive_type_reference(entry.return_type)
+                .is_some()
+            && scalar_parameters(program, program.state_parameters(entry))
+    }
+    fn composes(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+        if !expression.is_valid() {
+            return true;
+        }
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Call(call) => {
+                (call_spelling_is_composing_builtin(call.target.as_str())
+                    || scalar_boundary_application(program, call))
+                    && program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .iter()
+                        .all(|argument| composes(program, *argument))
+            }
+            ExpressionNode::Atomic(atomic) => composes(program, atomic.value),
+            ExpressionNode::Binary(binary) => {
+                composes(program, binary.left) && composes(program, binary.right)
+            }
+            ExpressionNode::Unary(unary) => composes(program, unary.operand),
+            ExpressionNode::Cast(cast) => composes(program, cast.value),
+            ExpressionNode::Borrow(inner) => composes(program, inner.target),
+            ExpressionNode::Indexed(indexed) => {
+                composes(program, indexed.collection) && composes(program, indexed.index)
+            }
+            ExpressionNode::Member(member) => composes(program, member.receiver),
+            _ => true,
+        }
+    }
+    matches!(program.expression_table.expression(value), ExpressionNode::Call(call)
+        if scalar_boundary_application(program, call))
+        && composes(program, value)
 }
 
 /// True when a call spelling names a builtin whose result composes inside an

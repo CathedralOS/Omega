@@ -575,7 +575,8 @@ impl Builder<'_, '_> {
             visited.push(handle);
             let kind = &plans.nodes.get(handle).kind;
             match kind {
-                CheckedScalarComputationKind::Call { .. } => return true,
+                CheckedScalarComputationKind::Call { .. }
+                | CheckedScalarComputationKind::BoundaryCall { .. } => return true,
                 CheckedScalarComputationKind::SelectedComparison { left, right, .. } => {
                     pending.extend([*left, *right]);
                 }

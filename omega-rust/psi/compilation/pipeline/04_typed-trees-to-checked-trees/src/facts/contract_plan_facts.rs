@@ -689,6 +689,11 @@ fn computation_contains_trapping_operation(
                 }
                 pending.extend(plans.operands.span_or_empty(*operands).iter().copied());
             }
+            // The application itself is a provider call, not a primitive
+            // whose policy this scan reads; only its operands can trap here.
+            Kind::BoundaryCall { arguments, .. } => {
+                pending.extend(plans.operands.span_or_empty(*arguments).iter().copied());
+            }
             Kind::StructuralField { .. } => {}
             Kind::CaseMembership { subject, .. } => push_argument(plans, subject, &mut pending),
             Kind::SelectedComparison { left, right, .. } => pending.extend([*left, *right]),

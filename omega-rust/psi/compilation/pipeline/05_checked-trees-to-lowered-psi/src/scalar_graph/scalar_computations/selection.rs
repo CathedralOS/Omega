@@ -195,7 +195,8 @@ impl Expansion<'_> {
                 | CheckedScalarComputationKind::CaseMembership { .. }
                 | CheckedScalarComputationKind::Select { .. }
                 | CheckedScalarComputationKind::Dispatch { .. }
-                | CheckedScalarComputationKind::Call { .. } => {}
+                | CheckedScalarComputationKind::Call { .. }
+                | CheckedScalarComputationKind::BoundaryCall { .. } => {}
             }
         }
         Ok(order)

@@ -19,6 +19,10 @@ pub(crate) struct EmbeddedScalarCalls {
     pub(crate) machine_ids: Vec<(symbols::SymbolHandle, MachineId)>,
     pub(crate) requirement_counts: Vec<(symbols::SymbolHandle, usize)>,
     pub(crate) next_call_obligation: u64,
+    /// The enclosing attached Unit closure's lowered boundary roster, which
+    /// nested boundary applications in composed operands resolve against.
+    /// A standalone helper catalog has no such closure and keeps it empty.
+    boundaries: Vec<crate::unit::attached_unit::BoundaryParameters>,
     prepared: Vec<PreparedScalarMachine>,
 }
 
@@ -32,14 +36,25 @@ impl EmbeddedScalarCalls {
             machine_ids,
             requirement_counts,
             next_call_obligation,
+            boundaries: Vec::new(),
             prepared: Vec::new(),
         }
+    }
+
+    /// Attach the enclosing closure's lowered boundary roster.
+    pub(crate) fn with_boundaries(
+        mut self,
+        boundaries: &[crate::unit::attached_unit::BoundaryParameters],
+    ) -> Self {
+        self.boundaries = boundaries.to_vec();
+        self
     }
 
     pub(crate) fn emission_context(&self) -> CallEmissionContext<'_> {
         CallEmissionContext {
             machine_ids: &self.machine_ids,
             requirement_counts: &self.requirement_counts,
+            boundaries: &self.boundaries,
             next_obligation_identity: self.next_call_obligation,
             obligation_limit: u64::MAX,
         }
@@ -236,6 +251,7 @@ impl EmbeddedScalarCalls {
             requirement_counts,
             prepared,
             next_call_obligation: TERMINAL_UNIT_CALL_OBLIGATION_BASE,
+            boundaries: Vec::new(),
         };
         selected.reserve_machine_prefix(reserved_prefix)?;
         Ok(selected)

@@ -96,9 +96,11 @@ pub(super) fn validate(
                 } => {
                     pending.extend([*condition, *when_true, *when_false]);
                 }
-                CheckedScalarComputationKind::Apply { operands, .. } => {
-                    pending.extend_from_slice(computations.operands.span(*operands)?)
-                }
+                CheckedScalarComputationKind::Apply { operands, .. }
+                | CheckedScalarComputationKind::BoundaryCall {
+                    arguments: operands,
+                    ..
+                } => pending.extend_from_slice(computations.operands.span(*operands)?),
                 CheckedScalarComputationKind::Call {
                     arguments,
                     structural_arguments,

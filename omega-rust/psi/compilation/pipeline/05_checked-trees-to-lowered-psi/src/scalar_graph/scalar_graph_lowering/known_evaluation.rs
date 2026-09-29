@@ -104,6 +104,7 @@ pub(crate) fn evaluate_known_scalar_graph(
                     evaluate_direct_expression(expression, &values)
                 }
                 LoweredScalarBinding::DirectCall(_)
+                | LoweredScalarBinding::BoundaryCall(_)
                 | LoweredScalarBinding::StoredValue { .. }
                 | LoweredScalarBinding::SelectedComparison { .. } => None,
             };

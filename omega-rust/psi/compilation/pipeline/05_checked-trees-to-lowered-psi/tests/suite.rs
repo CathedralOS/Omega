@@ -60,6 +60,7 @@ mod mixed_unit_crash_arguments_source;
 mod mixed_unit_crash_requirements_source;
 mod module_namespaces;
 mod mutable_scalar_parameters;
+mod nested_boundary_applications_source;
 mod nested_call_arguments_source;
 mod nested_custody;
 mod nested_initializer_arguments_source;

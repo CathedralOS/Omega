@@ -125,7 +125,8 @@ impl PreparedScalarQualifications {
                 | CheckedScalarComputationKind::Apply {
                     operands: arguments,
                     ..
-                } => {
+                }
+                | CheckedScalarComputationKind::BoundaryCall { arguments, .. } => {
                     pending.extend(
                         plans
                             .operands

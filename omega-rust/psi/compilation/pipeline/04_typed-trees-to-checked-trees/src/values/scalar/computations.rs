@@ -34,6 +34,7 @@ use typed_trees::statement::TransitionTargetNode;
 use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceNode;
 
+mod boundary_calls;
 mod call_arguments;
 mod cases;
 mod dispatch;
@@ -888,6 +889,7 @@ impl Builder<'_, '_> {
         if pure
             .expression_at(self.state, statement_ordinal, role)
             .is_some()
+            || self.statement_owns_boundary_call(role, expression)
         {
             return;
         }
@@ -1087,6 +1089,11 @@ impl Builder<'_, '_> {
                 if let Some(selection) = self.integer_min_max(expression, &call, expected_type) {
                     return Some(selection);
                 }
+                if let Some(operator) =
+                    boundary_calls::boundary_operator(self.program, call.target_symbol)
+                {
+                    return self.boundary_operator_call(expression, &call, operator, expected_type);
+                }
                 if !call.carries_only_positional_arguments() || !call.selects_only_nominal_route() {
                     return None;
                 }
@@ -1096,23 +1103,33 @@ impl Builder<'_, '_> {
                         call.target_symbol,
                     )?;
                 // A bodyless boundary declaration has no checked body for this
-                // graph to embed: the statement's boundary call operation owns
-                // the invocation and binds its scalar result directly. Keeping
-                // a call computation here would demand an executable callee
-                // the candidate closure can never construct. A `boundary
-                // machine` with an authored body stays an ordinary callee —
-                // the same predicate the call operation applies. A bodyless
-                // external leaf is the same boundary edge through its exact
-                // satisfied requirement.
-                if (target_machine.supply_mode.is_boundary_declaration()
-                    && !target_machine.body_is_present)
-                    || validation::exact_external_leaf_boundary_requirement(
-                        self.program,
-                        call.target_symbol,
-                    )
-                    .is_some()
+                // graph to embed. A whole-value statement call is the
+                // statement's own result operation (`record_root` leaves it
+                // there); a nested application instead becomes a boundary
+                // node that invokes the exact occurrence between its operands
+                // and its consumer. A `boundary machine` with an authored
+                // body stays an ordinary callee — the same predicate the call
+                // operation applies. A bodyless external leaf is the same
+                // boundary edge through its exact satisfied requirement and
+                // keeps its statement route.
+                if validation::exact_external_leaf_boundary_requirement(
+                    self.program,
+                    call.target_symbol,
+                )
+                .is_some()
                 {
                     return None;
+                }
+                if target_machine.supply_mode.is_boundary_declaration()
+                    && !target_machine.body_is_present
+                {
+                    return self.boundary_machine_call(
+                        expression,
+                        &call,
+                        target_machine,
+                        target_state,
+                        expected_type,
+                    );
                 }
                 let has_runtime_receiver =
                     !self

@@ -693,6 +693,24 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         .expression_handles(authored.arguments),
                 )
             }
+            // A store's whole-value call is the statement's result operation;
+            // its computed operands (nested applications) are consumed below
+            // exactly like an initializer's.
+            StatementNode::Assignment(assignment)
+                if call.authored_expression == assignment.value =>
+            {
+                let ExpressionNode::Call(authored) =
+                    program.expression_table.expression(assignment.value)
+                else {
+                    return None;
+                };
+                (
+                    authored.target_symbol,
+                    program
+                        .expression_table
+                        .expression_handles(authored.arguments),
+                )
+            }
             _ => return None,
         };
         trace.phase("outer calls: target agreement");
@@ -1061,6 +1079,44 @@ fn collect(
                         )?;
                     }
                 }
+            }
+        }
+        CheckedScalarComputationKind::BoundaryCall {
+            source_call,
+            call_ordinal,
+            target_state,
+            arguments,
+            ..
+        } => {
+            // A nested boundary application consumes its own authored
+            // occurrence exactly once, like an embedded checked-body call; the
+            // statement's result operation never sequences it again.
+            if !facts.flow.control.calls.is_valid(*source_call) || consumed.contains(source_call) {
+                return None;
+            }
+            let call = facts.flow.control.calls.get(*source_call);
+            if *call_ordinal < minimum_call_ordinal
+                || call.call_ordinal != *call_ordinal as usize
+                || call.statement_index != statement
+                || call.target_symbol != *target_state
+                || !call.authored_expression.is_valid()
+                || !calls.iter().any(|candidate| std::ptr::eq(candidate, call))
+                || facts.flow.control.is_retired(state, call)
+            {
+                return None;
+            }
+            consumed.push(*source_call);
+            for operand in plans.operands.span(*arguments)? {
+                collect(
+                    facts,
+                    state,
+                    statement,
+                    *operand,
+                    calls,
+                    minimum_call_ordinal,
+                    active,
+                    consumed,
+                )?;
             }
         }
         CheckedScalarComputationKind::Apply { operands, .. } => {

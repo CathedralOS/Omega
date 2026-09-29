@@ -50,7 +50,8 @@ pub(crate) use expression_scanning::{
     report_nested_call_in_local_initializer, validate_value_position_calls,
 };
 pub use expression_scanning::{
-    result_initializer_call_is_supported, unit_result_initializer_call_is_supported,
+    nested_boundary_applications_compose, result_initializer_call_is_supported,
+    unit_result_initializer_call_is_supported,
 };
 use generic_bounds::{
     validate_machine_call_type_parameter_bounds, validate_resolved_target_type_parameter_bounds,

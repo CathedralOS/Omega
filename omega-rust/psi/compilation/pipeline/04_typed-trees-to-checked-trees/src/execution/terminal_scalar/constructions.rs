@@ -276,9 +276,11 @@ pub(super) fn retain_shapes(
                 when_false,
                 ..
             } => pending.extend([*condition, *when_true, *when_false]),
-            CheckedScalarComputationKind::Apply { operands, .. } => {
-                pending.extend(plans.operands.span(*operands)?)
-            }
+            CheckedScalarComputationKind::Apply { operands, .. }
+            | CheckedScalarComputationKind::BoundaryCall {
+                arguments: operands,
+                ..
+            } => pending.extend(plans.operands.span(*operands)?),
         }
     }
     Some(())

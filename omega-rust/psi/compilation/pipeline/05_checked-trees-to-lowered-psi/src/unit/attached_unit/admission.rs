@@ -48,6 +48,7 @@ pub(super) fn admit<'a>(
 ) -> Result<Vec<AdmittedBody<'a>>, LoweringError> {
     let mut bodies = Vec::with_capacity(closure.len());
     for source in closure {
+        retain_nested_boundary_applications(checked, plans, *source, boundaries)?;
         let admitted = match UnitBody::find(plans, *source)? {
             UnitBody::Composed(plan) => {
                 let body = composed_control::admit_callable(checked, plan)?;
@@ -74,6 +75,75 @@ pub(super) fn admit<'a>(
         bodies.push(admitted);
     }
     Ok(bodies)
+}
+
+/// A boundary application nested under another operand is a computation
+/// node, not a statement operation, so the operation scan never names its
+/// target. Register each such target in the closure's boundary roster with the
+/// same exact target, contract, result and reach checks a statement call gets;
+/// emission then resolves the lowered declaration by that target.
+fn retain_nested_boundary_applications<'a>(
+    checked: &'a CheckedTrees,
+    plans: UnitPlans<'a>,
+    machine: SymbolHandle,
+    boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
+) -> Result<(), LoweringError> {
+    let computations = &checked.facts.values.scalar_computations;
+    let roots = computations
+        .roots
+        .iter()
+        .filter(|(_, root)| root.machine == machine)
+        .map(|(_, root)| root.root)
+        .collect::<Vec<_>>();
+    if roots.is_empty() {
+        return Ok(());
+    }
+    for node in crate::expression_preparation::computation_graph::reachable_nodes(checked, &roots)?
+    {
+        let checked_trees::CheckedScalarComputationKind::BoundaryCall {
+            source_call,
+            target_machine,
+            target_state,
+            ..
+        } = computations.nodes.get(node).kind
+        else {
+            continue;
+        };
+        let control = &checked.facts.flow.control;
+        if !control.calls.is_valid(source_call) {
+            return unsupported("nested boundary application lost its checked invocation");
+        }
+        // A declared boundary machine owns a machine contract; a named
+        // requirement (legacy operator) owns its crash capsule instead.
+        let fingerprint = checked
+            .facts
+            .contract_plans
+            .for_machine(target_machine)
+            .map(|contract| contract.report_fingerprint)
+            .or_else(|| {
+                checked
+                    .facts
+                    .contract_plans
+                    .crash_capsule(target_machine, target_state)
+                    .map(|capsule| capsule.target_contract_report_fingerprint())
+            })
+            .ok_or(LoweringError::Unsupported(
+                "nested boundary application target has no checked contract",
+            ))?;
+        retain_exact_unit_boundary(
+            checked,
+            plans,
+            boundaries,
+            target_machine,
+            target_state,
+            fingerprint,
+            control.calls.get(source_call).service_reach,
+            checked_trees::CheckedBoundaryMachineResultPlan::Scalar(
+                computations.nodes.get(node).primitive_type,
+            ),
+        )?;
+    }
+    Ok(())
 }
 
 fn validate_ordinary(

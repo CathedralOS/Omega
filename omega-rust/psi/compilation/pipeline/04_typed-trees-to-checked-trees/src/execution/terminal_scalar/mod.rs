@@ -1311,6 +1311,12 @@ fn computation_reads_position(
                 when_false,
                 ..
             } => pending.extend([*condition, *when_true, *when_false]),
+            checked_trees::CheckedScalarComputationKind::BoundaryCall { arguments, .. } => {
+                let Some(operands) = computations.operands.span(*arguments) else {
+                    return true;
+                };
+                pending.extend_from_slice(operands);
+            }
             checked_trees::CheckedScalarComputationKind::Apply {
                 expression,
                 operands,

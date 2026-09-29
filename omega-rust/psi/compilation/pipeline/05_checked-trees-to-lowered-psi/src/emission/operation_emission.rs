@@ -4,6 +4,7 @@
 //! retains identities and source custody. Module-wide proof completion is separate.
 
 pub(crate) mod boolean;
+pub(crate) mod boundary_calls;
 pub(crate) mod buffer;
 pub(crate) mod calls;
 pub(crate) mod element_unification;
@@ -42,6 +43,8 @@ pub(crate) enum LoweredScalarBinding {
     },
     Expression(LoweredDirectExpression),
     DirectCall(LoweredDirectCallBinding),
+    /// One nested boundary application whose operands are already complete.
+    BoundaryCall(boundary_calls::LoweredBoundaryCallBinding),
     /// Retain the evaluated RHS while committing its separate Unit store effect.
     StoredValue {
         value: LoweredDirectExpression,
@@ -61,6 +64,7 @@ impl LoweredScalarBinding {
                 value: expression, ..
             } => expression.value_type(parameters),
             Self::DirectCall(call) => Ok(call.result_type),
+            Self::BoundaryCall(call) => Ok(call.result_type),
         }
     }
     pub(crate) const fn scalar_type(&self) -> ScalarType {
@@ -68,6 +72,7 @@ impl LoweredScalarBinding {
             Self::SelectedComparison { .. } => ScalarType::Boolean,
             Self::Expression(expression) => expression.scalar_type(),
             Self::DirectCall(call) => call.result_type.scalar_type,
+            Self::BoundaryCall(call) => call.result_type.scalar_type,
             Self::StoredValue { value, .. } => value.scalar_type(),
         }
     }
@@ -272,6 +277,13 @@ pub(crate) fn emit_scalar_binding(
             call,
             parameters,
             caller_erased_formals,
+            next_value_identity,
+            operations,
+            call_emission,
+        ),
+        LoweredScalarBinding::BoundaryCall(call) => boundary_calls::emit_boundary_call_binding(
+            call,
+            parameters,
             next_value_identity,
             operations,
             call_emission,

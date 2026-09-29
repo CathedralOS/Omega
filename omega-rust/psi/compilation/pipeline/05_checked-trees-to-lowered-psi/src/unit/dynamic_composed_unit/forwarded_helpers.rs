@@ -411,6 +411,7 @@ pub(crate) fn materialize_helper_body(
     let mut calls = CallEmissionContext {
         machine_ids: &[],
         requirement_counts: &[],
+        boundaries: &[],
         next_obligation_identity: 1,
         obligation_limit: 1,
     };
