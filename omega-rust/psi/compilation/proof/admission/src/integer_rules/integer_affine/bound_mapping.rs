@@ -199,6 +199,33 @@ fn map_integer_affine_bound_with_remainder_policy(
             CheckedIntegerEndpointStep::BitwiseAndBoundedMask { upper, .. } => {
                 Some(if current_is_lower { 0 } else { *upper })
             }
+            // `x | s` never clears bits, so the result stays at or above the
+            // operand once the sibling proves non-negative: the lower
+            // endpoint carries through unchanged. For the upper endpoint a
+            // negative operand keeps its sign bit, capping the image at -1;
+            // a non-negative operand sets no bit above the wider operand
+            // bound, so the image tops at the all-ones mask at the wider
+            // bound's bit width.
+            CheckedIntegerEndpointStep::BitwiseOrLiteralImage(literal) => {
+                Some(if current_is_lower {
+                    mapped
+                } else if mapped < 0 {
+                    -1
+                } else {
+                    bitwise_or_image_maximum(mapped, *literal)
+                        .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                })
+            }
+            CheckedIntegerEndpointStep::BitwiseOrBoundedImage { upper, .. } => {
+                Some(if current_is_lower {
+                    mapped
+                } else if mapped < 0 {
+                    -1
+                } else {
+                    bitwise_or_image_maximum(mapped, *upper)
+                        .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                })
+            }
             // For `c > 0`, `v = (x + c) mod 2^w` never exceeds `x + c`, so an
             // upper bound on `x` maps unconditionally; a lower bound survives
             // only when the same definition proves `x <= maximum - c`, so the
@@ -1157,6 +1184,19 @@ fn integer_value_to_u128(value: IntegerValue) -> Option<u128> {
         IntegerValue::Signed(value) => u128::try_from(value).ok(),
         IntegerValue::Unsigned(value) => Some(value),
     }
+}
+
+/// The top of `x | s`'s image over non-negative operands: no bit above the
+/// wider bound's bit width is ever set, so the image ends at the all-ones
+/// mask at that width — `[0,1] | [0,1]` lands on `1`, where endpoint
+/// addition would claim `2`.
+fn bitwise_or_image_maximum(left_upper: i128, right_upper: i128) -> Option<i128> {
+    let wider = left_upper.max(right_upper);
+    if wider < 0 {
+        return None;
+    }
+    let width = 128 - (wider as u128).leading_zeros();
+    i128::try_from((1_u128 << width) - 1).ok()
 }
 
 fn shift_math_literal(

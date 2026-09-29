@@ -117,6 +117,13 @@ pub fn integer_affine_truth_bounds(
                 maximum = *upper;
                 saw_total_image = true;
             }
+            // A bitwise-or step has no total endpoint image either: `x | s`
+            // over a quantified operand produces only values carrying the
+            // sibling's set bits, which is not a contiguous interval.
+            CheckedIntegerEndpointStep::BitwiseOrLiteralImage(_)
+            | CheckedIntegerEndpointStep::BitwiseOrBoundedImage { .. } => {
+                return Err(IntegerAffineBoundConversionError::TruthRootWithoutTotalImage);
+            }
             // A wrapping step has no total endpoint image: its reduced result
             // is not a monotone function of a quantified root range.
             CheckedIntegerEndpointStep::WrappingAdd { .. }
