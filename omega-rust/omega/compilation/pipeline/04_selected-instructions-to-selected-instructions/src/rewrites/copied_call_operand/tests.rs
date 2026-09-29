@@ -1,10 +1,9 @@
+use super::{
+    CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand,
+    fold_selected_copied_call_operand, validate_copied_call_operand_fold,
+};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::validated_machine_effect_catalog;
-use crate::rewrites::unexecuted::peepholes::CopiedCallOperandError;
-use crate::rewrites::unexecuted::peepholes::CopiedCallOperandReceipt;
-use crate::rewrites::unexecuted::peepholes::ValidatedCopiedCallOperand;
-use crate::rewrites::unexecuted::peepholes::fold_selected_copied_call_operand;
-use crate::rewrites::unexecuted::peepholes::validate_copied_call_operand_fold;
 use optimization_core::{OptimizationUnitIdentity, OptimizationWorkBudget};
 use optimization_unit::ValueDefinitionSite;
 use register_environment::{
@@ -277,6 +276,9 @@ fn fixture(target: NativeTarget, call: Call) -> ValidatedCopiedCallOperand {
         receipt: CopiedCallOperandReceipt {
             source_selected: identity,
             transformed_selected: identity,
+            function_index: 0,
+            producer: COPY,
+            call: CALL,
             optimization_unit: OptimizationUnitIdentity::from_bytes([2; 32]),
             fuel_schedule: plan.fuel_schedule,
         },
@@ -975,4 +977,88 @@ fn stale_candidate_rejects() {
         ),
         Err(CopiedCallOperandError::UnsupportedUse)
     );
+}
+
+/// The ABI pin the fixture call's first `Use` operand carries — the view
+/// the reroute would newly pin on the copy's source register.
+fn call_operand_pin(source: &ValidatedCopiedCallOperand) -> register_model::RegisterViewId {
+    source.transformed().functions[0].blocks[0].instructions[1].operands[0]
+        .fixed_view
+        .expect("the call row pins its first argument to an ABI view")
+}
+
+/// A source register that already lives under a different fixed view than
+/// the rebound operand's pin refuses: rerouting would pin two distinct
+/// views on one register, and the allocation-legality surface the
+/// completed step must replay counts every such pair as an entry
+/// transition it forbids.
+#[test]
+fn conflicting_fixed_views_reject() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let pinned = call_operand_pin(&fixture(target, Call::Scalar));
+    // The entry view is one of the views the union audit collects.
+    let source = mutated(target, |function, _| {
+        let entry = function
+            .virtual_registers
+            .iter_mut()
+            .find(|entry| entry.id == SOURCE)
+            .unwrap();
+        entry.entry_fixed_view = Some(register_model::RegisterViewId(if pinned.0 == 0 {
+            1
+        } else {
+            0
+        }));
+    });
+    assert_eq!(
+        fold(&source, &environment),
+        Err(CopiedCallOperandError::UnsupportedUse)
+    );
+    // A second in-block site pinning the source to a different view
+    // refuses the same way — the union counts every operand site, not
+    // only the entry view.
+    let source = mutated(target, |function, environment| {
+        let copy_row = environment
+            .constraint(environment.selected_keys().copy_i64)
+            .unwrap();
+        let mut extra = instruction(
+            EXTRA,
+            SelectedInstructionKind::CopyI64,
+            copy_row,
+            &[SOURCE, SPARE],
+        );
+        extra.operands[0].fixed_view = Some(register_model::RegisterViewId(if pinned.0 == 0 {
+            1
+        } else {
+            0
+        }));
+        function.blocks[0].instructions.insert(0, extra);
+    });
+    assert_eq!(
+        fold(&source, &environment),
+        Err(CopiedCallOperandError::UnsupportedUse)
+    );
+}
+
+/// A source register already pinned to the same view the rebound operand
+/// carries folds: the union audit collapses to one view, so the reroute
+/// introduces no new constraint at the operand point. This is the
+/// register-home shape an argument staged from a like-pinned producer
+/// presents.
+#[test]
+fn same_view_pins_fold() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let pinned = call_operand_pin(&fixture(target, Call::Scalar));
+    let source = mutated(target, |function, _| {
+        let entry = function
+            .virtual_registers
+            .iter_mut()
+            .find(|entry| entry.id == SOURCE)
+            .unwrap();
+        entry.entry_fixed_view = Some(pinned);
+    });
+    let result = fold(&source, &environment).unwrap();
+    rerouted_to(&result);
+    replay(&source, &environment, result.transformed().clone()).unwrap();
 }

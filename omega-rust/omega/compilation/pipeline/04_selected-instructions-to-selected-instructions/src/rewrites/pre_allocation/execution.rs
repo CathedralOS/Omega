@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 use crate::AddressFoldError;
 use crate::ConstantBooleanError;
 use crate::ConstantBranchError;
+use crate::CopiedCallOperandError;
 use crate::CopyRemovalError;
 use crate::DeadCompareError;
 use crate::EquivalentCompareError;
@@ -39,9 +40,10 @@ use crate::rewrites::block_edges::terminator_instruction;
 use crate::rewrites::condition_state::adjacency;
 use crate::rewrites::{
     address_fold_measured_steps, constant_boolean_measured_steps, constant_boolean_surface_sizes,
-    constant_branch_measured_steps, constant_branch_surface_sizes, copy_removal_measured_steps,
-    dead_compare_measured_steps, equivalent_compare_measured_steps, fold_selected_address,
-    fold_selected_constant_boolean, fold_selected_constant_branch,
+    constant_branch_measured_steps, constant_branch_surface_sizes,
+    copied_call_operand_measured_steps, copy_removal_measured_steps, dead_compare_measured_steps,
+    equivalent_compare_measured_steps, fold_selected_address, fold_selected_constant_boolean,
+    fold_selected_constant_branch, fold_selected_copied_call_operand,
     redundant_compare_measured_steps, redundant_extension_measured_steps, remove_dead_compare,
     remove_equivalent_compare, remove_redundant_compare, remove_selected_copy,
     remove_selected_redundant_extension,
@@ -166,15 +168,21 @@ fn published_flag_units(instruction: &SelectedInstruction) -> usize {
         .len()
 }
 
-/// The operand-0 definition-chain length one fold-shaped consumer adds to
-/// the joint measure: the number of in-block definitions reached by
-/// following each defining instruction's own operand-0 `Use` backward from
-/// the consumer's base register. An address fold rebinds the consumer to
-/// the producer's earlier base and skips the producer's node in this chain
-/// — and in every chain routed through the consumer's result — while a
-/// copy removal erases the copy's node from every rebound chain.
-fn operand0_chain_length(instructions: &[SelectedInstruction], consumer_index: usize) -> usize {
-    let mut register = match instructions[consumer_index].operands.first() {
+/// The definition-chain length one `Use` operand adds to the joint
+/// measure: the number of in-block definitions reached by following each
+/// defining instruction's own operand-0 `Use` backward from the
+/// operand's register. An address fold rebinds the consumer to the
+/// producer's earlier base and skips the producer's node in this chain —
+/// and in every chain routed through the consumer's result — a
+/// copied-call-operand reroute drops exactly the copy's node from every
+/// rebound call operand's chain, while a copy removal erases the copy's
+/// node from every rebound chain.
+fn operand_chain_length(
+    instructions: &[SelectedInstruction],
+    consumer_index: usize,
+    operand_index: usize,
+) -> usize {
+    let mut register = match instructions[consumer_index].operands.get(operand_index) {
         Some(operand) if operand.access == RegisterOperandAccess::Use => operand.virtual_register,
         _ => return 0,
     };
@@ -197,16 +205,34 @@ fn operand0_chain_length(instructions: &[SelectedInstruction], consumer_index: u
     links
 }
 
+/// Whether the instruction kind is one of the direct internal calls the
+/// copied-call-operand family considers: `CallUnit`, `CallScalar`, or
+/// `CallAggregate`, whose leading `Use` operands carry the argument
+/// roster. Admission decides the pair; this is only the source-bound
+/// candidate surface and the joint measure's call term.
+fn is_call_consumer(instruction: &SelectedInstruction) -> bool {
+    matches!(
+        instruction.kind,
+        SelectedInstructionKind::CallUnit { .. }
+            | SelectedInstructionKind::CallScalar { .. }
+            | SelectedInstructionKind::CallAggregate { .. }
+    )
+}
+
 /// The joint measure a committed step must strictly drop: the plan's
 /// virtual registers, plus its remaining extension candidates, plus the
 /// summed operand-0 definition-chain lengths of the fold-shaped consumers,
-/// plus every flag unit the remaining `MaterializeBoolean*` readers still
-/// observe, plus every implicit use the remaining `ConditionalBranch*`
-/// terminators carry, plus one per remaining flag-publisher compare. A
-/// copy removal drops the copy and its destination's roster row and can
-/// only shorten chains; an extension removal retires one extension while
-/// keeping every register and chain; an address fold keeps both but skips
-/// a producer node in its consumer's chain; a constant-boolean fold keeps
+/// plus the summed per-`Use`-operand definition-chain lengths of the
+/// direct internal calls, plus every flag unit the remaining
+/// `MaterializeBoolean*` readers still observe, plus every implicit use
+/// the remaining `ConditionalBranch*` terminators carry, plus one per
+/// remaining flag-publisher compare. A copy removal drops the copy and
+/// its destination's roster row and can only shorten chains; an
+/// extension removal retires one extension while keeping every register
+/// and chain; an address fold keeps both but skips a producer node in
+/// its consumer's chain; a copied-call-operand reroute keeps the copy,
+/// its register, and the call published but skips the copy's node in
+/// every rebound operand's chain; a constant-boolean fold keeps
 /// registers, chains, and instruction count while dropping the flag uses
 /// the folded reader carried; a constant-branch fold keeps registers,
 /// chains, and instruction count while the `Jump` row that replaces the
@@ -222,7 +248,12 @@ fn measure(plan: &SelectedInstructionPlan, virtual_registers: usize) -> usize {
                     total += 1;
                 }
                 if is_fold_consumer(instruction.kind) {
-                    total += operand0_chain_length(&block.instructions, index);
+                    total += operand_chain_length(&block.instructions, index, 0);
+                }
+                if is_call_consumer(instruction) {
+                    for operand_index in 0..instruction.operands.len() {
+                        total += operand_chain_length(&block.instructions, index, operand_index);
+                    }
                 }
                 if is_boolean_reader(instruction.kind) {
                     total += instruction.implicit_uses.len();
@@ -930,6 +961,127 @@ fn complete_transformation(
     })
 }
 
+/// The position of the last in-block definition of `register` ahead of
+/// `position` — the same last-definition scan the family's admission
+/// re-derives; discovery uses it only to name producer candidates.
+fn last_definition_before(
+    instructions: &[SelectedInstruction],
+    position: usize,
+    register: selected_instructions::VirtualRegisterId,
+) -> Option<usize> {
+    instructions[..position].iter().rposition(|instruction| {
+        instruction.operands.iter().any(|operand| {
+            operand.access != RegisterOperandAccess::Use && operand.virtual_register == register
+        })
+    })
+}
+
+/// Source-bound candidate discovery for the copied-call-operand family:
+/// every direct internal call — `CallUnit`, `CallScalar`, or
+/// `CallAggregate` — in the current validated plan, in
+/// function/block/instruction order, each `Use` argument operand naming
+/// the instruction whose last definition produced it; a producer that is
+/// a `CopyI64` is a candidate pair, evaluated in operand order until the
+/// first admissible one commits. A call can reach several copies — one
+/// per argument — and each producer id is evaluated once per call.
+/// Declines and hard failures follow the copy pass's contract exactly,
+/// and the measured-step contract is the family's own: the
+/// whole-function scan, the producer scan, the last-definition walk,
+/// and the interval audit charged per evaluated pair and again on a
+/// commit's independent validation. The retained-call surface binds the
+/// environment's validated effect catalog the same way the
+/// constant-branch family binds it.
+fn copied_call_operand_pass(
+    current: SelectedProgramRef<'_>,
+    environment: &ValidatedTargetRegisterEnvironment,
+    budget: OptimizationWorkBudget,
+) -> Result<PreAllocationPass, OptimizedPreAllocationCustodyError> {
+    let mut evaluated = 0usize;
+    let mut declined = 0usize;
+    let mut validation_steps = 0u64;
+    // The copied-call-operand pair descriptors admit the retained-call
+    // relationship through the environment's own validated catalog — a
+    // pure function of the target and the constraint catalog, so the
+    // custody replay re-running this pass binds the same declarations.
+    let effect_catalog =
+        validated_machine_effect_catalog(environment.target(), environment.constraints())
+            .map_err(OptimizedPreAllocationCustodyError::MachineEffects)?;
+    for (function_index, function) in current.selected_plan().functions.iter().enumerate() {
+        for block in &function.blocks {
+            let audit_cost = copied_call_operand_measured_steps(current.selected_plan(), block)
+                .map_err(OptimizedPreAllocationCustodyError::CopiedCallOperand)?;
+            for (position, instruction) in block.instructions.iter().enumerate() {
+                if !is_call_consumer(instruction) {
+                    continue;
+                }
+                let mut tried = BTreeSet::new();
+                for operand in instruction
+                    .operands
+                    .iter()
+                    .filter(|operand| operand.access == RegisterOperandAccess::Use)
+                {
+                    let Some(producer_index) = last_definition_before(
+                        &block.instructions,
+                        position,
+                        operand.virtual_register,
+                    ) else {
+                        continue;
+                    };
+                    let producer = &block.instructions[producer_index];
+                    if producer.kind != SelectedInstructionKind::CopyI64
+                        || !tried.insert(producer.id)
+                    {
+                        continue;
+                    }
+                    evaluated += 1;
+                    validation_steps = validation_steps
+                        .checked_add(audit_cost)
+                        .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                    match fold_selected_copied_call_operand(
+                        &current,
+                        function_index,
+                        producer.id,
+                        instruction.id,
+                        environment,
+                        &effect_catalog,
+                        budget,
+                    ) {
+                        Ok(reroute) => {
+                            validation_steps = validation_steps
+                                .checked_add(audit_cost)
+                                .ok_or(OptimizedPreAllocationCustodyError::WorkOverflow)?;
+                            return Ok(PreAllocationPass::Applied {
+                                transformation:
+                                    ValidatedPreAllocationTransformation::CopiedCallOperand(reroute),
+                                declined,
+                                evaluated,
+                                validation_steps,
+                            });
+                        }
+                        Err(
+                            error @ (CopiedCallOperandError::WorkBudgetExceeded
+                            | CopiedCallOperandError::IdentityOverflow
+                            | CopiedCallOperandError::ReplayMismatch),
+                        ) => {
+                            return Err(OptimizedPreAllocationCustodyError::CopiedCallOperand(
+                                error,
+                            ));
+                        }
+                        Err(_) => {
+                            declined += 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(PreAllocationPass::Clean {
+        candidates: evaluated,
+        declined,
+        validation_steps,
+    })
+}
+
 /// Run discovery sweeps to the joint fixed point over `source`'s admitted
 /// plan. Both the executor and the custody replay call this; neither accepts
 /// the other's steps as authority.
@@ -985,6 +1137,9 @@ fn run_passes(
                 }
                 Optimization::SelectedEquivalentCompareRemovalV1 => {
                     equivalent_compare_pass(current, environment, budget)?
+                }
+                Optimization::SelectedCopiedCallOperandFoldV1 => {
+                    copied_call_operand_pass(current, environment, budget)?
                 }
                 // The catalog is closed over this phase's owned rules.
                 _ => continue,
@@ -1310,6 +1465,10 @@ fn pre_allocation_completion_identity(
             }
             crate::PreAllocationTransformationIdentity::EquivalentCompare(identity) => {
                 canonical.push(8);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            crate::PreAllocationTransformationIdentity::CopiedCallOperand(identity) => {
+                canonical.push(9);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

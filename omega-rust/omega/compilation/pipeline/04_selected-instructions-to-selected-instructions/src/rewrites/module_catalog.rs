@@ -95,6 +95,16 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         },
     },
     RewriteModuleRow {
+        module: "copied_call_operand",
+        // The pre-allocation executor: its discovery pass calls
+        // `fold_selected_copied_call_operand` for the exact rule the
+        // catalog admits.
+        route: RewriteModuleRoute::Routed {
+            caller: "omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/pre_allocation/execution.rs",
+            evidence: "fold_selected_copied_call_operand",
+        },
+    },
+    RewriteModuleRow {
         module: "copy_removal",
         // The pre-allocation executor: `run_pre_allocation_optimizations` is
         // the rewrite the stage entrance runs for that slice.
@@ -251,11 +261,12 @@ pub(crate) const REWRITE_MODULE_CATALOG: &[RewriteModuleRow] = &[
         route: RewriteModuleRoute::Orphaned("ALIAS-AWARE-MEMORY"),
     },
     RewriteModuleRow {
-        // The two staged declarative pair families beyond the
-        // literal-fold grammar (`copied_call_operand`,
-        // `projected_access`). The former `terminator_pair` and
-        // `condition_materialization` descriptors execute inside
-        // `constant_branch` and `constant_boolean`.
+        // The one staged declarative pair family beyond the
+        // literal-fold grammar (`projected_access`). The former
+        // `terminator_pair`, `condition_materialization`, and
+        // `copied_call_operand` descriptors execute inside
+        // `constant_branch`, `constant_boolean`, and
+        // `copied_call_operand`.
         module: "peepholes",
         route: RewriteModuleRoute::Orphaned("DECLARATIVE-PEEPHOLES"),
     },

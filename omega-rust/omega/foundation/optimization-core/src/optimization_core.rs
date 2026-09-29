@@ -127,7 +127,7 @@ macro_rules! optimization_vocabulary {
 // phases, and canonical order. Build preludes are exhaustively checked against
 // the generated `ALL`, `build_case_name`, and `build_counter_field` views.
 optimization_vocabulary! {
-    53;
+    54;
     ControlFlowCleanup = 1 => {
         case: "ControlFlowCleanup",
         counter: "control_flow_cleanup",
@@ -393,6 +393,11 @@ optimization_vocabulary! {
         counter: "loop_invariant_scalar_motion",
         phase: Psi
     },
+    SelectedCopiedCallOperandFoldV1 = 54 => {
+        case: "SelectedCopiedCallOperandFoldV1",
+        counter: "selected_copied_call_operand_fold_v1",
+        phase: PreAllocation
+    },
 }
 
 impl Optimization {
@@ -459,7 +464,8 @@ impl Optimization {
             | Self::SelectedConstantBranchFoldV1
             | Self::SelectedDeadCompareRemovalV1
             | Self::SelectedRedundantCompareRemovalV1
-            | Self::SelectedEquivalentCompareRemovalV1 => None,
+            | Self::SelectedEquivalentCompareRemovalV1
+            | Self::SelectedCopiedCallOperandFoldV1 => None,
         }
     }
 }

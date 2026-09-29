@@ -1,8 +1,12 @@
 # Omega corpus outcomes, written by `python tools/corpus_gate.py --record`.
 # One fixture per line: <tier/group/name> <status> <milliseconds>ms, then
 # `expected` or `unexpected` when its expected.txt fragments were weighed,
-# then any execution facts such as exit:70 or stdout:match.
+# then any execution facts such as exit:70 or stdout:match, then
+# `@<revision>` recording which commit measured the row (`+wt` = dirty
+# tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
+# A `# context: {...}` line records the conditions of the --record run.
+# context: {"cpus": 12, "jobs": null, "load1_end": 61.26, "load1_start": 60.5, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -665,6 +669,7 @@ pass/operators/slice_index_bounds_from_operator_contract checked 209ms
 pass/operators/slice_range_bounds_from_operator_contract checked 210ms
 pass/operators/unary_negation_exit built 596ms exit:70
 pass/optimizer/constant_branch_selection_compile built 372ms
+pass/optimizer/copied_call_operand_selection_exit built 1250ms exit:70 @a02111f4530c+wt
 pass/optimizer/dead_compare_selection_compile built 371ms
 pass/optimizer/equivalent_compare_selection_compile built 352ms
 pass/optimizer/redundant_compare_selection_compile built 389ms
@@ -955,9 +960,9 @@ pass/text/runtime_alias_string_write rejected 223ms
 pass/text/runtime_bounded_carrier_alias_concat_exit built 1278ms exit:70
 pass/text/runtime_bounded_carrier_concat_exit built 1302ms exit:70
 pass/text/runtime_bounded_carrier_copy_exit built 4445ms exit:70 stdout:match
-pass/text/runtime_bounded_carrier_normal_status_exit built 1644ms exit:70 stdout:match
 pass/text/runtime_bounded_carrier_length_exit rejected 274ms
 	selected ProgramEntry Binding field `Main::console` requires a selected Fused provider for boundary `Console`
+pass/text/runtime_bounded_carrier_normal_status_exit built 1644ms exit:70 stdout:match
 pass/text/runtime_bounded_carrier_write_read_exit built 638ms exit:70
 pass/text/runtime_carrier_indexed_read_exit built 681ms exit:70
 pass/text/runtime_chained_string_append_exit rejected 457ms

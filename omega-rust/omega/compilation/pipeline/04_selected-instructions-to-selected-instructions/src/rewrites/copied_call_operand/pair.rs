@@ -3,9 +3,10 @@
 //!
 //! The [`literal_fold`](crate::rewrites::selected_lowering) pair grammar
 //! describes a materialized literal folded into a consumer operand, and the
-//! [`projected_access`](super::projected_access) grammar describes a
-//! register-only producer and consumer whose rebind is safe because neither
-//! record carries a unit or machine surface. Neither vocabulary can name
+//! [`projected_access`](crate::rewrites::unexecuted::peepholes::projected_access)
+//! grammar describes a register-only producer and consumer whose rebind
+//! is safe because neither record carries a unit or machine surface.
+//! Neither vocabulary can name
 //! the pair a transparent register copy forms with the direct internal call
 //! that reads its result: the `CopyI64` producer's `Def` is an ordinary
 //! register — no literal to substitute, no displacement to absorb — and the

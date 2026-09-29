@@ -55,6 +55,7 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedDeadCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedDeadCompareRemovalV1` | Required |
 | `SelectedRedundantCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedRedundantCompareRemovalV1` | Required |
 | `SelectedEquivalentCompareRemovalV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedEquivalentCompareRemovalV1` | Required |
+| `SelectedCopiedCallOperandFoldV1` | PreAllocation | Target-independent | Experimental | `--disable-optimization SelectedCopiedCallOperandFoldV1` | Required |
 <!-- exact-rule-inventory:end -->
 
 Exact names and phases come from the source vocabulary and applicability from

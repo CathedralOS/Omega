@@ -14,9 +14,12 @@
 //! `AddressOffset` result), `constant_boolean` (a `MaterializeBoolean*`
 //! whose reached compare is compile-time constant), and `constant_branch`
 //! (a conditional-branch terminator whose reached compare is compile-time
-//! constant), and `dead_compare` (a flag-publisher compare whose
-//! publication dies unread, or repeats a shadow's equivalent publication);
-//! `runtime_split`, `runtime_rematerialization` and `runtime_spill` are the
+//! constant), `dead_compare` (a flag-publisher compare whose
+//! publication dies unread, or repeats a shadow's equivalent
+//! publication), and `copied_call_operand` (a direct internal call whose
+//! `Use` arguments read a retained `CopyI64` destination, rebound to the
+//! copy's source); `runtime_split`, `runtime_rematerialization` and
+//! `runtime_spill` are the
 //! recovery rewrites register assignment replays, in cost order. `block_edges`,
 //! `condition_state` and `window_hazards` are the block-boundary,
 //! flag-state and hazard vocabulary those and the unexecuted families
@@ -34,6 +37,7 @@ mod catalog;
 mod condition_state;
 mod constant_boolean;
 mod constant_branch;
+mod copied_call_operand;
 mod copy_removal;
 mod dead_compare;
 mod fixed_view;
@@ -78,6 +82,10 @@ pub use constant_branch::{ConstantBranchError, ValidatedConstantBranch};
 pub(crate) use constant_branch::{
     fold_selected_constant_branch, measured_steps as constant_branch_measured_steps,
     surface_sizes as constant_branch_surface_sizes,
+};
+pub use copied_call_operand::{CopiedCallOperandError, ValidatedCopiedCallOperand};
+pub(crate) use copied_call_operand::{
+    copied_call_operand_measured_steps, fold_selected_copied_call_operand,
 };
 // Reached as `crate::rewrites::<name>` by the catalog's own tests and by
 // `selected_optimization`'s admission decision.

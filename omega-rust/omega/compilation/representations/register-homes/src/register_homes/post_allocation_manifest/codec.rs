@@ -6,10 +6,11 @@ use optimization_core::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
-    DeadCompareIdentity, EquivalentCompareIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
-    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
+    CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
+    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
+    PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
+    SelectedInstructionPlanIdentity,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
@@ -22,7 +23,7 @@ use super::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 15;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 16;
 
 impl PostAllocationOptimizationManifest {
     pub fn encode(&self) -> Vec<u8> {
@@ -124,6 +125,9 @@ impl PostAllocationOptimizationManifest {
                 ),
                 14 => PostAllocationSelectedTransformation::RuntimeSplit(
                     SelectedInstructionPlanIdentity::from_bytes(cursor.array()?),
+                ),
+                15 => PostAllocationSelectedTransformation::CopiedCallOperand(
+                    CopiedCallOperandIdentity::from_bytes(cursor.array()?),
                 ),
                 tag => {
                     return Err(
@@ -271,6 +275,10 @@ pub(super) fn encode_manifest_content(manifest: &PostAllocationOptimizationManif
             }
             PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
                 canonical.push(14);
+                canonical.extend_from_slice(&identity.bytes());
+            }
+            PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
+                canonical.push(15);
                 canonical.extend_from_slice(&identity.bytes());
             }
         }

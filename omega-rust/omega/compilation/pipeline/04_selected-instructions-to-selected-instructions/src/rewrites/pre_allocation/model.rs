@@ -5,6 +5,7 @@ use crate::AddressFoldError;
 use crate::AllocationLegalityError;
 use crate::ConstantBooleanError;
 use crate::ConstantBranchError;
+use crate::CopiedCallOperandError;
 use crate::CopyRemovalError;
 use crate::DeadCompareError;
 use crate::EquivalentCompareError;
@@ -20,6 +21,7 @@ use crate::ValidatedAddressFold;
 use crate::ValidatedAllocationLegality;
 use crate::ValidatedConstantBoolean;
 use crate::ValidatedConstantBranch;
+use crate::ValidatedCopiedCallOperand;
 use crate::ValidatedCopyRemoval;
 use crate::ValidatedDeadCompare;
 use crate::ValidatedEquivalentCompare;
@@ -32,10 +34,10 @@ use optimization_core::{
     OptimizationWorkUsage, PreAllocationOptimizationCompletionIdentity,
 };
 use selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
-    DeadCompareIdentity, EquivalentCompareIdentity, LiveRangeIdentity, LivenessIdentity,
-    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionId,
-    SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
+    CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
+    LiveRangeIdentity, LivenessIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
+    SelectedInstructionId, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
 };
 
 /// Narrow pre-allocation admission set: which exact catalog payloads the
@@ -55,6 +57,7 @@ impl PreAllocationPolicy {
     const DEAD_COMPARE_V1_BIT: u32 = 1 << 5;
     const REDUNDANT_COMPARE_V1_BIT: u32 = 1 << 6;
     const EQUIVALENT_COMPARE_V1_BIT: u32 = 1 << 7;
+    const COPIED_CALL_OPERAND_V1_BIT: u32 = 1 << 8;
     const KNOWN_BITS: u32 = Self::SAME_BLOCK_COPY_I64_V1_BIT
         | Self::REDUNDANT_EXTENSION_V1_BIT
         | Self::ADDRESS_FOLD_V1_BIT
@@ -62,7 +65,8 @@ impl PreAllocationPolicy {
         | Self::CONSTANT_BRANCH_V1_BIT
         | Self::DEAD_COMPARE_V1_BIT
         | Self::REDUNDANT_COMPARE_V1_BIT
-        | Self::EQUIVALENT_COMPARE_V1_BIT;
+        | Self::EQUIVALENT_COMPARE_V1_BIT
+        | Self::COPIED_CALL_OPERAND_V1_BIT;
 
     /// Rebind every admissible same-block use of one `CopyI64` destination
     /// to the copied source register, dropping the copy and the
@@ -128,6 +132,13 @@ impl PreAllocationPolicy {
         enabled: Self::EQUIVALENT_COMPARE_V1_BIT,
     };
 
+    /// Rebind every `Use` operand of an admitted direct internal call that
+    /// reads a `CopyI64` destination to the copy's source register, keeping
+    /// the copy, its register, and the call's complete contract published.
+    pub const COPIED_CALL_OPERAND_V1: Self = Self {
+        enabled: Self::COPIED_CALL_OPERAND_V1_BIT,
+    };
+
     pub const fn empty() -> Self {
         Self { enabled: 0 }
     }
@@ -161,8 +172,10 @@ impl PreAllocationPolicy {
 /// source — an extension removal publishes a `CopyI64` the copy-removal
 /// pass then owns, any family may expose the next fold's base chain, and a
 /// folded boolean or branch leaves its compare in place for the other
-/// readers, and a compare removal frees the readers' reaching set for the
-/// next family.
+/// readers, a compare removal frees the readers' reaching set for the
+/// next family, and a copied-call-operand reroute keeps both the copy
+/// and the call published — a later copy removal may still own the
+/// producer once no contract reads its destination.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValidatedPreAllocationTransformation {
     CopyRemoval(ValidatedCopyRemoval),
@@ -173,6 +186,7 @@ pub enum ValidatedPreAllocationTransformation {
     DeadCompare(ValidatedDeadCompare),
     RedundantCompare(ValidatedRedundantCompare),
     EquivalentCompare(ValidatedEquivalentCompare),
+    CopiedCallOperand(ValidatedCopiedCallOperand),
 }
 
 impl ValidatedPreAllocationTransformation {
@@ -186,6 +200,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.transformed(),
             Self::RedundantCompare(removal) => removal.transformed(),
             Self::EquivalentCompare(removal) => removal.transformed(),
+            Self::CopiedCallOperand(reroute) => reroute.transformed(),
         }
     }
 
@@ -199,6 +214,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.shared_transformed(),
             Self::RedundantCompare(removal) => removal.shared_transformed(),
             Self::EquivalentCompare(removal) => removal.shared_transformed(),
+            Self::CopiedCallOperand(reroute) => reroute.shared_transformed(),
         }
     }
 
@@ -212,6 +228,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.receipt().source_selected(),
             Self::RedundantCompare(removal) => removal.receipt().source_selected(),
             Self::EquivalentCompare(removal) => removal.receipt().source_selected(),
+            Self::CopiedCallOperand(reroute) => reroute.receipt().source_selected(),
         }
     }
 
@@ -225,6 +242,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.receipt().transformed_selected(),
             Self::RedundantCompare(removal) => removal.receipt().transformed_selected(),
             Self::EquivalentCompare(removal) => removal.receipt().transformed_selected(),
+            Self::CopiedCallOperand(reroute) => reroute.receipt().transformed_selected(),
         }
     }
 
@@ -238,6 +256,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.receipt().optimization_unit(),
             Self::RedundantCompare(removal) => removal.receipt().optimization_unit(),
             Self::EquivalentCompare(removal) => removal.receipt().optimization_unit(),
+            Self::CopiedCallOperand(reroute) => reroute.receipt().optimization_unit(),
         }
     }
 
@@ -251,6 +270,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.receipt().fuel_schedule(),
             Self::RedundantCompare(removal) => removal.receipt().fuel_schedule(),
             Self::EquivalentCompare(removal) => removal.receipt().fuel_schedule(),
+            Self::CopiedCallOperand(reroute) => reroute.receipt().fuel_schedule(),
         }
     }
 
@@ -265,6 +285,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.receipt().function_index(),
             Self::RedundantCompare(removal) => removal.receipt().function_index(),
             Self::EquivalentCompare(removal) => removal.receipt().function_index(),
+            Self::CopiedCallOperand(reroute) => reroute.receipt().function_index(),
         }
     }
 
@@ -272,7 +293,8 @@ impl ValidatedPreAllocationTransformation {
     /// rewrote: the removed `CopyI64`, the extension that became one, the
     /// displacement-carrying consumer the fold rebound, the folded
     /// flag-reading materialization, the folded flag-reading branch
-    /// terminator, or the removed flag-publisher compare.
+    /// terminator, the removed flag-publisher compare, or the retained
+    /// call whose `Use` operands the reroute rebound.
     pub fn instruction(&self) -> SelectedInstructionId {
         match self {
             Self::CopyRemoval(removal) => removal.receipt().copy(),
@@ -283,6 +305,7 @@ impl ValidatedPreAllocationTransformation {
             Self::DeadCompare(removal) => removal.receipt().compare(),
             Self::RedundantCompare(removal) => removal.receipt().compare(),
             Self::EquivalentCompare(removal) => removal.receipt().compare(),
+            Self::CopiedCallOperand(reroute) => reroute.receipt().call(),
         }
     }
 
@@ -316,6 +339,9 @@ impl ValidatedPreAllocationTransformation {
             Self::EquivalentCompare(removal) => {
                 PreAllocationTransformationIdentity::EquivalentCompare(removal.receipt().identity())
             }
+            Self::CopiedCallOperand(reroute) => {
+                PreAllocationTransformationIdentity::CopiedCallOperand(reroute.receipt().identity())
+            }
         }
     }
 }
@@ -333,6 +359,7 @@ pub enum PreAllocationTransformationIdentity {
     DeadCompare(DeadCompareIdentity),
     RedundantCompare(RedundantCompareIdentity),
     EquivalentCompare(EquivalentCompareIdentity),
+    CopiedCallOperand(CopiedCallOperandIdentity),
 }
 
 /// The post-allocation ledger entry one committed pre-allocation step
@@ -365,6 +392,9 @@ impl From<PreAllocationTransformationIdentity>
             }
             PreAllocationTransformationIdentity::EquivalentCompare(identity) => {
                 Self::EquivalentCompare(identity)
+            }
+            PreAllocationTransformationIdentity::CopiedCallOperand(identity) => {
+                Self::CopiedCallOperand(identity)
             }
         }
     }
@@ -651,9 +681,11 @@ pub enum OptimizedPreAllocationCustodyError {
     DeadCompare(DeadCompareError),
     RedundantCompare(RedundantCompareError),
     EquivalentCompare(EquivalentCompareError),
+    CopiedCallOperand(CopiedCallOperandError),
     /// The target's machine-effect catalog — the declarations the
-    /// constant-branch pair descriptors bind — could not be built or
-    /// validated for the environment's constraint catalog.
+    /// constant-branch and copied-call-operand pair descriptors bind —
+    /// could not be built or validated for the environment's constraint
+    /// catalog.
     MachineEffects(MachineEffectStageError),
     Liveness(LivenessError),
     LiveRanges(LiveRangeError),
@@ -671,16 +703,20 @@ pub enum OptimizedPreAllocationCustodyError {
     /// Every applied step must strictly drop the joint measure — the plan's
     /// virtual registers plus its remaining extension instructions plus the
     /// summed operand-0 definition-chain lengths of the fold-shaped
-    /// consumers plus the flag uses the remaining `MaterializeBoolean*`
-    /// readers and conditional-branch terminators carry: a copy removal
-    /// drops the copy and its destination's roster row and can only shorten
-    /// chains; an extension removal turns the extension into a copy and
-    /// removes no register; an address fold skips its producer's node in
-    /// the folded consumer's chain and every chain downstream of it; a
-    /// constant-boolean fold rewrites the reader to a flag-free
-    /// materialization and drops its uses; a constant-branch fold rewrites
-    /// the terminator to a `Jump` row and drops the flag uses the branch
-    /// carried; a compare removal drops one compare-publisher term.
+    /// consumers plus the summed per-`Use`-operand definition-chain lengths
+    /// of the direct internal calls plus the flag uses the remaining
+    /// `MaterializeBoolean*` readers and conditional-branch terminators
+    /// carry: a copy removal drops the copy and its destination's roster
+    /// row and can only shorten chains; an extension removal turns the
+    /// extension into a copy and removes no register; an address fold
+    /// skips its producer's node in the folded consumer's chain and every
+    /// chain downstream of it; a constant-boolean fold rewrites the
+    /// reader to a flag-free materialization and drops its uses; a
+    /// constant-branch fold rewrites the terminator to a `Jump` row and
+    /// drops the flag uses the branch carried; a compare removal drops
+    /// one compare-publisher term; a copied-call-operand reroute keeps
+    /// the copy and the call published but skips the copy's node in every
+    /// rebound operand's chain.
     PreAllocationMeasureMismatch {
         previous: usize,
         current: usize,

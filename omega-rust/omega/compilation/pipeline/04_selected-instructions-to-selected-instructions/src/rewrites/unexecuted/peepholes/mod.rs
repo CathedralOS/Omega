@@ -8,8 +8,8 @@
 //! consumers the instruction-pair grammar cannot name: flag readers whose
 //! whole input — condition-state observations and the encoded effect —
 //! flows through implicit physical units and the bound machine-effect
-//! catalog rather than through operands, dereferences that absorb an
-//! address projection, and calls that reroute a copied argument.
+//! catalog rather than through operands, and dereferences that absorb an
+//! address projection.
 //!
 //! Each family declares its pairs as data — the producer kind, consumer kind,
 //! rewritten kind, and the admissibility axes the relationship must satisfy —
@@ -36,6 +36,22 @@
 //!   same integration the branch family completed. Its flag-reaching walk
 //!   and operand grammars live in the shared `rewrites::condition_state`
 //!   vocabulary; the staged `condition_flow` copy left with it.
+//! - The copied-call-operand family formerly staged here as
+//!   `copied_call_operand` — a `CopyI64` producer whose defined register
+//!   feeds `Use` argument operands of a `CallUnit`, `CallScalar`, or
+//!   `CallAggregate` becomes the same call reading the copy's source
+//!   register — now drives the executed `rewrites::copied_call_operand`
+//!   rule (`SelectedCopiedCallOperandFoldV1`) from
+//!   `copied_call_operand/pair`, the first descriptor whose consumer
+//!   carries a stack effect: the rewritten call retains its complete
+//!   activation surface — `Call` barrier,
+//!   `DirectInternalNormalReturnV1` call effect, `DirectRelativeCallV1`
+//!   control, retained `MayArchitecturalFaultV1` trap, the row's
+//!   implicit-unit and caller-saved clobber roster, the ABI `fixed_view`
+//!   pins, and the target's stack lifecycle
+//!   (`CallReturnAddressLifecycleV1` on stack-pushing targets,
+//!   `UnchangedV1` under a link register) — verbatim, while the producer
+//!   stays published for every other reader.
 //! - `projected_access` declares the address-projection access family: an
 //!   `AddressOffset` producer whose projected register feeds operand 0 of a
 //!   `Load8`, `Load16`, `Load32`, `Load64`, or `Store` becomes the same
@@ -47,28 +63,9 @@
 //!   where `FaultDischargedBy*` declares faults the literal or obligation
 //!   retires. Its `Store` consumer is also the first declared pair whose
 //!   consumer writes memory (`WritePointerV1`).
-//! - `copied_call_operand` declares the copied-call-operand reroute
-//!   family: a `CopyI64` producer whose defined register feeds `Use`
-//!   argument operands of a `CallUnit`, `CallScalar`, or `CallAggregate`
-//!   becomes the same call reading the copy's source register — the
-//!   substitution `copy_removal` performs everywhere except call
-//!   contracts, restated as a declared pair that keeps the producer
-//!   published. It is the first descriptor whose consumer carries a stack
-//!   effect: the rewritten call retains its complete activation surface —
-//!   `Call` barrier, `DirectInternalNormalReturnV1` call effect,
-//!   `DirectRelativeCallV1` control, retained `MayArchitecturalFaultV1`
-//!   trap, the row's implicit-unit and caller-saved clobber roster, the
-//!   ABI `fixed_view` pins, and the target's stack lifecycle
-//!   (`CallReturnAddressLifecycleV1` on stack-pushing targets,
-//!   `UnchangedV1` under a link register) — verbatim.
 //!
-mod copied_call_operand;
 mod projected_access;
 
-pub use copied_call_operand::{
-    CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand,
-    fold_selected_copied_call_operand, validate_copied_call_operand_fold,
-};
 pub use projected_access::{
     ProjectedAccessError, ProjectedAccessReceipt, ValidatedProjectedAccess,
     fold_selected_projected_access, validate_projected_access_fold,

@@ -407,7 +407,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   register units, effects, traps, memory, stack and control flow through the
   selected-stage catalog, and nominate ordinary literal folds beyond pressure
   recovery. Owners: `rewrites/selected_lowering/literal_fold/`,
-  `rewrites/constant_branch/` and
+  `rewrites/constant_branch/`, `rewrites/copied_call_operand/` and
   [staged peepholes](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/mod.rs).
 
   Literal nomination now scans every `MaterializeI64` per function
@@ -422,8 +422,24 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   architectures. Preserve that behavior through the common descriptor route;
   do not restore a separate literal producer.
 
-  Several relationships exist as descriptors and helper-tested rewrites but
-  are still unexecuted:
+  `copied_call_operand` executes: its three retained-call rules moved into
+  `rewrites/copied_call_operand/pair.rs` and drive
+  `SelectedCopiedCallOperandFoldV1` through the pre-allocation joint fixed
+  point, retaining the `CopyI64` producer, the ABI pins, implicit
+  uses/definitions, clobbers, trap/control effects and the target's
+  call-stack lifecycle while rebinding copied arguments — the
+  transformation `copy_removal` deliberately refuses. Admission and replay
+  independently require the rebound pins to coincide with every fixed view
+  the source register already carries, because distinct views on one
+  register are the entry transitions the completed step forbids. The
+  evidence matrix's compiler-produced `Call` workload commits the
+  transformation and replays it on linux_x64 and linux_arm64, and the source
+  program `pass/optimizer/copied_call_operand_selection_exit` selects the
+  rule by name in its build declaration, compiles, and runs to its authored
+  exit result on a supported host.
+
+  Two relationships still exist only as descriptors and helper-tested
+  rewrites without execution:
 
   - `condition_materialization` retires decided flag uses, preserves the
     required unit traffic, and rewrites into a boolean result. `terminator_pair`
@@ -438,9 +454,6 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     compiler-emitted plans today (its producer needs consumers such as
     `Load8Indexed`, `ByteViewAddress`, `CopyBytes` and slot `Store64`); the
     descriptor stays staged until that production exists.
-  - `copied_call_operand` retains ABI pins, implicit uses/definitions, clobbers,
-    trap/control effects and the target's call-stack lifecycle while rebinding
-    copied arguments. Its helper coverage does not establish native execution.
 
   Complete catalog discovery, application and publication for those dimensions
   before claiming them closed. Tied operands and further hosted-trap relationships

@@ -3,7 +3,8 @@
 //! staged input.
 
 use semantic_vocabulary::{
-    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, OperationId, ScalarType, ValueId,
+    BlockId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ScalarType,
+    ValueId,
 };
 
 use terminal_psi::{
@@ -332,6 +333,60 @@ fn same_block_copy(_pressure: usize) -> (TerminalModule, ProofBundle) {
     (module(machine), ProofBundle::default())
 }
 
+/// `id(7)` — a caller that materializes a constant and hands it to an
+/// in-module scalar callee. Selection stages the register-passed argument
+/// with a `CopyI64` whose destination the direct `CallScalar` reads: the
+/// exact pair this rule reroutes. The callee returns its parameter
+/// unchanged so the call's authored result crosses the boundary.
+fn copied_call_argument(_pressure: usize) -> (TerminalModule, ProofBundle) {
+    let callee_parameter = u64_decl(9_821);
+    let caller = machine(
+        9_800,
+        Vec::new(),
+        TerminalMachineResult::Scalar(u64_decl(9_811)),
+        BlockId::new(9_801).unwrap(),
+        vec![returning_block(
+            9_801,
+            9_807,
+            vec![
+                const_u64(9_802, 7),
+                scalar_op(
+                    9_803,
+                    u64_decl(9_804),
+                    OperationKind::Call {
+                        callee: MachineId::new(9_820).unwrap(),
+                        arguments: vec![ValueId::new(10_802).unwrap()],
+                        erased_arguments: Vec::new(),
+                        erased_proof_arguments: Vec::new(),
+                        requirement_obligations: Vec::new(),
+                        crash_continuations: Vec::new(),
+                    },
+                ),
+            ],
+            ValueId::new(9_804).unwrap(),
+        )],
+        9_810,
+        Vec::new(),
+    );
+    let callee = machine(
+        9_820,
+        vec![callee_parameter],
+        TerminalMachineResult::Scalar(u64_decl(9_822)),
+        BlockId::new(9_823).unwrap(),
+        vec![returning_block(
+            9_823,
+            9_825,
+            Vec::new(),
+            callee_parameter.id,
+        )],
+        9_824,
+        Vec::new(),
+    );
+    let mut artifact = module(caller);
+    artifact.machines.push(callee);
+    (artifact, ProofBundle::default())
+}
+
 /// `x < 5` whose bool is never consumed — the closest compiler-emitted
 /// shape to a dead compare; the flag publication is still observed by the
 /// bool materialization, so the rule declines.
@@ -453,6 +508,11 @@ pre_allocation_cases! {
         Optimization::SelectedSameBlockCopyI64RemovalV1,
         equivalent_compare,
         EquivalentCompare;
+    copied_call_operand_fold:
+        Optimization::SelectedCopiedCallOperandFoldV1,
+        Optimization::SelectedConstantBooleanFoldV1,
+        copied_call_argument,
+        CopiedCallOperand;
 }
 
 /// `SelectedConstantBranchFoldV1` on AArch64. The rule's decided-branch
@@ -532,6 +592,56 @@ mod constant_boolean_fold_aarch64 {
                     matches!(
                         step.transformation(),
                         ValidatedPreAllocationTransformation::ConstantBoolean(_)
+                    )
+                })
+            }
+            _ => false,
+        }
+    }
+
+    #[test]
+    fn exact_selection() {
+        assert_exact_selection_leg(&CASE);
+    }
+    #[test]
+    fn disabled() {
+        assert_disabled_leg(&CASE);
+    }
+    #[test]
+    fn downstream_replay() {
+        assert_downstream_replay_leg(&CASE);
+    }
+}
+
+/// `SelectedCopiedCallOperandFoldV1` on AArch64. The retained-call
+/// descriptors bind each target's machine-effect catalog — the call row
+/// carries `DirectInternalNormalReturnV1`, `DirectRelativeCallV1`, and the
+/// architecture's stack lifecycle, which on AArch64 leaves the stack
+/// pointer untouched because the link register receives the return
+/// address — so the matrix's x86-64 leg alone does not show the declared
+/// relationship admits the other architecture's call surface. The same
+/// compiler-produced workload commits and replays on `linux_arm64`.
+mod copied_call_operand_fold_aarch64 {
+    use super::*;
+    use crate::ValidatedPreAllocationTransformation;
+    use crate::selected_optimization::SelectedInstructionOptimizationEvidence;
+
+    const CASE: CoverageCase = CoverageCase {
+        selection: Optimization::SelectedCopiedCallOperandFoldV1,
+        sibling: Optimization::SelectedConstantBooleanFoldV1,
+        positive: copied_call_argument,
+        target: target::NativeTarget::linux_arm64,
+        pressure: 0,
+        commits,
+    };
+
+    fn commits(evidence: &SelectedInstructionOptimizationEvidence) -> bool {
+        match evidence {
+            SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+                run.steps().iter().any(|step| {
+                    matches!(
+                        step.transformation(),
+                        ValidatedPreAllocationTransformation::CopiedCallOperand(_)
                     )
                 })
             }
