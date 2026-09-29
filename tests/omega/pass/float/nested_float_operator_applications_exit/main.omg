@@ -13,8 +13,11 @@
 //                      a different result, so this pins two roundings.
 //   F64::from_i32(count) * 0.5 + c = 3.5 with count = 3: a named conversion
 //                      operator nested under two arithmetic applications.
+//   min(a * b, 11.5) = 11.5 and F64::maximum(c - a, 0.5) = 0.5: named
+//                      operators (shorthand and explicit) whose outer
+//                      application takes a nested operand and a literal.
 // The first two are local initializers, the next two are field stores, the
-// next two are guard operands, and the last is a local initializer again.
+// next two are guard operands, then local initializers and a field store.
 use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -83,8 +86,17 @@ machine Main::main(&mut self) reaches Console {
     state conversions(&mut self) {
         let converted: f64 = F64::from_i32(self.count) * 0.5 + self.c;
         transition converted == 3.5 {
-            true -> pass()
+            true -> extrema()
             _ -> fail(77)
+        }
+    }
+
+    state extrema(&mut self) {
+        let bounded: f64 = F64::maximum(self.c - self.a, 0.5);
+        self.difference = min(self.a * self.b, 11.5);
+        transition self.difference == 11.5 && bounded == 0.5 {
+            true -> pass()
+            _ -> fail(78)
         }
     }
 

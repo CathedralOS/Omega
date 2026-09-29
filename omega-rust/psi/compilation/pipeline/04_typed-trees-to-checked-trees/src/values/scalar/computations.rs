@@ -351,12 +351,18 @@ pub(crate) fn build_checked_value_computation_plans(
                     let structural_destination = program
                         .primitive_type_reference(local.type_reference)
                         .is_none();
+                    // A scalar boundary application tree (`min(a * b, 2.5)`,
+                    // including a named operator) is also a result operation
+                    // whose nested applications are computed operands.
                     let argument_roots = (!local.is_mutable || structural_destination)
-                        && validation::result_initializer_call_is_supported(
+                        && (validation::result_initializer_call_is_supported(
                             program,
                             machine,
                             local.initial_value,
-                        );
+                        ) || validation::nested_boundary_applications_compose(
+                            program,
+                            local.initial_value,
+                        ));
                     if (argument_roots || structural_destination)
                         && let ExpressionNode::Call(call) =
                             program.expression_table.expression(local.initial_value)

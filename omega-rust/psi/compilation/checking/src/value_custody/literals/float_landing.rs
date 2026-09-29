@@ -71,19 +71,44 @@ pub fn land_float_literal_destinations(program: &mut TypedTrees) {
                 }
             }
             ExpressionNode::Call(call) => {
-                let Some(callee) = program.state_by_symbol(call.target_symbol) else {
-                    continue;
-                };
-                let parameters = program
-                    .state_parameters(callee)
-                    .iter()
-                    .filter(|parameter| !parameter.is_self);
                 let arguments = program
                     .expression_table
                     .expression_handles(call.arguments)
                     .iter()
                     .copied();
-                for (parameter, argument) in parameters.zip(arguments) {
+                if let Some(callee) = program.state_by_symbol(call.target_symbol) {
+                    let parameters = program
+                        .state_parameters(callee)
+                        .iter()
+                        .filter(|parameter| !parameter.is_self);
+                    for (parameter, argument) in parameters.zip(arguments) {
+                        if parameter.type_reference.is_valid() {
+                            pairs.push((argument, parameter.type_reference));
+                        }
+                    }
+                    continue;
+                }
+                // A legacy named operator (`F64::minimum(value, 2.5)`, or a
+                // bound `min`/`clamp` shorthand) is a requirement, not a
+                // stored state: its formals are the destination of each
+                // literal operand. A receiver-spelled call supplies the first
+                // formal through its receiver, exactly as its operand roster
+                // does.
+                let Some(operator) = program
+                    .operators()
+                    .iter()
+                    .find(|operator| operator.symbol == call.target_symbol)
+                else {
+                    continue;
+                };
+                let parameters = program.operator_parameters(operator);
+                let receiver_formal = usize::from(
+                    call.receiver.is_valid()
+                        && (parameters.iter().any(|parameter| parameter.is_self)
+                            || parameters.len() == arguments.len() + 1),
+                );
+                for (parameter, argument) in parameters.iter().skip(receiver_formal).zip(arguments)
+                {
                     if parameter.type_reference.is_valid() {
                         pairs.push((argument, parameter.type_reference));
                     }
