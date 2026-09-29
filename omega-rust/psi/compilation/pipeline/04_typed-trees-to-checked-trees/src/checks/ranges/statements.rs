@@ -210,19 +210,10 @@ pub(super) fn assigned_local_declared_type(
     statement_index: usize,
     local_symbol: symbols::SymbolHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let mut declarations = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .filter_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (local.symbol == local_symbol).then_some(local.type_reference)
-        });
-    let declared = declarations.next()?;
-    declarations.next().is_none().then_some(declared)
+    program
+        .state_local_declaration(state, local_symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)
+        .map(|(_, local)| local.type_reference)
 }
 
 pub(super) fn expression_member_name(

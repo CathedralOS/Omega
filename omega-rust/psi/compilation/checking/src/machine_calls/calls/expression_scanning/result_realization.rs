@@ -300,22 +300,16 @@ fn reference_result_nested_operand_call_is_supported(
                 return false;
             }
             program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(..statement_index)
-                .is_some_and(|prior| {
-                    prior.iter().any(|statement| {
-                        matches!(statement, StatementNode::LocalData(local)
-                            if local.symbol == name.symbol
-                                && !local.is_mutable
-                                && crate::machine_calls::reference_result_custody::is_reference_record(
-                                    program,
-                                    local.type_reference,
-                                )
-                                && program.normalized_type_identity(local.type_reference)
-                                    == program
-                                        .normalized_type_identity(nested_parameter.type_reference))
-                    })
+                .state_local_declaration(state, name.symbol)
+                .is_some_and(|(ordinal, local)| {
+                    ordinal < statement_index
+                        && !local.is_mutable
+                        && crate::machine_calls::reference_result_custody::is_reference_record(
+                            program,
+                            local.type_reference,
+                        )
+                        && program.normalized_type_identity(local.type_reference)
+                            == program.normalized_type_identity(nested_parameter.type_reference)
                 })
         })
 }
@@ -621,16 +615,14 @@ pub(crate) fn report_nested_call_in_local_assignment(
                 == 1
         {
             if program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    matches!(statement, StatementNode::LocalData(local)
-                        if local.symbol == path.symbol
-                            && local.is_mutable
-                            && program.primitive_type_reference(local.type_reference).is_some()
-                            && program.primitive_type_reference(local.type_reference)
-                                == ordinary_scalar_call_result_primitive(program, assignment.value))
+                .state_local_declaration(state, path.symbol)
+                .is_some_and(|(_, local)| {
+                    local.is_mutable
+                        && program
+                            .primitive_type_reference(local.type_reference)
+                            .is_some()
+                        && program.primitive_type_reference(local.type_reference)
+                            == ordinary_scalar_call_result_primitive(program, assignment.value)
                 })
                 && program
                     .primitive_type_reference(state.return_type)
@@ -729,20 +721,19 @@ fn unit_scalar_store_assignment_is_supported(
             );
     }
     program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .any(|statement| {
-            matches!(statement, StatementNode::LocalData(local)
-                if local.symbol == target_symbol
-                    && local.is_mutable
-                    && program.expression_table.expression_is_valid(local.initial_value)
-                    && matches!(
-                        program.type_reference_table.type_reference(local.type_reference),
-                        typed_trees::types::TypeReferenceNode::Named { .. }
-                    )
-                    && program.primitive_type_reference(local.type_reference)
-                        == Some(result_primitive))
+        .state_local_declaration(state, target_symbol)
+        .is_some_and(|(_, local)| {
+            local.is_mutable
+                && program
+                    .expression_table
+                    .expression_is_valid(local.initial_value)
+                && matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(local.type_reference),
+                    typed_trees::types::TypeReferenceNode::Named { .. }
+                )
+                && program.primitive_type_reference(local.type_reference) == Some(result_primitive)
         })
 }
 

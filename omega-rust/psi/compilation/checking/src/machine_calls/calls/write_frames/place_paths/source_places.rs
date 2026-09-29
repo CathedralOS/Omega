@@ -8,7 +8,6 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 use crate::machine_calls::calls::write_frames::caller_aliases::{
     CallerWriteSite, caller_statement_owner,
@@ -189,14 +188,7 @@ fn source_owner(
                     .state_parameters(state)
                     .iter()
                     .any(|parameter| parameter.symbol == root),
-                _ => program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .any(|statement| {
-                        matches!(statement, StatementNode::LocalData(local)
-                            if local.symbol == root)
-                    }),
+                _ => program.state_local_declaration(state, root).is_some(),
             };
             retained.then_some((machine, state))
         }

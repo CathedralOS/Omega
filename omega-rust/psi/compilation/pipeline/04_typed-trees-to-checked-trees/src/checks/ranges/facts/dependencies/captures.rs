@@ -230,19 +230,7 @@ pub(super) fn integer_value_identity(
         {
             return None;
         }
-        let mut locals = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .filter_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
-                    if local.symbol == path.symbol =>
-                {
-                    Some(local)
-                }
-                _ => None,
-            });
-        let Some(local) = locals.next() else {
+        let Some((_, local)) = program.state_local_declaration(state, path.symbol) else {
             let mut parameters = program
                 .state_parameters(state)
                 .iter()
@@ -253,7 +241,7 @@ pub(super) fn integer_value_identity(
                 && parameters.next().is_none())
             .then_some(value);
         };
-        if local.is_mutable || locals.next().is_some() {
+        if local.is_mutable {
             return None;
         }
         if local.symbol == value {

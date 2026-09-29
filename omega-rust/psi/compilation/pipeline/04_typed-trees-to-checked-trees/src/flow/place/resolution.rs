@@ -231,18 +231,9 @@ fn container_member_type_position(
                 ));
             }
             program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| match statement {
-                    typed_trees::statement::StatementNode::LocalData(local_data)
-                        if local_data.symbol == symbol =>
-                    {
-                        Some(ContainerOutcome::Position(MemberPosition::Reference(
-                            local_data.type_reference,
-                        )))
-                    }
-                    _ => None,
+                .state_local_declaration(state, symbol)
+                .map(|(_, local_data)| {
+                    ContainerOutcome::Position(MemberPosition::Reference(local_data.type_reference))
                 })
                 .unwrap_or(ContainerOutcome::MappedMiss)
         }

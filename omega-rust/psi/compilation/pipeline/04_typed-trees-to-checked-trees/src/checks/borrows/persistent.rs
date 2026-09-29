@@ -289,16 +289,9 @@ fn stable_index_origin_symbol(
     {
         return Some(symbol);
     }
-    let local = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (!local.is_mutable && local.symbol == symbol).then_some(local)
-        })?;
+    let (_, local) = program
+        .state_local_declaration(state, symbol)
+        .filter(|(_, local)| !local.is_mutable)?;
     if visiting.contains(&symbol) {
         return None;
     }
@@ -575,15 +568,9 @@ fn immutable_state_index_symbol(
         !parameter.is_self && !parameter.is_mutable && parameter.symbol == symbol
     });
     let local_matches = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (!local.is_mutable && local.symbol == symbol).then_some(local.symbol)
-        });
+        .state_local_declaration(state, symbol)
+        .filter(|(_, local)| !local.is_mutable)
+        .map(|(_, local)| local.symbol);
     let mut matching = parameter_matches
         .map(|parameter| parameter.symbol)
         .chain(local_matches);
@@ -781,15 +768,8 @@ fn static_path_frame_aliases(
                         (parameter.symbol == symbol).then_some(parameter.name.as_str())
                     });
                 let local_name = program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .find_map(|statement| {
-                        let StatementNode::LocalData(local) = statement else {
-                            return None;
-                        };
-                        (local.symbol == symbol).then_some(local.name.as_str())
-                    });
+                    .state_local_declaration(state, symbol)
+                    .map(|(_, local)| local.name.as_str());
                 let Some(name) = parameter_name.or(local_name) else {
                     return Vec::new();
                 };
@@ -1006,17 +986,9 @@ fn is_state_independent_borrow_source(
                 return false;
             }
             let Some(initial_value) = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local_data)
-                        if local_data.symbol == path.symbol && !local_data.is_mutable =>
-                    {
-                        Some(local_data.initial_value)
-                    }
-                    _ => None,
-                })
+                .state_local_declaration(state, path.symbol)
+                .filter(|(_, local_data)| !local_data.is_mutable)
+                .map(|(_, local_data)| local_data.initial_value)
             else {
                 return false;
             };

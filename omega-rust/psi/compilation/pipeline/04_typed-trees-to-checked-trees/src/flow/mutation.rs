@@ -719,15 +719,8 @@ fn normalize_write_only_range_place(
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == root_symbol => {
-                        Some(local.type_reference)
-                    }
-                    _ => None,
-                })
+                .state_local_declaration(state, root_symbol)
+                .map(|(_, local)| local.type_reference)
         })
         .is_some_and(|type_reference| {
             matches!(

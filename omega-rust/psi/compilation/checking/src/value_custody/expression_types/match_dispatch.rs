@@ -10,7 +10,6 @@ use typed_trees::expression::{
 };
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 #[cfg(test)]
@@ -261,17 +260,17 @@ fn plain_local_owner_selection(
                 _ => false,
             };
             admitted_source
-                && (program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                    matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
-                        if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
-                }) || program.state_parameters(state).iter().any(|parameter| {
-                    // An immutable owned parameter is a live whole source
-                    // established at state entry rather than by a statement.
-                    parameter.symbol == path.symbol
-                        && !parameter.is_self
-                        && !parameter.is_const
-                        && !parameter.is_mutable
-                }))
+                && (program
+                    .state_local_declaration(state, path.symbol)
+                    .is_some_and(|(_, local)| !local.is_mutable && local.initial_value.is_valid())
+                    || program.state_parameters(state).iter().any(|parameter| {
+                        // An immutable owned parameter is a live whole source
+                        // established at state entry rather than by a statement.
+                        parameter.symbol == path.symbol
+                            && !parameter.is_self
+                            && !parameter.is_const
+                            && !parameter.is_mutable
+                    }))
         }
         // An owned child selected by exact field/fixed-index path is the same
         // plain-local transfer at a projected boundary: the root carries the
@@ -365,17 +364,17 @@ fn projected_linear_owned_source(
                         cursor,
                         root_reference,
                     ) == Some(path.symbol)
-                    && (program.statement_table.statements(state.statement_nodes).iter().any(
-                        |statement| {
-                            matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
-                                if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
-                        },
-                    ) || program.state_parameters(state).iter().any(|parameter| {
-                        parameter.symbol == path.symbol
-                            && !parameter.is_self
-                            && !parameter.is_const
-                            && !parameter.is_mutable
-                    }));
+                    && (program
+                        .state_local_declaration(state, path.symbol)
+                        .is_some_and(|(_, local)| {
+                            !local.is_mutable && local.initial_value.is_valid()
+                        })
+                        || program.state_parameters(state).iter().any(|parameter| {
+                            parameter.symbol == path.symbol
+                                && !parameter.is_self
+                                && !parameter.is_const
+                                && !parameter.is_mutable
+                        }));
             }
             // A call's structural product is a temporary: an affine residual
             // may die with it, but a linear residual sibling has no named
@@ -426,22 +425,22 @@ fn projected_plain_owned_source(
                         program,
                         root_reference,
                     )
-                    && (program.statement_table.statements(state.statement_nodes).iter().any(
-                        |statement| {
-                            matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
-                                if local.symbol == path.symbol && !local.is_mutable && local.initial_value.is_valid())
-                        },
-                    ) || program.state_parameters(state).iter().any(|parameter| {
-                        // An immutable owned parameter is a live root
-                        // established at state entry: the moved child keeps
-                        // its exact path on the transfer while the residual
-                        // complement dies on the selected edge, exactly as a
-                        // local root does.
-                        parameter.symbol == path.symbol
-                            && !parameter.is_self
-                            && !parameter.is_const
-                            && !parameter.is_mutable
-                    }));
+                    && (program
+                        .state_local_declaration(state, path.symbol)
+                        .is_some_and(|(_, local)| {
+                            !local.is_mutable && local.initial_value.is_valid()
+                        })
+                        || program.state_parameters(state).iter().any(|parameter| {
+                            // An immutable owned parameter is a live root
+                            // established at state entry: the moved child keeps
+                            // its exact path on the transfer while the residual
+                            // complement dies on the selected edge, exactly as a
+                            // local root does.
+                            parameter.symbol == path.symbol
+                                && !parameter.is_self
+                                && !parameter.is_const
+                                && !parameter.is_mutable
+                        }));
             }
             // A call's structural product is its own once-evaluated owned
             // root: the declared return type carries the affine custody whose
@@ -1066,14 +1065,7 @@ fn case_dispatch_subject(
             .name_path_members(path.members)
             .len()
             == 1
-        && let Some(local) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == path.symbol => Some(local),
-                _ => None,
-            })
+        && let Some((_, local)) = program.state_local_declaration(state, path.symbol)
         && !local.is_mutable
         && local.type_reference.is_valid()
         && crate::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)

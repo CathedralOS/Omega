@@ -96,9 +96,9 @@ pub(super) fn parameter_source(
         false,
         Some((*declaration_index, true)),
     )?;
-    let parent_declaration = statements[..*declaration_index].iter().any(|statement| {
-        matches!(statement, StatementNode::LocalData(parent) if parent.symbol == captured.owner)
-    });
+    let parent_declaration = checked
+        .state_local_declaration(authored_state, captured.owner)
+        .is_some_and(|(ordinal, _)| ordinal < *declaration_index);
     let root_symbol = captured.root;
     let roots = checked
         .state_parameters(authored_state)

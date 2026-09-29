@@ -89,17 +89,9 @@ pub(crate) fn direct_state_place_type_reference(
             .then_some(parameter.type_reference)?
     } else {
         program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local)
-                    if local.symbol == symbol && local.type_reference.is_valid() =>
-                {
-                    Some(local.type_reference)
-                }
-                _ => None,
-            })?
+            .state_local_declaration(state, symbol)
+            .map(|(_, local)| local.type_reference)
+            .filter(|type_reference| type_reference.is_valid())?
     };
 
     for member in members {

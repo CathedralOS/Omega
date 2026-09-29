@@ -217,18 +217,8 @@ pub(super) fn resolve<'a>(
             // A local root is a unique owned record established earlier in
             // this state, with the scalar-graph lane's record shape and a
             // checked disposition.
-            let statements = program.statement_table.statements(state.statement_nodes);
-            let mut locals = statements
-                .iter()
-                .enumerate()
-                .filter_map(|(ordinal, statement)| match statement {
-                    StatementNode::LocalData(local) if local.symbol == root_symbol => {
-                        Some((ordinal, local))
-                    }
-                    _ => None,
-                });
-            let (local_ordinal, local) = locals.next()?;
-            if locals.next().is_some() || local_ordinal >= ordinal || dynamic_index.is_some() {
+            let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
+            if local_ordinal >= ordinal || dynamic_index.is_some() {
                 return None;
             }
             super::super::scalar_graph_record_shapes(program, local.type_reference)?;
@@ -270,17 +260,7 @@ fn owned_local_root<'a>(
     place: crate::flow::CanonicalPlace,
     selectors: Option<super::selectors::TargetSelectors>,
 ) -> Option<Destination<'a>> {
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut locals = statements
-        .iter()
-        .enumerate()
-        .filter_map(|(local_ordinal, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == root_symbol => {
-                Some((local_ordinal, local))
-            }
-            _ => None,
-        });
-    let (local_ordinal, local) = locals.next()?;
+    let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
     // A declared-zeroed local has no initializer but owns its zeroed shape:
     // the declaration established the affine root, so the store resolves its
     // live home place the same way an initialized owned local does.
@@ -293,8 +273,7 @@ fn owned_local_root<'a>(
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
         )
         && validation::zeroed_structural_parts(program, local.type_reference);
-    if locals.next().is_some()
-        || local_ordinal >= ordinal
+    if local_ordinal >= ordinal
         || dynamic_index.is_some()
         || !(program
             .expression_table

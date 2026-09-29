@@ -367,29 +367,16 @@ fn prepare_owners(
             owners.push(owner.clone());
         }
     }
-    let statements = checked.statement_table.statements(
-        crate::expression_preparation::source_custody::authored_state(checked, state)?
-            .1
-            .statement_nodes,
-    );
+    let (_, authored) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let statements = checked.statement_table.statements(authored.statement_nodes);
     for (symbol, argument) in &evaluation.structural_locals {
         if owners.iter().any(|owner| owner.symbol == *symbol) || !available(*symbol)? {
             continue;
         }
-        let (ordinal, local) = statements
-            .iter()
-            .enumerate()
-            .find_map(|(ordinal, source)| match source {
-                checked_trees::statement::StatementNode::LocalData(local)
-                    if local.symbol == *symbol =>
-                {
-                    Some((ordinal, local))
-                }
-                _ => None,
-            })
-            .ok_or(LoweringError::Unsupported(
-                "selection survivor has no authored local",
-            ))?;
+        let (ordinal, local) = checked.state_local_declaration(authored, *symbol).ok_or(
+            LoweringError::Unsupported("selection survivor has no authored local"),
+        )?;
         if checked.type_multiplicity(local.type_reference) != Multiplicity::Affine {
             continue;
         }
@@ -2324,24 +2311,13 @@ impl Emission<'_, '_, '_> {
     }
 
     fn rebind_local_cases(&mut self) -> Result<(), LoweringError> {
-        let statements = self.checked.statement_table.statements(
-            crate::expression_preparation::source_custody::authored_state(
-                self.checked,
-                self.state,
-            )?
-            .1
-            .statement_nodes,
-        );
+        let (_, authored) = crate::expression_preparation::source_custody::authored_state(
+            self.checked,
+            self.state,
+        )?;
         let mut cases = Vec::new();
         for (symbol, argument) in &self.evaluation.structural_locals {
-            let Some(local) = statements.iter().find_map(|statement| match statement {
-                checked_trees::statement::StatementNode::LocalData(local)
-                    if local.symbol == *symbol =>
-                {
-                    Some(local)
-                }
-                _ => None,
-            }) else {
+            let Some((_, local)) = self.checked.state_local_declaration(authored, *symbol) else {
                 continue;
             };
             let identity = self.checked.normalized_type_identity(local.type_reference);

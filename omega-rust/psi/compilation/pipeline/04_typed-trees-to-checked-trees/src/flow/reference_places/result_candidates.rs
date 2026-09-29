@@ -42,16 +42,9 @@ pub(crate) fn reference_result_candidates_before_statement(
     let state = crate::semantic::calls::find_state(program, state_symbol)?;
     let statements = program.statement_table.statements(state.statement_nodes);
     let prefix = statements.get(..statement_index)?;
-    let (binding_index, local) =
-        prefix
-            .iter()
-            .enumerate()
-            .find_map(|(index, statement)| match statement {
-                StatementNode::LocalData(local) if local.symbol == local_symbol => {
-                    Some((index, local))
-                }
-                _ => None,
-            })?;
+    let (binding_index, local) = program
+        .state_local_declaration(state, local_symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
     if !crate::checks::contracts::is_readable_mutable_reference(program, local.type_reference) {
         return None;
     }

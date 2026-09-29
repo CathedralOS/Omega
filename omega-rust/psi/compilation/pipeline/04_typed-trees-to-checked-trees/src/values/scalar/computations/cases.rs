@@ -3,7 +3,7 @@
 //! operators; knowing the constructed case does not erase their evaluation.
 use super::{
     Builder, CheckedScalarComputationHandle, CheckedScalarComputationKind, ExpressionHandle,
-    ExpressionNode, PrimitiveType, StatementNode,
+    ExpressionNode, PrimitiveType,
 };
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
@@ -74,16 +74,10 @@ impl Builder<'_, '_> {
         };
         let case = selected.symbol;
         if let ExpressionNode::Name(name) = self.program.expression_table.expression(binary.left)
-            && let Some(local) = self
+            && let Some((_, local)) = self
                 .program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .take(self.statement_index)
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
-                    _ => None,
-                })
+                .state_local_declaration(state, name.symbol)
+                .filter(|&(ordinal, _)| ordinal < self.statement_index)
         {
             if local.is_mutable
                 || name.head_symbol != name.symbol

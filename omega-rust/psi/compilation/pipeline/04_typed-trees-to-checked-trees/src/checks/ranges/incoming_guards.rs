@@ -768,15 +768,7 @@ fn immutable_integer_binding(
         }
         parameter.type_reference
     } else {
-        let Some(local) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-                _ => None,
-            })
-        else {
+        let Some((_, local)) = program.state_local_declaration(state, symbol) else {
             return false;
         };
         if local.is_mutable {

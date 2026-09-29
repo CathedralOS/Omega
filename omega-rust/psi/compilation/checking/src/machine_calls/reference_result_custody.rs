@@ -231,15 +231,7 @@ fn construction_sources_with_calls(
         let [spelling] = program.expression_table.name_path_members(name.members) else {
             return None;
         };
-        if let Some(local) = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .find_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
-                _ => None,
-            })
-        {
+        if let Some((_, local)) = program.state_local_declaration(state, name.symbol) {
             if local.is_mutable
                 || name.head_symbol != name.symbol
                 || local.name != *spelling
@@ -732,14 +724,9 @@ fn moved_record_source(
     {
         return None;
     }
-    let (prior_index, prior_local) = statements
-        .get(..statement_index as usize)?
-        .iter()
-        .enumerate()
-        .find_map(|(index, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == name.symbol => Some((index, local)),
-            _ => None,
-        })?;
+    let (prior_index, prior_local) = program
+        .state_local_declaration(state, name.symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
     if program.normalized_type_identity(prior_local.type_reference)
         != program.normalized_type_identity(parameter.type_reference)
     {
@@ -824,15 +811,8 @@ fn call_actual_leaf_loan(
         return None;
     }
     let (prior_index, prior_local) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(..statement_index as usize)?
-        .iter()
-        .enumerate()
-        .find_map(|(index, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == name.symbol => Some((index, local)),
-            _ => None,
-        })?;
+        .state_local_declaration(state, name.symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index as usize)?;
     if program.normalized_type_identity(prior_local.type_reference)
         != program.normalized_type_identity(parameter.type_reference)
     {
@@ -1492,17 +1472,7 @@ pub fn result_loan(
                 {
                     return None;
                 }
-                let (index, input) = program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .enumerate()
-                    .find_map(|(index, statement)| match statement {
-                        StatementNode::LocalData(local) if local.symbol == actual.symbol => {
-                            Some((index, local))
-                        }
-                        _ => None,
-                    })?;
+                let (index, input) = program.state_local_declaration(state, actual.symbol)?;
                 if input.is_mutable
                     || index >= call.statement_index
                     || !is_reference_record(program, input.type_reference)

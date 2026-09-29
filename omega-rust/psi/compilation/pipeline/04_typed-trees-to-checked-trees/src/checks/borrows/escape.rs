@@ -126,7 +126,7 @@ pub(super) fn check_view_return_escape(
                     }
 
                     reported.push(root);
-                    let local_name = local_name(statements, root);
+                    let local_name = local_name(program, state, root);
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` returns a view borrowing the local `{}`, which does not outlive \
                          the call; return a borrow of an input parameter or `self` instead",
@@ -185,16 +185,15 @@ fn state_loans(
         .unwrap_or_default()
 }
 
-fn local_name(statements: &[StatementNode], symbol: SymbolHandle) -> String {
-    statements
-        .iter()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local_data) if local_data.symbol == symbol => {
-                Some(local_data.name.as_str().to_owned())
-            }
-            _ => None,
-        })
-        .unwrap_or_else(|| "<local>".to_owned())
+fn local_name(
+    program: &typed_trees::TypedTrees,
+    state: &typed_trees::state::State,
+    symbol: SymbolHandle,
+) -> String {
+    program.state_local_declaration(state, symbol).map_or_else(
+        || "<local>".to_owned(),
+        |(_, local_data)| local_data.name.as_str().to_owned(),
+    )
 }
 
 fn state_subject<'a>(

@@ -2,7 +2,6 @@ use crate::flow::CanonicalPlace;
 use crate::flow::canonical_place_from_expression_in_state;
 use crate::semantic::calls::find_state;
 use checked_trees::expression::ExpressionHandle;
-use checked_trees::statement::StatementNode;
 use symbols::SymbolHandle;
 
 #[cfg(test)]
@@ -179,16 +178,9 @@ fn symbol_type_reference_in_state(
             .map(|parameter| parameter.type_reference)
             .or_else(|| {
                 program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .take(statement_index)
-                    .find_map(|statement| {
-                        let StatementNode::LocalData(local_data) = statement else {
-                            return None;
-                        };
-                        (local_data.symbol == symbol).then_some(local_data.type_reference)
-                    })
+                    .state_local_declaration(state, symbol)
+                    .filter(|&(ordinal, _)| ordinal < statement_index)
+                    .map(|(_, local_data)| local_data.type_reference)
             })
             .or_else(|| machine_member_type_reference(program, state_symbol, symbol))
     } else {

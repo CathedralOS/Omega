@@ -174,17 +174,9 @@ fn assignment_borrow_loans(
     ) else {
         return Vec::new();
     };
-    let Some(local) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (local.symbol == target.root_symbol).then_some(local)
-        })
+    let Some((_, local)) = program
+        .state_local_declaration(state, target.root_symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)
     else {
         return Vec::new();
     };

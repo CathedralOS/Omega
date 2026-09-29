@@ -327,24 +327,18 @@ impl GuardContext<'_> {
             .machine_states(self.machine)
             .iter()
             .find(|state| state.symbol == state_symbol)?;
-        for statement in self
+        if let Some((_, local)) = self
             .program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(..before_statement)
-            .unwrap_or(&[])
+            .state_local_declaration(state, symbol)
+            .filter(|&(ordinal, _)| ordinal < before_statement)
         {
-            if let StatementNode::LocalData(local) = statement
-                && local.symbol == symbol
-            {
-                return Some(RootBinding {
-                    sensitive: local.is_mutable
-                        || self
-                            .parameter_names
-                            .iter()
-                            .any(|name| name == local.name.as_str()),
-                });
-            }
+            return Some(RootBinding {
+                sensitive: local.is_mutable
+                    || self
+                        .parameter_names
+                        .iter()
+                        .any(|name| name == local.name.as_str()),
+            });
         }
         self.program
             .state_parameters(state)

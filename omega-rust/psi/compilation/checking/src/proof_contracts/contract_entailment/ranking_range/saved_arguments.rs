@@ -146,22 +146,11 @@ fn saved_local<'a>(
     state: &State,
     symbol: SymbolHandle,
 ) -> Option<&'a typed_trees::statement::TableLocalData> {
-    let locals = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let [local] = locals.as_slice() else {
-        return None;
-    };
+    let (_, local) = program.state_local_declaration(state, symbol)?;
     (local.initial_value.is_valid()
         && !lengths::binding_is_exclusively_exposed(program, state, symbol)
         && !lengths::binding_is_written(program, state, symbol))
-    .then_some(*local)
+    .then_some(local)
 }
 
 /// Whether `type_reference` resolves to an exclusive (`&mut`/`&out`) borrow:

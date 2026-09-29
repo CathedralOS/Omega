@@ -1,8 +1,8 @@
 use super::super::meaning;
 use super::{
     ArithmeticDomain, BinaryOperator, ExpressionHandle, ExpressionNode, Machine, State,
-    StatementNode, TransitionGuardNode, TransitionTargetNode, TypedTrees, ValueEnvironment,
-    analyze, narrow_environment_by_condition,
+    TransitionGuardNode, TransitionTargetNode, TypedTrees, ValueEnvironment, analyze,
+    narrow_environment_by_condition,
 };
 use typed_trees::statement::TableTransition;
 
@@ -82,13 +82,8 @@ fn stable_builtin_value(
                 .iter()
                 .any(|parameter| parameter.symbol == path.symbol);
             let is_local = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    matches!(statement,
-                    StatementNode::LocalData(local) if local.symbol == path.symbol)
-                });
+                .state_local_declaration(state, path.symbol)
+                .is_some();
             is_parameter || is_local
         }
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,

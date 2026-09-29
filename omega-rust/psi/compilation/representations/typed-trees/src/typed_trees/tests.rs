@@ -1,11 +1,14 @@
 //! Typed trees carrier tests.
 
+use crate::state::State;
+use crate::statement::{StatementNode, TableLocalData};
 use crate::{
     TypedTreeRoots, TypedTrees, data, domain, machine, name::Identifier, operator,
     trait_definition, types, wire,
 };
 use arena::HandleSpan;
 use language_core::BindingRelevance;
+use symbols::SymbolHandle;
 
 #[test]
 fn typed_tree_roots_constructor_keeps_top_level_roots_explicit() {
@@ -74,4 +77,40 @@ fn erased_fields_do_not_contribute_to_wire_scalar_body_size() {
     };
 
     assert_eq!(trees.wire_schema_scalar_body_worst_case(&schema), Some(0));
+}
+
+#[test]
+fn state_local_declaration_answers_the_one_top_level_declaration() {
+    let mut trees = TypedTrees::default();
+    let first = SymbolHandle::from_arena_index(1);
+    let second = SymbolHandle::from_arena_index(2);
+    let repeated = SymbolHandle::from_arena_index(3);
+    let absent = SymbolHandle::from_arena_index(4);
+    let mut state = State::default();
+    for symbol in [first, second, repeated, repeated] {
+        trees.statement_table.push_statement(
+            &mut state.statement_nodes,
+            StatementNode::LocalData(TableLocalData {
+                symbol,
+                ..Default::default()
+            }),
+        );
+    }
+
+    let (ordinal, local) = trees
+        .state_local_declaration(&state, second)
+        .expect("second local is declared once");
+    assert_eq!(ordinal, 1);
+    assert_eq!(local.symbol, second);
+    assert_eq!(
+        trees
+            .state_local_declaration(&state, first)
+            .map(|(ordinal, _)| ordinal),
+        Some(0)
+    );
+    assert!(trees.state_local_declaration(&state, absent).is_none());
+    assert!(
+        trees.state_local_declaration(&state, repeated).is_none(),
+        "two declarations of one symbol are refused, not resolved to the first"
+    );
 }

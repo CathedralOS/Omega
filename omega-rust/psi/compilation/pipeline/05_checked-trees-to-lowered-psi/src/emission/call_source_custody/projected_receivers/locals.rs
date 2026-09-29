@@ -19,20 +19,10 @@ pub(super) fn shared_borrow<'a>(
     statement: usize,
     symbol: SymbolHandle,
 ) -> Option<&'a checked_trees::statement::TableLocalData> {
-    let mut declarations = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement)
-        .filter_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                Some(local)
-            }
-            _ => None,
-        });
-    let local = declarations.next()?;
-    (declarations.next().is_none()
-        && !local.is_mutable
+    let (_, local) = checked
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement)?;
+    (!local.is_mutable
         && local.initial_value.is_valid()
         && matches!(
             checked
@@ -52,19 +42,9 @@ pub(super) fn declaration<'a>(
     statement: usize,
     symbol: SymbolHandle,
 ) -> Option<(usize, &'a checked_trees::statement::TableLocalData)> {
-    let mut declarations = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement)
-        .enumerate()
-        .filter_map(|(ordinal, statement)| match statement {
-            checked_trees::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
-                Some((ordinal, local))
-            }
-            _ => None,
-        });
-    let (ordinal, local) = declarations.next()?;
+    let (ordinal, local) = checked
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement)?;
     // An uninitialized `let mut` whose statement carries a checked
     // `ZeroedStructural` establishment is the same owned home an
     // initialized local is: its storage exists and begins zero.
@@ -115,8 +95,7 @@ pub(super) fn declaration<'a>(
                             .is_ok()
                     })
             });
-    (declarations.next().is_none()
-        && (local.initial_value.is_valid() || zeroed_establishment || primitive_zero)
+    ((local.initial_value.is_valid() || zeroed_establishment || primitive_zero)
         && validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             local.type_reference,

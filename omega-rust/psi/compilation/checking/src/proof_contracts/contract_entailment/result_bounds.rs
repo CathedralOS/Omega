@@ -710,18 +710,10 @@ impl ReturnReader<'_, '_> {
                         .is_none()
                         .then_some(parameter.type_reference);
                 }
-                let statements = self
-                    .program
-                    .statement_table
-                    .statements(self.state.statement_nodes);
-                let mut locals = statements.get(..before)?.iter().filter_map(|node| {
-                    let StatementNode::LocalData(local) = node else {
-                        return None;
-                    };
-                    (local.symbol == path.symbol).then_some(local.type_reference)
-                });
-                let reference = locals.next()?;
-                locals.next().is_none().then_some(reference)
+                self.program
+                    .state_local_declaration(self.state, path.symbol)
+                    .filter(|&(ordinal, _)| ordinal < before)
+                    .map(|(_, local)| local.type_reference)
             }
             ExpressionNode::Member(member) => {
                 // Attached self expressions retain the machine's symbol, not

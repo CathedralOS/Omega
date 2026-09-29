@@ -790,19 +790,10 @@ fn correspondence_root_type_reference(
                         .statements(state.statement_nodes)
                         .len() =>
         {
-            let mut declarations = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .take(formation_statement_index)
-                .filter_map(|statement| {
-                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
-                    (local.symbol == root).then_some(local.type_reference)
-                });
-            let declared_type = declarations.next()?;
-            declarations.next().is_none().then_some(declared_type)
+            program
+                .state_local_declaration(state, root)
+                .filter(|&(ordinal, _)| ordinal < formation_statement_index)
+                .map(|(_, local)| local.type_reference)
         }
         _ => None,
     }

@@ -598,15 +598,14 @@ fn local_loan_ends_before_successor(
     let loan = facts.borrow.loans.get(loan_handle);
     if loan.lineage != checked_trees::BorrowLoanLineage::DirectRoot
         || !program
-            .statement_table
-            .statements(source.statement_nodes)
-            .iter()
-            .any(|statement| {
-                matches!(statement, typed_trees::statement::StatementNode::LocalData(local)
-                if local.symbol == loan.owner_symbol && matches!(
-                    program.type_reference_table.type_reference(local.type_reference),
+            .state_local_declaration(source, loan.owner_symbol)
+            .is_some_and(|(_, local)| {
+                matches!(
+                    program
+                        .type_reference_table
+                        .type_reference(local.type_reference),
                     typed_trees::types::TypeReferenceNode::Reference { .. }
-                ))
+                )
             })
     {
         return false;

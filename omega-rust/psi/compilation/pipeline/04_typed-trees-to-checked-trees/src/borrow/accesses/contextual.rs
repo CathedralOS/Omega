@@ -94,20 +94,13 @@ fn contextual_symbol_type_symbol(
     }
 
     let state = crate::semantic::calls::find_state(program, state_symbol)?;
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local_data) if local_data.symbol == symbol => {
-                let type_symbol = program
-                    .type_reference_table
-                    .type_symbol(local_data.type_reference);
-                type_symbol.is_valid().then_some(type_symbol)
-            }
-            _ => None,
-        })
+    let (_, local_data) = program
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
+    let type_symbol = program
+        .type_reference_table
+        .type_symbol(local_data.type_reference);
+    type_symbol.is_valid().then_some(type_symbol)
 }
 
 pub(super) fn contextual_name_root_symbol(

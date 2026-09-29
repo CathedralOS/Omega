@@ -1588,7 +1588,8 @@ pub(crate) fn validate_local_ownership(
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if !symbol.is_valid()
         || checked.state_parameters(source).iter().any(|parameter| parameter.symbol == symbol)
-        || checked.statement_table.statements(source.statement_nodes).iter().filter(|statement| matches!(statement, StatementNode::LocalData(local) if local.symbol == symbol)).count() != 1 {
+        || checked.state_local_declaration(source, symbol).is_none()
+    {
         return unsupported("structural local has ambiguous source identity");
     }
     let establishment_source = PermissionEventSource::Statement {

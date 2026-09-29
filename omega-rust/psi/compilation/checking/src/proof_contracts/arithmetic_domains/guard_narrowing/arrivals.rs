@@ -620,13 +620,8 @@ impl ArrivalWalk<'_, '_> {
                     .any(|parameter| parameter.symbol == path.head_symbol)
                     || self
                         .program
-                        .statement_table
-                        .statements(source.statement_nodes)
-                        .iter()
-                        .any(|statement| {
-                            matches!(statement, StatementNode::LocalData(local)
-                            if local.symbol == path.head_symbol)
-                        });
+                        .state_local_declaration(source, path.head_symbol)
+                        .is_some();
                 root.then(|| place_path(self.program, expression)).flatten()
             }
             ExpressionNode::Member(member) if member.member_symbol.is_valid() => {

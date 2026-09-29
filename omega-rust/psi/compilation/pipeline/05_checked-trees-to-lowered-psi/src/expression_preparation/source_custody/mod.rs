@@ -385,37 +385,33 @@ pub(crate) fn locate(
                             .len()
                             == 1 =>
                 {
-                    preceding
-                        .iter()
-                        .find_map(|statement| match statement {
-                            StatementNode::LocalData(local) if local.symbol == path.symbol => {
-                                match program
-                                    .type_reference_table
-                                    .type_reference(local.type_reference)
-                                {
-                                    // A store through an erased
-                                    // exclusive-borrow carrier keeps the
-                                    // authored root spelling as its scalar
-                                    // binding destination; the stored
-                                    // primitive is the referent's.
-                                    checked_trees::types::TypeReferenceNode::Reference {
-                                        access:
-                                            language_semantics::ReferenceAccess::Mutable
-                                            | language_semantics::ReferenceAccess::WriteOnly,
-                                        referee,
-                                        ..
-                                    } => program.primitive_type_reference(*referee).map(
-                                        |primitive| (assignment.value, local.symbol, primitive),
-                                    ),
-                                    _ if local.is_mutable => {
-                                        program.primitive_type_reference(local.type_reference).map(
-                                            |primitive| (assignment.value, local.symbol, primitive),
-                                        )
-                                    }
-                                    _ => None,
-                                }
+                    program
+                        .state_local_declaration(state, path.symbol)
+                        .filter(|&(ordinal, _)| ordinal < preceding.len())
+                        .and_then(|(_, local)| {
+                            match program
+                                .type_reference_table
+                                .type_reference(local.type_reference)
+                            {
+                                // A store through an erased
+                                // exclusive-borrow carrier keeps the
+                                // authored root spelling as its scalar
+                                // binding destination; the stored
+                                // primitive is the referent's.
+                                checked_trees::types::TypeReferenceNode::Reference {
+                                    access:
+                                        language_semantics::ReferenceAccess::Mutable
+                                        | language_semantics::ReferenceAccess::WriteOnly,
+                                    referee,
+                                    ..
+                                } => program
+                                    .primitive_type_reference(*referee)
+                                    .map(|primitive| (assignment.value, local.symbol, primitive)),
+                                _ if local.is_mutable => program
+                                    .primitive_type_reference(local.type_reference)
+                                    .map(|primitive| (assignment.value, local.symbol, primitive)),
+                                _ => None,
                             }
-                            _ => None,
                         })
                         .or_else(|| {
                             program

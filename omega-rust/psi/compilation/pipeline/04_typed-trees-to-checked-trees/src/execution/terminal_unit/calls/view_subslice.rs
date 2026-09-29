@@ -510,18 +510,10 @@ pub(in crate::execution) fn view_local_before<'a>(
     statement_index: usize,
     symbol: symbols::SymbolHandle,
 ) -> Option<&'a typed_trees::statement::TableLocalData> {
-    let mut locals = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(..statement_index)?
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-            _ => None,
-        });
-    let local = locals.next()?;
-    (locals.next().is_none()
-        && !local.is_mutable
+    let (_, local) = program
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
+    (!local.is_mutable
         && local.initial_value.is_valid()
         && view_kind(program, local.type_reference).is_some())
     .then_some(local)

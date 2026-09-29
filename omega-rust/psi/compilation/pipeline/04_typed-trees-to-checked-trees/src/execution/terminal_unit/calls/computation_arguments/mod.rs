@@ -17,7 +17,6 @@ use crate::execution::terminal_unit::types::{
 };
 
 use crate::execution::terminal_unit::StateParameter;
-use crate::execution::terminal_unit::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
@@ -509,19 +508,12 @@ fn borrowed_nominal_argument(
     } else {
         // A projection borrows the same established local home. Resolve its
         // endpoint below while retaining the declaring local as the owner.
-        let mut locals = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(..call.statement_index)?
-            .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-                _ => None,
-            });
-        let local = (locals.next())?;
+        let (_, local) = program
+            .state_local_declaration(state, symbol)
+            .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
         // A mutable loan needs authority from the source binding. Filling an
         // owned local field does not by itself authorize lending the whole local.
-        if locals.next().is_some() || !local.initial_value.is_valid() {
+        if !local.initial_value.is_valid() {
             return None;
         }
         // An established shared-borrow local already loans the referent it was
@@ -825,17 +817,10 @@ pub(crate) fn shared_slice_view_argument(
     } else {
         // The view local loans the referent its establishment already carries;
         // a second declaration or a moved home breaks that loan's exactness.
-        let mut locals = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(..call.statement_index)?
-            .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-                _ => None,
-            });
-        let local = locals.next()?;
-        if locals.next().is_some() || !local.initial_value.is_valid() {
+        let (_, local) = program
+            .state_local_declaration(state, symbol)
+            .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
+        if !local.initial_value.is_valid() {
             return None;
         }
         (
@@ -911,17 +896,10 @@ pub(crate) fn shared_byte_view_argument(
             parameter.type_reference,
         )
     } else {
-        let mut locals = program
-            .statement_table
-            .statements(state.statement_nodes)
-            .get(..call.statement_index)?
-            .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-                _ => None,
-            });
-        let local = locals.next()?;
-        if locals.next().is_some() || !local.initial_value.is_valid() {
+        let (_, local) = program
+            .state_local_declaration(state, symbol)
+            .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
+        if !local.initial_value.is_valid() {
             return None;
         }
         (
@@ -969,17 +947,10 @@ fn owned_copy_local_argument(
     {
         return None;
     }
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let mut declarations = statements
-        .get(..statement_index)?
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == source_symbol => Some(local),
-            _ => None,
-        });
-    let local = declarations.next()?;
-    if declarations.next().is_some()
-        || local.is_mutable
+    let (_, local) = program
+        .state_local_declaration(state, source_symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
+    if local.is_mutable
         || !program
             .expression_table
             .expression_is_valid(local.initial_value)

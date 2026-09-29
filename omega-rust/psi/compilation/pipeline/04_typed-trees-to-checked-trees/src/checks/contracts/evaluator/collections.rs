@@ -73,20 +73,17 @@ impl ContractExpressionEvaluator<'_, '_> {
         {
             return None;
         }
-        let mut locals = statements[..self.statement_index]
-            .iter()
-            .filter_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == path.symbol => Some(local),
-                _ => None,
-            });
-        let local = locals.next()?;
+        let (_, local) = self
+            .program
+            .state_local_declaration(self.caller_state, path.symbol)
+            .filter(|&(ordinal, _)| ordinal < self.statement_index)?;
         let mut owned_frames = None;
         let bindings_stable =
             crate::flow::shared_call_frames_or(self.call_frames, self.program, &mut owned_frames)
                 .is_some_and(|frames| {
                     frames.expression_reference_bindings_are_stable(self.caller_machine, expression)
                 });
-        if local.is_mutable || locals.next().is_some() || !bindings_stable {
+        if local.is_mutable || !bindings_stable {
             return None;
         }
         let ExpressionNode::Call(call) = self

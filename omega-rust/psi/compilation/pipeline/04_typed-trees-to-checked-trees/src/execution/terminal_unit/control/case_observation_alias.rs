@@ -91,15 +91,6 @@ pub(crate) fn observed_place(
     let ExpressionNode::Name(name) = program.expression_table.expression(subject) else {
         return None;
     };
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .find_map(|(index, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == name.symbol => {
-                erased_subject(program, state, index, local).map(|place| (place, index))
-            }
-            _ => None,
-        })
+    let (index, local) = program.state_local_declaration(state, name.symbol)?;
+    erased_subject(program, state, index, local).map(|place| (place, index))
 }

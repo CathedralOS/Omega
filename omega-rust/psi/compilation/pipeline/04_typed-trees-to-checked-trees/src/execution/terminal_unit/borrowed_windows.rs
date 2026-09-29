@@ -184,15 +184,9 @@ fn local_reference_source(
     statement_index: usize,
     symbol: SymbolHandle,
 ) -> Option<ExpressionHandle> {
-    let declaration = statements
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (local.symbol == symbol).then_some(local)
-        })?;
+    let (_, declaration) = program
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
     if !type_reference_is_reference(program, declaration.type_reference) {
         return None;
     }
