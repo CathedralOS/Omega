@@ -17,7 +17,10 @@
 //!
 //! A closed array literal stored into a primitive-array field is the same
 //! store once per element, over the field's path plus that element's
-//! literal indices (`array_literal_stores`).
+//! literal indices (`array_literal_stores`). An indexed row destination
+//! (`self.grid[i] = [1, 2, 3]`) is that store over the same leaf roster with
+//! the runtime element already in the path: the selector's bound is re-proven
+//! exactly as for an element store.
 use super::super::{
     CheckFacts, CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
@@ -256,20 +259,25 @@ pub(super) fn array_literal_stores(
         statement_index,
         assignment.target,
     )?;
-    if !matches!(segments.last(), Some(facts::PlaceSegment::Field { .. }))
-        || !validation::place_has_builtin_coordinates(
-            program,
-            machine,
-            Some(state),
-            assignment.target,
+    if !matches!(
+        segments.last(),
+        Some(
+            facts::PlaceSegment::Field { .. }
+                | facts::PlaceSegment::FixedIndex { .. }
+                | facts::PlaceSegment::Index { .. }
         )
-        || primitive_local_before(
-            program,
-            state,
-            usize::try_from(statement_index).ok()?,
-            symbol,
-        )
-        .is_some()
+    ) || !validation::place_has_builtin_coordinates(
+        program,
+        machine,
+        Some(state),
+        assignment.target,
+    ) || primitive_local_before(
+        program,
+        state,
+        usize::try_from(statement_index).ok()?,
+        symbol,
+    )
+    .is_some()
     {
         return None;
     }
