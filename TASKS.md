@@ -1637,20 +1637,24 @@ crash and native exit behavior. Use affected check/native corpus slices under
 
 - **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER.** (new-scope) Finish authored by-value
   fixed primitive arrays through boundary arguments and results under
-  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `635cf2c9ebc`
-  on macOS ARM64, `omega run --target macos_arm64
-  tests/omega/pass/providers/runtime_boundary_primitive_array_argument_exit/main.omg`
-  compiles and runs; native corpus execution exits **70**. Its selected checked
-  provider reads all four bytes between two scalar arguments, and the caller
-  observes its result and unchanged source field. Borrowed field projections
-  use `StructuralLeafCopy`; whole array locals keep their existing payload
-  identity. Source replay, codec reload and verification retain exact authored
-  positions, type/extent, readable custody and dominance.
+  [boundary calls](wiki/spec/terminal-psi/boundary_calls.md). At `d5c62aebf05`
+  on macOS ARM64, `python3 tools/corpus_gate.py --native --filter
+  providers/runtime_boundary_array_forwarding_exit,providers/runtime_boundary_primitive_array_argument_exit`
+  executes both programs with exit **70**. An ordinary helper forwards its
+  whole array parameter to the selected provider between two scalar arguments;
+  the provider reads all four bytes, and the caller observes the result and
+  unchanged source field. Psi05 `structural_calls/result_uses.rs` now rejoins
+  the exact parameter and owned custody at ordinary and boundary calls through
+  shared emission. Codec replay verifies; same-typed source substitution and
+  borrowed-access corruption reject. Field projections retain `StructuralLeafCopy`.
+  The outer command `omega run --target macos_arm64
+  tests/omega/pass/providers/runtime_boundary_array_forwarding_exit/main.omg`
+  still stops before compilation at pending package-review decisions; those
+  decisions were not accepted by this compiler repair.
 
-  Remaining: execute whole local/parameter and literal sources, nested arrays,
+  Remaining: execute whole local and literal sources, nested arrays,
   scalar/reference controls, and array results across trait and direct boundary
-  calls. Psi05 `structural_calls/result_uses.rs` still refuses whole array
-  parameters at boundaries. Psi04 `values/scalar/array_constructions.rs` and
+  calls. Psi04 `values/scalar/array_constructions.rs` and
   Psi05 `source_custody/array_sources.rs` exclude boundary literal construction;
   direct calls also retain array gates in `calls/structural_arguments.rs`.
   Result guards remain in `calls/{trait_boundary_call,call_operations}.rs`, and
