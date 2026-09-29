@@ -98,6 +98,7 @@ fn keys() -> SelectedConstraintKeys {
         bits_to_float64: Some(instruction(31)),
         ieee_float_arithmetic: Some(instruction(785)),
         ieee_float_unary: Some(instruction(786)),
+        ieee_float_conversion_control: Some(instruction(788)),
         ieee_float_ternary: Some(instruction(787)),
         add_i64: instruction(2),
         subtract_i64: instruction(4),
@@ -442,6 +443,66 @@ fn widened_arithmetic_semantics_bind_distinct_tags_and_keys() {
             "mutation {mutation}"
         );
     }
+}
+
+#[test]
+fn integer_float_conversions_select_their_exact_control_constraint() {
+    use crate::{
+        IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
+        IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+    };
+
+    let keys = keys();
+    let semantic = |operation| {
+        MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+            operation,
+            format: IeeeFloatFormat::Binary64,
+        })
+    };
+    for operation in [
+        IeeeFloatArithmeticOperation::FromInteger(IeeeFloatIntegerCarrier::U64),
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            target: IeeeFloatIntegerCarrier::U64,
+            domain: IeeeFloatToIntegerDomain::Exact,
+        },
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            target: IeeeFloatIntegerCarrier::I32,
+            domain: IeeeFloatToIntegerDomain::Trapping,
+        },
+    ] {
+        assert_eq!(
+            keys.for_semantic(semantic(operation)),
+            keys.ieee_float_conversion_control
+        );
+    }
+    for operation in [
+        IeeeFloatArithmeticOperation::Negate,
+        IeeeFloatArithmeticOperation::FromInteger(IeeeFloatIntegerCarrier::I64),
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            target: IeeeFloatIntegerCarrier::I32,
+            domain: IeeeFloatToIntegerDomain::Exact,
+        },
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            target: IeeeFloatIntegerCarrier::I32,
+            domain: IeeeFloatToIntegerDomain::Saturating,
+        },
+    ] {
+        assert_eq!(
+            keys.for_semantic(semantic(operation)),
+            keys.ieee_float_unary
+        );
+    }
+
+    let mut aliased = keys;
+    aliased.ieee_float_conversion_control = aliased.ieee_float_unary;
+    let inventory = aliased.in_identity_order();
+    assert_eq!(
+        inventory
+            .iter()
+            .filter(|key| Some(**key) == aliased.ieee_float_unary)
+            .count(),
+        1
+    );
 }
 
 #[test]

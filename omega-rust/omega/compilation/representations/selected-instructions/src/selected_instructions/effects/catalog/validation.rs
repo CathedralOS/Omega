@@ -11,6 +11,24 @@ use super::{
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
     MachineSemanticKind, MachineSizeKnowledge,
 };
+
+/// Float-to-integer Trapping is the same observable policy check as integer
+/// Trapping: a failed representability predicate executes an in-place Crash.
+/// Exact and Saturating conversions must not borrow that control/effect surface.
+fn has_policy_trap(semantic: MachineSemanticKind) -> bool {
+    matches!(semantic, MachineSemanticKind::TrappingInteger(_))
+        || matches!(
+            semantic,
+            MachineSemanticKind::NearestIeeeFloatArithmetic(crate::IeeeFloatArithmeticForm {
+                operation: crate::IeeeFloatArithmeticOperation::TruncateToInteger {
+                    domain: crate::IeeeFloatToIntegerDomain::Trapping,
+                    ..
+                },
+                ..
+            })
+        )
+}
+
 pub(super) fn validate_declaration(
     constraint: &RegisterInstructionConstraint,
     declaration: &MachineEffectDeclaration,
@@ -18,16 +36,16 @@ pub(super) fn validate_declaration(
     let semantic = declaration.semantic;
     // A Trapping form may stop the process in place, which is as observable
     // as a hosted effect: it must not move across one, and it is never dead.
-    let expected_barrier = if matches!(
-        semantic,
-        MachineSemanticKind::HostedReadByte
-            | MachineSemanticKind::SaveFloatingControl
-            | MachineSemanticKind::RestoreFloatingControl
-            | MachineSemanticKind::HostedWriteByteI32
-            | MachineSemanticKind::HostedExitProcessI32
-            | MachineSemanticKind::TrappingInteger(_)
-            | MachineSemanticKind::AtomicAccess(_)
-    ) {
+    let expected_barrier = if has_policy_trap(semantic)
+        || matches!(
+            semantic,
+            MachineSemanticKind::HostedReadByte
+                | MachineSemanticKind::SaveFloatingControl
+                | MachineSemanticKind::RestoreFloatingControl
+                | MachineSemanticKind::HostedWriteByteI32
+                | MachineSemanticKind::HostedExitProcessI32
+                | MachineSemanticKind::AtomicAccess(_)
+        ) {
         MachineBarrier::ExternalEffect
     } else if matches!(
         semantic,
@@ -102,7 +120,7 @@ pub(super) fn validate_declaration(
     let expected_trap = match semantic {
         MachineSemanticKind::AtomicAccess(_) => crate::MachineTrapBehavior::MayArchitecturalFaultV1,
         MachineSemanticKind::Crash => crate::MachineTrapBehavior::ExplicitCrashV1,
-        MachineSemanticKind::TrappingInteger(_) => crate::MachineTrapBehavior::TrappingIntegerV1,
+        semantic if has_policy_trap(semantic) => crate::MachineTrapBehavior::TrappingIntegerV1,
         MachineSemanticKind::HostedExitProcessI32 => {
             crate::MachineTrapBehavior::HostedExitReturnedV1
         }
@@ -578,14 +596,10 @@ fn validate_encoded_effects(
     }
     // The fall-through-or-trap surface belongs to the Trapping forms alone,
     // with exactly their trap surface and no memory or stack effect.
-    if matches!(
-        declaration.semantic,
-        MachineSemanticKind::TrappingInteger(_)
-    ) != (encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1)
-        || matches!(
-            declaration.semantic,
-            MachineSemanticKind::TrappingInteger(_)
-        ) != (encoded.trap == MachineEncodedTrapBehavior::TrappingIntegerV1)
+    if has_policy_trap(declaration.semantic)
+        != (encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1)
+        || has_policy_trap(declaration.semantic)
+            != (encoded.trap == MachineEncodedTrapBehavior::TrappingIntegerV1)
     {
         return Err(());
     }
@@ -843,10 +857,8 @@ fn validate_encoded_effects(
             MachineEncodedMemoryEffect::NoneV1,
             MachineEncodedStackEffect::UnchangedV1,
             MachineEncodedTrapBehavior::TrappingIntegerV1,
-        ) if matches!(
-            declaration.semantic,
-            MachineSemanticKind::TrappingInteger(_)
-        ) && declaration.memory == crate::MachineMemoryEffect::NoneV1
+        ) if has_policy_trap(declaration.semantic)
+            && declaration.memory == crate::MachineMemoryEffect::NoneV1
             && declaration.trap == crate::MachineTrapBehavior::TrappingIntegerV1
             && encoded.control == MachineEncodedControlEffect::FallThroughOrTrapV1 => {}
         (

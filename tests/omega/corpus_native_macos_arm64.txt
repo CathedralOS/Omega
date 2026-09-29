@@ -6,7 +6,7 @@
 # tree; rows measured before stamping have no token).
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
-# context: {"cpus": 14, "jobs": null, "load1_end": 21.24, "load1_start": 21.24, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+# context: {"cpus": 10, "jobs": "2", "load1_end": 3.25, "load1_start": 3.36, "machine": "arm64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
 pass/arithmetic/anonymous_rational_arguments checked 189ms
 pass/arithmetic/anonymous_rational_integer_landing checked 186ms
 pass/arithmetic/bounded_assignment checked 197ms
@@ -518,6 +518,8 @@ pass/float/float_trapping_propagated_nan_traps rejected 225ms
 	implicit domain weakening in argument `left` for state `Float::add::add` drops `Trapping`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
 pass/float/foreign_control_state_restore rejected 1631ms
 	unimplemented: `Main::main` applies boundary operator `F64::from_i32`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_float_integer_lower_boundary_conversion_traps built 1361ms exit:signal signal:5 @0c6abc6d1e0c+wt
+pass/float/named_float_integer_nan_conversion_traps built 1448ms exit:signal signal:5 @0c6abc6d1e0c+wt
 pass/float/named_infinity_classification_exit built 1189ms exit:70 @0d9777b52aee+wt
 pass/float/named_provider_directed_divide_exit rejected 205ms
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `divide_toward_negative(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
@@ -528,8 +530,8 @@ pass/float/named_provider_min_max_sqrt_exit rejected 1715ms
 	unimplemented: `Main::main` applies boundary operator `F32::minimum`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/float/named_provider_multiply_then_add_exit built 1381ms exit:70 @22df272b5668+wt
 pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+wt
-pass/float/runtime_named_float_to_integer_conversion_exit rejected 1735ms
-	unimplemented: `Main::main` applies boundary operator `I8::from_f32`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/runtime_float_integer_conversion_boundaries_exit built 1554ms exit:70 @0c6abc6d1e0c+wt
+pass/float/runtime_named_float_to_integer_conversion_exit built 1366ms exit:70 @0c6abc6d1e0c+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
 pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
 pass/float/runtime_total_order_satisfiers_exit rejected 1643ms

@@ -1713,8 +1713,7 @@ crash and native exit behavior. Use affected check/native corpus slices under
     the unqualified conversion's `requires` entailment reads neither declared
     float ranges nor dominating guards (**FLOAT-PROVIDERS**), so
     `float/float_to_int_exact_proofs_exit` stays unexecuted and binding Exact
-    casts would reject valid programs. Trapping conversions reach Omega stage
-    00 without a native realization (`float/float_to_int_trapping_nan_traps`).
+    casts would reject valid programs.
     With these on base `b5cfc489741`, `basics/temperature_convert` met its
     exit **68** oracle and `arithmetic/vector_distance` its exit **5**. On
     `f34b0c7f56` both stop, like `arithmetic/sensor_min_max`, in stage 05
@@ -1768,28 +1767,20 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `native-artifact/src/physical/derivation/evidence.rs`. The new
     `boundary_internal_call_evidence` test covers a nongeneric requirement's
     internal physical child, not this whole generic matrix.
-  - Install the remaining named float executions as Omega builtins,
-    preserving each exact selected meaning: Trapping float-to-integer
-    conversion (its check needs a flag-writing branch the float constraint
-    rows do not declare), `u64` in both directions (no SSE2 conversion),
-    directed arithmetic and distinct FMA. Primitive
-    `Float::{add,subtract,multiply,divide}`,
-    `F32`/`F64::{negate,is_nan,is_infinite,minimum,maximum,square_root,multiply_then_add}`, `from_{i8,i16,i32,i64,u8,u16,u32}`,
-    `F64::from_f32`/`F32::from_f64` and unqualified or Saturating
-    `{I8,I16,I32,I64,U8,U16,U32}::from_f32`/`from_f64` install:
-    stage 00 `compiler_builtins.rs` admits each as one
+  - Install the remaining named directed arithmetic and distinct FMA executions
+    as Omega builtins, preserving each exact selected meaning. Reuse stage 00
+    `compiler_builtins.rs`, which admits each ordinary execution as one
     `NearestIeeeFloatArithmetic` operation against the local target catalog
     and the exact boundary signature of that operation, stage 02
     `control_flow/ieee_float_arithmetic.rs` realizes the call inline, and each
     ISA encodes one form through scratch FP registers with its own decoder.
-    The 66 forms share selected-form tag 230 followed by an ordinal payload
-    byte, so new operations need no new tag. `pass/float/{nearest_even_binary_arithmetic_exit,named_ieee_operations_exit,named_ieee_conversions_exit,named_ieee_truncations_exit}`
-    execute with exit **70** on macOS ARM64 and build for linux_x86_64, and
-    `samples/cli/arithmetic/fibonacci_golden` meets its exit **161** oracle.
+    Selected-form tag 230 carries the stable operation/format ordinal payload;
+    append new identities without renumbering existing ones. Preserve the
+    `runtime_named_float_to_integer_conversion_exit` and conversion-boundary/trap
+    fixtures as controls when extending the shared operation catalog.
     An unqualified conversion of a runtime field still fails its `requires`
     proof even under a dominating non-NaN/range guard (**FLOAT-PROVIDERS**).
-    The other `pass/float` customers stop in Psi (nested value calls, omitted
-    unit plans, `finite` proof), not at native installation. Re-drive `pending/arithmetic/float_computation_no_route`
+    Re-drive `pending/arithmetic/float_computation_no_route`
     both with and without the ordinary float-operations import across
     arithmetic/comparison, field/local/guard positions and f32/f64.
     Preserve declared operator selection rather than use a spelling-based

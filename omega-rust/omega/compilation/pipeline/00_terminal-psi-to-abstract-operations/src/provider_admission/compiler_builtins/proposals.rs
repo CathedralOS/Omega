@@ -282,13 +282,13 @@ fn compiler_builtin_execution(
                 Numeric::U8 => Some(Carrier::U8),
                 Numeric::U16 => Some(Carrier::U16),
                 Numeric::U32 => Some(Carrier::U32),
+                Numeric::U64 => Some(Carrier::U64),
                 _ => None,
             };
             // Conversions into a float format are total nearest-even Exact
             // requirements. Conversions to an integer truncate: Exact and
-            // Saturating realize as one clamped truncation, Trapping has no
-            // realization. `u64`, which has no SSE2 conversion, stays
-            // unrealized.
+            // Saturating share clamped truncation on the Exact proof's valid
+            // inputs. Trapping retains its invalid-input crash mechanism.
             match (float(source), float(target), domain) {
                 (Some(from), Some(format), ArithmeticDomain::Exact) if from != format => {
                     (Arithmetic::ConvertFormat, format)
@@ -296,13 +296,20 @@ fn compiler_builtin_execution(
                 (None, Some(format), ArithmeticDomain::Exact) => {
                     (Arithmetic::FromInteger(carrier(source)?), format)
                 }
-                (Some(format), None, ArithmeticDomain::Exact | ArithmeticDomain::Saturating) => (
+                (
+                    Some(format),
+                    None,
+                    ArithmeticDomain::Exact
+                    | ArithmeticDomain::Saturating
+                    | ArithmeticDomain::Trapping,
+                ) => (
                     Arithmetic::TruncateToInteger {
                         target: carrier(target)?,
-                        domain: if domain == ArithmeticDomain::Exact {
-                            IeeeFloatToIntegerDomain::Exact
-                        } else {
-                            IeeeFloatToIntegerDomain::Saturating
+                        domain: match domain {
+                            ArithmeticDomain::Exact => IeeeFloatToIntegerDomain::Exact,
+                            ArithmeticDomain::Saturating => IeeeFloatToIntegerDomain::Saturating,
+                            ArithmeticDomain::Trapping => IeeeFloatToIntegerDomain::Trapping,
+                            _ => return None,
                         },
                     },
                     format,

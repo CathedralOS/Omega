@@ -63,6 +63,13 @@ pub const X86_64_IEEE_FLOAT_UNARY: RegisterConstraintKey = RegisterConstraintKey
     variant: 786,
 };
 
+/// Unary IEEE integer conversions that additionally clobber RFLAGS while
+/// retaining the unary form's MXCSR and scratch-vector effects.
+pub const X86_64_IEEE_FLOAT_CONVERSION_CONTROL: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 788,
+};
+
 /// Three general-register inputs and one result, with the same floating
 /// controls and scratch-register effects as the unary and binary forms.
 pub const X86_64_IEEE_FLOAT_TERNARY: RegisterConstraintKey = RegisterConstraintKey {
@@ -404,7 +411,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 88] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 89] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -559,4 +566,5 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 88] = [
     X86_64_IEEE_FLOAT_ARITHMETIC,
     X86_64_IEEE_FLOAT_UNARY,
     X86_64_IEEE_FLOAT_TERNARY,
+    X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
 ];

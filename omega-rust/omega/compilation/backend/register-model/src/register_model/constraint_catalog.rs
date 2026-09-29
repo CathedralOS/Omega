@@ -92,6 +92,7 @@ pub struct TargetRegisterEnvironmentConstraintKeys {
     pub bits_to_float64: Option<RegisterConstraintKey>,
     pub ieee_float_arithmetic: Option<RegisterConstraintKey>,
     pub ieee_float_unary: Option<RegisterConstraintKey>,
+    pub ieee_float_conversion_control: Option<RegisterConstraintKey>,
     pub ieee_float_ternary: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,

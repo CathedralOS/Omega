@@ -57,6 +57,9 @@ pub struct SelectedConstraintKeys {
     /// The same IEEE forms with one general-register input (negation,
     /// square root and conversions) and one result.
     pub ieee_float_unary: Option<RegisterConstraintKey>,
+    /// Unary IEEE integer conversions whose target encoding also clobbers
+    /// control state such as x86-64 RFLAGS.
+    pub ieee_float_conversion_control: Option<RegisterConstraintKey>,
     pub ieee_float_ternary: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,

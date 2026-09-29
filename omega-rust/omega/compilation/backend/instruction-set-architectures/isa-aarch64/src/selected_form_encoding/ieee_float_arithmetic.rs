@@ -35,12 +35,13 @@
 //!   graph carrier is sign-extended (12 bytes). The conversion rounds toward
 //!   zero, saturates to the destination width and maps NaN to zero: exactly
 //!   the Saturating contract, and the identity on every operand an Exact
-//!   requirement's proof admits.
+//!   requirement's proof admits. Trapping conversions first check ordered
+//!   bounds with vector masks and branch over `BRK` only when each holds.
 //!
 //! Rounding operations round under FPCR, which Omega's native boundaries keep
 //! at the canonical control state (round to nearest, ties to even; no trap
 //! enables; no flush to zero), so each word computes the exact IEEE-754
-//! operation of its format. None traps.
+//! operation of its format. Only explicitly Trapping conversions trap.
 //!
 //! `v16`..`v18` are caller-saved under AAPCS64 and are never argument homes,
 //! so clobbering them needs no callee-save obligation. Both lanes of each are
@@ -58,10 +59,15 @@ use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
 use selected_instructions::{
     IeeeFloatArithmeticForm, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedEffects, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
-use selected_instructions::{IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier};
+use selected_instructions::{
+    IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+};
+
+mod conversions;
 
 /// The fixed scratch vector registers: the first and second operands, and
 /// the minimum/maximum selection mask.
@@ -97,11 +103,26 @@ pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
 /// The form reads its operands (operands `0..n`) and defines operand `n`.
 pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     let inputs = form.operand_count() as u16;
-    MachineEncodedEffects {
+    let mut effects = MachineEncodedEffects {
         implicit_unit_uses: implicit_uses(),
         implicit_unit_clobbers: clobbers(),
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
+    };
+    if is_trapping(form) {
+        effects.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
+        effects.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
     }
+    effects
+}
+
+fn is_trapping(form: IeeeFloatArithmeticForm) -> bool {
+    matches!(
+        form.operation,
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            domain: IeeeFloatToIntegerDomain::Trapping,
+            ..
+        }
+    )
 }
 
 pub(crate) fn declaration(
@@ -112,8 +133,16 @@ pub(crate) fn declaration(
         semantic: MachineSemanticKind::NearestIeeeFloatArithmetic(form),
         constraint,
         memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::None,
+        trap: if is_trapping(form) {
+            MachineTrapBehavior::TrappingIntegerV1
+        } else {
+            MachineTrapBehavior::NeverV1
+        },
+        barrier: if is_trapping(form) {
+            MachineBarrier::ExternalEffect
+        } else {
+            MachineBarrier::None
+        },
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
@@ -146,6 +175,10 @@ pub(crate) fn footprint(
 /// binary64 register width (`d`/`x`) over binary32 (`s`/`w`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Word {
+    /// `CBNZ Xn, #8`: skip exactly the following `BRK` on a true mask.
+    BranchNonzeroOverCrash { general: u8 },
+    /// Omega's native Crash instruction, `BRK #0`.
+    Crash,
     /// `FMOV` (general): general register to scalar vector register.
     ToFloat {
         double: bool,
@@ -239,6 +272,8 @@ fn encode_word(word: Word) -> u32 {
     let reg = |register: u8| u32::from(register);
     let width = |double: bool| u32::from(double);
     match word {
+        Word::BranchNonzeroOverCrash { general } => 0xb500_0040 | reg(general),
+        Word::Crash => 0xd420_0000,
         Word::ToFloat {
             double,
             general,
@@ -375,6 +410,10 @@ fn decode_word(word: u32) -> Option<Word> {
         _ => None,
     };
     Some(match word & 0xffff_fc00 {
+        _ if word == 0xd420_0000 => Word::Crash,
+        _ if word & 0xffff_ffe0 == 0xb500_0040 => {
+            Word::BranchNonzeroOverCrash { general: field(0) }
+        }
         0x1e27_0000 | 0x9e67_0000 if bit(31) == bit(22) => Word::ToFloat {
             double: bit(31),
             general: field(5),
@@ -621,6 +660,10 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
             },
             move_out(first),
         ],
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            target,
+            domain: IeeeFloatToIntegerDomain::Trapping,
+        } => conversions::trapping_truncation(double, target, registers[0], result),
         IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } if target.bits() < 32 => {
             narrow_truncation(double, target, registers[0], result)
         }
@@ -840,7 +883,7 @@ mod tests {
     use super::{encode, validate};
     use selected_instructions::{
         IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
-        IeeeFloatIntegerCarrier,
+        IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
     };
 
     fn form(
@@ -1009,8 +1052,8 @@ mod tests {
             || matches!(
                 (left.operation, right.operation),
                 (
-                    TruncateToInteger { target: left_target, .. },
-                    TruncateToInteger { target: right_target, .. },
+                    TruncateToInteger { target: left_target, domain: IeeeFloatToIntegerDomain::Exact | IeeeFloatToIntegerDomain::Saturating },
+                    TruncateToInteger { target: right_target, domain: IeeeFloatToIntegerDomain::Exact | IeeeFloatToIntegerDomain::Saturating },
                 ) if left_target == right_target && left.format == right.format
             )
     }

@@ -419,6 +419,30 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
                     ArithmeticDomain::Saturating,
                 )),
             ),
+            (
+                "m_from_u64",
+                Some(conversion(Numeric::U64, Numeric::F64, exact)),
+            ),
+            (
+                "n_to_u64",
+                Some(conversion(Numeric::F32, Numeric::U64, exact)),
+            ),
+            (
+                "o_to_u64_saturating",
+                Some(conversion(
+                    Numeric::F64,
+                    Numeric::U64,
+                    ArithmeticDomain::Saturating,
+                )),
+            ),
+            (
+                "p_to_i32_trapping",
+                Some(conversion(
+                    Numeric::F64,
+                    Numeric::I32,
+                    ArithmeticDomain::Trapping,
+                )),
+            ),
         ],
     );
     let float_results = [
@@ -446,6 +470,10 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
             "j_to_i32",
             "k_to_i64",
             "l_to_u32",
+            "m_from_u64",
+            "n_to_u64",
+            "o_to_u64_saturating",
+            "p_to_i32_trapping",
         ]),
         &float_results,
     )
@@ -482,6 +510,28 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
             },
             Binary64,
         ),
+        (Arithmetic::FromInteger(Integer::U64), Binary64),
+        (
+            Arithmetic::TruncateToInteger {
+                target: Integer::U64,
+                domain: IeeeFloatToIntegerDomain::Exact,
+            },
+            Binary32,
+        ),
+        (
+            Arithmetic::TruncateToInteger {
+                target: Integer::U64,
+                domain: IeeeFloatToIntegerDomain::Saturating,
+            },
+            Binary64,
+        ),
+        (
+            Arithmetic::TruncateToInteger {
+                target: Integer::I32,
+                domain: IeeeFloatToIntegerDomain::Trapping,
+            },
+            Binary64,
+        ),
     ];
     assert_eq!(
         proposals
@@ -496,35 +546,18 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
         )
     );
 
-    // Trapping float-to-integer conversion, carriers without a native
-    // conversion on both architectures, a same-format conversion, and a
-    // format-free builtin whose boundary has no float result stay unrealized.
+    // Wrapping is not a float-to-integer contract. Same-format conversion and
+    // a format-free builtin without an IEEE boundary format stay unrealized.
     let (plan, retained) = selected_plan(
         "named",
         &[
             (
-                "trapping",
+                "wrapping",
                 Some(conversion(
                     Numeric::F64,
                     Numeric::I32,
-                    ArithmeticDomain::Trapping,
+                    ArithmeticDomain::Wrapping,
                 )),
-            ),
-            (
-                "to_u64",
-                Some(conversion(
-                    Numeric::F64,
-                    Numeric::U64,
-                    ArithmeticDomain::Saturating,
-                )),
-            ),
-            (
-                "from_u64",
-                Some(conversion(Numeric::U64, Numeric::F64, exact)),
-            ),
-            (
-                "to_u64_exact",
-                Some(conversion(Numeric::F32, Numeric::U64, exact)),
             ),
             ("same", Some(conversion(Numeric::F64, Numeric::F64, exact))),
             ("unformatted", Some(builtin(symbols::BuiltinFunction::Min))),
@@ -533,18 +566,11 @@ fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
     let diagnostics = derive_selected_intrinsic_settlement_proposals(
         std::slice::from_ref(&plan),
         provenance(std::slice::from_ref(&retained)),
-        &demands(&[
-            "trapping",
-            "to_u64",
-            "from_u64",
-            "to_u64_exact",
-            "same",
-            "unformatted",
-        ]),
+        &demands(&["wrapping", "same", "unformatted"]),
         &BTreeMap::new(),
     )
     .expect_err("unrealized conversions reject");
-    assert_eq!(diagnostics.len(), 6);
+    assert_eq!(diagnostics.len(), 3);
     assert!(diagnostics.iter().all(|diagnostic| {
         diagnostic
             .message

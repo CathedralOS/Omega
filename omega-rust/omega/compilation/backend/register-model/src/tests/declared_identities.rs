@@ -177,6 +177,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         bits_to_float64: None,
         ieee_float_arithmetic: None,
         ieee_float_unary: None,
+        ieee_float_conversion_control: None,
         ieee_float_ternary: None,
         add_i64: instruction_key(6),
         add_i64_immediate: instruction_key(7),
@@ -354,6 +355,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             bits_to_float64: None,
             ieee_float_arithmetic: None,
             ieee_float_unary: None,
+            ieee_float_conversion_control: Some(instruction_key(788)),
             ieee_float_ternary: None,
             ..keys.clone()
         },

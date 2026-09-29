@@ -71,7 +71,8 @@ pub enum IeeeFloatArithmeticOperation {
     /// truncation fits, where that clamp is the identity, so both domains
     /// realize alike; the domain stays in the operation so admission and the
     /// recorded terminal mechanism keep the selected requirement. Trapping
-    /// conversion has no realization here.
+    /// checks that same representable truncation range and crashes on failure,
+    /// including NaN; it must not silently select the saturating mechanism.
     TruncateToInteger {
         target: IeeeFloatIntegerCarrier,
         domain: IeeeFloatToIntegerDomain,
@@ -85,17 +86,16 @@ pub enum IeeeFloatArithmeticOperation {
     IsInfinite,
 }
 
-/// The arithmetic domains of a float-to-integer conversion that realize as
-/// one clamped truncation.
+/// The selected requirement's invalid-input behavior, retained through emission.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IeeeFloatToIntegerDomain {
     Exact,
     Saturating,
+    Trapping,
 }
 
-/// Integer carriers with a native conversion to and from both interchange
-/// formats on both architectures. `u64` has no SSE2 conversion in either
-/// direction; its requirements stay without a native realization.
+/// Integer carriers converted to and from both IEEE interchange formats.
+/// A target may need an instruction sequence rather than a single conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IeeeFloatIntegerCarrier {
     I32,
@@ -105,11 +105,12 @@ pub enum IeeeFloatIntegerCarrier {
     I16,
     U8,
     U16,
+    U64,
 }
 
 impl IeeeFloatIntegerCarrier {
     /// In ordinal order; carriers are appended, never renumbered.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::I32,
         Self::I64,
         Self::U32,
@@ -117,6 +118,7 @@ impl IeeeFloatIntegerCarrier {
         Self::I16,
         Self::U8,
         Self::U16,
+        Self::U64,
     ];
 
     pub const fn ordinal(self) -> u8 {
@@ -128,6 +130,7 @@ impl IeeeFloatIntegerCarrier {
             Self::I16 => 4,
             Self::U8 => 5,
             Self::U16 => 6,
+            Self::U64 => 7,
         }
     }
 
@@ -140,7 +143,7 @@ impl IeeeFloatIntegerCarrier {
             Self::I8 | Self::U8 => 8,
             Self::I16 | Self::U16 => 16,
             Self::I32 | Self::U32 => 32,
-            Self::I64 => 64,
+            Self::I64 | Self::U64 => 64,
         }
     }
 
@@ -173,8 +176,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 33] = {
-        let mut all = [Self::Add; 33];
+    pub const ALL: [Self; 44] = {
+        let mut all = [Self::Add; 44];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -200,6 +203,8 @@ impl IeeeFloatArithmeticOperation {
             all[exact.ordinal() as usize] = exact;
             let saturating = Self::truncate(target, IeeeFloatToIntegerDomain::Saturating);
             all[saturating.ordinal() as usize] = saturating;
+            let trapping = Self::truncate(target, IeeeFloatToIntegerDomain::Trapping);
+            all[trapping.ordinal() as usize] = trapping;
             carrier += 1;
         }
         all[30] = Self::MultiplyThenAdd;
@@ -233,7 +238,9 @@ impl IeeeFloatArithmeticOperation {
             // narrow carriers follow (18 through 29).
             Self::FromInteger(carrier) => {
                 let carrier = carrier.ordinal();
-                if carrier < 3 {
+                if carrier == 7 {
+                    33
+                } else if carrier < 3 {
                     9 + carrier
                 } else {
                     15 + carrier
@@ -244,8 +251,13 @@ impl IeeeFloatArithmeticOperation {
                 let domain = match domain {
                     IeeeFloatToIntegerDomain::Exact => 0,
                     IeeeFloatToIntegerDomain::Saturating => 1,
+                    IeeeFloatToIntegerDomain::Trapping => return 36 + target,
                 };
-                if target < 3 {
+                // Existing identities 0..=32 remain stable. U64 operations
+                // and trapping conversions extend, rather than renumber, them.
+                if target == 7 {
+                    34 + domain
+                } else if target < 3 {
                     12 + target * 2 + domain
                 } else {
                     22 + (target - 3) * 2 + domain
@@ -318,6 +330,35 @@ impl IeeeFloatArithmeticOperation {
         parameters.len() == self.operand_count()
             && parameters.iter().all(|parameter| *parameter == operand)
             && result == self.result_type(format)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        IeeeFloatArithmeticOperation as Operation, IeeeFloatIntegerCarrier as Carrier,
+        IeeeFloatToIntegerDomain as Domain,
+    };
+
+    #[test]
+    fn float_operation_extensions_preserve_unique_stable_ordinals() {
+        for (ordinal, operation) in Operation::ALL.into_iter().enumerate() {
+            assert_eq!(usize::from(operation.ordinal()), ordinal, "{operation:?}");
+        }
+        assert_eq!(Operation::MultiplyThenAdd.ordinal(), 30);
+        assert_eq!(Operation::IsNan.ordinal(), 31);
+        assert_eq!(Operation::IsInfinite.ordinal(), 32);
+        assert_eq!(Operation::FromInteger(Carrier::U64).ordinal(), 33);
+        for carrier in Carrier::ALL {
+            assert_eq!(
+                Operation::TruncateToInteger {
+                    target: carrier,
+                    domain: Domain::Trapping
+                }
+                .ordinal(),
+                36 + carrier.ordinal()
+            );
+        }
     }
 }
 

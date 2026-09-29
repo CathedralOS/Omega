@@ -13,6 +13,96 @@ use register_model::{
 };
 
 #[test]
+fn float_conversion_policy_traps_require_the_exact_control_surface() {
+    use crate::{
+        IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
+        IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+    };
+    let constraint = RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: RegisterConstraintKey {
+            family: RegisterConstraintFamily::Instruction,
+            variant: 42,
+        },
+        operands: [RegisterOperandAccess::Use, RegisterOperandAccess::Def]
+            .into_iter()
+            .enumerate()
+            .map(|(operand, access)| RegisterOperandConstraint {
+                operand: operand as u16,
+                access,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            })
+            .collect(),
+        implicit_uses: vec![],
+        implicit_defs: vec![],
+        clobbers: vec![register_model::RegisterUnitId(1)],
+    };
+    let mut encoded = MachineEncodedEffects::fallthrough_v1(vec![0], vec![1]);
+    encoded.implicit_unit_clobbers = constraint.clobbers.clone();
+    encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
+    encoded.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
+    let semantic = |domain| {
+        MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+            operation: IeeeFloatArithmeticOperation::TruncateToInteger {
+                target: IeeeFloatIntegerCarrier::I32,
+                domain,
+            },
+            format: IeeeFloatFormat::Binary64,
+        })
+    };
+    let source = MachineEffectDeclaration {
+        semantic: semantic(IeeeFloatToIntegerDomain::Trapping),
+        constraint: constraint.key,
+        memory: crate::MachineMemoryEffect::NoneV1,
+        trap: crate::MachineTrapBehavior::TrappingIntegerV1,
+        barrier: MachineBarrier::ExternalEffect,
+        call: crate::MachineCallEffect::NoneV1,
+        cleanup: crate::MachineCleanupEffect::NoneV1,
+        alternatives: vec![MachineAlternative {
+            key: MachineAlternativeKey {
+                family: semantic(IeeeFloatToIntegerDomain::Trapping).into(),
+                variant: 0,
+            },
+            applicability: MachineAlternativeApplicability::Always,
+            size: MachineSizeKnowledge::ExactBytes(32),
+            latency: MachineLatencyKnowledge::StableBaselineUnavailable,
+            encoded,
+        }],
+    };
+    validate_declaration(&constraint, &source).unwrap();
+    for mutation in 0..7 {
+        let mut changed = source.clone();
+        match mutation {
+            0 => changed.barrier = MachineBarrier::None,
+            1 => changed.trap = crate::MachineTrapBehavior::NeverV1,
+            2 => changed.alternatives[0].encoded.trap = MachineEncodedTrapBehavior::NeverV1,
+            3 => {
+                changed.alternatives[0].encoded.control = MachineEncodedControlEffect::FallThroughV1
+            }
+            4 => changed.alternatives[0]
+                .encoded
+                .implicit_unit_clobbers
+                .clear(),
+            _ => {
+                changed.semantic = semantic(if mutation == 5 {
+                    IeeeFloatToIntegerDomain::Exact
+                } else {
+                    IeeeFloatToIntegerDomain::Saturating
+                });
+                changed.alternatives[0].key.family = changed.semantic.into();
+            }
+        }
+        assert!(
+            validate_declaration(&constraint, &changed).is_err(),
+            "mutation {mutation}"
+        );
+    }
+}
+
+#[test]
 fn byte_copy_catalog_requires_dynamic_operands_and_early_clobbers() {
     let constraint = RegisterInstructionConstraint {
         id: RegisterConstraintId(0),
