@@ -831,8 +831,8 @@ pass/slices/runtime_slice_indexed_read_exit built 1443ms exit:70 @0484de104502
 pass/slices/runtime_slice_iteration_exit rejected 1126ms @0484de104502
 	terminal-artifact production failed: Lowering(InvalidTerminalModule(InvalidStructuralLeafCopy { operation: OperationId(7), source: PlaceId(3) }))
 pass/slices/runtime_slice_record_field_offset_exit built 1327ms exit:61 @0484de104502
-pass/slices/runtime_subslice_dynamic_index_exit rejected 197ms @0484de104502
-	machine `Main::main` calls its internal state `choose` as an ordinary call; ordinary calls invoke machines, not states: enter the state with `transition { _ -> choose(..) }`, or make it a machine if its result is used as a value
+pass/slices/runtime_subslice_dynamic_index_exit rejected 1111ms @fc236de36e00
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(14)))
 pass/slices/runtime_subslice_len_exit rejected 1068ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: structural call binding` (state 0, statement 2)
 pass/slices/runtime_subslice_range_pointer_exit built 1467ms exit:205 @0484de104502
