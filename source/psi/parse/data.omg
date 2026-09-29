@@ -75,7 +75,6 @@ machine Parser::parse_data(
     }
 
     state data_name_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -123,7 +122,6 @@ machine Parser::parse_data(
     }
 
     state data_body_punctuation(
-        &mut self,
         input: &TokenStream,
         punctuation: PunctuationKind,
         start: u64 in Trapping,
@@ -451,7 +449,6 @@ machine Parser::parse_data(
     }
 
     state case_name_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -555,7 +552,6 @@ machine Parser::parse_data(
     }
 
     state payload_field_name_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -639,7 +635,6 @@ machine Parser::parse_data(
     }
 
     state payload_field_type_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -979,7 +974,6 @@ machine Parser::parse_data(
     }
 
     state field_name_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -1058,7 +1052,6 @@ machine Parser::parse_data(
     }
 
     state field_type_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -1161,7 +1154,6 @@ machine Parser::parse_data(
     }
 
     state type_qualifier_bounds(
-        &mut self,
         input: &TokenStream,
         decoded_start: u64,
         start: u64 in Trapping,
@@ -1174,7 +1166,6 @@ machine Parser::parse_data(
     }
 
     state type_qualifier_bytes(
-        &mut self,
         input: &TokenStream,
         index: u64 [0..=65534],
         start: u64 in Trapping,
@@ -1240,7 +1231,6 @@ machine Parser::parse_data(
     }
 
     state type_domain_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -1493,7 +1483,6 @@ machine Parser::parse_data(
     }
 
     state generic_parameter_punctuation(
-        &mut self,
         input: &TokenStream,
         punctuation: PunctuationKind,
         start: u64 in Trapping,
@@ -1506,7 +1495,6 @@ machine Parser::parse_data(
     }
 
     state generic_parameter_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -1618,7 +1606,6 @@ machine Parser::parse_data(
     }
 
     state generic_const_bounds(
-        &mut self,
         input: &TokenStream,
         decoded_start: u64,
         start: u64 in Trapping,
@@ -1636,7 +1623,6 @@ machine Parser::parse_data(
     }
 
     state generic_const_byte0(
-        &mut self,
         input: &TokenStream,
         decoded_start: u64 [0..=65531],
         start: u64 in Trapping,
@@ -1650,7 +1636,6 @@ machine Parser::parse_data(
     }
 
     state generic_const_byte2(
-        &mut self,
         input: &TokenStream,
         decoded_start: u64 [0..=65532],
         start: u64 in Trapping,
@@ -1664,7 +1649,6 @@ machine Parser::parse_data(
     }
 
     state generic_const_byte4(
-        &mut self,
         input: &TokenStream,
         decoded_start: u64 [0..=65533],
         start: u64 in Trapping,
@@ -1780,7 +1764,7 @@ machine Parser::parse_data(
         }
     }
 
-    state generic_dup_index_bound(&mut self, input: &TokenStream, index: u64) {
+    state generic_dup_index_bound(input: &TokenStream, index: u64) {
         transition index < 256 {
             true -> generic_dup_prefix(input, index)
             _ -> generic_after_dup(input)
@@ -1804,7 +1788,6 @@ machine Parser::parse_data(
     }
 
     state generic_dup_bytes(
-        &mut self,
         input: &TokenStream,
         index: u64 [0..=255],
         prior_cursor: u64 in Trapping,
@@ -1826,7 +1809,6 @@ machine Parser::parse_data(
     }
 
     state generic_dup_byte(
-        &mut self,
         input: &TokenStream,
         index: u64 [0..=255],
         prior_cursor: u64 in Trapping,
@@ -1848,7 +1830,6 @@ machine Parser::parse_data(
     }
 
     state generic_dup_byte_compare(
-        &mut self,
         input: &TokenStream,
         index: u64 [0..=255],
         prior_cursor: u64 [0..=65535],
@@ -1867,7 +1848,7 @@ machine Parser::parse_data(
         }
     }
 
-    state generic_dup_next(&mut self, input: &TokenStream, index: u64 [0..=255]) {
+    state generic_dup_next(input: &TokenStream, index: u64 [0..=255]) {
         transition { _ -> generic_dup_scan(input, (index + 1) as u64 in Trapping) }
     }
 
@@ -1968,7 +1949,6 @@ machine Parser::parse_data(
     }
 
     state generic_type_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -2023,7 +2003,7 @@ machine Parser::parse_data(
     // Property bounds after a type, const, or value parameter reuse the data
     // property chain; `data_property_generic` steers its scratch and exit back
     // to this grammar.
-    state generic_binder_typeref_bounds(&mut self, input: &TokenStream) {
+    state generic_binder_typeref_bounds(input: &TokenStream) {
         transition { _ -> generic_binder_typeref(input) }
     }
 
@@ -2118,7 +2098,7 @@ machine Parser::parse_data(
 
     // The `]` closing a parameter's bounds lands here from after_data_property
     // when data_property_generic is set; the token is the bracket itself.
-    state generic_bounds_done(&mut self, input: &TokenStream, param_end: u64 in Trapping) {
+    state generic_bounds_done(input: &TokenStream, param_end: u64 in Trapping) {
         transition { _ -> generic_retain_parameter(input, param_end) }
     }
 

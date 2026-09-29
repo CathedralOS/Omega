@@ -229,7 +229,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_root_bound(&mut self, next: u64) {
+    state parse_root_bound(next: u64) {
         transition next < 256 {
             true -> parse_root(next)
             _ -> parse_use_count()
@@ -258,7 +258,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_use_bound(&mut self, next: u64) {
+    state parse_use_bound(next: u64) {
         transition next < 256 {
             true -> parse_use_item(next)
             _ -> parse_member_count()
@@ -285,7 +285,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_member_bound(&mut self, next: u64) {
+    state parse_member_bound(next: u64) {
         transition next < 1024 {
             true -> parse_member(next)
             _ -> parse_data_count()
@@ -366,7 +366,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_data_bound(&mut self, next: u64) {
+    state parse_data_bound(next: u64) {
         transition next < 256 {
             true -> parse_data_item(next)
             _ -> parse_data_member_count()
@@ -407,7 +407,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_data_member_bound(&mut self, next: u64) {
+    state parse_data_member_bound(next: u64) {
         transition next < 1024 {
             true -> parse_data_member(next)
             _ -> parse_field_count()
@@ -438,7 +438,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_field_bound(&mut self, next: u64) {
+    state parse_field_bound(next: u64) {
         transition next < 1024 {
             true -> parse_field(next)
             _ -> parse_payload_field_count()
@@ -469,7 +469,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_payload_field_bound(&mut self, next: u64) {
+    state parse_payload_field_bound(next: u64) {
         transition next < 1024 {
             true -> parse_payload_field(next)
             _ -> parse_case_count()
@@ -501,7 +501,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_case_bound(&mut self, next: u64) {
+    state parse_case_bound(next: u64) {
         transition next < 512 {
             true -> parse_case(next)
             _ -> parse_type_reference_count()
@@ -574,7 +574,7 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_type_reference_bound(&mut self, next: u64) {
+    state parse_type_reference_bound(next: u64) {
         transition next < 1024 {
             true -> parse_type_reference(next)
             _ -> parse_generic_count()
@@ -645,7 +645,6 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
     }
 
     state parse_generic_parameter_bounds(
-        &mut self,
         parameter: GenericParameter,
         index: u64 [0..=255]
     ) {
@@ -673,14 +672,14 @@ machine ParserHarness::write_parse_observation(&mut self) reaches Console {
         }
     }
 
-    state parse_generic_parameter_bound(&mut self, next: u64) {
+    state parse_generic_parameter_bound(next: u64) {
         transition next < 256 {
             true -> parse_generic_parameter(next)
             _ -> parse_done()
         }
     }
 
-    state parse_done(&mut self) { }
+    state parse_done() { }
 }
 
 machine ParserHarness::write_u64(&mut self, value: u64 in Trapping) reaches Console {

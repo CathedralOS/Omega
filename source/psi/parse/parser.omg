@@ -110,7 +110,6 @@ crashes Trap
     }
 
     state classify_root_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -233,7 +232,6 @@ crashes Trap
     }
 
     state first_member_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -332,7 +330,6 @@ crashes Trap
     }
 
     state next_member_keyword(
-        &mut self,
         input: &TokenStream,
         keyword: KeywordKind,
         start: u64 in Trapping,
@@ -429,5 +426,5 @@ crashes Trap
         self.output.reject(ParseDiagnosticCode::PathMemberCapacityExceeded, self.source, start, end);
     }
 
-    state done(&mut self) { }
+    state done() { }
 }

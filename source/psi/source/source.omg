@@ -60,7 +60,7 @@ machine SourceUnit::byte_or_nul(&self, index: u64 in Trapping) -> u8 {
         _ -> absent()
     }
 
-    state retain(&self, index: u64 in Trapping) {
+    state retain(index: u64 in Trapping) {
         transition index < 65536 {
             true -> read(index)
             _ -> absent()
@@ -73,7 +73,7 @@ machine SourceUnit::byte_or_nul(&self, index: u64 in Trapping) -> u8 {
         self.bytes[index] as u8
     }
 
-    state absent(&self) {
+    state absent() {
         0
     }
 }
