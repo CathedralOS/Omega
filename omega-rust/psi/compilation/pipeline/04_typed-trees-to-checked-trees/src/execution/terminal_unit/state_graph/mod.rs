@@ -942,6 +942,34 @@ fn call_argument_admitted(
             && argument.path.is_empty()
             && argument.access == CheckedStructuralAccess::Owned)
         || call_consumes_result_argument(argument, earlier)
+        || call_copies_result_argument(argument, earlier)
+}
+
+/// Copying an unrestricted local does not retire its statement-owned value.
+/// Keep this separate from consumption: result custody still accounts for the
+/// original at the state exit, and subsequent calls may copy it again.
+fn call_copies_result_argument(
+    argument: &CheckedUnitStructuralArgumentPlan,
+    earlier: &[CheckedUnitEffectOperationPlan],
+) -> bool {
+    let Some(ordinal) = argument.source_structural_result_binding_ordinal() else {
+        return false;
+    };
+    argument.path.is_empty()
+        && argument.access == CheckedStructuralAccess::Owned
+        && earlier
+            .iter()
+            .rev()
+            .find_map(|operation| {
+                operation
+                    .discardable_structural_result()
+                    .filter(|(result, _)| result.binding_ordinal == ordinal)
+                    .map(|(result, _)| result)
+            })
+            .is_some_and(|result| {
+                result.multiplicity == Multiplicity::Unrestricted
+                    && result.type_identity == argument.type_identity
+            })
 }
 
 /// Name the first unmet call requirement using the same argument admission

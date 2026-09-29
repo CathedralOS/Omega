@@ -68,6 +68,71 @@ fn qualified_static_binding_context_crosses_state_transition() {
 }
 
 #[test]
+fn copy_local_argument_crosses_effectful_call_before_state_transition() {
+    let checked = checked_binding_context(
+        "pub boundary trait Host { machine mark(value: u32); }
+         data Value [copy] { count: u32; }
+         machine consume(value: Value) reaches Host { Host::mark(value.count); }
+         machine run() reaches Host {
+             let value: Value = Value { count: 7 };
+             consume(value);
+             consume(value);
+             transition true { true -> done() false -> done() }
+             state done() {}
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+        .expect("local record is an ordinary argument to an effectful call");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("local argument custody is independently verified");
+
+    #[derive(Default)]
+    struct Observations(Vec<u128>);
+    impl terminal_interpreter::TerminalEffectHandler for Observations {
+        fn handle_effect(
+            &mut self,
+            effect: &terminal_interpreter::TerminalEffect,
+        ) -> Result<(), terminal_interpreter::TerminalEffectRejection> {
+            let terminal_interpreter::TerminalEffect::BoundaryCall { arguments, .. } = effect
+            else {
+                panic!("expected an observation call: {effect:?}");
+            };
+            let [
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                    ..
+                },
+            ] = arguments.as_slice()
+            else {
+                panic!("expected one unsigned argument: {arguments:?}");
+            };
+            self.0.push(*value);
+            Ok(())
+        }
+    }
+    let mut observations = Observations::default();
+    let result = terminal_interpreter::interpret_terminal_artifact_measured(
+        &terminal_codec::encode_module(&lowered.semantic_module).expect("encode module"),
+        &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+            .expect("encode proof"),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        terminal_interpreter::TerminalStructuralInputs::default(),
+        &mut observations,
+    )
+    .expect("checked copy-local program executes");
+    assert_eq!(
+        result.value(),
+        terminal_interpreter::TerminalExecutionResult::Unit
+    );
+    assert_eq!(observations.0, [7, 7]);
+}
+
+#[test]
 fn qualified_static_binding_context_lowers_without_attachment() {
     let checked = checked_binding_context(
         "pub boundary trait Host { machine ticks() -> u64; machine mark(value: u64); }
@@ -85,6 +150,27 @@ fn qualified_static_binding_context_lowers_without_attachment() {
         &proof_admission::AdmissionProfile::default(),
     )
     .expect("qualified static context is independently verified");
+}
+
+#[test]
+fn qualified_static_binding_context_returns_a_record() {
+    let checked = checked_binding_context(
+        "pub boundary trait Host { machine ticks() -> u64; }
+         pub data Clock { host: Binding<Host>; }
+         pub data Reading [copy] { ticks: u64; }
+         machine Clock::read(clock: &mut Clock) -> Reading reaches Host {
+             let ticks: u64 = clock.host.ticks();
+             Reading { ticks: ticks }
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Clock::read"))
+        .expect("qualified static context can produce a record");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("record construction retains independently checked boundary custody");
 }
 
 #[test]
