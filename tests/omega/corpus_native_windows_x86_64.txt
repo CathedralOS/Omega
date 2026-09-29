@@ -245,15 +245,15 @@ pass/control_flow/case_arm_payload_receiver_call rejected 1055ms @0484de104502
 pass/control_flow/case_arm_scalar_payload_arguments_exit built 1621ms exit:70 @0484de104502
 pass/control_flow/case_pattern_rename_waive_exit rejected 1009ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
+pass/control_flow/composite_state_parameter rejected 764ms @060ebc39ce11
+	native artifact target lowering failed: TranslationValidation(StructuralCallArgumentMismatch { machine: MachineId(1), operation: OperationId(4) })
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 466ms @0484de104502
 pass/control_flow/explicit_state_value_frontier checked 470ms @0484de104502
 pass/control_flow/field_subject_named_arm_chain built 1056ms @0484de104502
 pass/control_flow/field_view_transfer_exit built 1105ms exit:0 @0484de104502
 pass/control_flow/guarded_jump_field_view_forward rejected 449ms @0484de104502
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "attached Unit closure is missing a checked transitive machine plan", omission: Some("`Main::main` has no admitted body (local construction stopped at state graph: terminator: jump successor: parameter transfer, state 0, statement 2)") })
-pass/control_flow/guarded_leaf_branch_expansion rejected 203ms @0484de104502
-	machine `Main::main` calls its internal state `scan` as an ordinary call; ordinary calls invoke machines, not states: enter the state with `transition { _ -> scan(..) }`, or make it a machine if its result is used as a value
-	machine `Main::main` calls its internal state `scan` as an ordinary call; ordinary calls invoke machines, not states: enter the state with `transition { _ -> scan(..) }`, or make it a machine if its result is used as a value
+pass/control_flow/guarded_leaf_branch_expansion checked 206ms @060ebc39ce11
 pass/control_flow/guarded_mid_arm_return built 1236ms @0484de104502
 pass/control_flow/guarded_value_transition_roster rejected 927ms @0484de104502
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: guarded jump successors: roster` (state 0)
