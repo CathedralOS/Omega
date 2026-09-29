@@ -239,7 +239,6 @@ pub(crate) fn parameter_shape(
     }
     if parameter.access == StructuralAccess::Owned
         && parameter.multiplicity == StructuralMultiplicity::Unrestricted
-        && !parameter.is_self
     {
         return primitive_array_shape(parameter.structural_type, declarations).or_else(|| {
             declarations
@@ -258,9 +257,8 @@ pub(crate) fn parameter_shape(
     }
     let referent = shape(parameter.structural_type, declarations)?;
     match (parameter.access, parameter.multiplicity) {
-        (StructuralAccess::Owned, StructuralMultiplicity::Affine) if !parameter.is_self => {
-            Some(referent)
-        }
+        // Receiver spelling does not change the owned payload's ABI geometry.
+        (StructuralAccess::Owned, StructuralMultiplicity::Affine) => Some(referent),
         (
             StructuralAccess::SharedBorrow
             | StructuralAccess::MutableBorrow

@@ -1,4 +1,4 @@
-//! Local receiver loans retain the established result's original storage.
+//! Local receivers retain the exact producer's storage and declared access.
 use super::{
     CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, ReceiverSource, SymbolHandle,
     unsupported,
@@ -136,6 +136,7 @@ pub(super) fn validate(
         .iter()
         .filter_map(|operation| match operation {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+            | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
             | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
                 if result.binding_ordinal == binding =>
@@ -183,10 +184,14 @@ pub(super) fn validate(
         || argument.type_identity != target.type_identity
         || argument.access != target.access
         || checked.normalized_type_identity(referent).as_str() != target.type_identity
-        || !matches!(
-            argument.access,
-            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
-        )
+        // A detached field is an ordinary owned local. Consuming its whole
+        // value transfers custody; borrowing it preserves the same storage.
+        // Partial owned projection still needs its own remainder accounting.
+        || !match argument.access {
+            CheckedStructuralAccess::Owned => source.path.is_empty(),
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow => true,
+            _ => false,
+        }
         || (argument.access == CheckedStructuralAccess::MutableBorrow && !local.is_mutable)
     {
         return unsupported("local receiver loan substituted its producer, type, path, or access");

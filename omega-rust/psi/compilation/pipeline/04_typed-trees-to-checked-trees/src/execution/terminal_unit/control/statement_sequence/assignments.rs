@@ -2,9 +2,9 @@
 //!
 //! An assignment's stores come, in order, from: the store sequence's own
 //! planned stores at this statement (primitive, field, element, byte and
-//! record-member stores); the repair of a borrowed window a moved local
-//! opened; or a constructed structural value replacing a field through a
-//! window pair. What remains is an assignment whose right-hand side is the
+//! record-member stores); or an owned structural value stored into a field,
+//! displacing old content only when that field is occupied. What remains is
+//! an assignment whose right-hand side is the
 //! call this statement performs: its result binding and the store that
 //! consumes it go back to the sequence, which plans the call first.
 use super::super::super::borrowed_windows::{FieldReplacement, OpenWindows};
@@ -55,7 +55,7 @@ pub(super) enum AssignmentPlan {
         store: CheckedUnitEffectOperationPlan,
     },
     /// The right-hand side is a structural call whose whole result replaces
-    /// the field through `replacement`'s window pair.
+    /// the field through `replacement`'s store and optional displacement.
     StructuralCall {
         result: CheckedUnitStructuralResultBindingPlan,
         replacement: FieldReplacement,
@@ -106,25 +106,10 @@ pub(super) fn plan(
         trace.phase(phase);
         trace.statement(Some(statement_index));
     };
-    // `place = move local` repairs the window that local's move
-    // opened: an ordinary store of the exact moved value.
-    assignment_phase("statement sequence: assignment: borrowed window restore");
-    if let Some(store) = windows.restore(
-        program,
-        facts,
-        machine,
-        state,
-        structural_parameters,
-        statement_index,
-        assignment,
-    ) {
-        operations.push(store);
-        return Some(AssignmentPlan::Planned);
-    }
     // `place = <constructed value>` over a structural field:
     // establish the value as an owned binding, exactly as a local
     // initializer would, then replace the field through the same
-    // window pair a structural call result uses.
+    // store and optional displacement a structural call result uses.
     assignment_phase("statement sequence: assignment: structural value field store");
     if let Some(root) = facts.values.structural_values.root_for_expression(
         state.symbol,
@@ -192,7 +177,8 @@ pub(super) fn plan(
                 access: CheckedStructuralAccess::Owned,
             },
         )?;
-        *structural_count = structural_count.checked_add(2)?;
+        *structural_count =
+            structural_count.checked_add(1 + usize::from(replacement.move_out.is_some()))?;
         operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             discard_result_on_return: produced.multiplicity == Multiplicity::Affine,
             result: produced,
@@ -200,7 +186,7 @@ pub(super) fn plan(
             calls,
             operand_source: None,
         });
-        operations.push(replacement.move_out);
+        operations.extend(replacement.move_out);
         // The store consumes the whole constructed value, retiring
         // the establishment's own disposal debt.
         consume_results(&mut *operations, &replacement.store)?;
@@ -220,7 +206,7 @@ pub(super) fn plan(
     }
     // The value names owned storage the caller already holds — a
     // parameter or an established binding — moved into the window's hole
-    // as itself: the same pair, but no establishment precedes it.
+    // as itself: no new establishment is needed.
     if let Some((produced, value)) = bound_value_source(
         program,
         state,
@@ -243,7 +229,8 @@ pub(super) fn plan(
             u32::try_from(*structural_count).ok()?,
             value,
         ) {
-            operations.push(replacement.move_out);
+            let displaced_bindings = usize::from(replacement.move_out.is_some());
+            operations.extend(replacement.move_out);
             consume_results(&mut *operations, &replacement.store)?;
             operations.push(replacement.store);
             if let Some(discard) = replacement.displaced_discard {
@@ -255,7 +242,7 @@ pub(super) fn plan(
                     affine_discards: vec![discard],
                 });
             }
-            *structural_count = structural_count.checked_add(1)?;
+            *structural_count = structural_count.checked_add(displaced_bindings)?;
             return Some(AssignmentPlan::Planned);
         }
         trace.restore(&baseline);
@@ -308,8 +295,7 @@ pub(super) fn plan(
         None
     } else {
         // A structural call result replaces the field through the
-        // ordinary window pair — the structural twin of the scalar
-        // call-result store above.
+        // same store and optional displacement as any other owned value.
         assignment_phase("statement sequence: assignment: structural call result field store");
         let mut result = checked_structural_result_type(program, shapes, result_type, binders)?;
         result.statement_index = statement_index;
@@ -344,7 +330,7 @@ pub(super) fn plan(
 /// structural storage the caller owns: a state parameter, or the binding
 /// an earlier establishment produced for a local. The returned plan is the
 /// store's `value`; the binding beside it describes the hole's type for the
-/// window pair — the establishment's own for a local, a stand-in naming the
+/// store — the establishment's own for a local, a stand-in naming the
 /// parameter's declared type for a parameter. Anything else is not this
 /// arm's shape.
 fn bound_value_source(

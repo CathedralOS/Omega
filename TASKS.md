@@ -372,18 +372,18 @@ the complete product bar; focused successes below do not establish that baseline
   Complete consuming-transform/replacement execution under
   [ownership windows](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows)
   and [independent restoration replay](wiki/spec/terminal-psi/ownership.md#borrowed-storage-restoration).
-  Start from the
-  [checked-interpreter witness](omega-rust/psi/interpreter/checked-interpreter/tests/borrowed_restoration.rs): consuming
-  `taken.bump()` and restoring its result updates 41 to 42 in the checked
-  interpreter. A native macOS ARM64 wrapper rejects at
-  `statement sequence: assignment: structural call result field store`;
-  restoring the original value instead executes correctly.
+  The executable floor is
+  `omega run --both tests/omega/pass/ownership/runtime_borrowed_record_transform_exit/main.omg`:
+  consuming `taken.bump()` and restoring its result exits 42 in native macOS
+  ARM64 and the checked interpreter. Its increment explicitly wraps; unbounded
+  exact addition still requires an overflow proof. The original-value control
+  `ownership/move_keyword_field_assignment` executes with exit 41.
 
-  Psi's `execution/terminal_unit/borrowed_windows.rs` already uses ordinary
-  statement sequencing. `OpenWindows::restore` recognizes the original moved
-  local; `replace` refuses an already-open hole. Carry valid replacement
-  custody through that join, the emission `BorrowedWindowLedger` and Omega's
-  `lowering/machine/operation/borrowed_windows.rs`. Extend multi-block transport:
+  `OpenWindows::replace` separates exact-place restoration debt from detached
+  value custody: vacant fields need only a store; occupied fields displace and
+  dispose their old content. Direct and named call results use ordinary owned
+  result bindings, including consuming receivers, through independently checked
+  Terminal and native lowering. Extend multi-block transport:
   composed-control emission currently requires closure after each operation
   sequence. Preserve evaluation order, disjoint siblings, exact open-place
   agreement and contained loans. Indexed paths already have support; retain
@@ -393,9 +393,8 @@ the complete product bar; focused successes below do not establish that baseline
   Acceptance: consuming transforms, replacement values and repair on both
   branches execute with caller-visible updates and exact-once custody in
   Terminal interpretation and supported native targets, without staging caller
-  storage. Add a real entry and
-  observable oracle to `ownership/move_keyword_field_assignment`, which remains
-  checked-only. Missing repair, early return, stale reads, overlapping loans,
+  storage. Preserve the two executable controls above. Missing repair, early
+  return, stale reads, overlapping loans,
   wrong-place repair, repeated extraction, whole-owner cleanup and tampered
   artifacts reject. Cover recoverable failure, suspension/resume/cancellation
   and crash/process-exit abandonment without invented rollback or survivor
