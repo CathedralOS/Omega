@@ -64,7 +64,8 @@ pub(crate) fn invariant_observation_source(node: &OptimizationNode) -> Option<Pl
 /// leaves every member observation of every other root loop-invariant. An
 /// `Owned` argument is tolerated on the same terms when its root declares a
 /// copyable shape — an unrestricted owned parameter or an unrestricted
-/// claim-free scalar-array result: the argument copies the payload into the
+/// claim-free record, case, scalar-array, or structural-call result: the
+/// argument copies the payload into the
 /// callee, so nothing the caller still holds changes hands.
 /// When
 /// this holds, every member place observation is loop-invariant — no
@@ -282,7 +283,8 @@ fn node_preserves_place_observations(operation: &O) -> bool {
 /// `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow` — are confined as
 /// below, and whose `Owned` arguments each name a whole root whose declared
 /// custody is copyable ([`copyable_owned_argument_root`]): an `Unrestricted`
-/// owned parameter or an unrestricted claim-free scalar-array result. An
+/// owned parameter or an unrestricted claim-free record, case,
+/// scalar-array, or structural-call result. An
 /// owned whole-root argument over an unrestricted payload copies the
 /// elements into the callee — the caller's place keeps its contents, so the
 /// argument is an observation, not custody movement — while an `Owned`
@@ -756,23 +758,31 @@ pub(super) fn member_root_producer_count(
 /// multiplicity equal to its callee parameter's, and the interpreter copies
 /// an `Unrestricted` argument's payload into the callee's activation while
 /// the caller keeps its place — where an affine or linear root spelled
-/// `Owned` genuinely transfers custody. The admitted shapes are exactly the
-/// ones the cyclic owned-argument fence recognizes, narrowed to the
-/// copy-only multiplicities: a machine or block structural parameter
-/// declared `!is_self`, `Owned`, `Unrestricted`, and qualification-free —
-/// the fence's `plain_owned` shape without its `Affine` arm — and a
-/// whole-root `EstablishScalarArray` result that is unrestricted,
+/// `Owned` genuinely transfers custody. The admitted shapes are the ones
+/// the cyclic owned-argument fence recognizes directly, narrowed to the
+/// copy-only multiplicities — a machine or block structural parameter
+/// declared `!is_self`, `Owned`, `Unrestricted`, and qualification-free
+/// (the fence's `plain_owned` shape without its `Affine` arm), and a
+/// whole-root unrestricted claim-free scalar-array result — plus the rest
+/// of the copyable produced-root family the fence reaches only through an
+/// owned parameter's binding: a whole-root `EstablishRecord`,
+/// `EstablishCase`, or `CallStructural` result that is unrestricted,
 /// claim-free, and qualification-free, produced by any block in the
-/// function. Every other produced kind — and any root with restricted
-/// custody — keeps the refusal: their `Owned` spellings genuinely transfer
-/// custody or carry alias structure this boundary has not spelled out. Of
-/// the three call families sharing this rule, only `CallStructuralScalar`
-/// spells `Owned` arguments in a verified source unit today — attached
-/// units confine call arguments to borrows, scalar-graph `CallUnit`
-/// callees carry plain primitive parameters only, and a `CallStructural`
-/// affine result confined to its own case terminator can never sit behind
-/// an owned root — but the fence still answers for the other families:
-/// the freeze replay independently re-derives admission on hand-moved
+/// function. Source can never spell those produced places as a call
+/// argument itself — the cyclic fence admits produced roots as direct
+/// `Owned` spellings only for the scalar-array shape — but a plain
+/// `Owned` member parameter binds one across an edge, so the resolved
+/// representative lands on the produced root and the moved call copies
+/// the one persistent payload every source traversal freshly established.
+/// The `EstablishCase` arm answers the family's unrestricted shape ahead
+/// of reachability — the cyclic fence confines scalar-case results to
+/// dispatch and return positions and the relocation admission only covers
+/// all-scalar case fields, so no source spelling lands a case result on
+/// an owned parameter today. Every other produced kind — and any root
+/// with restricted custody — keeps the refusal: their `Owned` spellings
+/// genuinely transfer custody or carry alias structure this boundary has
+/// not spelled out. For every call family sharing this rule the freeze
+/// replay independently re-derives the admission answer on hand-moved
 /// units, where no source grammar prunes the spellings first.
 pub(super) fn copyable_owned_argument_root(
     function: &PsiOptimizationFunction,
@@ -800,16 +810,18 @@ pub(super) fn copyable_owned_argument_root(
             .iter()
             .flat_map(|block| block.nodes.iter())
             .any(|node| {
-                matches!(
-                    &node.operation,
-                    O::EstablishScalarArray { result, .. }
-                        if result.place == root
-                            && result.multiplicity
-                                == terminal_psi::StructuralMultiplicity::Unrestricted
-                            && result.qualifications.is_empty()
-                            && result.projected_qualifications.is_empty()
-                            && result.claims.is_empty()
-                )
+                let result = match &node.operation {
+                    O::EstablishRecord { result, .. }
+                    | O::EstablishCase { result, .. }
+                    | O::EstablishScalarArray { result, .. }
+                    | O::CallStructural { result, .. } => result,
+                    _ => return false,
+                };
+                result.place == root
+                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
             })
 }
 

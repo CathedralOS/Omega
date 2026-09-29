@@ -90,7 +90,8 @@ pub(crate) mod tests;
 /// must be a borrow or a copyable owned whole-root spelling — `Owned` over
 /// an affine or linear root would move the caller's place into the callee
 /// outright, so it stays refused, while `Owned` over an unrestricted owned
-/// parameter or an unrestricted claim-free scalar-array result copies the
+/// parameter or an unrestricted claim-free record, case, scalar-array, or
+/// structural-call result copies the
 /// payload into the callee, the same observation a shared borrow makes —
 /// its claim roster must be empty
 /// (the vacuous `ClaimTransfer` ownership row moves byte-exact with the

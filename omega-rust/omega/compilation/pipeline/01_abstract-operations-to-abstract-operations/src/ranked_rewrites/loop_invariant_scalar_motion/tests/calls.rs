@@ -3441,3 +3441,650 @@ fn carried_argument_obligated_structural_call_stays_inside() {
         "the carried-argument obligated structural call is not a planned relocation"
     );
 }
+
+/// A `CallUnit` whose whole-root `Owned` argument resolves to a
+/// member-produced unrestricted record result: `pair` is established inside
+/// `step` over the invariant `s` and lands on `check`'s `Owned` parameter
+/// `q`, which `consume` reads. The establishment is custody-free — a fresh
+/// unrestricted root — so it relocates into the preheader, and the call
+/// relocates behind it once `q`'s parameter-to-root resolution lands on a
+/// copyable produced root rather than refusing at the produced-root
+/// whitelist.
+const MEMBER_PRODUCED_RECORD_ARGUMENT_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Pair [copy] { a: u32 in Wrapping; b: u32 in Wrapping; }
+
+    machine consume(m: Pair) {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let pair: Pair = Pair { a: s, b: s };
+            transition { _ -> check(s, pending, pair) }
+        }
+        state check(v: u32 in Wrapping, pending: u32 [0..=5], q: Pair) {
+            consume(q);
+            transition pending > 0 {
+                true -> step(v, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+#[test]
+fn member_produced_record_owned_argument_relocates() {
+    let session = lowered_session_entry(
+        MEMBER_PRODUCED_RECORD_ARGUMENT_CALL_SOURCE,
+        "member-produced record owned-argument loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_unit_call(function, component);
+    let (call_operation, q) = match &call.operation {
+        AbstractOperation::CallUnit {
+            psi_operation,
+            structural_arguments,
+            ..
+        } => {
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("the owned-argument call carries one structural argument")
+            };
+            assert_eq!(
+                argument.access,
+                terminal_psi::StructuralAccess::Owned,
+                "the call copies `check`'s record parameter"
+            );
+            assert!(argument.path.is_empty(), "the owned argument is whole-root");
+            (*psi_operation, argument.place)
+        }
+        operation => panic!("the member node is a unit call: {operation:?}"),
+    };
+    // `q`'s only reaching binding is `pair`'s — once the run covers the
+    // record's produced root, the member parameter resolves to it.
+    let establishments = super::member_record_establishments(function, component);
+    let [(_, producer)] = establishments.as_slice() else {
+        panic!("one member record establishment")
+    };
+    let producer_operation = operation_of(producer);
+    let representative = match &producer.operation {
+        AbstractOperation::EstablishRecord { result, .. } => {
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted,
+                "the produced record is copyable custody"
+            );
+            result.place
+        }
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    assert_eq!(
+        crate::validation::place_observations::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::from([representative]),
+        )
+        .get(&q),
+        Some(&representative),
+        "with the run covering the root, `q` resolves to the establishment's declared place"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let run: Vec<_> = candidate
+        .relocations()
+        .iter()
+        .map(|relocation| relocation.node().psi_operation())
+        .collect();
+    let producer_run = run
+        .iter()
+        .position(|operation| *operation == producer_operation)
+        .expect("the record establishment is a planned relocation");
+    let call_run = run
+        .iter()
+        .position(|operation| *operation == call_operation)
+        .expect("the consuming call is a planned relocation");
+    assert!(
+        producer_run < call_run,
+        "the run orders the producer ahead of the call that copies its root"
+    );
+    let relocation = &candidate.relocations()[call_run];
+    assert_eq!(
+        relocation.node().argument_rewrites(),
+        &[(q, representative)],
+        "the relocation records `q`'s rebind to the produced record root"
+    );
+    assert_eq!(relocation.destination().block, entry.source);
+
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    let AbstractOperation::CallUnit {
+        structural_arguments,
+        ..
+    } = &moved.operation
+    else {
+        panic!("the relocated node keeps its unit call operation")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("the moved call keeps one structural argument")
+    };
+    assert_eq!(
+        argument.access,
+        terminal_psi::StructuralAccess::Owned,
+        "the owned access rides byte-exact"
+    );
+    assert_eq!(
+        argument.place, representative,
+        "the moved call copies the relocated record root"
+    );
+    assert!(
+        applied
+            .session()
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .filter(|block| member_targets.contains(&block.id))
+            .flat_map(|block| &block.nodes)
+            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+        "the member roster keeps no copy of the relocated call"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+/// The `CallStructural` counterpart: `made` is `pick`'s member-produced
+/// unrestricted structural result bound onto `check`'s `Owned` parameter —
+/// the produced-root whitelist covers a relocated structural call's
+/// persistent result exactly like the establishments.
+const MEMBER_PRODUCED_CALL_RESULT_ARGUMENT_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Pair [copy] { a: u32 in Wrapping; b: u32 in Wrapping; }
+
+    machine pick(seed: u32 in Wrapping) -> Pair { Pair { a: seed, b: seed } }
+    machine consume(m: Pair) {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let made: Pair = pick(s);
+            transition { _ -> check(s, pending, made) }
+        }
+        state check(v: u32 in Wrapping, pending: u32 [0..=5], q: Pair) {
+            consume(q);
+            transition pending > 0 {
+                true -> step(v, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+#[test]
+fn member_produced_call_result_owned_argument_relocates() {
+    let session = lowered_session_entry(
+        MEMBER_PRODUCED_CALL_RESULT_ARGUMENT_CALL_SOURCE,
+        "member-produced call-result owned-argument loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let member_targets: std::collections::BTreeSet<_> = component.members.iter().copied().collect();
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_unit_call(function, component);
+    let (call_operation, q) = match &call.operation {
+        AbstractOperation::CallUnit {
+            psi_operation,
+            structural_arguments,
+            ..
+        } => {
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("the owned-argument call carries one structural argument")
+            };
+            assert_eq!(argument.access, terminal_psi::StructuralAccess::Owned);
+            (*psi_operation, argument.place)
+        }
+        operation => panic!("the member node is a unit call: {operation:?}"),
+    };
+    let producers = member_structural_calls(function, component);
+    let [(_, producer)] = producers.as_slice() else {
+        panic!("one member structural call")
+    };
+    let producer_operation = operation_of(producer);
+    let representative = match &producer.operation {
+        AbstractOperation::CallStructural { result, .. } => {
+            assert_eq!(
+                result.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted
+            );
+            result.place
+        }
+        operation => panic!("the member node is a structural call: {operation:?}"),
+    };
+    assert_eq!(
+        crate::validation::place_observations::invariant_member_place_parameters(
+            function,
+            component,
+            &std::collections::BTreeSet::from([representative]),
+        )
+        .get(&q),
+        Some(&representative),
+        "with the run covering the root, `q` resolves to the call's declared place"
+    );
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let run: Vec<_> = candidate
+        .relocations()
+        .iter()
+        .map(|relocation| relocation.node().psi_operation())
+        .collect();
+    let producer_run = run
+        .iter()
+        .position(|operation| *operation == producer_operation)
+        .expect("the structural call is a planned relocation");
+    let call_run = run
+        .iter()
+        .position(|operation| *operation == call_operation)
+        .expect("the consuming call is a planned relocation");
+    assert!(producer_run < call_run);
+    let relocation = &candidate.relocations()[call_run];
+    assert_eq!(
+        relocation.node().argument_rewrites(),
+        &[(q, representative)],
+        "the relocation records `q`'s rebind to the produced call root"
+    );
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    let AbstractOperation::CallUnit {
+        structural_arguments,
+        ..
+    } = &moved.operation
+    else {
+        panic!("the relocated node keeps its unit call operation")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("the moved call keeps one structural argument")
+    };
+    assert_eq!(argument.place, representative);
+    assert!(
+        applied
+            .session()
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .filter(|block| member_targets.contains(&block.id))
+            .flat_map(|block| &block.nodes)
+            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+        "the member roster keeps no copy of the relocated call"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}
+
+/// Same two-block shape, but `pair`'s `a` field reads the loop-carried
+/// countdown: the establishment's operand is not invariant, so the producer
+/// stays inside — `q`'s representative lands on a member-produced root no
+/// relocation run covers, and the call stays behind it.
+const CARRIED_FIELD_RECORD_ARGUMENT_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Pair [copy] { a: u32 [0..=5]; b: u32 in Wrapping; }
+
+    machine consume(m: Pair) {}
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let pair: Pair = Pair { a: pending, b: s };
+            transition { _ -> check(s, pending, pair) }
+        }
+        state check(v: u32 in Wrapping, pending: u32 [0..=5], q: Pair) {
+            consume(q);
+            transition pending > 0 {
+                true -> step(v, pending - 1)
+                _ -> finish(v)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+#[test]
+fn carried_field_record_owned_argument_call_stays_inside() {
+    let session = lowered_session_entry(
+        CARRIED_FIELD_RECORD_ARGUMENT_CALL_SOURCE,
+        "carried-field record owned-argument loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_unit_call(function, component);
+    let call_operation = operation_of(call);
+    let establishments = super::member_record_establishments(function, component);
+    let [(_, producer)] = establishments.as_slice() else {
+        panic!("one member record establishment")
+    };
+    let producer_operation = operation_of(producer);
+
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let relocated: std::collections::BTreeSet<_> = candidates
+        .iter()
+        .flat_map(|candidate| candidate.relocations().iter())
+        .map(|relocation| relocation.node().psi_operation())
+        .collect();
+    assert!(
+        !relocated.contains(&producer_operation),
+        "the carried-field establishment is not a planned relocation"
+    );
+    assert!(
+        !relocated.contains(&call_operation),
+        "a call cannot copy a member-produced root its run never covered"
+    );
+}
+
+#[test]
+fn owned_argument_over_member_produced_record_moved_without_producer_is_rejected_by_the_freeze_fence()
+ {
+    let session = lowered_session_entry(
+        MEMBER_PRODUCED_RECORD_ARGUMENT_CALL_SOURCE,
+        "member-produced record owned-argument loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let [entry] = component.entries.as_slice() else {
+        panic!("one entry edge")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (call_block, call) = member_unit_call(function, component);
+    let member = call_block.id;
+    let preheader = entry.source;
+    let call_operation = operation_of(call);
+    let (input, mut unit) = session.into_parts();
+    // Hand-move only the call: its `Owned` argument still names `check`'s
+    // member parameter, and the record producing that parameter's root
+    // stayed inside — the freeze fence re-derives the admission and refuses
+    // because no node in the component's relocated run covered the copied
+    // root.
+    let moved = take_operation(&mut unit, call_operation);
+    let preheader_block = unit
+        .functions
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .find(|candidate| candidate.id == preheader)
+        .expect("preheader exists");
+    let terminator = preheader_block.nodes.len() - 1;
+    preheader_block.nodes.insert(terminator, moved);
+    refresh_coordinates_and_effects(&mut unit);
+    assert!(matches!(
+        VerifiedPsiOptimizationSession::from_transformed(input, unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+#[test]
+fn dropped_owned_argument_rebind_is_rejected_by_the_freeze_fence() {
+    let session = lowered_session_entry(
+        MEMBER_PRODUCED_RECORD_ARGUMENT_CALL_SOURCE,
+        "member-produced record owned-argument loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let machine = component.id.machine;
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)
+        .expect("component machine exists");
+    let (_, call) = member_unit_call(function, component);
+    let (call_operation, q) = match &call.operation {
+        AbstractOperation::CallUnit {
+            psi_operation,
+            structural_arguments,
+            ..
+        } => {
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("the owned-argument call carries one structural argument")
+            };
+            (*psi_operation, argument.place)
+        }
+        operation => panic!("the member node is a unit call: {operation:?}"),
+    };
+    let candidate = propose_loop_invariant_scalar_motion(&session, 8)
+        .expect("exact candidate")
+        .pop()
+        .expect("one candidate");
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the owned-argument call is a planned relocation");
+    let member = relocation.node().location().block;
+    let validated = validate_loop_invariant_scalar_motion(&session, &candidate)
+        .expect("validated exact candidate");
+    let applied =
+        apply_loop_invariant_scalar_motion(session, validated).expect("applied exact candidate");
+    let (input, mut unit) = applied.into_session().into_parts();
+    // Reverting the moved call's argument to the member parameter drops the
+    // planned `q` → record-root rebind: the replayed admission derives that
+    // exact rewrite, so the drifted spelling refuses byte-exact.
+    let forged = find_operation_mut(&mut unit, call_operation);
+    if let AbstractOperation::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut forged.operation
+    {
+        assert_ne!(structural_arguments[0].place, q);
+        structural_arguments[0].place = q;
+    }
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    assert!(matches!(
+        crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
+        Err(
+            OptimizationUnitValidationError::RankedCycleFrozenBlockMismatch {
+                machine: rejected_machine,
+                block
+            }
+        ) if rejected_machine == machine && block == member
+    ));
+}
+
+/// The `CallStructuralScalar` counterpart of the member-produced record
+/// shape: `first(q)` copies `check`'s `Owned` parameter — bound to `pair`'s
+/// member-produced record root — into the scalar-result callee.
+const MEMBER_PRODUCED_RECORD_SCALAR_CALL_SOURCE: &str = r#"
+    data Root {}
+    data Pair [copy] { a: u32 in Wrapping; b: u32 in Wrapping; }
+
+    machine first(m: Pair) -> u32 in Wrapping { 0 }
+
+    machine Root::scan(scale: u32 in Wrapping, remaining: u32 [0..=5])
+    {
+        transition { _ -> step(scale, remaining) }
+        state step(s: u32 in Wrapping, pending: u32 [0..=5]) {
+            let pair: Pair = Pair { a: s, b: s };
+            transition { _ -> check(s, pending, pair) }
+        }
+        state check(v: u32 in Wrapping, pending: u32 [0..=5], q: Pair) {
+            let x: u32 in Wrapping = first(q);
+            transition pending > 0 {
+                true -> step(v, pending - 1)
+                _ -> finish(x)
+            }
+        }
+        state finish(r: u32 in Wrapping) {}
+    }
+"#;
+
+#[test]
+fn member_produced_record_owned_argument_scalar_call_relocates() {
+    let session = lowered_session_entry(
+        MEMBER_PRODUCED_RECORD_SCALAR_CALL_SOURCE,
+        "member-produced record owned-argument scalar-call loop",
+        "Root::scan",
+    );
+    let [component] = session.cycle_components().components() else {
+        panic!("one cyclic component")
+    };
+    let function = session
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == component.id.machine)
+        .expect("component machine exists");
+    let (_, call) = member_structural_scalar_call(function, component);
+    let (call_operation, q) = match &call.operation {
+        AbstractOperation::CallStructuralScalar {
+            psi_operation,
+            structural_arguments,
+            ..
+        } => {
+            let [argument] = structural_arguments.as_slice() else {
+                panic!("the owned-argument call carries one structural argument")
+            };
+            assert_eq!(
+                argument.access,
+                terminal_psi::StructuralAccess::Owned,
+                "the call copies `check`'s record parameter"
+            );
+            (*psi_operation, argument.place)
+        }
+        operation => panic!("the member node is a structural scalar call: {operation:?}"),
+    };
+    let establishments = super::member_record_establishments(function, component);
+    let [(_, producer)] = establishments.as_slice() else {
+        panic!("one member record establishment")
+    };
+    let representative = match &producer.operation {
+        AbstractOperation::EstablishRecord { result, .. } => result.place,
+        operation => panic!("the member node is a record establishment: {operation:?}"),
+    };
+    let candidates =
+        propose_loop_invariant_scalar_motion(&session, 8).expect("exact relocation candidates");
+    let [candidate] = candidates.as_slice() else {
+        panic!("one component yields one atomic candidate")
+    };
+    let relocation = candidate
+        .relocations()
+        .iter()
+        .find(|relocation| relocation.node().psi_operation() == call_operation)
+        .expect("the consuming scalar call is a planned relocation");
+    assert_eq!(
+        relocation.node().argument_rewrites(),
+        &[(q, representative)],
+        "the relocation records `q`'s rebind to the produced record root"
+    );
+    let validated = validate_loop_invariant_scalar_motion(&session, candidate)
+        .expect("independent relocation validation");
+    let applied = apply_loop_invariant_scalar_motion(session, validated)
+        .expect("atomic relocation application");
+    let destination = applied
+        .session()
+        .unit()
+        .functions
+        .iter()
+        .flat_map(|function| &function.blocks)
+        .find(|block| block.id == relocation.destination().block)
+        .expect("destination block exists");
+    let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
+    let AbstractOperation::CallStructuralScalar {
+        structural_arguments,
+        ..
+    } = &moved.operation
+    else {
+        panic!("the relocated node keeps its scalar call operation")
+    };
+    let [argument] = structural_arguments.as_slice() else {
+        panic!("the moved call keeps one structural argument")
+    };
+    assert_eq!(
+        argument.place, representative,
+        "the moved call copies the relocated record root"
+    );
+    assert!(
+        propose_loop_invariant_scalar_motion(applied.session(), 1)
+            .expect("relocated session is an exact fixed point")
+            .is_empty()
+    );
+}

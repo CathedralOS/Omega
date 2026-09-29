@@ -160,7 +160,8 @@ fn unit_call_shape(
 /// whole root whose declared multiplicity is `Unrestricted`: the verifier
 /// binds argument and callee parameter multiplicities equal, so the copy
 /// shapes the cyclic owned-argument fence recognizes — an unrestricted
-/// owned parameter or an unrestricted claim-free scalar-array result —
+/// owned parameter or an unrestricted claim-free record, case,
+/// scalar-array, or structural-call result —
 /// copy the payload into the callee's activation rather than moving
 /// custody. An `Owned` argument over an affine or linear root genuinely
 /// transfers the caller's place and stays refused. A call carrying
@@ -382,7 +383,8 @@ fn structural_call_shape(
 /// place-custody bound and each argument root's landing rule, while an
 /// `Owned` argument admits only over a whole root whose declared
 /// multiplicity is `Unrestricted` — an unrestricted owned parameter or an
-/// unrestricted claim-free scalar-array result copies its payload into the
+/// unrestricted claim-free record, case, scalar-array, or structural-call
+/// result copies its payload into the
 /// callee — and an `Owned` argument over an affine or linear root moves the
 /// caller's place outright, custody movement this boundary cannot
 /// re-express, so it stays refused.
@@ -463,10 +465,11 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_call(
 /// `Owned` whole-root argument takes the same landing and additionally
 /// requires the landed root to be copyable
 /// ([`copyable_owned_argument_root`]) — an unrestricted owned parameter or
-/// an unrestricted claim-free scalar-array result — so the relocated
-/// invocation copies exactly the payload every in-loop invocation copied;
-/// an `Owned` argument over affine or linear custody would move the
-/// caller's place outright and stays refused.
+/// an unrestricted claim-free record, case, scalar-array, or
+/// structural-call result — so the relocated invocation copies exactly the
+/// payload every in-loop invocation copied; an `Owned` argument over
+/// affine or linear custody would move the caller's place outright and
+/// stays refused.
 ///
 /// Returns the scalar substitution plus the `(member parameter or
 /// member-produced root, preheader-visible root)` rewrites the relocated
@@ -888,10 +891,10 @@ fn crash_continuation_borrow_call_admission(
 /// a uniquely member-produced one the run already relocated, and an `Owned`
 /// whole-root argument additionally requires the landed root to declare one
 /// of the copyable shapes [`copyable_owned_argument_root`] recognizes — an
-/// unrestricted owned parameter or an unrestricted claim-free scalar-array
-/// result — because `Owned` over an unrestricted payload copies it into the
-/// callee while `Owned` over affine or linear custody would move the
-/// caller's place outright.
+/// unrestricted owned parameter or an unrestricted claim-free record, case,
+/// scalar-array, or structural-call result — because `Owned` over an
+/// unrestricted payload copies it into the callee while `Owned` over affine
+/// or linear custody would move the caller's place outright.
 fn borrow_call_admission(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -973,10 +976,11 @@ fn borrow_call_admission(
             // landing rule a borrow's does, then must declare one of the
             // copy shapes the cyclic owned-argument fence recognizes
             // ([`copyable_owned_argument_root`]): an unrestricted owned
-            // parameter, or an unrestricted claim-free scalar-array result
-            // — for a member-produced root, the landing rule already
-            // required its unique producer to relocate in the same run
-            // ahead of the call. An `Owned` argument over an affine or
+            // parameter, or an unrestricted claim-free record, case,
+            // scalar-array, or structural-call result — for a
+            // member-produced root, the landing rule already required its
+            // unique producer to relocate in the same run ahead of the
+            // call. An `Owned` argument over an affine or
             // linear root moves the caller's place into the callee — the
             // per-traversal transfer this boundary cannot re-express — and
             // a projected `Owned` argument or any other produced kind keeps
