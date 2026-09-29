@@ -46,14 +46,11 @@ fn spelled_boundary_operator_initializers_fail_at_pure_initializer_admission() {
     );
 }
 
-/// A selected IEEE comparison guard over parameters, locals or literals
-/// already publishes one occurrence (`composed_unit_guarded_jumps`); the same
-/// guard over receiver fields stops earlier, at scalar field observation,
-/// which admits integer fields only. This is the lowering wall under the
-/// `runtime_float_*_comparison` canaries: they reach native physical replay
-/// once float field reads lower, not once another physical arm exists.
+/// Receiver-field reads feed the same selected IEEE comparison as parameters.
+/// The serialized operation must retain the declared field's exact format;
+/// successful source admission alone does not establish that agreement.
 #[test]
-fn selected_float_guards_over_receiver_fields_fail_at_field_observation() {
+fn selected_float_guards_replay_receiver_field_formats() {
     let comparison = |guard: &str| {
         format!(
             r#"
@@ -74,13 +71,58 @@ fn selected_float_guards_over_receiver_fields_fail_at_field_observation() {
     )
     .expect("a parameter guard lowers");
     assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
-    let error = lower_machine(
+    let lowered = lower_machine(
         &crate::front_end::checked_program(&comparison("self.f != self.g")),
         TerminalMachineSelection::Name("Root::enter"),
     )
-    .expect_err("a receiver-field float guard is not observed yet");
-    assert_eq!(
-        format!("{error:?}"),
-        "Unsupported(\"runtime scalar field observation requires an integer field\")"
+    .expect("receiver-field observations compose with the selected comparison");
+    assert_eq!(lowered.selected_ieee_float_comparison_occurrences.len(), 1);
+    let mut module = terminal_codec::decode_module(
+        &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
+    )
+    .unwrap();
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&module, &lowered.proof_bundle, &profile).unwrap();
+    let reads = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::PrimitiveScalarRead { .. }
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(reads.len(), 2, "both operands remain storage observations");
+    for read in reads {
+        assert_eq!(
+            read.result.scalar_ref().unwrap().scalar_type,
+            semantic_vocabulary::ScalarType::IeeeFloat(
+                semantic_vocabulary::IeeeFloatFormat::Binary64,
+            ),
+        );
+    }
+    let read = module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::PrimitiveScalarRead { .. }
+            )
+        })
+        .unwrap();
+    let terminal_psi::OperationResult::Scalar(result) = &mut read.result else {
+        panic!("the field read has a scalar result");
+    };
+    result.scalar_type =
+        semantic_vocabulary::ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32);
+    assert!(
+        terminal_verifier::verify_module(&module, &lowered.proof_bundle, &profile).is_err(),
+        "an f64 field cannot be observed as f32 by altering the result declaration",
     );
 }
