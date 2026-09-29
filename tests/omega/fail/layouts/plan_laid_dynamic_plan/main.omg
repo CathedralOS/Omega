@@ -32,7 +32,7 @@ data Plan {
 }
 
 data Streamy {}
-machine Streamy::plan(&mut self, schema: Schema) -> Plan {
+machine Streamy::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     // Distinct offsets so placement VALIDATION passes; the plan is rejected
     // in type position purely for being dynamic.

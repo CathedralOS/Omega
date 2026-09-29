@@ -18,7 +18,7 @@ data Filter {
 }
 
 data Worker { }
-machine Worker::drain(&mut self, buf: &mut [u64], filter: &Filter, index: u64) {
+machine Worker::drain(buf: &mut [u64], filter: &Filter, index: u64) {
     transition {
         _ -> probe(&mut buf, filter, index)
     }
@@ -41,5 +41,5 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.worker.drain(&mut self.items, &self.filter, 0);
+    Worker::drain(&mut self.items, &self.filter, 0);
 }

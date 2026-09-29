@@ -21,7 +21,7 @@ machine NextToken::span(&self) -> u64 {
         NextToken::Token { start, end } -> at(start, end)
         _ -> (0)
     }
-    state at(&self, start: u64, end: u64) -> u64 {
+    state at(start: u64, end: u64) -> u64 {
         transition { _ -> (end) }
     }
 }

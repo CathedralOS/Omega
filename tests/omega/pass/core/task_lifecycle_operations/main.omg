@@ -22,7 +22,7 @@ machine Main::settle(task: Task<i32>) {
     TaskOutcome::settle(outcome);
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
     let task: Task<i32> = Task { provider: 1, activation: 7 };
     suspend block Main::settle(task);
 }

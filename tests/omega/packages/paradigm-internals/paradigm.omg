@@ -17,7 +17,7 @@
 
 pub data Helper { seed: i32; }
 
-pub machine Helper::shared(&self) -> i32 {
+pub machine Helper::shared() -> i32 {
     transition { _ -> 7 }
 }
 

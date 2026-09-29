@@ -12,7 +12,7 @@ machine Main::main(&mut self) {
     self.record(3, 10);
 }
 
-machine Main::record(&mut self, n: i32, bound [erased]: i32)
+machine Main::record(n: i32, bound [erased]: i32)
 requires
     n < bound
 {

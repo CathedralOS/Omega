@@ -36,11 +36,11 @@ machine FailedOpen::main(&mut self) -> i32 reaches FilesystemHost {
         UnitResult::Error { kind } -> failed(kind)
         _ -> unexpected()
     }
-    state failed(&mut self, kind: ErrorKind) -> i32 {
+    state failed(kind: ErrorKind) -> i32 {
         transition kind { ErrorKind::NotFound -> expected() _ -> unexpected() }
     }
-    state expected(&mut self) -> i32 { 70 }
-    state unexpected(&mut self) -> i32 { 71 }
+    state expected() -> i32 { 70 }
+    state unexpected() -> i32 { 71 }
 }
 
 data Main {

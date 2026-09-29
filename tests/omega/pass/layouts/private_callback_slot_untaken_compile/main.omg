@@ -10,7 +10,7 @@ data Spread {}
 
 CallbackSlot: Spread satisfies PrivateCallbackSlot<Callback::call>;
 
-machine Spread::plan(&mut self, schema: Schema) -> Plan {
+machine Spread::plan(schema: Schema) -> Plan {
     transition {
         false -> with_private(schema)
         _ -> plain(schema)

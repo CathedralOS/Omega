@@ -7,13 +7,13 @@ data Main {
     cell: Cell;
 }
 
-machine Cell::get(&self) -> i32 {
+machine Cell::get() -> i32 {
     transition { _ -> done() }
     state done() -> i32 { 70 }
 }
 
 machine Main::main(&mut self) reaches Console {
     self.cell.value = 41;
-    let result: i32 = self.cell.get();
+    let result: i32 = Cell::get();
     self.console.exit_process(result);
 }

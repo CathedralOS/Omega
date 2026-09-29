@@ -27,7 +27,6 @@ machine Random::next_u32(
 }
 
 machine Random::range(
-    &mut self,
     state: &mut RandomState,
     exclusive_max: u32
     ) -> u32 {

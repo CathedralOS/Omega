@@ -99,7 +99,7 @@ machine size_via_call(cell: Cell) -> u64 {
 }
 
 // API SHAPE 3: nested scalar call inside a named-target transition argument.
-machine Main::next_arg(&mut self, x: u64) -> u64 {
+machine Main::next_arg(x: u64) -> u64 {
     transition { _ -> finish(bump(x)) }
     state finish(y: u64) -> u64 {
         transition { _ -> (y) }
@@ -107,7 +107,7 @@ machine Main::next_arg(&mut self, x: u64) -> u64 {
 }
 
 // Nested call inside a named-target arm argument (call-in-call).
-machine Main::target_arg_nested(&mut self, x: u64) -> u64 {
+machine Main::target_arg_nested(x: u64) -> u64 {
     transition { _ -> finish(bump(bump(x))) }
     state finish(y: u64) -> u64 {
         transition { _ -> (y) }
