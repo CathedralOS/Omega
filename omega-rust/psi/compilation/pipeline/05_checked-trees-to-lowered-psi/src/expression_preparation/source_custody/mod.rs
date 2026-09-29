@@ -143,12 +143,35 @@ pub(crate) fn locate(
             "scalar source custody has no authored statement",
         ))?;
     let preceding = &statements[..statement as usize];
-    let immutable_count = preceding
+    // Scalar bindings share one dense ordinal with the established scalar
+    // results of preceding calls: an assignment binding a primitive call
+    // result and an immutable scalar local each consume one slot of
+    // `CheckedUnitScalarResultBindingPlan::binding_ordinal` in statement
+    // order, so a `LocalInitializer` ordinal counts both shapes.
+    let scalar_binding_count = preceding
         .iter()
-        .filter(|statement| {
-            matches!(statement, StatementNode::LocalData(local)
-            if !local.is_mutable && local.initial_value.is_valid()
-                && program.primitive_type_reference(local.type_reference).is_some())
+        .filter(|statement| match statement {
+            StatementNode::LocalData(local) => {
+                !local.is_mutable
+                    && local.initial_value.is_valid()
+                    && program
+                        .primitive_type_reference(local.type_reference)
+                        .is_some()
+            }
+            StatementNode::Assignment(assignment) => {
+                matches!(
+                    program.expression_table.expression(assignment.value),
+                    ExpressionNode::Call(_)
+                ) && validation::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    assignment.value,
+                )
+                .and_then(|reference| program.primitive_type_reference(reference))
+                .is_some()
+            }
+            _ => false,
         })
         .count();
     let absent = symbols::SymbolHandle::invalid();
@@ -314,7 +337,7 @@ pub(crate) fn locate(
             StatementNode::LocalData(local),
             CheckedScalarExpressionRole::LocalInitializer { binding_ordinal },
         ) if !local.is_mutable
-            && usize::try_from(binding_ordinal).ok() == Some(immutable_count) =>
+            && usize::try_from(binding_ordinal).ok() == Some(scalar_binding_count) =>
         {
             program
                 .primitive_type_reference(local.type_reference)
