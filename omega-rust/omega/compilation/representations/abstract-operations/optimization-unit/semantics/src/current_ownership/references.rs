@@ -9,8 +9,8 @@ use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::structural_source_contract;
 use crate::unit_validation::references::{
     LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent, argument_owns_references,
-    contains_reference, formal_origin, is_reference_projection, leaf_paths, leaf_referent,
-    reference_source_type,
+    contains_reference, formal_origin, is_reference_projection, leaf_access_within, leaf_paths,
+    leaf_referent, leaf_type, reference_access, reference_source_type,
 };
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
@@ -181,6 +181,7 @@ fn check_root_access(
 /// projection does not describe reference custody this layer admits.
 fn normalized_source(
     function: &PsiOptimizationFunction,
+    structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     block: BlockId,
     node: u32,
     live: &[LiveReference],
@@ -189,34 +190,65 @@ fn normalized_source(
     if let Some((terminal_psi::StructuralPathSegment::Referent, carrier_path)) =
         source.path.split_last()
     {
-        let parent = live
+        if let Some(parent) = live
             .iter()
             .find(|reference| {
                 reference.carrier == source.place && reference.carrier_path == carrier_path
+            })
+        {
+            if live
+                .iter()
+                .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
+            {
+                return Err(invalid(
+                    function,
+                    block,
+                    Some(node),
+                    "reference parent remains suspended by a live child",
+                ));
+            }
+            return Ok((
+                parent.root.clone(),
+                ReferenceParent::Reference(parent.identity.clone()),
+            ));
+        }
+        // A `[fields.., Referent]` leaf that is not itself a reference borrows
+        // a member's own storage: the loan roots at that member under the
+        // source place rather than continuing a live parent loan.
+        let leaf = structural_source_contract(function, source.place, false)
+            .and_then(|contract| {
+                crate::unit_validation::references::leaf_type(
+                    structural_types,
+                    contract.structural_type,
+                    carrier_path,
+                )
             })
             .ok_or_else(|| {
                 invalid(
                     function,
                     block,
                     Some(node),
-                    "reference carrier is no longer live",
+                    "projected reference custody is not yet supported",
                 )
             })?;
-        if live
-            .iter()
-            .any(|reference| matches!(&reference.parent, ReferenceParent::Reference(identity) if identity == &parent.identity))
-        {
+        if structural_types.get(&leaf).is_some_and(|declaration| {
+            matches!(
+                declaration.shape,
+                terminal_psi::StructuralTypeShape::Reference { .. }
+            )
+        }) {
             return Err(invalid(
                 function,
                 block,
                 Some(node),
-                "reference parent remains suspended by a live child",
+                "reference carrier is no longer live",
             ));
         }
-        Ok((
-            parent.root.clone(),
-            ReferenceParent::Reference(parent.identity.clone()),
-        ))
+        let root = ReferenceOrigin::IngressLeaf(ReferenceIdentity {
+            place: source.place,
+            path: carrier_path.to_vec(),
+        });
+        Ok((root.clone(), ReferenceParent::Root(root)))
     } else if source.path.is_empty() {
         if live
             .iter()
@@ -652,7 +684,7 @@ pub(super) fn apply_operation(
                     "call cannot access a suspended root or move its referent",
                 ));
             }
-            let (root, _) = normalized_source(function, block, node, live, argument)?;
+            let (root, _) = normalized_source(function, structural_types, block, node, live, argument)?;
             normalized_arguments.push((root, argument.access, true));
         } else {
             normalized_arguments.push((
@@ -714,7 +746,22 @@ pub(super) fn apply_operation(
                                 source,
                                 matches!(
                                     formal_origin(callee, &mapping.source),
-                                    Some(ReferenceOrigin::IngressLeaf(_))
+                                    Some(ReferenceOrigin::IngressLeaf(identity))
+                                        if structural_source_contract(
+                                            callee,
+                                            identity.place,
+                                            false,
+                                        )
+                                        .and_then(|signature| {
+                                            leaf_type(
+                                                structural_types,
+                                                signature.structural_type,
+                                                &identity.path,
+                                            )
+                                        })
+                                        .is_some_and(|leaf| {
+                                            reference_access(structural_types, leaf).is_some()
+                                        })
                                 ),
                             )
                         })
@@ -768,7 +815,14 @@ pub(super) fn apply_operation(
                         "reference call result leaf is unsupported",
                     )
                 })?;
-            if reference_source_type(function, structural_types, &source) != Some(expected) {
+            if reference_source_type(function, structural_types, &source) != Some(expected)
+                || !leaf_access_within(
+                    structural_types,
+                    result.structural_type,
+                    &path,
+                    source.access,
+                )
+            {
                 return Err(invalid(
                     function,
                     block,
@@ -806,7 +860,7 @@ pub(super) fn apply_operation(
                 reference.carrier_path = path;
                 reference
             } else {
-                let (root, parent) = normalized_source(function, block, node, live, &source)?;
+                let (root, parent) = normalized_source(function, structural_types, block, node, live, &source)?;
                 LiveReference {
                     identity: ReferenceIdentity {
                         place: result.place,

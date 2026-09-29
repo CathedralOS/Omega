@@ -133,8 +133,8 @@ pub(super) fn index_structural_types(
                 *target,
             ));
         }
-        // The supported carrier is one exclusive permission over one primitive
-        // scalar referent; write-only carriers share the mutable loan shape.
+        // The supported carrier is one borrow permission over one primitive
+        // scalar referent; shared and write-only carriers share the loan shape.
         if let terminal_psi::StructuralTypeShape::Reference {
             referent, access, ..
         } = &declaration.shape
@@ -142,6 +142,7 @@ pub(super) fn index_structural_types(
                 access,
                 terminal_psi::StructuralAccess::MutableBorrow
                     | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    | terminal_psi::StructuralAccess::SharedBorrow
             ) || !matches!(
                 types.get(referent).map(|referent| &referent.shape),
                 Some(terminal_psi::StructuralTypeShape::PrimitiveScalar(_))

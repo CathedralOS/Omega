@@ -210,8 +210,8 @@ fn leaf_paths(
     Some(output)
 }
 
-/// A whole-carrier result admits an exclusive permission over a primitive
-/// scalar referent; that is the complete established shape this layer replays.
+/// A whole-carrier result admits one borrow permission over a primitive
+/// scalar referent; shared and exclusive carriers share that loan shape.
 fn referent(
     types: &[StructuralTypeDeclaration],
     structural_type: StructuralTypeId,
@@ -222,7 +222,10 @@ fn referent(
     match declaration.shape {
         StructuralTypeShape::Reference {
             referent,
-            access: StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow,
+            access:
+                StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow,
         } if matches!(
             types
                 .iter()
@@ -237,8 +240,30 @@ fn referent(
     }
 }
 
-/// A field-only carrier path ending at a reference leaf, then its referent.
+/// A field-only carrier path ending at a reference leaf, then its referent;
+/// a non-reference leaf names its own storage type.
 fn leaf_referent(
+    types: &[StructuralTypeDeclaration],
+    current: StructuralTypeId,
+    fields: &[StructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    let leaf = leaf_type(types, current, fields)?;
+    referent(types, leaf).or_else(|| {
+        types
+            .iter()
+            .find(|declaration| declaration.id == leaf)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::Reference { .. } => None,
+                _ => Some(leaf),
+            })
+    })
+}
+
+/// The structural type the field-only path names beneath `current`: a sum or
+/// mixed payload keeps a segment legal while every matching case field
+/// resolves to one structural type, and a plain leaf field resolves to its
+/// canonical standalone declaration.
+fn leaf_type(
     types: &[StructuralTypeDeclaration],
     mut current: StructuralTypeId,
     fields: &[StructuralPathSegment],
@@ -248,9 +273,6 @@ fn leaf_referent(
             return None;
         };
         let declaration = types.iter().find(|declaration| declaration.id == current)?;
-        // Field segments name fields by identity; a sum or mixed payload keeps
-        // a segment legal while every matching case field resolves to one
-        // structural type.
         let matching: Vec<&terminal_psi::StructuralFieldDeclaration> = match &declaration.shape {
             StructuralTypeShape::Record { fields } => fields.iter().collect(),
             StructuralTypeShape::Sum { cases } => {
@@ -267,8 +289,15 @@ fn leaf_referent(
             if field.identity != *identity || field.relevance.is_erased() {
                 continue;
             }
-            let StructuralFieldType::Structural(child) = field.field_type else {
-                return None;
+            let child = match &field.field_type {
+                StructuralFieldType::Structural(child) => *child,
+                leaf => {
+                    let shape = leaf.canonical_leaf_shape()?;
+                    types
+                        .iter()
+                        .find(|declaration| declaration.shape == shape)
+                        .map(|declaration| declaration.id)?
+                }
             };
             match resolved {
                 None => resolved = Some(child),
@@ -278,7 +307,7 @@ fn leaf_referent(
         }
         current = resolved?;
     }
-    referent(types, current)
+    Some(current)
 }
 
 fn primitive_scalar_type(
@@ -374,13 +403,34 @@ fn reference_source_type(
 /// leaf; an empty path names a primitive referent root directly. Any other
 /// projection does not describe reference custody this layer admits.
 fn normalized_source(
+    function: &PsiOptimizationFunction,
     custody: &Custody,
+    types: &[StructuralTypeDeclaration],
     source: &StructuralArgument,
 ) -> Result<(Root, Option<(PlaceId, Vec<StructuralPathSegment>)>), LegalizationError> {
     if let Some((StructuralPathSegment::Referent, carrier_path)) = source.path.split_last() {
-        let leaf = custody
-            .leaf(source.place, carrier_path)
-            .ok_or_else(|| invalid())?;
+        let Some(leaf) = custody.leaf(source.place, carrier_path) else {
+            // Member storage under a carrier never held as a live reference
+            // borrows the carrier's own storage; only a non-reference member
+            // may root there — a missing reference carrier is a custody gap.
+            let carrier = source_contract(function, custody, source.place)
+                .ok_or_else(|| invalid())?;
+            return match leaf_type(types, carrier, carrier_path).and_then(|leaf| {
+                types
+                    .iter()
+                    .find(|declaration| declaration.id == leaf)
+                    .and_then(|declaration| match declaration.shape {
+                        StructuralTypeShape::Reference { .. } => None,
+                        _ => Some(()),
+                    })
+            }) {
+                Some(()) => Ok((
+                    Root::Ingress(source.place, carrier_path.to_vec()),
+                    None,
+                )),
+                None => Err(invalid()),
+            };
+        };
         if custody
             .leaves
             .values()
@@ -420,17 +470,25 @@ fn call_source(
     Some(source)
 }
 
-/// The formal origin a callee result mapping names: a mutable primitive
-/// parameter or an owned-carrier ingress leaf path.
+/// The formal origin a callee result mapping names: a borrowed primitive
+/// parameter or an ingress leaf path under an owned or shared carrier.
 fn formal_origin(function: &PsiOptimizationFunction, source: &StructuralArgument) -> Option<Root> {
     let parameter = function
         .structural_parameters
         .iter()
         .find(|parameter| parameter.place == source.place)?;
-    if source.path.is_empty() && parameter.access == StructuralAccess::MutableBorrow {
+    if source.path.is_empty()
+        && matches!(
+            parameter.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+    {
         Some(Root::Place(source.place))
     } else if let Some((StructuralPathSegment::Referent, path)) = source.path.split_last()
-        && parameter.access == StructuralAccess::Owned
+        && matches!(
+            parameter.access,
+            StructuralAccess::Owned | StructuralAccess::SharedBorrow
+        )
     {
         Some(Root::Ingress(source.place, path.to_vec()))
     } else {
@@ -539,7 +597,7 @@ fn call_arguments(
             if !is_reference_projection(function, custody, types, argument) {
                 return Err(invalid());
             }
-            let (root, _) = normalized_source(custody, argument)?;
+            let (root, _) = normalized_source(function, custody, types, argument)?;
             normalized.push((root, argument.access, true));
         } else {
             normalized.push((Root::Place(argument.place), argument.access, false));
@@ -621,7 +679,25 @@ fn call_results(
         }
         let leaf = if matches!(
             formal_origin(callee_function, &mapping.source),
-            Some(Root::Ingress(_, _))
+            Some(Root::Ingress(place, path))
+                if callee_function
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == place)
+                    .and_then(|parameter| {
+                        leaf_type(types, parameter.structural_type, &path)
+                    })
+                    .and_then(|leaf| {
+                        types
+                            .iter()
+                            .find(|declaration| declaration.id == leaf)
+                    })
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            StructuralTypeShape::Reference { .. }
+                        )
+                    })
         ) {
             // An owned-carrier ingress mapping relocates one of the leaves the
             // moved arguments just transferred; the leaf keeps its identity,
@@ -635,7 +711,7 @@ fn call_results(
                 .cloned()
                 .ok_or_else(|| invalid())?
         } else {
-            let (root, parent) = normalized_source(custody, &source)?;
+            let (root, parent) = normalized_source(function, custody, types, &source)?;
             Leaf {
                 identity: (result.place, mapping.path.clone()),
                 root,
@@ -733,7 +809,7 @@ pub(in crate::legalization) fn apply(
             {
                 return Err(invalid());
             }
-            let (root, parent) = normalized_source(custody, source)?;
+            let (root, parent) = normalized_source(function, custody, types, source)?;
             let identity = (result.place, Vec::new());
             custody.leaves.insert(
                 identity.clone(),
@@ -1313,7 +1389,7 @@ pub(in crate::legalization) fn reference_results(
         if reference_source_type(caller, custody, types, &source) != Some(expected_referent) {
             return Err(invalid());
         }
-        let (root, _) = normalized_source(custody, &source)?;
+        let (root, _) = normalized_source(caller, custody, types, &source)?;
         if !roots.insert(root.clone()) {
             return Err(invalid());
         }
