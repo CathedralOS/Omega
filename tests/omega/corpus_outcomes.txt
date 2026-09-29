@@ -480,6 +480,7 @@ pass/float/build_runtime_semantics_twins_windows_x64 rejected 358ms
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 387ms
 	machine `x86_baseline_float_twin_code` state `entry`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `multiply_then_add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 	machine `x86_baseline_float_twin_code` state `entry`: a value-call argument cannot itself be a machine call yet (`subtract(..)` nested in `multiply_then_add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
+pass/float/builtin_extrema_field_store_exit checked 1913ms @9213c1dcbe3f+wt
 pass/float/f32_arg_const_arith_landed_exit rejected 2352ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: jump successor: scalar arguments` (state 0, statement 1)
 pass/float/f32_per_operation_rounding_exit rejected 2480ms

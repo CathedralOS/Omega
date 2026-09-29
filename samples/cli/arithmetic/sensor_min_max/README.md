@@ -27,7 +27,8 @@ result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)
 [press Enter to close]
 ```
 
-This full native oracle remains **unverified**. Shorthand `min`/`max`/`sqrt`
+At `9213c1dcbe3` on macOS ARM64, this full native oracle remains
+**unverified**. Shorthand `min`/`max`/`sqrt`
 now bind their selected float requirements before ordinary checking; the
 separate `tests/omega/pass/float/builtin_extrema_field_store_exit` program
 exercises both widths through native field writes. This sample proceeds past
