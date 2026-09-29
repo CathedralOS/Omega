@@ -123,3 +123,45 @@ fn borrowed_indexed_collection_cannot_move_into_an_owned_receiver() {
         "{diagnostics:#?}"
     );
 }
+
+/// A by-value read of a shared view element detaches a copy only when the
+/// element type may be duplicated. `[copy]` records and primitives copy; an
+/// affine record stays affine however plain its fields are
+/// (wiki/spec/language/ownership.md), so its read is a transfer out of the
+/// shared loan, which the loan refuses.
+#[test]
+fn shared_view_element_reads_detach_only_copyable_elements() {
+    let record = |attributes: &str| {
+        format!(
+            "data Entry {attributes} {{ value: i32; }}
+             data Main {{ entries: [Entry; 2]; }}
+             machine Main::read(&mut self) -> i32 {{
+                 let view: &[Entry] = self.entries.as_slice();
+                 let first: Entry = view[0];
+                 let again: Entry = view[0];
+                 again.value
+             }}"
+        )
+    };
+    checked_program_result(&record("[copy]"))
+        .unwrap_or_else(|errors| panic!("a [copy] element reads by copy: {errors:#?}"));
+    checked_program_result(
+        "data Main { bytes: [u8; 2]; }
+         machine Main::read(&mut self) -> u8 {
+             let view: &[u8] = self.bytes.as_slice();
+             let first: u8 = view[0];
+             view[0]
+         }",
+    )
+    .unwrap_or_else(|errors| panic!("a primitive element reads by copy: {errors:#?}"));
+    let diagnostics = match checked_program_result(&record("")) {
+        Ok(_) => panic!("an affine element cannot be copied out of a shared view"),
+        Err(diagnostics) => diagnostics,
+    };
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("cannot transfer a non-copy value out of borrowed storage")),
+        "{diagnostics:#?}"
+    );
+}

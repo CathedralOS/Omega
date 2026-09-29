@@ -258,7 +258,13 @@ pub(super) fn detached_borrowed_copy_admitted(
     // detached value carries the member contents its type declares, so only
     // recursively stable contents may be duplicated under observation:
     // references, mutation-capable loans, nominal cleanup, linear carriers,
-    // and unclassified storage keep their real transfer obligation.
+    // and unclassified storage keep their real transfer obligation. The
+    // element must also be copyable: a detached value is a second instance,
+    // and only `Unrestricted` (`[copy]`) data may be duplicated. An affine
+    // record stays affine however plain its fields are
+    // (wiki/spec/language/ownership.md: "A record still requires an explicit
+    // `[copy]` declaration"), so its by-value read keeps the ordinary move
+    // out of the shared loan, which the loan refuses.
     if !has_exclusive
         && place.segments.iter().any(|segment| {
             matches!(
@@ -267,7 +273,9 @@ pub(super) fn detached_borrowed_copy_admitted(
             )
         })
     {
-        return validation::has_stable_observable_contents(program, projected);
+        return program.type_multiplicity(projected)
+            == language_semantics::Multiplicity::Unrestricted
+            && validation::has_stable_observable_contents(program, projected);
     }
     // A service-receiver invocation detaches its stable arguments at the ABI
     // seam; the caller's custody stays whole. The seam's copy carries runtime
