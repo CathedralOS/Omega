@@ -23,6 +23,168 @@ fn math_value(id: u64, integer_type: IntegerType) -> IntegerMathTerm {
 }
 
 #[test]
+fn bounded_runtime_product_supplies_the_next_multiplication_endpoints() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let context = PropositionContext::from_value_types((1..=3).map(|identity| {
+        (
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .unwrap();
+    let axioms = vec![
+        Proposition::LessOrEqual(integer(integer_type, 0), value(1, integer_type)),
+        Proposition::LessOrEqual(value(1, integer_type), integer(integer_type, 100)),
+        Proposition::Equal(
+            value(2, integer_type),
+            ScalarTerm::exact_integer_multiply(
+                integer_type,
+                value(1, integer_type),
+                value(1, integer_type),
+            )
+            .unwrap(),
+        ),
+        Proposition::Equal(value(3, integer_type), integer(integer_type, 3)),
+    ];
+    let product = IntegerMathTerm::Multiply(
+        Box::new(math_value(2, integer_type)),
+        Box::new(math_value(3, integer_type)),
+    );
+    let goal = Proposition::Conjunction(vec![
+        Proposition::IntegerMathLessOrEqual(
+            IntegerMathTerm::literal(integer_type.minimum_value()),
+            product.clone(),
+        ),
+        Proposition::IntegerMathLessOrEqual(
+            product,
+            IntegerMathTerm::literal(integer_type.maximum_value()),
+        ),
+    ]);
+    let proof = prove_canonical_integer_proposition(&context, &goal, &[], &axioms)
+        .expect("the prior bounded square supplies endpoints for multiplication by three");
+    proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+    let mut missing = axioms.clone();
+    missing[1] = Proposition::Truth;
+    assert!(prove_canonical_integer_proposition(&context, &goal, &[], &missing).is_none());
+    assert!(proof_admission::accept_certificate(&context, &goal, &[], &missing, &proof).is_err());
+}
+
+#[test]
+fn product_endpoints_preserve_signed_corners_and_prior_definition_identity() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let context = PropositionContext::from_value_types((1..=3).map(|identity| {
+        (
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .unwrap();
+    let assumptions = vec![Proposition::Truth];
+    for (left_lower, left_upper, right_lower, right_upper, product_lower, product_upper) in [
+        (-4, 5, -3, 2, -15, 12),
+        (-8, -2, -7, -3, 6, 56),
+        (2, 6, 3, 8, 6, 48),
+        (-4, 5, 3, 3, -12, 15),
+    ] {
+        for reversed in [false, true] {
+            let expression = ScalarTerm::exact_integer_multiply(
+                integer_type,
+                value(1, integer_type),
+                if right_lower == right_upper {
+                    integer(integer_type, right_lower)
+                } else {
+                    value(2, integer_type)
+                },
+            )
+            .unwrap();
+            let definition = if reversed {
+                Proposition::Equal(expression, value(3, integer_type))
+            } else {
+                Proposition::Equal(value(3, integer_type), expression)
+            };
+            let axioms = vec![
+                Proposition::LessOrEqual(integer(integer_type, left_lower), value(1, integer_type)),
+                Proposition::LessOrEqual(value(1, integer_type), integer(integer_type, left_upper)),
+                Proposition::LessOrEqual(
+                    integer(integer_type, right_lower),
+                    value(2, integer_type),
+                ),
+                Proposition::LessOrEqual(
+                    value(2, integer_type),
+                    integer(integer_type, right_upper),
+                ),
+                definition,
+            ];
+            let goal = Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(
+                    integer(integer_type, product_lower),
+                    value(3, integer_type),
+                ),
+                Proposition::LessOrEqual(
+                    value(3, integer_type),
+                    integer(integer_type, product_upper),
+                ),
+            ]);
+            let proof = prove_canonical_integer_proposition(&context, &goal, &assumptions, &axioms)
+                .or_else(|| super::super::produce_relaxed_integer_proof(
+                    &context, &goal, &assumptions, &axioms, &Default::default(),
+                ))
+                .unwrap_or_else(|| panic!(
+                    "both signed endpoints: [{left_lower}, {left_upper}] * [{right_lower}, {right_upper}], reversed={reversed}",
+                ));
+            proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+                .unwrap();
+            let bundle = terminal_psi::ProofBundle {
+                evidence: vec![terminal_psi::ObligationEvidence {
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                    route: proof_admission::EvidenceRoute::CertificateDerived(
+                        proof_admission::CertificateEnvelope {
+                            identity: semantic_vocabulary::EvidenceIdentity::new(1).unwrap(),
+                            proof_system_marker: proof_admission::ProofSystemMarker::CURRENT,
+                            proof: proof.clone(),
+                        },
+                    ),
+                }],
+                ..Default::default()
+            };
+            let bytes = terminal_codec::encode_proof_bundle(&bundle).unwrap();
+            let decoded = terminal_codec::decode_proof_bundle(&bytes).unwrap();
+            assert_eq!(decoded, bundle);
+            let proof_admission::EvidenceRoute::CertificateDerived(certificate) =
+                &decoded.evidence[0].route
+            else {
+                panic!("certificate route")
+            };
+            for changed in [
+                Proposition::Truth,
+                Proposition::Equal(
+                    value(3, integer_type),
+                    ScalarTerm::exact_integer_multiply(
+                        integer_type,
+                        value(1, integer_type),
+                        value(1, integer_type),
+                    )
+                    .unwrap(),
+                ),
+            ] {
+                let mut substituted = axioms.clone();
+                substituted[4] = changed;
+                assert!(
+                    proof_admission::accept_certificate(
+                        &context,
+                        &goal,
+                        &assumptions,
+                        &substituted,
+                        &certificate.proof,
+                    )
+                    .is_err()
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn derived_bounds_refuse_when_an_operand_has_no_evidence() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 32).expect("i32");
     // v1 = 10 but v2 is an unbounded field read: no cited or derived bound
