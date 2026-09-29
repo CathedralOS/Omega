@@ -1,0 +1,42 @@
+// A whole-place `&mut` out-param loans a caller-owned structural result
+// binding into a CheckedBody callee: `find` writes through `out` into the
+// caller's `found`, and both writes must be visible after the call. Exits
+// 70 only when the mutable loan reaches the binding's whole extent.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Item {
+    key: i32;
+    val: i32;
+}
+
+data Store {
+}
+
+machine Store::find(&mut self, key: i32, out: &mut Item) {
+    out.key = key;
+    out.val = 5;
+}
+
+data Main {
+    console: Binding<Console>;
+    store: Store;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let found: Item = Item { key: 0, val: 0 };
+    self.store.find(2, &mut found);
+
+    transition found.val == 5 {
+        true -> check_key(found)
+        false -> bad()
+    }
+    state check_key(&mut self, found: Item) {
+        transition found.key == 2 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
