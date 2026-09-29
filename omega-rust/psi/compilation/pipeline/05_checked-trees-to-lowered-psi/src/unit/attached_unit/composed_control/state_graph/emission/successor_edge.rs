@@ -542,12 +542,22 @@ impl StateGraphEmission<'_, '_> {
                         _ => None,
                     };
                     if let Some(binding_ordinal) = loaned_binding {
-                        if position != 0 || self.entry_reentered {
+                        let result = case_emission::result(state, binding_ordinal, operations)?;
+                        // A whole shared loan of unrestricted storage, such
+                        // as a byte literal local, has no death to place and
+                        // records no home, so any state may lend it.
+                        let needs_home = target_parameter.access
+                            == checked_trees::CheckedStructuralAccess::MutableBorrow
+                            || result.multiplicity() == StructuralMultiplicity::Affine
+                            || !matches!(
+                                transfer.source,
+                                checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { .. }
+                            );
+                        if needs_home && (position != 0 || self.entry_reentered) {
                             return unsupported(
                                 "Unit graph local loan requires an activation entry home",
                             );
                         }
-                        let result = case_emission::result(state, binding_ordinal, operations)?;
                         if result.multiplicity() == StructuralMultiplicity::Affine
                             && let Some(previous) =
                                 self.loaned_local_homes.insert(binding_ordinal, place)
