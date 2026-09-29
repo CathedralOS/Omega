@@ -1,8 +1,9 @@
 //! Borrowed joins whose runtime carrier is the referent's address.
 //!
 //! Shared joins admit primitive scalars and plain records through static
-//! projections. Mutable joins admit whole plain records while transferring the
-//! exact incoming mutable permission. Neither carrier copies the referent.
+//! projections. Mutable joins admit plain records the same way, whole or
+//! statically projected, while transferring the exact incoming mutable
+//! permission. Neither carrier copies the referent.
 //! Byte and element views keep their `{base, extent}` descriptor carriers.
 //!
 //! This is a type rule, not producer evidence. Each stage independently replays

@@ -67,7 +67,6 @@ pub(crate) fn transport(
 ) -> Option<SelectedStructuralTransport> {
     let signature = source.structural.as_ref()?;
     if argument.access != parameter.access
-        || parameter.access == StructuralAccess::MutableBorrow && !argument.path.is_empty()
         || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         || join(source, parameter.place)?.0 != target
     {
@@ -143,10 +142,7 @@ fn root_type(
             .parameters
             .iter()
             .find(|parameter| parameter.semantic.place == place)
-            .filter(|parameter| {
-                !parameter.semantic.is_self
-                    && parameter.semantic.access == StructuralAccess::MutableBorrow
-            })
+            .filter(|parameter| parameter.semantic.access == StructuralAccess::MutableBorrow)
             .map(|parameter| parameter.semantic.structural_type);
     }
     if let Some((_, result)) = crate::selection::aggregate_result_input::home(source, place) {

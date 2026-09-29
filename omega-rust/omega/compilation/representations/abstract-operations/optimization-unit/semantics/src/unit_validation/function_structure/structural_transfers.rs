@@ -1,10 +1,10 @@
-//! Exact whole shared-view, shared address-join and plain owned telescopes;
+//! Exact whole shared-view, address-join and plain owned telescopes;
 //! ownership replays separately.
 //!
 //! A descriptor view or owned arrival binds a whole root of exactly its own
 //! contract. An address join (`abstract_operations::control_flow::address_joins`)
 //! instead borrows a readable, non-linear root or a static projection beneath
-//! it: the argument keeps shared access and names exactly the parameter's
+//! it: the argument keeps its edge access and names exactly the parameter's
 //! referent type, and the root keeps its own owner. The current-ownership
 //! replay separately pins every such root while the joined view can observe it.
 use crate::OptimizationUnitValidationError;
@@ -92,21 +92,23 @@ pub(super) fn validate(
                 let exact_source = if address_join(parameter, types) {
                     // The root lends its address; it neither changes owner nor
                     // widens past shared access, and the path names the join's
-                    // exact referent type.
+                    // exact referent type. A mutable join may lend the same
+                    // carrier over a static projection: the subtree transfers
+                    // the exact incoming mutable permission while the rest of
+                    // the root stays with the caller.
                     abstract_operations::control_flow::address_joins::is_static_projection(
                         &binding.argument.path,
                     ) && source.is_some_and(|(root_type, access, multiplicity)| {
                         (if parameter.access == StructuralAccess::MutableBorrow {
-                            binding.argument.path.is_empty()
-                                && (access == StructuralAccess::MutableBorrow
-                                    || access == StructuralAccess::Owned
-                                        && function.structural_places.iter().any(|place| {
-                                            place.id == binding.argument.place
-                                                && matches!(
-                                                    place.kind,
-                                                    StructuralPlaceKind::OperationResult { .. }
-                                                )
-                                        }))
+                            access == StructuralAccess::MutableBorrow
+                                || access == StructuralAccess::Owned
+                                    && function.structural_places.iter().any(|place| {
+                                        place.id == binding.argument.place
+                                            && matches!(
+                                                place.kind,
+                                                StructuralPlaceKind::OperationResult { .. }
+                                            )
+                                    })
                         } else {
                             access != StructuralAccess::WriteOnlyBorrow
                         }) && multiplicity != StructuralMultiplicity::Linear

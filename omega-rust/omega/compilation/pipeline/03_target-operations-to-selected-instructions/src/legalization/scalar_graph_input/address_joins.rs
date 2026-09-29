@@ -150,8 +150,6 @@ pub(in crate::legalization) fn edge_bindings(
                 }
                 binding.parameter == declaration.place
                     && binding.argument.access == declaration.access
-                    && (declaration.access != StructuralAccess::MutableBorrow
-                        || binding.argument.path.is_empty())
                     && abstract_operations::control_flow::address_joins::is_static_projection(
                         &binding.argument.path,
                     )

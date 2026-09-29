@@ -104,8 +104,6 @@ fn address_join_argument(
 ) -> bool {
     let argument = &binding.argument;
     if argument.access != parameter.access
-        || parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-            && !argument.path.is_empty()
         || !abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         || references::is_suspended_root(live, argument.place)
     {
