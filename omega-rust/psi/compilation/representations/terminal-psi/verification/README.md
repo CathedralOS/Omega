@@ -210,7 +210,9 @@ arguments, whole or projected, close when the call returns: outside every
 cycle it runs once per activation, and inside a cycle an in-cycle edge must
 discard it or move it into an owned successor parameter, or a window store must
 reseat a hole with it. Structural-scalar calls may also lend a produced result
-and copy an unrestricted plain payload into an unrestricted owned parameter.
+and copy an unrestricted plain payload into an unrestricted owned parameter,
+and Unit calls may lend a borrowed block parameter whole, no wider than the
+view's own access.
 These additions preserve the existing full-graph checks and cuts; they
 establish no termination or loop-invariant authority.
 Qualified or partial owned cyclic custody, loop-carried structural results,
