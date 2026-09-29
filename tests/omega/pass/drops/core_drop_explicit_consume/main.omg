@@ -29,10 +29,7 @@ data Carrier {
     proof [erased]: Evidence;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     let g: Guard = Guard { handle: 7 };
     let c: Carrier = Carrier { payload: 1, proof: Evidence { tag: 0 } };
     drop(g);

@@ -2,13 +2,11 @@
 // declared range forms the computed endpoint `limit + 1` at every
 // evaluation; the premise-preserving prefix separately proves `limit`
 // still denotes its arrival value across the named-state cycle.
-data Main {}
-
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> self.walk(0, 4) }
+machine main() -> u64 {
+    transition { _ -> walk(0, 4) }
 }
 
-machine Main::walk(&mut self, index: u64, mut limit: u64)
+machine walk(index: u64, mut limit: u64)
     requires 0 <= limit && limit <= 10
 requires index <= limit;
 terminates by index -> Nat::IncreasingTo(limit) in 0..=(limit + 1);

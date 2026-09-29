@@ -6,15 +6,13 @@
 // rather than ad-hoc proof arithmetic (the use-site subtraction spelling
 // `terminates by limit - index` is retired).
 
-data Main {}
-
-machine Main::main(&mut self) -> u64 {
+machine main() -> u64 {
     transition {
-        _ -> self.walk(4, 0)
+        _ -> walk(4, 0)
     }
 }
 
-machine Main::walk(&mut self, limit: u64, index: u64)
+machine walk(limit: u64, index: u64)
 terminates by (index, limit) -> Nat::BoundedDistance;
 -> u64
 {

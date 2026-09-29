@@ -2,13 +2,11 @@
 // not the subject, the pinned view bound, a range endpoint, or named by a
 // requires fact. Its complete write frame is disjoint from those carriers, so
 // the store before the transition leaves the entry-relative ranking intact.
-data Main {}
-
-machine Main::main(&mut self) -> u64 {
-    transition { _ -> self.walk(0, 4, 0) }
+machine main() -> u64 {
+    transition { _ -> walk(0, 4, 0) }
 }
 
-machine Main::walk(&mut self, index: u64, limit: u64, mut count: u64)
+machine walk(index: u64, limit: u64, mut count: u64)
 requires
     limit <= 10;
     index <= limit;

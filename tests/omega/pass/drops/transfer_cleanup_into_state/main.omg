@@ -11,10 +11,7 @@ data Guard {
 machine Guard::drop(&mut self) {
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     let g: Guard = Guard { handle: 1 };
 
     transition {
