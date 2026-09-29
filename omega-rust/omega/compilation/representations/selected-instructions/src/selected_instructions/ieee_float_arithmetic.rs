@@ -81,7 +81,7 @@ impl IeeeFloatArithmeticForm {
         }
     }
 
-    /// Whether the result is binary32 (single precision).
+    /// Whether the operation's interchange format is binary32 (single precision).
     pub const fn is_binary32(self) -> bool {
         matches!(self.format, IeeeFloatFormat::Binary32)
     }
@@ -110,7 +110,7 @@ mod tests {
             IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
             None
         );
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 62);
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 64);
         // Catalog declarations follow this order, so it must be sorted.
         assert!(IeeeFloatArithmeticForm::ALL.is_sorted());
     }

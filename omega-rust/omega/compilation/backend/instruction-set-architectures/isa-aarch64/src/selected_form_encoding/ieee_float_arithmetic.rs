@@ -19,6 +19,10 @@
 //!   also leaves NZCV untouched;
 //! - negate, square root, format conversion: one `FMOV` in, one scalar
 //!   `FNEG`/`FSQRT`/`FCVT`, one `FMOV` out (12 bytes);
+//! - NaN classification: payload in, `FCMEQ` comparing the operand with itself,
+//!   mask out, carrier-width `ADD #1` (16 bytes). Equality produces all ones
+//!   for non-NaNs and zero for NaNs; wrapping addition yields canonical false
+//!   or true without writing NZCV or evaluating the operand twice;
 //! - integer to float: one `SCVTF`/`UCVTF` reading the general register
 //!   directly (`w` for 32-bit and `x` for 64-bit sources), one `FMOV` out
 //!   (8 bytes);
@@ -43,7 +47,7 @@
 //! (`wiki/spec/build/foreign_bindings.md`, "Floating control state").
 //! Encodings follow Arm's A64 scalar floating-point data-processing (one and
 //! two source), conversion between floating-point and integer, Advanced SIMD
-//! scalar three-same `FCMGT`, and Advanced SIMD three-same logical `BSL`.
+//! scalar three-same `FCMGT`/`FCMEQ`, and Advanced SIMD three-same logical `BSL`.
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
@@ -201,8 +205,9 @@ enum Word {
         immediate: u16,
         general: u8,
     },
-    /// `FCMGT` (register, scalar): all ones where `left > right`.
-    CompareGreater {
+    /// `FCMEQ`/`FCMGT` (register, scalar): an all-ones or zero mask.
+    Compare {
+        equal: bool,
         double: bool,
         left: u8,
         right: u8,
@@ -210,6 +215,13 @@ enum Word {
     },
     /// `BSL` (vector, 8B): `mask ? if_set : if_clear` per bit, into `mask`.
     BitwiseSelect { mask: u8, if_set: u8, if_clear: u8 },
+    /// `ADD Wd|Xd, Wn|Xn, #immediate`, without changing NZCV.
+    AddImmediate {
+        wide: bool,
+        immediate: u16,
+        source: u8,
+        result: u8,
+    },
 }
 
 fn encode_word(word: Word) -> u32 {
@@ -297,12 +309,31 @@ fn encode_word(word: Word) -> u32 {
                 | u32::from(immediate) << 5
                 | reg(general)
         }
-        Word::CompareGreater {
+        Word::Compare {
+            equal,
             double,
             left,
             right,
             result,
-        } => 0x7ea0_e400 | width(double) << 22 | reg(right) << 16 | reg(left) << 5 | reg(result),
+        } => {
+            (if equal { 0x5e20_e400 } else { 0x7ea0_e400 })
+                | width(double) << 22
+                | reg(right) << 16
+                | reg(left) << 5
+                | reg(result)
+        }
+        Word::AddImmediate {
+            wide,
+            immediate,
+            source,
+            result,
+        } => {
+            0x1100_0000
+                | width(wide) << 31
+                | u32::from(immediate) << 10
+                | reg(source) << 5
+                | reg(result)
+        }
         Word::BitwiseSelect {
             mask,
             if_set,
@@ -375,10 +406,17 @@ fn decode_word(word: u32) -> Option<Word> {
             immediate: ((word >> 5) & 0xffff) as u16,
             general: field(0),
         },
-        _ if word & 0xffa0_fc00 == 0x7ea0_e400 => Word::CompareGreater {
+        _ if matches!(word & 0xffa0_fc00, 0x7ea0_e400 | 0x5e20_e400) => Word::Compare {
+            equal: word & 0xffa0_fc00 == 0x5e20_e400,
             double: bit(22),
             left: field(5),
             right: field(16),
+            result: field(0),
+        },
+        _ if word & 0x7fc0_0000 == 0x1100_0000 => Word::AddImmediate {
+            wide: bit(31),
+            immediate: ((word >> 10) & 0xfff) as u16,
+            source: field(5),
             result: field(0),
         },
         _ if word & 0xffe0_fc00 == 0x2e60_1c00 => Word::BitwiseSelect {
@@ -418,6 +456,26 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
     };
     let (first, second, mask) = (LEFT_SCRATCH, RIGHT_SCRATCH, MASK_SCRATCH);
     match form.operation {
+        IeeeFloatArithmeticOperation::IsNan => vec![
+            move_in(registers[0], first, double),
+            Word::Compare {
+                equal: true,
+                double,
+                left: first,
+                right: first,
+                result: first,
+            },
+            move_out(first),
+            // Equality with itself is false only for NaN. Increment its
+            // all-ones/zero mask at the carrier width to obtain exactly 0/1,
+            // with no flags changed and no second evaluation of the operand.
+            Word::AddImmediate {
+                wide: double,
+                immediate: 1,
+                source: result,
+                result,
+            },
+        ],
         IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
             move_in(registers[0], first, double),
             move_in(registers[1], second, double),
@@ -452,7 +510,8 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
             vec![
                 move_in(registers[0], first, double),
                 move_in(registers[1], second, double),
-                Word::CompareGreater {
+                Word::Compare {
+                    equal: false,
                     double,
                     left,
                     right,
@@ -739,6 +798,15 @@ mod tests {
     fn encodings_match_the_architectural_words() {
         use IeeeFloatArithmeticOperation as Operation;
         use IeeeFloatFormat::{Binary32, Binary64};
+        // Independently assembled: FMOV; FCMEQ self; FMOV; ADD #1.
+        assert_eq!(
+            words(form(Operation::IsNan, Binary32), &[0, 0]),
+            [0x1e27_0010, 0x5e30_e610, 0x1e26_0200, 0x1100_0400]
+        );
+        assert_eq!(
+            words(form(Operation::IsNan, Binary64), &[0, 0]),
+            [0x9e67_0010, 0x5e70_e610, 0x9e66_0200, 0x9100_0400]
+        );
         // fmov d16,x1; fmov d17,x2; fmul d16,d16,d17;
         // fmov d17,x3; fadd d16,d16,d17; fmov x0,d16.
         assert_eq!(
