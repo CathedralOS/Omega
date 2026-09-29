@@ -159,12 +159,13 @@ impl Builder<'_, '_> {
                 ) == facts::PlaceRoot::Symbol(root)
         })?;
         let parameter_index = self.dense_structural_parameter_index(authored_position)?;
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_observed_path(
             self.program,
             self.machine,
             self.state,
             statement_index,
             &place,
+            &|selector| self.local_selector(selector),
         )?;
         Some(checked_trees::CheckedUnitStructuralArgumentPlan {
             source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
@@ -177,6 +178,50 @@ impl Builder<'_, '_> {
                 .as_str()
                 .to_owned(),
             access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+        })
+    }
+
+    /// A runtime selector naming an immutable integer scalar local of this
+    /// state: the temp symbol resolution hoists a computed subject index
+    /// (`self.grid[self.r * 6 + self.c]`) into. It selects at the local's
+    /// dense `Local` position, the coordinate every scalar read of that local
+    /// in this computation uses.
+    fn local_selector(
+        &self,
+        selector: ExpressionHandle,
+    ) -> Option<checked_trees::CheckedRuntimeIndex> {
+        let (
+            checked_trees::CheckedScalarExpression::Local {
+                position,
+                primitive_type,
+            },
+            _,
+        ) = crate::values::scalar::scalar_lowering::lower_scalar_expression(
+            self.program,
+            self.operators,
+            selector,
+            self.parameters,
+            self.authored_parameters,
+            self.parameter_types,
+            self.locals,
+            self.exact_integer_casts,
+        )?
+        else {
+            return None;
+        };
+        matches!(
+            primitive_type,
+            PrimitiveType::U8
+                | PrimitiveType::U16
+                | PrimitiveType::U32
+                | PrimitiveType::U64
+                | PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+        )
+        .then_some(checked_trees::CheckedRuntimeIndex::Local {
+            position: u32::try_from(position).ok()?,
         })
     }
 

@@ -4,7 +4,7 @@ use crate::expression_preparation::computation_graph::fields;
 use crate::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::data::DataMember;
-use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use checked_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use checked_trees::{
     CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument,
     CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
@@ -381,6 +381,78 @@ fn local_place(
 /// Whether an authored selector (`self.w`) is exactly the field read a
 /// `RuntimeIndex` segment names: the same root parameter and the same field
 /// identities in order.
+/// Whether `selector` is the bare name of the immutable integer local at dense
+/// `position` of the state's scalar namespace: its non-erased scalar
+/// parameters, then its initialized immutable primitive locals in declaration
+/// order -- the temp symbol resolution hoists a computed subject index into.
+fn selector_names_local(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    selector: ExpressionHandle,
+    position: u32,
+) -> bool {
+    let ExpressionNode::Name(name) = checked.expression_table.expression(selector) else {
+        return false;
+    };
+    if !name.symbol.is_valid()
+        || name.head_symbol != name.symbol
+        || checked
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return false;
+    }
+    let parameters = checked
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| {
+            !parameter.relevance.is_erased()
+                && checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+        })
+        .count();
+    let Some((ordinal, local)) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            checked_trees::statement::StatementNode::LocalData(local)
+                if !local.is_mutable
+                    && local.initial_value.is_valid()
+                    && checked
+                        .primitive_type_reference(local.type_reference)
+                        .is_some() =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .enumerate()
+        .find(|(_, local)| local.symbol == name.symbol)
+    else {
+        return false;
+    };
+    checked
+        .primitive_type_reference(local.type_reference)
+        .is_some_and(|primitive| {
+            matches!(
+                primitive,
+                PrimitiveType::U8
+                    | PrimitiveType::U16
+                    | PrimitiveType::U32
+                    | PrimitiveType::U64
+                    | PrimitiveType::I8
+                    | PrimitiveType::I16
+                    | PrimitiveType::I32
+                    | PrimitiveType::I64
+            )
+        })
+        && u32::try_from(parameters + ordinal).ok() == Some(position)
+}
+
 fn selector_names_field(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,
@@ -646,13 +718,16 @@ fn parameter_place(
                 else {
                     return unsupported("case membership requires a fixed-array carrier");
                 };
-                let CheckedUnitStructuralPathSegment::RuntimeIndex(
-                    checked_trees::CheckedRuntimeIndex::StructuralField(field),
-                ) = segment
-                else {
-                    return unsupported("case membership changed its runtime element");
+                let names_selector = match segment {
+                    CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                    ) => selector_names_field(checked, machine, state, *selector, field),
+                    CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::Local { position },
+                    ) => selector_names_local(checked, state, *selector, *position),
+                    _ => return unsupported("case membership changed its runtime element"),
                 };
-                if !selector_names_field(checked, machine, state, *selector, field) {
+                if !names_selector {
                     return unsupported("case membership substituted its element selector");
                 }
                 type_reference = *element_type;

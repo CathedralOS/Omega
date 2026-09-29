@@ -359,6 +359,7 @@ impl ScalarBindings {
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         case: &str,
+        scalar_types: &[semantic_vocabulary::QualifiedScalarType],
     ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
         let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
             argument.source
@@ -415,26 +416,47 @@ impl ScalarBindings {
             &static_path(&argument.path[selector_position + 1..])?,
             case,
         )?;
-        let checked_trees::CheckedRuntimeIndex::StructuralField(field) = selector else {
-            return unsupported("runtime case observation requires a field selector");
+        let index = match selector {
+            checked_trees::CheckedRuntimeIndex::StructuralField(field) => {
+                let (selector_source, selector_path, leaf, scalar_type) =
+                    structural_fields::resolve_typed(
+                        &self.structural_fields,
+                        field.parameter_position,
+                        &field.path,
+                    )?;
+                LoweredDirectExpression::StructuralField {
+                    source: selector_source,
+                    path: selector_path,
+                    field: leaf,
+                    scalar_type,
+                }
+            }
+            // A hoisted computed selector is an established immutable local:
+            // the observation reads its value at the local's dense position.
+            checked_trees::CheckedRuntimeIndex::Local { position } => {
+                let position = self.authored_position(*position as usize)?;
+                LoweredDirectExpression::Local {
+                    position,
+                    scalar_type: scalar_types
+                        .get(position)
+                        .ok_or(LoweringError::Unsupported(
+                            "runtime case observation selector is outside its scalar frame",
+                        ))?
+                        .scalar_type,
+                }
+            }
+            _ => return unsupported("runtime case observation requires a field or local selector"),
         };
-        let (selector_source, selector_path, leaf, scalar_type) = structural_fields::resolve_typed(
-            &self.structural_fields,
-            field.parameter_position,
-            &field.path,
-        )?;
-        if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+        if !matches!(
+            index.scalar_type(),
+            ScalarType::Integer(integer) if !integer.is_address()
+        ) {
             return unsupported("runtime case observation selector is not an integer read");
         }
         Ok(LoweredBooleanReturnExpression::IndexedCaseMembership {
             source,
             path,
-            index: Box::new(LoweredDirectExpression::StructuralField {
-                source: selector_source,
-                path: selector_path,
-                field: leaf,
-                scalar_type,
-            }),
+            index: Box::new(index),
             element_path,
             case,
         })

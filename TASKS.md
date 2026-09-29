@@ -167,13 +167,14 @@ the complete product bar; focused successes below do not establish that baseline
   - **Aggregate construction, replacement and subsequent reads.** Keep
     whole-place and match-produced values, fixed-index element replacements,
     whole nominal receiver replacement, qualified byte-slice literals, case literals,
-    and array literal elements that read storage. Case and record arrays
-    (`dungeon_render`) are owned by
-    **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**; do not widen the shared bare-array
-    classifier merely to route one store. The old request to construct relevant
-    `UInt`/`Int` fields was invalid: these unbounded proof integers have no
-    runtime representation, and checking now diagnoses them. Preserve erased
-    proof fields and use represented carriers for runtime storage.
+    and array literal elements that read storage. Case and record array
+    literals replace one element window at a time
+    (`pass/collections/case_array_literal_field_store_exit`); do not widen the
+    shared bare-array classifier merely to route one store. The old request to
+    construct relevant `UInt`/`Int` fields was invalid: these unbounded proof
+    integers have no runtime representation, and checking now diagnoses them.
+    Preserve erased proof fields and use represented carriers for runtime
+    storage.
 
     Ordinary record-field replacement already uses `OpenWindows::replace`
     with move-out/store and exact displaced-value cleanup. Omega's
@@ -573,12 +574,12 @@ the complete product bar; focused successes below do not establish that baseline
   | `rendering/{bouncing_ball_2d,mandelbrot_zoom}` | Past **OPERATOR-BOUNDARY-CALLS**: at `e1fba057b1` on macOS ARM64 both stop at "selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`", because each declares a package-local `Clock` that nothing provides. The documented migration to `omega_language_std::clock` needs a macOS sleep leg, and `poll(NULL, 0, ms)` has no realization route: a leaf's foreign signature must equal its Omega signature, and a checked adapter over `darwin_poll` reaches `DarwinClock` outside `Clock::sleep`'s ceiling (the marshalled-syscall question in OWNER_QUESTIONS.md). Retain `pending/arithmetic/float_computation_no_route`. |
   | `rendering/bouncing_particles` | At `e5cb2fc2dbf` on macOS ARM64 it stops at "selected ProgramEntry Binding field `Main::clock` requires a selected Fused provider for boundary `Clock`": its package-local `Clock` has no provider, and std `clock` has no leg that sleeps (the marshalled-syscall question in OWNER_QUESTIONS.md). A scratch copy with the clock field and `sleep` removed stops at the private `proof_search_candidate_work` provision (16384) with Unit call obligation 2^63 + 9 unproved; `collections/entity_list`, formerly in this row, meets its oracle. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
-  | `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. Retain `dungeon_render`'s field/glyph evidence under **NOMINAL-FIELD-FLOW** while verifying its complete program; transition transport is already implemented. |
+  | `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |
   | `systems/file_journal`, `systems/note_vault`, `interpreters/calculator_rpn` | **STATE-LOCAL-VALUE-FRONTIER**: result custody, library callee composition, and indexed nested-field initialization. Follow `Filesystem::create_dir_all` in `note_vault`; for `calculator_rpn`, retain the Console-bearing receiver and `let a: i32 in Saturating = self.stack.slots[0]`. Its std-free reduction does not reproduce the full program. |
   | Integer type/policy migration verification | **IMPLICIT-STORE-CONVERSION**: the remaining native customers are `windowed_calculator` on **OPERATOR-BOUNDARY-CALLS** (`F64::from_i32`); `dungeon_crawler_cli` on the `&mut` projected-field parameter path in `terminal_unit/calls` (**STATE-LOCAL-VALUE-FRONTIER**); `game_of_life` declines `[i32 [0..=1]; 16]` per-element array bounds — no spelling bounds every element; tracked as owner question `per-element-array-bounds` (also relevant to CANONICALIZE-SCALAR-RANGE-CONTRACTS). |
   | Clock-bearing samples | `binary_search_viz`, `sort_visualizer`, `bouncing_console`, `ripple_field`, `tick_marquee`, `cellular_automaton`, `game_of_life_glider`, `langtons_ant` and `random_walk` realize their `DarwinClock` calls on macOS ARM64: a direct call to an evaluated-binding leaf plans as a boundary call on its exact requirement, publishes that requirement's reach, and settles as the reviewed libSystem import. All nine now stop in Terminal verification at `InvalidProviderCandidate` for their stateful `sleep(&mut self, ms)` adapters: the candidate keeps its `&mut self` provider parameter while the requirement's service receiver has none (`provider_candidates.rs`). A Clock2 pacing probe with no darwin call stops there on the base too; a stateful provider behind a `Binding` field needs storage the erased field does not carry. **STATE-LOCAL-VALUE-FRONTIER** also owns a direct leaf call from a machine that holds provider fields: stage 05's `called_boundaries` and Terminal verification's provider-attachment specialization count every signature-directed `BoundaryCall` as a field obligation. Verify complete pacing/output and the other declared hosts once these close. |
-  | `rendering/dungeon_render` and other text/index/match programs | **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY** own their missing operations/facts. Retain `Utf8` and ordinary domain evidence; recognized function names or weakened invariants cannot replace it. |
+  | Text/index/match programs | **NOMINAL-FIELD-FLOW**, **WRITE-ONLY-BORROW**, **STATE-LOCAL-VALUE-FRONTIER**, **MATCH-SELECTIVE-LOWERING**, **CML4** and **OPERATOR-MACHINE-SUPPLY** own their missing operations/facts. Retain `Utf8` and ordinary domain evidence; recognized function names or weakened invariants cannot replace it. |
 
   Sample paths in the table are relative to `samples/cli` unless prefixed `gui/`;
   pending reproductions are under `tests/omega`. Repaired fixture-level cases
@@ -1109,8 +1110,8 @@ the complete product bar; focused successes below do not establish that baseline
   Transition argument transport already exists in `src/flow/state_values.rs` and
   `src/flow/state_values/fields.rs`: live literal, byte-predicate and integer-bound
   facts rebase onto named parameter storage and join across incoming edges.
-  Incoming glyph bounds also reach `dungeon_render`'s `put(ch: u8)` path.
-  Verify the complete sample using these routes. A byte store preserves `Utf8`
+  Incoming glyph bounds also reach `dungeon_render`'s `put(ch: u8)` path, which
+  runs natively. A byte store preserves `Utf8`
   only with the necessary carrier/byte evidence: `ValidUtf8` alone does not
   imply `AsciiOnly`.
 
@@ -1301,47 +1302,6 @@ named customers while the shared-source/provider work converges. Remove each
 replaced route as its common operation takes over; preserve negative checking,
 crash and native exit behavior. Use affected check/native corpus slices under
 [the validation policy](tools/testing.md), with full gates at release closure.
-
-- **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** Complete whole-array and indexed-row
-  assignment for arithmetic-policy elements and structural elements. Customer:
-  `samples/cli/rendering/dungeon_render` assigns an array of payload-free
-  `Cell` cases. Preserve plain-record arrays too.
-  `tests/omega/pass/collections/element_policy_array_literal_store` checks only
-  the flat Wrapping store; its other policy, record and row controls are
-  comments, not executable coverage. Nested Wrapping element reads
-  (`matrix_multiply`, exit 189) run through `StructuralParameterIndexedRead`
-  `inner_indexes`, pinned by
-  `tests/omega/pass/collections/nested_runtime_indexed_successor_argument_exit`.
-
-  Structural-element arrays run natively (macOS ARM64): an array literal of
-  cases or records assigned to a whole field, a fixed or runtime row, or a
-  nested whole field establishes every leaf in row-major order, then replaces
-  each element through its own window pair (stage 04
-  `statement_sequence/assignments.rs::element_replacements`; stage 05
-  `field_replacement.rs::validate_array_element_replacements` for the
-  single-state body and the state graph). Executable controls in
-  `tests/omega/pass/collections/`: `case_array_literal_field_store_exit`,
-  `record_array_literal_field_store_exit`, `case_array_literal_row_store_exit`,
-  `case_array_literal_nested_store_exit`, `case_array_literal_callee_store_exit`.
-  Policy-array controls (Wrapping, Saturating, whole-array policy) remain
-  check-only.
-
-  Frontier: dungeon now stops at the computed match subject
-  `self.grid[self.r * 6 + self.c]` (`state graph: terminator: guarded jump
-  successors: roster`, state 5); `self.grid[self.k]` runs. Stage 02 hoists the
-  computed index into an immutable scalar local, and `CheckedRuntimeIndex` has
-  no selector for a local (only `Parameter`, `AssignmentIndex`,
-  `StructuralField`), so `runtime_element_case_subject` mints no
-  `CaseMembership` guard and no guarded tail is retained. Keep the shared
-  `constant_arrays.rs` predicate.
-
-  Acceptance: executable controls for bare/whole-array-policy/element-policy
-  arrays, Wrapping and Saturating, records and cases, whole and indexed-row
-  stores, alongside working element stores. Retain exact source types, bounds,
-  qualifications, custody and RHS evaluation before replacement. The unchanged
-  sample renders `######`, `#.+..#`, `#.~..#`, `######` and exits 0 after
-  input. `tools/sample_gate.py --filter dungeon_render` checks only; native
-  execution and the rendered rows are the acceptance.
 
 - **REFERENCE-LOCAL-BINDING-ROUTES.** (new-scope) Establish reference-valued
   locals from every admitted producer, then preserve their loan identity,
