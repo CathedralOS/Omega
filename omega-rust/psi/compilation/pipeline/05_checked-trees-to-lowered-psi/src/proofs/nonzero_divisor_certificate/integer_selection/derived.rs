@@ -1011,6 +1011,7 @@ fn operation_expression(term: &ScalarTerm) -> bool {
             | ScalarTerm::WrappingIntegerAdd { .. }
             | ScalarTerm::ExactIntegerSubtract { .. }
             | ScalarTerm::ExactIntegerMultiply { .. }
+            | ScalarTerm::WrappingIntegerMultiply { .. }
             | ScalarTerm::ExactIntegerDivide { .. }
             | ScalarTerm::WrappingIntegerDivide { .. }
             | ScalarTerm::ExactIntegerRemainder { .. }

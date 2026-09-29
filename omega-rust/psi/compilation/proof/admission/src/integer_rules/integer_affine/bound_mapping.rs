@@ -99,7 +99,10 @@ fn map_integer_affine_bound_with_remainder_policy(
         return map_direct_subtract_bound(form, root_bound);
     }
     if form.endpoint_steps.is_empty()
-        && matches!(form.target(), ScalarTerm::ExactIntegerMultiply { .. })
+        && matches!(
+            form.target(),
+            ScalarTerm::ExactIntegerMultiply { .. } | ScalarTerm::WrappingIntegerMultiply { .. }
+        )
     {
         return map_direct_multiply_bound(form, root_bound);
     }
@@ -710,11 +713,16 @@ fn map_direct_multiply_bound(
     let [left_first, left_second, right_first, right_second] = parts.as_slice() else {
         return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
     };
-    let ScalarTerm::ExactIntegerMultiply {
+    let (ScalarTerm::ExactIntegerMultiply {
         scalar_type,
         left,
         right,
-    } = form.target()
+    }
+    | ScalarTerm::WrappingIntegerMultiply {
+        scalar_type,
+        left,
+        right,
+    }) = form.target()
     else {
         return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
     };
@@ -777,6 +785,17 @@ fn map_direct_multiply_bound(
         multiply_math_literals(left_upper, right_lower)?,
         multiply_math_literals(left_upper, right_upper)?,
     ];
+    let wrapping = matches!(form.target(), ScalarTerm::WrappingIntegerMultiply { .. });
+    // A fitting requested endpoint alone is insufficient: wrap at the opposite
+    // corner can reverse the bound. All four corners must fit before the
+    // mathematical rectangle describes this modular operation's scalar image.
+    if wrapping
+        && products
+            .iter()
+            .any(|corner| corner.as_integer_value(*scalar_type).is_none())
+    {
+        return Err(IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow);
+    }
     let bound = products
         .into_iter()
         .reduce(|current, candidate| {
@@ -789,6 +808,18 @@ fn map_direct_multiply_bound(
             }
         })
         .expect("four product corners");
+    if wrapping {
+        let bound = bound
+            .as_integer_value(*scalar_type)
+            .ok_or(IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow)?;
+        let literal = ScalarTerm::integer(*scalar_type, bound)
+            .map_err(|_| IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow)?;
+        return Ok(if lower {
+            Proposition::LessOrEqual(literal, form.target().clone())
+        } else {
+            Proposition::LessOrEqual(form.target().clone(), literal)
+        });
+    }
     let product = IntegerMathTerm::Multiply(
         Box::new(
             direct_math_leaf(left, form.integer_type())
