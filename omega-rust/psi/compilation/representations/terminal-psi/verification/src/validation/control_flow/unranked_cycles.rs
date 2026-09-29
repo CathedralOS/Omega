@@ -489,12 +489,18 @@ fn cycle_operation_eligible(
     operation: &terminal_psi::Operation,
 ) -> bool {
     match &operation.kind {
+        // An unrestricted scalar case is a copy payload, like the
+        // unrestricted structural case below: re-entering the establishment
+        // replaces a custody-free value each traversal and no disposal
+        // obligation exists. An affine scalar case stays confined to the
+        // block's return or dispatch source.
         OperationKind::EstablishScalarCase { .. } => {
             crate::validation::scalar::case::fields(module, machine, operation).is_ok()
                 && operation.result.structural().is_some_and(|result| {
                     matches!(&block.terminator, Terminator::ReturnStructural { source, .. }
                                     if *source == result.place)
                         || case_source == Some(result.place)
+                        || result.multiplicity == StructuralMultiplicity::Unrestricted
                 })
         }
         // A confined result — the same block's affine dispatch or return
@@ -720,7 +726,10 @@ fn cycle_operation_eligible(
                 .find(|candidate| candidate.id == *boundary)
                 .map(|boundary| boundary.structural_parameters.as_slice())
                 .unwrap_or(&[]);
+            // A scalar result is an ordinary value, as an in-module call's
+            // is: it carries no custody across the cycle.
             (operation.result == OperationResult::Unit
+                || operation.result.scalar().is_some()
                 || operation.result.structural().is_some_and(|result| {
                     case_source == Some(result.place)
                                     // An affine boundary result disposed on
