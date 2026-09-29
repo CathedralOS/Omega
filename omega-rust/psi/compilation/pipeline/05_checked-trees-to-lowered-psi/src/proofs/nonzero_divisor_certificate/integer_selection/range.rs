@@ -228,6 +228,11 @@ pub(super) fn target_bounds(
                         left: root,
                         right: sibling,
                         ..
+                    }
+                    | ScalarTerm::WrappingIntegerRemainder {
+                        left: root,
+                        right: sibling,
+                        ..
                     } => vec![(root.as_ref(), sibling.as_ref())],
                     ScalarTerm::IntegerBitwiseAnd { left, right, .. } => vec![
                         (left.as_ref(), right.as_ref()),

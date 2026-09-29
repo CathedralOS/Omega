@@ -49,9 +49,6 @@ pub fn check_integer_cast_chain_witness(
     semantic_axioms: &[Proposition],
     witness: &IntegerCastChainWitness,
 ) -> Result<CheckedIntegerCastChain, IntegerCastChainWitnessError> {
-    if !matches!(witness.root, ScalarTerm::Value { .. }) {
-        return Err(IntegerCastChainWitnessError::RootNotValue);
-    }
     let ScalarType::Integer(root_type) = witness.root.scalar_type() else {
         return Err(IntegerCastChainWitnessError::RootNotInteger);
     };
@@ -76,17 +73,20 @@ pub fn check_integer_cast_chain_witness(
         let proposition = semantic_axioms
             .get(index)
             .ok_or(IntegerCastChainWitnessError::UnknownSemanticAxiom(index))?;
+        // The first cited equality validates the complete root expression and
+        // its context before exact operand identity is checked below. This is
+        // type validation, not authority to form or evaluate partial arithmetic.
         context
             .validate(proposition)
             .map_err(IntegerCastChainWitnessError::MalformedProposition)?;
         let Proposition::Equal(next, definition) = proposition else {
             return Err(IntegerCastChainWitnessError::DefinitionNotEquality(index));
         };
-        if !matches!(next, ScalarTerm::Value { .. }) {
+        let ScalarTerm::Value { id: next_id, .. } = next else {
             return Err(IntegerCastChainWitnessError::DefinitionTargetNotValue(
                 index,
             ));
-        }
+        };
         let (source_type, target_type, operand, exact_cast) = match definition {
             ScalarTerm::IntegerExactCast {
                 source_type,
@@ -122,7 +122,7 @@ pub fn check_integer_cast_chain_witness(
                 target: *target_type,
             });
         }
-        if values.contains(next) {
+        if values.contains(next) || witness.root.any_value_id(|root_id| root_id == *next_id) {
             return Err(IntegerCastChainWitnessError::CyclicValue(index));
         }
         let target_interval = fixed_native_interval(*target_type).ok_or(
@@ -183,7 +183,6 @@ fn integer_value_as_i128(integer_type: IntegerType, value: IntegerValue) -> Opti
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum IntegerCastChainWitnessError {
-    RootNotValue,
     RootNotInteger,
     UnsupportedCarrier(IntegerType),
     EmptyCastChain,
@@ -365,6 +364,9 @@ impl std::fmt::Display for IntegerCastBoundConversionError {
 }
 
 impl std::error::Error for IntegerCastBoundConversionError {}
+
+#[cfg(test)]
+mod expression_roots;
 
 #[cfg(test)]
 mod tests {

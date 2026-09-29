@@ -1,14 +1,238 @@
-use super::{literal, value};
+use super::{literal, unsigned_literal, value};
 use crate::integer_rules::integer_affine::{
     IntegerAffineWitness, IntegerAffineWitnessError, check_integer_affine_witness,
     integer_affine_wrapping_evidence, map_integer_affine_bound,
 };
+use crate::{ProofNode, ProofRule, check_certificate};
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::Proposition;
 use semantic_vocabulary::PropositionContext;
 use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::{IntegerSign, ValueId};
+
+#[test]
+fn direct_literal_remainder_maps_and_certifies_without_invented_definitions() {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let root = value(1, integer_type);
+    let target = ScalarTerm::exact_integer_remainder(
+        integer_type,
+        root.clone(),
+        unsigned_literal(integer_type, 256),
+    )
+    .unwrap();
+    let context = PropositionContext::from_value_types([(
+        ValueId::new(1).unwrap(),
+        ScalarType::Integer(integer_type),
+    )])
+    .unwrap();
+    let witness = IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: Vec::new(),
+        literal_axioms: Vec::new(),
+    };
+    let form = check_integer_affine_witness(&context, &[], &witness).unwrap();
+    let premise = Proposition::LessOrEqual(root, unsigned_literal(integer_type, 57));
+    let goal = Proposition::LessOrEqual(target.clone(), unsigned_literal(integer_type, 57));
+    assert_eq!(map_integer_affine_bound(&form, &premise), Ok(goal.clone()));
+    let proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness,
+        },
+    };
+    check_certificate(&context, &goal, std::slice::from_ref(&premise), &[], &proof)
+        .expect("the direct expression bound independently checks");
+    let false_goal = Proposition::LessOrEqual(target, unsigned_literal(integer_type, 56));
+    let false_proof = ProofNode {
+        conclusion: false_goal.clone(),
+        ..proof
+    };
+    assert!(check_certificate(&context, &false_goal, &[premise], &[], &false_proof).is_err());
+}
+
+#[test]
+fn direct_remainder_rejects_zero_divisors_and_unbound_or_mismatched_terms() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+    let root = value(1, integer_type);
+    let other = value(2, integer_type);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+    ])
+    .unwrap();
+    let target = |dividend, divisor| {
+        ScalarTerm::exact_integer_remainder(integer_type, dividend, divisor).unwrap()
+    };
+    let witness = |target| IntegerAffineWitness {
+        root: root.clone(),
+        target,
+        definition_axioms: Vec::new(),
+        literal_axioms: Vec::new(),
+    };
+    assert_eq!(
+        check_integer_affine_witness(
+            &context,
+            &[],
+            &witness(target(root.clone(), literal(integer_type, 0))),
+        ),
+        Err(IntegerAffineWitnessError::ZeroDivisionLiteral),
+    );
+    assert_eq!(
+        check_integer_affine_witness(
+            &context,
+            &[],
+            &witness(target(root.clone(), literal(integer_type, -1))),
+        ),
+        Err(IntegerAffineWitnessError::EmptyDefinitionChain),
+        "a direct signed remainder cannot assume MIN / -1 is representable",
+    );
+    for divisor in [-256, 256] {
+        let direct = witness(target(root.clone(), literal(integer_type, divisor)));
+        let form = check_integer_affine_witness(&context, &[], &direct).unwrap();
+        assert_eq!(
+            map_integer_affine_bound(
+                &form,
+                &Proposition::LessOrEqual(root.clone(), literal(integer_type, -57)),
+            ),
+            Ok(Proposition::LessOrEqual(
+                direct.target.clone(),
+                literal(integer_type, 0)
+            )),
+        );
+        let phantom_landing = IntegerAffineWitness {
+            literal_axioms: vec![None],
+            ..direct
+        };
+        assert!(check_integer_affine_witness(&context, &[], &phantom_landing).is_err());
+    }
+    for invalid_target in [
+        target(other.clone(), literal(integer_type, 256)),
+        target(literal(integer_type, 256), root.clone()),
+        target(root.clone(), other),
+    ] {
+        assert!(check_integer_affine_witness(&context, &[], &witness(invalid_target)).is_err());
+    }
+    let empty_context = PropositionContext::from_value_types([]).unwrap();
+    assert!(matches!(
+        check_integer_affine_witness(
+            &empty_context,
+            &[],
+            &witness(target(root.clone(), literal(integer_type, 256))),
+        ),
+        Err(IntegerAffineWitnessError::MalformedProposition(_)),
+    ));
+}
+
+#[test]
+fn unsigned_wrapping_remainder_retains_landed_divisor_and_bound_evidence() {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let root = value(1, integer_type);
+    let divisor = value(2, integer_type);
+    let target = value(3, integer_type);
+    let context = PropositionContext::from_value_types((1..=3).map(|value_id| {
+        (
+            ValueId::new(value_id).unwrap(),
+            ScalarType::Integer(integer_type),
+        )
+    }))
+    .unwrap();
+    let axioms = [
+        Proposition::Equal(divisor.clone(), unsigned_literal(integer_type, 10)),
+        Proposition::Equal(
+            target.clone(),
+            ScalarTerm::wrapping_integer_remainder(integer_type, root.clone(), divisor).unwrap(),
+        ),
+    ];
+    let witness = IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: vec![1],
+        literal_axioms: vec![Some(0)],
+    };
+    let form = check_integer_affine_witness(&context, &axioms, &witness).unwrap();
+    for (input_bound, expected) in [(100, 9), (7, 7), (0, 0)] {
+        let premise =
+            Proposition::LessOrEqual(root.clone(), unsigned_literal(integer_type, input_bound));
+        let goal =
+            Proposition::LessOrEqual(target.clone(), unsigned_literal(integer_type, expected));
+        assert_eq!(map_integer_affine_bound(&form, &premise), Ok(goal.clone()));
+        let proof = ProofNode {
+            conclusion: goal.clone(),
+            rule: ProofRule::IntegerAffineBound {
+                root_bound: Box::new(ProofNode {
+                    conclusion: premise.clone(),
+                    rule: ProofRule::Assumption { index: 0 },
+                }),
+                witness: witness.clone(),
+            },
+        };
+        check_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&premise),
+            &axioms,
+            &proof,
+        )
+        .expect("unsigned wrapping remainder bounds retain the checked literal landing");
+        if expected > 0 {
+            let false_goal = Proposition::LessOrEqual(
+                target.clone(),
+                unsigned_literal(integer_type, expected - 1),
+            );
+            let false_proof = ProofNode {
+                conclusion: false_goal.clone(),
+                ..proof
+            };
+            assert!(
+                check_certificate(&context, &false_goal, &[premise], &axioms, &false_proof)
+                    .is_err()
+            );
+        }
+    }
+    let mut zero_divisor = axioms.clone();
+    zero_divisor[0] = Proposition::Equal(value(2, integer_type), unsigned_literal(integer_type, 0));
+    assert_eq!(
+        check_integer_affine_witness(&context, &zero_divisor, &witness),
+        Err(IntegerAffineWitnessError::ZeroDivisionLiteral),
+    );
+    let missing_landing = IntegerAffineWitness {
+        literal_axioms: vec![None],
+        ..witness
+    };
+    assert!(check_integer_affine_witness(&context, &axioms, &missing_landing).is_err());
+
+    let signed = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+    let signed_context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(signed)),
+        (ValueId::new(3).unwrap(), ScalarType::Integer(signed)),
+    ])
+    .unwrap();
+    let signed_axiom = Proposition::Equal(
+        value(3, signed),
+        ScalarTerm::wrapping_integer_remainder(signed, value(1, signed), literal(signed, 10))
+            .unwrap(),
+    );
+    assert!(
+        check_integer_affine_witness(
+            &signed_context,
+            &[signed_axiom],
+            &IntegerAffineWitness {
+                root: value(1, signed),
+                target: value(3, signed),
+                definition_axioms: vec![0],
+                literal_axioms: vec![None],
+            },
+        )
+        .is_err(),
+        "signed wrapping semantics are not silently shared"
+    );
+}
 
 #[test]
 fn checks_ordered_add_subtract_multiply_normalization() {

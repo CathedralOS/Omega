@@ -133,7 +133,7 @@ rows! {
     NORM_AFFINE_WITNESS => (
         "normalization:integer-affine-witness",
         NormalizationConversion,
-        "an ordered affine witness of exact-add definition steps and literal landings over one carrier",
+        "an ordered endpoint witness of supported arithmetic definitions and literal landings over one carrier, including nonzero unsigned wrapping remainder, or a supported direct arithmetic expression such as literal remainder",
         "the mapped bound from root to target when every step checks; the witness is bounded and validated before interpretation",
         &["normalization:closed-integer-evaluator"],
         &[pa!( "integer_rules/integer_affine.rs"), pa!( "integer_rules/integer_affine/witness_checking.rs"), pa!( "integer_rules/integer_affine/bound_mapping.rs"), pa!( "integer_rules/integer_affine/truth_bounds.rs"), tp!( "artifacts/proof_bundle/witnesses.rs")]

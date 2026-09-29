@@ -565,6 +565,11 @@ fn affine_definition_bounds(
             left,
             right,
         }
+        | ScalarTerm::WrappingIntegerAdd {
+            scalar_type,
+            left,
+            right,
+        }
         | ScalarTerm::IntegerBitwiseAnd {
             scalar_type,
             left,
@@ -591,6 +596,11 @@ fn affine_definition_bounds(
             right,
         }
         | ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::WrappingIntegerRemainder {
             scalar_type,
             left,
             right,
@@ -833,8 +843,9 @@ fn add_literals(
     integer_type.admits(value).then_some(value)
 }
 
-/// Source-carrier endpoints of every exact-cast output of `integer_type`,
-/// each mapped from the source's own carrier bound through the cast chain.
+/// Independently proved source endpoints of each exact-cast output.
+/// A returned contract may expose its operand expression without an SSA name;
+/// use that exact expression, never manufacture a definition to name it.
 fn cast_image_bounds(
     context: &PropositionContext,
     integer_type: IntegerType,
@@ -853,37 +864,56 @@ fn cast_image_bounds(
         if output.scalar_type() != ScalarType::Integer(integer_type) {
             continue;
         }
-        let Some((root, _)) = cast_custody::source_root(output, semantic_axioms) else {
+        let Some((root, first_cast)) = cast_custody::source_root(output, semantic_axioms) else {
             continue;
         };
         let ScalarType::Integer(root_type) = root.scalar_type() else {
             continue;
         };
+        let mut source_bounds = Vec::new();
         for (root_value, lower) in [
             (root_type.minimum_value(), true),
             (root_type.maximum_value(), false),
         ] {
-            let (Ok(root_literal), Some(Ok(literal))) = (
-                ScalarTerm::integer(root_type, root_value),
-                root_type
-                    .exact_cast_value_to(integer_type, root_value)
-                    .map(|value| ScalarTerm::integer(integer_type, value)),
-            ) else {
+            let Ok(root_literal) = ScalarTerm::integer(root_type, root_value) else {
                 continue;
             };
-            let (root_bound, goal) = if lower {
-                (
-                    Proposition::LessOrEqual(root_literal, root.clone()),
-                    Proposition::LessOrEqual(literal, output.clone()),
-                )
+            let root_bound = if lower {
+                Proposition::LessOrEqual(root_literal, root.clone())
             } else {
-                (
-                    Proposition::LessOrEqual(root.clone(), root_literal),
-                    Proposition::LessOrEqual(output.clone(), literal),
-                )
+                Proposition::LessOrEqual(root.clone(), root_literal)
             };
-            let Some(root_bound) = integer_carrier_bound(context, &root_bound) else {
+            if let Some(proof) = integer_carrier_bound(context, &root_bound) {
+                push_new(&mut source_bounds, proof);
+            }
+        }
+        // The earlier ledger prefix excludes the cast's own output facts.
+        // Recursive source queries strictly shorten that prefix, so a later
+        // conversion cannot provide its own prerequisite bound.
+        source_bounds.extend(cast_source_bounds(
+            context,
+            &root,
+            assumptions,
+            &semantic_axioms[..first_cast],
+        ));
+        for root_bound in source_bounds {
+            let Proposition::LessOrEqual(left, right) = &root_bound.conclusion else {
                 continue;
+            };
+            let (endpoint, lower) = if right == &root {
+                (left, true)
+            } else if left == &root {
+                (right, false)
+            } else {
+                continue;
+            };
+            let Some(literal) = cast_custody::remap_integer_literal(endpoint, integer_type) else {
+                continue;
+            };
+            let goal = if lower {
+                Proposition::LessOrEqual(literal, output.clone())
+            } else {
+                Proposition::LessOrEqual(output.clone(), literal)
             };
             if let Some(bound) = cast_custody::prove_from_root(
                 context,
@@ -900,14 +930,65 @@ fn cast_image_bounds(
     bounds
 }
 
+fn cast_source_bounds(
+    context: &PropositionContext,
+    source: &ScalarTerm,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+) -> Vec<ProofNode> {
+    let ScalarTerm::ExactIntegerRemainder {
+        scalar_type: integer_type,
+        left,
+        ..
+    } = source
+    else {
+        return Vec::new();
+    };
+    let witness = IntegerAffineWitness {
+        root: left.as_ref().clone(),
+        target: source.clone(),
+        definition_axioms: Vec::new(),
+        literal_axioms: Vec::new(),
+    };
+    let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
+        return Vec::new();
+    };
+    let mut bounds = Vec::new();
+    for lower in [true, false] {
+        for bound in operand_endpoints(
+            context,
+            *integer_type,
+            left,
+            lower,
+            assumptions,
+            semantic_axioms,
+        ) {
+            let Ok(conclusion) = map_integer_affine_bound(&form, &bound.conclusion) else {
+                continue;
+            };
+            let proof = ProofNode {
+                conclusion,
+                rule: ProofRule::IntegerAffineBound {
+                    root_bound: Box::new(bound),
+                    witness: witness.clone(),
+                },
+            };
+            push_new(&mut bounds, proof);
+        }
+    }
+    bounds
+}
+
 fn operation_expression(term: &ScalarTerm) -> bool {
     matches!(
         term,
         ScalarTerm::ExactIntegerAdd { .. }
+            | ScalarTerm::WrappingIntegerAdd { .. }
             | ScalarTerm::ExactIntegerSubtract { .. }
             | ScalarTerm::ExactIntegerMultiply { .. }
             | ScalarTerm::ExactIntegerDivide { .. }
             | ScalarTerm::ExactIntegerRemainder { .. }
+            | ScalarTerm::WrappingIntegerRemainder { .. }
             | ScalarTerm::ExactIntegerShiftLeft { .. }
             | ScalarTerm::ExactIntegerShiftRight { .. }
             | ScalarTerm::IntegerBitwiseAnd { .. }

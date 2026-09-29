@@ -153,12 +153,37 @@ fn demanded_callees(
             // Each reconstructed equation stays in this site's exact context.
             // Index it once rather than rescan the whole roster per dependency.
             let mut definitions: BTreeMap<ValueId, Vec<&Proposition>> = BTreeMap::new();
+            let mut field_definitions: BTreeMap<&ScalarTerm, Vec<&Proposition>> = BTreeMap::new();
             for equation in &site.semantic_axioms {
                 if !charge(remaining, 1) {
                     return demanded;
                 }
                 if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation {
                     definitions.entry(*id).or_default().push(equation);
+                } else if let Proposition::Equal(
+                    field @ (ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. }),
+                    _,
+                ) = equation
+                {
+                    field_definitions.entry(field).or_default().push(equation);
+                }
+            }
+            // A stored call result can be demanded by a later field read.
+            // Bridge that observation through only this site's surviving store
+            // equations. Reconstruction owns mutation invalidation; matching the
+            // complete field term preserves root, path and carrier identity.
+            // This selects a proof candidate, never establishes a field fact.
+            for equation in &site.semantic_axioms {
+                if !charge(remaining, 1) {
+                    return demanded;
+                }
+                if let Proposition::Equal(ScalarTerm::Value { id, .. }, observed) = equation
+                    && let Some(stores) = field_definitions.get(observed)
+                {
+                    if !charge(remaining, stores.len()) {
+                        return demanded;
+                    }
+                    definitions.entry(*id).or_default().extend(stores);
                 }
             }
             let mut visited = BTreeSet::new();

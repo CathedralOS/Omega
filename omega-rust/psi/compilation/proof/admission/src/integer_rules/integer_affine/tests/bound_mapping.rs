@@ -1,4 +1,4 @@
-use super::{literal, value};
+use super::{literal, unsigned_literal, value};
 use crate::integer_rules::integer_affine::witness_checking::CheckedIntegerEndpointStep;
 use crate::integer_rules::integer_affine::{
     CheckedIntegerAffineForm, IntegerAffineBoundConversionError, IntegerAffineWitness,
@@ -13,6 +13,134 @@ use semantic_vocabulary::PropositionContext;
 use semantic_vocabulary::ScalarTerm;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::{IntegerSign, ValueId};
+
+#[test]
+fn unsigned_remainder_intersects_dividend_bounds_and_accepts_legacy_images() {
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let root = value(1, integer_type);
+    let target = value(2, integer_type);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+    ])
+    .unwrap();
+    let literal = |number| unsigned_literal(integer_type, number);
+    let definition = Proposition::Equal(
+        target.clone(),
+        ScalarTerm::exact_integer_remainder(integer_type, root.clone(), literal(256)).unwrap(),
+    );
+    let form = check_integer_affine_witness(
+        &context,
+        &[definition],
+        &IntegerAffineWitness {
+            root: root.clone(),
+            target: target.clone(),
+            definition_axioms: vec![0],
+            literal_axioms: vec![None],
+        },
+    )
+    .unwrap();
+    for (bound, expected) in [
+        (0, 0),
+        (57, 57),
+        (255, 255),
+        (256, 255),
+        (u32::MAX as u128, 255),
+    ] {
+        let premise = Proposition::LessOrEqual(root.clone(), literal(bound));
+        let conclusion = Proposition::LessOrEqual(target.clone(), literal(expected));
+        assert_eq!(
+            map_integer_affine_bound(&form, &premise),
+            Ok(conclusion.clone())
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(&form, &premise, &conclusion),
+            Ok(())
+        );
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form,
+                &premise,
+                &Proposition::LessOrEqual(target.clone(), literal(255)),
+            ),
+            Ok(()),
+            "the previous total-image certificate remains valid",
+        );
+    }
+    for wrong in [56, 58] {
+        assert_eq!(
+            check_integer_affine_bound_conversion(
+                &form,
+                &Proposition::LessOrEqual(root.clone(), literal(57)),
+                &Proposition::LessOrEqual(target.clone(), literal(wrong)),
+            ),
+            Err(IntegerAffineBoundConversionError::ConclusionMismatch),
+            "only the tight or legacy mapping is admitted; relaxation needs evidence",
+        );
+    }
+    assert_eq!(
+        map_integer_affine_bound(&form, &Proposition::LessOrEqual(literal(57), root.clone())),
+        Ok(Proposition::LessOrEqual(literal(0), target)),
+    );
+    assert_eq!(
+        map_integer_affine_bound(&form, &Proposition::LessThan(root, literal(57))),
+        Err(IntegerAffineBoundConversionError::StrictBoundNotTranslation),
+    );
+}
+
+#[test]
+fn signed_remainder_keeps_truncation_bounds_for_both_divisor_signs() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 16).unwrap();
+    let root = value(1, integer_type);
+    let target = value(2, integer_type);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+    ])
+    .unwrap();
+    for divisor in [-256, 256] {
+        let definition = Proposition::Equal(
+            target.clone(),
+            ScalarTerm::exact_integer_remainder(
+                integer_type,
+                root.clone(),
+                literal(integer_type, divisor),
+            )
+            .unwrap(),
+        );
+        let form = check_integer_affine_witness(
+            &context,
+            &[definition],
+            &IntegerAffineWitness {
+                root: root.clone(),
+                target: target.clone(),
+                definition_axioms: vec![0],
+                literal_axioms: vec![None],
+            },
+        )
+        .unwrap();
+        for (bound, upper, expected) in [
+            (-57, true, 0),
+            (0, true, 0),
+            (57, true, 255),
+            (-57, false, -255),
+            (0, false, 0),
+            (57, false, 0),
+        ] {
+            let premise = if upper {
+                Proposition::LessOrEqual(root.clone(), literal(integer_type, bound))
+            } else {
+                Proposition::LessOrEqual(literal(integer_type, bound), root.clone())
+            };
+            let conclusion = if upper {
+                Proposition::LessOrEqual(target.clone(), literal(integer_type, expected))
+            } else {
+                Proposition::LessOrEqual(literal(integer_type, expected), target.clone())
+            };
+            assert_eq!(map_integer_affine_bound(&form, &premise), Ok(conclusion));
+        }
+    }
+}
 
 #[test]
 fn maps_upper_and_lower_bounds_across_every_coefficient_sign() {
