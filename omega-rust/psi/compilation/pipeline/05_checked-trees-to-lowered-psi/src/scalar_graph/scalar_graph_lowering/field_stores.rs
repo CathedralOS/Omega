@@ -89,19 +89,17 @@ pub(super) fn prepare(
         );
     }
     let expression = match store.value {
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(_) => {
-            Some(bindings.expression_at(
-                checked,
-                state,
-                store.statement_index,
-                CheckedScalarExpressionRole::AssignmentValue,
-            )?)
-        }
-        checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_) => None,
+        checked_trees::CheckedStoreValue::Pure(_) => Some(bindings.expression_at(
+            checked,
+            state,
+            store.statement_index,
+            CheckedScalarExpressionRole::AssignmentValue,
+        )?),
+        checked_trees::CheckedStoreValue::Computation(_) => None,
         // A call result is established by the ordered call operation of the
         // attached-Unit statement sequence. This scalar-graph store route has
         // no such operation beside it and cannot substitute a local read.
-        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. } => {
+        checked_trees::CheckedStoreValue::ScalarResult { .. } => {
             return unsupported("record store has no call operation supplying its result");
         }
     };

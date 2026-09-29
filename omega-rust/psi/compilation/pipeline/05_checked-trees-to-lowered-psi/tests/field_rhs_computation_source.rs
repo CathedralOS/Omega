@@ -5,8 +5,8 @@ use checked_trees_to_lowered_psi::TerminalMachineSelection;
 #[test]
 fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution() {
     use checked_trees::{
-        CheckedScalarComputationKind, CheckedScalarExpressionRole,
-        CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectOperationPlan,
+        CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedStoreValue,
+        CheckedUnitEffectOperationPlan,
     };
     let checked = crate::front_end::checked_program(
         r#"
@@ -37,7 +37,7 @@ fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution(
             .filter_map(|operation| match operation {
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                     match store.value {
-                        CheckedStructuralScalarFieldStoreValue::Computation(handle) => Some(handle),
+                        CheckedStoreValue::Computation(handle) => Some(handle),
                         _ => None,
                     }
                 }
@@ -51,13 +51,13 @@ fn field_rhs_computation_custody_rejects_destination_root_and_call_substitution(
                     .flat_map(|machine| &mut machine.operations)
                     .find_map(|operation| match operation {
                         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
-                            if matches!(store.value, CheckedStructuralScalarFieldStoreValue::Computation(handle) if handle == stores[0]) => Some(store),
+                            if matches!(store.value, CheckedStoreValue::Computation(handle) if handle == stores[0]) => Some(store),
                         _ => None,
                     }).unwrap();
                 if mutation == 0 {
                     store.field_identity = "other".into();
                 } else {
-                    store.value = CheckedStructuralScalarFieldStoreValue::Computation(stores[1]);
+                    store.value = CheckedStoreValue::Computation(stores[1]);
                 }
             }
             2 => {

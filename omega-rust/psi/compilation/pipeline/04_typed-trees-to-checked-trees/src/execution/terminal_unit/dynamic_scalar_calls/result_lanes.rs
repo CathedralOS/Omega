@@ -546,6 +546,6 @@ fn checked_caller_structural_scalar_field_store_plan(
         carrier_path: custody.source_path.clone(),
         field_identity: terminal_field_identity(program, direct_field.symbol)?,
         primitive_type,
-        value: checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(value.clone()),
+        value: checked_trees::CheckedStoreValue::Pure(value.clone()),
     })
 }

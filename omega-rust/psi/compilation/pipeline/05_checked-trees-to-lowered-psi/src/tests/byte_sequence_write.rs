@@ -106,7 +106,7 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
                 else {
                     panic!("write")
                 };
-                write.value = checked_trees::CheckedByteSequenceStoreValue::Pure(
+                write.value = checked_trees::CheckedStoreValue::Pure(
                     CheckedScalarExpression::IntegerLiteral {
                         literal: numerics::literals::IntegerLiteral::from_value(0).with_landing(
                             numerics::literals::IntegerLanding {
@@ -124,6 +124,39 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
             "source custody mutation {mutation}"
         );
     }
+}
+
+/// Byte leaves share the scalar store vocabulary but lower no computation:
+/// replay refuses a byte-view write whose value names one, in the leaf's own
+/// wording, instead of treating it as a pure byte.
+#[test]
+fn byte_view_write_refuses_a_computation_value() {
+    let mut checked = crate::front_end::checked_program(PUT);
+    lower_machine(&checked, TerminalMachineSelection::Name("put"))
+        .expect("untampered byte-view write lowers");
+    let write = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_machines
+        .iter_mut()
+        .flat_map(|plan| &mut plan.states)
+        .flat_map(|state| &mut state.operations)
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => Some(write),
+            _ => None,
+        })
+        .expect("byte-view write");
+    write.value = checked_trees::CheckedStoreValue::Computation(Default::default());
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("put"))
+        .expect_err("a byte-view write has no computation lowering");
+    assert!(
+        matches!(
+            error,
+            LoweringError::Unsupported("byte-view write kept a computation value")
+        ),
+        "{error:?}"
+    );
 }
 
 /// `put` writes through a bare `&mut [u8]`, so it may store bytes that break a

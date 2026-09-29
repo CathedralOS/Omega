@@ -654,7 +654,7 @@ pub(crate) fn validate_assignment(
     // here would mean the checked stage chose a different source.
     if matches!(
         store.value,
-        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+        checked_trees::CheckedStoreValue::ScalarResult { .. }
     ) {
         if !expressions.is_empty() {
             return unsupported("structural scalar store replaced a selected RHS with a result");
@@ -907,7 +907,7 @@ pub(crate) fn computation_root(
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     statement_index: u32,
-    value: &checked_trees::CheckedStructuralScalarFieldStoreValue,
+    value: &checked_trees::CheckedStoreValue,
     primitive_type: typed_trees::types::PrimitiveType,
     field_identity: Option<&str>,
 ) -> Result<
@@ -926,7 +926,7 @@ pub(crate) fn computation_root(
     if roots.next().is_some() {
         return unsupported("field assignment has duplicate computation roots");
     }
-    let checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(handle) = value else {
+    let checked_trees::CheckedStoreValue::Computation(handle) = value else {
         return if root.is_none() {
             Ok(None)
         } else {

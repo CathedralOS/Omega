@@ -76,36 +76,9 @@ impl Default for CheckedByteSequenceValue {
     }
 }
 
-/// The scalar source a byte-sequence store replays. Every byte-store
-/// destination lane resolves this once and retains the same distinction the
-/// scalar field store carries: a bound pure authored expression, or the SSA
-/// result of the scalar call the same statement performs.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedByteSequenceStoreValue {
-    Pure(CheckedScalarExpression),
-    /// The already-defined SSA result of the scalar call this same statement
-    /// performs, named by its dense position in the consuming plan's scalar
-    /// namespace -- the namespace `CheckedScalarExpression::Local` indexes,
-    /// scalar parameters first and then each established scalar result in
-    /// order. The authored call binds no local, so no `AssignmentValue`
-    /// scalar-expression row exists for it; the receiving lowerer reconstructs
-    /// the value from the call operation it already emitted for this
-    /// statement instead of from an authored expression.
-    ScalarResult {
-        position: u32,
-    },
-}
-
-impl CheckedByteSequenceStoreValue {
-    pub fn as_pure(&self) -> Option<&CheckedScalarExpression> {
-        match self {
-            Self::Pure(expression) => Some(expression),
-            Self::ScalarResult { .. } => None,
-        }
-    }
-}
-
 /// Exact source operands of a scalar byte replacement within the live prefix.
+/// The stored byte is a pure value or the statement's own call result; byte
+/// leaves lower no scalar computation, so `Computation` is refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub statement_index: u32,
@@ -113,16 +86,17 @@ pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     pub field_identity: String,
     pub index: CheckedScalarExpression,
-    pub value: CheckedByteSequenceStoreValue,
+    pub value: crate::CheckedStoreValue,
 }
 
-/// Exact authored operands of a write through a whole mutable byte view.
+/// Exact authored operands of a write through a whole mutable byte view. The
+/// stored byte is refused as a `Computation` exactly as a byte replacement's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedByteSequenceWritePlan {
     pub statement_index: u32,
     pub destination_parameter_position: u32,
     pub index: CheckedScalarExpression,
-    pub value: CheckedByteSequenceStoreValue,
+    pub value: crate::CheckedStoreValue,
 }
 
 /// Exact authored operands of a runtime-indexed element write through a
@@ -138,7 +112,7 @@ pub struct CheckedElementViewWritePlan {
     pub destination: crate::CheckedStructuralScalarFieldStoreDestination,
     pub index: CheckedScalarExpression,
     pub element: PrimitiveType,
-    pub value: crate::CheckedStructuralScalarFieldStoreValue,
+    pub value: crate::CheckedStoreValue,
 }
 
 /// Primitive store custody stays separate from immutable scalar bindings.

@@ -5,8 +5,8 @@
 //! correspondence.
 use crate::tests::front_end::checked_program;
 use checked_trees::{
-    CheckedScalarExpression, CheckedStructuralScalarFieldStoreDestination,
-    CheckedStructuralScalarFieldStoreValue, CheckedUnitEffectOperationPlan,
+    CheckedScalarExpression, CheckedStoreValue, CheckedStructuralScalarFieldStoreDestination,
+    CheckedUnitEffectOperationPlan,
 };
 
 fn checked(source: &str) -> checked_trees::CheckedTrees {
@@ -78,15 +78,9 @@ fn local_float_field_store_admits_literal_parameter_and_local_sources() {
             CheckedStructuralScalarFieldStoreDestination::Local { .. }
         ));
         match &store.value {
-            CheckedStructuralScalarFieldStoreValue::Pure(
-                CheckedScalarExpression::IeeeFloatLiteral { .. },
-            )
-            | CheckedStructuralScalarFieldStoreValue::Pure(CheckedScalarExpression::Parameter {
-                ..
-            })
-            | CheckedStructuralScalarFieldStoreValue::Pure(CheckedScalarExpression::Local {
-                ..
-            }) => {}
+            CheckedStoreValue::Pure(CheckedScalarExpression::IeeeFloatLiteral { .. })
+            | CheckedStoreValue::Pure(CheckedScalarExpression::Parameter { .. })
+            | CheckedStoreValue::Pure(CheckedScalarExpression::Local { .. }) => {}
             other => panic!("unexpected float source: {other:?}"),
         }
     }

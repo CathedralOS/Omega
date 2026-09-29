@@ -1123,7 +1123,7 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
             if matches!(
                 store.value,
-                checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                checked_trees::CheckedStoreValue::ScalarResult { .. }
             ) =>
         {
             Some(store.statement_index)
@@ -1131,7 +1131,7 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(write)
             if matches!(
                 write.value,
-                checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                checked_trees::CheckedStoreValue::ScalarResult { .. }
             ) =>
         {
             Some(write.statement_index)
@@ -1139,7 +1139,7 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::ElementViewWrite(write)
             if matches!(
                 write.value,
-                checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                checked_trees::CheckedStoreValue::ScalarResult { .. }
             ) =>
         {
             Some(write.statement_index)
@@ -1220,7 +1220,7 @@ fn statement_continuations(
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
                     if !matches!(
                         store.value,
-                        checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                        checked_trees::CheckedStoreValue::ScalarResult { .. }
                     ))
                 || matches!(
                     operation,

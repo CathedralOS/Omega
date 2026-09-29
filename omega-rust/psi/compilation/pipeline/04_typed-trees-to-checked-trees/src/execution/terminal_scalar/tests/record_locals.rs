@@ -60,7 +60,7 @@ fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
         if value.contains("identity") {
             assert!(matches!(
                 store.value,
-                checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(_)
+                checked_trees::CheckedStoreValue::Computation(_)
             ));
         }
     }

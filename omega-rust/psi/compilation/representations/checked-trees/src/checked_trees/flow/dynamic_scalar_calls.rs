@@ -657,10 +657,17 @@ pub struct CheckedDynamicUnitContinuationPlan {
     pub provider_attachment_requirements: Vec<CheckedProviderAttachmentRequirementPlan>,
 }
 
-/// Evaluated source of one scalar field replacement.
+/// Evaluated source of one scalar store: a primitive field replacement, an
+/// element-view write, a byte-view write, or a byte replacement inside a
+/// bounded byte field. Every leaf shares this one vocabulary. The two byte
+/// leaves lower no scalar computation, so their producer, replay and
+/// lowering each refuse `Computation` explicitly; an element-view write may
+/// carry one, and its replay and lowering refuse it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CheckedStructuralScalarFieldStoreValue {
+pub enum CheckedStoreValue {
+    /// A bound pure authored expression at the store's value role.
     Pure(CheckedScalarExpression),
+    /// A scalar computation rooted at the store's own role coordinate.
     Computation(crate::CheckedScalarComputationHandle),
     /// The already-defined SSA result of the scalar call this same statement
     /// performs, named by its dense position in the consuming plan's scalar
@@ -670,12 +677,10 @@ pub enum CheckedStructuralScalarFieldStoreValue {
     /// `AssignmentValue` scalar-expression row exists for it; the receiving
     /// lowerer reconstructs the value from the call operation it already
     /// emitted for this statement instead of from an authored expression.
-    ScalarResult {
-        position: u32,
-    },
+    ScalarResult { position: u32 },
 }
 
-impl CheckedStructuralScalarFieldStoreValue {
+impl CheckedStoreValue {
     pub fn as_pure(&self) -> Option<&CheckedScalarExpression> {
         match self {
             Self::Pure(expression) => Some(expression),
@@ -713,7 +718,7 @@ pub struct CheckedStructuralScalarFieldStorePlan {
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     pub field_identity: String,
     pub primitive_type: typed_trees::types::PrimitiveType,
-    pub value: CheckedStructuralScalarFieldStoreValue,
+    pub value: CheckedStoreValue,
 }
 
 /// Checked custody for one replacement of an exact unrestricted-sum field.
