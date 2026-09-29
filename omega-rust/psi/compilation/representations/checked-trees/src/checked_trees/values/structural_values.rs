@@ -123,6 +123,15 @@ pub enum CheckedStructuralValueKind {
     FixedArray {
         elements: Vec<CheckedStructuralValueHandle>,
     },
+    /// A supplied closed primitive array (`[i32; 4]`, `[[u8; 2]; 2]`) inside a
+    /// structural value. A Terminal primitive leaf has no arithmetic policy, so
+    /// the whole array is one scalar establishment: `elements` is the complete
+    /// leaf roster in row-major (outer-index-first) authored order, each leaf
+    /// retained under `StructuralArrayElement` keyed by this node's expression.
+    /// Owned structural elements keep the element-wise `FixedArray` route.
+    ScalarArray {
+        elements: Vec<CheckedScalarComputationHandle>,
+    },
     /// An omitted record field's zero value: a `[scalar; N]` leaf
     /// established all-zero — the only omitted-runtime-field carrier the
     /// zero-defaulting rule admits today. `element` is the planner's

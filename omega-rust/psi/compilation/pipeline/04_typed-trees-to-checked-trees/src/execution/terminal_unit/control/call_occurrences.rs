@@ -319,6 +319,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                     | checked_trees::CheckedStructuralValueKind::CopiedStructuralPlace { .. }
                     | checked_trees::CheckedStructuralValueKind::ViewElementCopy { .. }
                     | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
+                    | checked_trees::CheckedStructuralValueKind::ScalarArray { .. }
                     | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
                     | checked_trees::CheckedStructuralValueKind::Place(_) => {}
                 }
@@ -438,6 +439,7 @@ pub(in crate::execution::terminal_unit) fn outer_calls_before_traced<'a>(
                         root.role,
                         CheckedScalarExpressionRole::StructuralValueField { .. }
                             | CheckedScalarExpressionRole::RecordField { .. }
+                            | CheckedScalarExpressionRole::StructuralArrayElement { .. }
                             | CheckedScalarExpressionRole::StructuralValueSubject { .. }
                             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                     )

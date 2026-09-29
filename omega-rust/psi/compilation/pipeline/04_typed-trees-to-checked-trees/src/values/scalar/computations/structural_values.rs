@@ -1618,6 +1618,53 @@ impl Builder<'_, '_> {
         Some(CheckedStructuralValueKind::FixedArray { elements })
     }
 
+    /// A closed primitive array supplied as one member of a structural value.
+    /// The ordinary scalar-array producer flattens it to its row-major leaves;
+    /// each leaf evaluates in authored order as its own scalar computation,
+    /// keyed by this array expression the way record fields key by their
+    /// literal. Lowering establishes the whole roster as one scalar array, so
+    /// the array contributes no element custody of its own. Constant-array
+    /// projections stay with their indexing-selection owner.
+    fn scalar_array_value(
+        &mut self,
+        expression: ExpressionHandle,
+        expected: TypeReferenceHandle,
+        values: &mut CheckedStructuralValuePlans,
+    ) -> Option<CheckedStructuralValueHandle> {
+        if !matches!(
+            self.program.expression_table.expression(expression),
+            ExpressionNode::ArrayLiteral(_)
+        ) {
+            return None;
+        }
+        let array =
+            validation::scalar_array_elements(self.program, self.machine, expression, expected)?;
+        if !array.projections.is_empty() {
+            return None;
+        }
+        let statement_ordinal = u32::try_from(self.statement_index).ok()?;
+        let mut elements = Vec::with_capacity(array.elements.len());
+        for (element_ordinal, (leaf, primitive_type)) in array.elements.into_iter().enumerate() {
+            let root = self.expression(leaf, primitive_type)?;
+            self.plans.nodes.get_mut(root).authored_root = leaf;
+            self.plans.roots.append(CheckedScalarComputationRoot {
+                machine: self.machine,
+                state: self.state,
+                statement_ordinal,
+                role: CheckedScalarExpressionRole::StructuralArrayElement {
+                    expression,
+                    element_ordinal: u32::try_from(element_ordinal).ok()?,
+                },
+                root,
+            });
+            elements.push(root);
+        }
+        Some(values.nodes.append(CheckedStructuralValue {
+            expression,
+            kind: CheckedStructuralValueKind::ScalarArray { elements },
+        }))
+    }
+
     fn record_value(
         &mut self,
         expression: ExpressionHandle,
@@ -1774,6 +1821,18 @@ impl Builder<'_, '_> {
                         root,
                     });
                     checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
+                } else if matches!(
+                    self.program.expression_table.expression(initializer.value),
+                    ExpressionNode::ArrayLiteral(_)
+                ) && validation::is_closed_primitive_array_type(
+                    self.program,
+                    field.type_reference,
+                ) {
+                    // Only a supplied literal is a fresh scalar array; a named
+                    // or projected array source keeps its place/copy owner.
+                    checked_trees::CheckedStructuralRecordFieldValue::Structural(
+                        self.scalar_array_value(initializer.value, field.type_reference, values)?,
+                    )
                 } else {
                     checked_trees::CheckedStructuralRecordFieldValue::Structural(
                         self.structural_value(

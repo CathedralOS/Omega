@@ -1028,6 +1028,59 @@ impl Emission<'_, '_, '_> {
                 }
                 Ok(place)
             }
+            CheckedStructuralValueKind::ScalarArray { elements } => {
+                // Every leaf replays its own retained source computation in
+                // authored row-major order, keyed by this array occurrence.
+                // Private control flow may remap earlier saved values, so the
+                // roster reads its final slots only after the last leaf.
+                let source_count = self.values.len();
+                for (ordinal, element) in elements.iter().enumerate() {
+                    let evaluated = self.scalar(
+                        CheckedScalarExpressionRole::StructuralArrayElement {
+                            expression: node.expression,
+                            element_ordinal: u32::try_from(ordinal).map_err(|_| {
+                                LoweringError::Unsupported("scalar array leaf ordinal overflow")
+                            })?,
+                        },
+                        *element,
+                        source_count,
+                    )?;
+                    self.values.push(evaluated);
+                }
+                let leaves = self.values[source_count..]
+                    .iter()
+                    .map(|value| value.id)
+                    .collect::<Vec<_>>();
+                self.values.truncate(source_count);
+                let place = place_id(allocate_dense(self.next_place)?);
+                let operation = self.operations.allocate();
+                self.operations.push(Operation {
+                    static_reach_binding: None,
+                    suspension_crossing: None,
+                    id: operation,
+                    result: OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                        qualification_establishments: Vec::new(),
+                        place,
+                        structural_type: self.structural_type,
+                        multiplicity: self.multiplicity,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        claims: Vec::new(),
+                    }),
+                    kind: OperationKind::EstablishScalarArray { elements: leaves },
+                });
+                self.temporary_places.push(StructuralPlaceDeclaration {
+                    id: place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: self.structural_type,
+                    },
+                });
+                if let Some(continuation) = continuation {
+                    self.complete_value(place, None, continuation)?;
+                }
+                Ok(place)
+            }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 let place = place_id(allocate_dense(self.next_place)?);
                 let operation = self.operations.allocate();

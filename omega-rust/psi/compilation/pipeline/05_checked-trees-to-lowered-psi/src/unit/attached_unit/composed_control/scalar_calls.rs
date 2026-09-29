@@ -122,6 +122,7 @@ fn selected_roots(
                                     root.role,
                                     CheckedScalarExpressionRole::StructuralValueSubject { .. }
                                         | CheckedScalarExpressionRole::RecordField { .. }
+                                        | CheckedScalarExpressionRole::StructuralArrayElement { .. }
                                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                                         | CheckedScalarExpressionRole::StructuralValueField { .. }
                                 )

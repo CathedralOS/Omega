@@ -405,6 +405,53 @@ pub(crate) fn validate(
                     return unsupported("zeroed scalar array changed its zero leaf");
                 }
             }
+            CheckedStructuralValueKind::ScalarArray { elements } => {
+                // The supplied array replays through the same scalar-array
+                // producer the planner used: its exact declared carrier
+                // flattens the authored literal to row-major leaves, and each
+                // retained computation must rejoin its leaf at its ordinal.
+                if !matches!(
+                    checked.expression_table.expression(expression),
+                    ExpressionNode::ArrayLiteral(_)
+                ) {
+                    return unsupported("scalar array lost its authored constructor");
+                }
+                let array = validation::scalar_array_elements(
+                    &checked.typed,
+                    machine,
+                    expression,
+                    reference,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "scalar array substituted its closed primitive carrier",
+                ))?;
+                if !array.projections.is_empty() || array.elements.len() != elements.len() {
+                    return unsupported("scalar array changed its leaf roster");
+                }
+                for (ordinal, ((leaf, primitive), handle)) in
+                    array.elements.iter().zip(elements.iter()).enumerate()
+                {
+                    let role = CheckedScalarExpressionRole::StructuralArrayElement {
+                        expression,
+                        element_ordinal: u32::try_from(ordinal).map_err(|_| {
+                            LoweringError::Unsupported("scalar array leaf ordinal overflow")
+                        })?,
+                    };
+                    if validate_operand(
+                        checked,
+                        machine,
+                        state,
+                        result.statement_index,
+                        role,
+                        *handle,
+                        *leaf,
+                    )? != *primitive
+                    {
+                        return unsupported("scalar array leaf changed its carrier");
+                    }
+                    operand_roles.push(role);
+                }
+            }
             CheckedStructuralValueKind::ZeroedStructural { .. } => {
                 // The synthesized zero's whole contract is the declared
                 // member carrier itself being zero-constructible.
@@ -677,6 +724,7 @@ pub(crate) fn validate(
                     root.role,
                     CheckedScalarExpressionRole::StructuralValueSubject { .. }
                         | CheckedScalarExpressionRole::RecordField { .. }
+                        | CheckedScalarExpressionRole::StructuralArrayElement { .. }
                         | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                         | CheckedScalarExpressionRole::StructuralValueField { .. }
                 )
@@ -726,6 +774,7 @@ pub(crate) fn validate(
                         CheckedScalarExpressionRole::StructuralValueSubject { .. }
                             | CheckedScalarExpressionRole::StructuralValuePattern { .. }
                             | CheckedScalarExpressionRole::StructuralValueField { .. }
+                            | CheckedScalarExpressionRole::StructuralArrayElement { .. }
                             | CheckedScalarExpressionRole::RecordField { .. }
                     )
             })
@@ -1024,6 +1073,12 @@ fn role_belongs_to_value(
                 ExpressionNode::StructLiteral(_),
             ) if owner == expression => return Ok(true),
             (
+                CheckedScalarExpressionRole::StructuralArrayElement {
+                    expression: owner, ..
+                },
+                ExpressionNode::ArrayLiteral(_),
+            ) if owner == expression => return Ok(true),
+            (
                 CheckedScalarExpressionRole::StructuralValueSubject { expression: owner },
                 ExpressionNode::Match(_),
             ) if owner == expression => return Ok(true),
@@ -1256,6 +1311,58 @@ pub(crate) fn operand_source(
         if let ExpressionNode::StructLiteral(literal) =
             checked.expression_table.expression(expression)
         {
+            // A supplied array member's leaves belong to that array occurrence.
+            // Only its enclosing record declares the closed carrier that
+            // flattens it, so the lookup happens at the owning field.
+            if let CheckedScalarExpressionRole::StructuralArrayElement {
+                expression: array,
+                element_ordinal,
+            } = role
+                && let Some(field) = checked
+                    .expression_table
+                    .struct_fields(literal.fields)
+                    .iter()
+                    .find(|field| field.value == array)
+            {
+                let declared = checked
+                    .data_definitions()
+                    .iter()
+                    .find(|data| data.symbol == literal.type_symbol)
+                    .and_then(|data| {
+                        checked
+                            .data_members(data)
+                            .iter()
+                            .find_map(|member| match member {
+                                checked_trees::data::DataMember::Field(declaration)
+                                    if declaration.symbol == field.field_symbol
+                                        && !declaration.relevance.is_erased() =>
+                                {
+                                    Some(declaration.type_reference)
+                                }
+                                _ => None,
+                            })
+                    })
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar array member declaration missing",
+                    ))?;
+                let leaves = validation::scalar_array_elements(
+                    &checked.typed,
+                    machine.symbol,
+                    array,
+                    declared,
+                )
+                .filter(|leaves| leaves.projections.is_empty())
+                .ok_or(LoweringError::Unsupported(
+                    "scalar array member lost its closed carrier",
+                ))?;
+                return leaves
+                    .elements
+                    .get(element_ordinal as usize)
+                    .copied()
+                    .ok_or(LoweringError::Unsupported(
+                        "scalar array leaf ordinal escaped its array",
+                    ));
+            }
             pending.extend(
                 checked
                     .expression_table
