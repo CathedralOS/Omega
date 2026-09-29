@@ -520,6 +520,17 @@ pub(super) fn append_operation(
             axioms.push(equation.clone());
         }
         if let Some(bounds) =
+            crate::validation::structural::byte_sequence_fields::literal_field_read_bounds(
+                module, machine, operation,
+            )
+        {
+            // The read still owes its independent index/length obligation above.
+            // Unchanged literal contents bound this scalar snapshot, not future
+            // reads of the mutable field. A byte write invalidates the content
+            // interval even when it preserves length and the ASCII predicate.
+            axioms.extend(bounds);
+        }
+        if let Some(bounds) =
             crate::validation::integer_structural_field_read_range(module, machine, operation)
             && let Some(result) = operation.result.scalar_ref()
         {

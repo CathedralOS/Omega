@@ -14,6 +14,39 @@ fn restrict_field(module: &mut TerminalModule, predicate: ByteSequencePredicate)
 }
 
 #[test]
+fn ascii_preserving_writes_expire_literal_ranges_but_not_captured_reads() {
+    for before_read in [true, false] {
+        let mut module = super::indexed::literal_read_fixture();
+        restrict_field(&mut module, ByteSequencePredicate::ValidUtf8);
+        module.machines[0].blocks[0].operations[4].kind = OperationKind::IntegerConstant {
+            value: IntegerValue::Unsigned(65),
+        };
+        let mut write = module.machines[0].blocks[0].operations[6].clone();
+        write.id = id(9);
+        let OperationKind::StructuralByteSequenceFieldByteStore {
+            value, obligation, ..
+        } = &mut write.kind
+        else {
+            unreachable!()
+        };
+        *value = id(4);
+        *obligation = id(4);
+        module.machines[0].blocks[0]
+            .operations
+            .insert(if before_read { 5 } else { 6 }, write);
+        validate_module(&module).expect("ASCII-preserving stores retain the carrier rule");
+        let facts = super::indexed::read_facts(&module);
+        for bound in super::indexed::read_bounds(b'E', b'L') {
+            assert_eq!(
+                facts.contains(&bound),
+                !before_read,
+                "a pre-read write changes contents; a post-read write leaves the SSA snapshot intact"
+            );
+        }
+    }
+}
+
+#[test]
 fn restricted_field_replacement_replays_literal_bytes() {
     let (mut module, _) = fixture(StructuralAccess::MutableBorrow);
     restrict_field(&mut module, ByteSequencePredicate::ValidUtf8);

@@ -8,6 +8,7 @@ use crate::validation::{
 };
 mod freshness;
 pub(crate) use freshness::field_content_length_is_current;
+pub(crate) use freshness::literal_field_read_bounds;
 pub(crate) use freshness::replacement_length_equation;
 pub(crate) use freshness::view_length_is_current;
 

@@ -345,14 +345,122 @@ pub(crate) fn field_content_length_is_current(
                 if *source == root && measured_path == path && *measured_field == field)
     }) else { return false; };
     unchanged_since(machine, producer.id, use_site, |candidate| {
-        changes_length(module, machine, root, &exact_path, candidate)
-            || matches!(&candidate.kind,
-                OperationKind::StructuralByteSequenceFieldByteStore {
-                    destination, path: written, field: written_field, ..
-                } if *destination == root
-                    && field_path(module, machine, root, written, *written_field, true, false)
-                        .is_none_or(|written| overlaps(&exact_path, &written)))
+        changes_content(module, machine, root, &exact_path, candidate)
     })
+}
+
+fn changes_content(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    root: PlaceId,
+    path: &[StructuralPathSegment],
+    operation: &terminal_psi::Operation,
+) -> bool {
+    changes_length(module, machine, root, path, operation)
+        || matches!(&operation.kind,
+            OperationKind::StructuralByteSequenceFieldByteStore {
+                destination, path: written, field: written_field, ..
+            } if *destination == root
+                && field_path(module, machine, root, written, *written_field, true, false)
+                    .is_none_or(|written| overlaps(path, &written)))
+}
+
+/// Capture the range of a runtime-selected byte from still-current literal
+/// contents. The index's independent obligation proves that the selected byte
+/// exists; these facts only bound its value. Unlike the ASCII carrier rule,
+/// even an ASCII-preserving byte write invalidates an exact literal range.
+/// The facts name the immutable read result, not mutable field storage.
+pub(crate) fn literal_field_read_bounds(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Option<[Proposition; 2]> {
+    let OperationKind::StructuralByteSequenceFieldRead {
+        source: root,
+        path,
+        field,
+        ..
+    } = &operation.kind
+    else {
+        return None;
+    };
+    let result = operation.result.scalar_ref()?;
+    let integer =
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 8)
+            .ok()?;
+    if result.scalar_type != semantic_vocabulary::ScalarType::Integer(integer) {
+        return None;
+    }
+    let exact_path = field_path(module, machine, *root, path, *field, false, false)?;
+    for replacement in machine.blocks.iter().flat_map(|block| &block.operations) {
+        let OperationKind::StructuralByteSequenceFieldStore {
+            destination,
+            path: written,
+            field: written_field,
+            source,
+            ..
+        } = &replacement.kind
+        else {
+            continue;
+        };
+        if destination != root
+            || written != path
+            || written_field != field
+            || !unchanged_since(machine, replacement.id, operation.id, |candidate| {
+                changes_content(module, machine, *root, &exact_path, candidate)
+            })
+            || !machine.structural_places.iter().any(|place| {
+                place.id == *source
+                    && matches!(
+                        place.kind,
+                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { .. }
+                    )
+            })
+        {
+            continue;
+        }
+        let mut literals = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .filter_map(|candidate| match &candidate.kind {
+                OperationKind::EstablishByteSequenceLiteral {
+                    destination, bytes, ..
+                } if destination == source => Some((candidate.id, bytes)),
+                _ => None,
+            });
+        let Some((producer, bytes)) = literals.next() else {
+            continue;
+        };
+        if literals.next().is_some()
+            || bytes.is_empty()
+            || !unchanged_since(machine, producer, replacement.id, |_| false)
+        {
+            continue;
+        }
+        let minimum = *bytes.iter().min()?;
+        let maximum = *bytes.iter().max()?;
+        let value = ScalarTerm::value(result.id, result.scalar_type);
+        return Some([
+            Proposition::LessOrEqual(
+                ScalarTerm::integer(
+                    integer,
+                    semantic_vocabulary::IntegerValue::Unsigned(minimum.into()),
+                )
+                .ok()?,
+                value.clone(),
+            ),
+            Proposition::LessOrEqual(
+                value,
+                ScalarTerm::integer(
+                    integer,
+                    semantic_vocabulary::IntegerValue::Unsigned(maximum.into()),
+                )
+                .ok()?,
+            ),
+        ]);
+    }
+    None
 }
 
 pub(crate) fn replacement_length_equation(
