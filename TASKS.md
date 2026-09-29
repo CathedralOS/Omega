@@ -825,6 +825,14 @@ the complete product bar; focused successes below do not establish that baseline
   library. Retain them and add wrong backing, forged/replayed grant, wrong rung,
   duplicate return and partially occupied growth controls.
 
+  Squalr-side measured dependency (zergling census 2026-09-29): the
+  1024-element scan-result window is inexpressible at the current pin — every
+  `[T;N]` is compile-time sized (`Snapshot.regions` is `[SnapshotRegion;1]`),
+  data structures cannot hold borrows, `alloc::vec`'s non-contiguous backing
+  cannot yield `&[u64]`, and `core::Vec` waits on the `Allocation<T>`/lifetime
+  model. A runtime-length owned array with contiguous slice projection is the
+  required surface for the element-window port.
+
   Acceptance: native `Vec<u32>` appends through two allocations, preserves the
   exact live prefix and new elements, and cleans up once with exact backing
   return or explicit retention. Cover empty cleanup, real request failure with
