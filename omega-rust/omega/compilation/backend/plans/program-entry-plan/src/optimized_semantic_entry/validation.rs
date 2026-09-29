@@ -62,6 +62,7 @@ pub(super) fn validate(
         ProgramEntrySourceReceiverSignature::Free => {}
         ProgramEntrySourceReceiverSignature::ProvisionedMutable {
             normalized_type_identity,
+            ..
         } if !normalized_type_identity.is_empty() => {}
         _ => {
             return Err(ProgramStorageEntryDiagnostic(

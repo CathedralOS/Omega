@@ -76,11 +76,15 @@ fn entry_signature(
     let receiver = checked
         .state_parameters(state)
         .iter()
-        .find(|parameter| parameter.is_self)
+        .enumerate()
+        .find(|(_, parameter)| parameter.is_self)
         .map_or(
             program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
-            |parameter| {
+            |(source_position, parameter)| {
                 program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                    source_position: u32::try_from(source_position)
+                        .expect("source position fits u32"),
+                    source_symbol: parameter.symbol,
                     normalized_type_identity: checked
                         .normalized_type_identity(parameter.type_reference)
                         .into_string(),

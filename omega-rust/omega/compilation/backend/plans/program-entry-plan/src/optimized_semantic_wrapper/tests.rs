@@ -172,6 +172,8 @@ pub(super) fn contract() -> OptimizedProgramStorageSemanticEntryContract {
 
 pub(super) fn receiver_contract() -> OptimizedProgramStorageSemanticEntryContract {
     contract_with(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 0,
+        source_symbol: symbols::SymbolHandle::from_arena_index(6),
         normalized_type_identity: "ref-mut(named(name(Boot::launch)))".into(),
     })
 }

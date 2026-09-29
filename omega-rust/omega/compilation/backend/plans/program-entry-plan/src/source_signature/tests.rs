@@ -126,6 +126,8 @@ fn signature(receiver: ProgramEntrySourceReceiverSignature) -> SelectedProgramEn
 #[test]
 fn exact_program_storage_signature_binds_declarations_without_values() {
     let signature = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 0,
+        source_symbol: SymbolHandle::from_arena_index(6),
         normalized_type_identity: "Boot".into(),
     });
     signature
@@ -162,6 +164,8 @@ fn source_signature_identity_binds_normalized_semantics_not_arena_coordinates() 
     assert_ne!(identity, callable_drift.identity());
 
     let receiver_drift = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 0,
+        source_symbol: SymbolHandle::from_arena_index(6),
         normalized_type_identity: "Boot".into(),
     });
     assert_ne!(identity, receiver_drift.identity());
@@ -174,6 +178,8 @@ fn source_signature_identity_binds_normalized_semantics_not_arena_coordinates() 
 #[test]
 fn continuation_receiver_and_parameter_drift_fail_closed() {
     let signature = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 0,
+        source_symbol: SymbolHandle::from_arena_index(6),
         normalized_type_identity: "Boot".into(),
     });
     let mut wrong_key = key();
@@ -204,6 +210,75 @@ fn continuation_receiver_and_parameter_drift_fail_closed() {
             )
             .expect_err("source signature drift must reject");
     }
+}
+
+#[test]
+fn provisioned_source_position_changes_durable_identity() {
+    let first = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 0,
+        source_symbol: SymbolHandle::from_arena_index(6),
+        normalized_type_identity: "Boot".into(),
+    });
+    let second = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 1,
+        source_symbol: SymbolHandle::from_arena_index(6),
+        normalized_type_identity: "Boot".into(),
+    });
+    assert_eq!(first.receiver().source_position(), Some(0));
+    assert_eq!(second.receiver().source_position(), Some(1));
+    assert_ne!(first.identity(), second.identity());
+    assert_eq!(
+        ProgramEntrySourceReceiverSignature::Free.source_position(),
+        None
+    );
+}
+
+#[test]
+fn provisioned_source_symbol_renumbering_preserves_durable_identity() {
+    let source = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 0,
+        source_symbol: SymbolHandle::from_arena_index(6),
+        normalized_type_identity: "Boot".into(),
+    });
+    let renumbered = signature(ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        source_position: 0,
+        source_symbol: SymbolHandle::from_arena_index(60),
+        normalized_type_identity: "Boot".into(),
+    });
+    assert_eq!(
+        source.receiver().source_symbol(),
+        Some(SymbolHandle::from_arena_index(6))
+    );
+    assert_eq!(
+        renumbered.receiver().source_symbol(),
+        Some(SymbolHandle::from_arena_index(60))
+    );
+    assert_ne!(source, renumbered);
+    assert_eq!(source.identity(), renumbered.identity());
+    assert_eq!(
+        ProgramEntrySourceReceiverSignature::Free.source_symbol(),
+        None
+    );
+}
+
+#[test]
+fn provisioned_zero_source_symbol_rejects_capture() {
+    let error = SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+        target::TargetProfile::WindowsX64.program_entry_slot(),
+        key().machine,
+        key().state,
+        "Main".into(),
+        "main".into(),
+        "normalized-callable".into(),
+        ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+            source_position: 0,
+            source_symbol: SymbolHandle::invalid(),
+            normalized_type_identity: "Context".into(),
+        },
+        Vec::new(),
+    )
+    .expect_err("provisioned parameter must retain a valid source symbol");
+    assert!(error.contains("invalid parameter declaration"), "{error}");
 }
 
 #[test]
