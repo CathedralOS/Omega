@@ -8,15 +8,14 @@ data Sprite {
     id: i32;
 }
 
-data Main {
-    sprite: Sprite;
-    canvas: Canvas;
-}
+data Main {}
 
-machine Sprite::draw(&self, canvas: &mut Canvas) satisfies Drawable::draw {
+machine Sprite::draw(sprite: &Sprite, canvas: &mut Canvas) satisfies Drawable::draw {
     canvas.width = 80;
 }
 
-machine Main::main(&mut self) {
-    self.sprite.draw(&mut self.canvas);
+machine Main::main() {
+    let sprite: Sprite;
+    let mut canvas: Canvas;
+    Sprite::draw(&sprite, &mut canvas);
 }

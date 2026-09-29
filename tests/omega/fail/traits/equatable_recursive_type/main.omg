@@ -4,7 +4,7 @@
 // synthesized `equals` machine).
 
 trait Equatable {
-    machine equals(&self, other: &Self) -> bool;
+    machine equals(value: &Self, other: &Self) -> bool;
 }
 
 data Node {
@@ -14,9 +14,5 @@ data Node {
 
 NodeEquatable: Node satisfies Equatable;
 
-data Main {
-    value: i32;
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }
