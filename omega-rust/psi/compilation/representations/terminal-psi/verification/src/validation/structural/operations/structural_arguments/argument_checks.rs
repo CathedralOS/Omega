@@ -201,7 +201,9 @@ pub(in crate::validation) fn validate_structural_argument(
                                 && is_runtime_indexed_borrow_path(&argument.path)))
                             && (argument.access == StructuralAccess::SharedBorrow
                                 || (ordinary_call && argument.access == StructuralAccess::Owned)
-                                || (ordinary_call && argument.access == StructuralAccess::MutableBorrow
+                                || ((ordinary_call
+                                    || matches!(call_kind, Some(OperationKind::BoundaryCall { .. })))
+                                    && argument.access == StructuralAccess::MutableBorrow
                                     && crate::validation::block_views::parameter(caller, argument.place)
                                         .is_some_and(|parameter| parameter.access == StructuralAccess::MutableBorrow)))
                             && (source_policy == StructuralArgumentSourcePolicy::ParametersOrBoundaryActuals
