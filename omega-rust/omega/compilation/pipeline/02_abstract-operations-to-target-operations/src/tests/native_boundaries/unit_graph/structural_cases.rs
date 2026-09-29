@@ -749,6 +749,98 @@ fn parameter_root_dispatch_refuses_roots_without_an_owned_value_copy() {
     }
 }
 
+/// The parameter-root dispatch over a mixed `ByteRead`: two runtime common
+/// fields (`consumed: bool`, `bonus: i32`) sit between the tag and the case
+/// payloads, so the `Byte` payload lands at 12 rather than a sum's 4.
+fn mixed_parameter_root_fixture() -> AbstractOperationPlan {
+    let mut plan = parameter_root_fixture();
+    let StructuralTypeShape::Sum { cases } = plan.structural_types[0].shape.clone() else {
+        panic!("sum");
+    };
+    let integer = plan.boundary_machines[0].scalar_parameters[0];
+    let common = |number, identity: &str, field_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(number).unwrap(),
+        identity: identity.into(),
+        relevance: terminal_psi::BindingRelevance::Relevant,
+        field_type,
+    };
+    plan.structural_types.make_mut()[0].shape = StructuralTypeShape::Mixed {
+        // Common ids reuse the payload's id 1: the namespaces are separate.
+        fields: vec![
+            common(
+                1,
+                "consumed",
+                StructuralFieldType::Scalar(ScalarType::Boolean),
+            ),
+            common(2, "bonus", StructuralFieldType::Scalar(integer)),
+        ],
+        cases,
+    };
+    plan
+}
+
+#[test]
+fn mixed_parameter_root_dispatch_binds_payload_after_common_fields() {
+    let valid = mixed_parameter_root_fixture();
+    let lowered = lower_owned(&valid).expect("the mixed owned root dispatches");
+    let dispatch = lowered.functions[0]
+        .graph
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            target_operations::TargetControlTerminator::StructuralCase { source, cases } => {
+                Some((source, cases))
+            }
+            _ => None,
+        })
+        .expect("case dispatch");
+    let layout = dispatch
+        .0
+        .layout()
+        .sum()
+        .expect("mixed home keeps the sum layout");
+    assert_eq!(layout.common_fields.len(), 2);
+    assert_eq!(
+        (
+            layout.common_fields[0].byte_offset,
+            layout.common_fields[1].byte_offset
+        ),
+        (4, 8)
+    );
+    assert_eq!(layout.payload_byte_offset, 12);
+    assert_eq!(
+        dispatch
+            .1
+            .iter()
+            .map(|case| (
+                case.case_tag,
+                case.payloads
+                    .iter()
+                    .map(|payload| payload.field_byte_offset)
+                    .collect::<Vec<_>>()
+            ))
+            .collect::<Vec<_>>(),
+        vec![(0, Vec::new()), (1, vec![12])]
+    );
+    for mutation in 0..3 {
+        let mut plan = valid.clone();
+        let AbstractOperation::StructuralCase { cases, .. } = &mut plan.functions[0].operations[1]
+        else {
+            panic!("case");
+        };
+        match mutation {
+            // A common field is not a payload of the dispatched case.
+            0 => cases[1].payloads[0].field = StructuralFieldId::new(2).unwrap(),
+            1 => cases[1].case = StructuralCaseId::new(99).unwrap(),
+            _ => cases.swap(0, 1),
+        }
+        assert!(
+            lower_owned(&plan).is_err(),
+            "mixed dispatch mutation {mutation} must refuse"
+        );
+    }
+}
+
 fn nested_case_establishment_fixture() -> AbstractOperationPlan {
     let mut plan = fixture();
     plan.boundary_machines.truncate(1);

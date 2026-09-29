@@ -1,0 +1,35 @@
+// RUN CANARY (exit 70). A payload dispatch on a mixed-shape receiver field
+// selects the case from the tag and binds the payload from its overlay after
+// the common fields: `gold` must read back 50, not a common-field byte.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Event {
+    consumed: bool;
+    bonus: i32;
+    case Nothing;
+    case Treasure(gold: i32);
+}
+
+data Main {
+    console: Binding<Console>;
+    event: Event;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.event = Event::Treasure { gold: 50, consumed: true };
+    transition self.event {
+        Event::Treasure { gold } -> check_gold(gold)
+        _ -> bad()
+    }
+
+    state check_gold(&mut self, gold: i32) {
+        transition gold == 50 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
