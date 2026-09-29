@@ -4,7 +4,7 @@ use proof_admission::ProofNode;
 use semantic_vocabulary::{Proposition, ScalarTerm};
 
 use super::super::super::integer_evidence::cited_facts;
-use super::super::index::{distinct_same_carrier_subjects, indexed_bounds};
+use super::super::index::{distinct_same_carrier_subjects, indexed_bounds, indexed_equalities};
 use super::completion;
 
 pub(super) fn find(
@@ -13,6 +13,7 @@ pub(super) fn find(
     mut complete: impl FnMut(&ScalarTerm, ProofNode) -> Option<ProofNode>,
 ) -> Option<ProofNode> {
     let bounds_by_endpoint = indexed_bounds(assumptions, semantic_axioms);
+    let aliases_by_endpoint = indexed_equalities(assumptions, semantic_axioms);
     for (outer_citation, outer_equality) in cited_facts(assumptions, semantic_axioms) {
         let Proposition::Equal(outer_left, outer_right) = outer_equality else {
             continue;
@@ -21,20 +22,12 @@ pub(super) fn find(
             if !distinct_same_carrier_subjects(root, middle_alias) {
                 continue;
             }
-            for (inner_citation, inner_equality) in cited_facts(assumptions, semantic_axioms) {
+            for &(inner_citation, inner_equality, bound_alias) in
+                aliases_by_endpoint.get(middle_alias).into_iter().flatten()
+            {
                 if std::ptr::eq(outer_equality, inner_equality) {
                     continue;
                 }
-                let Proposition::Equal(inner_left, inner_right) = inner_equality else {
-                    continue;
-                };
-                let bound_alias = if inner_left == middle_alias {
-                    inner_right
-                } else if inner_right == middle_alias {
-                    inner_left
-                } else {
-                    continue;
-                };
                 if bound_alias == root || !distinct_same_carrier_subjects(middle_alias, bound_alias)
                 {
                     continue;

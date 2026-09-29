@@ -1,12 +1,11 @@
 //! Producer-local ordered stronger-alias fact candidates.
 
 use proof_admission::ProofNode;
-use semantic_vocabulary::{Proposition, ScalarTerm};
+use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
 use super::super::super::super::integer_evidence::cited_facts;
 use super::super::super::distinct_same_carrier_subjects;
-
-mod bound;
+use super::super::super::index::indexed_relations;
 
 pub(super) fn find<T>(
     assumptions: &[Proposition],
@@ -20,6 +19,7 @@ pub(super) fn find<T>(
         ProofNode,
     ) -> Option<T>,
 ) -> Option<T> {
+    let relations_by_endpoint = indexed_relations(assumptions, semantic_axioms);
     for (equality_citation, equality) in cited_facts(assumptions, semantic_axioms) {
         let Proposition::Equal(equality_left, equality_right) = equality else {
             continue;
@@ -31,14 +31,15 @@ pub(super) fn find<T>(
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
-            for (bound_citation, bound) in cited_facts(assumptions, semantic_axioms) {
-                let Proposition::LessOrEqual(bound_left, bound_right) = bound else {
+            for &(bound_citation, bound, literal, endpoint) in
+                relations_by_endpoint.get(alias).into_iter().flatten()
+            {
+                let Some((integer_type, _)) = literal.integer_value() else {
                     continue;
                 };
-                let Some((literal, endpoint)) = bound::select(root, alias, bound_left, bound_right)
-                else {
+                if root.scalar_type() != ScalarType::Integer(integer_type) {
                     continue;
-                };
+                }
                 if let Some(result) = complete(
                     root,
                     alias,

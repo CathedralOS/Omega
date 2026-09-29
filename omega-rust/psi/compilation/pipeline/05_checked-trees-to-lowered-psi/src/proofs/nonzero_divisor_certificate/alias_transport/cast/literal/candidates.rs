@@ -5,12 +5,14 @@ use semantic_vocabulary::{Proposition, ScalarTerm};
 
 use super::super::super::super::integer_evidence::cited_facts;
 use super::super::super::distinct_same_carrier_subjects;
+use super::super::super::index::indexed_equalities;
 
 pub(super) fn find<T>(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
     mut complete: impl FnMut(&ScalarTerm, &ScalarTerm, &ScalarTerm, ProofNode, ProofNode) -> Option<T>,
 ) -> Option<T> {
+    let aliases_by_endpoint = indexed_equalities(assumptions, semantic_axioms);
     for (root_citation, root_equality) in cited_facts(assumptions, semantic_axioms) {
         let Proposition::Equal(root_left, root_right) = root_equality else {
             continue;
@@ -19,20 +21,12 @@ pub(super) fn find<T>(
             if !distinct_same_carrier_subjects(root, alias) {
                 continue;
             }
-            for (literal_citation, literal_equality) in cited_facts(assumptions, semantic_axioms) {
+            for &(literal_citation, literal_equality, literal) in
+                aliases_by_endpoint.get(alias).into_iter().flatten()
+            {
                 if std::ptr::eq(root_equality, literal_equality) {
                     continue;
                 }
-                let Proposition::Equal(literal_left, literal_right) = literal_equality else {
-                    continue;
-                };
-                let literal = if literal_left == alias {
-                    literal_right
-                } else if literal_right == alias {
-                    literal_left
-                } else {
-                    continue;
-                };
                 let Some((integer_type, _)) = literal.integer_value() else {
                     continue;
                 };
