@@ -1,0 +1,40 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+// Element view write across a named edge: `release` establishes an
+// exclusive `&mut [i32]` view of the bag's cells and stores through it,
+// then crosses an ordinary transition with the loan live. The state's
+// operation custody must admit the view write — it observes through the
+// view's loan and claims no root of its own.
+
+data Bag {
+    cells: [i32; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.release(&mut self.bag);
+
+    transition {
+        _ -> good()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+}
+
+machine Main::release(&mut self, bag: &mut Bag) {
+    let cells: &mut [i32] = bag.cells.as_mut_slice();
+    cells[2] = 7;
+    transition {
+        _ -> done()
+    }
+
+    state done() {
+    }
+}
