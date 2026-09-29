@@ -584,21 +584,78 @@ const MIXED_ARGUMENT_EVALUATION: &str = r#"
     }
 "#;
 
+/// Scalar actuals finish evaluating before the invocation, so the two reads of
+/// `self.hits` hold no loan beside the `&mut self` receiver and never reach the
+/// call as structural operands. A retained reference does: `&self.cell` stays
+/// a structural operand of the call. Because it lies strictly inside the
+/// receiver's extent, the loan table admits it as a shared child that freezes
+/// the mutable parent (`wiki/spec/terminal-psi/loans.md`; the verifier's
+/// `interior_member_borrow`). A mutable child of a shared parent has no such
+/// cell in the table and still rejects.
 #[test]
 fn receiver_overlap_distinguishes_scalar_observations_from_retained_references() {
+    let structural_operands = |lowered: &lowered_psi::LoweredPsi| {
+        lowered
+            .semantic_module
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .find_map(|operation| match &operation.kind {
+                terminal_psi::OperationKind::CallStructuralScalar {
+                    structural_arguments,
+                    ..
+                } => Some(structural_arguments.clone()),
+                _ => None,
+            })
+            .expect("the receiver call lowers to a structural scalar call")
+    };
     let original = checked_source_with_core_service(MIXED_ARGUMENT_EVALUATION);
-    lower_machine(&original, TerminalMachineSelection::Name("Counter::enter"))
+    let lowered = lower_machine(&original, TerminalMachineSelection::Name("Counter::enter"))
         .expect("two scalar reads, a literal and an independent shared reference");
-    let overlapping = checked_source_with_core_service(&MIXED_ARGUMENT_EVALUATION.replace(
+    let operands = structural_operands(&lowered);
+    assert_eq!(operands.len(), 2, "the receiver and `other` only");
+    assert_ne!(operands[0].place, operands[1].place);
+
+    let member = checked_source_with_core_service(&MIXED_ARGUMENT_EVALUATION.replace(
         "self.hits + self.hits, 0, other",
         "self.hits + self.hits, 0, &self.cell",
     ));
+    let lowered = lower_machine(&member, TerminalMachineSelection::Name("Counter::enter"))
+        .expect("a shared member borrow inside the mutable receiver is a frozen subloan");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the member subloan verifies independently");
+    let operands = structural_operands(&lowered);
+    let [receiver, cell] = operands.as_slice() else {
+        panic!("the receiver and the retained member reference: {operands:#?}")
+    };
+    assert_eq!(
+        receiver.place, cell.place,
+        "the reference stays live on the receiver's root"
+    );
+    assert!(receiver.path.is_empty());
     assert!(
-        lower_machine(
-            &overlapping,
-            TerminalMachineSelection::Name("Counter::enter")
+        !cell.path.is_empty(),
+        "the reference is strictly inside the receiver"
+    );
+
+    let mutable_child_of_shared_parent = MIXED_ARGUMENT_EVALUATION
+        .replace(
+            "machine Counter::read(&mut self, value: u64 in Wrapping, zero: u64 in Wrapping, cell: &Cell)",
+            "machine Counter::read(&self, value: u64 in Wrapping, zero: u64 in Wrapping, cell: &mut Cell)",
         )
-        .is_err(),
-        "the explicit reference remains live beside the mutable receiver"
+        .replace("self.hits = self.hits + 1;", "cell.value = cell.value + 1;")
+        .replace("self.hits + self.hits, 0, other", "self.hits + self.hits, 0, &mut self.cell");
+    let errors = crate::front_end::checked_program_result(&mutable_child_of_shared_parent)
+        .expect_err("a mutable member loan beside a shared receiver has no loan-table cell");
+    assert!(
+        errors.iter().any(|error| error
+            .message
+            .contains("receives shared receiver overlapping another argument")),
+        "{errors:#?}"
     );
 }
