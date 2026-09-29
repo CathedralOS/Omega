@@ -195,11 +195,8 @@ fn window_root(
                                 && parameter.structural_type == root.structural_type
                         },
                     ))
-                    || (live.address_joins.contains(&root.place)
-                        && function
-                            .block_entries
-                            .iter()
-                            .any(|block| block.structural_parameters.contains(root))))
+                    || super::transfers::address_parameter(function, live, root.place)
+                        == Some(root))
         }
         // An owned local home's authority is its live home row: the producer
         // completed it under clean transferable custody and nothing else may

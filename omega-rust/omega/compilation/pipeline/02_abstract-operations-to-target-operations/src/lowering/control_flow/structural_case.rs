@@ -36,6 +36,8 @@ pub(super) fn observe(
     };
     let identity = if let Some(home) = live.structural_homes.get(source) {
         home.structural_type()
+    } else if let Some(parameter) = super::transfers::address_parameter(function, live, *source) {
+        parameter.structural_type
     } else {
         parameter_root(prepared, *source)
             .ok_or_else(invalid)?
