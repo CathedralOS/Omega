@@ -20,10 +20,10 @@ data Harness {
     provider: Binding<ExtentRootProvider>;
 }
 
-machine Harness::forward(&self, root: Extent) -> Extent
+machine Harness::forward(harness: & Harness, root: Extent) -> Extent
 reaches ExtentRootProvider
 {
-    let granted: Extent = self.provider.grant(root);
+    let granted: Extent = harness.provider.grant(root);
     transition { _ -> (consume_granted(granted)) }
 }
 

@@ -24,8 +24,8 @@ data NonRoot {
     service: Binding<Ping>;
 }
 
-machine NonRoot::run(&mut self)
+machine NonRoot::run(non_root: &mut NonRoot)
 reaches Ping
 {
-    self.service.ping();
+    non_root.service.ping();
 }
