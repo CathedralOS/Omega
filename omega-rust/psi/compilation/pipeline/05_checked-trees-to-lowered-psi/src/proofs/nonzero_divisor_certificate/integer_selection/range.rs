@@ -197,7 +197,7 @@ pub(super) fn target_bounds(
     // replay: the ordered operations resume only at their left operand,
     // while a bitwise and resumes at either operand with the other landing
     // as the mask literal.
-    let Some((definition_axiom, candidates)) =
+    let Some((definition_axiom, bitwise, candidates)) =
         semantic_axioms
             .iter()
             .enumerate()
@@ -240,7 +240,11 @@ pub(super) fn target_bounds(
                     ],
                     _ => return None,
                 };
-                Some((index, candidates))
+                Some((
+                    index,
+                    matches!(expression, ScalarTerm::IntegerBitwiseAnd { .. }),
+                    candidates,
+                ))
             })
     else {
         return Vec::new();
@@ -254,7 +258,7 @@ pub(super) fn target_bounds(
         let literal_axiom = if sibling.integer_value().is_some() {
             None
         } else {
-            let Some(literal_axiom) = semantic_axioms[..definition_axiom]
+            let literal_axiom = semantic_axioms[..definition_axiom]
                 .iter()
                 .enumerate()
                 .rev()
@@ -270,11 +274,15 @@ pub(super) fn target_bounds(
                         Some(index)
                     }
                     _ => None,
-                })
-            else {
-                continue;
-            };
-            Some(literal_axiom)
+                });
+            match literal_axiom {
+                Some(index) => Some(index),
+                // A non-literal bitwise mask can still admit from its own
+                // bound axioms: the kernel resolves them without a cited
+                // landing, so emit the candidate and let checking gate it.
+                None if bitwise => None,
+                None => continue,
+            }
         };
         let witness = IntegerAffineWitness {
             root: root.clone(),
