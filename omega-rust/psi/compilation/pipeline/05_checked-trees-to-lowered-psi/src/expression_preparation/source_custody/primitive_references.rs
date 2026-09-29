@@ -46,10 +46,21 @@ pub(super) fn parameter_type(
     (primitive != PrimitiveType::Addr).then_some((primitive, access))
 }
 
+/// How a roster numbers its lowered declarations. A machine signature keeps
+/// each declaration at its dense structural index. A composed state's roster
+/// renumbers each one to the authored position its source readers key, so a
+/// `&` parameter after a scalar one sits at its authored coordinate.
+#[derive(Clone, Copy)]
+pub(crate) enum ParameterNumbering {
+    Dense,
+    Authored,
+}
+
 pub(crate) fn bindings(
     checked: &CheckedTrees,
     state: SymbolHandle,
     parameters: &[(u32, StructuralParameterDeclaration)],
+    numbering: ParameterNumbering,
     types: &[StructuralTypeDeclaration],
 ) -> Result<Vec<(SymbolHandle, PlaceId, ScalarType)>, LoweringError> {
     let (_, state) = super::authored_state(checked, state)?;
@@ -65,7 +76,11 @@ pub(crate) fn bindings(
             continue;
         };
         let scalar_type = terminal_scalar_type(primitive)?;
-        if usize::try_from(parameter.position).ok() != Some(dense_position)
+        let expected_position = match numbering {
+            ParameterNumbering::Dense => u32::try_from(dense_position).ok(),
+            ParameterNumbering::Authored => Some(*position),
+        };
+        if Some(parameter.position) != expected_position
             || parameter.is_self
             || parameter.access != access
             || parameter.multiplicity != StructuralMultiplicity::Unrestricted
