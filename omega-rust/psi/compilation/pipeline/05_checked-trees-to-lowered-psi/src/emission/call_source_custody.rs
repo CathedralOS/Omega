@@ -200,6 +200,241 @@ pub(crate) fn validate_store_and_initializer_calls(
     Ok(())
 }
 
+/// A projected Fused binding selects an erased capability, not an implicit
+/// runtime borrow. Its boundary signature has no self operand, so argument
+/// access facts cannot stand in for the exact parameter and field custody.
+fn validate_parameter_binding_receiver(
+    checked: &CheckedTrees,
+    caller_machine: symbols::SymbolHandle,
+    caller_state: symbols::SymbolHandle,
+    caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    call: &authored::AuthoredCall,
+) -> Result<(), LoweringError> {
+    use checked_trees::CheckedUnitStructuralTypeShape;
+    use checked_trees::expression::ExpressionNode;
+    use checked_trees::statement::StatementNode;
+    use checked_trees::types::TypeReferenceNode;
+    use checked_trees::{CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment};
+
+    let Some(owner) = checked.traits().iter().find(|definition| {
+        definition.is_boundary
+            && checked
+                .trait_machine_signatures(definition)
+                .iter()
+                .any(|signature| signature.symbol == call.source_target)
+    }) else {
+        // Boundary machines and operators have no Binding requirement receiver.
+        return Ok(());
+    };
+    let (machine, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
+    if machine.symbol != caller_machine {
+        return unsupported("binding receiver belongs to another authored machine");
+    }
+    let (root, path, carrier) = match call.source_site {
+        Some(checked_trees::NominalMachineUseSite::Expression(expression)) => {
+            let ExpressionNode::Call(source) = checked.expression_table.expression(expression)
+            else {
+                return unsupported("binding receiver lost its authored call");
+            };
+            if !source.receiver.is_valid()
+                || !matches!(
+                    checked.expression_table.expression(source.receiver),
+                    ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+                )
+            {
+                return Ok(());
+            }
+            let projected = projected_receivers::source(
+                checked,
+                caller_machine,
+                caller_state,
+                coordinate.statement_index as usize,
+                source.receiver,
+            )?;
+            let carrier = validation::declared_place_type_raw(
+                &checked.typed,
+                machine,
+                Some(state),
+                source.receiver,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "binding receiver has no exact declared type",
+            ))?;
+            (projected.root, projected.path, carrier)
+        }
+        Some(checked_trees::NominalMachineUseSite::Statement(_)) => {
+            let Some(StatementNode::Call(source)) = checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .get(coordinate.statement_index as usize)
+            else {
+                return unsupported("binding receiver lost its authored statement");
+            };
+            let members = checked.statement_table.name_path_members(source.receiver);
+            let Some(parameter) = checked.state_parameters(state).iter().find(|parameter| {
+                !parameter.is_self
+                    && (parameter.symbol == source.receiver_root_symbol
+                        || members.first() == Some(&parameter.name))
+            }) else {
+                return Ok(());
+            };
+            if members.len() < 2 {
+                return Ok(());
+            }
+            if members.first() != Some(&parameter.name)
+                || parameter.symbol != source.receiver_root_symbol
+                || !source.receiver_symbol.is_valid()
+            {
+                return unsupported("binding receiver changed its parameter or field identity");
+            }
+            let mut reference = parameter.type_reference;
+            let mut path = Vec::new();
+            for (position, member) in members.iter().enumerate().skip(1) {
+                let owner = validation::unwrapped_type_reference(&checked.typed, reference).ok_or(
+                    LoweringError::Unsupported("binding receiver has no field owner"),
+                )?;
+                let TypeReferenceNode::Named { symbol, .. } =
+                    checked.type_reference_table.type_reference(owner)
+                else {
+                    return unsupported("binding receiver field owner is not nominal");
+                };
+                let owner = checked
+                    .data_definitions()
+                    .iter()
+                    .find(|owner| owner.symbol == *symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "binding receiver field owner is absent",
+                    ))?;
+                let endpoint = if position + 1 == members.len() {
+                    source.receiver_symbol
+                } else {
+                    symbols::SymbolHandle::invalid()
+                };
+                let field = validation::exact_data_member_field(
+                    &checked.typed,
+                    owner,
+                    endpoint,
+                    member.as_str(),
+                    None,
+                )
+                .ok_or(LoweringError::Unsupported(
+                    "binding receiver changed its declared field",
+                ))?;
+                if field.relevance.is_erased() {
+                    return unsupported("binding receiver selects an erased source field");
+                }
+                path.push(CheckedUnitStructuralPathSegment::Field(
+                    field.name.as_str().to_owned(),
+                ));
+                reference = field.type_reference;
+            }
+            (parameter.symbol, path, reference)
+        }
+        _ => return Ok(()),
+    };
+    let Some((position, source_parameter)) = checked
+        .state_parameters(state)
+        .iter()
+        .enumerate()
+        .find(|(_, parameter)| parameter.symbol == root && !parameter.is_self)
+    else {
+        // Attached self and local receiver routes retain their existing owners.
+        return Ok(());
+    };
+    if path.is_empty() {
+        return Ok(());
+    }
+    let mut parameters = caller_parameters
+        .iter()
+        .filter(|parameter| parameter.position as usize == position);
+    let parameter = parameters.next().ok_or(LoweringError::Unsupported(
+        "binding receiver lost its retained structural parameter",
+    ))?;
+    if parameters.next().is_some()
+        || parameter.is_self
+        || source_parameter.relevance.is_erased()
+        || parameter.fused_service_erasure.is_some()
+    {
+        return unsupported("binding receiver has inconsistent ordinary parameter custody");
+    }
+    let source_type =
+        validation::unwrapped_type_reference(&checked.typed, source_parameter.type_reference)
+            .ok_or(LoweringError::Unsupported(
+                "binding receiver parameter has no declared carrier",
+            ))?;
+    if parameter.type_identity != checked.normalized_type_identity(source_type).as_str() {
+        return unsupported("binding receiver parameter changed its retained carrier identity");
+    }
+    let requirement =
+        typed_trees::service::exact_bound_service_requirement(&checked.typed, carrier).ok_or(
+            LoweringError::Unsupported("parameter receiver is not an exact Binding carrier"),
+        )?;
+    if owner.symbol != requirement || checked.fused_service_erasure(requirement).is_none() {
+        return unsupported("binding receiver lacks its exact Fused requirement authorization");
+    }
+    let mut identity = parameter.type_identity.as_str();
+    let mut endpoint = None;
+    for (position, segment) in path.iter().enumerate() {
+        let shape = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .structural_types
+            .iter()
+            .find(|shape| shape.identity == identity)
+            .ok_or(LoweringError::Unsupported(
+                "binding receiver lost its retained carrier shape",
+            ))?;
+        match (segment, &shape.shape) {
+            (
+                CheckedUnitStructuralPathSegment::Field(name),
+                CheckedUnitStructuralTypeShape::Record { fields },
+            ) => {
+                let mut fields = fields.iter().filter(|field| field.identity == *name);
+                let field = fields.next().ok_or(LoweringError::Unsupported(
+                    "binding receiver lost its retained field",
+                ))?;
+                if fields.next().is_some() || field.relevance.is_erased() {
+                    return unsupported("binding receiver has inconsistent retained field custody");
+                }
+                endpoint = Some(&field.field_type);
+                if let CheckedUnitStructuralFieldType::Structural { type_identity } =
+                    &field.field_type
+                {
+                    identity = type_identity;
+                } else if position + 1 != path.len() {
+                    return unsupported("binding receiver projects through a nonstructural field");
+                }
+            }
+            (
+                CheckedUnitStructuralPathSegment::FixedIndex(index),
+                CheckedUnitStructuralTypeShape::FixedArray {
+                    element_type_identity,
+                    length,
+                },
+            ) if *index < *length => {
+                identity = element_type_identity;
+                endpoint = None;
+            }
+            _ => {
+                return unsupported(
+                    "binding receiver projection disagrees with its retained carrier",
+                );
+            }
+        }
+    }
+    if !matches!(endpoint, Some(CheckedUnitStructuralFieldType::FusedServiceBacked {
+        provider_type_identity, erasure,
+    }) if erasure.requirement == requirement
+        && provider_type_identity == checked.normalized_type_identity(carrier).as_str())
+    {
+        return unsupported("binding receiver lost its exact Fused field erasure receipt");
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_operation(
     checked: &CheckedTrees,
     caller_machine: symbols::SymbolHandle,
@@ -328,6 +563,16 @@ pub(crate) fn validate_operation(
         planned.target.machine,
         planned.target.state,
     )?;
+    if boundary {
+        validate_parameter_binding_receiver(
+            checked,
+            caller_machine,
+            caller_state,
+            caller_parameters,
+            coordinate,
+            &call,
+        )?;
+    }
     // Unit and scalar calls retain no site to compare.
     if call.boundary != boundary
         || planned
