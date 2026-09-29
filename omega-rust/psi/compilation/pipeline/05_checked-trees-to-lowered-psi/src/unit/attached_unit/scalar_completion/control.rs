@@ -22,7 +22,7 @@ pub(super) fn validate(
     if machine.scalar_result.is_some() || machine.structural_result.is_some() {
         return unsupported("ordinary body has conflicting completion owners");
     }
-    let prefix = validate_tail(checked, machine.machine, machine.state, control)?;
+    let prefix = validate_contracted_tail(checked, machine.machine, machine.state, control)?;
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, machine.state)?;
     let statements = checked.statement_table.statements(state.statement_nodes);
@@ -64,7 +64,56 @@ pub(super) fn validate(
 
 /// Completion is independent of how a body establishes its prefix values.
 /// Descriptor calls and ordinary effects must replay the same authored exits.
+/// This form admits no authored contract: its callers (forwarded helpers)
+/// emit no guarantee obligations, so a contract here would be erased.
 pub(crate) fn validate_tail(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+) -> Result<usize, LoweringError> {
+    let (source, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    if !checked.machine_contracts(source).is_empty() || !checked.state_contracts(state).is_empty() {
+        return unsupported("ordered scalar control lost its exact source signature");
+    }
+    validate_signature_and_exits(checked, machine, state_symbol, control)
+}
+
+/// The ordinary completion's tail. Its machine emission turns the checked
+/// contract into entry requirements and one normal-return guarantee over the
+/// controlled result (`ordinary_machine`, `normal_guarantees`), exactly as a
+/// scalar-result completion does, so `requires`, `ensures` and `crashes`
+/// clauses are admitted under the same rules `scalar_completion` applies.
+fn validate_contracted_tail(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state_symbol: symbols::SymbolHandle,
+    control: &checked_trees::CheckedUnitScalarControlPlan,
+) -> Result<usize, LoweringError> {
+    let (source, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, state_symbol)?;
+    if checked
+        .machine_contracts(source)
+        .iter()
+        .chain(checked.state_contracts(state))
+        .any(|contract| {
+            !matches!(
+                contract.kind,
+                checked_trees::signature::SignatureContractKind::Crashes { .. }
+                    | checked_trees::signature::SignatureContractKind::Requires
+                    | checked_trees::signature::SignatureContractKind::Ensures
+            ) || contract.binding.is_some()
+        })
+    {
+        return unsupported("ordered scalar control cannot erase authored scalar contracts");
+    }
+    crate::unit::runtime_requirements::validate_scalar_source(checked, source, state)?;
+    crate::scalar_graph::scalar_contracts::validate_guarantees(checked, source, state)?;
+    validate_signature_and_exits(checked, machine, state_symbol, control)
+}
+
+fn validate_signature_and_exits(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
@@ -75,8 +124,6 @@ pub(crate) fn validate_tail(
     if source.symbol != machine
         || checked.machine_states(source).len() != 1
         || checked.primitive_type_reference(state.return_type) != Some(control.primitive_type)
-        || !checked.machine_contracts(source).is_empty()
-        || !checked.state_contracts(state).is_empty()
     {
         return unsupported("ordered scalar control lost its exact source signature");
     }
