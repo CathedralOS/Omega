@@ -71,6 +71,9 @@ mod provider_attachments;
 // The operations a body lowers, each with its exact source custody.
 mod byte_subslices;
 mod field_replacement;
+pub(crate) use field_replacement::{
+    array_literal_leaves, replaced_array_literal, validate_array_element_replacements,
+};
 pub(crate) mod literal_locals;
 mod ordinary_calls;
 mod parameters;

@@ -1,0 +1,27 @@
+// A whole case-array literal stored by a single-state callee (`Main::fill`):
+// the ordinary machine body plans the same element establishments and window
+// pairs a state graph does, and the caller reads the stored element: exit 7.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Cell {
+    case Wall;
+    case Floor;
+    case Door;
+}
+data Main {
+    console: Binding<Console>;
+    grid: [Cell; 3];
+}
+machine Main::main(&mut self) reaches Console {
+    self.fill();
+    transition self.grid[1] {
+        Cell::Door -> finish(7)
+        _ -> finish(1)
+    }
+    state finish(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}
+machine Main::fill(&mut self) {
+    self.grid = [Cell::Floor, Cell::Door, Cell::Wall];
+}

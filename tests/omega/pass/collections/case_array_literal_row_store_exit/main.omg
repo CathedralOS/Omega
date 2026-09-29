@@ -1,0 +1,38 @@
+// An array literal of cases stored into one row of a nested array: the row's
+// fixed (`self.rows[0] = [..]`) or runtime (`self.rows[self.i] = [..]`) index
+// prefixes each element's window, exactly as a whole-field store appends the
+// element's own index, and the runtime row re-proves its bound from `i <= 1`.
+// Both rows stay distinct: exit 3.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Cell {
+    case Wall;
+    case Floor;
+    case Door;
+}
+data Main
+where
+    i <= 1,
+{
+    console: Binding<Console>;
+    rows: [[Cell; 2]; 2];
+    i: u64;
+}
+machine Main::main(&mut self) reaches Console {
+    self.rows[0] = [Cell::Wall, Cell::Wall];
+    self.i = 1;
+    self.rows[self.i] = [Cell::Floor, Cell::Door];
+    transition self.rows[1][1] {
+        Cell::Door -> check_row()
+        _ -> finish(1)
+    }
+    state check_row(&mut self) {
+        transition self.rows[0][1] {
+            Cell::Wall -> finish(3)
+            _ -> finish(2)
+        }
+    }
+    state finish(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

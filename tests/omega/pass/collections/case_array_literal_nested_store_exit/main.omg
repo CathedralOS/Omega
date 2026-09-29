@@ -1,0 +1,31 @@
+// A nested array literal of cases stored whole (`self.rows = [[..], [..]]`):
+// every leaf is established in row-major order, then replaces the element at
+// both of its literal indices. Two leaves in different rows read back: exit 9.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Cell {
+    case Wall;
+    case Floor;
+    case Door;
+    case Water;
+}
+data Main {
+    console: Binding<Console>;
+    rows: [[Cell; 2]; 2];
+}
+machine Main::main(&mut self) reaches Console {
+    self.rows = [[Cell::Wall, Cell::Floor], [Cell::Door, Cell::Water]];
+    transition self.rows[1][0] {
+        Cell::Door -> check_row()
+        _ -> finish(1)
+    }
+    state check_row(&mut self) {
+        transition self.rows[0][1] {
+            Cell::Floor -> finish(9)
+            _ -> finish(2)
+        }
+    }
+    state finish(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

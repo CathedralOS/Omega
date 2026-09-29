@@ -119,6 +119,36 @@ pub(super) fn plan(
         if root.machine != machine.symbol {
             return None;
         }
+        if let checked_trees::CheckedStructuralValueKind::FixedArray { elements } =
+            &facts.values.structural_values.nodes.get(root.root).kind
+        {
+            assignment_phase("statement sequence: assignment: array literal element replacements");
+            return element_replacements(
+                Planner {
+                    program,
+                    facts,
+                    scalar_callees,
+                    shapes,
+                    machine,
+                    state,
+                    structural_parameters,
+                    scalar_parameters,
+                    entry_claims,
+                    trivial_affine_locals,
+                    trace,
+                    binders,
+                    stores,
+                    operations,
+                    scalar_count,
+                    structural_count,
+                    windows,
+                    structural_results,
+                },
+                statement_index,
+                assignment,
+                elements,
+            );
+        }
         let calls = structural_operands::value_calls(
             program,
             facts,
@@ -324,6 +354,184 @@ pub(super) fn plan(
             replacement,
         })
     }
+}
+
+/// `place = [e0, e1, ..]` over a fixed array of structural elements. Terminal
+/// has no whole structural-array establishment, so the literal composes from
+/// the operations one `place[k] = ek` already uses: every element is
+/// established in authored row-major order, exactly as that element's own
+/// construction would be, and only then does each replace its element through
+/// the same window pair and optional displacement. A nested literal
+/// (`[[a, b], [c, d]]`) contributes its leaves, each under all of its indices.
+/// Evaluating the whole right-hand side before the first replacement keeps an
+/// element that reads the destination observing its old contents.
+///
+/// The destination must be the literal's exact declared array: every
+/// dimension a literal extent matching its element count, with no
+/// qualification whose evidence these element stores could not carry.
+fn element_replacements(
+    planner: Planner<'_, '_, '_>,
+    statement_index: u32,
+    assignment: &typed_trees::statement::TableAssignment,
+    elements: &[checked_trees::CheckedStructuralValueHandle],
+) -> Option<AssignmentPlan> {
+    let Planner {
+        program,
+        facts,
+        scalar_callees,
+        shapes,
+        machine,
+        state,
+        structural_parameters,
+        entry_claims,
+        trivial_affine_locals,
+        trace,
+        binders,
+        operations,
+        structural_count,
+        windows,
+        structural_results,
+        ..
+    } = planner;
+    // A selected owner transfers one whole value on its chosen edge; no
+    // element roster names that transfer.
+    if facts
+        .flow
+        .ownership
+        .owned_selection_at(state.symbol, statement_index)
+        .is_some()
+    {
+        return None;
+    }
+    let declared =
+        validation::declared_place_type_raw(program, machine, Some(state), assignment.target)?;
+    let mut leaves = Vec::new();
+    array_leaves(
+        program,
+        facts,
+        elements,
+        declared,
+        &mut Vec::new(),
+        &mut leaves,
+    )?;
+    let mut established = Vec::with_capacity(leaves.len());
+    for leaf in &leaves {
+        let calls = structural_operands::value_calls(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural_parameters,
+            trivial_affine_locals,
+            entry_claims,
+            structural_results,
+            &mut *operations,
+            &mut *structural_count,
+            leaf.value,
+            trace,
+        )?;
+        consume_value_places(facts, leaf.value, structural_results, &mut *operations)?;
+        for call in &calls {
+            consume_results(&mut *operations, call.operation())?;
+        }
+        let mut produced =
+            checked_constructed_result_type(program, shapes, leaf.type_reference, binders)?;
+        produced.statement_index = statement_index;
+        produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
+        *structural_count = structural_count.checked_add(1)?;
+        operations.push(CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            discard_result_on_return: produced.multiplicity == Multiplicity::Affine,
+            result: produced.clone(),
+            value: leaf.value,
+            calls,
+            operand_source: None,
+        });
+        established.push(produced);
+    }
+    for (leaf, produced) in leaves.iter().zip(&established) {
+        let replacement = windows.replace_element(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            assignment,
+            &leaf.indices,
+            produced,
+            u32::try_from(*structural_count).ok()?,
+            CheckedUnitStructuralArgumentPlan {
+                source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    binding_ordinal: produced.binding_ordinal,
+                },
+                path: Vec::new(),
+                type_identity: produced.type_identity.clone(),
+                access: CheckedStructuralAccess::Owned,
+            },
+        )?;
+        *structural_count =
+            structural_count.checked_add(usize::from(replacement.move_out.is_some()))?;
+        operations.extend(replacement.move_out);
+        consume_results(&mut *operations, &replacement.store)?;
+        operations.push(replacement.store);
+        if let Some(discard) = replacement.displaced_discard {
+            operations.push(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                coordinate: checked_trees::CheckedUnitCallCoordinate {
+                    statement_index,
+                    call_ordinal: 0,
+                },
+                affine_discards: vec![discard],
+            });
+        }
+    }
+    Some(AssignmentPlan::Planned)
+}
+
+/// One non-array element of a whole structural array literal: its literal
+/// indices below the destination, its value node and its declared type.
+struct ArrayLeaf {
+    indices: Vec<u64>,
+    value: checked_trees::CheckedStructuralValueHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+}
+
+/// Collect the literal's leaves in row-major order against the declared
+/// array, which must be an exact literal extent at every nested level.
+fn array_leaves(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    elements: &[checked_trees::CheckedStructuralValueHandle],
+    declared: typed_trees::types::TypeReferenceHandle,
+    indices: &mut Vec<u64>,
+    leaves: &mut Vec<ArrayLeaf>,
+) -> Option<()> {
+    let typed_trees::types::TypeReferenceNode::FixedArray {
+        element_type,
+        length: typed_trees::types::FixedArrayLength::Literal(length),
+    } = program.type_reference_table.type_reference(declared)
+    else {
+        return None;
+    };
+    if *length != elements.len() {
+        return None;
+    }
+    for (ordinal, &element) in elements.iter().enumerate() {
+        indices.push(u64::try_from(ordinal).ok()?);
+        match &facts.values.structural_values.nodes.get(element).kind {
+            checked_trees::CheckedStructuralValueKind::FixedArray { elements: nested } => {
+                array_leaves(program, facts, nested, *element_type, indices, leaves)?;
+            }
+            _ => leaves.push(ArrayLeaf {
+                indices: indices.clone(),
+                value: element,
+                type_reference: *element_type,
+            }),
+        }
+        indices.pop();
+    }
+    Some(())
 }
 
 /// The store value when the assignment's right-hand side is whole

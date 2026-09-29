@@ -195,6 +195,29 @@ pub(crate) fn validate(
         {
             continue;
         }
+        // A whole array literal of structural elements replaces its array one
+        // element window at a time; the roster rejoins its authored literal.
+        if let Some(literal) = crate::unit::attached_unit::replaced_array_literal(
+            checked,
+            plan.state,
+            statement_index as usize,
+            assignment,
+        ) {
+            let roster = plan
+                .operations
+                .iter()
+                .filter(|operation| replacement_statement(operation) == Some(statement_index))
+                .collect::<Vec<_>>();
+            crate::unit::attached_unit::validate_array_element_replacements(
+                checked,
+                plan.state,
+                statement_index as usize,
+                assignment,
+                &roster,
+                literal,
+            )?;
+            continue;
+        }
         // A borrowed-window repair store covers its authored assignment; the
         // ledger already validated destination and value against the open hole.
         if plan.operations.iter().any(|operation| {
@@ -396,6 +419,27 @@ fn has_other_store(
                 CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
             )
     })
+}
+
+/// The authored statement an operation of a structural field replacement
+/// names: its producer, move-out, store or displaced cleanup, or any call the
+/// statement performs.
+fn replacement_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32> {
+    match operation {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+        | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StoreStructuralField {
+            statement_index, ..
+        } => Some(*statement_index),
+        CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
+            Some(coordinate.statement_index)
+        }
+        _ => operation
+            .call()
+            .map(|call| call.coordinate.statement_index),
+    }
 }
 
 /// Existing affine construction writes target a local, not a receiver field.

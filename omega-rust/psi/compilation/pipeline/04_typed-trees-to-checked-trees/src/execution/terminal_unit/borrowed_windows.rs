@@ -366,16 +366,56 @@ impl OpenWindows {
         displaced_ordinal: u32,
         value: CheckedUnitStructuralArgumentPlan,
     ) -> Option<FieldReplacement> {
+        self.replace_element(
+            program,
+            facts,
+            machine,
+            state,
+            structural_parameters,
+            statement_index,
+            assignment,
+            &[],
+            produced,
+            displaced_ordinal,
+            value,
+        )
+    }
+
+    /// Store `produced` into the element of the fixed array the assignment's
+    /// target names at literal `indices`: the same window pair `replace`
+    /// builds, over the target's place extended by those indices. A
+    /// whole-array literal replaces its array one element at a time this way,
+    /// so each element keeps its own exact displacement and disposal.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn replace_element(
+        &mut self,
+        program: &TypedTrees,
+        facts: &CheckFacts,
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        structural_parameters: &[CheckedUnitStructuralParameterPlan],
+        statement_index: u32,
+        assignment: &typed_trees::statement::TableAssignment,
+        indices: &[u64],
+        produced: &CheckedUnitStructuralResultBindingPlan,
+        displaced_ordinal: u32,
+        value: CheckedUnitStructuralArgumentPlan,
+    ) -> Option<FieldReplacement> {
         if produced.multiplicity == Multiplicity::Linear {
             return None;
         }
         let index = usize::try_from(statement_index).ok()?;
-        let destination_place = crate::flow::canonical_place_from_expression_in_state(
+        let mut destination_place = crate::flow::canonical_place_from_expression_in_state(
             program,
             state.symbol,
             index,
             assignment.target,
         )?;
+        for element in indices {
+            destination_place.segments.push(PlaceSegment::FixedIndex {
+                index: usize::try_from(*element).ok()?,
+            });
+        }
         let (position, path) = window_place(
             program,
             facts,

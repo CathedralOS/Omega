@@ -240,6 +240,25 @@ pub(super) fn validate_unit_operation_sequence(
                     )?;
                 }
                 structural_calls::validate_usage(checked, machine, result)?;
+                // A later element of a whole array-literal replacement binds
+                // the next dense ordinal and continues the statement its
+                // first element began.
+                if super::field_replacement::continues_array_elements(
+                    &machine.operations,
+                    operation_index,
+                ) {
+                    if result.binding_ordinal != next_structural_binding {
+                        return unsupported(
+                            "Unit structural result is not the next dense source binding",
+                        );
+                    }
+                    next_structural_binding = next_structural_binding.checked_add(1).ok_or(
+                        LoweringError::Unsupported(
+                            "Unit structural result binding ordinal space is exhausted",
+                        ),
+                    )?;
+                    continue;
+                }
                 checked_trees::CheckedUnitCallCoordinate {
                     statement_index: result.statement_index,
                     call_ordinal: 0,
@@ -273,6 +292,10 @@ pub(super) fn validate_unit_operation_sequence(
                     });
                 if !completed_call
                     && !super::field_replacement::continues_with_cleanup(
+                        &machine.operations,
+                        operation_index,
+                    )
+                    && !super::field_replacement::continues_array_elements(
                         &machine.operations,
                         operation_index,
                     )
@@ -407,6 +430,10 @@ pub(super) fn validate_unit_operation_sequence(
                     || super::field_replacement::continues_bound_value(
                         &machine.operations,
                         operation_index,
+                    )
+                    || super::field_replacement::continues_array_elements(
+                        &machine.operations,
+                        operation_index,
                     ) =>
             {
                 if result.binding_ordinal != next_structural_binding {
@@ -425,6 +452,10 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::StoreStructuralField { .. }
                 if super::field_replacement::continues(&machine.operations, operation_index)
                     || super::field_replacement::continues_bound_value(
+                        &machine.operations,
+                        operation_index,
+                    )
+                    || super::field_replacement::continues_array_elements(
                         &machine.operations,
                         operation_index,
                     ) =>
