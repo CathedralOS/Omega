@@ -807,28 +807,6 @@ fn is_record_pattern_marker(local: &typed_trees::statement::TableLocalData) -> b
     local.name.as_str().starts_with("__destructure#")
 }
 
-/// The statement position a prebuilt assignment store belongs to.
-fn store_statement_index(store: &CheckedUnitEffectOperationPlan) -> Option<u32> {
-    match store {
-        CheckedUnitEffectOperationPlan::ByteSequenceWrite(store) => Some(store.statement_index),
-        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-            statement_index, ..
-        } => Some(*statement_index),
-        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-            Some(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store) => {
-            Some(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store.statement_index),
-        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-            Some(store.statement_index)
-        }
-        CheckedUnitEffectOperationPlan::ElementViewWrite(store) => Some(store.statement_index),
-        _ => None,
-    }
-}
-
 /// The machine an assignment's right-hand side calls, when it is a direct call.
 fn statement_call_target(
     program: &TypedTrees,
