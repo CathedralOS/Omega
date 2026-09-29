@@ -410,6 +410,66 @@ impl TerminalExecution {
         Ok(())
     }
 
+    /// A read that ends at a scalar field of a record element it selected at
+    /// run time (`cells[i].hp`). The loop has already replaced each selector
+    /// with the element its value names, so `path` is static here and the
+    /// read is the same observation `IntegerStructuralField` or
+    /// `BooleanStructuralField` makes of that element's field: the field's
+    /// value lives in `structural_scalar_fields` under its record's runtime
+    /// place. `None` when the path ends at a primitive leaf instead.
+    fn element_field_read(
+        &self,
+        source: PlaceId,
+        path: &[StructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let Some((StructuralPathSegment::Field(identity), carrier)) = path.split_last() else {
+            return Ok(None);
+        };
+        let Some(root) = self.structural_values.get(&source) else {
+            return Ok(None);
+        };
+        let Some((carrier, record)) = terminal_semantics::canonical_static_projection(
+            self.program.structural_types.values(),
+            root.structural_type,
+            carrier,
+        ) else {
+            return Ok(None);
+        };
+        let terminal_psi::StructuralTypeShape::Record { fields } = &record.shape else {
+            return Ok(None);
+        };
+        let mut matching = fields.iter().filter(|field| field.identity == *identity);
+        let (Some(field), None) = (matching.next(), matching.next()) else {
+            return Err(invalid());
+        };
+        // A field holding a structural child is an ordinary primitive leaf
+        // projection; only a scalar field ends this route.
+        let terminal_psi::StructuralFieldType::Scalar(declared) = field.field_type else {
+            return Ok(None);
+        };
+        if field.relevance.is_erased() || declared != scalar_type {
+            return Err(invalid());
+        }
+        let parent = self.observed_field_parent(source, &carrier)?;
+        let value = self
+            .structural_scalar_fields
+            .get(&StructuralScalarRuntimeField {
+                parent,
+                field: field.id,
+            })
+            .copied()
+            .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
+                source,
+                field: field.id,
+            })?;
+        if value.scalar_type() != scalar_type {
+            return Err(invalid());
+        }
+        Ok(Some(value))
+    }
+
     pub(crate) fn execute_primitive_read(
         &mut self,
         operation: &Operation,
@@ -420,6 +480,10 @@ impl TerminalExecution {
             .result
             .scalar()
             .ok_or(TerminalInterpretError::VerifiedOperationMalformed)?;
+        if let Some(value) = self.element_field_read(source, path, result.scalar_type)? {
+            self.values.insert(result.id, value);
+            return Ok(());
+        }
         let (storage, scalar_type) = self.primitive_access(source, false, path)?;
         let scalar = match storage {
             PrimitiveStorage::OwnedArrayElement { place, index } => self

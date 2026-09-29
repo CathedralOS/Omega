@@ -245,11 +245,23 @@ fn projected_type(
     writing: bool,
 ) -> Option<ScalarType> {
     let signature = writable_signature(module, machine, place, writing)?;
-    terminal_semantics::primitive_projection_type(
-        module.structural_types.iter(),
-        signature.structural_type,
-        path,
-    )
+    // A read may end at a scalar field of an element it selects at run time
+    // (`cells[i].hp`); a store may not, because only the field store owns a
+    // bounded field's range obligation. A static path to a field keeps the
+    // canonical field read.
+    if writing {
+        terminal_semantics::primitive_projection_type(
+            module.structural_types.iter(),
+            signature.structural_type,
+            path,
+        )
+    } else {
+        terminal_semantics::primitive_read_projection_type(
+            module.structural_types.iter(),
+            signature.structural_type,
+            path,
+        )
+    }
 }
 
 pub(super) fn validate_uses(

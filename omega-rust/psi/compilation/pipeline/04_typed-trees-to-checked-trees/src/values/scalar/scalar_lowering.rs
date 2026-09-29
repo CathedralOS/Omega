@@ -1228,11 +1228,13 @@ pub(super) fn selected_element(
     })
 }
 
-/// One scalar leaf of a record element selected through a borrowed view
-/// (`entries[index].value`): the element selection a scalar element read
-/// takes, plus the static field path inside the selected element. A fixed
-/// array's element keeps its own projection (a runtime index segment of the
-/// array path), so only views take this form.
+/// One scalar leaf of a selected record element (`entries[index].value`
+/// through a borrowed view, `self.cells[self.i].hp` in a fixed array): the
+/// element selection a scalar element read takes, plus the static field path
+/// inside the selected element. Lowering spells a view's element through the
+/// view's length observation and a fixed array's element as a `RuntimeIndex`
+/// segment of the array path followed by the element path; either way the
+/// selected element's bound is the read's own obligation.
 #[allow(clippy::too_many_arguments)]
 fn view_element_field_read(
     program: &TypedTrees,
@@ -1278,9 +1280,6 @@ fn view_element_field_read(
         locals,
         exact_integer_casts,
     )?;
-    if !selection.through_view {
-        return None;
-    }
     let place = crate::flow::canonical_place_from_expression(program, expression)?;
     let fields = place
         .segments

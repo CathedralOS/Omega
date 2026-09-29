@@ -1532,6 +1532,74 @@ mod tests {
         );
     }
 
+    /// A read ending at a scalar field of a runtime-selected record element
+    /// (`cells[i].hp`) spells its path with the existing field and runtime
+    /// index segments, so it takes no new tag: the round trip is exact, a
+    /// truncated encoding fails, and another field or selector encodes
+    /// differently.
+    #[test]
+    fn runtime_element_field_read_roundtrips_its_path() {
+        let path = vec![
+            terminal_psi::StructuralPathSegment::Field("cells".into()),
+            terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: id(3),
+                obligation: id(1),
+            },
+            terminal_psi::StructuralPathSegment::Field("hp".into()),
+        ];
+        let block = Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: vec![Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id(1),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: id(4),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::PrimitiveScalarRead {
+                    source: id(2),
+                    path,
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id(3),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(decode_block(&mut Reader::new(&bytes)).unwrap(), block);
+        for prefix in 0..bytes.len() {
+            assert!(decode_block(&mut Reader::new(&bytes[..prefix])).is_err());
+        }
+        for change in 0..2 {
+            let mut changed = block.clone();
+            let OperationKind::PrimitiveScalarRead { path, .. } = &mut changed.operations[0].kind
+            else {
+                panic!("read");
+            };
+            match change {
+                0 => path[2] = terminal_psi::StructuralPathSegment::Field("tag".into()),
+                _ => {
+                    path[1] = terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: id(5),
+                        obligation: id(1),
+                    }
+                }
+            }
+            let mut writer = Writer::default();
+            encode_block(&mut writer, &changed).unwrap();
+            assert_ne!(writer.finish(), bytes, "change {change}");
+        }
+    }
+
     #[test]
     fn byte_field_store_roundtrips_every_identity_and_rejects_truncation() {
         let block = Block {

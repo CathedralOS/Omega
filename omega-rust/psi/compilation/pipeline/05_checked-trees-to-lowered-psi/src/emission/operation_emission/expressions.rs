@@ -48,14 +48,18 @@ pub(crate) enum LoweredDirectExpression {
         index: Box<LoweredDirectExpression>,
         scalar_type: ScalarType,
     },
-    /// Read one primitive element of a fixed-array record field: `path`
+    /// Read one scalar of a runtime-selected fixed-array element: `path`
     /// resolves from `source` to the array itself and `index` is the runtime
     /// `u64` selector, evaluated first and then spelled as the read's
-    /// `RuntimeIndex` segment.
+    /// `RuntimeIndex` segment. `element_path` is empty for a primitive
+    /// element; for a record element it follows the selector down to one
+    /// scalar field (`cells[i].hp`), which the verifier resolves against the
+    /// element's declaration.
     IndexedPrimitiveRead {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
+        element_path: Vec<terminal_psi::StructuralPathSegment>,
         scalar_type: ScalarType,
     },
     ElementViewLength {
@@ -432,6 +436,7 @@ pub(crate) fn emit_direct_expression(
             source,
             path,
             index,
+            element_path,
             scalar_type,
         } => {
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
@@ -446,6 +451,7 @@ pub(crate) fn emit_direct_expression(
             );
             let mut path = path.clone();
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
+            path.extend(element_path.iter().cloned());
             emit_scalar_leaf(
                 OperationKind::PrimitiveScalarRead {
                     source: *source,

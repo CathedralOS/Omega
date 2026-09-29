@@ -520,6 +520,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     source,
                     path: Vec::new(),
                     index: Box::new(exact_u64_index(index)?),
+                    element_path: Vec::new(),
                     scalar_type: terminal_scalar_type(*primitive_type)?,
                 });
             }
@@ -537,11 +538,6 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 && parameter.access == StructuralAccess::Owned
                         });
                     if !path.is_empty() || owned_parameter {
-                        if !element_path.is_empty() {
-                            return unsupported(
-                                "a projected element read carries no element field path",
-                            );
-                        }
                         let index = lower_checked_scalar_expression_with_parameters(
                             index,
                             structural_parameters,
@@ -553,6 +549,30 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                             structural_locals,
                         )?;
                         let index = exact_u64_index(index)?;
+                        // A scalar field of a record element (`cells[i].hp`)
+                        // follows the selector with the element path; the
+                        // array's declared extent still bounds the selector.
+                        if !element_path.is_empty() {
+                            let (source, path, element_path, leaf) =
+                                crate::expression_preparation::bindings::structural_fields::resolve_indexed_element_field(
+                                    structural_fields,
+                                    parameter_position,
+                                    path,
+                                    element_path,
+                                )?;
+                            if leaf != terminal_scalar_type(*primitive_type)? {
+                                return unsupported(
+                                    "indexed element field read drifted from its field type",
+                                );
+                            }
+                            return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                                source,
+                                path,
+                                index: Box::new(index),
+                                element_path,
+                                scalar_type: leaf,
+                            });
+                        }
                         // A path ending at a fixed array declares its extent
                         // on the type, so the element read needs no length
                         // observation.
@@ -572,6 +592,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 source,
                                 path,
                                 index: Box::new(index),
+                                element_path: Vec::new(),
                                 scalar_type: element_scalar,
                             });
                         }

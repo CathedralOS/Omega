@@ -11,11 +11,11 @@
 // and also has no local: its statement is
 // `transition self.items[self.w] { Color::Red -> ... }`.
 //
-// This is the same family as
-// `tests/omega/pending/collections/runtime_indexed_record_field_store`: a
+// This is the case-array sibling of
+// `tests/omega/pass/collections/runtime_indexed_record_field_read_exit`: a
 // runtime index selecting a NON-SCALAR element. A runtime index into a
-// scalar array plans; a literal index into a case or record array plans;
-// the combination does not. Whoever takes one should look at the other.
+// scalar array plans, and so does a runtime-selected record element's scalar
+// field; a runtime-selected case element still does not.
 //
 // Promote to `pass/control_flow/` with an exit — 2 here, since `items[0]`
 // is `White` — when the dispatch lands.

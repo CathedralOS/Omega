@@ -419,11 +419,13 @@ pub(crate) fn substitute_direct(
             source,
             path,
             index,
+            element_path,
             scalar_type,
         } => Direct::IndexedPrimitiveRead {
             source,
             path,
             index: Box::new(substitute_direct(*index, bound)),
+            element_path,
             scalar_type,
         },
         Direct::ByteSequenceFieldRead {

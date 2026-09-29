@@ -7,6 +7,23 @@
 //! (`primitive_projection_type`); a static projection also has one canonical
 //! spelling (`canonical_primitive_path`) that facts are keyed by. The backend's
 //! abstract operations keep the canonical form (`primitive_place_type`).
+//!
+//! # Scalar fields of runtime-selected elements
+//!
+//! A read (never a store) may also end at a relevant integer or Boolean
+//! scalar field of a record element it selected at run time
+//! (`self.cells[self.i].hp`, `primitive_read_projection_type`). Such a read is
+//! the same observation `IntegerStructuralField` makes of `self.cells[2].hp`,
+//! but its element is chosen by a runtime value, so it names no canonical
+//! leaf: it keys no field fact, and the verifier bounds its selector with the
+//! `RuntimeIndex` obligation it already reconstructs for every primitive read.
+//! A projection with no runtime element must keep the canonical field read, so
+//! each read has one spelling. This is the smaller of two routes: giving the
+//! field observations a runtime carrier would change the canonical path type
+//! that every field fact is keyed by, while the primitive read already carries
+//! runtime elements through Terminal verification and every Omega stage. Stores
+//! keep `StructuralScalarFieldStore`, which owns a bounded field's range
+//! obligation; a primitive store ending at a record field would bypass it.
 
 use crate::static_path::canonical_structural_path_tip;
 use semantic_vocabulary::{
@@ -14,7 +31,7 @@ use semantic_vocabulary::{
 };
 use terminal_psi::{
     ByteSequenceCarrier, StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
-    StructuralTypeShape,
+    StructuralTypeShape, is_static_structural_path,
 };
 
 /// Reconstruct the primitive leaf from declaration identities and fixed bounds.
@@ -67,6 +84,69 @@ pub fn primitive_projection_type<'a>(
     path: &[StructuralPathSegment],
 ) -> Option<ScalarType> {
     walk_primitive_projection(declarations, root, path, |_| {})?.primitive_scalar()
+}
+
+/// Resolve the scalar a primitive *read* observes: every leaf
+/// `primitive_projection_type` admits, plus a relevant integer or Boolean
+/// scalar field that ends a projection selecting some element at run time
+/// (see the module documentation). Stores resolve through
+/// `primitive_projection_type` alone. This grants no access authority.
+pub fn primitive_read_projection_type<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<ScalarType> {
+    primitive_projection_type(declarations.clone(), root, path)
+        .or_else(|| runtime_element_field(declarations, root, path).map(|(scalar, _)| scalar))
+}
+
+/// The scalar field a runtime-selected read ends at, with the record
+/// declaration that owns it: `path` is a carrier with at least one
+/// `RuntimeIndex` element, resolved like any primitive projection, followed
+/// by one `Field` naming a relevant, non-address integer or Boolean scalar
+/// field of the record the carrier reaches. Erased, bounded, IEEE, byte and
+/// structural fields, a static carrier, and any other final segment name
+/// nothing: a static carrier has the canonical field read, and a bounded
+/// field's declared range is supplied only by that read.
+pub fn runtime_element_field<'a>(
+    declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+) -> Option<(ScalarType, &'a StructuralTypeDeclaration)> {
+    let (StructuralPathSegment::Field(identity), carrier) = path.split_last()? else {
+        return None;
+    };
+    if is_static_structural_path(carrier) {
+        return None;
+    }
+    let ProjectionTip::Declared(record) =
+        walk_primitive_projection(declarations, root, carrier, |_| {})?
+    else {
+        return None;
+    };
+    let StructuralTypeShape::Record { fields } = &record.shape else {
+        return None;
+    };
+    let mut matching = fields.iter().filter(|field| field.identity == *identity);
+    let field = matching.next()?;
+    if matching.next().is_some()
+        || field.relevance.is_erased()
+        || fields
+            .iter()
+            .filter(|candidate| candidate.id == field.id)
+            .count()
+            != 1
+    {
+        return None;
+    }
+    let scalar = match field.field_type {
+        StructuralFieldType::Scalar(ScalarType::Boolean) => ScalarType::Boolean,
+        StructuralFieldType::Scalar(ScalarType::Integer(integer)) if !integer.is_address() => {
+            ScalarType::Integer(integer)
+        }
+        _ => return None,
+    };
+    Some((scalar, record))
 }
 
 /// The canonical spelling of a static primitive projection, the key facts
@@ -208,8 +288,9 @@ fn walk_primitive_projection<'a>(
 #[cfg(test)]
 mod tests {
     use super::{
-        CanonicalStructuralPathSegment, ScalarType, StructuralTypeDeclaration, StructuralTypeId,
-        StructuralTypeShape, primitive_place_type,
+        CanonicalStructuralPathSegment, ScalarType, StructuralPathSegment,
+        StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, primitive_place_type,
+        primitive_projection_type, primitive_read_projection_type, runtime_element_field,
     };
     use semantic_vocabulary::{IntegerSign, IntegerType, StructuralFieldId};
     use terminal_psi::{BindingRelevance, StructuralFieldDeclaration, StructuralFieldType};
@@ -282,6 +363,120 @@ mod tests {
             assert_eq!(
                 primitive_place_type(declarations.iter(), record, &path),
                 None
+            );
+        }
+    }
+
+    /// `cells[i].hp` resolves for a read, never for a store, and only when an
+    /// element is selected at run time; the field must be a relevant,
+    /// unbounded integer or Boolean scalar of the selected record.
+    #[test]
+    fn runtime_element_field_resolves_only_relevant_scalar_fields_of_runtime_elements() {
+        let cell = StructuralTypeId::new(1).unwrap();
+        let cells = StructuralTypeId::new(2).unwrap();
+        let root = StructuralTypeId::new(3).unwrap();
+        let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        let octet = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let field = |raw, identity: &str, field_type| StructuralFieldDeclaration {
+            id: StructuralFieldId::new(raw).unwrap(),
+            identity: identity.into(),
+            relevance: BindingRelevance::Relevant,
+            field_type,
+        };
+        let declarations = [
+            StructuralTypeDeclaration {
+                id: cell,
+                identity: "Cell".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        field(1, "hp", StructuralFieldType::Scalar(i32_type)),
+                        field(2, "alive", StructuralFieldType::Scalar(ScalarType::Boolean)),
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(3).unwrap(),
+                            identity: "console".into(),
+                            relevance: BindingRelevance::Erased,
+                            field_type: StructuralFieldType::Erased {
+                                type_identity: "Console".into(),
+                            },
+                        },
+                        field(
+                            4,
+                            "level",
+                            StructuralFieldType::BoundedInteger(
+                                semantic_vocabulary::BoundedIntegerType::new(
+                                    octet,
+                                    semantic_vocabulary::IntegerValue::Unsigned(0),
+                                    semantic_vocabulary::IntegerValue::Unsigned(9),
+                                )
+                                .unwrap(),
+                            ),
+                        ),
+                    ],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: cells,
+                identity: "Cells".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: cell,
+                    length: 4,
+                },
+            },
+            StructuralTypeDeclaration {
+                id: root,
+                identity: "Main".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![field(1, "cells", StructuralFieldType::Structural(cells))],
+                },
+            },
+        ];
+        let runtime = StructuralPathSegment::RuntimeIndex {
+            index: semantic_vocabulary::ValueId::new(9).unwrap(),
+            obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+        };
+        let path = |selector: StructuralPathSegment, leaf: &str| {
+            vec![
+                StructuralPathSegment::Field("cells".into()),
+                selector,
+                StructuralPathSegment::Field(leaf.into()),
+            ]
+        };
+        let hp = path(runtime.clone(), "hp");
+        assert_eq!(
+            primitive_read_projection_type(declarations.iter(), root, &hp),
+            Some(i32_type)
+        );
+        assert_eq!(
+            runtime_element_field(declarations.iter(), root, &hp).map(|(_, record)| record.id),
+            Some(cell)
+        );
+        assert_eq!(
+            primitive_read_projection_type(
+                declarations.iter(),
+                root,
+                &path(runtime.clone(), "alive")
+            ),
+            Some(ScalarType::Boolean)
+        );
+        assert_eq!(
+            primitive_projection_type(declarations.iter(), root, &hp),
+            None
+        );
+        for rejected in [
+            path(runtime.clone(), "console"),
+            path(runtime.clone(), "level"),
+            path(runtime.clone(), "missing"),
+            path(StructuralPathSegment::FixedIndex(1), "hp"),
+            path(StructuralPathSegment::FixedIndex(4), "hp"),
+            vec![
+                StructuralPathSegment::Field("cells".into()),
+                runtime.clone(),
+            ],
+        ] {
+            assert_eq!(
+                primitive_read_projection_type(declarations.iter(), root, &rejected),
+                None,
+                "{rejected:?}"
             );
         }
     }
