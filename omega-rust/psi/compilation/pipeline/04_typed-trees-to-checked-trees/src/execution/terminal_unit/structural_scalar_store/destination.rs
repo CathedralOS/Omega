@@ -489,6 +489,18 @@ impl<'a> Destination<'a> {
         final_owner(owner).then_some(Carrier { path, owner })
     }
 
+    /// Whether this destination roots at an established view local: an
+    /// exclusive borrowed-view root's referent is a slice, so a runtime
+    /// element selector is a legal carrier hop where an owned record local
+    /// keeps static carriers only.
+    pub(super) fn view_local_root(&self, program: &TypedTrees) -> bool {
+        matches!(self.root, Root::Local { .. })
+            && matches!(
+                program.type_reference_table.type_reference(self.root_type),
+                TypeReferenceNode::Slice { .. }
+            )
+    }
+
     /// The canonical mutation-summary spelling of this destination's place:
     /// the receiver is `self` and other parameters are positional, even when
     /// the receiver occupies structural position zero.

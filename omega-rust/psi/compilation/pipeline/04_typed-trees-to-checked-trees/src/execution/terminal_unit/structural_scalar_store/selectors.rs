@@ -21,10 +21,13 @@ pub(in crate::execution::terminal_unit) struct TargetSelectors {
 
 impl TargetSelectors {
     /// Admit every indexed step of `target`, or `None` when one of them is
-    /// not an element of a declared fixed array: a range (a subslice), a
-    /// literal outside its extent, a selector into a byte view or bounded
-    /// byte field (those keep their live-length stores), or a runtime
-    /// selector whose scalar coordinate the statement does not retain.
+    /// not an element of a declared fixed array or slice: a range (a
+    /// subslice), a literal outside a declared extent, a selector into a
+    /// byte view or bounded byte field (those keep their live-length
+    /// stores), or a runtime selector whose scalar coordinate the
+    /// statement does not retain. A slice carries no declared literal
+    /// extent, so its steps leave every index unproven here for the
+    /// segment's Terminal obligation.
     pub(in crate::execution::terminal_unit) fn resolve(
         program: &TypedTrees,
         facts: &CheckFacts,
@@ -49,16 +52,33 @@ impl TargetSelectors {
                         indexed.collection,
                     )?;
                     let collection = validation::unwrapped_type_reference(program, collection)?;
-                    let TypeReferenceNode::FixedArray {
-                        length: typed_trees::types::FixedArrayLength::Literal(length),
-                        ..
-                    } = program.type_reference_table.type_reference(collection)
-                    else {
-                        return None;
-                    };
+                    let literal_length =
+                        match program.type_reference_table.type_reference(collection) {
+                            TypeReferenceNode::FixedArray {
+                                length: typed_trees::types::FixedArrayLength::Literal(length),
+                                ..
+                            } => Some(*length),
+                            // A slice's extent is live, not declared: no literal
+                            // bound exists to check, and the emitted segment's
+                            // Terminal obligation re-proves `index < extent`
+                            // against the view's own length witness. A byte
+                            // element keeps its established byte-view
+                            // vocabulary instead — its live-length stores
+                            // resolve elsewhere.
+                            TypeReferenceNode::Slice { element_type } => {
+                                if program.primitive_type_reference(*element_type)
+                                    == Some(typed_trees::types::PrimitiveType::U8)
+                                {
+                                    return None;
+                                }
+                                None
+                            }
+                            _ => return None,
+                        };
                     match program.expression_table.expression(indexed.index) {
                         ExpressionNode::Integer(literal) => {
-                            if usize::try_from(literal.value_bignum()?.to_u64()?).ok()? >= *length {
+                            let index = usize::try_from(literal.value_bignum()?.to_u64()?).ok()?;
+                            if literal_length.is_some_and(|length| index >= length) {
                                 return None;
                             }
                         }

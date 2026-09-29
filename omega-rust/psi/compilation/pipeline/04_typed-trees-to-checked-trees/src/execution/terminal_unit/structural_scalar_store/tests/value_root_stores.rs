@@ -2,8 +2,9 @@
 //! when its value operand is a bound local, a call result, an indexed
 //! element read, or a constructed value, and when its destination is a
 //! field path that ends in an element selection on a fixed-array member.
-//! Slice-rooted destinations stay declined — the element write vocabulary
-//! for borrowed slice storage is a separate family.
+//! Slice-rooted local destinations stay declined — the element write
+//! vocabulary for borrowed slice storage is a separate family; a slice
+//! parameter root instead routes to the owned-structural replacement lane.
 use super::checked_program;
 
 /// The omission stage a machine declines at, or `None` when every
@@ -60,16 +61,23 @@ fn field_destination_admits_indexed_element_value() {
     );
 }
 
-/// A borrowed slice root is not a window destination: `nodes[at] = node`
+/// A borrowed slice root is not a window destination: `slots[at] = node`
 /// on `&mut [Node]` needs the element-write vocabulary the spec reserves
-/// (`ElementViewWrite`), not the structural field store.
+/// (`ElementViewWrite`), not the structural field store. A parameter root
+/// still routes through the owned-structural replacement lane — an
+/// established view local names no owned place that lane can replace.
 #[test]
 fn slice_rooted_destination_still_declines() {
     let omission = omission(
         r#"
         data Node { tag: u64; }
-        machine Node::store(&mut self, nodes: &mut [Node], at: u64 [0..nodes.len], new_node: Node) {
-            nodes[at] = new_node;
+        data Bag { nodes: [Node; 4]; }
+        machine Bag::store(&mut self, bag: &mut Bag, at: u64, new_node: Node)
+        requires
+            at < bag.nodes.len
+        {
+            let slots: &mut [Node] = bag.nodes.as_mut_slice();
+            slots[at] = new_node;
         }
     "#,
         "store",

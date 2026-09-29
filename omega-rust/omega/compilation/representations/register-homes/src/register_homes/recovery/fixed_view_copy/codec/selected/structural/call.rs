@@ -2,7 +2,7 @@
 use super::{calling::*, declarations::*, settlements::*};
 use crate::FixedViewCopyDecodeError;
 use crate::register_homes::recovery::fixed_view_copy::codec::primitives::{
-    Cursor, decode_id, decode_ids, encode_ids, length,
+    Cursor, decode_id, decode_ids, decode_option_u64, encode_ids, encode_option_u64, length,
 };
 use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use selected_instructions::{SelectedCallContract, SelectedInstructionId};
@@ -39,7 +39,7 @@ pub(super) fn encode_call(bytes: &mut Vec<u8>, row: &SelectedCallContract) {
                         index.operand.scalar_type,
                     );
                     bytes.extend_from_slice(&index.stride.to_le_bytes());
-                    bytes.extend_from_slice(&index.extent.to_le_bytes());
+                    encode_option_u64(bytes, index.extent);
                     bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
                     bytes.extend_from_slice(&index.accepted_fact.bytes());
                 }
@@ -105,7 +105,7 @@ pub(super) fn decode_call(
                                 scalar_type: crate::register_homes::recovery::fixed_view_copy::codec::values::decode_scalar(cursor)?,
                             },
                             stride: cursor.u32()?,
-                            extent: cursor.u64()?,
+                            extent: decode_option_u64(cursor)?,
                             obligation: decode_id(cursor, ObligationId::new)?,
                             accepted_fact:
                                 optimization_core::AcceptedObligationFactIdentity::from_bytes(

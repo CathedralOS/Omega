@@ -945,7 +945,7 @@ impl OperationFrame<'_, '_> {
         // A parameter destination roots the store at its borrowed place; an
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
-        let (destination_place, lowered) = match store.destination {
+        let (destination_place, destination_type, lowered) = match store.destination {
             checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
                 // The destination names the authored parameter position;
                 // `structural_parameters` pairs each checked plan's authored
@@ -966,7 +966,7 @@ impl OperationFrame<'_, '_> {
                         self.structural_types.declarations(),
                         crate::emission::structural_scalar_store::StoreAccessPolicy::Exclusive,
                     )?;
-                (destination.place, lowered)
+                (destination.place, destination.structural_type, lowered)
             }
             checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
                 let (place, root_type) =
@@ -977,7 +977,7 @@ impl OperationFrame<'_, '_> {
                         root_type,
                         self.structural_types.declarations(),
                     )?;
-                (place, lowered)
+                (place, root_type, lowered)
             }
         };
         // The carrier's runtime elements are evaluated before the value.
@@ -1013,6 +1013,45 @@ impl OperationFrame<'_, '_> {
         )?;
         if value.scalar_type != lowered.scalar_type {
             return unsupported("structural scalar store RHS differs from its field type");
+        }
+        // A runtime-indexed store whose carrier is an element view owes its
+        // bound the view's own stored extent: mint the dominating
+        // `ElementViewLength` observation the `RuntimeIndex` segment's
+        // `index < length` obligation names — the same observation an
+        // element-view write carries as its `length` operand.
+        let runtime_index_through_view =
+            self.structural_types
+                .declarations()
+                .iter()
+                .any(|declaration| {
+                    declaration.id == destination_type
+                        && matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::ElementView { .. }
+                        )
+                })
+                && lowered.steps.iter().any(|step| {
+                    matches!(
+                        step,
+                        crate::emission::runtime_elements::ProjectionStep::AssignmentIndex { .. }
+                    )
+                });
+        if runtime_index_through_view {
+            let length = crate::terminal_identities::value_id(allocate_dense(self.next_value)?);
+            let observation = self.operations.allocate();
+            self.operations.push(Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: observation,
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: length,
+                    scalar_type: terminal_scalar_type(crate::unit::PrimitiveType::U64)?,
+                }),
+                kind: OperationKind::ElementViewLength {
+                    source: destination_place,
+                },
+            });
         }
         let kind = lowered.into_operation(destination_place, indexes, value.id, self.calls)?;
         self.push_unit(kind);

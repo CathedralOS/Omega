@@ -75,7 +75,7 @@ pub(crate) fn runtime_operand(
     legalized_operations::LegalizedRuntimeIndexOperand {
         operand,
         stride,
-        extent,
+        extent: Some(extent),
         obligation,
         accepted_fact: unit
             .accepted_obligation_facts

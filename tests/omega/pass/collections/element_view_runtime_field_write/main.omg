@@ -1,0 +1,51 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+// Record-element field stores at a runtime selector through an exclusive
+// element view: `fill` establishes `cells: &mut [Cell]` over the bag's array
+// and writes beneath `cells[pick]`. A view's extent is live — the store's
+// bound re-proves `pick < len` against the dominating length observation the
+// emission mints beside it, never against a literal in the type.
+
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.fill(&mut self.bag);
+
+    transition self.bag.cells[2].value == 7 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(90);
+    }
+}
+
+machine Main::fill(&mut self, bag: &mut Bag) {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let pick: i32 = 2;
+    cells[pick].value = 7;
+    transition {
+        _ -> done()
+    }
+
+    state done() {
+    }
+}

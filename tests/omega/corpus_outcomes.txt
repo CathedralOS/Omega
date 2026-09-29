@@ -209,6 +209,7 @@ pass/collections/array_local_control checked 291ms
 pass/collections/element_policy_array_literal_store checked 8467ms
 pass/collections/element_view_field_write checked 6912ms @00409967bc5+wt
 pass/collections/element_view_indexed_read checked 9032ms @39705d97d7e+wt
+pass/collections/element_view_runtime_field_write checked 8685ms @2300664f60a+wt
 pass/collections/element_view_write_transition checked 1022ms @8a1b963f65f+wt
 pass/collections/mutable_slice_view_edge_release checked 1012ms @f07778d7f128+wt
 pass/collections/mutable_slice_view_establishment checked 1075ms @f07778d7f128+wt

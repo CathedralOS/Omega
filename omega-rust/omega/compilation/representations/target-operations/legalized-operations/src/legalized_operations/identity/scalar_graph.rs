@@ -1155,7 +1155,13 @@ fn encode_runtime_indices(
         bytes.extend_from_slice(&index.operand.value.get().to_le_bytes());
         encode_scalar_type(bytes, index.operand.scalar_type);
         bytes.extend_from_slice(&index.stride.to_le_bytes());
-        bytes.extend_from_slice(&index.extent.to_le_bytes());
+        match index.extent {
+            Some(extent) => {
+                bytes.push(1);
+                bytes.extend_from_slice(&extent.to_le_bytes());
+            }
+            None => bytes.push(0),
+        }
         bytes.extend_from_slice(&index.obligation.get().to_le_bytes());
         bytes.extend_from_slice(&index.accepted_fact.bytes());
     }

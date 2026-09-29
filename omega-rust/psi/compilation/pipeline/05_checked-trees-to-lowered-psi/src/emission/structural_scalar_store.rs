@@ -348,11 +348,19 @@ pub(crate) fn lower_structural_field_steps<'a>(
             CheckedUnitStructuralPathSegment::RuntimeIndex(
                 checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
             ) if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
-                let StructuralTypeShape::FixedArray { element, .. } = &field_owner.shape else {
-                    return unsupported("structural scalar store carrier is not a fixed array");
+                let element = match &field_owner.shape {
+                    StructuralTypeShape::FixedArray { element, .. } => *element,
+                    // A view's extent is its own stored runtime length: the
+                    // runtime element's bound re-proves against that extent
+                    // when the store executes, exactly as a fixed index's
+                    // does.
+                    StructuralTypeShape::ElementView { element } => *element,
+                    _ => {
+                        return unsupported("structural scalar store carrier is not a fixed array");
+                    }
                 };
                 steps.push(ProjectionStep::AssignmentIndex { depth: *depth });
-                *element
+                element
             }
             _ => return unsupported("structural scalar store carrier path is unsupported"),
         };

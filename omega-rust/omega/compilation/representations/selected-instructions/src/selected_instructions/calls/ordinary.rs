@@ -194,15 +194,17 @@ pub enum SelectedMemoryAccessRole {
     /// runtime element of the path, its `index · stride`, scaled in path
     /// order by the instructions before the store. The access carries one
     /// such row per runtime element, in path order; each row's `extent` is
-    /// its array's declared element count and `obligation`/`accepted_fact`
-    /// the verifier's certificate that `index` lies inside it. Every index is
+    /// its array's declared element count — `None` when the carrier is an
+    /// element view, whose extent is the live length observation the
+    /// certificate names — and `obligation`/`accepted_fact` the verifier's
+    /// certificate that `index` lies inside it. Every index is
     /// non-negative, so the write lands at or after `byte_offset`; its exact
     /// position is a constant only when every row's index is.
     WriteIndexedPrimitive {
         index: semantic_vocabulary::ValueId,
         value: semantic_vocabulary::ValueId,
         stride: u32,
-        extent: u64,
+        extent: Option<u64>,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
@@ -215,7 +217,7 @@ pub enum SelectedMemoryAccessRole {
     WriteIndexedStructural {
         index: semantic_vocabulary::ValueId,
         stride: u32,
-        extent: u64,
+        extent: Option<u64>,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
@@ -225,7 +227,7 @@ pub enum SelectedMemoryAccessRole {
     ReadIndexedPrimitive {
         index: semantic_vocabulary::ValueId,
         stride: u32,
-        extent: u64,
+        extent: Option<u64>,
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },

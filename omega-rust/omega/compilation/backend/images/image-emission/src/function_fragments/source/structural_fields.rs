@@ -120,9 +120,21 @@ pub(super) fn runtime_footprint_retained(
         _ => return false,
     };
     let elements = operation.runtime_indices();
+    // The indexed-access rows this operation publishes: one per runtime
+    // element. An auxiliary row the addressing realizes beside them — a view
+    // carrier's backing-pointer read of its own descriptor — shares the
+    // operation's origin but is not the element access.
     let rows = accesses
         .iter()
-        .filter(|access| access.origin == Origin::Operation(psi_operation))
+        .filter(|access| {
+            access.origin == Origin::Operation(psi_operation)
+                && matches!(
+                    access.role,
+                    Role::ReadIndexedPrimitive { .. }
+                        | Role::WriteIndexedPrimitive { .. }
+                        | Role::WriteIndexedStructural { .. }
+                )
+        })
         .collect::<Vec<_>>();
     if elements.is_empty() {
         return true;
