@@ -1,6 +1,7 @@
 // Container-method surface matrix (Phase 2 slice 1 hardening, 2026-07-08):
 // T-typed SETTER (&mut self statement calls, called twice -- cross-call
-// state), getter, and a NON-GENERIC method (touch_count, no <T> of its own)
+// state), getter, and an operation that uses the container's parameter only to
+// name its data input (touch_count, whose <T> binds the owner, not a value)
 // on a container with a parameter-FREE Constrained field (touched: i32 in
 // Wrapping). Two fixes pinned: type_reference_mentions_parameter recurses
 // Constrained/FixedArray/Slice/Reference shells precisely (a parameter-free
@@ -22,8 +23,8 @@ machine Cell::set<T>(&mut self, v: T) {
 machine Cell::get<T [copy]>(&self) -> T {
     transition { _ -> (self.value) }
 }
-machine Cell::touch_count(&self) -> i32 in Wrapping {
-    transition { _ -> (self.touched) }
+machine Cell::touch_count<T>(cell: &Cell<T>) -> i32 in Wrapping {
+    transition { _ -> (cell.touched) }
 }
 data Main {
     console: Binding<Console>;
@@ -40,7 +41,7 @@ machine Main::main(&mut self) reaches Console {
         false -> no()
     }
     state check_touches(&mut self) {
-        let t: i32 in Wrapping = self.a.touch_count();
+        let t: i32 in Wrapping = Cell::touch_count(&self.a);
         transition t == 2 {
             true -> check_bool()
             false -> no()
