@@ -1,10 +1,9 @@
 // A completed mutable statement call precedes the following transition. Its
 // scalar writes must therefore be visible while transition args materialize.
-// `block` ack respelled onto Loader::run's operational envelope; --check is
-// clean. The native leg still walls inside Loader::fill: `self.tags[index]`
-// indexed reads on persistent arrays require a whole byte-view parameter and
-// the domain-constrained field stores beneath them are unadmitted
-// (`structural field store: record literal field`, state `present`).
+// input.txt supplies bytes 5, 27, 33, 44 followed by a newline. These distinct,
+// nonzero values make stale pre-call reads observable: the zero-initialized
+// fields cannot satisfy the arrival checks. Both native and interpreted runs
+// must exit 70; empty or short input takes the failure exit 72.
 use omega_language_std::console;
 use omega::language::core::binding;
 
