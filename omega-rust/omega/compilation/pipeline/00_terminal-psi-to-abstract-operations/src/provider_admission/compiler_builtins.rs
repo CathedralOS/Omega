@@ -249,6 +249,7 @@ fn compiler_intrinsic_execution_identity(
                 Integer::I64 => Numeric::I64,
                 Integer::U8 => Numeric::U8,
                 Integer::U16 => Numeric::U16,
+                Integer::U64 => Numeric::U64,
                 Integer::U32 => Numeric::U32,
             };
             let builtin = CompilerIntrinsicExecutionIdentity::BuiltinFunction;
@@ -285,6 +286,9 @@ fn compiler_intrinsic_execution_identity(
                             }
                             target_operations::IeeeFloatToIntegerDomain::Saturating => {
                                 numerics::arithmetic::ArithmeticDomain::Saturating
+                            }
+                            target_operations::IeeeFloatToIntegerDomain::Trapping => {
+                                numerics::arithmetic::ArithmeticDomain::Trapping
                             }
                         },
                     }

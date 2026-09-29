@@ -32,6 +32,14 @@ impl SelectedConstraintKeys {
             self.bits_to_float64,
             self.ieee_float_arithmetic,
             self.ieee_float_unary,
+            // AArch64's conversion forms are flag-free and intentionally
+            // alias the ordinary unary row. Only a distinct target-owned row
+            // contributes another inventory key.
+            if self.ieee_float_conversion_control == self.ieee_float_unary {
+                None
+            } else {
+                self.ieee_float_conversion_control
+            },
             self.ieee_float_ternary,
         ]
         .into_iter()
@@ -95,7 +103,20 @@ impl SelectedConstraintKeys {
             }
             MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
                 return match form.operand_count() {
-                    1 => self.ieee_float_unary,
+                    1 => match form.operation {
+                        crate::IeeeFloatArithmeticOperation::FromInteger(
+                            crate::IeeeFloatIntegerCarrier::U64,
+                        )
+                        | crate::IeeeFloatArithmeticOperation::TruncateToInteger {
+                            target: crate::IeeeFloatIntegerCarrier::U64,
+                            ..
+                        }
+                        | crate::IeeeFloatArithmeticOperation::TruncateToInteger {
+                            domain: crate::IeeeFloatToIntegerDomain::Trapping,
+                            ..
+                        } => self.ieee_float_conversion_control,
+                        _ => self.ieee_float_unary,
+                    },
                     2 => self.ieee_float_arithmetic,
                     3 => self.ieee_float_ternary,
                     _ => None,

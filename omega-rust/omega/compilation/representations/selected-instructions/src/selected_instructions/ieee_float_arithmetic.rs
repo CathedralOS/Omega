@@ -110,7 +110,14 @@ mod tests {
             IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
             None
         );
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 66);
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 88);
+        for payload in 0_u8..66 {
+            let form = IeeeFloatArithmeticForm::from_machine_payload(payload)
+                .expect("every pre-extension machine payload remains decodable");
+            assert_eq!(form.machine_payload(), payload);
+            assert_eq!(form.operation.ordinal(), payload / 2);
+            assert_eq!(form.is_binary32(), payload % 2 == 0);
+        }
         // Catalog declarations follow this order, so it must be sorted.
         assert!(IeeeFloatArithmeticForm::ALL.is_sorted());
     }

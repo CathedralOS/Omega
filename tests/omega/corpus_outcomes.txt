@@ -539,8 +539,10 @@ pass/float/named_provider_min_max_sqrt_exit rejected 2463ms
 pass/float/named_provider_multiply_then_add_exit checked 1355ms @22df272b5668+wt
 pass/float/named_provider_negate_is_nan_exit rejected 2403ms
 	unimplemented: `Main::main` applies boundary operator `F32::negate`, whose selected provider has no requirement-level Terminal route for Omega to install
-pass/float/runtime_named_float_to_integer_conversion_exit rejected 2430ms
-	unimplemented: `Main::main` applies boundary operator `I8::from_f32`, whose selected provider has no requirement-level Terminal route for Omega to install
+pass/float/named_float_integer_lower_boundary_conversion_traps checked 1224ms @0c6abc6d1e0c+wt
+pass/float/named_float_integer_nan_conversion_traps checked 1227ms @0c6abc6d1e0c+wt
+pass/float/runtime_float_integer_conversion_boundaries_exit checked 1333ms @0c6abc6d1e0c+wt
+pass/float/runtime_named_float_to_integer_conversion_exit checked 1249ms @0c6abc6d1e0c+wt
 pass/float/runtime_named_format_conversion_exit checked 1783ms @0d9777b52aee+wt
 pass/float/runtime_std_is_finite_exit checked 1264ms @de54b0ba9fed+wt
 pass/float/runtime_total_order_satisfiers_exit rejected 2541ms

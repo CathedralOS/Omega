@@ -923,6 +923,24 @@ pub fn x86_64_register_constraint_catalog(
             ),
         });
     }
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: crate::X86_64_IEEE_FLOAT_CONVERSION_CONTROL,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Def, GPR64),
+        ],
+        implicit_uses: sorted_units(view("mxcsr").units.iter().copied()),
+        implicit_defs: Vec::new(),
+        clobbers: sorted_units(
+            view("xmm4")
+                .units
+                .iter()
+                .chain(&view("xmm5").units)
+                .chain(&view("rflags").units)
+                .copied(),
+        ),
+    });
     mixed_calls::append_constraints(&mut constraints, model);
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);

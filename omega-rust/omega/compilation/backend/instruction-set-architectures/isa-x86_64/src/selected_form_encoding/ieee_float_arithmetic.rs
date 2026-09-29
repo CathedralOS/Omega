@@ -28,17 +28,21 @@
 //! - integer to float: one `CVTSI2S?` reading the general register (32-bit
 //!   for `i32`, 64-bit for `i64`), move out. A `u32` operand is first copied
 //!   with a 32-bit `MOV` into the result register, which zero-extends it, and
-//!   converted from that 64-bit register, so every `u32` value is exact;
-//! - float to integer: a flag-free clamped `CVTTSD2SI` (see `truncation`),
+//!   converted directly from that 64-bit register with one rounding; `u64`
+//!   uses a signed conversion below `2^63`, otherwise a sticky half followed
+//!   by exact doubling, avoiding double rounding;
+//! - float to integer: a clamped `CVTTSD2SI` (see `truncation`),
 //!   saturating to the carrier and mapping NaN to zero. That is exactly the
 //!   Saturating contract and the identity on every operand an Exact
 //!   requirement's proof admits, so both domains share the instructions.
+//!   `u64` splits at `2^63`; Trapping checks the full toward-zero interval
+//!   before conversion and executes `UD2` on NaN or an out-of-range input.
 //!
 //! Rounding operations round under MXCSR, which Omega's native boundaries
 //! keep at the canonical value (round to nearest, ties to even; every
 //! exception masked; no flush to zero), so each computes the exact IEEE-754
-//! operation of its format and never traps. No instruction here writes
-//! RFLAGS.
+//! operation of its format. Only conversion control forms write RFLAGS;
+//! only an explicitly Trapping conversion may execute its policy crash.
 //!
 //! `xmm4`/`xmm5` are volatile under both System V and Microsoft x64, so
 //! clobbering them needs no callee-save obligation. The operations also
@@ -56,10 +60,13 @@ use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::{RegisterConstraintKey, RegisterUnitId};
 use selected_instructions::{
     IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier,
-    MachineAlternative, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
-    MachineCleanupEffect, MachineEffectDeclaration, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
+    IeeeFloatToIntegerDomain, MachineAlternative, MachineAlternativeApplicability, MachineBarrier,
+    MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedControlEffect,
+    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior,
 };
+
+mod conversions;
 
 type Error = X86_64SelectedFormEncodingError;
 
@@ -91,14 +98,47 @@ pub(crate) fn clobbers() -> Vec<RegisterUnitId> {
     sorted(view_units("xmm4").into_iter().chain(view_units("xmm5")))
 }
 
+fn conversion_control(form: IeeeFloatArithmeticForm) -> bool {
+    matches!(
+        form.operation,
+        IeeeFloatArithmeticOperation::FromInteger(IeeeFloatIntegerCarrier::U64)
+            | IeeeFloatArithmeticOperation::TruncateToInteger {
+                target: IeeeFloatIntegerCarrier::U64,
+                ..
+            }
+            | IeeeFloatArithmeticOperation::TruncateToInteger {
+                domain: IeeeFloatToIntegerDomain::Trapping,
+                ..
+            }
+    )
+}
+
+fn traps(form: IeeeFloatArithmeticForm) -> bool {
+    matches!(
+        form.operation,
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            domain: IeeeFloatToIntegerDomain::Trapping,
+            ..
+        }
+    )
+}
+
 /// The form reads its operands (operands `0..n`) and defines operand `n`.
 pub(crate) fn effects(form: IeeeFloatArithmeticForm) -> MachineEncodedEffects {
     let inputs = form.operand_count() as u16;
-    MachineEncodedEffects {
+    let mut encoded = MachineEncodedEffects {
         implicit_unit_uses: implicit_uses(),
         implicit_unit_clobbers: clobbers(),
         ..MachineEncodedEffects::fallthrough_v1((0..inputs).collect(), vec![inputs])
+    };
+    if conversion_control(form) {
+        encoded.implicit_unit_clobbers = sorted(clobbers().into_iter().chain(view_units("rflags")));
     }
+    if traps(form) {
+        encoded.trap = MachineEncodedTrapBehavior::TrappingIntegerV1;
+        encoded.control = MachineEncodedControlEffect::FallThroughOrTrapV1;
+    }
+    encoded
 }
 
 pub(crate) fn footprint(
@@ -109,7 +149,7 @@ pub(crate) fn footprint(
     X86_64SelectedFormFootprint {
         register_reads: operands[..inputs].to_vec(),
         register_writes: operands[inputs..inputs + 1].to_vec(),
-        writes_rflags: false,
+        writes_rflags: conversion_control(form),
         encoded: effects(form),
     }
 }
@@ -131,8 +171,16 @@ pub(crate) fn declaration(
         semantic: MachineSemanticKind::NearestIeeeFloatArithmetic(form),
         constraint,
         memory: MachineMemoryEffect::NoneV1,
-        trap: MachineTrapBehavior::NeverV1,
-        barrier: MachineBarrier::None,
+        trap: if traps(form) {
+            MachineTrapBehavior::TrappingIntegerV1
+        } else {
+            MachineTrapBehavior::NeverV1
+        },
+        barrier: if traps(form) {
+            MachineBarrier::ExternalEffect
+        } else {
+            MachineBarrier::None
+        },
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
         alternatives: vec![MachineAlternative {
@@ -213,6 +261,16 @@ enum Instruction {
     FloatToInteger { wide: bool, general: u8, xmm: u8 },
     /// `REX.W 63 /r`: `MOVSXD r64, r32`.
     SignExtend32 { destination: u8, source: u8 },
+    /// `66 0F EB /r`: `POR xmm, xmm` over exact integer payloads.
+    Or { destination: u8, source: u8 },
+    /// `REX.W 85 /r`: `TEST r64, r64`, selecting zero/sign without mutation.
+    Test64 { general: u8 },
+    /// `0F 8? cd`: a conditional branch wholly inside this selected form.
+    ConditionalJump { condition: u8, displacement: i32 },
+    /// `E9 cd`: an unconditional branch wholly inside this selected form.
+    Jump { displacement: i32 },
+    /// `0F 0B`: the architectural Crash leaf.
+    Crash,
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
@@ -333,6 +391,27 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
             0x63,
             modrm(destination, source),
         ]),
+        Instruction::Or {
+            destination,
+            source,
+        } => bytes.extend([0x66, 0x0f, 0xeb, modrm(destination, source)]),
+        Instruction::Test64 { general } => bytes.extend([
+            0x48 | ((general >> 3) << 2) | (general >> 3),
+            0x85,
+            modrm(general, general),
+        ]),
+        Instruction::ConditionalJump {
+            condition,
+            displacement,
+        } => {
+            bytes.extend([0x0f, 0x80 | condition]);
+            bytes.extend(displacement.to_le_bytes());
+        }
+        Instruction::Jump { displacement } => {
+            bytes.push(0xe9);
+            bytes.extend(displacement.to_le_bytes());
+        }
+        Instruction::Crash => bytes.extend([0x0f, 0x0b]),
     }
 }
 
@@ -353,6 +432,26 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
         _ => None,
     };
     match bytes {
+        [0x0f, 0x0b, rest @ ..] => Some((Instruction::Crash, rest)),
+        [0x0f, opcode @ 0x80..=0x8f, tail @ ..] if tail.len() >= 4 => {
+            let (displacement, rest) = tail.split_at(4);
+            Some((
+                Instruction::ConditionalJump {
+                    condition: opcode & 15,
+                    displacement: i32::from_le_bytes(displacement.try_into().ok()?),
+                },
+                rest,
+            ))
+        }
+        [0xe9, tail @ ..] if tail.len() >= 4 => {
+            let (displacement, rest) = tail.split_at(4);
+            Some((
+                Instruction::Jump {
+                    displacement: i32::from_le_bytes(displacement.try_into().ok()?),
+                },
+                rest,
+            ))
+        }
         [0x66, 0x0f, 0x76, modrm, rest @ ..] => {
             let (reg, rm) = register_pair(*modrm)?;
             (reg == rm).then_some((Instruction::AllOnes { xmm: reg }, rest))
@@ -386,7 +485,7 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
                 rest,
             ))
         }
-        [0x66, 0x0f, opcode @ (0x28 | 0x54), modrm, rest @ ..] => {
+        [0x66, 0x0f, opcode @ (0x28 | 0x54 | 0xeb), modrm, rest @ ..] => {
             let (destination, source) = register_pair(*modrm)?;
             Some((
                 if *opcode == 0x28 {
@@ -394,8 +493,13 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
                         destination,
                         source,
                     }
-                } else {
+                } else if *opcode == 0x54 {
                     Instruction::And {
+                        destination,
+                        source,
+                    }
+                } else {
+                    Instruction::Or {
                         destination,
                         source,
                     }
@@ -486,6 +590,12 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
             let (rex, tail) = optional_rex(bytes);
             let wide = rex & 0xa == 8;
             match tail {
+                [0x85, modrm, rest @ ..] if wide => {
+                    let (left, right) = register_pair(*modrm)?;
+                    let left = left | (((rex >> 2) & 1) << 3);
+                    let right = right | ((rex & 1) << 3);
+                    (left == right).then_some((Instruction::Test64 { general: left }, rest))
+                }
                 [0x89, modrm, rest @ ..] if rex & 0xa == 0 => {
                     let (source, destination) = register_pair(*modrm)?;
                     Some((
@@ -673,8 +783,15 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
             in_place(!double, 0x5a),
             move_out,
         ],
+        IeeeFloatArithmeticOperation::TruncateToInteger {
+            target,
+            domain: IeeeFloatToIntegerDomain::Trapping,
+        } => conversions::trapping(double, target, registers[0], result),
         IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } => {
             truncation(double, target, registers[0], result)
+        }
+        IeeeFloatArithmeticOperation::FromInteger(IeeeFloatIntegerCarrier::U64) => {
+            conversions::from_unsigned64(double, registers[0], result)
         }
         IeeeFloatArithmeticOperation::FromInteger(source) if source.bits() < 32 => {
             // Extend the low lane in place (`PSLLD` then `PSRAD`/`PSRLD`),
@@ -766,7 +883,7 @@ fn truncation(
     source: u8,
     result: u8,
 ) -> Vec<Instruction> {
-    let (left, right) = (LEFT_SCRATCH, RIGHT_SCRATCH);
+    let left = LEFT_SCRATCH;
     let mut program = vec![Instruction::Transfer {
         to_float: true,
         wide: double,
@@ -782,7 +899,19 @@ fn truncation(
             source: left,
         });
     }
-    program.extend([
+    program.extend(truncation_landed(target, result));
+    program
+}
+
+/// Convert a binary64 operand already retained in xmm4. Keeping this entrance
+/// avoids rereading an aliased input register after a trapping guard used the
+/// result register as scratch.
+fn truncation_landed(target: IeeeFloatIntegerCarrier, result: u8) -> Vec<Instruction> {
+    if target == IeeeFloatIntegerCarrier::U64 {
+        return conversions::to_unsigned64(result);
+    }
+    let (left, right) = (LEFT_SCRATCH, RIGHT_SCRATCH);
+    let mut program = vec![
         Instruction::MoveAligned {
             destination: right,
             source: left,
@@ -797,7 +926,7 @@ fn truncation(
             destination: left,
             source: right,
         },
-    ]);
+    ];
     let bound = |value: u64| {
         [
             Instruction::MoveImmediate64 {
@@ -1114,9 +1243,11 @@ mod tests {
             || matches!(
                 (left.operation, right.operation),
                 (
-                    TruncateToInteger { target: left_target, .. },
-                    TruncateToInteger { target: right_target, .. },
+                    TruncateToInteger { target: left_target, domain: left_domain },
+                    TruncateToInteger { target: right_target, domain: right_domain },
                 ) if left_target == right_target && left.format == right.format
+                    && left_domain != selected_instructions::IeeeFloatToIntegerDomain::Trapping
+                    && right_domain != selected_instructions::IeeeFloatToIntegerDomain::Trapping
             )
     }
 

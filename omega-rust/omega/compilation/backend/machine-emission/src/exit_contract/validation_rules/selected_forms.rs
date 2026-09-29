@@ -3,6 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[cfg(test)]
 mod atomic_tests;
 #[cfg(test)]
+mod float_conversion_tests;
+#[cfg(test)]
 mod floating_control_tests;
 
 use physical_instructions::{PhysicalOperandFootprint, PostAllocationMachineInstruction};
@@ -156,9 +158,18 @@ pub(in crate::exit_contract) fn validate_non_return(
         }
         // A Trapping form continues in its block or stops at the inline
         // trap its own encoding owns; it has no successor edge to relocate.
-        SelectedInstructionKind::TrappingInteger { .. } => {
-            MachineEncodedControlEffect::FallThroughOrTrapV1
-        }
+        SelectedInstructionKind::TrappingInteger { .. }
+        | SelectedInstructionKind::NearestIeeeFloatArithmetic {
+            form:
+                selected_instructions::IeeeFloatArithmeticForm {
+                    operation:
+                        selected_instructions::IeeeFloatArithmeticOperation::TruncateToInteger {
+                            domain: selected_instructions::IeeeFloatToIntegerDomain::Trapping,
+                            ..
+                        },
+                    ..
+                },
+        } => MachineEncodedControlEffect::FallThroughOrTrapV1,
         SelectedInstructionKind::Jump => MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
         SelectedInstructionKind::ConditionalBranchNonZero
         | SelectedInstructionKind::ConditionalBranchU64LessThan
