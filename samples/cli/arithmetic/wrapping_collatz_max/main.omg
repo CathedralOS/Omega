@@ -12,58 +12,49 @@
 //
 // The per-start step cap gives the inner loop an explicit termination
 // witness; high starts overflow `3 * n + 1` freely under Wrapping.
+//
+// The scan carries four values: the outer start, the best step count seen, and
+// the inner value and its step counter. They are loop state, so they travel as
+// state arguments and the program declares no data at all.
 
-data Main {
-    start: u64 in Wrapping;
-    best: u64 in Wrapping;
-    n: u64 in Wrapping;
-    steps: u64 in Wrapping;
-}
+machine main() {
+    transition { _ -> outer_(1, 0) }
 
-machine Main::main(&mut self) {
-    self.start = 1;
-    self.best = 0;
-    transition { _ -> outer_() }
-
-    state outer_(&mut self) {
-        transition self.start <= 100000 { true -> begin_start() _ -> done() }
+    state outer_(start: u64 in Wrapping, best: u64 in Wrapping) {
+        transition start <= 100000 { true -> begin_start(start, best) _ -> done() }
     }
-    state begin_start(&mut self) {
-        self.n = self.start;
-        self.steps = 0;
-        transition { _ -> inner_() }
+    state begin_start(start: u64 in Wrapping, best: u64 in Wrapping) {
+        transition { _ -> inner_(start, best, start, 0) }
     }
-    state inner_(&mut self) {
-        transition self.n != 1 && self.steps < 10000 {
-            true -> even_or_odd()
-            _ -> settle()
+    state inner_(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+        transition n != 1 && steps < 10000 {
+            true -> even_or_odd(start, best, n, steps)
+            _ -> settle(start, best, steps)
         }
     }
-    state even_or_odd(&mut self) {
-        transition self.n & 1 == 0 { true -> even() _ -> odd() }
+    state even_or_odd(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+        transition n & 1 == 0 {
+            true -> even(start, best, n, steps)
+            _ -> odd(start, best, n, steps)
+        }
     }
-    state even(&mut self) {
-        self.n = self.n >> 1;
-        transition { _ -> inner_step() }
+    state even(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+        transition { _ -> inner_step(start, best, n >> 1, steps) }
     }
-    state odd(&mut self) {
-        self.n = self.n * 3 + 1;
-        transition { _ -> inner_step() }
+    state odd(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+        transition { _ -> inner_step(start, best, n * 3 + 1, steps) }
     }
-    state inner_step(&mut self) {
-        self.steps = self.steps + 1;
-        transition { _ -> inner_() }
+    state inner_step(start: u64 in Wrapping, best: u64 in Wrapping, n: u64 in Wrapping, steps: u64 in Wrapping) {
+        transition { _ -> inner_(start, best, n, steps + 1) }
     }
-    state settle(&mut self) {
-        transition self.steps > self.best { true -> record() _ -> advance() }
+    state settle(start: u64 in Wrapping, best: u64 in Wrapping, steps: u64 in Wrapping) {
+        transition steps > best { true -> record(start, steps) _ -> advance(start, best) }
     }
-    state record(&mut self) {
-        self.best = self.steps;
-        transition { _ -> advance() }
+    state record(start: u64 in Wrapping, steps: u64 in Wrapping) {
+        transition { _ -> advance(start, steps) }
     }
-    state advance(&mut self) {
-        self.start = self.start + 1;
-        transition { _ -> outer_() }
+    state advance(start: u64 in Wrapping, best: u64 in Wrapping) {
+        transition { _ -> outer_(start + 1, best) }
     }
-    state done(&mut self) {}
+    state done() {}
 }
