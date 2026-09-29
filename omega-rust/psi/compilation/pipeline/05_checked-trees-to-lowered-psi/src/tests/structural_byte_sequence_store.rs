@@ -8,6 +8,100 @@ use terminal_interpreter::AcceptTerminalEffects;
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
+
+const ALIASED_REPLACEMENT: &str = r#"
+    domain [u8; 8]::Utf8 requires valid_utf8(self);
+    data Record { out: [u8; 8] in Utf8; other: [u8; 8] in Utf8; }
+    machine Record::replace(&mut self) {
+        self.other = "QQ";
+        let destination: &mut [u8; 8] in Utf8 = &mut self.out;
+        destination = "hello";
+    }
+"#;
+
+#[test]
+fn byte_replacement_through_mid_body_alias_preserves_destination_and_sibling() {
+    let checked = crate::front_end::checked_program(ALIASED_REPLACEMENT);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("Record::replace"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("replacement rejoins the alias at its authored statement")
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let stores = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::StructuralByteSequenceFieldStore { path, field, .. } => {
+                Some((path, *field))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(stores.len(), 2);
+    assert_ne!(stores[0], stores[1]);
+    let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &[],
+        TerminalStructuralInputs {
+            arguments: &[terminal_interpreter::TerminalStructuralValue {
+                opaque_identity: 81,
+                structural_type: entry.structural_parameters[0].structural_type,
+                qualifications: Vec::new(),
+                path: Vec::new(),
+            }],
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(100);
+    assert_eq!(
+        execution
+            .resume(&mut fuel, &mut AcceptTerminalEffects)
+            .unwrap(),
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        )
+    );
+    assert_eq!(
+        execution.structural_byte_sequence_field(81, stores[0].0, stores[0].1),
+        Some(b"QQ".as_slice())
+    );
+    assert_eq!(
+        execution.structural_byte_sequence_field(81, stores[1].0, stores[1].1),
+        Some(b"hello".as_slice())
+    );
+}
+
+#[test]
+fn byte_replacement_alias_replay_rejects_substituted_loan_root() {
+    let mut checked = crate::front_end::checked_program(ALIASED_REPLACEMENT);
+    lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
+        .expect("untampered alias replacement lowers");
+    let loan = checked
+        .facts
+        .borrow
+        .loans
+        .iter()
+        .next()
+        .expect("alias loan")
+        .0;
+    checked.facts.borrow.loans.get_mut(loan).root_symbol = symbols::SymbolHandle::invalid();
+    assert!(lower_machine(&checked, TerminalMachineSelection::Name("Record::replace")).is_err());
+}
+
 #[test]
 fn replaced_byte_field_length_reaches_canonical_interpretation() {
     let checked = crate::front_end::checked_program(
