@@ -63,19 +63,11 @@ pub(super) fn validate(
         || target.attachment != abstracted.attachment
         || target.attachment != optimized.attachment
         || target.scalar_abi.is_some()
-        || (!crate::structural_inputs::structural_unit_input::accepts_borrowed_view(
+        || !crate::structural_inputs::structural_unit_input::accepts_graph(
             call_plan,
             &parameters,
             &plan.structural_types,
-        ) && !crate::structural_inputs::structural_unit_input::accepts_borrowed_parameters(
-            call_plan,
-            &parameters,
-            &plan.structural_types,
-        ) && !crate::structural_inputs::structural_unit_input::accepts_shared_record(
-            call_plan,
-            &parameters,
-            &plan.structural_types,
-        ))
+        )
         || abstracted.parameters.len() != optimized.parameters.len()
         || scalar_parameters.len() != abstracted.parameters.len()
         || call_plan.parameters.len()
@@ -127,19 +119,6 @@ pub(super) fn validate(
             }
             _ => true,
         })
-        || !(crate::structural_inputs::structural_unit_input::accepts_borrowed_view(
-            call_plan,
-            &parameters,
-            &plan.structural_types,
-        ) || crate::structural_inputs::structural_unit_input::accepts_borrowed_parameters(
-            call_plan,
-            &parameters,
-            &plan.structural_types,
-        ) || crate::structural_inputs::structural_unit_input::accepts_shared_record(
-            call_plan,
-            &parameters,
-            &plan.structural_types,
-        ))
     {
         return Err(LegalizationError::custody());
     }

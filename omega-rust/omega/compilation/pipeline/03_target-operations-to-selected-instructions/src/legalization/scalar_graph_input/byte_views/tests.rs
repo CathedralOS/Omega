@@ -319,6 +319,101 @@ fn literal_order_fixture(
 }
 
 #[test]
+fn borrowed_float_parameters_compose_with_scalar_results() {
+    for native in [
+        ::target::NativeTarget::windows_x64(),
+        ::target::NativeTarget::linux_x64(),
+        ::target::NativeTarget::macos_arm64(),
+    ] {
+        for access in [
+            StructuralAccess::SharedBorrow,
+            StructuralAccess::MutableBorrow,
+        ] {
+            let (mut plan, _, _) = literal_order_fixture(native, true);
+            let structural_type = StructuralTypeId::new(2).unwrap();
+            plan.structural_types
+                .make_mut()
+                .push(StructuralTypeDeclaration {
+                    id: structural_type,
+                    identity: "borrowed-float::f64".into(),
+                    shape: StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                        semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    )),
+                });
+            let parameter = &mut plan.functions[0].structural_parameters[0];
+            parameter.structural_type = structural_type;
+            parameter.access = access;
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &plan,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            let mut unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &plan,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            unit.functions[0]
+                .structural_places
+                .sort_by_key(|place| place.id);
+            unit.functions[0].declared_places = unit.functions[0]
+                .structural_places
+                .iter()
+                .map(|place| place.id)
+                .collect();
+            unit.identity = optimization_unit::recompute_psi_optimization_unit_identity(&unit);
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+            let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
+            crate::validate_legalized_operations(&target, &plan, &unit, legal.plan().clone())
+                .unwrap();
+
+            // Removing a result-dependent carrier whitelist must not admit a
+            // changed referent, access mode, ownership contract or ABI location.
+            for mutation in ["type", "access", "multiplicity", "placement"] {
+                let mut changed = target.clone();
+                let abi = changed.functions[0]
+                    .mixed_structural_scalar_abi
+                    .as_mut()
+                    .unwrap();
+                let parameter = &mut abi.structural_parameters[0];
+                match mutation {
+                    "type" => parameter.structural_type = StructuralTypeId::new(1).unwrap(),
+                    "access" => parameter.access = StructuralAccess::Owned,
+                    "multiplicity" => parameter.multiplicity = StructuralMultiplicity::Linear,
+                    "placement" => parameter.placement.locations.clear(),
+                    _ => unreachable!(),
+                }
+                assert!(
+                    validate(
+                        &changed.functions[0],
+                        &plan.functions[0],
+                        &unit.functions[0],
+                        native,
+                        &plan
+                    )
+                    .is_err(),
+                    "{mutation}"
+                );
+                assert!(
+                    crate::legalize_target_operations(&changed, &plan, &unit).is_err(),
+                    "{mutation}"
+                );
+                assert!(
+                    crate::validate_legalized_operations(
+                        &changed,
+                        &plan,
+                        &unit,
+                        legal.plan().clone()
+                    )
+                    .is_err(),
+                    "{mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn literal_ordinals_are_independent_of_place_roster_order() {
     for native in [
         ::target::NativeTarget::linux_x64(),
