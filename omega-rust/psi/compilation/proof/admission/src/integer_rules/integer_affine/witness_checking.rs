@@ -61,6 +61,22 @@ pub(crate) enum CheckedIntegerEndpointStep {
         mask: ScalarTerm,
         upper: i128,
     },
+    /// `x | literal` traversed toward the defined result, with the literal a
+    /// checked non-negative spelling. An OR never clears bits, so the result
+    /// stays at or above its operand; and it sets no bit above the wider
+    /// operand bound, so `0 <= x <= upper` maps the result to
+    /// `[x, all_ones(bit_length(max(upper, literal)))]`. A negative signed
+    /// literal forces the sign bit and leaves the image unordered, so the
+    /// step rejects while the witness is checked.
+    BitwiseOrLiteralImage(i128),
+    /// The same reading when the sibling operand is not a literal: prior
+    /// axioms proving `0 <= sibling` and `sibling <= upper` — on the operand
+    /// itself or on a term an `Equal` axiom aliases it to — admit the image
+    /// `[x, all_ones(bit_length(max(upper_x, upper)))]`.
+    BitwiseOrBoundedImage {
+        operand: ScalarTerm,
+        upper: i128,
+    },
     CorrelatedAddLower,
     CorrelatedAddUpper,
     CorrelatedSubtractLower,
@@ -830,7 +846,7 @@ fn apply_definition(
                     CheckedIntegerEndpointStep::BitwiseAndMask(mask),
                 )
             } else {
-                let (mask, upper) = bounded_and_mask(right, integer_type, prior_axioms)?;
+                let (mask, upper) = bounded_bitwise_sibling(right, integer_type, prior_axioms)?;
                 (
                     Some(coefficient),
                     Some(offset),
@@ -858,13 +874,75 @@ fn apply_definition(
                     CheckedIntegerEndpointStep::BitwiseAndMask(mask),
                 )
             } else {
-                let (mask, upper) = bounded_and_mask(left, integer_type, prior_axioms)?;
+                let (mask, upper) = bounded_bitwise_sibling(left, integer_type, prior_axioms)?;
                 (
                     Some(coefficient),
                     Some(offset),
                     false,
                     CheckedIntegerEndpointStep::BitwiseAndBoundedMask {
                         mask: mask.clone(),
+                        upper,
+                    },
+                )
+            }
+        }
+        // `x | s` carries no affine slope either, but once the sibling proves
+        // non-negative the result never clears bits: `x | s >= x`, and no
+        // bit above the wider operand bound is set. The mapped image is
+        // `[lower_x, all_ones(bit_length(max(upper_x, upper_s)))]` — a
+        // non-monotone operand reading the AND arm cannot express, since an
+        // and-mask's image is `[0, mask]` whatever the operand carried.
+        ScalarTerm::IntegerBitwiseOr {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && left.as_ref() == current => {
+            if let Some((sibling, used_landing)) = signed_literal(right, integer_type, landed) {
+                if sibling < 0 {
+                    return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
+                }
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    used_landing,
+                    CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
+                )
+            } else {
+                let (operand, upper) = bounded_bitwise_sibling(right, integer_type, prior_axioms)?;
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    false,
+                    CheckedIntegerEndpointStep::BitwiseOrBoundedImage {
+                        operand: operand.clone(),
+                        upper,
+                    },
+                )
+            }
+        }
+        ScalarTerm::IntegerBitwiseOr {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type && right.as_ref() == current => {
+            if let Some((sibling, used_landing)) = signed_literal(left, integer_type, landed) {
+                if sibling < 0 {
+                    return Some(Err(IntegerAffineWitnessError::NegativeBitwiseOrSibling));
+                }
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    used_landing,
+                    CheckedIntegerEndpointStep::BitwiseOrLiteralImage(sibling),
+                )
+            } else {
+                let (operand, upper) = bounded_bitwise_sibling(left, integer_type, prior_axioms)?;
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    false,
+                    CheckedIntegerEndpointStep::BitwiseOrBoundedImage {
+                        operand: operand.clone(),
                         upper,
                     },
                 )
@@ -1023,12 +1101,13 @@ fn landed_integer(
     ))
 }
 
-/// Resolve a bitwise-and sibling that is not a literal. `x & mask` keeps
-/// only mask bits, so the step's image is `[0, upper]` once prior axioms
-/// prove `0 <= mask` and `mask <= upper`. The bounds may be stated on
-/// the operand itself or on any term an earlier `Equal` axiom aliases it
-/// to; a mask of unsigned carrier already proves its own non-negativity.
-fn bounded_and_mask<'a>(
+/// Resolve a bitwise sibling operand that is not a literal. `x & mask`
+/// keeps only mask bits and `x | sibling` sets no bit above the wider bound,
+/// so both steps need the same two facts: prior axioms proving `0 <= sibling`
+/// and `sibling <= upper`. The bounds may be stated on the operand itself or
+/// on any term an earlier `Equal` axiom aliases it to; a sibling of unsigned
+/// carrier already proves its own non-negativity.
+fn bounded_bitwise_sibling<'a>(
     operand: &'a ScalarTerm,
     integer_type: IntegerType,
     prior_axioms: &'a [Proposition],
@@ -1322,6 +1401,7 @@ pub enum IntegerAffineWitnessError {
     CoefficientOverflow,
     ZeroDivisionLiteral,
     NegativeBitwiseAndMask,
+    NegativeBitwiseOrSibling,
     ShiftCountNotLanded(usize),
     ShiftCountOutsideValueWidth(usize),
     TargetMismatch,

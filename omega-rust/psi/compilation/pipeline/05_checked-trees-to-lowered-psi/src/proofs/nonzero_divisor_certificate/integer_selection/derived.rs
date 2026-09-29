@@ -677,8 +677,9 @@ fn affine_definition_bounds(
     out: &mut Vec<ProofNode>,
 ) {
     let pairs: Vec<(&ScalarTerm, &ScalarTerm)> = match expression {
-        // A bitwise and is commutative like an add: either operand may be the
-        // chain root while the other must land as the mask literal.
+        // Bitwise and/or are commutative like an add: either operand may be
+        // the chain root while the other lands as the mask literal or the
+        // bounded sibling image.
         ScalarTerm::ExactIntegerAdd {
             scalar_type,
             left,
@@ -690,6 +691,11 @@ fn affine_definition_bounds(
             right,
         }
         | ScalarTerm::IntegerBitwiseAnd {
+            scalar_type,
+            left,
+            right,
+        }
+        | ScalarTerm::IntegerBitwiseOr {
             scalar_type,
             left,
             right,
@@ -743,7 +749,10 @@ fn affine_definition_bounds(
         } if *value_type == integer_type => vec![(value.as_ref(), count.as_ref())],
         _ => Vec::new(),
     };
-    let bitwise = matches!(expression, ScalarTerm::IntegerBitwiseAnd { .. });
+    let bitwise = matches!(
+        expression,
+        ScalarTerm::IntegerBitwiseAnd { .. } | ScalarTerm::IntegerBitwiseOr { .. }
+    );
     for (root, sibling) in pairs {
         if !matches!(root, ScalarTerm::Value { .. }) {
             continue;
@@ -766,7 +775,7 @@ fn affine_definition_bounds(
                 });
             match index {
                 Some(index) => Some(index),
-                // A non-literal bitwise mask can still admit from its own
+                // A non-literal bitwise sibling can still admit from its own
                 // bound axioms: the kernel resolves them without a cited
                 // landing, so emit the candidate and let checking gate it.
                 None if bitwise => None,
@@ -1144,6 +1153,7 @@ fn operation_expression(term: &ScalarTerm) -> bool {
             | ScalarTerm::ExactIntegerShiftLeft { .. }
             | ScalarTerm::ExactIntegerShiftRight { .. }
             | ScalarTerm::IntegerBitwiseAnd { .. }
+            | ScalarTerm::IntegerBitwiseOr { .. }
     )
 }
 
