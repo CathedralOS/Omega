@@ -105,17 +105,15 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     boundary,
                     operation,
                     format,
-                    left,
-                    right,
+                    arguments,
                 } => {
                     bytes.push(TAG_NEAREST_IEEE_FLOAT_ARITHMETIC);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());
                     bytes.push(operation.ordinal());
                     encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(*format));
-                    bytes.extend_from_slice(&left.get().to_le_bytes());
-                    bytes.push(u8::from(right.is_some()));
-                    if let Some(right) = right {
-                        bytes.extend_from_slice(&right.get().to_le_bytes());
+                    bytes.extend_from_slice(&(arguments.len() as u64).to_le_bytes());
+                    for argument in arguments {
+                        bytes.extend_from_slice(&argument.get().to_le_bytes());
                     }
                 }
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {

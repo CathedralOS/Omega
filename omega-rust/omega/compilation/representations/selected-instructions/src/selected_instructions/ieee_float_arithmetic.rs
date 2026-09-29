@@ -3,7 +3,7 @@
 //!
 //! Scalar graphs hold IEEE values as raw payloads in general registers, the
 //! same carrier IEEE comparison and field storage use, and integers in
-//! general registers too. A form therefore reads one or two general registers
+//! general registers too. A form therefore reads one to three general registers
 //! (its operation's operand count) and defines one: its encoding moves or
 //! converts the operands into fixed scratch floating registers, performs the
 //! operation under Omega's canonical floating controls (round to nearest,
@@ -110,7 +110,7 @@ mod tests {
             IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
             None
         );
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 60);
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 62);
         // Catalog declarations follow this order, so it must be sorted.
         assert!(IeeeFloatArithmeticForm::ALL.is_sorted());
     }

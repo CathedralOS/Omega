@@ -14,14 +14,14 @@ data Main {
     maximum32: f32 in Saturating;
     two32: f32 in Saturating;
     zero32: f32 in Saturating;
-    saturated32: f32 in Saturating;
+    overflow32: f32;
 }
 
 machine Main::main(&mut self) reaches Console {
     let next32: f32 = 1.00000011920928955078125;
     let cancel32: f32 = 0.0f32 - 1.0000002384185791015625;
     // Exercise MTA below another arithmetic root as well as in the direct
-    // f64/Saturating writes below.
+    // f64/overflow writes below.
     self.result32 = F32::multiply_then_add(next32, next32, cancel32) + 0.0f32;
 
     let next64: f64 = 1.0000000000000002220446049250313080847263336181640625;
@@ -32,8 +32,12 @@ machine Main::main(&mut self) reaches Console {
     self.maximum32 = 340282346638528859811704183484516925440.0;
     self.two32 = 2.0;
     self.zero32 = 0.0;
-    self.saturated32 =
-        F32::multiply_then_add(self.maximum32, self.two32, self.zero32);
+    // The named requirement declares bare f32 operands/result. Erase operand
+    // policy explicitly; neither those fields nor the destination can request
+    // a different provider contract. Finite-input overflow remains infinity.
+    self.overflow32 = F32::multiply_then_add(
+        self.maximum32 as f32, self.two32 as f32, self.zero32 as f32
+    );
 
     transition self.result32 == 0.0f32 {
         true -> check64()
@@ -42,18 +46,18 @@ machine Main::main(&mut self) reaches Console {
 
     state check64(&mut self) {
         transition self.result64 == 0.0 {
-            true -> check_saturating32()
+            true -> check_overflow32()
             _ -> fail(72)
         }
     }
 
-    state check_saturating32(&mut self) {
-        transition self.saturated32 == self.maximum32 {
+    state check_overflow32(&mut self) {
+        transition self.overflow32 > (self.maximum32 as f32) {
             true -> good()
             _ -> fail(73)
         }
     }
 
     state good(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: u64) { self.console.exit_process(code); }
+    state fail(&mut self, code: i32) { self.console.exit_process(code); }
 }

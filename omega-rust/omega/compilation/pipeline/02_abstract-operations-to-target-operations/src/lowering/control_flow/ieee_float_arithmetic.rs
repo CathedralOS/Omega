@@ -3,7 +3,7 @@
 //! Stage 00 admitted this boundary's settlement only after rejoining the
 //! selected provider row, the Terminal demand and the local target catalog.
 //! The boundary call itself becomes one nearest-even IEEE operation on its
-//! one or two scalar arguments (arithmetic, minimum/maximum, negation,
+//! ordered scalar arguments (arithmetic, multiply-then-add, minimum/maximum, negation,
 //! square root, or conversion into the result format), exactly like an
 //! emitted IEEE comparison: there is no frame, argument transport or call, so
 //! the result is an ordinary scalar home. The row keeps the boundary and admitted execution so legalization can
@@ -98,17 +98,11 @@ pub(super) fn lower(
     {
         return Err(mismatch);
     }
-    let mut sources = arguments
+    let sources = arguments
         .iter()
-        .map(|argument| super::scalar_sources::source(*argument, function, live));
-    let left = sources
-        .next()
-        .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))??;
-    let right = sources.next().transpose()?;
-    if std::iter::once(&left)
-        .chain(&right)
-        .any(|source| source.scalar_type() != operand)
-    {
+        .map(|argument| super::scalar_sources::source(*argument, function, live))
+        .collect::<Result<Vec<_>, _>>()?;
+    if sources.iter().any(|source| source.scalar_type() != operand) {
         return Err(LoweringError::ValueTypeMismatch(result.value));
     }
     let shape = crate::lowering::scalar_abi::fixed_native_scalar_shape(scalar).ok_or(mismatch)?;
@@ -141,8 +135,7 @@ pub(super) fn lower(
         execution,
         realization,
         result_home,
-        left,
-        right,
+        arguments: sources,
     });
     Ok(())
 }

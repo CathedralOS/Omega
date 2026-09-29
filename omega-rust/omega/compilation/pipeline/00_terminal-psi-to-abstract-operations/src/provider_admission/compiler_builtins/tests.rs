@@ -71,7 +71,7 @@ fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
             );
         }
     }
-    assert_eq!(forms().count(), 60);
+    assert_eq!(forms().count(), 62);
 }
 
 #[test]
@@ -109,12 +109,15 @@ fn a_substituted_format_or_shape_cannot_realize_the_boundary() {
                 ));
             }
         }
-        // A mixed pair for the binary operations.
-        if exact.len() == 2 {
-            substituted.push(boundary(
-                vec![own, other],
-                BoundaryMachineResult::Scalar(own),
-            ));
+        // Substitute each position independently, including a ternary addend.
+        for position in 0..exact.len() {
+            let mut mixed = exact.clone();
+            mixed[position] = if operand == binary32 {
+                binary64
+            } else {
+                binary32
+            };
+            substituted.push(boundary(mixed, BoundaryMachineResult::Scalar(own)));
         }
         for substituted in substituted {
             assert_eq!(

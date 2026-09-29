@@ -895,6 +895,7 @@ pub fn aarch64_register_constraint_catalog(
     for (key, inputs) in [
         (crate::AARCH64_IEEE_FLOAT_ARITHMETIC, 2),
         (crate::AARCH64_IEEE_FLOAT_UNARY, 1),
+        (crate::AARCH64_IEEE_FLOAT_TERNARY, 3),
     ] {
         let mut operands = (0..inputs)
             .map(|index| allocatable(index, RegisterOperandAccess::Use, GPR64))

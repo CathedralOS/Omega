@@ -39,8 +39,9 @@ pub struct ProviderExecutionBinding {
 /// `TruncateToInteger` reads one `format` operand and yields its integer
 /// carrier, rounding toward zero as the conversion requirement declares.
 ///
-/// The first six operations read two operands of `format` and the rest read
-/// one. The operand of `ConvertFormat` has the other interchange format; the
+/// Multiply-then-add reads three operands and rounds twice; binary arithmetic
+/// reads two operands, and unary operations read one. The operand of
+/// `ConvertFormat` has the other interchange format; the
 /// operand of `FromInteger` is its named integer carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IeeeFloatArithmeticOperation {
@@ -73,6 +74,9 @@ pub enum IeeeFloatArithmeticOperation {
         target: IeeeFloatIntegerCarrier,
         domain: IeeeFloatToIntegerDomain,
     },
+    /// Round the product first, then add and round again. This must never
+    /// select a fused instruction, including when all operands are finite.
+    MultiplyThenAdd,
 }
 
 /// The arithmetic domains of a float-to-integer conversion that realize as
@@ -163,8 +167,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 30] = {
-        let mut all = [Self::Add; 30];
+    pub const ALL: [Self; 31] = {
+        let mut all = [Self::Add; 31];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -192,6 +196,7 @@ impl IeeeFloatArithmeticOperation {
             all[saturating.ordinal() as usize] = saturating;
             carrier += 1;
         }
+        all[30] = Self::MultiplyThenAdd;
         all
     };
 
@@ -213,6 +218,7 @@ impl IeeeFloatArithmeticOperation {
             Self::Negate => 6,
             Self::SquareRoot => 7,
             Self::ConvertFormat => 8,
+            Self::MultiplyThenAdd => 30,
             // The 32- and 64-bit carriers came first (9 through 17); the
             // narrow carriers follow (18 through 29).
             Self::FromInteger(carrier) => {
@@ -238,9 +244,10 @@ impl IeeeFloatArithmeticOperation {
         }
     }
 
-    /// Two for the binary operations, one for the rest.
+    /// The semantic arity; transport and receiving checks use this same count.
     pub const fn operand_count(self) -> usize {
         match self {
+            Self::MultiplyThenAdd => 3,
             Self::Add
             | Self::Subtract
             | Self::Multiply

@@ -223,6 +223,23 @@ fn compiler_builtin_execution(
             (operation, ieee_format(format))
         }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
+            // Format-bearing identities must not borrow an unrelated boundary's
+            // result format. Complete signature admission below remains required.
+            match function {
+                symbols::BuiltinFunction::FloatMultiplyThenAddF32 => {
+                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation: Arithmetic::MultiplyThenAdd,
+                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    });
+                }
+                symbols::BuiltinFunction::FloatMultiplyThenAddF64 => {
+                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation: Arithmetic::MultiplyThenAdd,
+                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    });
+                }
+                _ => {}
+            }
             let operation = match function {
                 symbols::BuiltinFunction::Min => Arithmetic::Minimum,
                 symbols::BuiltinFunction::Max => Arithmetic::Maximum,

@@ -525,16 +525,7 @@ pass/float/named_provider_fused_multiply_add_exit rejected 206ms
 	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`fused_multiply_add(..)` nested in `add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
 pass/float/named_provider_min_max_sqrt_exit rejected 1715ms
 	unimplemented: `Main::main` applies boundary operator `F32::minimum`, whose selected provider has no requirement-level Terminal route for Omega to install
-pass/float/named_provider_multiply_then_add_exit rejected 207ms
-	machine `Main::main` state `main`: a value-call argument cannot itself be a machine call yet (`multiply_then_add(..)` nested in `add(..)` would read a garbage result) -- bind the inner call to a local first, then pass the local.
-	store in machine `Main::main` state `multiply_then_add` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	store in machine `Main::main` state `multiply_then_add` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	store in machine `Main::main` state `multiply_then_add` argument `addend` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	store in machine `Main::main` state `equal` argument `left` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `left` for state `Float::equal::equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `equal` argument `right` implicitly converts `f32 in Saturating` to `f32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as f32`)
-	implicit domain weakening in argument `right` for state `Float::equal::equal` drops `Saturating`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-	store in machine `Main::main` state `exit_process` argument `return_code` implicitly converts `u64` to `i32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as i32`)
+pass/float/named_provider_multiply_then_add_exit built 1381ms exit:70 @22df272b5668+wt
 pass/float/named_provider_negate_is_nan_exit rejected 1657ms
 	unimplemented: `Main::main` applies boundary operator `F32::negate`, whose selected provider has no requirement-level Terminal route for Omega to install
 pass/float/runtime_named_float_to_integer_conversion_exit rejected 1735ms

@@ -552,8 +552,7 @@ pub(super) fn validate(
                 boundary,
                 operation: arithmetic,
                 format,
-                left,
-                right,
+                arguments: actual_arguments,
             },
             AbstractOperation::BoundaryCall {
                 boundary: expected,
@@ -561,10 +560,7 @@ pub(super) fn validate(
                 ..
             },
         ) if boundary == expected
-            && arguments
-                .iter()
-                .copied()
-                .eq(std::iter::once(*left).chain(*right))
+            && arguments == actual_arguments
             && matches!(
                 scalar_graph_input::ieee_float_arithmetic::row(native, optimized.machine, operation)?,
                 Some(target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {

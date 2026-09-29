@@ -7,6 +7,8 @@
 //!
 //! - add, subtract, multiply, divide: two `FMOV`s in, one scalar
 //!   `FADD`/`FSUB`/`FMUL`/`FDIV`, one `FMOV` out (16 bytes);
+//! - multiply-then-add: two payloads in, `FMUL`, the addend in, `FADD`,
+//!   result out (24 bytes). Separate instructions preserve both roundings;
 //! - minimum, maximum: two `FMOV`s in, `FCMGT` into `v18` (`right > left`
 //!   for minimum, `left > right` for maximum), `BSL` selecting `v16` where
 //!   the mask is set and `v17` elsewhere, one `FMOV` out (20 bytes). `FCMGT`
@@ -112,7 +114,7 @@ pub(crate) fn declaration(
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: MachineSizeKnowledge::ExactBytes(4 * program(form, &[0, 0, 0]).len() as u16),
+            size: MachineSizeKnowledge::ExactBytes(4 * program(form, &[0, 0, 0, 0]).len() as u16),
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: effects(form),
         }],
@@ -416,6 +418,29 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
     };
     let (first, second, mask) = (LEFT_SCRATCH, RIGHT_SCRATCH, MASK_SCRATCH);
     match form.operation {
+        IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
+            move_in(registers[0], first, double),
+            move_in(registers[1], second, double),
+            // Two architectural roundings, never FMADD. The addend is read
+            // before writing the general result, so result/operand aliasing
+            // remains legal under the ordinary register constraint.
+            Word::TwoSource {
+                double,
+                opcode: 0b0000,
+                left: first,
+                right: second,
+                result: first,
+            },
+            move_in(registers[2], second, double),
+            Word::TwoSource {
+                double,
+                opcode: 0b0010,
+                left: first,
+                right: second,
+                result: first,
+            },
+            move_out(first),
+        ],
         IeeeFloatArithmeticOperation::Minimum | IeeeFloatArithmeticOperation::Maximum => {
             // Minimum selects the left operand where `right > left`; maximum
             // where `left > right`. Both fall back to the right operand.
@@ -714,6 +739,19 @@ mod tests {
     fn encodings_match_the_architectural_words() {
         use IeeeFloatArithmeticOperation as Operation;
         use IeeeFloatFormat::{Binary32, Binary64};
+        // fmov d16,x1; fmov d17,x2; fmul d16,d16,d17;
+        // fmov d17,x3; fadd d16,d16,d17; fmov x0,d16.
+        assert_eq!(
+            words(form(Operation::MultiplyThenAdd, Binary64), &[1, 2, 3, 0]),
+            [
+                0x9e67_0030,
+                0x9e67_0051,
+                0x1e71_0a10,
+                0x9e67_0071,
+                0x1e71_2a10,
+                0x9e66_0200
+            ]
+        );
         // fmov d16, x1; fmov d17, x2; fadd d16, d16, d17; fmov x0, d16
         assert_eq!(
             words(form(Operation::Add, Binary64), &[1, 2, 0]),
@@ -925,7 +963,7 @@ mod tests {
     #[test]
     fn validation_binds_every_bit_operation_format_and_register() {
         for form in IeeeFloatArithmeticForm::ALL {
-            let registers = &[7, 30, 12][3 - form.operand_count() - 1..];
+            let registers = &[6, 7, 30, 12][4 - form.operand_count() - 1..];
             let bytes = encode(form, registers).unwrap();
             validate(form, registers, &bytes).unwrap();
             for byte_index in 0..bytes.len() {
@@ -956,7 +994,7 @@ mod tests {
             let mut wide = vec![31];
             wide.extend_from_slice(&registers[1..]);
             assert!(encode(form, &wide).is_err());
-            assert!(encode(form, &[1, 2, 3, 4]).is_err());
+            assert!(encode(form, &[1, 2, 3, 4, 5]).is_err());
             assert!(validate(form, registers, &bytes[..bytes.len() - 4]).is_err());
         }
     }

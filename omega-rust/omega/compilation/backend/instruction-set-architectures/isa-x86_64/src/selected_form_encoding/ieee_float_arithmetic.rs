@@ -12,6 +12,8 @@
 //!   second operand on unordered or equal operands, which is exactly
 //!   `FloatSemantics::minimum` (maximum likewise with `>`), NaN and signed
 //!   zero included;
+//! - multiply-then-add: two payloads in, `MULS?`, the addend in, `ADDS?`,
+//!   result out. Separate SSE2 operations preserve both roundings, without FMA;
 //! - negate: payload in, `PCMPEQD xmm5, xmm5` then `PSLLQ`/`PSLLD` to form
 //!   the sign mask, `XORPD`/`XORPS`, move out. No memory constant is needed;
 //! - square root and format conversion: payload in, one
@@ -109,8 +111,8 @@ pub(crate) fn footprint(
 /// `r8`..`r15`, which adds one REX byte per general-register field.
 fn size(form: IeeeFloatArithmeticForm) -> MachineSizeKnowledge {
     MachineSizeKnowledge::EncoderResolved {
-        minimum_bytes: canonical(form, &[0, 0, 0]).len() as u16,
-        maximum_bytes: Some(canonical(form, &[8, 8, 8]).len() as u16),
+        minimum_bytes: canonical(form, &[0, 0, 0, 0]).len() as u16,
+        maximum_bytes: Some(canonical(form, &[8, 8, 8, 8]).len() as u16),
     }
 }
 
@@ -531,6 +533,26 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
         source: LEFT_SCRATCH,
     };
     match form.operation {
+        IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
+            move_in(registers[0], LEFT_SCRATCH, double),
+            move_in(registers[1], RIGHT_SCRATCH, double),
+            // MULSS/MULSD followed by ADDSS/ADDSD preserves both required
+            // roundings without FMA or an optional ISA feature.
+            Instruction::Scalar {
+                double,
+                opcode: 0x59,
+                destination: LEFT_SCRATCH,
+                source: RIGHT_SCRATCH,
+            },
+            move_in(registers[2], RIGHT_SCRATCH, double),
+            Instruction::Scalar {
+                double,
+                opcode: 0x58,
+                destination: LEFT_SCRATCH,
+                source: RIGHT_SCRATCH,
+            },
+            move_out,
+        ],
         IeeeFloatArithmeticOperation::Negate => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             Instruction::AllOnes { xmm: RIGHT_SCRATCH },
@@ -1097,13 +1119,23 @@ mod tests {
         )
         .unwrap();
         let view = |name: &str| physical.model().view_named(name).unwrap().id;
-        let all = [view("rsi"), view("r15"), view("r8")];
+        let all = [view("rdx"), view("rsi"), view("r15"), view("r8")];
         for form in IeeeFloatArithmeticForm::ALL {
-            let operands = &all[3 - form.operand_count() - 1..];
+            let operands = &all[4 - form.operand_count() - 1..];
             let bytes = encode(&physical, form, key(form), operands)
                 .unwrap()
                 .bytes()
                 .to_vec();
+            let super::MachineSizeKnowledge::EncoderResolved {
+                minimum_bytes,
+                maximum_bytes: Some(maximum_bytes),
+            } = super::size(form)
+            else {
+                panic!("scalar SSE2 forms declare bounded encoded sizes");
+            };
+            assert!(
+                (usize::from(minimum_bytes)..=usize::from(maximum_bytes)).contains(&bytes.len())
+            );
             for byte_index in 0..bytes.len() {
                 for bit in 0..8 {
                     let mut changed = bytes.clone();
