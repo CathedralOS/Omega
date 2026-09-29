@@ -149,6 +149,7 @@ pub(crate) fn is_branch_free_structural_integer_expression(
         CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::RepresentationView { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
         // A whole-view `source.len` observes the exact borrowed view the
         // structural parameter itself carries; a field-path byte length is a

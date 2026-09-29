@@ -404,8 +404,10 @@ fn scalar_evidence_is_crash_lane_lowerable(
 ) -> bool {
     use checked_trees::CheckedScalarExpression;
     match expression {
+        // The crash lane replays no representation re-view.
         CheckedScalarExpression::StructuralParameterByteLength { .. }
-        | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => false,
+        | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+        | CheckedScalarExpression::RepresentationView { .. } => false,
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             scalar_evidence_is_crash_lane_lowerable(left)
                 && scalar_evidence_is_crash_lane_lowerable(right)
@@ -684,6 +686,7 @@ fn substitute_checked_scalar_expression(
         | CheckedScalarExpression::StructuralParameterByteLength { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::RepresentationView { .. }
         | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. } => return None,
         // A standalone integer field leaf is the same frozen structural leaf

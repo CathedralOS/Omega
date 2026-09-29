@@ -194,6 +194,7 @@ fn scalar_reads(expression: &CheckedScalarExpression, receiver: u32) -> bool {
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::RepresentationView { operand, .. }
         | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
             scalar_reads(operand, receiver)

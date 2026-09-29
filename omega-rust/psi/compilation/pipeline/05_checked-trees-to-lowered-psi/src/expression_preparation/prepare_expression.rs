@@ -833,6 +833,28 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             };
             wrapping_cast::wrapping_cast(operand, source_type, target)
         }
+        // The source place is lowered at its declared carrier -- every
+        // declared-type check of that read still applies -- and the view
+        // replays the carrier relation instead of retagging the read.
+        CheckedScalarExpression::RepresentationView {
+            primitive_type,
+            operand,
+        } => {
+            let operand = lower_checked_scalar_expression_with_parameters(
+                operand,
+                structural_parameters,
+                structural_fields,
+                structural_cases,
+                primitive_storage,
+                element_views,
+                view_locals,
+                structural_locals,
+            )?;
+            crate::expression_preparation::representation_view::replay(
+                operand,
+                terminal_scalar_type(*primitive_type)?,
+            )
+        }
         CheckedScalarExpression::IntegerSaturatingCast {
             primitive_type,
             operand,

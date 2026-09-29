@@ -44,6 +44,9 @@ fn scalar(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
         CheckedScalarExpression::IntegerWrappingCast { .. } => Err(LoweringError::Unsupported(
             "wrapping conversion is not supported scalar contract arithmetic",
         )),
+        CheckedScalarExpression::RepresentationView { .. } => Err(LoweringError::Unsupported(
+            "a representation re-view is not scalar contract arithmetic",
+        )),
         CheckedScalarExpression::StructuralParameterIndexedRead { .. } => {
             Err(LoweringError::Unsupported(
                 "indexed structural scalar reads are not supported contract operands",

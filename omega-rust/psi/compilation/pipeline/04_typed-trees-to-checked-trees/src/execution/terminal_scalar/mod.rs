@@ -1438,6 +1438,7 @@ fn scalar_expression_reads_position(
         | Scalar::IntegerWiden { operand, .. }
         | Scalar::IntegerExactCast { operand, .. }
         | Scalar::IntegerWrappingCast { operand, .. }
+        | Scalar::RepresentationView { operand, .. }
         | Scalar::IntegerSaturatingCast { operand, .. }
         | Scalar::IntegerTrappingCast { operand, .. } => {
             scalar_expression_reads_position(operand, position)

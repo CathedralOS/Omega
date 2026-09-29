@@ -23,6 +23,7 @@ mod nested_boundary_results;
 mod outer_calls;
 mod primitive_locals;
 mod receiver_stores;
+mod representation_views;
 mod returns;
 mod scalar_boundary_targets;
 mod scalar_primitive_targets;

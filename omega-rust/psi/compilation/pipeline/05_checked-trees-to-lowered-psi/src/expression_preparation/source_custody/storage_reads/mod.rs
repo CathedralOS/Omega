@@ -1331,6 +1331,7 @@ fn collect_scalar_storage_reads(
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerTrappingCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::RepresentationView { operand, .. }
         | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
             collect_scalar_storage_reads(operand, namespace, path, reads, needs_value_replay);
         }

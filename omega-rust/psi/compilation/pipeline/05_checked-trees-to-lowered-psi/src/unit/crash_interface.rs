@@ -145,7 +145,8 @@ fn contract_scoped_scalar(expression: &CheckedScalarExpression) -> bool {
         CheckedScalarExpression::StorageRead { .. }
         | CheckedScalarExpression::Local { .. }
         | CheckedScalarExpression::IeeeFloatLiteral { .. }
-        | CheckedScalarExpression::IntegerTrappingCast { .. } => false,
+        | CheckedScalarExpression::IntegerTrappingCast { .. }
+        | CheckedScalarExpression::RepresentationView { .. } => false,
         CheckedScalarExpression::Parameter { .. }
         | CheckedScalarExpression::ErasedParameter { .. }
         | CheckedScalarExpression::StructuralParameterByteLength { .. }

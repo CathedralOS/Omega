@@ -52,6 +52,7 @@ mod reach_and_scalar_lowering;
 mod reborrow_lowering;
 mod receiver_free_view_results;
 mod record_array_fields;
+mod representation_view_guards;
 mod scalar_block_invariants;
 mod scalar_call_case_arguments;
 mod scalar_graph;

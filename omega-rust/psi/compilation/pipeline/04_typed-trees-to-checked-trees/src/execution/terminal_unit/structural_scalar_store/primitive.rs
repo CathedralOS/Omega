@@ -734,6 +734,7 @@ fn scalar_expression_needs_no_bindings(
         | CheckedScalarExpression::IntegerWiden { operand, .. }
         | CheckedScalarExpression::IntegerExactCast { operand, .. }
         | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+        | CheckedScalarExpression::RepresentationView { operand, .. }
         | CheckedScalarExpression::IntegerSaturatingCast { operand, .. } => {
             scalar_expression_needs_no_bindings(operand)
         }

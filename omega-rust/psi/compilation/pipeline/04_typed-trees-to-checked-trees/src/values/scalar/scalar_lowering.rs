@@ -310,12 +310,13 @@ pub(crate) fn lower_scalar_expression(
 ) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
     // A recast operand `&place as &T` / `&mut place as &mut T` re-views its
     // source place under the stated target carrier (§5b address identity):
-    // the checked form is the source place's own read retagged to the
-    // target type. Validation already proved the representation relation
-    // and the borrow walk attributes the view to the source place, so only
-    // whole-place sources compose here -- a byte-region view over an
-    // indexed source keeps element-unit reads that cannot carry the target
-    // width and stays unlowered (loud) rather than misattributing bytes.
+    // the checked form retains the source place's own read at its declared
+    // carrier beneath the re-view (`view_place_read`). Validation already
+    // proved the representation relation and the borrow walk attributes the
+    // view to the source place, so only whole-place sources compose here --
+    // a byte-region view over an indexed source keeps element-unit reads
+    // that cannot carry the target width and stays unlowered (loud) rather
+    // than misattributing bytes.
     if let Some((source, target_type)) = recast_view_operand(program, expression) {
         let primitive_type = program.primitive_type_reference(target_type)?;
         let (read, _) = lower_scalar_expression(
@@ -329,7 +330,7 @@ pub(crate) fn lower_scalar_expression(
             exact_integer_casts,
         )?;
         return Some((
-            retag_place_read(&read, primitive_type)?,
+            view_place_read(read, primitive_type)?,
             program.arithmetic_domain_for_type_reference(target_type),
         ));
     }
@@ -1086,6 +1087,30 @@ fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceReadSite> {
         },
         _ => None,
     }
+}
+
+/// The checked read of one whole place re-viewed as `primitive_type`. A
+/// same-carrier view changes facts, not representation, and is the place's
+/// own read. A carrier change retains the read at its declared carrier inside
+/// `RepresentationView`, so later stages replay the carrier relation instead
+/// of meeting a field read whose carrier its declaration does not name. A
+/// Boolean view keeps the retagged Boolean leaf its guard positions consume;
+/// its native replay is still owed a Boolean re-view form.
+fn view_place_read(
+    read: CheckedScalarExpression,
+    primitive_type: PrimitiveType,
+) -> Option<CheckedScalarExpression> {
+    place_read_site(&read)?;
+    if primitive_type == PrimitiveType::Bool {
+        return retag_place_read(&read, primitive_type);
+    }
+    if read.primitive_type()? == primitive_type {
+        return Some(read);
+    }
+    Some(CheckedScalarExpression::RepresentationView {
+        primitive_type,
+        operand: Box::new(read),
+    })
 }
 
 /// Re-read one place site through the recast's stated target carrier. Bool

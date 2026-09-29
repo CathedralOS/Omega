@@ -296,6 +296,7 @@ fn shared_integer_runtime_inputs(
         | CheckedScalarExpression::IntegerWiden { .. }
         | CheckedScalarExpression::IntegerTrappingCast { .. }
         | CheckedScalarExpression::IntegerWrappingCast { .. }
+        | CheckedScalarExpression::RepresentationView { .. }
         | CheckedScalarExpression::IntegerSaturatingCast { .. }
         | CheckedScalarExpression::StructuralParameterIndexedRead { .. }
         | CheckedScalarExpression::StructuralParameterField { .. }

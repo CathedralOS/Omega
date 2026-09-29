@@ -542,6 +542,19 @@ pub enum CheckedScalarExpression {
         operand: Box<CheckedScalarExpression>,
     },
     Boolean(Box<CheckedBooleanExpression>),
+    /// A §5b representation re-view of one whole scalar place
+    /// (`&place as &T`, or a read through a loan local bound to one). The
+    /// operand is the source place's own read at its declared carrier; the
+    /// view observes the same bytes as `primitive_type`. Stage 04 retains
+    /// this form only after the recast judgment admitted the pair and only
+    /// when the carriers differ -- a same-carrier view changes facts, not
+    /// representation, and reads the place directly. Consumers replay the
+    /// carrier relation from both types rather than trusting a read retagged
+    /// with a carrier its storage does not declare.
+    RepresentationView {
+        primitive_type: typed_trees::types::PrimitiveType,
+        operand: Box<CheckedScalarExpression>,
+    },
 }
 
 impl CheckedScalarExpression {
@@ -563,7 +576,8 @@ impl CheckedScalarExpression {
             | Self::IntegerWiden { operand, .. }
             | Self::IntegerExactCast { operand, .. }
             | Self::IntegerWrappingCast { operand, .. }
-            | Self::IntegerSaturatingCast { operand, .. } => operand.contains_trapping_operation(),
+            | Self::IntegerSaturatingCast { operand, .. }
+            | Self::RepresentationView { operand, .. } => operand.contains_trapping_operation(),
             Self::StructuralParameterIndexedRead {
                 index,
                 inner_indexes,
@@ -605,7 +619,8 @@ impl CheckedScalarExpression {
             | Self::IntegerExactCast { primitive_type, .. }
             | Self::IntegerTrappingCast { primitive_type, .. }
             | Self::IntegerWrappingCast { primitive_type, .. }
-            | Self::IntegerSaturatingCast { primitive_type, .. } => Some(*primitive_type),
+            | Self::IntegerSaturatingCast { primitive_type, .. }
+            | Self::RepresentationView { primitive_type, .. } => Some(*primitive_type),
             Self::IntegerLiteral { literal } => Some(match literal.landing()?.landed_type {
                 LandedIntegerType::I8 => PrimitiveType::I8,
                 LandedIntegerType::I16 => PrimitiveType::I16,

@@ -2527,23 +2527,57 @@ completion syntax or other terminal service is a prerequisite.
 - **RECAST-SOURCE-POSITIONS.** Carry representation-compatible shared/mutable
   re-views through checked trees and native execution, following the
   [recast contract](wiki/spec/layouts/recasts.md). `checking::value_custody::recasts`
-  already judges statement-reachable guards, call arguments and nested operands.
-  `judge_scalar_recast` emits diagnostics but no retained re-view judgment;
-  checked trees have no corresponding representation. Stage 05's
-  `expression_preparation/bindings/structural_fields::resolve` rejects observations
-  whose scalar type differs from the declared field. Retain and replay the
-  compatibility relationship instead of relaxing that equality check. Preserve
+  judges statement-reachable guards, call arguments and nested operands.
+  Checked trees retain a whole-place scalar re-view as
+  `CheckedScalarExpression::RepresentationView` over the source read at its
+  declared carrier; stage 05's `expression_preparation/representation_view.rs`
+  replays equal-width integer views as the modular image, and the field-read
+  equality check in `bindings/structural_fields::resolve` stays exact. Preserve
   checked layout/validity, backing identity, lifetime, access and whole-place
   reads through ordinary expression sequencing and temporary loans.
 
-  The committed check/native records reject the `tests/omega/pass/recast`
-  executable customers at local-binding, attached-shape or store planning;
-  `corpus_runner` now realizes entry-bearing fixtures even on its check leg.
-  `nested_operand_view_compile` checks without an executable entry. Reference
-  locals initialized from place loans remain shared work with
-  **STATE-LOCAL-VALUE-FRONTIER** / **REFERENCE-LOCAL-BINDING-ROUTES**; range syntax
-  migration belongs to **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. Re-measure each
-  customer's first refusal after those repairs, rather than preserving old stops.
+  With this change on base `2c636b809a2`, `python3 tools/corpus_gate.py --native
+  --filter recast/` on macOS ARM64 builds and exits 70 for
+  `runtime_shared_domain_weakening_recast_exit` and
+  `runtime_mutable_equivalent_domain_recast_exit`. The remaining executable
+  customers stop at these missing capabilities:
+
+  - Boolean and IEEE float cross-carrier views (`bool` as `u8`, `f32` as
+    `u32`) need a Terminal Psi re-view operation (bit reinterpretation, 0/1
+    landing) through verification and Omega realization;
+    `representation_view::replay` names that refusal.
+    `runtime_bool_representation_recast_exit` stops first at `guard
+    expression` because `expression_plans/local_data::shared_loan_place`
+    excludes a `&bool` loan local, and Boolean view targets still retag their
+    leaf in `scalar_lowering::view_place_read`.
+    `runtime_float_range_representation_recast_exit` stops first at `state
+    signature: parameter signature: attached data shape` for its `f32 [0..=1]`
+    field.
+  - Stores through a `&mut` recast loan
+    (`runtime_mutable_equivalent_range_recast_exit`, `structural field store:
+    target place`): `structural_scalar_store/destination.rs::rejoin_loan_local`
+    does not peel the recast, and the stored view-carrier value needs a retained
+    store re-view into the source carrier that stage 05 replays.
+  - Runtime-offset byte-region scalar views
+    (`runtime_guarded_offset_recast_exit` at `guard expression`,
+    `runtime_offset_byte_recast_mutable_write_exit` at `structural field store:
+    target place`): `scalar_lowering::recast_view_operand` admits only
+    name/member sources, so no byte-assembled read or store exists.
+  - Record, record-array and slice views stop at `attached data shape`
+    (`runtime_mutable_equivalent_record_recast_exit`,
+    `runtime_shared_record_float_range_weakening_exit`), `structural field
+    store: target place` (`runtime_record_array_view_mutable_write_exit`),
+    `parameter transfer` (`runtime_aggregate_slice_representation_recast_exit`),
+    `guard expression` (`runtime_interior_slice_view_mutable_write_exit`) and
+    `structural call binding` (`runtime_interior_slice_congruent_offset_exit`);
+    they share referee-record declaration minting and element-view
+    establishment.
+
+  `nested_operand_view_compile` checks without an executable entry. Immutable
+  `&mut` place-loan locals read their loaned place in scalar operands; other
+  reference locals initialized from place loans remain shared work with
+  **STATE-LOCAL-VALUE-FRONTIER** / **REFERENCE-LOCAL-BINDING-ROUTES**, and range
+  syntax migration belongs to **CANONICALIZE-SCALAR-RANGE-CONTRACTS**.
 
   Acceptance: let-bound and inline equivalents of supported scalar, record,
   array and slice re-views execute, with mutable writes visible through the
