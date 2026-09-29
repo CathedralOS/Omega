@@ -19,8 +19,8 @@ use checked_trees::{CheckedUnitStructuralFieldPlan, CheckedUnitStructuralTypePla
 use typed_trees::service::ExactServiceCarrier;
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// The boundary requirement of every `Binding<R>` carrier on the attached
-/// receiver record of ProgramEntry machine `machine_symbol`, in authored route
+/// The boundary requirement of every `Binding<R>` carrier on the provisioned
+/// context record of ProgramEntry machine `machine_symbol`, in authored route
 /// order, found by the same nested-record traversal establishment uses.
 ///
 /// This is the nomination surface: it runs before provider selection, so it
@@ -38,26 +38,24 @@ pub fn program_entry_service_requirements(
     else {
         return Vec::new();
     };
-    let attached_symbol = machine.attached_data_symbol;
-    if !attached_symbol.is_valid() {
+    let Some(entry) = checked.machine_states(machine).first() else {
         return Vec::new();
-    }
+    };
+    let Ok(Some(context)) =
+        provider_planning::program_entry::provisioned_entry_context(checked, machine, entry)
+    else {
+        return Vec::new();
+    };
     let mut service_fields = Vec::new();
     let mut invalid_shapes = Vec::new();
-    for owner in checked
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == attached_symbol)
-    {
-        collect_service_fields(
-            checked,
-            owner,
-            owner,
-            &mut Vec::new(),
-            &mut service_fields,
-            &mut invalid_shapes,
-        );
-    }
+    collect_service_fields(
+        checked,
+        context.definition,
+        context.definition,
+        &mut Vec::new(),
+        &mut service_fields,
+        &mut invalid_shapes,
+    );
     service_fields
         .into_iter()
         .map(|(_field, carrier, _route)| carrier.requirement)
@@ -95,34 +93,23 @@ pub fn derive_fused_program_entry_establishments(
             matching_states.len(),
         ))]);
     };
-    let receiver_parameters = checked
-        .state_parameters(state)
-        .iter()
-        .filter(|parameter| parameter.is_self)
-        .collect::<Vec<_>>();
-    let [receiver_parameter] = receiver_parameters.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected provisioned ProgramEntry rejoins {} self receivers; expected one",
-            receiver_parameters.len(),
-        ))]);
-    };
-    let attached_symbol = machine.attached_data_symbol;
-    if !attached_symbol.is_valid() {
+    let context =
+        provider_planning::program_entry::provisioned_entry_context(checked, machine, state)
+            .map_err(|diagnostic| vec![diagnostic])?
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "selected provisioned ProgramEntry has no source context parameter",
+                )]
+            })?;
+    if source.receiver().source_position() != Some(context.source_position)
+        || source.receiver().source_symbol() != Some(context.parameter.symbol)
+    {
         return Err(vec![Diagnostic::error(
-            "selected provisioned ProgramEntry has no attached receiver data",
+            "selected ProgramEntry context occurrence drifted before Fused establishment",
         )]);
     }
-    let owners = checked
-        .data_definitions()
-        .iter()
-        .filter(|definition| definition.symbol == attached_symbol)
-        .collect::<Vec<_>>();
-    let [owner] = owners.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "selected ProgramEntry receiver rejoins {} attached data declarations; expected one",
-            owners.len(),
-        ))]);
-    };
+    let receiver_parameter = context.parameter;
+    let owner = context.definition;
     if checked
         .normalized_type_identity(receiver_parameter.type_reference)
         .as_str()
@@ -181,14 +168,44 @@ pub fn derive_fused_program_entry_establishments(
         return Err(diagnostics);
     }
 
-    let mut attachment_identities = checked
+    let structural_identity =
+        |attachment: &Option<String>,
+         parameters: &[checked_trees::CheckedUnitStructuralParameterPlan]| {
+            if receiver_parameter.is_self {
+                return attachment.clone();
+            }
+            if attachment.is_some() {
+                return None;
+            }
+            let TypeReferenceNode::Reference { referee, .. } = checked
+                .type_reference_table
+                .type_reference(receiver_parameter.type_reference)
+            else {
+                return None;
+            };
+            let mut matching = parameters
+                .iter()
+                .filter(|parameter| parameter.position == context.source_position);
+            let parameter = matching.next()?;
+            if matching.next().is_some()
+                || parameter.is_self
+                || parameter.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+                || parameter.type_identity != checked.normalized_type_identity(*referee).as_str()
+            {
+                return None;
+            }
+            Some(parameter.type_identity.clone())
+        };
+    let attachment_identities = checked
         .facts
         .flow
         .terminal_unit_effects
         .machines
         .iter()
         .filter(|plan| plan.machine == machine.symbol && plan.state == state.symbol)
-        .filter_map(|plan| plan.attachment_type_identity.clone())
+        .filter_map(|plan| {
+            structural_identity(&plan.attachment_type_identity, &plan.structural_parameters)
+        })
         .chain(
             checked
                 .facts
@@ -200,14 +217,22 @@ pub fn derive_fused_program_entry_establishments(
                     plan.machine == machine.symbol
                         && plan.states.iter().any(|plan| plan.state == state.symbol)
                 })
-                .filter_map(|plan| plan.attachment_type_identity.clone()),
+                .flat_map(|plan| {
+                    plan.states
+                        .iter()
+                        .filter(|candidate| candidate.state == state.symbol)
+                        .filter_map(|state| {
+                            structural_identity(
+                                &plan.attachment_type_identity,
+                                &state.structural_parameters,
+                            )
+                        })
+                }),
         )
         .collect::<Vec<_>>();
-    attachment_identities.sort();
-    attachment_identities.dedup();
     let [attachment_type_identity] = attachment_identities.as_slice() else {
         let mut message = format!(
-            "selected ProgramEntry establishment rejoins {} Terminal attachment identities; expected one",
+            "selected ProgramEntry establishment rejoins {} Terminal context identities; expected one",
             attachment_identities.len(),
         );
         if let Some(omission) = checked
