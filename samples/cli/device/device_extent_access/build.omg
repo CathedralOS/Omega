@@ -1,0 +1,7 @@
+machine build(builder: &mut Build) {
+    builder.application("device_extent_access");
+    builder.accept_boundary<ExtentRootProvider>();
+    builder.accept_boundary<DeviceLoanProvider>();
+    builder.select_representation<DeviceLoan, DeviceLoanRepresentation>();
+    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+}

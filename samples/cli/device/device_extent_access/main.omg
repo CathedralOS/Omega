@@ -1,13 +1,68 @@
 // Device extent access vocabulary exercise. A DMA transfer is an external
 // borrow of a `Granted` extent range by a device: the admitted provider lends
 // the range as the linear `DeviceLoan` proxy, direction-qualified by domain,
-// and completion restores `Extent::Granted` custody. Checked-only sample —
-// `DeviceLoan` is provider-issued opaque data, so no source-level adapter
-// exists and no build.omg selects a provider.
+// and completion restores `Extent::Granted` custody.
+//
+// Checked-provider sample — `DeviceLoan` is provider-issued opaque data, so the
+// concrete `LoopbackDeviceLoanProvider` supplies the loan crossings as
+// target-scoped `via ForeignBinding::CompilerIntrinsic` leaves, selected for
+// `DeviceLoanProvider` through its `provider_defaults` on macos_arm64. The
+// leaves carry no source body: minting
+// and completing the opaque proxy is provider admission work the toolchain
+// realizes, mirroring the float/console intrinsic route. Native realization
+// of the loan crossings remains the toolchain's next edge; this sample pins
+// the checked contract — both loan directions through one selected provider,
+// the granted-only lend argument, and restored `Extent::Granted` custody.
 
 use omega::language::core::device;
 use omega::language::core::extent;
 use omega::language::core::binding;
+use omega::language::core::representation;
+
+// The byte representation `DeviceLoan` materializes across the provider
+// boundary: a carrier the opaque proxy selects through
+// `OpaqueRepresentation<DeviceLoan>` so the toolchain has a concrete layout to
+// realize, while source still cannot construct, copy, or inspect one.
+pub data DeviceLoanCarrier {
+    token: u64;
+}
+pub DeviceLoanRepresentation:
+    DeviceLoanCarrier satisfies OpaqueRepresentation<DeviceLoan>;
+
+// The concrete provider the sample selects: a loopback device authority whose
+// loan crossings are compiler-intrinsic leaves. Its eventual realization is a
+// copy-and-validate device over process memory — on lend the provider revokes
+// CPU access to the range per direction and records the loan; on complete it
+// validates, writes back, and restores `Granted` custody.
+pub data LoopbackDeviceLoanProvider {}
+
+macos_arm64 machine LoopbackDeviceLoanProvider::provider_defaults(defaults: &mut LoopbackDeviceLoanProvider) {
+    defaults.select_provider<DeviceLoanProvider, LoopbackDeviceLoanProvider>();
+}
+
+macos_arm64 machine LoopbackDeviceLoanProvider::lend_for_read(range: Extent in Granted) -> DeviceLoan
+    satisfies DeviceLoanProvider::lend_for_read
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::lend_for_write(range: Extent in Granted) -> DeviceLoan
+    satisfies DeviceLoanProvider::lend_for_write
+    via ForeignBinding::CompilerIntrinsic;
+macos_arm64 machine LoopbackDeviceLoanProvider::complete(loan: DeviceLoan) -> Extent
+    satisfies DeviceLoanProvider::complete
+    via ForeignBinding::CompilerIntrinsic;
+
+// The checked root-grant adapter: an ordinary source body satisfies
+// `ExtentRootProvider::grant`; the qualified lend argument comes only from the
+// selected provider plan's admission receipt, not from this body.
+pub data ExtentRootProviderImpl {}
+
+macos_arm64 machine ExtentRootProviderImpl::provider_defaults(defaults: &mut ExtentRootProviderImpl) {
+    defaults.select_provider<ExtentRootProvider, ExtentRootProviderImpl>();
+}
+machine ExtentRootProviderImpl::grant(root: Extent) -> Extent
+satisfies ExtentRootProvider::grant
+{
+    root
+}
 
 machine consume_read_loan(loan: DeviceLoan in DeviceReads) -> DeviceLoan {
     loan as DeviceLoan
@@ -27,7 +82,8 @@ reaches ExtentRootProvider, DeviceLoanProvider
 {
     let granted: Extent = self.roots.grant(root);
     let loan: DeviceLoan = self.device.lend_for_read(granted);
-    transition { _ -> (self.device.complete(consume_read_loan(loan)) as Extent) }
+    let consumed: DeviceLoan = consume_read_loan(loan);
+    transition { _ -> (self.device.complete(consumed) as Extent) }
 }
 
 machine DmaHarness::stage_dma_write(&self, root: Extent) -> Extent
@@ -35,7 +91,8 @@ reaches ExtentRootProvider, DeviceLoanProvider
 {
     let granted: Extent = self.roots.grant(root);
     let loan: DeviceLoan = self.device.lend_for_write(granted);
-    transition { _ -> (self.device.complete(consume_write_loan(loan)) as Extent) }
+    let consumed: DeviceLoan = consume_write_loan(loan);
+    transition { _ -> (self.device.complete(consumed) as Extent) }
 }
 
 data Main {}
