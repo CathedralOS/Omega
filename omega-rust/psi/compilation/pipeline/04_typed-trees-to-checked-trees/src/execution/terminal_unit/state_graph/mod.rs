@@ -29,7 +29,7 @@ use crate::execution::terminal_unit::calls::{
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::returns::checked_boolean_contains_short_circuit;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, machine_binders, return_unit_affine_discards, state_flow,
+    ShapeCollector, is_reference, machine_binders, return_unit_affine_discards, state_flow,
 };
 use crate::execution::terminal_unit::types::{borrowed_slice_view_element, byte_sequence_carrier};
 use crate::execution::terminal_unit::{composed_control, control};
@@ -624,17 +624,38 @@ pub(super) fn build_traced(
     // A returned record holding references names the entry parameter each
     // reference leaf borrows from. Only the entry state's own completion can
     // name those parameters, so a reference record returned from any other
-    // state has no sources to publish.
+    // state has no sources to publish. A whole-reference result is itself
+    // the only leaf: each returning state's own completion already spells
+    // the parameter its borrow loans — in machine parameter positions — so
+    // the machine publishes them when every return spells the same source.
     if matches!(
         result,
         checked_trees::CheckedControlResultPlan::Structural(_)
     ) && super::reference_results::is_reference_record(program, states[0].return_type)
     {
-        if states.len() != 1 {
-            return None;
+        if is_reference(program, states[0].return_type) {
+            let mut sources: Option<&[checked_trees::CheckedReferenceResultSourcePlan]> = None;
+            for state_plan in &plan.states {
+                let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } =
+                    &state_plan.terminator
+                else {
+                    continue;
+                };
+                match sources {
+                    None => sources = Some(&returned.reference_sources),
+                    Some(existing) if existing == returned.reference_sources => {}
+                    Some(_) => return None,
+                }
+            }
+            plan.result_reference_sources =
+                sources.map(|sources| sources.to_vec()).unwrap_or_default();
+        } else {
+            if states.len() != 1 {
+                return None;
+            }
+            plan.result_reference_sources =
+                super::reference_results::returned_record_sources(program, &states[0])?;
         }
-        plan.result_reference_sources =
-            super::reference_results::returned_record_sources(program, &states[0])?;
     }
     plan.result = result;
     Some(plan)
