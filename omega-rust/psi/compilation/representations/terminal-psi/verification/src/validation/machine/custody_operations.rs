@@ -236,6 +236,7 @@ pub(super) fn register_custody_operation(
             | OperationKind::StructuralByteSequenceFieldStore { .. }
             | OperationKind::StructuralByteSequenceFieldByteStore { .. }
             | OperationKind::ByteSequenceWrite { .. }
+            | OperationKind::ElementViewWrite { .. }
             | OperationKind::PortWrite { .. }
             | OperationKind::EstablishByteSequenceLiteral { .. }
             | OperationKind::EstablishTrivialAffineLocal { .. }
@@ -248,7 +249,8 @@ pub(super) fn register_custody_operation(
         if let OperationKind::ByteSequenceStore { obligation, .. }
         | OperationKind::StructuralByteSequenceFieldStore { obligation, .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { obligation, .. }
-        | OperationKind::ByteSequenceWrite { obligation, .. } = &operation.kind
+        | OperationKind::ByteSequenceWrite { obligation, .. }
+        | OperationKind::ElementViewWrite { obligation, .. } = &operation.kind
         {
             insert_unique(
                 &mut registry.obligations,

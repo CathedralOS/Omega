@@ -114,6 +114,9 @@ pub(super) fn validate_operation_operands(
         OperationKind::ElementViewRead { .. } => {
             storage_operands::validate_element_view_read(operation, value_types, defined)
         }
+        OperationKind::ElementViewWrite { .. } => {
+            storage_operands::validate_element_view_write(operation, value_types, defined)
+        }
         OperationKind::ElementViewSubslice { .. } => {
             storage_operands::validate_element_view_subslice(operation, value_types, defined)
         }

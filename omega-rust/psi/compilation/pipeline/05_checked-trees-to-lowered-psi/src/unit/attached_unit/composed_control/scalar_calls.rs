@@ -143,7 +143,10 @@ fn selected_roots(
                         checked,
                         machine,
                         state.state,
-                        store,
+                        store.statement_index,
+                        &store.value,
+                        store.primitive_type,
+                        Some(&store.field_identity),
                     )?
                 {
                     pending.push(root);

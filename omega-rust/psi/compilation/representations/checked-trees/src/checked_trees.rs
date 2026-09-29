@@ -104,7 +104,7 @@ pub use flow::{
     CheckedDynamicRealizationCallablePlan, CheckedDynamicScalarCallOrigin,
     CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan, CheckedDynamicSelectionPlan,
     CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin, CheckedDynamicUnitCallPlan,
-    CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan,
+    CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan, CheckedElementViewWritePlan,
     CheckedFusedServiceErasureReceipt, CheckedFusedServiceParameterReceipt,
     CheckedGuardedJumpArmPlan, CheckedGuardedJumpFallbackPlan, CheckedGuardedJumpPlan,
     CheckedGuardedJumpReturnPlan, CheckedNaturalRankMeasure,

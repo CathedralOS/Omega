@@ -457,6 +457,7 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                 | CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
@@ -496,6 +497,9 @@ impl OperationFrame<'_, '_> {
             }
             CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
                 self.byte_sequence_write(write)
+            }
+            CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
+                self.element_view_write(write)
             }
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
                 self.structural_scalar_field_store(store)
@@ -808,6 +812,106 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
+    fn element_view_write(
+        &mut self,
+        write: &checked_trees::CheckedElementViewWritePlan,
+    ) -> Result<(), LoweringError> {
+        // A `&mut`-borrowed parameter names its destination place directly; a
+        // locally bound `&mut` view names the home place its establishment
+        // produced, resolved through the structural-local roster like a whole
+        // structural store's local root.
+        let (destination_place, destination_type) = match write.destination {
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+                let (_, destination) = self
+                    .evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|(authored, _)| *authored == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "element-view write names an unknown parameter",
+                    ))?;
+                if destination.access != StructuralAccess::MutableBorrow
+                    || destination.multiplicity
+                        != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !destination.qualifications.is_empty()
+                    || !destination.projected_qualifications.is_empty()
+                {
+                    return unsupported("element-view write parameter lost mutable custody");
+                }
+                (destination.place, destination.structural_type)
+            }
+            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+                let (_, argument) = self
+                    .evaluation
+                    .structural_locals
+                    .iter()
+                    .find(|(candidate, _)| *candidate == symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "element-view write names an unknown structural local",
+                    ))?;
+                if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                    return unsupported("element-view write local root is not a whole owned home");
+                }
+                let produced = self
+                    .operations
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.structural())
+                    .find(|result| result.place == argument.place)
+                    .ok_or(LoweringError::Unsupported(
+                        "element-view write local root has no produced place",
+                    ))?;
+                if !matches!(
+                    produced.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
+                ) || !produced.qualifications.is_empty()
+                    || !produced.projected_qualifications.is_empty()
+                    || !produced.claims.is_empty()
+                {
+                    return unsupported("element-view write local root lost exclusive custody");
+                }
+                (argument.place, produced.structural_type)
+            }
+        };
+        let dense;
+        let bindings = match &self.evaluation.scalar_bindings {
+            Some(bindings) => bindings,
+            None => {
+                dense = self.dense_assignment_namespace();
+                &dense
+            }
+        };
+        let index = bindings.expression_at(
+            self.checked,
+            self.state,
+            write.statement_index,
+            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
+        )?;
+        let value = crate::emission::element_view_write::element_store_scalar_value(
+            bindings,
+            self.checked,
+            self.state,
+            write.statement_index,
+            &write.value,
+            write.element,
+            self.values,
+        )?;
+        let kind = crate::emission::element_view_write::emit(
+            destination_place,
+            destination_type,
+            self.structural_types.declarations(),
+            &index,
+            &value,
+            self.values,
+            self.next_value,
+            &mut self.calls.next_obligation_identity,
+            self.operations,
+        )?;
+        self.push_unit(kind);
+        Ok(())
+    }
+
     fn structural_scalar_field_store(
         &mut self,
         store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
@@ -902,7 +1006,10 @@ impl OperationFrame<'_, '_> {
             self.checked,
             self.machine,
             self.state,
-            store,
+            store.statement_index,
+            &store.value,
+            store.primitive_type,
+            Some(&store.field_identity),
             self.values,
             self.next_value,
             self.next_block,

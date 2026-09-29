@@ -389,6 +389,11 @@ fn validate_operation_foundation(
                 return malformed("byte-sequence write requires a Unit result");
             }
         }
+        OperationKind::ElementViewWrite { .. } => {
+            if operation.result != OperationResult::Unit {
+                return malformed("element-view write requires a Unit result");
+            }
+        }
         OperationKind::StructuralCaseMembership { .. } => {
             storage_foundations::validate_structural_case_membership(operation)?
         }

@@ -154,6 +154,12 @@ pub enum ModuleError {
     },
     InvalidElementViewEstablishment(OperationId),
     InvalidElementViewSubslice(OperationId),
+    InvalidElementViewWrite(OperationId),
+    ElementViewWriteOperandTypeMismatch {
+        operation: OperationId,
+        operand: ValueId,
+        actual: ScalarType,
+    },
     ElementViewSubsliceOperandTypeMismatch {
         operation: OperationId,
         operand: ValueId,

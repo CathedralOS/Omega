@@ -295,6 +295,7 @@ pub(super) fn validate_binary_arithmetic(
         | OperationKind::EstablishElementView { .. }
         | OperationKind::ElementViewLength { .. }
         | OperationKind::ElementViewRead { .. }
+        | OperationKind::ElementViewWrite { .. }
         | OperationKind::ElementViewSubslice { .. }
         | OperationKind::BooleanNot { .. }
         | OperationKind::BooleanEqual { .. }

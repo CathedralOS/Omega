@@ -19,6 +19,8 @@ mod byte_source_access;
 mod element_arrival_extent;
 #[path = "unranked_views/element_view_operands.rs"]
 mod element_view_operands;
+#[path = "unranked_views/element_view_write.rs"]
+mod element_view_write;
 #[path = "unranked_views/mutable_write.rs"]
 mod mutable_write;
 #[path = "unranked_views/write_cycle.rs"]

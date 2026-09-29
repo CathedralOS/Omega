@@ -900,7 +900,10 @@ impl Evaluation {
         checked: &CheckedTrees,
         machine: symbols::SymbolHandle,
         state: symbols::SymbolHandle,
-        store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+        statement_index: u32,
+        value: &checked_trees::CheckedStructuralScalarFieldStoreValue,
+        primitive_type: typed_trees::types::PrimitiveType,
+        field_identity: Option<&str>,
         values: &mut Vec<ValueDeclaration>,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -925,9 +928,15 @@ impl Evaluation {
             .iter()
             .map(|value| value.value_type())
             .collect::<Vec<_>>();
-        let scalar_type = terminal_scalar_type(store.primitive_type)?;
+        let scalar_type = terminal_scalar_type(primitive_type)?;
         let computation_role = crate::emission::structural_scalar_store_source::computation_root(
-            checked, machine, state, store,
+            checked,
+            machine,
+            state,
+            statement_index,
+            value,
+            primitive_type,
+            field_identity,
         )?
         .map(|(_, role)| role);
         // The store may consume the SSA result of the scalar call this same
@@ -936,9 +945,9 @@ impl Evaluation {
         // call operation already lowered for this statement, which must be the
         // most recently established scalar value in this namespace.
         if let checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { position } =
-            store.value
+            value
         {
-            let position = usize::try_from(position).map_err(|_| {
+            let position = usize::try_from(*position).map_err(|_| {
                 LoweringError::Unsupported("field store call-result position exceeds usize")
             })?;
             if position.checked_add(1) != Some(values.len()) {
@@ -952,11 +961,11 @@ impl Evaluation {
             }
             return Ok(value);
         }
-        if store.value.as_pure().is_some() {
+        if value.as_pure().is_some() {
             let expression = bindings.expression_at(
                 checked,
                 state,
-                store.statement_index,
+                statement_index,
                 CheckedScalarExpressionRole::AssignmentValue,
             )?;
             if expression.scalar_type() != scalar_type
@@ -985,7 +994,7 @@ impl Evaluation {
         .with_fields(&self.record_fields);
         let entry = expansion.retained_value(
             state,
-            store.statement_index,
+            statement_index,
             computation_role.unwrap_or(CheckedScalarExpressionRole::AssignmentValue),
             symbols::SymbolHandle::invalid(),
             &bindings,

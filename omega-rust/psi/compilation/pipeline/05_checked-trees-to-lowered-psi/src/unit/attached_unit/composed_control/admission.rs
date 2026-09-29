@@ -397,6 +397,7 @@ pub(super) fn admit_calls<'a>(
                 | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
                 | CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                 | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
                 | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
                 | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. }
                 | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)

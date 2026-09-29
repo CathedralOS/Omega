@@ -252,6 +252,7 @@ fn operation_leaves_custody(
         | OperationKind::StructuralScalarFieldStore { destination, .. }
         | OperationKind::EstablishByteSequenceLiteral { destination, .. }
         | OperationKind::ByteSequenceWrite { destination, .. }
+        | OperationKind::ElementViewWrite { destination, .. }
         | OperationKind::EstablishTrivialAffineLocal { destination } => clears(*destination),
         OperationKind::ByteSequenceStore {
             destination,
@@ -976,6 +977,7 @@ fn cycle_operation_eligible(
         | OperationKind::BooleanStructuralField { .. } => operation.result.scalar().is_some(),
         OperationKind::StructuralScalarFieldStore { .. }
         | OperationKind::ByteSequenceWrite { .. }
+        | OperationKind::ElementViewWrite { .. }
         | OperationKind::ByteSequenceStore { .. }
         | OperationKind::StructuralByteSequenceFieldStore { .. }
         | OperationKind::StructuralByteSequenceFieldByteStore { .. }

@@ -32,9 +32,10 @@ pub(in crate::validation) fn validate(
     Ok(())
 }
 
-/// One immutable element view retains one exact source for every observation.
-/// Returns the view's declared element type when the source is a live
-/// `ElementView` place under shared-borrow custody.
+/// One element view retains one exact source for every observation. Returns
+/// the view's declared element type when the source is a live `ElementView`
+/// place under shared or mutable-borrow custody — a mutable view's extent is
+/// observable exactly like a shared one's.
 pub(in crate::validation) fn validate_source(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -58,8 +59,10 @@ pub(in crate::validation) fn validate_source(
                         && parameter.is_self == is_self
                 })
                 .ok_or_else(&invalid)?;
-            if parameter.access != StructuralAccess::SharedBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            if !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
             {
@@ -70,8 +73,10 @@ pub(in crate::validation) fn validate_source(
         StructuralPlaceKind::BlockParameter { .. } => {
             let parameter =
                 crate::validation::block_views::parameter(machine, source).ok_or_else(&invalid)?;
-            if parameter.access != StructuralAccess::SharedBorrow
-                || parameter.multiplicity != StructuralMultiplicity::Unrestricted
+            if !matches!(
+                parameter.access,
+                StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+            ) || parameter.multiplicity != StructuralMultiplicity::Unrestricted
                 || !parameter.qualifications.is_empty()
                 || !parameter.projected_qualifications.is_empty()
             {
@@ -81,8 +86,12 @@ pub(in crate::validation) fn validate_source(
         }
         StructuralPlaceKind::OperationResult { .. } => {
             crate::validation::element_view::subslice::borrowed_result(machine, source)
+                .map(|result| result.structural_type)
+                .or_else(|| {
+                    crate::validation::element_view::write::mutable_result(machine, source)
+                        .map(|result| result.structural_type)
+                })
                 .ok_or_else(&invalid)?
-                .structural_type
         }
         _ => return Err(invalid()),
     };

@@ -34,6 +34,7 @@ use crate::terminal_identities::{
 pub(crate) mod atomic_sources;
 pub(crate) mod byte_sequence_write;
 pub(crate) mod call_source_custody;
+pub(crate) mod element_view_write;
 pub(crate) mod operation_emission;
 pub(crate) mod primitive_store;
 pub(crate) mod runtime_elements;

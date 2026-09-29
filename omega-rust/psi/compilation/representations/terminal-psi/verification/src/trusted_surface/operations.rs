@@ -40,6 +40,7 @@ const TS_SE_ELEMENT_EXTENT: &str = "omega-rust/psi/compilation/representations/t
 const VAL_ELEMENTS_ESTABLISH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/establishment.rs";
 const VAL_ELEMENTS_LENGTH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/length.rs";
 const VAL_ELEMENTS_READ: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/read.rs";
+const VAL_ELEMENTS_WRITE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/write.rs";
 const VAL_ELEMENTS_SUBSLICE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/subslice.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/scalar_case.rs";
@@ -602,6 +603,17 @@ static OP_ELEMENT_VIEW_READ: TrustedSurfaceEntry = entry(
         VAL_OPS,
         VAL_ELEMENTS_READ,
     ],
+);
+static OP_ELEMENT_VIEW_WRITE: TrustedSurfaceEntry = entry(
+    "operation:element-view-write",
+    "a validated in-bounds element-view element store",
+    "the write observation; propositions observing the destination extent are invalidated",
+    &[
+        "fact:structural-effect-observation",
+        "invalidation:element-view-write",
+        "formation:operation-validation",
+    ],
+    &[VOCAB, TS_ROWS, TS_SE, OP_FACTS, VAL_OPS, VAL_ELEMENTS_WRITE],
 );
 static OP_ELEMENT_VIEW_SUBSLICE: TrustedSurfaceEntry = entry(
     "operation:element-view-subslice",
@@ -1181,6 +1193,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_ESTABLISH_ELEMENT_VIEW,
     OP_ELEMENT_VIEW_LENGTH,
     OP_ELEMENT_VIEW_READ,
+    OP_ELEMENT_VIEW_WRITE,
     OP_ELEMENT_VIEW_SUBSLICE,
     OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL,
     OP_ESTABLISH_RECORD,
@@ -1279,6 +1292,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::EstablishElementView => &OP_ESTABLISH_ELEMENT_VIEW,
         OperationSemanticTag::ElementViewLength => &OP_ELEMENT_VIEW_LENGTH,
         OperationSemanticTag::ElementViewRead => &OP_ELEMENT_VIEW_READ,
+        OperationSemanticTag::ElementViewWrite => &OP_ELEMENT_VIEW_WRITE,
         OperationSemanticTag::ElementViewSubslice => &OP_ELEMENT_VIEW_SUBSLICE,
         OperationSemanticTag::EstablishTrivialAffineLocal => &OP_ESTABLISH_TRIVIAL_AFFINE_LOCAL,
         OperationSemanticTag::EstablishRecord => &OP_ESTABLISH_RECORD,

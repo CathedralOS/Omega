@@ -60,6 +60,9 @@ pub(crate) fn validate(
                 CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
                     write.statement_index == statement_index
                 }
+                CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
+                    write.statement_index == statement_index
+                }
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: ordinal,
                     ..
@@ -97,6 +100,9 @@ pub(crate) fn validate(
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
                     store.statement_index == statement_index
                 }
+                CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
+                    write.statement_index == statement_index
+                }
                 CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
                     statement_index: ordinal,
                     ..
@@ -115,6 +121,51 @@ pub(crate) fn validate(
             continue;
         } else if !writes.is_empty() {
             return unsupported("byte-view assignment has duplicate store custody");
+        }
+        let element_writes = plan
+            .operations
+            .iter()
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::ElementViewWrite(write)
+                    if write.statement_index == statement_index =>
+                {
+                    Some(write)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        if let [write] = element_writes.as_slice() {
+            if plan.operations.iter().any(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                    store.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
+                    write.statement_index == statement_index
+                }
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
+                    statement_index: ordinal,
+                    ..
+                } => *ordinal == statement_index,
+                _ => false,
+            }) {
+                return unsupported("element-view assignment has conflicting store custody");
+            }
+            crate::emission::element_view_write::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                write,
+            )?;
+            continue;
+        } else if !element_writes.is_empty() {
+            return unsupported("element-view assignment has duplicate store custody");
         }
         let indexed_stores = plan
             .operations
@@ -338,6 +389,21 @@ pub(crate) fn validate(
                 write,
             )?;
         }
+        if let CheckedUnitEffectOperationPlan::ElementViewWrite(write) = operation {
+            has_indexed_stores = true;
+            let Some(StatementNode::Assignment(assignment)) =
+                statements.get(write.statement_index as usize)
+            else {
+                return unsupported("element-view write has no authored assignment");
+            };
+            crate::emission::element_view_write::validate_assignment(
+                checked,
+                plan.machine,
+                plan.state,
+                assignment,
+                write,
+            )?;
+        }
         if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
             operation
         {
@@ -547,7 +613,17 @@ pub(crate) fn validate_assignment(
     if source.root != destination || source.path != path {
         return unsupported("structural scalar store destination drifted from its authored place");
     }
-    if computation_root(checked, machine, state_symbol, store)?.is_some() {
+    if computation_root(
+        checked,
+        machine,
+        state_symbol,
+        store.statement_index,
+        &store.value,
+        store.primitive_type,
+        Some(&store.field_identity),
+    )?
+    .is_some()
+    {
         return Ok(());
     }
     let plans = &checked.facts.values.scalar_expressions;
@@ -745,7 +821,16 @@ fn validate_record_stores(
         let checked_trees::CheckedStructuralRecordFieldValue::Scalar(expected) = field.value else {
             return unsupported("record store field has no scalar computation");
         };
-        let Some((handle, role)) = computation_root(checked, machine, state_symbol, store)? else {
+        let Some((handle, role)) = computation_root(
+            checked,
+            machine,
+            state_symbol,
+            store.statement_index,
+            &store.value,
+            store.primitive_type,
+            Some(&store.field_identity),
+        )?
+        else {
             return unsupported("record store replaced its field computation");
         };
         let expected_role = CheckedScalarExpressionRole::RecordField {
@@ -807,7 +892,10 @@ pub(crate) fn computation_root(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-    store: &checked_trees::CheckedStructuralScalarFieldStorePlan,
+    statement_index: u32,
+    value: &checked_trees::CheckedStructuralScalarFieldStoreValue,
+    primitive_type: typed_trees::types::PrimitiveType,
+    field_identity: Option<&str>,
 ) -> Result<
     Option<(
         checked_trees::CheckedScalarComputationHandle,
@@ -818,26 +906,26 @@ pub(crate) fn computation_root(
     let role = CheckedScalarExpressionRole::AssignmentValue;
     let plans = &checked.facts.values.scalar_computations;
     let mut roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
-        root.state == state && root.statement_ordinal == store.statement_index && root.role == role
+        root.state == state && root.statement_ordinal == statement_index && root.role == role
     });
     let root = roots.next();
     if roots.next().is_some() {
         return unsupported("field assignment has duplicate computation roots");
     }
-    let checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(handle) = store.value
-    else {
+    let checked_trees::CheckedStructuralScalarFieldStoreValue::Computation(handle) = value else {
         return if root.is_none() {
             Ok(None)
         } else {
             unsupported("field assignment replaced its computation with a pure value")
         };
     };
+    let handle = *handle;
     let root = match root {
         Some(root) => root,
         None => {
             let mut record_roots = plans.roots.iter().map(|(_, root)| root).filter(|root| {
                 root.state == state
-                    && root.statement_ordinal == store.statement_index
+                    && root.statement_ordinal == statement_index
                     && root.root == handle
                     && matches!(root.role, CheckedScalarExpressionRole::RecordField { .. })
             });
@@ -892,21 +980,24 @@ pub(crate) fn computation_root(
             .ok_or(LoweringError::Unsupported(
                 "record store field declaration is missing",
             ))?;
-        if identity != store.field_identity {
+        let field_identity = field_identity.ok_or(LoweringError::Unsupported(
+            "record store field has no field identity",
+        ))?;
+        if identity != field_identity {
             return unsupported("record store field drifted from its literal ordinal");
         }
     }
     let source = crate::expression_preparation::source_custody::locate(
         checked,
         state,
-        store.statement_index,
+        statement_index,
         root.role,
     )?;
     let node = plans.nodes.get(handle);
     if source.machine != machine
         || source.expression != node.authored_root
         || source.primitive_type != node.primitive_type
-        || node.primitive_type != store.primitive_type
+        || node.primitive_type != primitive_type
         || source.destination.is_valid()
     {
         return unsupported("field assignment computation differs from its authored RHS");
@@ -915,7 +1006,7 @@ pub(crate) fn computation_root(
         checked,
         machine,
         state,
-        store.statement_index,
+        statement_index,
         handle,
         source.expression,
     )?;

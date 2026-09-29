@@ -97,6 +97,9 @@ pub(crate) fn validate_unit_operation_static(
         OperationKind::ByteSequenceWrite { .. } => {
             crate::validation::byte_sequence::write::validate(module, machine, operation)?;
         }
+        OperationKind::ElementViewWrite { .. } => {
+            crate::validation::element_view::write::validate(module, machine, operation)?;
+        }
         OperationKind::StructuralByteSequenceFieldByteStore { .. } => {
             crate::validation::structural::byte_sequence_fields::validate(
                 module, machine, operation,

@@ -4,7 +4,7 @@
 use crate::checked_trees::flow::terminal::structural_return::CheckedUnitStructuralReturnPlan;
 use crate::checked_trees::flow::terminal::{
     CheckedBoundaryMachinePlan, CheckedByteSequenceStorePlan, CheckedByteSequenceWritePlan,
-    CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan,
+    CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan, CheckedElementViewWritePlan,
     CheckedPrimitiveStoreDestination, CheckedProviderAttachmentRequirementPlan,
     CheckedScalarStateTerminator, CheckedStructuralByteSequenceFieldByteStorePlan,
     CheckedStructuralCallCustodyPlan, CheckedStructuralScalarParameterPlan,
@@ -347,6 +347,11 @@ pub enum CheckedUnitEffectOperationPlan {
     AtomicAccess(crate::CheckedAtomicAccessPlan),
     StructuralByteSequenceFieldByteStore(CheckedStructuralByteSequenceFieldByteStorePlan),
     ByteSequenceWrite(CheckedByteSequenceWritePlan),
+    /// Write one runtime-selected element through a mutable `&mut [T]` view
+    /// (a borrowed slice parameter or a locally bound `&mut` view local):
+    /// `view[index] = element`. The live-length observation composes with
+    /// the write exactly as the byte-view write's does.
+    ElementViewWrite(CheckedElementViewWritePlan),
     /// Move one whole structural field out of exclusive borrowed storage into
     /// a fresh owned binding, opening a repair window the body must close.
     /// The source is a parameter-rooted exact field chain; the result binding

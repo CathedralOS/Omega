@@ -204,6 +204,12 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             value,
             length,
             ..
+        }
+        | O::ElementViewWrite {
+            index,
+            value,
+            length,
+            ..
         } => {
             values.extend([*index, *value, *length]);
         }

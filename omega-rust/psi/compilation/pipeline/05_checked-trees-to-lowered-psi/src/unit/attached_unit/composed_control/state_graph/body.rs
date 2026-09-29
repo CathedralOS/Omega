@@ -472,6 +472,21 @@ pub(super) fn validate(
                 )?;
             }
             (
+                CheckedUnitEffectOperationPlan::ElementViewWrite(write),
+                StatementNode::Assignment(assignment),
+            ) => {
+                if write.statement_index as usize != ordinal {
+                    return unsupported("Unit graph reordered an element-view write");
+                }
+                crate::emission::element_view_write::validate_assignment(
+                    checked,
+                    machine,
+                    state.state,
+                    assignment,
+                    write,
+                )?;
+            }
+            (
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store),
                 StatementNode::Assignment(assignment),
             ) => {
@@ -908,6 +923,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
             Some(store.statement_index)
         }
         CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => Some(write.statement_index),
+        CheckedUnitEffectOperationPlan::ElementViewWrite(write) => Some(write.statement_index),
         CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
             statement_index, ..
         }
@@ -950,6 +966,14 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
             if matches!(
                 write.value,
                 checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+            ) =>
+        {
+            Some(write.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::ElementViewWrite(write)
+            if matches!(
+                write.value,
+                checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
             ) =>
         {
             Some(write.statement_index)

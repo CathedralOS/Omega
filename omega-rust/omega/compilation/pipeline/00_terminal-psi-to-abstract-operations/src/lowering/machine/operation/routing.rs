@@ -337,6 +337,9 @@ pub(super) fn lower(
                 path: path.clone(),
             })
         }
+        OperationKind::ElementViewWrite { .. } => {
+            Err(LoweringError::UnsupportedElementViewWrite(operation.id))
+        }
         OperationKind::ElementViewSubslice {
             source,
             start,

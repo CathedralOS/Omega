@@ -737,6 +737,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::EstablishElementView { .. }
                     | OperationKind::ElementViewLength { .. }
                     | OperationKind::ElementViewRead { .. }
+                    | OperationKind::ElementViewWrite { .. }
                     | OperationKind::ElementViewSubslice { .. } => {}
                     OperationKind::IntegerConstant { .. }
                     | OperationKind::BooleanConstant { .. }

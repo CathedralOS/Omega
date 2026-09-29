@@ -766,3 +766,29 @@ fn nominal_schema_dependency_follows_helpers_but_not_disconnected_applications()
     let disconnected = super::encode_raw(&module).expect("disconnected schema fixture encodes raw");
     assert!(decode_module(&disconnected).is_err());
 }
+
+#[test]
+fn element_view_write_requires_a_valid_module_to_encode() {
+    use semantic_vocabulary::{ObligationId, OperationId, PlaceId, ValueId};
+    use terminal_psi::{Operation, OperationKind, OperationResult};
+
+    // Validation runs on both wire directions, so an invalid write never
+    // reaches the format; the op-level wire pair lives in block_wire tests.
+    let mut module = declared_service_module();
+    module.machines[0].blocks[0].operations.push(Operation {
+        id: OperationId::new(9).unwrap(),
+        static_reach_binding: None,
+        suspension_crossing: None,
+        result: OperationResult::Unit,
+        kind: OperationKind::ElementViewWrite {
+            destination: PlaceId::new(1).unwrap(),
+            index: ValueId::new(1).unwrap(),
+            value: ValueId::new(2).unwrap(),
+            length: ValueId::new(3).unwrap(),
+            obligation: ObligationId::new(1).unwrap(),
+        },
+    });
+    assert!(encode_module(&module).is_err());
+    let raw = super::encode_raw(&module).expect("raw encoding skips validation");
+    assert!(decode_module(&raw).is_err());
+}
