@@ -1,10 +1,7 @@
 //! Review of accepted compiler-intrinsic bindings: resolving the accepted
 //! service binding and retaining the selected review identities.
 
-use crate::{
-    SelectedCompilerIntrinsicExecutionIdentity,
-    derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding,
-};
+use crate::SelectedCompilerIntrinsicExecutionIdentity;
 use checked_trees::CheckedTrees;
 use diagnostics::Diagnostic;
 use provider_planning::SelectedProviderReviewProvenance;
@@ -176,7 +173,11 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 rows.push(None);
                 continue;
             }
-            match derive_selected_compiler_intrinsic_execution_identity_for_row_with_binding(
+            let unresolved = |accepted| crate::compiler_intrinsic::AcceptedRowBinding {
+                accepted,
+                declaration_symbol: None,
+            };
+            match crate::compiler_intrinsic::row_execution_identity(
                 checked,
                 plan,
                 retained.provider.schema,
@@ -184,8 +185,8 @@ pub fn retain_selected_compiler_intrinsic_review_identities(
                 *requirement_symbol,
                 *realization_symbol,
                 selected_target,
-                accepted_console_binding,
-                accepted_process_exit_binding,
+                accepted_console_binding.map(unresolved),
+                accepted_process_exit_binding.map(unresolved),
             ) {
                 Ok(Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(identity))) => {
                     if identity == effects::CompilerIntrinsicExecutionIdentity::HostedExitProcessI32
@@ -296,7 +297,8 @@ fn accumulate_accepted_row_match(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     if let Some(binding) = accepted_console_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_console_exit_process_i32_row(
+        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+            crate::compiler_intrinsic::HostedService::Console,
             checked,
             plan,
             row,
@@ -311,7 +313,8 @@ fn accumulate_accepted_row_match(
         }
     }
     if let Some(binding) = accepted_process_exit_binding {
-        match crate::compiler_intrinsic::accepted_binding_matches_process_exit_i32_row(
+        match crate::compiler_intrinsic::accepted_binding_matches_exit_process_row(
+            crate::compiler_intrinsic::HostedService::ProcessExit,
             checked,
             plan,
             row,

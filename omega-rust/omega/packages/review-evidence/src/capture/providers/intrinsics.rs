@@ -5,7 +5,7 @@ use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 use provider_planning::{CompilerIntrinsicExecutionIdentity, ProviderSchemaDeclaration};
 use selected_dispatch::{
     SelectedCompilerIntrinsicExecutionIdentity,
-    derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding,
+    derive_selected_compiler_intrinsic_execution_identity_for_row,
 };
 use symbols::SymbolHandle;
 
@@ -24,23 +24,22 @@ pub(crate) fn project_compiler_intrinsic_execution(
             .map(|identity| identity.map(project_execution_identity))
             .map_err(|message| vec![Diagnostic::error(message)]);
     }
-    let derived =
-        derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding(
-            compilation,
-            plan,
-            schema,
-            row,
-            requirement_symbol,
-            realization_symbol,
-            selected_target,
-            compilation.custody.resolved_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            ),
-            compilation.custody.resolved_semantic_binding(
-                package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
-            ),
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let derived = derive_selected_compiler_intrinsic_execution_identity_for_row(
+        compilation,
+        plan,
+        schema,
+        row,
+        requirement_symbol,
+        realization_symbol,
+        selected_target,
+        compilation.custody.resolved_semantic_binding(
+            package_compilation::AcceptedSemanticBindingRole::ConsoleExitProcessI32,
+        ),
+        compilation.custody.resolved_semantic_binding(
+            package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+        ),
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     reconcile_compiler_intrinsic_execution(&plan.name, true, derived, retained)
         .map(|identity| identity.map(project_execution_identity))
         .map_err(|message| vec![Diagnostic::error(message)])

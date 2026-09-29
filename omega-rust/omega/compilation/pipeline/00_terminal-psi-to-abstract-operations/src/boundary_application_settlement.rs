@@ -275,21 +275,20 @@ fn project_compiler_intrinsic_application_realization(
             "Terminal boundary application has no checked-body or compiler-intrinsic realization",
         )]);
     }
-    let derived =
-        selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row_with_resolved_binding(
-            settlement.checked,
-            plan,
-            retained.provider.schema,
-            row,
-            **requirement,
-            **realization,
-            settlement
-                .target_profile
-                .map(target::TargetProfile::target_name),
-            settlement.console_exit_binding,
-            settlement.process_exit_binding,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let derived = selected_dispatch::derive_selected_compiler_intrinsic_execution_identity_for_row(
+        settlement.checked,
+        plan,
+        retained.provider.schema,
+        row,
+        **requirement,
+        **realization,
+        settlement
+            .target_profile
+            .map(target::TargetProfile::target_name),
+        settlement.console_exit_binding,
+        settlement.process_exit_binding,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     let execution = match (derived, **retained_execution) {
         (
             Some(selected_dispatch::SelectedCompilerIntrinsicExecutionIdentity::Closed(derived)),
