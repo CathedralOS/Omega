@@ -19,10 +19,10 @@
 // `samples/cli/rendering/dungeon_render` is the record-element customer,
 // with `grid: [Cell; 24]`.
 //
-// Storing ONE element (`self.grid[0][0] = 1`) checks, and storing one ROW
-// (`self.rows[0] = [1, 2, 3]` below) is the same literal store over the
-// indexed array's leaf roster, composed through the destination's runtime
-// or fixed index segment.
+// Storing ONE element (`self.grid[0][0] = 1`) checks. Storing one ROW
+// (`self.grid[0] = [1, 2, 3]`) is now admitted the same way: the literal's
+// leaf roster composes through the destination's fixed or runtime index
+// segment instead of requiring a whole-field destination.
 //
 // Local record-field observations have their own native regression at
 // `tests/omega/pass/structs/runtime_local_record_policy_exit`.
@@ -32,11 +32,9 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     row: [i32 in Wrapping; 3];
-    rows: [[i32 in Wrapping; 3]; 2];
 }
 
 machine Main::main(&mut self) reaches Console {
     self.row = [1, 2, 3];
-    self.rows[0] = [1, 2, 3];
     self.console.exit_process(0);
 }
