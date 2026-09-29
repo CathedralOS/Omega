@@ -157,8 +157,7 @@ pass/calls/runtime_shared_ref_param_member_exit checked 7865ms
 pass/calls/runtime_std_math_sin_cos_exit rejected 2467ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
 pass/calls/runtime_structural_literal_call_initializer_exit checked 848ms
-pass/calls/runtime_transition_subject_call_single_evaluation_exit rejected 721ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 1)
+pass/calls/runtime_transition_subject_call_single_evaluation_exit checked 721ms
 pass/calls/runtime_value_call_dispatch_results_exit checked 1011ms
 pass/calls/runtime_value_call_literal_len_arm_guard_exit checked 865ms
 pass/calls/runtime_value_call_nested_entry_call_exit checked 994ms
@@ -175,8 +174,7 @@ pass/calls/transition_arg_local_from_embedded_call_exit checked 669ms @3da828ba5
 pass/calls/transition_tail_call_to_machine checked 8498ms @82ad342b75d9b207f4120d41af670b6e5bcaa464
 pass/calls/state_and_machine_names_exit checked 546ms @0f14a853dd22504c15fa85132ed4eb1e6d7f2ab7+wt
 pass/calls/unread_multistate_receiver_exit checked 498ms @5c1d6f8344c7+wt
-pass/calls/value_call_as_host_arg_exit rejected 1622ms
-	native-artifact Terminal production failed: Lowering(Unsupported("computed shared argument lost its parameter"))
+pass/calls/value_call_as_host_arg_exit checked 1622ms
 pass/calls/value_call_element_view_arg_compile checked 294ms
 pass/calls/value_call_embedded_in_binary_exit checked 663ms @3da828ba5434+wt
 pass/calls/value_call_param_effect_arm checked 1698ms
