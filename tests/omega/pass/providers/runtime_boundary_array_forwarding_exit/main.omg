@@ -1,0 +1,41 @@
+use omega::language::core::binding;
+use omega_language_std::console;
+
+pub boundary trait ArrayReader {
+    machine inspect(&mut self, prefix: i32, values: [u8; 4], suffix: i32) -> i32;
+}
+
+data ArrayReaderProvider {}
+
+machine ArrayReaderProvider::inspect(&mut self, prefix: i32, values: [u8; 4], suffix: i32) -> i32
+satisfies ArrayReader::inspect {
+    transition prefix == 30 && suffix == 40 && values[0] == 11 && values[1] == 22 && values[2] == 33 && values[3] == 44 {
+        true -> (70)
+        _ -> (71)
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+    reader: Binding<ArrayReader>;
+    values: [u8; 4];
+    result: i32;
+}
+
+machine Main::forward(&mut self, values: [u8; 4]) reaches ArrayReader {
+    self.result = self.reader.inspect(30, values, 40);
+}
+
+machine Main::main(&mut self) reaches Console + ArrayReader {
+    self.values[0] = 11;
+    self.values[1] = 22;
+    self.values[2] = 33;
+    self.values[3] = 44;
+    self.forward(self.values);
+    transition self.result == 70 && self.values[0] == 11 && self.values[3] == 44 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(72); }
+}

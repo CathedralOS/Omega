@@ -48,6 +48,76 @@ const ARRAY_READER_SOURCE: &str = r#"
         "#;
 
 #[test]
+fn boundary_array_parameter_forwarding_rejoins_the_authored_source() {
+    let source = ARRAY_READER_SOURCE
+        .replace(
+            "machine Root::run(&mut self) reaches ArrayReader {",
+            "machine Root::run(&mut self, first: [u8; 4], second: [u8; 4]) reaches ArrayReader {",
+        )
+        .replace("inspect(30, self.values, 40)", "inspect(30, second, 40)");
+    let checked = crate::front_end::checked_program(&source);
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Root::run"),
+    )
+    .expect("whole array parameters use the boundary's ordinary argument custody");
+    let bytes = encode_module(&lowered.semantic_module).unwrap();
+    let decoded = decode_module(&bytes).unwrap();
+    assert_eq!(decoded, lowered.semantic_module);
+    terminal_verifier::verify_module(
+        &decoded,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap();
+
+    let source_symbol = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Root::run")
+        .unwrap()
+        .symbol;
+    for mutation in ["different parameter", "borrowed actual"] {
+        let mut changed = checked.clone();
+        let caller = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|machine| machine.machine == source_symbol)
+            .unwrap();
+        let arguments = caller
+            .operations
+            .iter_mut()
+            .find_map(|operation| match operation {
+                checked_trees::CheckedUnitEffectOperationPlan::BoundaryScalarCall {
+                    structural_arguments,
+                    ..
+                } => Some(structural_arguments),
+                _ => None,
+            })
+            .expect("retained boundary invocation");
+        if mutation == "different parameter" {
+            arguments[0].source =
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index: 1,
+                };
+        } else {
+            arguments[0].access = checked_trees::CheckedStructuralAccess::SharedBorrow;
+        }
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &changed,
+                TerminalMachineSelection::Name("Root::run"),
+            )
+            .is_err(),
+            "boundary forwarding must reject {mutation}",
+        );
+    }
+}
+
+#[test]
 fn checked_array_provider_preserves_receiver_and_mixed_arguments() {
     let checked = crate::front_end::checked_program(ARRAY_READER_SOURCE);
     let provider = checked

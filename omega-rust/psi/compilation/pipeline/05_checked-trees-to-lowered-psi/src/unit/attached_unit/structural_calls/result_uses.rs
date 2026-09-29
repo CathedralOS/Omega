@@ -1417,9 +1417,13 @@ pub(crate) fn validate_consumer(
                 .ok_or(LoweringError::Unsupported(
                     "structural argument source position is absent",
                 ))?;
+            // Whole array parameters retain the same owned payload at ordinary
+            // and boundary calls. The boundary's authored-position partition
+            // above omits only its service receiver; it does not change which
+            // caller parameter supplies this value. Rejoin that exact source
+            // and custody here, then use shared structural argument emission.
             if validation::is_closed_primitive_array_type(&checked.typed, source_parameter.type_reference)
-                && (authored.boundary
-                    || !argument.path.is_empty()
+                && (!argument.path.is_empty()
                     || argument.access != checked_trees::CheckedStructuralAccess::Owned
                     || source.access != argument.access
                     || parameter.access != argument.access
@@ -1441,7 +1445,7 @@ pub(crate) fn validate_consumer(
                     || target_entry_claims.iter().any(|claim| claim.parameter_index as usize == parameter_index)
                     || claim_transfers.iter().any(|transfer| transfer.argument_index as usize == index))
             {
-                return unsupported("primitive array parameter requires exact whole owned ordinary transport");
+                return unsupported("primitive array parameter requires exact whole owned transport");
             }
         }
         if binding_ordinal.is_none()
