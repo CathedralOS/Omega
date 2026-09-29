@@ -1,4 +1,4 @@
-//! Case terminators consume exact owned subjects after ordinary ordered effects.
+//! Case terminators inspect exact owned sums and retain their disposal obligations.
 use super::super::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     DataMember, PermissionAccess, PermissionClaimIdentity,
@@ -63,7 +63,11 @@ pub(super) fn build(
             .enumerate()
             .find(|(_, retained)| retained.position as usize == index)?;
         if retained.access != CheckedStructuralAccess::Owned
-            || retained.multiplicity != Multiplicity::Affine
+            || !matches!(
+                retained.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            )
+            || retained.multiplicity != program.type_multiplicity(parameter.type_reference)
             || !retained.qualifications.is_empty()
         {
             return None;
@@ -96,7 +100,13 @@ pub(super) fn build(
                     .then_some((result, local))
             });
         let (result, local) = matching.next()?;
-        if matching.next().is_some() || result.multiplicity != Multiplicity::Affine {
+        if matching.next().is_some()
+            || !matches!(
+                result.multiplicity,
+                Multiplicity::Affine | Multiplicity::Unrestricted
+            )
+            || result.multiplicity != program.type_multiplicity(local.type_reference)
+        {
             return None;
         }
         (
@@ -424,8 +434,10 @@ pub(super) fn build(
     // every binding. The admitted payloads are primitive scalars, so unused
     // fields carry no separate ownership obligation. Validate their declared
     // identities above and retain the whole subject's disposal below.
-    // Consuming case dispatch requires the actual source exit disposition.
+    // Affine dispatch requires the actual source exit disposition. Copyable
+    // subjects have no disposal debt; do not invent an affine-drop receipt.
     // Parameter-origin carriers and fresh results have different provenance.
+    let needs_discard = program.type_multiplicity(type_reference) == Multiplicity::Affine;
     let mut found = false;
     for (_, event) in facts
         .flow
@@ -450,7 +462,8 @@ pub(super) fn build(
             continue;
         }
         // Other locals use the ordinary graph's result-custody accounting.
-        if event.access != PermissionAccess::Owned
+        if !needs_discard
+            || event.access != PermissionAccess::Owned
             || event.multiplicity != Multiplicity::Affine
             || event.claim_identity != PermissionClaimIdentity::Unknown
             || event.provenance != expected_provenance
@@ -462,7 +475,7 @@ pub(super) fn build(
         }
         found = true;
     }
-    if !found {
+    if found != needs_discard {
         return None;
     }
     Some(CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, cases })

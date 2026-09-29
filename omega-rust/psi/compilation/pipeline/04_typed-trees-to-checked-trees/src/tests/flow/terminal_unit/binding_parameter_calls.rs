@@ -19,6 +19,84 @@ fn binding_field_of_explicit_parameter_keeps_boundary_calls() {
     assert_boundary_calls_retained(SOURCE);
 }
 
+const SUM_SOURCE: &str = r#"
+pub data ReadingResult [copy] { case Empty; case Value(total: u64); }
+pub boundary trait Host {
+    machine read() -> ReadingResult;
+    machine write(total: u64);
+}
+pub data Context { host: Binding<Host>; }
+machine run(context: &mut Context) reaches Host {
+    let result: ReadingResult = context.host.read();
+    transition result {
+        ReadingResult::Value { total } -> report(context, total)
+        ReadingResult::Empty -> report(context, 0)
+    }
+    state report(context: &mut Context, total: u64) {
+        context.host.write(total);
+    }
+}
+"#;
+
+#[test]
+fn copy_sum_payload_and_explicit_context_cross_state_transition() {
+    assert_sum_dispatch(SUM_SOURCE, false);
+}
+
+#[test]
+fn affine_sum_payload_retains_its_disposal_receipt() {
+    assert_sum_dispatch(&SUM_SOURCE.replace(" [copy]", ""), true);
+}
+
+#[test]
+fn copy_sum_parameter_and_explicit_context_cross_state_transition() {
+    assert_sum_dispatch(
+        &SUM_SOURCE
+            .replace(
+                "run(context: &mut Context)",
+                "run(context: &mut Context, result: ReadingResult)",
+            )
+            .replace("    let result: ReadingResult = context.host.read();", ""),
+        false,
+    );
+}
+
+fn assert_sum_dispatch(source: &str, has_affine_drop: bool) {
+    let checked = checked_with_service(source);
+    let machine = machine_named(&checked, "run");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans.composed_for_machine(machine).unwrap_or_else(|| {
+        panic!(
+            "sum lost its case dispatch: {:?}",
+            plans.omission_for_machine(machine)
+        )
+    });
+    assert!(plan.attachment_type_identity.is_none());
+    let checked_trees::CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } =
+        &plan.states[0].terminator
+    else {
+        panic!("sum must retain closed-case dispatch")
+    };
+    assert_eq!(cases.len(), 2);
+    assert_eq!(
+        cases.iter().map(|case| case.payloads.len()).sum::<usize>(),
+        1
+    );
+    assert_eq!(
+        checked
+            .facts
+            .flow
+            .ownership
+            .permissions
+            .iter()
+            .any(|(_, event)| {
+                event.machine_symbol == machine
+                    && event.kind == language_semantics::PermissionEventKind::AffineDrop
+            }),
+        has_affine_drop
+    );
+}
+
 #[test]
 fn resultless_binding_field_call_keeps_explicit_context() {
     assert_boundary_calls_retained(&SOURCE.replace("Host::mark(ticks)", "clock.host.mark(ticks)"));
