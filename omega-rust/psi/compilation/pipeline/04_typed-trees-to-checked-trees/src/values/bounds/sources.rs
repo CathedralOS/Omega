@@ -34,26 +34,62 @@ impl PlaceIntegerBounds<'_> {
         )
     }
 
-    /// Bounds for one resolved operand place: a live snapshot first, then the
-    /// declared storage invariant a bare frozen root still carries, and
-    /// finally the raw carrier. Segment paths and nonlocal storage keep only
-    /// the levels that survive reborrowing.
+    /// Bounds for one resolved operand place. Live snapshots and standing
+    /// invariants both hold at this read; neither replays an earlier initializer.
     pub(crate) fn bounds_at_place(
         &self,
         place: &CanonicalPlace,
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {
-        self.bounds(place).or_else(|| {
-            let declared = match place.root {
-                facts::PlaceRoot::Symbol(symbol) if place.segments.is_empty() => {
-                    self.declared_type(symbol)
-                }
-                _ => None,
-            };
-            declared
-                .and_then(|reference| declared_bounds(self.program, reference, primitive_type))
-                .or_else(|| primitive_range(primitive_type))
-        })
+        let standing = match place.root {
+            facts::PlaceRoot::Symbol(symbol) if place.segments.is_empty() => {
+                self.standing_bounds(symbol, primitive_type)
+            }
+            _ => primitive_range(primitive_type),
+        };
+        match (self.bounds(place), standing) {
+            (Some(snapshot), Some(standing)) => {
+                let minimum = snapshot.minimum.max(standing.minimum);
+                let maximum = snapshot.maximum.min(standing.maximum);
+                (minimum <= maximum).then_some(IntegerRange { minimum, maximum })
+            }
+            (snapshot, standing) => snapshot.or(standing),
+        }
+    }
+
+    fn standing_bounds(
+        &self,
+        symbol: SymbolHandle,
+        primitive_type: PrimitiveType,
+    ) -> Option<IntegerRange> {
+        let mut bounds = self
+            .declared_type(symbol)
+            .and_then(|reference| declared_bounds(self.program, reference, primitive_type))
+            .or_else(|| primitive_range(primitive_type))?;
+        // An immutable owned formal retains its arrival contract throughout
+        // this state. Mutable or borrowed storage must use live evidence, not
+        // an assumption about the value that arrived before intervening writes.
+        if self.parameters.iter().any(|parameter| {
+            parameter.symbol == symbol
+                && !parameter.is_mutable
+                && !exclusive_reference(self.program, parameter.type_reference)
+                && self
+                    .program
+                    .primitive_type_reference(parameter.type_reference)
+                    == Some(primitive_type)
+        }) && let Some((machine, state)) =
+            crate::semantic::calls::find_state_with_machine(self.program, self.state)
+            && let Some((minimum, maximum)) =
+                validation::state_parameter_integer_interval(self.program, machine, state, symbol)
+        {
+            if let Some(minimum) = minimum {
+                bounds.minimum = bounds.minimum.max(BigInt::from_i64(minimum));
+            }
+            if let Some(maximum) = maximum {
+                bounds.maximum = bounds.maximum.min(BigInt::from_i64(maximum));
+            }
+        }
+        (bounds.minimum <= bounds.maximum).then_some(bounds)
     }
 
     /// The resolved place, the field's declared type, and whether the whole
@@ -109,16 +145,7 @@ impl IntegerBoundsSource for PlaceIntegerBounds<'_> {
         primitive_type: PrimitiveType,
     ) -> Option<IntegerRange> {
         let place = canonical_place_from_symbol(symbol)?;
-        self.bounds(&place).or_else(|| {
-            // A binding still has its complete carrier range when no narrower
-            // value snapshot is live. A declared range constraint is the
-            // storage invariant every checked write enforced, so it tightens
-            // that fallback; neither is a domain-membership or initialization
-            // proof. A live snapshot takes precedence because it is tighter.
-            self.declared_type(symbol)
-                .and_then(|reference| declared_bounds(self.program, reference, primitive_type))
-                .or_else(|| primitive_range(primitive_type))
-        })
+        self.bounds_at_place(&place, primitive_type)
     }
 
     fn structural_field(

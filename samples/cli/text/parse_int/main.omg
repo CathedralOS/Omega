@@ -20,65 +20,56 @@ requires
     valid_utf8(self);
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
-
-data Main {
-    console: Binding<Console>;
-    pause: [u8; 256];
-    text: [u8; 8] in Utf8;
-    i: i32;
-    b: u8;
-    // Wrapping DECLARED: the accumulator multiplies-and-adds digits read out of
-    // the carrier, and carrier bytes carry no range facts yet (a parse of
-    // arbitrary digits is genuinely unbounded math).
-    dval: i32 in Wrapping;
-    result: i32 in Wrapping;
-}
-
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("parse_int: atoi over a text carrier, digit by digit");
-    self.text = "150";
-    self.result = 0;
-    self.i = 0;
-
+// Parsing borrows its input. Only the cursor and accumulator cross state edges;
+// the byte and widened digit exist for one iteration.
+machine parse_decimal(text: &[u8; 8] in Utf8) -> i32 in Wrapping {
     transition {
-        _ -> step()
+        _ -> step(text, 0, 0)
     }
 
     // Loop over the digit bytes, bounded by the string's runtime length.
-    state step(&mut self) {
-        transition self.i < self.text.len {
-            true -> digit()
-            _ -> done()
+    state step(text: &[u8; 8] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0
+    {
+        transition index < text.len {
+            true -> digit(text, index, result)
+            _ -> (result)
         }
     }
 
     // result = result * 10 + (byte - '0').
-    state digit(&mut self) {
-        self.b = self.text[self.i];
-        self.dval = widen_u8_to_i32(self.b) as i32 in Wrapping;
-        self.dval = self.dval - 48;
-        self.result = self.result * 10;
-        self.result = self.result + self.dval;
+    state digit(text: &[u8; 8] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0
+    {
+        let byte: u8 = text[index];
+        let digit_value: i32 in Wrapping = (widen_u8_to_i32(byte) as i32 in Wrapping) - 48;
+        let next_result: i32 in Wrapping = result * 10 + digit_value;
         // Re-guard against the carrier CAPACITY (8) so the increment's direct
         // edge proves `i + 1` lands in [1..=8] -- len <= 8, so this is always true.
-        transition self.i >= 0 && self.i < 8 {
-            true -> advance()
-            _ -> done()
+        transition index >= 0 && index < 8 {
+            true -> advance(text, index, next_result)
+            _ -> (next_result)
         }
     }
 
-    state advance(&mut self) {
-        self.i = self.i + 1;
+    state advance(text: &[u8; 8] in Utf8, index: i32, result: i32 in Wrapping) -> i32 in Wrapping
+    requires index >= 0 && index < 8
+    {
+        let next_index: i32 = index + 1;
         transition {
-            _ -> step()
+            _ -> step(text, next_index, result)
         }
     }
 
-    state done(&mut self) {
-        self.console.write_line("result: the parsed value of the text 150 (the exit code)");
-        self.console.write_line("[press Enter to close]");
-        _ = block self.console.read_line(&mut self.pause);
-        self.console.exit_process(self.result as i32);
-    }
+}
+
+machine main() reaches Console {
+    Console::write_line("parse_int: atoi over a text carrier, digit by digit");
+    let text: [u8; 8] in Utf8 = "150";
+    let result: i32 in Wrapping = parse_decimal(&text);
+    Console::write_line("result: the parsed value of the text 150 (the exit code)");
+    Console::write_line("[press Enter to close]");
+    let mut pause: [u8; 256];
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(result as i32);
 }

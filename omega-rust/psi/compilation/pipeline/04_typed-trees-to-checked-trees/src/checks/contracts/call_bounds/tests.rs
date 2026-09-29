@@ -6,6 +6,158 @@ fn checked(source: &str) -> Result<checked_trees::CheckedTrees, Vec<diagnostics:
 }
 
 #[test]
+fn immutable_local_increment_captures_arrival_bounds() {
+    let checked = checked(
+        r#"
+        machine advance(index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            let next_index: i32 = index + 1;
+            next_index
+        }
+    "#,
+    )
+    .expect("ordinary bounded increment");
+    let ranges = checked
+        .facts
+        .semantic
+        .facts
+        .iter()
+        .filter_map(|(_, fact)| {
+            let facts::FactPayload::AssignedIntegerBounds { bounds } = fact.payload else {
+                return None;
+            };
+            Some(checked.facts.semantic.integer_ranges.get(bounds))
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        ranges
+            .iter()
+            .any(|range| range.minimum.to_i64() == Some(1) && range.maximum.to_i64() == Some(8)),
+        "{ranges:#?}"
+    );
+}
+
+#[test]
+fn immutable_local_increment_preserves_state_arrival_bound() {
+    let source = r#"
+        machine advance(index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            let next_index: i32 = index + 1;
+            transition { _ -> finish(next_index) }
+
+            state finish(value: i32) -> i32
+            requires value >= 0
+            { value }
+        }
+    "#;
+    checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+}
+
+#[test]
+fn immutable_local_bounds_compose_through_copies_and_machine_calls() {
+    let source = r#"
+        machine finish(value: i32) -> i32
+        requires value >= 1 && value <= 8 { value }
+        machine advance(index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            let next_index: i32 = index + 1;
+            let copied: i32 = next_index;
+            finish(copied)
+        }
+    "#;
+    checked(source).unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+}
+
+#[test]
+fn local_capture_bounds_do_not_replay_mutated_sources_or_selected_arithmetic() {
+    for source in [
+        r#"
+        machine advance(flag: bool) -> i32 {
+            transition flag { true -> shared(1) false -> shared(-1) }
+            state shared(value: i32) -> i32 {
+                let captured: i32 = value;
+                transition { _ -> finish(captured) }
+            }
+            state finish(value: i32) -> i32 requires value >= 0 { value }
+        }
+        "#,
+        r#"
+        machine advance(mut index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            index = -1;
+            let captured: i32 = index;
+            transition { _ -> finish(captured) }
+            state finish(value: i32) -> i32 requires value >= 0 { value }
+        }
+        "#,
+        r#"
+        machine advance(mut index: i32) -> i32
+        requires index >= -1 && index < 8
+        {
+            let captured: i32 = index;
+            index = 1;
+            transition { _ -> finish(captured) }
+            state finish(value: i32) -> i32 requires value >= 0 { value }
+        }
+        "#,
+        r#"
+        machine advance(index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            let mut captured: i32 = index + 1;
+            captured = -1;
+            transition { _ -> finish(captured) }
+            state finish(value: i32) -> i32 requires value >= 0 { value }
+        }
+        "#,
+        r#"
+        machine advance(index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            let captured: i32 = index + 1;
+            transition { _ -> finish(captured) }
+            state finish(value: i32) -> i32 requires value > 1 { value }
+        }
+        "#,
+        r#"
+        boundary operator + Meaning::add(left: i32, right: i32) -> i32;
+        machine advance(index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            let captured: i32 = index + 1;
+            transition { _ -> finish(captured) }
+            state finish(value: i32) -> i32 requires value >= 0 { value }
+        }
+        "#,
+        r#"
+        boundary operator >= Meaning::compare(left: i32, right: i32) -> bool;
+        machine advance(index: i32) -> i32
+        requires index >= 0 && index < 8
+        {
+            let captured: i32 = index;
+            let copied: i32 = captured;
+            transition { _ -> finish(copied) }
+            state finish(value: i32) -> i32 requires value > -1 { value }
+        }
+        "#,
+        r#"
+        machine advance(index: i8 in Wrapping) -> i8 in Wrapping {
+            let captured: i8 in Wrapping = index + 1;
+            transition { _ -> finish(captured) }
+            state finish(value: i8 in Wrapping) -> i8 in Wrapping
+            requires value >= 0 { value }
+        }
+        "#,
+    ] {
+        assert_call_requirement_rejected(source);
+    }
+}
+
+#[test]
 fn named_tail_arithmetic_requirements_use_exact_reordered_actuals_and_live_guards() {
     let source = r#"
             data Main {}

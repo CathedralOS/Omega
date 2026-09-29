@@ -27,7 +27,13 @@ pub(super) fn proves(
 ) -> bool {
     let proven = closed_boolean_value(program, &facts.operators, expression) == Some(true)
         || super::super::call_bounds::proves(
-            program, facts, state_flow, call_flow, expression, None,
+            program,
+            facts,
+            state_flow,
+            call_flow,
+            entry_contexts,
+            expression,
+            None,
         )
         || call_entry_contexts_prove_boolean_contract_expression(
             program,
