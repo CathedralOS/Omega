@@ -4,7 +4,7 @@
 use super::lower_machine;
 use crate::TerminalMachineSelection;
 use crate::front_end::checked_program;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitEffectOperationPlan};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 
 // Keep an ordinary consumer call in the caller while giving its linear
@@ -80,6 +80,9 @@ fn a_consumer_call_without_its_claim_transfer_is_refused() {
     let mut checked = checked_program(&format!(
         "{RECEIPT}machine run(issued: Receipt) -> i32 {{ issued.ack(); 0 }}"
     ));
+    let ordinary_unit_call = |call: &CheckedUnitCallPlan| {
+        !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
+    };
     let plan = checked
         .facts
         .flow
@@ -87,19 +90,20 @@ fn a_consumer_call_without_its_claim_transfer_is_refused() {
         .machines
         .iter_mut()
         .find(|plan| {
-            plan.operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-            })
+            plan.operations
+                .iter()
+                .filter_map(CheckedUnitEffectOperationPlan::call)
+                .any(ordinary_unit_call)
         })
         .expect("`run` plans its consumer call");
-    for operation in &mut plan.operations {
-        if let CheckedUnitEffectOperationPlan::CallUnit {
-            claim_transfers, ..
-        } = operation
-        {
-            assert_eq!(claim_transfers.len(), 1);
-            claim_transfers.clear();
-        }
+    for call in plan
+        .operations
+        .iter_mut()
+        .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+        .filter(|call| ordinary_unit_call(call))
+    {
+        assert_eq!(call.claim_transfers().len(), 1);
+        call.claim_transfers_mut().clear();
     }
     lower_machine(&checked, TerminalMachineSelection::Name("run"))
         .expect_err("a linear claim that never leaves the caller cannot lower");

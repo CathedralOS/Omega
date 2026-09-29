@@ -41,7 +41,7 @@ use crate::execution::terminal_unit::types::{
     ShapeCollector, base_type_identity, is_unit, machine_binders, parameter_qualifications,
 };
 
-use checked_trees::CheckedUnitStructuralReturnPlan;
+use checked_trees::{CheckedUnitCallResult, CheckedUnitStructuralReturnPlan};
 
 mod assignments;
 mod completion;
@@ -1355,9 +1355,10 @@ fn append_reference_releases(
 ) -> Option<()> {
     let mut pending = Vec::new();
     for operation in operations.iter() {
-        if let CheckedUnitEffectOperationPlan::StructuralCall {
-            result, custody, ..
-        } = operation
+        // Only an ordinary structural call carries a custody record.
+        if let Some(call) = operation.call()
+            && let Some(custody) = call.structural_custody()
+            && let Some(result) = call.structural_result()
             && custody.reference_loan.is_valid()
         {
             let loan = custody.reference_loan;
@@ -1388,9 +1389,10 @@ fn append_exit_reference_releases(
 ) -> Option<()> {
     let mut pending = Vec::new();
     for operation in operations.iter() {
-        if let CheckedUnitEffectOperationPlan::StructuralCall {
-            result, custody, ..
-        } = operation
+        // Only an ordinary structural call carries a custody record.
+        if let Some(call) = operation.call()
+            && let Some(custody) = call.structural_custody()
+            && let Some(result) = call.structural_result()
             && custody.reference_loan.is_valid()
         {
             let loan = custody.reference_loan;
@@ -1424,15 +1426,16 @@ fn append_call_cleanup(
     statement_index: u32,
     results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
 ) -> Option<()> {
-    let Some(CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate,
-        structural_arguments,
-        ..
-    }) = operations.last()
+    // Only an ordinary Unit call owns a normal continuation here.
+    let Some(call) = operations
+        .last()
+        .and_then(CheckedUnitEffectOperationPlan::call)
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
     else {
         return Some(());
     };
-    let coordinate = *coordinate;
+    let coordinate = call.coordinate;
+    let structural_arguments = &call.structural_arguments;
     let mut discards = Vec::new();
     for (result, root) in results.iter().rev() {
         let reference_record = matches!(root, facts::PlaceRoot::Symbol(_))
@@ -1487,28 +1490,11 @@ fn append_call_cleanup(
         else {
             return None;
         };
-        let producer = operations.iter_mut().find(|operation| {
-            matches!(operation,
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                if result.binding_ordinal == binding_ordinal)
+        let (_, discard_result_on_return) = operations.iter_mut().find_map(|operation| {
+            operation
+                .discardable_structural_result_mut()
+                .filter(|(result, _)| result.binding_ordinal == binding_ordinal)
         })?;
-        let (CheckedUnitEffectOperationPlan::StructuralCall {
-            discard_result_on_return,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            discard_result_on_return,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-            discard_result_on_return,
-            ..
-        }) = producer
-        else {
-            return None;
-        };
         if !*discard_result_on_return {
             return None;
         }
@@ -1555,28 +1541,11 @@ fn retain_selected_sources(
         let (binding, _) = sources
             .iter()
             .find(|(_, root)| *root == facts::PlaceRoot::Symbol(source.symbol))?;
-        let mut producers = operations
-            .iter_mut()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::StructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                } if result.binding_ordinal == binding.binding_ordinal => {
-                    Some((result, discard_result_on_return))
-                }
-                _ => None,
-            });
+        let mut producers = operations.iter_mut().filter_map(|operation| {
+            operation
+                .discardable_structural_result_mut()
+                .filter(|(result, _)| result.binding_ordinal == binding.binding_ordinal)
+        });
         let (result, discard) = producers.next()?;
         if producers.next().is_some()
             || result.multiplicity != Multiplicity::Affine
@@ -1596,7 +1565,7 @@ pub(super) fn consume_results(
 ) -> Option<()> {
     if let Some(call) = consumer.call() {
         for (binding_ordinal, access, projected) in
-            call.structural_arguments().iter().filter_map(|argument| {
+            call.structural_arguments.iter().filter_map(|argument| {
                 argument
                     .source_structural_result_binding_ordinal()
                     .map(|ordinal| (ordinal, argument.access, !argument.path.is_empty()))
@@ -1626,16 +1595,14 @@ fn consume_result(
     access: CheckedStructuralAccess,
     projected: bool,
 ) -> Option<()> {
+    // Every structural producer except an established reference.
     let mut producers = operations.iter_mut().filter(|operation| {
-        matches!(operation,
-                CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-                | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
-                    if result.binding_ordinal == binding_ordinal)
+        !matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishReference { .. }
+        ) && operation
+            .structural_result_binding()
+            .is_some_and(|result| result.binding_ordinal == binding_ordinal)
     });
     let producer = producers.next()?;
     if producers.next().is_some() {
@@ -1651,44 +1618,38 @@ fn consume_result(
     ) {
         return (access != CheckedStructuralAccess::Owned || !projected).then_some(());
     }
-    if let CheckedUnitEffectOperationPlan::StructuralCall { custody, .. } = producer
+    if let Some(custody) = producer
+        .call()
+        .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
         && custody.reference_loan.is_valid()
     {
         return (projected && access == CheckedStructuralAccess::MutableBorrow).then_some(());
     }
     // Unrestricted whole-value arguments copy their payload. They retain
-    // a live producer without acquiring an affine disposal obligation.
-    if matches!(producer,
-                CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
-                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-                | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                    if result.multiplicity == Multiplicity::Unrestricted)
-    {
+    // a live producer without acquiring an affine disposal obligation. A
+    // boundary structural result is not such a copy.
+    let unrestricted_copy = match &*producer {
+        CheckedUnitEffectOperationPlan::Call(call) => {
+            !call.is_boundary()
+                && call
+                    .structural_result()
+                    .is_some_and(|result| result.multiplicity == Multiplicity::Unrestricted)
+        }
+        CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
+            result.multiplicity == Multiplicity::Unrestricted
+        }
+        _ => false,
+    };
+    if unrestricted_copy {
         if access == CheckedStructuralAccess::Owned && projected {
             return None;
         }
         return Some(());
     }
-    let (CheckedUnitEffectOperationPlan::StructuralCall {
-        discard_result_on_return,
-        result,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        discard_result_on_return,
-        result,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-        discard_result_on_return,
-        result,
-        ..
-    }) = producer
-    else {
-        return None;
-    };
+    let (result, discard_result_on_return) = producer.discardable_structural_result_mut()?;
     if result.multiplicity != Multiplicity::Affine || !*discard_result_on_return {
         // Linear results never acquire automatic disposal debt. Moving a
         // whole result continues its checked call claim frontier; source flow

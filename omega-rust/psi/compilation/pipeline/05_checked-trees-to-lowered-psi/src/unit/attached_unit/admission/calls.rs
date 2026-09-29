@@ -36,8 +36,8 @@ use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallResult, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralReturnPlan,
+    CheckedUnitCallResult, CheckedUnitCallRoute, CheckedUnitEntryClaimPlan,
+    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralReturnPlan,
 };
 use symbols::SymbolHandle;
 
@@ -132,30 +132,24 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
         caller.structural_parameters,
     )?;
     structural_calls::validate_custody(checked, caller.machine, caller.state, operation)?;
-    match operation {
+    match (planned.route(), planned.result()) {
         // A structural call whose target is not a Unit body is a claim-free
         // affine leaf with its own checked return plan.
-        CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-            if !UnitBody::contains(plans, *target_machine) =>
+        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. })
+            if !UnitBody::contains(plans, planned.target.machine) =>
         {
             structural_calls::validate(checked, caller, operation)
         }
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_state,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            target_state,
-            ..
-        } => {
+        (
+            CheckedUnitCallRoute::Module { .. },
+            CheckedUnitCallResult::Unit | CheckedUnitCallResult::Structural { .. },
+        ) => {
             retain_exact_flow_call(
                 checked,
                 caller.machine,
                 caller.state,
-                *coordinate,
-                *target_state,
+                planned.coordinate,
+                planned.target.state,
             )?;
             let target = unit_target(checked, plans, operation)?;
             primitive_locals::unit_calls::validate(
@@ -181,26 +175,28 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
                 target.entry_claims,
             )
         }
-        CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
+        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Scalar(_)) => {
             scalar_call(checked, caller, operation)
         }
         // The three boundary calls differ only in the result their boundary
         // must declare.
-        _ if planned.is_boundary() => {
+        (CheckedUnitCallRoute::Boundary, _) => {
             retain_exact_flow_call(
                 checked,
                 caller.machine,
                 caller.state,
-                planned.coordinate(),
-                planned.target_state(),
+                planned.coordinate,
+                planned.target.state,
             )?;
             let expected = match planned.result() {
                 CheckedUnitCallResult::Unit => CheckedBoundaryMachineResultPlan::Unit,
                 CheckedUnitCallResult::Scalar(result) => {
                     CheckedBoundaryMachineResultPlan::Scalar(result.primitive_type)
                 }
-                CheckedUnitCallResult::Structural(result) => {
-                    let target = unique_unit_boundary(plans, planned.target_machine())?;
+                CheckedUnitCallResult::Structural {
+                    binding: result, ..
+                } => {
+                    let target = unique_unit_boundary(plans, planned.target.machine)?;
                     if !matches!(
                         &target.result,
                         CheckedBoundaryMachineResultPlan::Structural {
@@ -221,15 +217,14 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
                 checked,
                 plans,
                 boundaries,
-                planned.target_machine(),
-                planned.target_state(),
-                planned.target_contract_report_fingerprint(),
-                planned.service_reach(),
+                planned.target.machine,
+                planned.target.state,
+                planned.target.contract_report_fingerprint,
+                planned.target.service_reach,
                 expected,
             )?;
-            boundary_consumer(checked, plans, caller, operation, planned.target_machine())
+            boundary_consumer(checked, plans, caller, operation, planned.target.machine)
         }
-        _ => unreachable!("only call operations reach call admission"),
     }
 }
 
@@ -241,29 +236,22 @@ fn unit_target<'a>(
     plans: UnitPlans<'a>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<UnitEntry<'a>, LoweringError> {
-    let (CheckedUnitEffectOperationPlan::CallUnit {
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::StructuralCall {
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        ..
-    }) = operation
+    // An ordinary call with a Unit or structural result.
+    let Some(call) = operation
+        .call()
+        .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
     else {
         return unsupported("Unit call admission requires a Unit or structural call");
     };
-    let body = UnitBody::find(plans, *target_machine)?;
+    let body = UnitBody::find(plans, call.target.machine)?;
     structural_calls::validate_body_result(checked, operation, body.result()?)?;
     let target = body.entry()?;
-    if target.state != *target_state
-        || target.contract_report_fingerprint != *target_contract_report_fingerprint
-        || !checked_unit_target_reach_matches(*service_reach, target.contract_service_reach)
+    if target.state != call.target.state
+        || target.contract_report_fingerprint != call.target.contract_report_fingerprint
+        || !checked_unit_target_reach_matches(
+            call.target.service_reach,
+            target.contract_service_reach,
+        )
     {
         return unsupported(
             "Unit call does not match the exact checked target state, contract, and reach",
@@ -281,22 +269,21 @@ fn scalar_call(
     caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        coordinate,
-        result,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        target_contract_commitment,
-        service_reach,
-        scalar_arguments,
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = operation
+    let Some((call, result)) = operation
+        .call()
+        .filter(|call| !call.is_boundary())
+        .and_then(|call| Some((call, call.scalar_result()?)))
     else {
         return unsupported("scalar call admission requires a scalar call");
     };
+    let coordinate = &call.coordinate;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let target_contract_report_fingerprint = &call.target.contract_report_fingerprint;
+    let service_reach = &call.target.service_reach;
+    let scalar_arguments = &call.scalar_arguments;
+    let structural_arguments = &call.structural_arguments;
+    let claim_transfers = call.claim_transfers();
     let source_call = retain_exact_flow_call(
         checked,
         caller.machine,
@@ -359,7 +346,7 @@ fn scalar_call(
         || target.parameter_types()?.len() != scalar_arguments.len()
         || target.result_type()? != terminal_scalar_type(result.primitive_type)?
         || contract.report_fingerprint != *target_contract_report_fingerprint
-        || contract.commitment != *target_contract_commitment
+        || Some(contract.commitment) != call.contract_commitment()
         || !reach_matches
     {
         return unsupported(

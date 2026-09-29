@@ -74,11 +74,8 @@ pub(super) fn validate(
         .operation_dependencies()
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
-        let result = match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => result,
-            _ => continue,
+        let Some((result, _)) = operation.discardable_structural_result() else {
+            continue;
         };
         if bindings.contains(&result.binding_ordinal) {
             return unsupported("ordered structural exits duplicate a result binding");
@@ -361,27 +358,10 @@ pub(super) fn emit_return(
     // the return transfers it rather than discarding it.
     let mut discards = vec![(source, false)];
     for operation in state.operations.iter().rev() {
-        match operation {
-            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                discard_result_on_return,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                result,
-                discard_result_on_return,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                result,
-                discard_result_on_return,
-                ..
-            } => {
-                let place =
-                    case_emission::result(state, result.binding_ordinal, operations)?.place();
-                discards.push((place, *discard_result_on_return));
-            }
-            _ => {}
+        if let Some((result, discard_result_on_return)) = operation.discardable_structural_result()
+        {
+            let place = case_emission::result(state, result.binding_ordinal, operations)?.place();
+            discards.push((place, discard_result_on_return));
         }
     }
     // Parameter selection sources join the reverse-establishment roster after

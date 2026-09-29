@@ -36,15 +36,13 @@ fn byte_subslice_full_view_retains_an_ordinary_checked_call_plan() {
         .terminal_unit_effects
         .for_machine(machine.symbol)
         .expect("full view retains the callable helper");
-    let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &plan.operations[0]
-    else {
+    let Some(call) = plan.operations[0].call().filter(|call| {
+        !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    }) else {
         panic!("ordinary Relay call")
     };
     assert!(matches!(
-        structural_arguments[0].source,
+        call.structural_arguments[0].source,
         checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
             root: checked_trees::CheckedStorageRoot::Parameter { index: 0 },
             start: None,

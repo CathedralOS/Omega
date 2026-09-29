@@ -186,14 +186,10 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                         }
                     }
                     7 => {
-                        let (CheckedUnitEffectOperationPlan::StructuralCall {
-                            discard_result_on_return,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            discard_result_on_return,
-                            ..
-                        }) = &mut operations[0]
+                        // An ordinary or boundary call with a structural result.
+                        let Some((_, discard_result_on_return)) = operations[0]
+                            .call_mut()
+                            .and_then(|call| call.structural_result_mut())
                         else {
                             unreachable!()
                         };
@@ -201,12 +197,13 @@ fn projected_continuation_plans_reject_cleanup_and_permission_drift() {
                     }
                     8 => {
                         let mut repeated = operations[cleanup_index - 1].clone();
-                        let CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
-                            &mut repeated
-                        else {
+                        let Some(call) = repeated.call_mut().filter(|call| {
+                            !call.is_boundary()
+                                && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                        }) else {
                             unreachable!()
                         };
-                        coordinate.statement_index += 1;
+                        call.coordinate.statement_index += 1;
                         operations[cleanup_index + 1] = repeated;
                     }
                     _ => unreachable!(),

@@ -49,12 +49,13 @@ fn scalar_boundary_wrapper_retains_reordered_scalar_formals_and_actuals() {
         .terminal_unit_effects
         .for_machine(root)
         .expect("ordinary Unit call retains scalar-only wrapper");
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        scalar_arguments, ..
-    } = &unit.operations[0]
+    let Some(call) = unit.operations[0]
+        .call()
+        .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
     else {
         panic!("expected real scalar invocation")
     };
+    let scalar_arguments = &call.scalar_arguments;
     assert!(matches!(
         &scalar_arguments[0],
         checked_trees::CheckedCallScalarArgument::Pure(CheckedScalarExpression::Parameter {
@@ -240,17 +241,15 @@ fn scalar_boundary_wrapper_transfers_exact_linear_claim_with_mixed_signature() {
         .terminal_unit_effects
         .for_machine(root)
         .expect("Unit call transfers linear custody to scalar wrapper");
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        structural_arguments,
-        claim_transfers,
-        scalar_arguments,
-        ..
-    } = &caller.operations[0]
+    let Some(call) = caller.operations[0]
+        .call()
+        .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
     else {
         panic!("ordinary scalar call with custody")
     };
-    assert_eq!(structural_arguments.len(), 1);
-    assert_eq!(scalar_arguments.len(), 1);
+    let claim_transfers = call.claim_transfers();
+    assert_eq!(call.structural_arguments.len(), 1);
+    assert_eq!(call.scalar_arguments.len(), 1);
     assert_eq!(claim_transfers.len(), 1);
     assert_eq!(claim_transfers[0].argument_index, 0);
     assert_eq!(

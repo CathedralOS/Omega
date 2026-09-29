@@ -30,24 +30,12 @@ pub(crate) fn validate_cleanup(
     {
         return Ok(());
     }
-    if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        coordinate: producer,
-        result,
-        discard_result_on_return,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate: producer,
-        result,
-        discard_result_on_return,
-        ..
-    } = consumer
-    {
+    if let Some((producer, result, discard_result_on_return)) = structural_call_result(consumer) {
         let [discard] = affine_discards.as_slice() else {
             return unsupported("discarded boundary result requires one whole disposal");
         };
-        if producer != coordinate
-            || *discard_result_on_return
+        if producer != *coordinate
+            || discard_result_on_return
             || result.multiplicity != language_semantics::Multiplicity::Affine
             || discard.source
                 != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
@@ -62,75 +50,71 @@ pub(crate) fn validate_cleanup(
             checked,
             caller.machine,
             caller.state,
-            *producer,
+            producer,
             result,
         );
     }
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate: call,
-        structural_arguments,
-        scalar_arguments,
-        ..
-    } = consumer
-    else {
+    // Otherwise the consumer is an ordinary call with a Unit result.
+    let Some(consumer_call) = consumer.call().filter(|call| {
+        !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    }) else {
         return unsupported("call cleanup does not immediately follow its consumer");
     };
+    let call = &consumer_call.coordinate;
+    let structural_arguments = &consumer_call.structural_arguments;
+    let scalar_arguments = &consumer_call.scalar_arguments;
     let (_, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
-    let record_cleanup =
-        !affine_discards.is_empty()
-            && affine_discards.iter().all(|discard| {
-                let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
-                    binding_ordinal: binding,
-                } = discard.source
-                else {
-                    return false;
-                };
-                let Some((result, false)) = caller.operations[..operation_index].iter().find_map(
-                    |operation| match operation {
-                        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                            result,
-                            discard_result_on_return,
-                            ..
+    let record_cleanup = !affine_discards.is_empty()
+        && affine_discards.iter().all(|discard| {
+            let checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: binding,
+            } = discard.source
+            else {
+                return false;
+            };
+            // The record's producer is a constructed value or an ordinary
+            // structural call; a boundary result owns no record loans.
+            let Some((result, false)) =
+                caller.operations[..operation_index]
+                    .iter()
+                    .find_map(|operation| {
+                        if operation.call().is_some_and(|call| call.is_boundary()) {
+                            return None;
                         }
-                        | CheckedUnitEffectOperationPlan::StructuralCall {
-                            result,
-                            discard_result_on_return,
-                            ..
-                        } if result.binding_ordinal == binding => {
-                            Some((result, *discard_result_on_return))
-                        }
-                        _ => None,
-                    },
-                ) else {
-                    return false;
-                };
-                discard.path.is_empty()
-                    && discard.type_identity == result.type_identity
-                    && structural_arguments.iter().any(|argument| {
-                        argument.source == discard.source
-                            && argument.path.last()
-                                == Some(&checked_trees::CheckedUnitStructuralPathSegment::Referent)
+                        operation
+                            .discardable_structural_result()
+                            .filter(|(result, _)| result.binding_ordinal == binding)
                     })
-                    && validation::reference_result_custody::local_record_loans(
-                        &checked.typed,
-                        &checked.facts,
-                        caller.machine,
-                        state,
-                        result.statement_index,
-                    )
-                    .is_some_and(|loans| {
-                        !loans.is_empty()
-                            && loans.iter().all(|(_, loan)| {
-                                validation::reference_result_custody::release_statement(
-                                    &checked.facts,
-                                    caller.machine,
-                                    caller.state,
-                                    *loan,
-                                ) == coordinate.statement_index.checked_add(1)
-                            })
-                    })
-            });
+            else {
+                return false;
+            };
+            discard.path.is_empty()
+                && discard.type_identity == result.type_identity
+                && structural_arguments.iter().any(|argument| {
+                    argument.source == discard.source
+                        && argument.path.last()
+                            == Some(&checked_trees::CheckedUnitStructuralPathSegment::Referent)
+                })
+                && validation::reference_result_custody::local_record_loans(
+                    &checked.typed,
+                    &checked.facts,
+                    caller.machine,
+                    state,
+                    result.statement_index,
+                )
+                .is_some_and(|loans| {
+                    !loans.is_empty()
+                        && loans.iter().all(|(_, loan)| {
+                            validation::reference_result_custody::release_statement(
+                                &checked.facts,
+                                caller.machine,
+                                caller.state,
+                                *loan,
+                            ) == coordinate.statement_index.checked_add(1)
+                        })
+                })
+        });
     if record_cleanup {
         if call != coordinate {
             return unsupported("record cleanup changed its last-use call");
@@ -162,22 +146,15 @@ pub(crate) fn validate_cleanup(
         };
         let mut producers = caller.operations[..operation_index]
             .iter()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
+            .filter_map(|operation| {
+                let (coordinate, result, discard_result_on_return) =
+                    structural_call_result(operation)?;
+                (result.binding_ordinal == binding_ordinal).then_some((
+                    operation,
                     coordinate,
                     result,
                     discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate,
-                    result,
-                    discard_result_on_return,
-                    ..
-                } if result.binding_ordinal == binding_ordinal => {
-                    Some((operation, *coordinate, result, *discard_result_on_return))
-                }
-                _ => None,
+                ))
             });
         let (_, producer, result, discard_on_return) = producers.next().ok_or(
             LoweringError::Unsupported("call cleanup has no result producer"),
@@ -244,26 +221,16 @@ pub(crate) fn validate_cleanup(
         let mut producers = caller.operations[..operation_index]
             .iter()
             .enumerate()
-            .filter_map(|(producer_index, operation)| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate,
-                    result,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate,
-                    result,
-                    discard_result_on_return,
-                    ..
-                } if result.binding_ordinal == binding_ordinal => Some((
+            .filter_map(|(producer_index, operation)| {
+                let (coordinate, result, discard_result_on_return) =
+                    structural_call_result(operation)?;
+                (result.binding_ordinal == binding_ordinal).then_some((
                     producer_index,
                     operation,
-                    *coordinate,
+                    coordinate,
                     result,
-                    *discard_result_on_return,
-                )),
-                _ => None,
+                    discard_result_on_return,
+                ))
             });
         let (producer_index, producer_operation, producer, result, discard_on_return) =
             producers.next().ok_or(LoweringError::Unsupported(
@@ -309,4 +276,21 @@ pub(crate) fn validate_cleanup(
         return unsupported("partial call continuation residual partition drifted");
     }
     Ok(())
+}
+
+/// A call with a structural result, ordinary or boundary: its coordinate,
+/// result binding and return-discard flag.
+fn structural_call_result(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<(
+    checked_trees::CheckedUnitCallCoordinate,
+    &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    bool,
+)> {
+    let call = operation.call()?;
+    Some((
+        call.coordinate,
+        call.structural_result()?,
+        call.discard_result_on_return()?,
+    ))
 }

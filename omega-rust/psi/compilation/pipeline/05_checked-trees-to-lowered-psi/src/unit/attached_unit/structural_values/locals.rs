@@ -20,13 +20,15 @@ pub(crate) fn bind_local(
             result,
             ..
         } => (result, None),
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate, result, ..
-        } => {
+        // An ordinary structural call binds its result local.
+        CheckedUnitEffectOperationPlan::Call(call)
+            if let Some(result) = call.structural_result()
+                && !call.is_boundary() =>
+        {
             let authored = crate::emission::call_source_custody::authored::locate_source(
                 checked,
                 caller_state,
-                *coordinate,
+                call.coordinate,
             )?;
             let Some(checked_trees::NominalMachineUseSite::Expression(expression)) =
                 authored.source_site

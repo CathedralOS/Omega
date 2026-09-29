@@ -32,6 +32,21 @@ mod cyclic;
 #[path = "receiver_call_source/retained_receivers.rs"]
 mod retained_receivers;
 
+/// Whether `call` is an ordinary (non-boundary) call that binds no result.
+fn is_ordinary_unit_call(call: &checked_trees::CheckedUnitCallPlan) -> bool {
+    !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+}
+
+/// The ordinary Unit call `operation` must be.
+fn ordinary_unit_call_mut(
+    operation: &mut CheckedUnitEffectOperationPlan,
+) -> &mut checked_trees::CheckedUnitCallPlan {
+    operation
+        .call_mut()
+        .filter(|call| is_ordinary_unit_call(call))
+        .expect("call")
+}
+
 fn unit_plan<'a>(
     checked: &'a checked_trees::CheckedTrees,
     name: &str,

@@ -424,21 +424,7 @@ pub(super) fn build_traced(
                         } => operations
                             .iter()
                             .find_map(|operation| {
-                                let result = match operation {
-                                    CheckedUnitEffectOperationPlan::StructuralCall {
-                                        result,
-                                        ..
-                                    }
-                                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                        result,
-                                        ..
-                                    }
-                                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                        result,
-                                        ..
-                                    } => result,
-                                    _ => return None,
-                                };
+                                let (result, _) = operation.discardable_structural_result()?;
                                 (result.binding_ordinal == *binding_ordinal)
                                     .then_some(result.statement_index)
                             })
@@ -882,12 +868,24 @@ fn call_owns_result(producer: &CheckedUnitEffectOperationPlan) -> bool {
                     Some(checked_trees::CheckedArrayConstructionSource::CallArgument { .. })
                 )
         }
-        CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
-            result.multiplicity != Multiplicity::Unrestricted
-        }
+        // Any call with a structural result, ordinary or boundary.
+        CheckedUnitEffectOperationPlan::Call(call) => call
+            .structural_result()
+            .is_some_and(|result| result.multiplicity != Multiplicity::Unrestricted),
         _ => false,
     }
+}
+
+/// A call or constructed-value result that no automatic return discard
+/// retires: the selected edge, not the return, owns its disposal.
+fn retained_structural_result(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<&checked_trees::CheckedUnitStructuralResultBindingPlan> {
+    operation
+        .discardable_structural_result()
+        .and_then(|(result, discard_result_on_return)| {
+            (!discard_result_on_return).then_some(result)
+        })
 }
 
 /// Whether an owned whole call argument draws on a result this sequence
@@ -907,13 +905,9 @@ fn call_consumes_result_argument(
             .iter()
             .rev()
             .find(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                        if result.binding_ordinal == ordinal
-                )
+                operation
+                    .discardable_structural_result()
+                    .is_some_and(|(result, _)| result.binding_ordinal == ordinal)
             })
             .is_some_and(call_owns_result)
 }
@@ -957,15 +951,11 @@ fn call_custody_refusal(
         }
         if argument.access == CheckedStructuralAccess::Owned {
             if let Some(ordinal) = argument.source_structural_result_binding_ordinal() {
-                let producer = earlier.iter().rev().find_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                        if result.binding_ordinal == ordinal =>
-                    {
-                        Some(result)
-                    }
-                    _ => None,
+                let producer = earlier.iter().rev().find_map(|operation| {
+                    operation
+                        .discardable_structural_result()
+                        .map(|(result, _)| result)
+                        .filter(|result| result.binding_ordinal == ordinal)
                 });
                 return match producer.map(|result| result.multiplicity) {
                     None => "state graph: operation custody: call owned result without a producer",
@@ -1401,12 +1391,9 @@ fn successor_bindings(
                 let place = crate::flow::canonical_place_from_expression_in_state(program, source.symbol, ordinal as usize, expression)?;
                 if place.segments.is_empty() {
                     let mut matches = operations.iter().filter_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
-                        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. }
-                        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+                        CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                         | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
-                        _ => None,
+                        _ => retained_structural_result(operation),
                     }).filter(|result| result.statement_index < ordinal && matches!(program.statement_table.statements(source.statement_nodes).get(result.statement_index as usize), Some(StatementNode::LocalData(local)) if place.root == facts::PlaceRoot::Symbol(local.symbol)));
                     if let Some(result) = matches.next() {
                         if matches.next().is_some() { return None; }
@@ -1541,12 +1528,9 @@ fn successor_bindings(
                     });
                     let result_subject = |local_index: usize| {
                         let mut matches = operations.iter().filter_map(|operation| match operation {
-                            CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
-                            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. }
-                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. }
-                            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+                            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
                             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
-                            _ => None,
+                            _ => retained_structural_result(operation),
                         }).filter(|result| result.statement_index == local_index as u32);
                         let result = matches.next()?;
                         if matches.next().is_some() {
@@ -2020,32 +2004,17 @@ fn case_payload_transfer(
             parameter.type_identity.clone(),
         )
     } else {
-        let mut results = operations.iter().filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                result,
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                result,
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                discard_result_on_return: false,
-                ..
-            } if result.statement_index < ordinal => {
-                let StatementNode::LocalData(local) = program
-                    .statement_table
-                    .statements(source.statement_nodes)
-                    .get(result.statement_index as usize)?
-                else {
-                    return None;
-                };
-                (local.symbol == root && !local.is_mutable).then_some((result, local))
-            }
-            _ => None,
+        let mut results = operations.iter().filter_map(|operation| {
+            let result = retained_structural_result(operation)
+                .filter(|result| result.statement_index < ordinal)?;
+            let StatementNode::LocalData(local) = program
+                .statement_table
+                .statements(source.statement_nodes)
+                .get(result.statement_index as usize)?
+            else {
+                return None;
+            };
+            (local.symbol == root && !local.is_mutable).then_some((result, local))
         });
         let (result, local) = results.next()?;
         if results.next().is_some() {

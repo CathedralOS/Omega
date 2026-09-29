@@ -1,7 +1,7 @@
 //! Explicit result discard belongs to the boundary's immediate normal continuation.
 use super::{CheckedTrees, SymbolHandle, lower_machine};
 use crate::TerminalMachineSelection;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitEffectOperationPlan};
 use terminal_interpreter::TerminalStructuralInputs;
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalEffect, TerminalEffectHandler, TerminalEffectRejection,
@@ -91,11 +91,10 @@ fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
             .operations;
         match mutation {
             "result type" | "result ordinal" | "result statement" | "return discard" => {
-                let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    result,
-                    discard_result_on_return,
-                    ..
-                } = &mut operations[1]
+                let Some((result, discard_result_on_return)) = operations[1]
+                    .call_mut()
+                    .filter(|call| call.is_boundary())
+                    .and_then(CheckedUnitCallPlan::structural_result_mut)
                 else {
                     panic!("structural read");
                 };
@@ -112,10 +111,10 @@ fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
             }
             "replace immediate cleanup with return discard" => {
                 operations.remove(2);
-                let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    discard_result_on_return,
-                    ..
-                } = &mut operations[1]
+                let Some((_, discard_result_on_return)) = operations[1]
+                    .call_mut()
+                    .filter(|call| call.is_boundary())
+                    .and_then(CheckedUnitCallPlan::structural_result_mut)
                 else {
                     panic!("structural read");
                 };
@@ -148,20 +147,18 @@ fn discarded_boundary_result_rejects_result_cleanup_and_later_operand_drift() {
                 }
             }
             "later operand" => {
-                let CheckedUnitEffectOperationPlan::BoundaryCall {
-                    scalar_arguments, ..
-                } = &operations[0]
-                else {
+                let Some(first) = operations[0].call().filter(|call| {
+                    call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
+                }) else {
                     panic!("first marker");
                 };
-                let substituted = scalar_arguments.clone();
-                let CheckedUnitEffectOperationPlan::BoundaryCall {
-                    scalar_arguments, ..
-                } = &mut operations[3]
-                else {
+                let substituted = first.scalar_arguments.clone();
+                let Some(last) = operations[3].call_mut().filter(|call| {
+                    call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
+                }) else {
                     panic!("last marker");
                 };
-                *scalar_arguments = substituted;
+                last.scalar_arguments = substituted;
             }
             _ => unreachable!(),
         }

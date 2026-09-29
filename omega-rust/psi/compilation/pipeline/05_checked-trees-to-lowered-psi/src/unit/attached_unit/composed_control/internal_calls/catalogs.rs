@@ -55,7 +55,7 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         };
         collect_service_summary(
             &checked.facts.service_reaches.rows,
-            call.service_reach(),
+            call.target.service_reach,
             &mut services,
         )?;
     }
@@ -77,13 +77,10 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
             .iter()
             .flat_map(|state| state.operation_dependencies())
             .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
-                    Some(result.type_identity.clone())
-                }
-                _ => None,
+            .filter_map(|operation| {
+                operation
+                    .discardable_structural_result()
+                    .map(|(result, _)| result.type_identity.clone())
             }),
     );
     type_roots.extend(

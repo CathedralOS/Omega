@@ -383,10 +383,13 @@ pub(super) fn validate_scalar(
     ) else {
         return unsupported("scalar graph return has no final authored expression");
     };
-    let mut producers = state.operations.iter().filter(|operation| {
-        matches!(operation,
-            CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { result, .. } if result == binding)
+    // A scalar local or an ordinary scalar call produces the returned binding.
+    let mut producers = state.operations.iter().filter(|operation| match operation {
+        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => result == binding,
+        CheckedUnitEffectOperationPlan::Call(call) => {
+            !call.is_boundary() && call.scalar_result() == Some(binding)
+        }
+        _ => false,
     });
     if producers.next().is_none() || producers.next().is_some() {
         return unsupported("scalar graph return has no unique producer");
@@ -467,31 +470,17 @@ pub(super) fn validate_structural(
     };
     match result.source {
         CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
-            let mut producers = state
-                .operations
-                .iter()
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::StructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
+            let mut producers = state.operations.iter().filter_map(|operation| {
+                let result = match operation {
                     // A `&mut` view tail return's producer is the reference
                     // establishment minted at the transition.
-                    | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-                    if result.binding_ordinal == binding_ordinal => Some((operation, result)),
-                    _ => None,
-                });
+                    CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => {
+                        Some(result)
+                    }
+                    _ => super::result_custody::result(operation),
+                }?;
+                (result.binding_ordinal == binding_ordinal).then_some((operation, result))
+            });
             let (operation, binding) = producers.next().ok_or(LoweringError::Unsupported(
                 "structural return producer absent",
             ))?;
@@ -503,11 +492,10 @@ pub(super) fn validate_structural(
                 return unsupported("structural return producer custody drifted");
             }
             if binding.statement_index as usize == ordinal {
-                if matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                ) {
+                if operation
+                    .call()
+                    .is_some_and(|call| call.structural_result().is_some())
+                {
                     crate::unit::attached_unit::structural_calls::validate_custody(
                         checked,
                         plan.machine,

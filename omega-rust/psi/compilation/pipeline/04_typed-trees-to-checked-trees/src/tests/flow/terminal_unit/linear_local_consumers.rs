@@ -7,8 +7,9 @@
 use super::CheckedUnitEffectOperationPlan;
 use crate::tests::flow::terminal_unit::machine_named;
 use crate::tests::front_end::checked_program_result;
+use checked_trees::CheckedUnitCallResult;
 
-// `ack` stays a checked machine so its callers compose an ordinary CallUnit
+// `ack` stays a checked machine so its callers compose an ordinary Unit call
 // edge; the linear receiver discharges into the `settle` contract, which owns
 // the boundary crossing.
 const RECEIPT: &str = "data Receipt [linear] { code: i32; }\nboundary requirement Receipt::settle(self);\nmachine Receipt::ack(self) { Receipt::settle(self); }\n";
@@ -33,17 +34,42 @@ fn consumer_transfers(operations: &[CheckedUnitEffectOperationPlan]) -> Vec<u32>
     operations
         .iter()
         .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                claim_transfers, ..
-            } => Some(
-                claim_transfers
-                    .iter()
-                    .map(|transfer| transfer.argument_index)
-                    .collect(),
-            ),
+            CheckedUnitEffectOperationPlan::Call(call)
+                if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+            {
+                Some(
+                    call.claim_transfers()
+                        .iter()
+                        .map(|transfer| transfer.argument_index)
+                        .collect(),
+                )
+            }
             _ => None,
         })
         .expect("the consumer is an ordinary Unit call")
+}
+
+/// The operation's variant name; a call is named by its route and result so
+/// an ordinary Unit call stays distinct from every other call shape.
+fn operation_kind(operation: &CheckedUnitEffectOperationPlan) -> String {
+    if let Some(call) = operation.call() {
+        let route = if call.is_boundary() {
+            "boundary"
+        } else {
+            "ordinary"
+        };
+        let result = match call.result() {
+            CheckedUnitCallResult::Unit => "Unit",
+            CheckedUnitCallResult::Scalar(_) => "scalar",
+            CheckedUnitCallResult::Structural { .. } => "structural",
+        };
+        return format!("{route} {result} call");
+    }
+    format!("{operation:?}")
+        .split([' ', '{', '('])
+        .next()
+        .unwrap()
+        .to_owned()
 }
 
 #[test]
@@ -66,25 +92,16 @@ fn locals_bound_from_a_parameter_a_literal_or_a_call_result_feed_the_consumer() 
             "linear call result bound by a local",
             "machine issue(r: Receipt) -> Receipt { r }
              machine run(r: Receipt) -> i32 { let returned: Receipt = issue(r); returned.ack(); 0 }",
-            "StructuralCall",
+            "ordinary structural call",
         ),
     ] {
         let operations = plan(&format!("{RECEIPT}{body}"), "run");
-        let kinds = operations
-            .iter()
-            .map(|operation| {
-                format!("{operation:?}")
-                    .split([' ', '{', '('])
-                    .next()
-                    .unwrap()
-                    .to_owned()
-            })
-            .collect::<Vec<_>>();
+        let kinds = operations.iter().map(operation_kind).collect::<Vec<_>>();
         assert_eq!(
             kinds,
             [
                 expected_prefix,
-                "CallUnit",
+                "ordinary Unit call",
                 "EstablishScalarLocal",
                 "Complete"
             ],

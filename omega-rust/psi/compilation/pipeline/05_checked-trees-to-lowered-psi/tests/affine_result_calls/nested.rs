@@ -1,6 +1,6 @@
 use super::{
     CheckedUnitEffectOperationPlan, OperationKind, OperationResult, Terminator, checked,
-    lower_machine,
+    is_ordinary_structural_call, is_ordinary_unit_call, lower_machine,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 const DECLARATIONS: &str = "data Value { number: u64; }
@@ -112,12 +112,8 @@ fn nested_structural_calls_reject_temporary_and_occurrence_drift() {
             .find(|plan| {
                 plan.operations
                     .iter()
-                    .filter(|operation| {
-                        matches!(
-                            operation,
-                            CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                        )
-                    })
+                    .filter_map(CheckedUnitEffectOperationPlan::call)
+                    .filter(|call| is_ordinary_structural_call(call))
                     .count()
                     == 2
             })
@@ -125,37 +121,41 @@ fn nested_structural_calls_reject_temporary_and_occurrence_drift() {
         match mutation {
             0 => caller.operations.swap(0, 1),
             1 => {
-                let CheckedUnitEffectOperationPlan::StructuralCall {
-                    discard_result_on_return,
-                    ..
-                } = &mut caller.operations[0]
+                let Some(call) = caller.operations[0]
+                    .call_mut()
+                    .filter(|call| is_ordinary_structural_call(call))
                 else {
                     unreachable!()
                 };
+                let (_, discard_result_on_return) = call
+                    .structural_result_mut()
+                    .expect("structural call result");
                 *discard_result_on_return = true;
             }
             2 | 3 => {
-                let CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate, result, ..
-                } = &mut caller.operations[0]
+                let Some(call) = caller.operations[0]
+                    .call_mut()
+                    .filter(|call| is_ordinary_structural_call(call))
                 else {
                     unreachable!()
                 };
                 if mutation == 2 {
-                    coordinate.call_ordinal = 0;
+                    call.coordinate.call_ordinal = 0;
                 } else {
+                    let (result, _) = call
+                        .structural_result_mut()
+                        .expect("structural call result");
                     result.binding_ordinal = 1;
                 }
             }
             4 => {
-                let CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } = &mut caller.operations[2]
+                let Some(call) = caller.operations[2]
+                    .call_mut()
+                    .filter(|call| is_ordinary_unit_call(call))
                 else {
                     unreachable!()
                 };
-                structural_arguments.swap(0, 1);
+                call.structural_arguments.swap(0, 1);
             }
             5 => {
                 caller.operations.remove(0);

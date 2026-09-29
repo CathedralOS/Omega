@@ -4,9 +4,8 @@ use super::super::super::super::{
     StructuralFieldId, StructuralParameterDeclaration,
 };
 use super::super::super::{
-    CheckedUnitEffectOperationPlan, OperationResult, PlaceId, StructuralMultiplicity,
-    StructuralTypeShape, ValueDeclaration, allocate_dense, terminal_scalar_type, unsupported,
-    value_id,
+    OperationResult, PlaceId, StructuralMultiplicity, StructuralTypeShape, ValueDeclaration,
+    allocate_dense, terminal_scalar_type, unsupported, value_id,
 };
 use super::super::{CheckedTrees, LoweringError, catalogs};
 use super::{CheckedComposedUnitControlStatePlan, scalars};
@@ -213,24 +212,14 @@ pub(in crate::unit::attached_unit) fn result<'a>(
     {
         return Ok(std::borrow::Cow::Borrowed(produced));
     }
-    let mut bindings = state
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                result,
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate,
-                result,
-                discard_result_on_return: false,
-                ..
-            } if result.binding_ordinal == binding_ordinal => Some((coordinate, result)),
-            _ => None,
-        });
+    let mut bindings = state.operations.iter().filter_map(|operation| {
+        // A kept structural result of a call, ordinary or boundary.
+        let call = operation.call()?;
+        let result = call.structural_result()?;
+        (call.discard_result_on_return() == Some(false)
+            && result.binding_ordinal == binding_ordinal)
+            .then_some((&call.coordinate, result))
+    });
     let (coordinate, binding) = bindings.next().ok_or(LoweringError::Unsupported(
         "Unit graph result binding missing",
     ))?;

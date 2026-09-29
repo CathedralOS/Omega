@@ -23,6 +23,10 @@ use crate::execution::terminal_unit::{
     Multiplicity, PermissionEventKind, PrimitiveType, SymbolHandle, TypedTrees, is_reference,
     strips_erased_parameter,
 };
+use checked_trees::{
+    CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
+    CheckedUnitCallTarget, CheckedUnitCallTransfers,
+};
 use validation::exact_external_leaf_boundary_requirement;
 
 pub(in crate::execution) enum ExpectedCallValueResult<'result> {
@@ -207,6 +211,12 @@ pub(in crate::execution) fn build_call_operation(
     })?;
     phase("call operation: target contract");
     let target_contract = facts.contract_plans.for_machine(target_machine.symbol)?;
+    let call_target = CheckedUnitCallTarget {
+        machine: target_machine.symbol,
+        state: target_state.symbol,
+        contract_report_fingerprint: target_contract.report_fingerprint,
+        service_reach: call.service_reach,
+    };
     // A bodied `boundary machine` is a checked adapter: callers reach its
     // authored body as an ordinary callee; only the bodyless declaration is
     // a boundary edge.
@@ -474,22 +484,24 @@ pub(in crate::execution) fn build_call_operation(
         {
             return None;
         }
-        let mut operation = CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            source_site,
-            result: (*result).clone(),
-            custody: Default::default(),
-            target_machine: target_machine.symbol,
-            target_state: target_state.symbol,
-            target_contract_report_fingerprint: target_contract.report_fingerprint,
-            target_contract_commitment: target_contract.commitment,
-            service_reach: call.service_reach,
-            scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            discard_result_on_return: false,
-        };
+        let mut operation =
+            CheckedUnitEffectOperationPlan::Call(CheckedUnitCallPlan::new(CheckedUnitCallParts {
+                coordinate,
+                source_site,
+                target: call_target,
+                route: CheckedUnitCallRoute::Module {
+                    contract_commitment: Some(target_contract.commitment),
+                    erased_scalar_arguments,
+                    erased_proof_arguments,
+                },
+                scalar_arguments,
+                structural_arguments,
+                result: CheckedUnitCallResult::Structural {
+                    binding: (*result).clone(),
+                    discard_result_on_return: false,
+                },
+                transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
+            })?);
         let custody = validation::reconstruct_structural_call_custody(
             program,
             facts,
@@ -498,13 +510,7 @@ pub(in crate::execution) fn build_call_operation(
             &operation,
         )
         .ok()?;
-        let CheckedUnitEffectOperationPlan::StructuralCall {
-            custody: retained, ..
-        } = &mut operation
-        else {
-            return None;
-        };
-        *retained = custody;
+        *operation.call_mut()?.structural_custody_mut()? = custody;
         return Some(operation);
     }
     phase("call operation: claim transfers");
@@ -525,17 +531,17 @@ pub(in crate::execution) fn build_call_operation(
     )?;
 
     if boundary {
-        Some(CheckedUnitEffectOperationPlan::BoundaryCall {
+        CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
             source_site,
-            target_machine: target_machine.symbol,
-            target_state: target_state.symbol,
-            target_contract_report_fingerprint: target_contract.report_fingerprint,
-            service_reach: call.service_reach,
+            target: call_target,
+            route: CheckedUnitCallRoute::Boundary,
             scalar_arguments,
             structural_arguments,
-            completion_receipts: transfers,
+            result: CheckedUnitCallResult::Unit,
+            transfers: CheckedUnitCallTransfers::CompletionReceipts(transfers),
         })
+        .map(CheckedUnitEffectOperationPlan::Call)
     } else if let Some(ExpectedCallValueResult::Structural(result)) = expected_call_result {
         super::structural_result_call::build(
             program,
@@ -563,7 +569,7 @@ pub(in crate::execution) fn build_call_operation(
         )
     } else if expected_call_result.is_some()
         && (!structural_arguments.is_empty() || !transfers.is_empty())
-        // A scalar result over structural operands is a `ScalarCall` whose
+        // A scalar result over structural operands is an ordinary scalar call whose
         // callee the candidate closure resolves after every body is built:
         // a registered producer, or the callee's own ordinary body when it
         // completes with a scalar (`scalar_targets::available_target`), and
@@ -580,18 +586,22 @@ pub(in crate::execution) fn build_call_operation(
         phase("call operation: scalar result producer");
         None
     } else {
-        Some(CheckedUnitEffectOperationPlan::CallUnit {
+        // An ordinary Unit call retains no authored site.
+        CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
-            target_machine: target_machine.symbol,
-            target_state: target_state.symbol,
-            target_contract_report_fingerprint: target_contract.report_fingerprint,
-            service_reach: call.service_reach,
+            source_site: None,
+            target: call_target,
+            route: CheckedUnitCallRoute::Module {
+                contract_commitment: None,
+                erased_scalar_arguments,
+                erased_proof_arguments,
+            },
             scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
             structural_arguments,
-            claim_transfers: transfers,
+            result: CheckedUnitCallResult::Unit,
+            transfers: CheckedUnitCallTransfers::Claims(transfers),
         })
+        .map(CheckedUnitEffectOperationPlan::Call)
     }
 }
 

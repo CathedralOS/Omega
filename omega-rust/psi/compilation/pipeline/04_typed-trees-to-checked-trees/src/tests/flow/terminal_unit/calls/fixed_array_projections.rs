@@ -1,7 +1,9 @@
 use crate::tests::flow::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, checked, machine_named,
 };
-use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralTypeShape};
+use checked_trees::{
+    CheckedStructuralAccess, CheckedUnitCallResult, CheckedUnitStructuralTypeShape,
+};
 
 #[test]
 fn retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_custody() {
@@ -38,18 +40,17 @@ fn retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_cus
     assert_eq!(root.entry_claims.len(), 2);
     assert_eq!(root.operations.len(), 3);
     for (index, operation) in root.operations[..2].iter().enumerate() {
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            claim_transfers,
-            ..
-        } = operation
+        let Some(call) = operation
+            .call()
+            .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
         else {
             panic!("each literal element should transfer through an ordinary Unit call")
         };
         assert_eq!(
-            structural_arguments[0].path,
+            call.structural_arguments[0].path,
             [CheckedUnitStructuralPathSegment::FixedIndex(index as u64)]
         );
+        let claim_transfers = call.claim_transfers();
         assert_eq!(claim_transfers.len(), 1);
         assert_eq!(claim_transfers[0].argument_index, 0);
         assert_eq!(
@@ -240,13 +241,13 @@ fn four_index_direct_shared_projection_plans_on_shared_borrow_calls() {
         plan.operations.iter().any(|operation| {
             matches!(
                 operation,
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } if structural_arguments.iter().any(|argument| {
-                    argument.access == CheckedStructuralAccess::SharedBorrow
-                        && argument.path.len() == 4
-                })
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary()
+                        && *call.result() == CheckedUnitCallResult::Unit
+                        && call.structural_arguments.iter().any(|argument| {
+                            argument.access == CheckedStructuralAccess::SharedBorrow
+                                && argument.path.len() == 4
+                        })
             )
         }),
         "the four-segment projection reaches the callee as one shared borrow"

@@ -123,20 +123,20 @@ pub(super) fn assert_projected_receiver(
             assert_eq!(caller_receiver.access, checked_caller_access);
             assert_eq!(callee_receiver.access, checked_callee_access);
             let [
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    target_machine,
-                    scalar_arguments,
-                    structural_arguments,
-                    claim_transfers,
-                    ..
-                },
+                CheckedUnitEffectOperationPlan::Call(call),
                 CheckedUnitEffectOperationPlan::Complete { .. },
             ] = caller.operations.as_slice()
             else {
                 panic!("one projected receiver call and return: {source}")
             };
-            assert_eq!(*target_machine, callee.machine);
-            assert!(claim_transfers.is_empty());
+            assert!(
+                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit,
+                "one projected receiver ordinary Unit call: {source}"
+            );
+            let scalar_arguments = &call.scalar_arguments;
+            let structural_arguments = &call.structural_arguments;
+            assert_eq!(call.target.machine, callee.machine);
+            assert!(call.claim_transfers().is_empty());
             let [argument] = structural_arguments.as_slice() else {
                 panic!("one exact receiver operand")
             };

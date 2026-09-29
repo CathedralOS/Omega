@@ -278,15 +278,24 @@ pub(super) fn validate_establishment(
     Ok(())
 }
 
+/// An ordinary structural call's result binding and custody.
+fn ordinary_structural_result(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<(
+    &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    &checked_trees::CheckedStructuralCallCustodyPlan,
+)> {
+    let call = operation.call().filter(|call| !call.is_boundary())?;
+    Some((call.structural_result()?, call.structural_custody()?))
+}
+
 pub(super) fn validate_releases(
     checked: &CheckedTrees,
     machine: &CheckedUnitEffectMachinePlan,
 ) -> Result<(), LoweringError> {
     for (index, operation) in machine.operations.iter().enumerate() {
-        let CheckedUnitEffectOperationPlan::StructuralCall {
-            custody, result, ..
-        } = operation
-        else {
+        // Only an ordinary structural call carries a reference loan.
+        let Some((result, custody)) = ordinary_structural_result(operation) else {
             continue;
         };
         if !custody.reference_loan.is_valid() {
@@ -344,10 +353,18 @@ pub(super) fn validate_releases(
         }
     }
     for operation in &machine.operations {
-        if let CheckedUnitEffectOperationPlan::ReleaseReference { binding_ordinal, loan, .. } = operation
-            && !machine.operations.iter().any(|producer| matches!(producer,
-                CheckedUnitEffectOperationPlan::StructuralCall { custody, result, .. }
-                    if result.binding_ordinal == *binding_ordinal && custody.reference_loan == *loan && loan.is_valid()))
+        if let CheckedUnitEffectOperationPlan::ReleaseReference {
+            binding_ordinal,
+            loan,
+            ..
+        } = operation
+            && !machine.operations.iter().any(|producer| {
+                ordinary_structural_result(producer).is_some_and(|(result, custody)| {
+                    result.binding_ordinal == *binding_ordinal
+                        && custody.reference_loan == *loan
+                        && loan.is_valid()
+                })
+            })
         {
             return unsupported("reference release has no retained result loan");
         }
@@ -368,11 +385,14 @@ pub(super) fn validate_consumer(
     };
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    // A reference record is a constructed value or an ordinary structural
+    // call's result.
     let record_result = caller.operations.iter().find_map(|operation| match operation {
         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-        | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
             if result.binding_ordinal == binding_ordinal => Some(result),
-        _ => None,
+        _ => ordinary_structural_result(operation)
+            .map(|(result, _)| result)
+            .filter(|result| result.binding_ordinal == binding_ordinal),
     }).filter(|result| {
         matches!(checked.statement_table.statements(state.statement_nodes).get(result.statement_index as usize),
             Some(StatementNode::LocalData(local)) if validation::reference_result_custody::is_reference_record(&checked.typed, local.type_reference))
@@ -407,9 +427,12 @@ pub(super) fn validate_consumer(
         }
         return Ok(true);
     }
-    let Some(producer @ CheckedUnitEffectOperationPlan::StructuralCall { custody, result, .. }) = caller.operations.iter()
-        .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::StructuralCall { result, .. } if result.binding_ordinal == binding_ordinal))
-    else { return Ok(false); };
+    let Some((producer, (result, custody))) = caller.operations.iter().find_map(|operation| {
+        let produced = ordinary_structural_result(operation)?;
+        (produced.0.binding_ordinal == binding_ordinal).then_some((operation, produced))
+    }) else {
+        return Ok(false);
+    };
     if !custody.reference_loan.is_valid() {
         return Ok(false);
     }

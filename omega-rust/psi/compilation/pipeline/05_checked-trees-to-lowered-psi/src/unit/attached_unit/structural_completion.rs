@@ -202,12 +202,13 @@ pub(super) fn validate(
                                 candidate,
                                 *source == CheckedArrayConstructionSource::Statement,
                             )),
-                            CheckedUnitEffectOperationPlan::StructuralCall {
-                                coordinate,
-                                result: candidate,
-                                ..
-                            } if candidate.binding_ordinal == binding_ordinal => {
-                                Some((candidate, coordinate.call_ordinal == 0))
+                            // An ordinary structural call.
+                            CheckedUnitEffectOperationPlan::Call(call)
+                                if let Some(candidate) = call.structural_result()
+                                    && !call.is_boundary()
+                                    && candidate.binding_ordinal == binding_ordinal =>
+                            {
+                                Some((candidate, call.coordinate.call_ordinal == 0))
                             }
                             _ => None,
                         });

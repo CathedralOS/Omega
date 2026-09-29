@@ -21,6 +21,21 @@ mod reference_custody;
 #[path = "primitive_local_unit_calls/reference_initializer.rs"]
 mod reference_initializer;
 
+/// Whether `operation` is an ordinary (non-boundary) call that binds no result.
+fn is_ordinary_unit_call(operation: &checked_trees::CheckedUnitEffectOperationPlan) -> bool {
+    operation.call().is_some_and(|call| {
+        !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    })
+}
+
+/// The ordinary Unit call `operation` must be.
+fn ordinary_unit_call_mut(
+    operation: &mut checked_trees::CheckedUnitEffectOperationPlan,
+) -> &mut checked_trees::CheckedUnitCallPlan {
+    assert!(is_ordinary_unit_call(operation), "Unit call");
+    operation.call_mut().expect("Unit call")
+}
+
 fn source(scalar: &str) -> String {
     format!(
         "machine replace(destination: &mut {scalar}, value: {scalar}) {{

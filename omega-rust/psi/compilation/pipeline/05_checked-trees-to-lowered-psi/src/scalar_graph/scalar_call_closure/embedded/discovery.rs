@@ -1,6 +1,5 @@
 //! Exact embedded scalar helper closure and source eligibility.
 
-use super::super::super::CheckedUnitEffectOperationPlan;
 use super::super::{CheckedScalarBindingValue, CheckedTerminalSignatureEligibility};
 use super::{CheckedTrees, LoweringError, unsupported};
 /// Discover scalar bodies selected by exact calls in an external caller.
@@ -129,20 +128,19 @@ pub(crate) fn checked_scalar_call_closure_with_structural_roots(
         ) = callee
         {
             for operation in body.operations() {
-                if let CheckedUnitEffectOperationPlan::ScalarCall {
-                    target_machine,
-                    structural_arguments,
-                    claim_transfers,
-                    ..
-                } = operation
+                // An ordinary scalar call names a scalar callee.
+                if let Some(call) = operation
+                    .call()
+                    .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
                 {
-                    if !computed.contains(target_machine) {
-                        computed.push(*target_machine);
+                    let target_machine = call.target.machine;
+                    if !computed.contains(&target_machine) {
+                        computed.push(target_machine);
                     }
-                    if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
-                        && !computed_structural.contains(target_machine)
+                    if (!call.structural_arguments.is_empty() || !call.claim_transfers().is_empty())
+                        && !computed_structural.contains(&target_machine)
                     {
-                        computed_structural.push(*target_machine);
+                        computed_structural.push(target_machine);
                     }
                 }
             }

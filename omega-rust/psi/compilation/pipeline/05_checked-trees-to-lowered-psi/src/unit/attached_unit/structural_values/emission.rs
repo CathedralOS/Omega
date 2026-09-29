@@ -1853,8 +1853,11 @@ impl Emission<'_, '_, '_> {
                 if matching.next().is_some() {
                     return unsupported("projected selection operand call is duplicated");
                 }
-                let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } =
-                    call.operation()
+                let Some(result) = call
+                    .operation()
+                    .call()
+                    .filter(|planned| !planned.is_boundary())
+                    .and_then(checked_trees::CheckedUnitCallPlan::structural_result)
                 else {
                     return unsupported(
                         "projected selection call drifted from its structural producer",

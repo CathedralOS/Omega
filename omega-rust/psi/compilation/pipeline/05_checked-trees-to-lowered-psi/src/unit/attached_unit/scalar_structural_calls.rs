@@ -18,17 +18,17 @@ pub(super) fn validate_call_source(
     operation: &CheckedUnitEffectOperationPlan,
     target: &CheckedScalarCallee<'_>,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        coordinate,
-        target_machine,
-        target_state,
-        structural_arguments,
-        claim_transfers,
-        ..
-    } = operation
+    let Some(call) = operation
+        .call()
+        .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
     else {
         return unsupported("scalar wrapper source custody requires an ordinary scalar call");
     };
+    let coordinate = &call.coordinate;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let structural_arguments = &call.structural_arguments;
+    let claim_transfers = call.claim_transfers();
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked,
         caller.state,

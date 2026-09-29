@@ -1,7 +1,7 @@
 use super::{
     NESTED_WRAPPER_SOURCE, ObserveSettlement, artifact, assert_constructed_wrapper_execution,
-    constructed_wrapper_source, source, start, start_with_scalars, unit_wrapper_artifact,
-    unit_wrapper_source, unsigned,
+    constructed_wrapper_source, is_ordinary_scalar_call, is_ordinary_structural_call, source,
+    start, start_with_scalars, unit_wrapper_artifact, unit_wrapper_source, unsigned,
 };
 use crate::structural_return_source::{
     TerminalEffect, TerminalExecutionResult, TerminalExecutionStatus, TerminalFuelMeter,
@@ -173,11 +173,7 @@ fn nested_wrapper_rejects_reordered_producers_and_scalar_binding_drift() {
             .iter()
             .enumerate()
             .filter_map(|(index, operation)| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                )
-                .then_some(index)
+                is_ordinary_structural_call(operation).then_some(index)
             })
             .collect::<Vec<_>>();
         let [inner, outer] = producers.as_slice() else {
@@ -186,35 +182,30 @@ fn nested_wrapper_rejects_reordered_producers_and_scalar_binding_drift() {
         match mutation {
             0 => plan.operations.swap(*inner, *outer),
             1 => {
-                let CheckedUnitEffectOperationPlan::StructuralCall { source_site, .. } =
-                    plan.operations[*inner]
-                else {
-                    unreachable!();
-                };
-                let CheckedUnitEffectOperationPlan::StructuralCall {
-                    source_site: changed_site,
-                    ..
-                } = &mut plan.operations[*outer]
-                else {
-                    unreachable!();
-                };
+                let source_site = plan.operations[*inner]
+                    .call()
+                    .and_then(|call| call.source_site())
+                    .expect("an ordinary structural call retains its source site");
+                let changed_site = plan.operations[*outer]
+                    .call_mut()
+                    .and_then(|call| call.source_site_mut())
+                    .expect("an ordinary structural call retains its source site");
                 *changed_site = source_site;
             }
             2 | 3 => {
-                let CheckedUnitEffectOperationPlan::ScalarCall {
-                    result,
-                    scalar_arguments,
-                    ..
-                } = &mut plan.operations[*outer + 1]
-                else {
+                let operation = &mut plan.operations[*outer + 1];
+                if !is_ordinary_scalar_call(operation) {
                     panic!("enclosing wrapper publishes a scalar local");
-                };
+                }
+                let call = operation.call_mut().expect("ordinary scalar call");
                 if mutation == 2 {
-                    result.binding_ordinal += 1;
+                    call.scalar_result_mut()
+                        .expect("scalar call result")
+                        .binding_ordinal += 1;
                 } else {
                     // Only `before` is a source binding at this statement.
                     // Slot one exists during staging, but must not be readable.
-                    scalar_arguments[1] = checked_trees::CheckedCallScalarArgument::Pure(
+                    call.scalar_arguments[1] = checked_trees::CheckedCallScalarArgument::Pure(
                         checked_trees::CheckedScalarExpression::Local {
                             position: 1,
                             primitive_type: typed_trees::types::PrimitiveType::U16,
@@ -252,13 +243,10 @@ fn nested_wrapper_computation_cannot_read_a_private_argument_slot() {
         .unwrap()
         .operations
         .iter()
-        .find_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::ScalarCall {
-                result,
-                scalar_arguments,
-                ..
-            } if result.binding_ordinal == 1 => Some(scalar_arguments[1].clone()),
-            _ => None,
+        .filter(|operation| is_ordinary_scalar_call(operation))
+        .filter_map(CheckedUnitEffectOperationPlan::call)
+        .find_map(|call| {
+            (call.scalar_result()?.binding_ordinal == 1).then(|| call.scalar_arguments[1].clone())
         })
         .unwrap();
     let checked_trees::CheckedCallScalarArgument::Computation(computation) = argument else {

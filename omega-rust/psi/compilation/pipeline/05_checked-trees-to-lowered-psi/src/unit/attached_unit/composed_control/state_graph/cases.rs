@@ -105,24 +105,8 @@ fn result_source<'a>(
             let mut matching = state
                 .operations
                 .iter()
-                .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                        result,
-                        discard_result_on_return: false,
-                        ..
-                    } if result.binding_ordinal == binding_ordinal => Some(result),
-                    _ => None,
-                });
+                .filter_map(super::result_custody::result)
+                .filter(|result| result.binding_ordinal == binding_ordinal);
             let result = matching.next().ok_or(LoweringError::Unsupported(
                 "Unit case result producer missing",
             ))?;

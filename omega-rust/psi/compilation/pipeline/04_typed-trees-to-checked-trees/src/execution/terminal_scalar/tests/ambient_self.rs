@@ -74,12 +74,10 @@ fn unread_multistate_receiver_keeps_its_unit_graph_and_callers() {
         .expect("the Unit caller of the multi-state callee keeps its plan");
     assert!(matches!(
         run.operations.first(),
-        Some(CheckedUnitEffectOperationPlan::ScalarCall {
-            target_machine,
-            structural_arguments,
-            ..
-        }) if *target_machine == proc
-            && matches!(structural_arguments.as_slice(), [receiver]
+        Some(CheckedUnitEffectOperationPlan::Call(call)) if !call.is_boundary()
+            && call.scalar_result().is_some()
+            && call.target.machine == proc
+            && matches!(call.structural_arguments.as_slice(), [receiver]
                 if receiver.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
     ));
 }

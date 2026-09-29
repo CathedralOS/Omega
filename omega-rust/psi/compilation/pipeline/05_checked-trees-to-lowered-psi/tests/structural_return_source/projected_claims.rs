@@ -147,23 +147,14 @@ fn projected_claims_reject_changed_checked_custody() {
                 result.projected_qualifications.clear();
             }
             _ => {
-                let operation = plan
+                // Only an ordinary structural call retains structural custody.
+                let custody = plan
                     .states
                     .iter_mut()
                     .flat_map(|state| &mut state.operations)
-                    .find(|operation| {
-                        matches!(
-                            operation,
-                            checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                        )
-                    })
+                    .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+                    .find_map(|call| call.structural_custody_mut())
                     .unwrap();
-                let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
-                    custody, ..
-                } = operation
-                else {
-                    unreachable!()
-                };
                 match mutation {
                     "missing_transfer" => {
                         custody.claim_transfers.pop();

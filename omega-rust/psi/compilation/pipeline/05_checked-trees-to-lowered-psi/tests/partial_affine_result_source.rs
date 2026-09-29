@@ -1,6 +1,6 @@
 use checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralPathSegment,
+    CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralPathSegment,
 };
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -227,6 +227,17 @@ fn path(parts: &[&str]) -> Vec<StructuralPathSegment> {
             Err(_) => StructuralPathSegment::Field((*part).into()),
         })
         .collect()
+}
+
+/// The first ordinary (non-boundary) call that binds no result.
+fn first_ordinary_unit_call(
+    operations: &mut [CheckedUnitEffectOperationPlan],
+) -> &mut CheckedUnitCallPlan {
+    operations
+        .iter_mut()
+        .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+        .find(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+        .unwrap()
 }
 
 fn anonymous_source(boundary: bool, nested: bool, body: &str) -> String {
@@ -634,59 +645,31 @@ fn checked_result_root_paths_and_complement_rejoin_authored_custody() {
                     .type_identity
                     .push_str("::wrong"),
                 4 => {
-                    let operation = plan
-                        .machine
-                        .operations
-                        .iter_mut()
-                        .find(|operation| {
-                            matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                        })
-                        .unwrap();
-                    let CheckedUnitEffectOperationPlan::CallUnit {
-                        structural_arguments,
-                        ..
-                    } = operation
-                    else {
-                        unreachable!()
-                    };
-                    structural_arguments[0].path =
+                    let call = first_ordinary_unit_call(&mut plan.machine.operations);
+                    call.structural_arguments[0].path =
                         vec![CheckedUnitStructuralPathSegment::Field("left".into())];
                     plan.residual_affine_discards[0].path =
                         vec![CheckedUnitStructuralPathSegment::Field("right".into())];
                 }
                 5 => {
-                    let operation = plan
-                        .machine
-                        .operations
-                        .iter_mut()
-                        .find(|operation| {
-                            matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                        })
-                        .unwrap();
-                    let CheckedUnitEffectOperationPlan::CallUnit {
-                        structural_arguments,
-                        ..
-                    } = operation
-                    else {
-                        unreachable!()
-                    };
-                    structural_arguments[0].source =
+                    let call = first_ordinary_unit_call(&mut plan.machine.operations);
+                    call.structural_arguments[0].source =
                         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 };
                 }
                 6 => {
-                    let (CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        coordinate, ..
-                    }) = &mut plan.machine.operations[0]
+                    // An ordinary or boundary call with a structural result.
+                    let Some(call) = plan.machine.operations[0]
+                        .call_mut()
+                        .filter(|call| call.structural_result().is_some())
                     else {
                         unreachable!()
                     };
-                    coordinate.call_ordinal += 1;
+                    call.coordinate.call_ordinal += 1;
                 }
                 7 => {
-                    let (CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }) =
-                        &mut plan.machine.operations[0]
+                    let Some((result, _)) = plan.machine.operations[0]
+                        .call_mut()
+                        .and_then(|call| call.structural_result_mut())
                     else {
                         unreachable!()
                     };

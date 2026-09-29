@@ -1,12 +1,12 @@
 //! Immediate binary Unit control over one direct named-dynamic scalar result.
 use super::super::{
     CheckFacts, CheckedBooleanExpression, CheckedBoundaryMachinePlan, CheckedScalarExpression,
-    CheckedScalarExpressionRole, CheckedUnitEffectOperationPlan,
-    CheckedUnitScalarResultBindingPlan, PrimitiveType, StatementNode, TransitionExit,
-    TransitionGuardNode, TypedTrees,
+    CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan, PrimitiveType, StatementNode,
+    TransitionExit, TransitionGuardNode, TypedTrees,
 };
 use crate::execution::terminal_unit::calls::structural_scalar_signature;
 use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
+use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
 
 use crate::execution::terminal_unit::types::{
     ShapeCollector, is_unit, machine_binders, state_flow,
@@ -161,14 +161,17 @@ pub(crate) fn build(
         )?,
     ];
     if leaves.iter().any(|leaf| {
-        leaf.operations.iter().any(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { .. } => false,
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                claim_transfers,
-                ..
-            } => !structural_arguments.is_empty() || !claim_transfers.is_empty(),
-            _ => true,
+        leaf.operations.iter().any(|operation| {
+            let Some(call) = operation.call() else {
+                return true;
+            };
+            match (call.route(), call.result()) {
+                (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => false,
+                (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Unit) => {
+                    !call.structural_arguments.is_empty() || !call.claim_transfers().is_empty()
+                }
+                _ => true,
+            }
         })
     }) {
         return None;

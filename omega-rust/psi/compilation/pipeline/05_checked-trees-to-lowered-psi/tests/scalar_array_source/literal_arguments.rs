@@ -400,13 +400,13 @@ fn literal_array_constructor_sources_reject_forged_call_formal_and_empty_owners(
                 let arguments = plan
                     .operations
                     .iter_mut()
-                    .find_map(|operation| match operation {
-                        CheckedUnitEffectOperationPlan::StructuralCall {
-                            structural_arguments,
-                            ..
-                        } if structural_arguments.len() == 2 => Some(structural_arguments),
-                        _ => None,
+                    .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                    .find(|call| {
+                        !call.is_boundary()
+                            && call.structural_result().is_some()
+                            && call.structural_arguments.len() == 2
                     })
+                    .map(|call| &mut call.structural_arguments)
                     .expect("two same-typed literal actuals");
                 arguments.swap(0, 1);
             } else {
@@ -488,10 +488,13 @@ fn literal_array_nested_producers_cannot_impersonate_the_returned_call_result() 
                         result,
                         ..
                     } if constructor => Some(result.binding_ordinal),
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        coordinate, result, ..
-                    } if !constructor && coordinate.call_ordinal != 0 => {
-                        Some(result.binding_ordinal)
+                    CheckedUnitEffectOperationPlan::Call(call)
+                        if !constructor
+                            && !call.is_boundary()
+                            && call.coordinate.call_ordinal != 0 =>
+                    {
+                        call.structural_result()
+                            .map(|result| result.binding_ordinal)
                     }
                     _ => None,
                 })

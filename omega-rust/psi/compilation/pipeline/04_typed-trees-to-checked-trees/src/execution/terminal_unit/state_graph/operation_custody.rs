@@ -8,6 +8,7 @@ use super::{
     CheckedStructuralAccess, CheckedUnitEffectOperationPlan, Multiplicity, StatementNode,
     TypedTrees, call_argument_admitted, call_custody_refusal, control,
 };
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute};
 
 pub(super) fn admit(
     program: &TypedTrees,
@@ -20,29 +21,14 @@ pub(super) fn admit(
     // selected edge owns their exact transfer/disposal partition below;
     // one global return-discard flag cannot express asymmetric successors.
     for operation in operations.iter_mut() {
-        match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                result,
-                discard_result_on_return,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                result,
-                discard_result_on_return,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                result,
-                discard_result_on_return,
-                ..
-            } if matches!(
+        if let Some((result, discard_result_on_return)) =
+            operation.discardable_structural_result_mut()
+            && matches!(
                 statements.get(result.statement_index as usize),
                 Some(StatementNode::LocalData(_))
-            ) =>
-            {
-                *discard_result_on_return = false
-            }
-            _ => {}
+            )
+        {
+            *discard_result_on_return = false
         }
     }
     for (operation_index, operation) in operations.iter().enumerate() {
@@ -55,38 +41,9 @@ pub(super) fn admit(
             return None;
         }
         match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            } if structural_arguments.iter().all(|argument| {
-                call_argument_admitted(argument, &operations[..operation_index])
-            }) => {}
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                claim_transfers,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                claim_transfers,
-                ..
-            } if claim_transfers.is_empty()
-                && structural_arguments.iter().all(|argument| {
-                    call_argument_admitted(argument, &operations[..operation_index])
-                }) => {}
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            CheckedUnitEffectOperationPlan::Call(call)
+                if call_custody_admitted(call, &operations[..operation_index]) => {}
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 discard_result_on_return: false,
                 ..
             }
@@ -164,27 +121,16 @@ pub(super) fn admit(
                 }) && operations[..operation_index]
                     .iter()
                     .rev()
-                    .find(|operation| {
-                        matches!(
-                            operation,
-                            CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                                    ..
-                                }
-                                | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                                    ..
-                                }
-                        )
+                    .find(|operation| match operation {
+                        // Any call with a structural result, ordinary or boundary.
+                        CheckedUnitEffectOperationPlan::Call(call) => {
+                            call.structural_result().is_some()
+                        }
+                        CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => true,
+                        _ => false,
                     })
                     .is_some_and(|producer| match producer {
-                        CheckedUnitEffectOperationPlan::StructuralCall {
-                            coordinate: call,
-                            ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                            coordinate: call,
-                            ..
-                        } => call == coordinate,
+                        CheckedUnitEffectOperationPlan::Call(call) => call.coordinate == *coordinate,
                         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                             result,
                             ..
@@ -199,33 +145,27 @@ pub(super) fn admit(
                 // edges cannot yet carry; admitted families never reach
                 // this arm.
                 trace.phase(match operation {
-                    CheckedUnitEffectOperationPlan::BoundaryCall { .. } => {
-                        "state graph: operation custody: boundary call arguments"
-                    }
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        structural_arguments,
-                        claim_transfers,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::ScalarCall {
-                        structural_arguments,
-                        claim_transfers,
-                        ..
-                    } => call_custody_refusal(
-                        structural_arguments,
-                        claim_transfers,
-                        &operations[..operation_index],
-                    ),
-                    CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                    | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
+                    CheckedUnitEffectOperationPlan::Call(call) => match (call.route(), call.result()) {
+                        (_, CheckedUnitCallResult::Structural { .. }) => {
+                            "state graph: operation custody: discarded structural result"
+                        }
+                        (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
+                            "state graph: operation custody: boundary call arguments"
+                        }
+                        (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Scalar(_)) => {
+                            "state graph: operation custody: scalar call"
+                        }
+                        (CheckedUnitCallRoute::Module { .. }, _) => call_custody_refusal(
+                            &call.structural_arguments,
+                            call.claim_transfers(),
+                            &operations[..operation_index],
+                        ),
+                    },
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                         "state graph: operation custody: discarded structural result"
                     }
                     CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
                         "state graph: operation custody: continuation cleanup owner"
-                    }
-                    CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. } => {
-                        "state graph: operation custody: scalar call"
                     }
                     CheckedUnitEffectOperationPlan::EstablishReference { .. }
                     | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
@@ -244,4 +184,33 @@ pub(super) fn admit(
         }
     }
     Some(())
+}
+
+/// Whether the selected edges of a composed state can carry one call's
+/// custody. A structural result must stay live for its edge to own; a
+/// boundary call completes its receipts at the call; an ordinary call may not
+/// transfer claims across the edge. Every structural operand except a
+/// structural result's must already be admitted.
+fn call_custody_admitted(
+    call: &CheckedUnitCallPlan,
+    earlier: &[CheckedUnitEffectOperationPlan],
+) -> bool {
+    let arguments_admitted = || {
+        call.structural_arguments
+            .iter()
+            .all(|argument| call_argument_admitted(argument, earlier))
+    };
+    match (call.route(), call.result()) {
+        (
+            _,
+            CheckedUnitCallResult::Structural {
+                discard_result_on_return,
+                ..
+            },
+        ) => !discard_result_on_return,
+        (CheckedUnitCallRoute::Boundary, _) => arguments_admitted(),
+        (CheckedUnitCallRoute::Module { .. }, _) => {
+            call.claim_transfers().is_empty() && arguments_admitted()
+        }
+    }
 }

@@ -48,8 +48,14 @@ pub(super) fn statement_index(
 pub(super) fn coordinate(
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<CheckedUnitCallCoordinate, LoweringError> {
-    match operation {
-        CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } => Ok(*coordinate),
+    // A scalar graph retains only ordinary Unit calls.
+    match operation.call() {
+        Some(call)
+            if !call.is_boundary()
+                && *call.result() == checked_trees::CheckedUnitCallResult::Unit =>
+        {
+            Ok(call.coordinate)
+        }
         _ => unsupported("scalar graph retained an unsupported Unit operation"),
     }
 }
@@ -62,21 +68,29 @@ pub(super) fn prepare(
     bindings: &storage::ScalarBindings,
     value_types: &[QualifiedScalarType],
 ) -> Result<Prepared, LoweringError> {
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        service_reach,
-        scalar_arguments,
-        erased_scalar_arguments,
-        erased_proof_arguments,
-        structural_arguments,
-        claim_transfers,
-    } = operation
+    let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
+        .call()
+        .filter(|call| {
+            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        })
+        .and_then(|call| {
+            Some((
+                call,
+                call.erased_scalar_arguments()?,
+                call.erased_proof_arguments()?,
+            ))
+        })
     else {
         return unsupported("scalar graph requires an ordinary Unit operation");
     };
+    let coordinate = &call.coordinate;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let target_contract_report_fingerprint = &call.target.contract_report_fingerprint;
+    let service_reach = &call.target.service_reach;
+    let scalar_arguments = &call.scalar_arguments;
+    let structural_arguments = &call.structural_arguments;
+    let claim_transfers = call.claim_transfers();
     if !erased_scalar_arguments.is_empty() {
         return unsupported("scalar graph Unit call has no erased argument lane");
     }

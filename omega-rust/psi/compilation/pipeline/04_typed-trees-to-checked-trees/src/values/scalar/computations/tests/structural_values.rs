@@ -2,7 +2,7 @@ use super::PrimitiveType;
 use crate::tests::front_end::{checked_program, checked_program_result};
 use crate::values::scalar::computations::tests::checked_source;
 use checked_trees::{
-    CheckedComposedUnitControlTerminatorPlan, CheckedStructuralValueKind,
+    CheckedComposedUnitControlTerminatorPlan, CheckedStructuralValueKind, CheckedUnitCallResult,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentSourcePlan,
 };
 
@@ -284,7 +284,7 @@ fn scalar_prefix_and_call_preserve_later_structural_and_scalar_binding_identity(
         .expect("prefix and call graph");
     let state = &machine.states[0];
     let [
-        CheckedUnitEffectOperationPlan::CallUnit { .. },
+        CheckedUnitEffectOperationPlan::Call(call),
         CheckedUnitEffectOperationPlan::EstablishStructuralValue {
             result,
             discard_result_on_return: false,
@@ -298,6 +298,11 @@ fn scalar_prefix_and_call_preserve_later_structural_and_scalar_binding_identity(
             state.operations
         );
     };
+    assert!(
+        !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit,
+        "ordered call, structural local, scalar local: {:?}",
+        state.operations
+    );
     assert_eq!(scalar.binding_ordinal, 1);
     assert_eq!(scalar.statement_index, 3);
     let CheckedComposedUnitControlTerminatorPlan::ReturnStructural { result: returned } =

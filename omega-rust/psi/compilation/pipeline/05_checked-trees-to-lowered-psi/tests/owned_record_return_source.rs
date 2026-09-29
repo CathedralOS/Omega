@@ -41,7 +41,7 @@ fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution()
         .into_artifact();
         for mutation in 0..3 {
             let mut invalid = checked.clone();
-            let operation = invalid
+            let call = invalid
                 .facts
                 .flow
                 .terminal_unit_effects
@@ -49,21 +49,11 @@ fn owned_record_call_replay_rejects_same_type_argument_and_access_substitution()
                 .iter_mut()
                 .flat_map(|machine| &mut machine.states)
                 .flat_map(|state| &mut state.operations)
-                .find(|operation| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                    )
-                })
+                .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                .find(|call| !call.is_boundary() && call.structural_result().is_some())
                 .unwrap();
-            let CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                coordinate,
-                ..
-            } = operation
-            else {
-                unreachable!()
-            };
+            let structural_arguments = &mut call.structural_arguments;
+            let coordinate = &mut call.coordinate;
             match mutation {
                 0 => {
                     structural_arguments[0].source =

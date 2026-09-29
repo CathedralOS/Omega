@@ -9,6 +9,7 @@ mod unit_and_scalar_cleanup;
 use crate::tests::flow::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, Multiplicity, machine_named,
 };
+use checked_trees::CheckedUnitCallResult;
 
 fn fixed_cleanup_path(indexes: &[u64]) -> Vec<CheckedUnitStructuralPathSegment> {
     indexes
@@ -49,27 +50,23 @@ fn assert_token_cleanup_partition(
     for (ordinal, (operation, expected_path)) in
         plan.machine.operations.iter().zip(moved_paths).enumerate()
     {
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            structural_arguments,
-            scalar_arguments,
-            claim_transfers,
-            ..
-        } = operation
+        let Some(call) = operation
+            .call()
+            .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
         else {
             panic!("{machine} must preserve each authored Unit call")
         };
         assert_eq!(
-            usize::try_from(coordinate.statement_index),
+            usize::try_from(call.coordinate.statement_index),
             Ok(ordinal),
             "{machine}"
         );
-        assert_eq!(coordinate.call_ordinal, 0, "{machine}");
+        assert_eq!(call.coordinate.call_ordinal, 0, "{machine}");
         assert!(
-            scalar_arguments.is_empty() && claim_transfers.is_empty(),
+            call.scalar_arguments.is_empty() && call.claim_transfers().is_empty(),
             "{machine}"
         );
-        let [argument] = structural_arguments.as_slice() else {
+        let [argument] = call.structural_arguments.as_slice() else {
             panic!("{machine} must move one projection per call")
         };
         assert_eq!(argument.source_parameter_index(), Some(0), "{machine}");

@@ -23,13 +23,25 @@ mod shared_temporary;
 pub(super) use continuation::validate_cleanup;
 pub(super) use result_uses::{validate_consumer, validate_usage};
 
+/// An ordinary structural call: its plan, result binding and custody.
+fn ordinary_structural_call(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<(
+    &checked_trees::CheckedUnitCallPlan,
+    &checked_trees::CheckedUnitStructuralResultBindingPlan,
+    &checked_trees::CheckedStructuralCallCustodyPlan,
+)> {
+    let call = operation.call().filter(|call| !call.is_boundary())?;
+    Some((call, call.structural_result()?, call.structural_custody()?))
+}
+
 pub(crate) fn validate_custody(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::StructuralCall { custody, .. } = operation else {
+    let Some((_, _, custody)) = ordinary_structural_call(operation) else {
         return Ok(());
     };
     let reconstructed = validation::reconstruct_structural_call_custody(
@@ -53,33 +65,28 @@ pub(super) fn validate_body_result(
     operation: &CheckedUnitEffectOperationPlan,
     expected: checked_trees::CheckedControlResultPlan,
 ) -> Result<(), LoweringError> {
-    match operation {
-        CheckedUnitEffectOperationPlan::CallUnit { .. }
-            if expected == checked_trees::CheckedControlResultPlan::Unit =>
-        {
-            Ok(())
-        }
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            result,
-            target_machine,
-            target_contract_commitment,
-            custody,
-            ..
-        } => {
+    let unit_call = operation.call().is_some_and(|call| {
+        !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    });
+    match ordinary_structural_call(operation) {
+        None if unit_call && expected == checked_trees::CheckedControlResultPlan::Unit => Ok(()),
+        Some((call, result, custody)) => {
             let checked_trees::CheckedControlResultPlan::Structural(signature) = expected else {
                 return unsupported("structural call has no matching body result");
             };
             let contract = checked
                 .facts
                 .contract_plans
-                .for_machine(*target_machine)
+                .for_machine(call.target.machine)
                 .ok_or(LoweringError::Unsupported(
                     "structural call contract missing",
                 ))?;
+            let Some(target_contract_commitment) = call.contract_commitment() else {
+                return unsupported("structural call result or commitment disagrees with its body");
+            };
             if target_contract_commitment.is_zero()
-                || *target_contract_commitment != contract.commitment
-                || result.statement_index != coordinate.statement_index
+                || target_contract_commitment != contract.commitment
+                || result.statement_index != call.coordinate.statement_index
                 || result.type_identity != signature.type_identity
                 || result.multiplicity != signature.multiplicity
                 || signature.qualifications != custody.result_qualifications
@@ -118,22 +125,20 @@ pub(super) fn validate(
     caller: &CallerView<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate,
-        source_site,
-        result,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        target_contract_commitment,
-        service_reach,
-        scalar_arguments,
-        structural_arguments,
-        ..
-    } = operation
-    else {
+    let Some((call, result, _)) = ordinary_structural_call(operation) else {
         return unsupported("ordinary structural validation requires a structural call");
     };
+    let Some(target_contract_commitment) = call.contract_commitment() else {
+        return unsupported("ordinary structural validation requires a structural call");
+    };
+    let coordinate = &call.coordinate;
+    let source_site = call.source_site().flatten();
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let target_contract_report_fingerprint = &call.target.contract_report_fingerprint;
+    let service_reach = &call.target.service_reach;
+    let scalar_arguments = &call.scalar_arguments;
+    let structural_arguments = &call.structural_arguments;
     retain_exact_flow_call(
         checked,
         caller.machine,
@@ -163,7 +168,7 @@ pub(super) fn validate(
     if target_contract_commitment.is_zero()
         || *target_contract_report_fingerprint == 0
         || contract.report_fingerprint != *target_contract_report_fingerprint
-        || contract.commitment != *target_contract_commitment
+        || contract.commitment != target_contract_commitment
         || reaches.as_slice() != [*service_reach]
         || !checked
             .facts
@@ -210,7 +215,7 @@ pub(super) fn validate(
         caller.state,
         *coordinate,
     )?;
-    if *source_site != authored.source_site || source_machine.symbol != caller.machine {
+    if source_site != authored.source_site || source_machine.symbol != caller.machine {
         return unsupported("ordinary structural result disagrees with its authored expression");
     }
     crate::emission::call_source_custody::initializers::validate_structural(
@@ -297,19 +302,17 @@ pub(super) fn emit(
     next_value: &mut u64,
     calls: Option<&mut CallEmissionContext<'_>>,
 ) -> Result<(StructuralPlaceDeclaration, bool), LoweringError> {
-    let CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate,
-        source_site,
-        result,
-        target_machine,
-        target_state,
-        structural_arguments,
-        discard_result_on_return,
-        ..
-    } = operation
-    else {
+    let Some((call, result, _)) = ordinary_structural_call(operation) else {
         return unsupported("ordinary structural emission requires a structural call");
     };
+    let Some(discard_result_on_return) = call.discard_result_on_return() else {
+        return unsupported("ordinary structural emission requires a structural call");
+    };
+    let coordinate = &call.coordinate;
+    let source_site = call.source_site().flatten();
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let structural_arguments = &call.structural_arguments;
     if usize::try_from(result.binding_ordinal).ok() != Some(earlier_results.len()) {
         return unsupported("ordinary structural result binding ordinal drifted from source order");
     }
@@ -378,7 +381,7 @@ pub(super) fn emit(
                 LoweringError::Unsupported("ordinary structural call ordinal exceeds usize")
             })?,
         },
-        *source_site,
+        source_site,
         id,
         *target_machine,
     )?;
@@ -415,6 +418,6 @@ pub(super) fn emit(
                 structural_type,
             },
         },
-        *discard_result_on_return,
+        discard_result_on_return,
     ))
 }

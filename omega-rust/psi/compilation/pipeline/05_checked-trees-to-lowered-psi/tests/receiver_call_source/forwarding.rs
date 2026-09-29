@@ -51,19 +51,19 @@ fn transitive_write_only_self_calls_retain_receivers_in_every_declaration_order(
         }
         for pair in plans.windows(2) {
             let [
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    target_machine,
-                    scalar_arguments,
-                    structural_arguments,
-                    ..
-                },
+                CheckedUnitEffectOperationPlan::Call(call),
                 CheckedUnitEffectOperationPlan::Complete { .. },
             ] = pair[0].operations.as_slice()
             else {
                 panic!("forwarding plan retains its exact call and return: {order:?}")
             };
-            assert_eq!(*target_machine, pair[1].machine);
-            assert!(scalar_arguments.is_empty());
+            assert!(
+                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit,
+                "forwarding plan retains its exact ordinary Unit call: {order:?}"
+            );
+            let structural_arguments = &call.structural_arguments;
+            assert_eq!(call.target.machine, pair[1].machine);
+            assert!(call.scalar_arguments.is_empty());
             let [argument] = structural_arguments.as_slice() else {
                 panic!("each call forwards exactly one receiver: {order:?}")
             };

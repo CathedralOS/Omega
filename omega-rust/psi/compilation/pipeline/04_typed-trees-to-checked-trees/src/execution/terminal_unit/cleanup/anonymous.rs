@@ -15,6 +15,7 @@ use crate::execution::terminal_unit::cleanup::partial_affine_cleanup::partial_af
 use crate::execution::terminal_unit::types::{
     ShapeCollector, base_type_identity, machine_binders, state_flow,
 };
+use checked_trees::CheckedUnitCallResult;
 
 pub(in crate::execution::terminal_unit) fn binding(
     program: &TypedTrees,
@@ -323,16 +324,15 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     temporaries: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     operations: &mut Vec<CheckedUnitEffectOperationPlan>,
 ) -> Option<()> {
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate,
-        target_machine,
-        target_state,
-        structural_arguments,
-        ..
-    } = operations.last()?
-    else {
-        return None;
-    };
+    // Only an ordinary Unit call owns an anonymous-temporary continuation.
+    let call = operations
+        .last()?
+        .call()
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)?;
+    let coordinate = &call.coordinate;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let structural_arguments = &call.structural_arguments;
     if coordinate.call_ordinal != 0
         || machine_has_content_evidence(facts, machine.symbol, state.symbol)
         || facts
@@ -434,25 +434,17 @@ pub(in crate::execution::terminal_unit) fn append_continuation(
     }
     let coordinate = *coordinate;
     for (result, _) in temporaries {
-        let mut producers = operations
-            .iter_mut()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate,
-                    result: produced,
-                    discard_result_on_return,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate,
-                    result: produced,
-                    discard_result_on_return,
-                    ..
-                } if produced.binding_ordinal == result.binding_ordinal => {
-                    Some((coordinate, produced, discard_result_on_return))
-                }
-                _ => None,
-            });
+        // Any call with a structural result, ordinary or boundary.
+        let mut producers = operations.iter_mut().filter_map(|operation| {
+            let call = operation.call_mut()?;
+            let coordinate = call.coordinate;
+            let (produced, discard_result_on_return) = call.structural_result_mut()?;
+            (produced.binding_ordinal == result.binding_ordinal).then_some((
+                coordinate,
+                produced,
+                discard_result_on_return,
+            ))
+        });
         let (producer_coordinate, produced, discard_on_return) = producers.next()?;
         if producers.next().is_some()
             || producer_coordinate.statement_index != coordinate.statement_index

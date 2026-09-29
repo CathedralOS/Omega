@@ -87,14 +87,14 @@ pub(super) fn reconcile(
                     let Some(call) = operation.call().filter(|call| !call.is_boundary()) else {
                         return false;
                     };
-                    retained.contains(&call.target_state())
+                    retained.contains(&call.target.state)
                         && receiver_place(
                             program,
                             facts,
                             plan.machine,
                             plan.state,
-                            call.coordinate(),
-                            call.target_state(),
+                            call.coordinate,
+                            call.target.state,
                         )
                         .is_some_and(|place| {
                             is_self_root(program, plan.machine, plan.state, &place)
@@ -256,69 +256,24 @@ fn reconcile_operands(
             let results = operations
                 .iter()
                 .filter_map(|operation| match operation {
-                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-                    | CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } => {
+                    CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => {
                         Some(result.clone())
                     }
+                    CheckedUnitEffectOperationPlan::Call(call) => call.structural_result().cloned(),
                     _ => None,
                 })
                 .collect::<Vec<_>>();
             for operation in operations {
-                let (
-                    coordinate,
-                    target_machine,
-                    target_state,
-                    structural_arguments,
-                    claim_transfers,
-                    is_scalar,
-                ) = match operation {
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        structural_arguments,
-                        claim_transfers,
-                        ..
-                    } => (
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        structural_arguments,
-                        Some(claim_transfers),
-                        false,
-                    ),
-                    CheckedUnitEffectOperationPlan::ScalarCall {
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        structural_arguments,
-                        claim_transfers,
-                        ..
-                    } => (
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        structural_arguments,
-                        Some(claim_transfers),
-                        true,
-                    ),
-                    CheckedUnitEffectOperationPlan::StructuralCall {
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        structural_arguments,
-                        ..
-                    } => (
-                        coordinate,
-                        target_machine,
-                        target_state,
-                        structural_arguments,
-                        None,
-                        false,
-                    ),
-                    _ => continue,
+                // Only ordinary calls retain a receiver operand.
+                let Some(call) = operation.call_mut().filter(|call| !call.is_boundary()) else {
+                    continue;
                 };
+                let coordinate = call.coordinate;
+                let target_machine = call.target.machine;
+                let target_state = call.target.state;
+                let is_scalar = call.scalar_result().is_some();
+                // A structural call's custody claims keep their argument indices.
+                let shifts_claim_transfers = call.structural_result().is_none();
                 // A borrowed `self` stays ambient on the attachment carrier
                 // for a scalar-graph callee: its graph keeps no receiver
                 // slot, so calls dispatched there take no receiver operand.
@@ -326,10 +281,10 @@ fn reconcile_operands(
                     && facts
                         .flow
                         .terminal_scalar_graphs
-                        .for_machine(*target_machine)
+                        .for_machine(target_machine)
                         .is_some_and(|graph| {
                             graph.states.iter().any(|state| {
-                                state.state == *target_state
+                                state.state == target_state
                                     && state
                                         .structural_parameters
                                         .iter()
@@ -341,24 +296,18 @@ fn reconcile_operands(
                 }
                 let Some((_, _, receiver_index, target, count)) =
                     retained.iter().find(|(machine, state, ..)| {
-                        machine == target_machine && state == target_state
+                        *machine == target_machine && *state == target_state
                     })
                 else {
                     continue;
                 };
                 let Some(place) =
-                    receiver_place(program, facts, machine, state, *coordinate, *target_state)
+                    receiver_place(program, facts, machine, state, coordinate, target_state)
                 else {
                     return false;
                 };
                 let Some(argument) = receiver_argument(
-                    program,
-                    machine,
-                    state,
-                    *coordinate,
-                    parameters,
-                    &place,
-                    target,
+                    program, machine, state, coordinate, parameters, &place, target,
                 )
                 .or_else(|| {
                     result_receiver_argument(
@@ -366,8 +315,8 @@ fn reconcile_operands(
                         facts,
                         machine,
                         state,
-                        *coordinate,
-                        *target_state,
+                        coordinate,
+                        target_state,
                         &results,
                         &place,
                         target,
@@ -375,15 +324,18 @@ fn reconcile_operands(
                 }) else {
                     return false;
                 };
-                if structural_arguments.len().checked_add(1) != Some(*count)
-                    || *receiver_index > structural_arguments.len()
+                if call.structural_arguments.len().checked_add(1) != Some(*count)
+                    || *receiver_index > call.structural_arguments.len()
                 {
                     return false;
                 }
-                structural_arguments.insert(*receiver_index, argument);
+                call.structural_arguments.insert(*receiver_index, argument);
+                if !shifts_claim_transfers {
+                    continue;
+                }
                 // A retained receiver is a loan. Preserve the indices of any
                 // ownership transfers belonging to the other arguments.
-                for transfer in claim_transfers.into_iter().flatten() {
+                for transfer in call.claim_transfers_mut() {
                     if transfer.argument_index as usize >= *receiver_index {
                         let Some(position) = transfer.argument_index.checked_add(1) else {
                             return false;

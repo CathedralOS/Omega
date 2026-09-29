@@ -194,21 +194,17 @@ pub(super) fn available_target(
     caller: &ScalarCallSite<'_>,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Option<AvailableScalarTarget> {
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        result,
-        target_machine,
-        target_state,
-        target_contract_report_fingerprint,
-        target_contract_commitment,
-        scalar_arguments,
-        structural_arguments,
-        claim_transfers,
-        coordinate,
-        ..
-    } = operation
-    else {
-        return None;
-    };
+    // Only an ordinary scalar call resolves a scalar target.
+    let planned = operation.call().filter(|call| !call.is_boundary())?;
+    let result = planned.scalar_result()?;
+    let target_machine = &planned.target.machine;
+    let target_state = &planned.target.state;
+    let target_contract_report_fingerprint = &planned.target.contract_report_fingerprint;
+    let target_contract_commitment = planned.contract_commitment();
+    let scalar_arguments = &planned.scalar_arguments;
+    let structural_arguments = &planned.structural_arguments;
+    let claim_transfers = planned.claim_transfers();
+    let coordinate = &planned.coordinate;
     if let Some(graph) = facts
         .flow
         .terminal_scalar_graphs
@@ -431,13 +427,15 @@ pub(super) fn available_target(
             || plan.scalar_result.as_ref().is_some_and(|completion| {
                 plan.operations
                     .iter()
-                    .filter(|operation| {
-                        matches!(operation,
-                            CheckedUnitEffectOperationPlan::ScalarCall { result, .. }
-                            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { result, .. }
-                            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
-                                if result == completion
-                        )
+                    .filter(|operation| match operation {
+                        // Any call with a scalar result, ordinary or boundary.
+                        CheckedUnitEffectOperationPlan::Call(call) => {
+                            call.scalar_result() == Some(completion)
+                        }
+                        CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+                            result == completion
+                        }
+                        _ => false,
                     })
                     .count()
                     != 1
@@ -549,9 +547,10 @@ pub(super) fn available_target(
                         Some(facts.values.structural_values.nodes.get(*value).expression),
                     )
                 }),
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+            CheckedUnitEffectOperationPlan::Call(call) => {
+                call.structural_result().map(|result| (result, None))
+            }
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } => {
                 Some((result, None))
             }
@@ -583,7 +582,7 @@ pub(super) fn available_target(
             structural_arguments,
             PermissionEventKind::Transfer,
         )
-        .as_ref()
+        .as_deref()
             != Some(claim_transfers)
     {
         return None;
@@ -629,6 +628,6 @@ pub(super) fn available_target(
         && result_type == result.primitive_type
         && program.primitive_type_reference(state.return_type) == Some(result_type)
         && contract.report_fingerprint == *target_contract_report_fingerprint
-        && contract.commitment == *target_contract_commitment)
+        && Some(contract.commitment) == target_contract_commitment)
         .then_some(availability)
 }

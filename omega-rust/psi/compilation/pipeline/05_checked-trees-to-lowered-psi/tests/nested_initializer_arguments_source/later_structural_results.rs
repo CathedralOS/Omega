@@ -56,27 +56,31 @@ fn later_structural_boundary_rejoins_each_authored_local_and_result_ordinal() {
                 .iter_mut()
                 .find(|plan| plan.machine == machine.symbol)
                 .unwrap();
-            let operation = plan.operations.iter_mut().find(|operation| matches!(operation,
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.binding_ordinal == 1)).unwrap();
-            let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                result,
-                discard_result_on_return,
-                source_site,
-                ..
-            } = operation
-            else {
-                unreachable!()
-            };
-            match mutation {
-                0 => result.binding_ordinal = 0,
-                1 => result.statement_index = 3,
-                2 => *discard_result_on_return = false,
-                3 => {
-                    *source_site = Some(checked_trees::NominalMachineUseSite::Expression(
-                        first.initial_value,
-                    ))
+            let call = plan
+                .operations
+                .iter_mut()
+                .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+                .find(|call| {
+                    call.is_boundary()
+                        && call
+                            .structural_result()
+                            .is_some_and(|result| result.binding_ordinal == 1)
+                })
+                .unwrap();
+            if mutation == 3 {
+                *call.source_site_mut().expect("boundary call source site") = Some(
+                    checked_trees::NominalMachineUseSite::Expression(first.initial_value),
+                );
+            } else {
+                let (result, discard_result_on_return) = call
+                    .structural_result_mut()
+                    .expect("structural call result");
+                match mutation {
+                    0 => result.binding_ordinal = 0,
+                    1 => result.statement_index = 3,
+                    2 => *discard_result_on_return = false,
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
             }
         } else {
             let StatementNode::LocalData(local) = &mut changed

@@ -83,24 +83,7 @@ pub(super) fn build(
     } else {
         let mut matching = operations
             .iter()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    result,
-                    discard_result_on_return: false,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    result,
-                    discard_result_on_return: false,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::EstablishStructuralValue {
-                    result,
-                    discard_result_on_return: false,
-                    ..
-                } => Some(result),
-                _ => None,
-            })
+            .filter_map(super::retained_structural_result)
             .filter_map(|result| {
                 let StatementNode::LocalData(local) =
                     statements.get(result.statement_index as usize)?

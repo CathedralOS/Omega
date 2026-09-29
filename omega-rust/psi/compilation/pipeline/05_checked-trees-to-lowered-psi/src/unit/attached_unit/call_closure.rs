@@ -7,7 +7,10 @@ use super::{
     CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, UnitBody, structural_calls,
     unsupported,
 };
-use checked_trees::CheckedUnitCallResult;
+use checked_trees::{
+    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
+    CheckedUnitScalarResultBindingPlan,
+};
 pub(crate) fn checked_unit_call_closure_including(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -35,17 +38,7 @@ pub(crate) fn checked_unit_call_closure_including(
         })?;
         for target in machine
             .operations()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
-                    Some(*target_machine)
-                }
-                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if UnitBody::contains(plans, *target_machine) =>
-                {
-                    Some(*target_machine)
-                }
-                _ => None,
-            })
+            .filter_map(|operation| unit_closure_target(plans, operation))
         {
             if !closure.contains(&target) {
                 closure.push(target);
@@ -229,8 +222,11 @@ pub(super) fn validate_unit_operation_sequence(
                 // Operand calls publish their own results before the enclosing
                 // constructor. Source replay separately rejoins each occurrence.
                 for call in calls {
-                    let CheckedUnitEffectOperationPlan::StructuralCall { result, .. } =
-                        call.operation()
+                    let Some(result) = call
+                        .operation()
+                        .call()
+                        .filter(|planned| !planned.is_boundary())
+                        .and_then(CheckedUnitCallPlan::structural_result)
                     else {
                         return unsupported("structural operand lost its call operation");
                     };
@@ -259,10 +255,23 @@ pub(super) fn validate_unit_operation_sequence(
                 }
             }
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. } => {
-                if !matches!(operation_index.checked_sub(1).and_then(|previous| machine.operations.get(previous)),
-                    Some(CheckedUnitEffectOperationPlan::CallUnit { coordinate: call, .. }
-                        | CheckedUnitEffectOperationPlan::StructuralCall { coordinate: call, .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate: call, .. }) if call == coordinate)
+                // The completed call is an ordinary Unit call or any call
+                // with a structural result.
+                let completed_call = operation_index
+                    .checked_sub(1)
+                    .and_then(|previous| machine.operations.get(previous))
+                    .and_then(CheckedUnitEffectOperationPlan::call)
+                    .is_some_and(|call| {
+                        call.coordinate == *coordinate
+                            && matches!(
+                                (call.route(), call.result()),
+                                (
+                                    CheckedUnitCallRoute::Module { .. },
+                                    CheckedUnitCallResult::Unit
+                                ) | (_, CheckedUnitCallResult::Structural { .. })
+                            )
+                    });
+                if !completed_call
                     && !super::field_replacement::continues_with_cleanup(
                         &machine.operations,
                         operation_index,
@@ -281,36 +290,71 @@ pub(super) fn validate_unit_operation_sequence(
                 statement_index: *statement_index,
                 call_ordinal: *declaration_ordinal,
             },
-            CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
-            CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate, result, ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate, result, ..
-            } => {
-                if result.statement_index != coordinate.statement_index
-                    || coordinate.call_ordinal != 0
-                    || result.binding_ordinal != next_scalar_binding
-                {
-                    return unsupported(
-                        "Unit scalar result local or call coordinate is not canonical",
-                    );
+            CheckedUnitEffectOperationPlan::PortWrite { coordinate, .. } => *coordinate,
+            CheckedUnitEffectOperationPlan::Call(call) => {
+                let coordinate = call.coordinate;
+                match (call.route(), call.result()) {
+                    (_, CheckedUnitCallResult::Unit) => {}
+                    (_, CheckedUnitCallResult::Scalar(result)) => {
+                        if result.statement_index != coordinate.statement_index
+                            || coordinate.call_ordinal != 0
+                            || result.binding_ordinal != next_scalar_binding
+                        {
+                            return unsupported(
+                                "Unit scalar result local or call coordinate is not canonical",
+                            );
+                        }
+                        if !crate::emission::call_source_custody::initializers::discards_result(
+                            checked,
+                            machine.state,
+                            coordinate,
+                        )? {
+                            next_scalar_binding = next_scalar_binding.checked_add(1).ok_or(
+                                LoweringError::Unsupported(
+                                    "Unit scalar result binding ordinal space is exhausted",
+                                ),
+                            )?;
+                        }
+                    }
+                    (
+                        CheckedUnitCallRoute::Module { .. },
+                        CheckedUnitCallResult::Structural {
+                            binding: result, ..
+                        },
+                    ) => {
+                        if result.statement_index != coordinate.statement_index
+                            || result.binding_ordinal != next_structural_binding
+                        {
+                            return unsupported(
+                                "Unit structural result local or call coordinate is not canonical",
+                            );
+                        }
+                        structural_calls::validate_usage(checked, machine, result)?;
+                    }
+                    (
+                        CheckedUnitCallRoute::Boundary,
+                        CheckedUnitCallResult::Structural {
+                            binding: result,
+                            discard_result_on_return,
+                        },
+                    ) => {
+                        if result.statement_index != coordinate.statement_index
+                            || result.binding_ordinal != next_structural_binding
+                            || (result.multiplicity != Multiplicity::Affine
+                                && *discard_result_on_return)
+                            || (coordinate.call_ordinal != 0
+                                && result.multiplicity != Multiplicity::Affine)
+                        {
+                            return unsupported(
+                                "Unit boundary structural result local or call coordinate is not canonical",
+                            );
+                        }
+                        if result.multiplicity == Multiplicity::Affine {
+                            structural_calls::validate_usage(checked, machine, result)?;
+                        }
+                    }
                 }
-                if !crate::emission::call_source_custody::initializers::discards_result(
-                    checked,
-                    machine.state,
-                    *coordinate,
-                )? {
-                    next_scalar_binding =
-                        next_scalar_binding
-                            .checked_add(1)
-                            .ok_or(LoweringError::Unsupported(
-                                "Unit scalar result binding ordinal space is exhausted",
-                            ))?;
-                }
-                *coordinate
+                coordinate
             }
             // An observing atomic event binds its prior as the next dense
             // scalar local, exactly like an established scalar local; the
@@ -352,39 +396,6 @@ pub(super) fn validate_unit_operation_sequence(
                     statement_index: result.statement_index,
                     call_ordinal: 0,
                 }
-            }
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate, result, ..
-            } => {
-                if result.statement_index != coordinate.statement_index
-                    || result.binding_ordinal != next_structural_binding
-                {
-                    return unsupported(
-                        "Unit structural result local or call coordinate is not canonical",
-                    );
-                }
-                structural_calls::validate_usage(checked, machine, result)?;
-                *coordinate
-            }
-            CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate,
-                result,
-                discard_result_on_return,
-                ..
-            } => {
-                if result.statement_index != coordinate.statement_index
-                    || result.binding_ordinal != next_structural_binding
-                    || (result.multiplicity != Multiplicity::Affine && *discard_result_on_return)
-                    || (coordinate.call_ordinal != 0 && result.multiplicity != Multiplicity::Affine)
-                {
-                    return unsupported(
-                        "Unit boundary structural result local or call coordinate is not canonical",
-                    );
-                }
-                if result.multiplicity == Multiplicity::Affine {
-                    structural_calls::validate_usage(checked, machine, result)?;
-                }
-                *coordinate
             }
             // The window pair of a field replacement continues its producer's
             // statement: the move-out and the store share the producing
@@ -455,21 +466,13 @@ pub(super) fn validate_unit_operation_sequence(
                     checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
                 ) =>
             {
-                if !matches!(
-                    operation_index
-                        .checked_sub(1)
-                        .and_then(|previous| machine.operations.get(previous)),
-                    Some(
-                        CheckedUnitEffectOperationPlan::ScalarCall {
-                            coordinate, result, ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                            coordinate, result, ..
-                        }
-                    ) if coordinate.statement_index == store.statement_index
-                        && coordinate.call_ordinal == 0
-                        && result.statement_index == store.statement_index
-                        && result.primitive_type == checked_trees::types::PrimitiveType::U8
+                if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
+                    |(coordinate, result)| {
+                        coordinate.statement_index == store.statement_index
+                            && coordinate.call_ordinal == 0
+                            && result.statement_index == store.statement_index
+                            && result.primitive_type == checked_trees::types::PrimitiveType::U8
+                    },
                 ) {
                     return unsupported(
                         "indexed byte store call result has no immediately preceding scalar call",
@@ -494,21 +497,13 @@ pub(super) fn validate_unit_operation_sequence(
                     checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
                 ) =>
             {
-                if !matches!(
-                    operation_index
-                        .checked_sub(1)
-                        .and_then(|previous| machine.operations.get(previous)),
-                    Some(
-                        CheckedUnitEffectOperationPlan::ScalarCall {
-                            coordinate, result, ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                            coordinate, result, ..
-                        }
-                    ) if coordinate.statement_index == store.statement_index
-                        && coordinate.call_ordinal == 0
-                        && result.statement_index == store.statement_index
-                        && result.primitive_type == store.primitive_type
+                if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
+                    |(coordinate, result)| {
+                        coordinate.statement_index == store.statement_index
+                            && coordinate.call_ordinal == 0
+                            && result.statement_index == store.statement_index
+                            && result.primitive_type == store.primitive_type
+                    },
                 ) {
                     return unsupported(
                         "field store call result has no immediately preceding scalar call",
@@ -537,21 +532,13 @@ pub(super) fn validate_unit_operation_sequence(
                     checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
                 ) =>
             {
-                if !matches!(
-                    operation_index
-                        .checked_sub(1)
-                        .and_then(|previous| machine.operations.get(previous)),
-                    Some(
-                        CheckedUnitEffectOperationPlan::ScalarCall {
-                            coordinate, result, ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                            coordinate, result, ..
-                        }
-                    ) if coordinate.statement_index == write.statement_index
-                        && coordinate.call_ordinal == 0
-                        && result.statement_index == write.statement_index
-                        && result.primitive_type == checked_trees::types::PrimitiveType::U8
+                if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
+                    |(coordinate, result)| {
+                        coordinate.statement_index == write.statement_index
+                            && coordinate.call_ordinal == 0
+                            && result.statement_index == write.statement_index
+                            && result.primitive_type == checked_trees::types::PrimitiveType::U8
+                    },
                 ) {
                     return unsupported(
                         "byte-view write call result has no immediately preceding scalar call",
@@ -573,20 +560,12 @@ pub(super) fn validate_unit_operation_sequence(
                     checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
                 ) =>
             {
-                if !matches!(
-                    operation_index
-                        .checked_sub(1)
-                        .and_then(|previous| machine.operations.get(previous)),
-                    Some(
-                        CheckedUnitEffectOperationPlan::ScalarCall {
-                            coordinate, result, ..
-                        }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                            coordinate, result, ..
-                        }
-                    ) if coordinate.statement_index == write.statement_index
-                        && coordinate.call_ordinal == 0
-                        && result.statement_index == write.statement_index
+                if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
+                    |(coordinate, result)| {
+                        coordinate.statement_index == write.statement_index
+                            && coordinate.call_ordinal == 0
+                            && result.statement_index == write.statement_index
+                    },
                 ) {
                     return unsupported(
                         "element-view write call result has no immediately preceding scalar call",
@@ -604,15 +583,8 @@ pub(super) fn validate_unit_operation_sequence(
                 return unsupported("Unit machine contains a nonfinal Unit return");
             }
         };
-        if let CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
-        | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. }
-        | CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. } = operation
-        {
+        // Every structural producer takes the next dense binding.
+        if let Some(result) = operation.structural_result_binding() {
             if result.binding_ordinal != next_structural_binding {
                 return unsupported("Unit structural result is not the next dense source binding");
             }
@@ -644,7 +616,7 @@ pub(super) fn validate_unit_operation_sequence(
         }
         let key = (coordinate.statement_index, coordinate.call_ordinal);
         let call_result = operation.call().map(|call| call.result());
-        let structural_call = matches!(call_result, Some(CheckedUnitCallResult::Structural(_)));
+        let structural_call = matches!(call_result, Some(CheckedUnitCallResult::Structural { .. }));
         let nested = structural_call && coordinate.call_ordinal != 0;
         let same_statement = previous.is_some_and(|previous: (u32, u32)| previous.0 == key.0);
         let nested_consumer =
@@ -700,6 +672,40 @@ pub(super) fn validate_unit_operation_sequence(
     Ok(())
 }
 
+/// The machine an ordinary call enters inside the Unit roster: every ordinary
+/// Unit call, and an ordinary structural call whose target has a Unit body.
+/// Scalar and boundary calls reach their targets through other rosters.
+fn unit_closure_target(
+    plans: UnitPlans<'_>,
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<symbols::SymbolHandle> {
+    let call = operation.call()?;
+    match (call.route(), call.result()) {
+        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Unit) => {
+            Some(call.target.machine)
+        }
+        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Structural { .. })
+            if UnitBody::contains(plans, call.target.machine) =>
+        {
+            Some(call.target.machine)
+        }
+        _ => None,
+    }
+}
+
+/// The operation immediately before `operation_index` when it is a call with
+/// a scalar result, ordinary or boundary: its coordinate and result binding.
+fn preceding_scalar_call(
+    operations: &[CheckedUnitEffectOperationPlan],
+    operation_index: usize,
+) -> Option<(
+    CheckedUnitCallCoordinate,
+    &CheckedUnitScalarResultBindingPlan,
+)> {
+    let call = operations.get(operation_index.checked_sub(1)?)?.call()?;
+    Some((call.coordinate, call.scalar_result()?))
+}
+
 pub(super) fn reject_recursive_unit_closure(
     plans: UnitPlans<'_>,
     closure: &[symbols::SymbolHandle],
@@ -719,17 +725,7 @@ pub(super) fn reject_recursive_unit_closure(
         active.push(symbol);
         for target in UnitBody::find(plans, symbol)?
             .operations()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } => {
-                    Some(*target_machine)
-                }
-                CheckedUnitEffectOperationPlan::StructuralCall { target_machine, .. }
-                    if UnitBody::contains(plans, *target_machine) =>
-                {
-                    Some(*target_machine)
-                }
-                _ => None,
-            })
+            .filter_map(|operation| unit_closure_target(plans, operation))
         {
             visit(plans, target, active, complete)?;
         }

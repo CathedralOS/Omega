@@ -37,6 +37,15 @@ fn selected(checked: &mut CheckedTrees) -> &mut CheckedUnitEffectMachinePlan {
         .expect("selected ordinary array body")
 }
 
+/// The ordinary (non-boundary) call with a structural result, if `operation` is one.
+fn ordinary_structural_call(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<&checked_trees::CheckedUnitCallPlan> {
+    operation
+        .call()
+        .filter(|call| !call.is_boundary() && call.structural_result().is_some())
+}
+
 #[test]
 fn boundary_array_results_require_payload_support_even_when_unused_or_empty() {
     for length in [0, 2] {
@@ -110,59 +119,60 @@ fn array_call_result_source_target_and_return_custody_reject_substitution() {
                 .iter()
                 .enumerate()
                 .filter_map(|(position, operation)| {
-                    matches!(
-                        operation,
-                        CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                    )
-                    .then_some(position)
+                    ordinary_structural_call(operation).map(|_| position)
                 })
                 .collect::<Vec<_>>();
             assert_eq!(calls.len(), if tail { 3 } else { 2 });
-            let CheckedUnitEffectOperationPlan::StructuralCall {
-                result: other_result,
-                source_site: other_site,
-                target_machine: other_machine,
-                target_state: other_state,
-                ..
-            } = plan.operations[calls[1]].clone()
-            else {
+            let Some(other) = ordinary_structural_call(&plan.operations[calls[1]]).cloned() else {
                 panic!("second source call");
             };
+            let other_result = other
+                .structural_result()
+                .expect("structural call result")
+                .clone();
+            let other_site = other
+                .source_site()
+                .expect("an ordinary structural call retains its source site");
+            let other_machine = other.target.machine;
+            let other_state = other.target.state;
             if mutation == "same typed returned call" {
                 plan.structural_result = Some(other_result.into());
             } else if mutation == "dropped unused call" {
                 plan.operations.remove(calls[1]);
             } else {
-                let CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate,
-                    result,
-                    source_site,
-                    target_machine,
-                    target_state,
-                    target_contract_commitment,
-                    discard_result_on_return,
-                    ..
-                } = &mut plan.operations[calls[0]]
-                else {
+                let Some(call) = plan.operations[calls[0]].call_mut() else {
                     panic!("first source call");
                 };
                 match mutation {
-                    "source statement" => coordinate.statement_index += 1,
-                    "source ordinal" => coordinate.call_ordinal += 1,
+                    "source statement" => call.coordinate.statement_index += 1,
+                    "source ordinal" => call.coordinate.call_ordinal += 1,
                     "source site" => {
+                        let source_site = call
+                            .source_site_mut()
+                            .expect("an ordinary structural call retains its source site");
                         assert_ne!(*source_site, other_site, "distinct authored call sites");
                         *source_site = other_site;
                     }
-                    "target machine" => *target_machine = other_machine,
-                    "target state" => *target_state = other_state,
+                    "target machine" => call.target.machine = other_machine,
+                    "target state" => call.target.state = other_state,
                     "body commitment" => {
-                        *target_contract_commitment =
+                        *call
+                            .contract_commitment_mut()
+                            .expect("an ordinary structural call retains its commitment") =
                             checked_trees::MachineContractCommitment::from_digest([0; 32]);
                     }
                     "result multiplicity" => {
+                        let (result, _) = call
+                            .structural_result_mut()
+                            .expect("structural call result");
                         result.multiplicity = language_semantics::Multiplicity::Affine
                     }
-                    "affine disposal" => *discard_result_on_return = true,
+                    "affine disposal" => {
+                        let (_, discard_result_on_return) = call
+                            .structural_result_mut()
+                            .expect("structural call result");
+                        *discard_result_on_return = true
+                    }
                     _ => unreachable!(),
                 }
             }

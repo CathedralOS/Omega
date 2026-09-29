@@ -6,6 +6,7 @@
 use crate::tests::flow::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, checked, machine_named,
 };
+use checked_trees::CheckedUnitCallResult;
 
 #[test]
 fn a_projected_parameter_shares_one_consumer_with_a_dying_temporary() {
@@ -39,11 +40,8 @@ fn a_projected_parameter_shares_one_consumer_with_a_dying_temporary() {
         .for_machine(machine)
         .expect("mixed dying roots still own the partial lane");
     let [
-        CheckedUnitEffectOperationPlan::StructuralCall { .. },
-        CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        },
+        CheckedUnitEffectOperationPlan::Call(producer),
+        CheckedUnitEffectOperationPlan::Call(consumer),
         CheckedUnitEffectOperationPlan::CallContinuationCleanup {
             affine_discards, ..
         },
@@ -55,7 +53,14 @@ fn a_projected_parameter_shares_one_consumer_with_a_dying_temporary() {
     else {
         panic!("producer, shared consumer, continuation cleanup, completion")
     };
-    let [temporary_argument, parameter_argument] = structural_arguments.as_slice() else {
+    assert!(
+        !producer.is_boundary()
+            && producer.structural_result().is_some()
+            && !consumer.is_boundary()
+            && *consumer.result() == CheckedUnitCallResult::Unit,
+        "producer, shared consumer, continuation cleanup, completion"
+    );
+    let [temporary_argument, parameter_argument] = consumer.structural_arguments.as_slice() else {
         panic!("the consumer mixes a temporary and a parameter operand")
     };
     assert_eq!(

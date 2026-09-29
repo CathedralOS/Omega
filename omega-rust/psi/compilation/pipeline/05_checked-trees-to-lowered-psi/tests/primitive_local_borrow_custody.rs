@@ -50,9 +50,10 @@ fn primitive_local_publication_rejects_missing_duplicate_and_drifted_borrow_fact
         .machines
         .iter()
         .find(|plan| {
-            plan.operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. })
-            })
+            plan.operations
+                .iter()
+                .filter_map(CheckedUnitEffectOperationPlan::call)
+                .any(|call| !call.is_boundary() && call.scalar_result().is_some())
         })
         .expect("caller plan");
     let (state_handle, state) = original

@@ -6,7 +6,9 @@ use super::{
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::checked_with_service;
 use crate::tests::flow::terminal_unit::machine_named;
-use checked_trees::{CheckedCallScalarArgument, CheckedScalarComputationKind};
+use checked_trees::{
+    CheckedCallScalarArgument, CheckedScalarComputationKind, CheckedUnitCallResult,
+};
 
 fn checked_operands(linear: bool, nested: bool) -> checked_trees::CheckedTrees {
     let helper = "machine inner(value: u8) -> u8 { value }
@@ -76,26 +78,23 @@ fn composed_boundary_leaves_keep_one_effect_and_dense_computed_operands() {
             .collect::<Vec<_>>();
         assert_eq!(leaves.len(), 2);
         for leaf in leaves {
-            let [
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    coordinate,
-                    scalar_arguments,
-                    structural_arguments,
-                    completion_receipts,
-                    ..
-                },
-            ] = leaf.operations.as_slice()
-            else {
+            let [CheckedUnitEffectOperationPlan::Call(call)] = leaf.operations.as_slice() else {
                 panic!("each authored leaf has one outer boundary operation")
             };
-            assert_eq!(coordinate.statement_index, 0);
-            assert_eq!(coordinate.call_ordinal, 0);
+            assert!(
+                call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit,
+                "each authored leaf has one outer boundary operation"
+            );
+            let scalar_arguments = &call.scalar_arguments;
+            let completion_receipts = call.claim_transfers();
+            assert_eq!(call.coordinate.statement_index, 0);
+            assert_eq!(call.coordinate.call_ordinal, 0);
             assert_eq!(scalar_arguments.len(), 3);
             assert!(matches!(
                 scalar_arguments[2],
                 CheckedCallScalarArgument::Pure(_)
             ));
-            assert_eq!(structural_arguments.len(), usize::from(linear));
+            assert_eq!(call.structural_arguments.len(), usize::from(linear));
             assert_eq!(completion_receipts.len(), usize::from(linear));
             if linear {
                 assert_eq!(
@@ -312,29 +311,27 @@ fn closed_sum_leaves_retain_computed_calls_before_reusing_the_payload() {
     ));
     assert_eq!(byte.scalar_parameters.len(), 1);
     let [
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate: first_coordinate,
-            scalar_arguments: first_arguments,
-            ..
-        },
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate: second_coordinate,
-            scalar_arguments: second_arguments,
-            ..
-        },
+        CheckedUnitEffectOperationPlan::Call(first),
+        CheckedUnitEffectOperationPlan::Call(second),
     ] = byte.operations.as_slice()
     else {
         panic!("two authored boundary statements remain two outer operations")
     };
-    assert_eq!(first_coordinate.statement_index, 0);
-    assert_eq!(second_coordinate.statement_index, 1);
-    assert_eq!(first_coordinate.call_ordinal, 0);
-    assert_eq!(second_coordinate.call_ordinal, 0);
-    let [CheckedCallScalarArgument::Computation(root)] = first_arguments.as_slice() else {
+    assert!(
+        [first, second]
+            .iter()
+            .all(|call| call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit),
+        "two authored boundary statements remain two outer operations"
+    );
+    assert_eq!(first.coordinate.statement_index, 0);
+    assert_eq!(second.coordinate.statement_index, 1);
+    assert_eq!(first.coordinate.call_ordinal, 0);
+    assert_eq!(second.coordinate.call_ordinal, 0);
+    let [CheckedCallScalarArgument::Computation(root)] = first.scalar_arguments.as_slice() else {
         panic!("first boundary operand retains its nested computation")
     };
     assert!(matches!(
-        second_arguments.as_slice(),
+        second.scalar_arguments.as_slice(),
         [CheckedCallScalarArgument::Pure(
             CheckedScalarExpression::Parameter {
                 position: 0,

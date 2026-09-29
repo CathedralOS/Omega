@@ -7,12 +7,23 @@ use crate::unit::unit_cleanup::{
 };
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
-    CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
+    CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment,
+    CheckedUnitStructuralTypeShape,
 };
 use terminal_psi::{
     OperationKind, StructuralFieldType, StructuralPathSegment, StructuralTypeShape, Terminator,
 };
+
+/// The operation's call when it is an ordinary call with a Unit result.
+fn ordinary_unit_call(
+    operation: &mut CheckedUnitEffectOperationPlan,
+) -> Option<&mut CheckedUnitCallPlan> {
+    operation
+        .call_mut()
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+}
+
 fn nominal_affine_unit_checked_fixture() -> CheckedTrees {
     let source = r#"
         data Token {}
@@ -430,28 +441,22 @@ fn mixed_partial_affine_unit_cleanup_lowers_recursive_maximal_residuals() {
     );
 
     let mut stale = plan.clone();
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &mut stale.machine.operations[0]
-    else {
+    let Some(call) = ordinary_unit_call(&mut stale.machine.operations[0]) else {
         unreachable!()
     };
-    structural_arguments[0].path[2] = CheckedUnitStructuralPathSegment::Field("missing".to_owned());
+    call.structural_arguments[0].path[2] =
+        CheckedUnitStructuralPathSegment::Field("missing".to_owned());
     assert!(lower_partial_affine_unit_cleanup_machine(&checked, &stale).is_err());
 
     let mut overlapping = plan.clone();
     let [_, second, _, _] = overlapping.machine.operations.as_mut_slice() else {
         unreachable!()
     };
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = second
-    else {
+    let Some(call) = ordinary_unit_call(second) else {
         unreachable!()
     };
-    structural_arguments[0].path = vec![CheckedUnitStructuralPathSegment::Field("left".to_owned())];
+    call.structural_arguments[0].path =
+        vec![CheckedUnitStructuralPathSegment::Field("left".to_owned())];
     assert!(matches!(
         lower_partial_affine_unit_cleanup_machine(&checked, &overlapping),
         Err(LoweringError::Unsupported(
@@ -503,22 +508,14 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
     let [first, second, _] = stale.machine.operations.as_mut_slice() else {
         unreachable!()
     };
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments: first_arguments,
-        ..
-    } = first
-    else {
+    let Some(first_call) = ordinary_unit_call(first) else {
         unreachable!()
     };
-    let first_path = first_arguments[0].path.clone();
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments: second_arguments,
-        ..
-    } = second
-    else {
+    let first_path = first_call.structural_arguments[0].path.clone();
+    let Some(second_call) = ordinary_unit_call(second) else {
         unreachable!()
     };
-    second_arguments[0].path = first_path;
+    second_call.structural_arguments[0].path = first_path;
     assert!(matches!(
         lower_partial_affine_unit_cleanup_machine(&checked, &stale),
         Err(LoweringError::Unsupported(
@@ -681,12 +678,10 @@ fn partial_affine_unit_cleanup_lowering_rejects_stale_path_type_and_coordinates(
     ));
 
     let mut stale = original;
-    let CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. } =
-        &mut stale.machine.operations[0]
-    else {
+    let Some(call) = ordinary_unit_call(&mut stale.machine.operations[0]) else {
         unreachable!()
     };
-    coordinate.statement_index = 1;
+    call.coordinate.statement_index = 1;
     assert!(matches!(
         lower_partial_affine_unit_cleanup_machine(&checked, &stale),
         Err(LoweringError::Unsupported(

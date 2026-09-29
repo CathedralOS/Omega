@@ -652,8 +652,8 @@ pub(crate) fn validate(
     let Some(planned) = operation.call().filter(|planned| !planned.is_boundary()) else {
         return Ok(());
     };
-    let coordinate = planned.coordinate();
-    let structural_arguments = planned.structural_arguments();
+    let coordinate = planned.coordinate;
+    let structural_arguments = &planned.structural_arguments;
     let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
     let mut targets = target_parameters
         .iter()

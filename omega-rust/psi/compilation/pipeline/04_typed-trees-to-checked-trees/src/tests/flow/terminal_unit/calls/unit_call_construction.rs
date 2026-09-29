@@ -4,6 +4,7 @@ use crate::tests::flow::terminal_unit::{
 };
 use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedScalarBinding, CheckedScalarBindingValue,
+    CheckedUnitCallResult,
 };
 
 #[test]
@@ -39,10 +40,8 @@ fn retains_boundary_case_payload_and_mutable_view_on_the_same_state_edge() {
     let read = &plan.states[1];
     assert!(matches!(
         read.operations.as_slice(),
-        [CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            discard_result_on_return: false,
-            ..
-        }]
+        [CheckedUnitEffectOperationPlan::Call(call)]
+            if call.is_boundary() && call.discard_result_on_return() == Some(false)
     ));
     let CheckedComposedUnitControlTerminatorPlan::ClosedSum { cases, .. } = &read.terminator else {
         panic!("case edge");
@@ -189,7 +188,8 @@ fn composes_one_compile_known_u64_binding_with_exact_boundary_leaves() {
         assert!(leaf.binding_initializers.is_empty());
         assert!(matches!(
             leaf.operations.as_slice(),
-            [CheckedUnitEffectOperationPlan::BoundaryCall { .. }]
+            [CheckedUnitEffectOperationPlan::Call(call)]
+                if call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
         ));
     }
 }

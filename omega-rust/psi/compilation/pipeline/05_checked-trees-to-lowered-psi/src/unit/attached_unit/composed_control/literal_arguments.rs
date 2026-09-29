@@ -44,22 +44,22 @@ pub(super) fn evaluate(
     // A scalar callee's entry roster lives on whichever body owns it.
     let scalar_target;
     let target_parameters = if call.is_boundary() {
-        crate::unit::attached_unit::unique_unit_boundary(plans, call.target_machine())?
+        crate::unit::attached_unit::unique_unit_boundary(plans, call.target.machine)?
             .structural_parameters
             .as_slice()
     } else if let CheckedUnitCallResult::Scalar(_) = call.result() {
         scalar_target =
             crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee::find_for_unit_call(
                 checked,
-                call.target_machine(),
+                call.target.machine,
             )?;
         scalar_target.structural_parameters()
     } else {
-        crate::unit::attached_unit::bodies::UnitBody::find(plans, call.target_machine())?
+        crate::unit::attached_unit::bodies::UnitBody::find(plans, call.target.machine)?
             .entry()?
             .structural_parameters
     };
-    let (scalar_count, coordinate) = (call.scalar_arguments().len(), call.coordinate());
+    let (scalar_count, coordinate) = (call.scalar_arguments.len(), call.coordinate);
     let positions = target_parameters
         .iter()
         .map(|parameter| parameter.position as usize)

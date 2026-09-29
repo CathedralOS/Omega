@@ -18,11 +18,7 @@ fn reference_initializer_rejects_coherent_cached_and_operation_read_substitution
         .terminal_unit_effects
         .machines
         .iter()
-        .position(|plan| {
-            plan.operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-            })
-        })
+        .position(|plan| plan.operations.iter().any(super::is_ordinary_unit_call))
         .unwrap();
     let state_symbol = original.facts.flow.terminal_unit_effects.machines[caller].state;
     let state = original
@@ -88,11 +84,7 @@ fn retained_write_only_access_cannot_authorize_a_primitive_initializer_read() {
             .terminal_unit_effects
             .machines
             .iter_mut()
-            .find(|plan| {
-                plan.operations.iter().any(|operation| {
-                    matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                })
-            })
+            .find(|plan| plan.operations.iter().any(super::is_ordinary_unit_call))
             .unwrap();
         assert_eq!(
             caller.structural_parameters[1].access,

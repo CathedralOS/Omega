@@ -54,28 +54,32 @@ fn mixed_linear_call_rejects_changed_source_operand_positions() {
         .into_artifact();
         for mutation in ["scalar_order", "scalar_arity", "claim_position"] {
             let mut invalid = checked.clone();
-            let operation = invalid.facts.flow.terminal_unit_effects.composed_machines
-            .iter_mut()
-            .flat_map(|machine| &mut machine.states)
-            .flat_map(|state| &mut state.operations)
-            .find(|operation| matches!(operation,
-                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { scalar_arguments, .. }
-                if scalar_arguments.len() == 2))
-            .expect("mixed call in the shared graph");
-            let checked_trees::CheckedUnitEffectOperationPlan::StructuralCall {
-                scalar_arguments,
-                custody,
-                ..
-            } = operation
-            else {
-                unreachable!()
-            };
+            let call = invalid
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.states)
+                .flat_map(|state| &mut state.operations)
+                .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+                .find(|call| {
+                    !call.is_boundary()
+                        && call.structural_result().is_some()
+                        && call.scalar_arguments.len() == 2
+                })
+                .expect("mixed call in the shared graph");
             match mutation {
-                "scalar_order" => scalar_arguments.swap(0, 1),
+                "scalar_order" => call.scalar_arguments.swap(0, 1),
                 "scalar_arity" => {
-                    scalar_arguments.pop();
+                    call.scalar_arguments.pop();
                 }
-                "claim_position" => custody.claim_transfers[0].argument_index = 1,
+                "claim_position" => {
+                    call.structural_custody_mut()
+                        .expect("ordinary structural call custody")
+                        .claim_transfers[0]
+                        .argument_index = 1
+                }
                 _ => unreachable!(),
             }
             assert!(

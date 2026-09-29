@@ -2,12 +2,12 @@
 use super::super::{
     CarryPolicy, CheckFacts, CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedStructuralAccess,
-    CheckedUnitClaimTransferPlan, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralParameterPlan, Multiplicity,
-    StatementNode, TypedTrees,
+    CheckedUnitClaimTransferPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralParameterPlan, Multiplicity, StatementNode, TypedTrees,
 };
 use crate::execution::terminal_unit::calls::build_call_operation;
 use crate::execution::terminal_unit::types::state_flow;
+use checked_trees::{CheckedUnitCallResult, CheckedUnitCallRoute};
 
 pub(super) fn build(
     program: &TypedTrees,
@@ -55,16 +55,12 @@ pub(super) fn build(
         &[],
         &crate::execution::terminal_unit::control::LocalConstructionTrace::default(),
     )?;
-    match &operation {
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            target_machine,
-            structural_arguments,
-            completion_receipts,
-            ..
-        } => {
+    let call = operation.call()?;
+    match (call.route(), call.result()) {
+        (CheckedUnitCallRoute::Boundary, CheckedUnitCallResult::Unit) => {
             let matching_boundaries = boundaries
                 .iter()
-                .filter(|plan| plan.machine == *target_machine)
+                .filter(|plan| plan.machine == call.target.machine)
                 .collect::<Vec<_>>();
             let [boundary] = matching_boundaries.as_slice() else {
                 return None;
@@ -72,8 +68,8 @@ pub(super) fn build(
             if !exact_boundary_custody(
                 structural_parameters,
                 entry_claims,
-                structural_arguments,
-                completion_receipts,
+                &call.structural_arguments,
+                call.claim_transfers(),
                 &boundary.structural_parameters,
             ) || !boundary.domain_requirements.is_empty()
                 || !boundary.result.is_unit()
@@ -81,14 +77,11 @@ pub(super) fn build(
                 return None;
             }
         }
-        CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            claim_transfers,
-            ..
-        } if structural_parameters.is_empty()
-            && entry_claims.is_empty()
-            && structural_arguments.is_empty()
-            && claim_transfers.is_empty() => {}
+        (CheckedUnitCallRoute::Module { .. }, CheckedUnitCallResult::Unit)
+            if structural_parameters.is_empty()
+                && entry_claims.is_empty()
+                && call.structural_arguments.is_empty()
+                && call.claim_transfers().is_empty() => {}
         _ => return None,
     }
     Some(CheckedComposedUnitControlStatePlan {

@@ -8,6 +8,19 @@ use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
 
+/// The ordinary (non-boundary) call that binds no result `operation` must be.
+fn ordinary_unit_call_mut<'a>(
+    operation: &'a mut CheckedUnitEffectOperationPlan,
+    expected: &str,
+) -> &'a mut checked_trees::CheckedUnitCallPlan {
+    let Some(call) = operation.call_mut().filter(|call| {
+        !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    }) else {
+        panic!("{expected}")
+    };
+    call
+}
+
 fn original() -> (checked_trees::CheckedTrees, symbols::SymbolHandle) {
     let checked = crate::front_end::checked_program(super::BOOLEAN_BRANCH);
     let _ = terminal_production::TerminalProductionRequest::new(
@@ -47,29 +60,22 @@ fn scalar_unit_call_rejects_missing_duplicate_reordered_or_substituted_rows() {
             0 => operations.clear(),
             1 => operations.push(operations[0].clone()),
             _ => {
-                let CheckedUnitEffectOperationPlan::CallUnit {
-                    coordinate,
-                    target_machine,
-                    scalar_arguments,
-                    structural_arguments,
-                    ..
-                } = &mut operations[0]
-                else {
-                    panic!("Unit call")
-                };
+                let call = ordinary_unit_call_mut(&mut operations[0], "Unit call");
                 match mutation {
-                    2 => coordinate.statement_index = 0,
-                    3 => coordinate.call_ordinal += 1,
-                    4 => *target_machine = machine,
-                    5 => structural_arguments[0].access = CheckedStructuralAccess::SharedBorrow,
+                    2 => call.coordinate.statement_index = 0,
+                    3 => call.coordinate.call_ordinal += 1,
+                    4 => call.target.machine = machine,
+                    5 => {
+                        call.structural_arguments[0].access = CheckedStructuralAccess::SharedBorrow
+                    }
                     6 => {
-                        structural_arguments[0].source =
+                        call.structural_arguments[0].source =
                             CheckedUnitStructuralArgumentSourcePlan::Parameter {
                                 parameter_index: 0,
                             }
                     }
                     7 => {
-                        scalar_arguments[0] = checked_trees::CheckedCallScalarArgument::Pure(
+                        call.scalar_arguments[0] = checked_trees::CheckedCallScalarArgument::Pure(
                             checked_trees::CheckedScalarExpression::Boolean(Box::new(
                                 checked_trees::CheckedBooleanExpression::Parameter { position: 0 },
                             )),
@@ -178,13 +184,9 @@ fn coherent_call_and_borrow_substitution_cannot_select_another_local() {
     assert_eq!(locals.len(), 2);
     let scratch = locals[0].symbol;
     let spare = locals[1].symbol;
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &mut graph.states[0].unit_operations[1]
-    else {
-        panic!("second Unit call")
-    };
+    let structural_arguments =
+        &mut ordinary_unit_call_mut(&mut graph.states[0].unit_operations[1], "second Unit call")
+            .structural_arguments;
     assert_eq!(
         structural_arguments[0].source,
         CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol: scratch }

@@ -106,15 +106,14 @@ fn unit_wrapper_cannot_substitute_a_same_typed_local_and_its_cleanup() {
     let mut changed_cleanup = false;
     for operation in &mut root.operations {
         match operation {
-            CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            } => {
+            CheckedUnitEffectOperationPlan::Call(call)
+                if !call.is_boundary() && call.scalar_result().is_some() =>
+            {
                 assert_eq!(
-                    structural_arguments[0].source_local_declaration_ordinal(),
+                    call.structural_arguments[0].source_local_declaration_ordinal(),
                     Some(1)
                 );
-                structural_arguments[0].source =
+                call.structural_arguments[0].source =
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::TrivialAffineLocal {
                         declaration_ordinal: 0,
                     };
@@ -188,21 +187,17 @@ fn unit_wrapper_rejects_missing_checked_and_terminal_claim_transfers() {
     let original = crate::front_end::checked_program(&unit_wrapper_source());
     let artifact = unit_wrapper_artifact(&original);
     let mut checked = original.clone();
-    let operation = checked
+    let call = checked
         .facts
         .flow
         .terminal_unit_effects
         .machines
         .iter_mut()
         .flat_map(|machine| &mut machine.operations)
-        .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. }))
+        .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+        .find(|call| !call.is_boundary() && call.scalar_result().is_some())
         .unwrap();
-    let CheckedUnitEffectOperationPlan::ScalarCall {
-        claim_transfers, ..
-    } = operation
-    else {
-        unreachable!()
-    };
+    let claim_transfers = call.claim_transfers_mut();
     assert_eq!(claim_transfers.len(), 1);
     claim_transfers.clear();
     assert!(

@@ -41,11 +41,8 @@ pub(super) fn account(
     };
     let construction_uses = construction_local_uses(facts, state.symbol, operations)?;
     for (producer_index, operation) in operations.iter().enumerate() {
-        let result = match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } => result,
-            _ => continue,
+        let Some((result, _)) = operation.discardable_structural_result() else {
+            continue;
         };
         let transferred = |edge: &CheckedStructuralControlSuccessorPlan| {
             edge.transfers.iter().filter(|transfer| matches!(transfer.source, checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } if binding_ordinal == result.binding_ordinal)).count() == 1
@@ -296,21 +293,20 @@ pub(super) fn account(
         // A reference-loaned result's custody is the loan itself: its owner
         // is the release at the authored weakening boundary, not a
         // structural disposal.
-        let reference_releases = match operation {
-            CheckedUnitEffectOperationPlan::StructuralCall { custody, .. }
-                if custody.reference_loan.is_valid() =>
-            {
-                operations[producer_index + 1..]
-                    .iter()
-                    .filter(|operation| {
-                        matches!(
-                            operation,
-                            CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. }
-                                if *loan == custody.reference_loan
-                        )
-                    })
-                    .count()
-            }
+        let reference_releases = match operation
+            .call()
+            .and_then(checked_trees::CheckedUnitCallPlan::structural_custody)
+        {
+            Some(custody) if custody.reference_loan.is_valid() => operations[producer_index + 1..]
+                .iter()
+                .filter(|operation| {
+                    matches!(
+                        operation,
+                        CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. }
+                            if *loan == custody.reference_loan
+                    )
+                })
+                .count(),
             _ => 0,
         };
         // A view result's custody is its loan as well: a later reference

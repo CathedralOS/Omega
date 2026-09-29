@@ -74,13 +74,9 @@ fn copied_boundary_arrays_retain_authored_positions_across_receiver_erasure() {
         .machines
         .iter_mut()
         .flat_map(|plan| &mut plan.operations)
-        .find_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            } => Some(structural_arguments),
-            _ => None,
-        })
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+        .find(|call| call.is_boundary() && call.scalar_result().is_some())
+        .map(|call| &mut call.structural_arguments)
         .expect("one scalar-returning boundary call");
     assert_eq!(arguments.len(), 2);
     arguments.swap(0, 1);

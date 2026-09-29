@@ -88,17 +88,15 @@ machine Main::main(&mut self, bytes: &[u8]) reaches Output {
             .machines
             .iter_mut()
             .flat_map(|machine| &mut machine.operations)
-            .find_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } if structural_arguments.iter().any(|argument| {
-                    argument.byte_sequence_literal() == Some(b"left".as_slice())
-                }) =>
-                {
-                    Some(structural_arguments)
-                }
-                _ => None,
+            .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+            .filter(|call| {
+                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+            })
+            .map(|call| &mut call.structural_arguments)
+            .find(|structural_arguments| {
+                structural_arguments
+                    .iter()
+                    .any(|argument| argument.byte_sequence_literal() == Some(b"left".as_slice()))
             })
             .expect("ordinary call retains its sole authored literal");
         let shared_view_source = arguments

@@ -2,6 +2,7 @@ use crate::tests::flow::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType, Multiplicity, PrimitiveType,
     checked, machine_named, record_fields,
 };
+use checked_trees::CheckedUnitCallResult;
 
 #[test]
 fn static_boundary_reaches_keep_every_direct_intrinsic_and_requirement_call() {
@@ -173,9 +174,12 @@ fn evaluated_binding_leaf_calls_rejoin_their_exact_requirement() {
     assert!(matches!(
         plan.operations.as_slice(),
         [
-            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, target_state, .. },
+            CheckedUnitEffectOperationPlan::Call(call),
             CheckedUnitEffectOperationPlan::Complete { .. },
-        ] if *target_machine == requirement && *target_state == requirement
+        ] if call.is_boundary()
+            && *call.result() == CheckedUnitCallResult::Unit
+            && call.target.machine == requirement
+            && call.target.state == requirement
     ));
 }
 
@@ -231,28 +235,30 @@ fn evaluated_binding_leaf_scalar_results_bind_as_boundary_results() {
         .for_machine(machine_named(&checked, "Pacer::sleep"))
         .expect("the field store plans through the boundary result");
     let [
-        CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            target_machine,
-            result,
-            scalar_arguments,
-            ..
-        },
+        CheckedUnitEffectOperationPlan::Call(call),
         CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_),
         CheckedUnitEffectOperationPlan::Complete { .. },
     ] = sleep.operations.as_slice()
     else {
         panic!("expected boundary scalar call, field store, completion")
     };
-    assert_eq!(*target_machine, poll);
+    let Some(result) = call.scalar_result().filter(|_| call.is_boundary()) else {
+        panic!("expected boundary scalar call, field store, completion")
+    };
+    assert_eq!(call.target.machine, poll);
     assert_eq!(result.primitive_type, PrimitiveType::I32);
-    assert_eq!(scalar_arguments.len(), 3);
+    assert_eq!(call.scalar_arguments.len(), 3);
     let read = plans
         .for_machine(machine_named(&checked, "Reader::read"))
         .expect("the local binding plans through the boundary result");
     assert!(read.operations.iter().any(|operation| matches!(
         operation,
-        CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, result, .. }
-            if *target_machine == now && result.primitive_type == PrimitiveType::U64
+        CheckedUnitEffectOperationPlan::Call(call)
+            if call.is_boundary()
+                && call.target.machine == now
+                && call
+                    .scalar_result()
+                    .is_some_and(|result| result.primitive_type == PrimitiveType::U64)
     )));
     for machine in ["clock_poll", "clock_now"] {
         assert!(
@@ -293,10 +299,12 @@ fn named_operator_results_use_declared_types_in_field_assignments() {
         assert!(matches!(
             plan.operations.as_slice(),
             [
-                CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. },
+                CheckedUnitEffectOperationPlan::Call(call),
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_),
                 CheckedUnitEffectOperationPlan::Complete { .. },
-            ] if *target_machine == operator.symbol
+            ] if call.is_boundary()
+                && call.scalar_result().is_some()
+                && call.target.machine == operator.symbol
         ));
     }
 }
@@ -472,18 +480,18 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
 
     assert_eq!(root.operations.len(), 2);
     match &root.operations[0] {
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_machine,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } => {
-            assert_eq!(coordinate.statement_index, 0);
-            assert_eq!(coordinate.call_ordinal, 0);
-            assert_eq!(*target_machine, helper_symbol);
-            assert_eq!(structural_arguments.len(), 1);
-            assert_eq!(structural_arguments[0].source_parameter_index(), Some(0));
+        CheckedUnitEffectOperationPlan::Call(call)
+            if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+        {
+            assert_eq!(call.coordinate.statement_index, 0);
+            assert_eq!(call.coordinate.call_ordinal, 0);
+            assert_eq!(call.target.machine, helper_symbol);
+            assert_eq!(call.structural_arguments.len(), 1);
+            assert_eq!(
+                call.structural_arguments[0].source_parameter_index(),
+                Some(0)
+            );
+            let claim_transfers = call.claim_transfers();
             assert_eq!(claim_transfers.len(), 1);
             assert_eq!(claim_transfers[0].argument_index, 0);
             assert_eq!(
@@ -515,17 +523,14 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
         }
     ));
     match &helper.operations[1] {
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            target_machine,
-            structural_arguments,
-            completion_receipts,
-            ..
-        } => {
-            assert_eq!(coordinate.statement_index, 1);
-            assert_eq!(coordinate.call_ordinal, 0);
-            assert_eq!(*target_machine, settle_symbol);
-            assert_eq!(structural_arguments.len(), 1);
+        CheckedUnitEffectOperationPlan::Call(call)
+            if call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+        {
+            assert_eq!(call.coordinate.statement_index, 1);
+            assert_eq!(call.coordinate.call_ordinal, 0);
+            assert_eq!(call.target.machine, settle_symbol);
+            assert_eq!(call.structural_arguments.len(), 1);
+            let completion_receipts = call.claim_transfers();
             assert_eq!(completion_receipts.len(), 1);
             assert_eq!(completion_receipts[0].argument_index, 0);
             assert_eq!(

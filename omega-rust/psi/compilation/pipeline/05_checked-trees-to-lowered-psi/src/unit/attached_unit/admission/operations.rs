@@ -65,9 +65,12 @@ pub(super) fn validate<'a>(
             CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. } => {
                 structural_calls::validate_cleanup(checked, machine, operation_index)?;
             }
-            CheckedUnitEffectOperationPlan::ScalarCall { target_machine, .. } => {
-                // A scalar callee joins an ordinary body's closure before
-                // admission; a composed catalog selects it from the call.
+            // A scalar callee joins an ordinary body's closure before
+            // admission; a composed catalog selects it from the call.
+            CheckedUnitEffectOperationPlan::Call(call)
+                if !call.is_boundary() && call.scalar_result().is_some() =>
+            {
+                let target_machine = &call.target.machine;
                 if !scalar_closure.contains(target_machine)
                     && !(closure.contains(target_machine)
                         && matches!(
@@ -81,11 +84,7 @@ pub(super) fn validate<'a>(
                 }
             }
             // Every other call was admitted by `calls::admit` above.
-            CheckedUnitEffectOperationPlan::CallUnit { .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+            CheckedUnitEffectOperationPlan::Call(_)
             | CheckedUnitEffectOperationPlan::PortWrite { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
             | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }

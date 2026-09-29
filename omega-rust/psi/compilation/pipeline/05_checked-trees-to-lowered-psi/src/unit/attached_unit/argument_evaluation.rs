@@ -788,8 +788,8 @@ impl Evaluation {
             return Ok(None);
         };
         let (coordinate, arguments, boundary) = (
-            call.coordinate(),
-            call.scalar_arguments(),
+            call.coordinate,
+            call.scalar_arguments.as_slice(),
             call.is_boundary(),
         );
         let (arguments, argument_ordinal_start) = match argument_ordinal {

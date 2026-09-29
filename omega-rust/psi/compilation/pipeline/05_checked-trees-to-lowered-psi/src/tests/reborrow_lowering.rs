@@ -8,7 +8,7 @@ use super::{
 use crate::TerminalMachineSelection;
 use crate::lower_machine;
 use crate::lowering_error::LoweringError;
-use checked_trees::CheckedUnitEffectOperationPlan;
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitEffectOperationPlan};
 
 #[test]
 fn receiver_free_scalar_suspension_plan_rejoins_parameter_local_and_argument_frontier() {
@@ -359,23 +359,24 @@ fn terminal_reborrow_restored_call_use_lowers_exact_three_member_shared_cohort()
         .find(|plan| checked.typed.symbols.name(plan.machine) == "Harness::exercise")
         .expect("the exact alias-erased exercise plan");
     let [
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate: observation_coordinate,
-            structural_arguments: observation_arguments,
-            ..
-        },
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate: mutation_coordinate,
-            structural_arguments: mutation_arguments,
-            ..
-        },
+        CheckedUnitEffectOperationPlan::Call(observation),
+        CheckedUnitEffectOperationPlan::Call(mutation),
         CheckedUnitEffectOperationPlan::Complete { .. },
     ] = exercise.operations.as_slice()
     else {
         panic!("one observation call, one restored mutation, and Unit return")
     };
-    assert_eq!(observation_coordinate.statement_index, 4);
-    assert_eq!(mutation_coordinate.statement_index, 5);
+    let ordinary_unit_call = |call: &CheckedUnitCallPlan| {
+        !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit
+    };
+    assert!(
+        ordinary_unit_call(observation) && ordinary_unit_call(mutation),
+        "one observation call, one restored mutation, and Unit return"
+    );
+    let observation_arguments = &observation.structural_arguments;
+    let mutation_arguments = &mutation.structural_arguments;
+    assert_eq!(observation.coordinate.statement_index, 4);
+    assert_eq!(mutation.coordinate.statement_index, 5);
     assert_eq!(observation_arguments.len(), 3);
     assert!(observation_arguments.iter().all(|argument| {
         argument.source_parameter_index() == Some(0)

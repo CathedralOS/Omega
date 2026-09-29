@@ -113,20 +113,19 @@ pub(super) fn discover(
                 }
             }
             for operation in UnitBody::find(plans, *machine_symbol)?.operations() {
-                if let CheckedUnitEffectOperationPlan::ScalarCall {
-                    target_machine,
-                    structural_arguments,
-                    claim_transfers,
-                    ..
-                } = operation
+                // An ordinary scalar call roots its scalar callee.
+                if let Some(call) = operation
+                    .call()
+                    .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
                 {
-                    if !ordinary_scalar_roots.contains(target_machine) {
-                        ordinary_scalar_roots.push(*target_machine);
+                    let target_machine = call.target.machine;
+                    if !ordinary_scalar_roots.contains(&target_machine) {
+                        ordinary_scalar_roots.push(target_machine);
                     }
-                    if (!structural_arguments.is_empty() || !claim_transfers.is_empty())
-                        && !structural_scalar_roots.contains(target_machine)
+                    if (!call.structural_arguments.is_empty() || !call.claim_transfers().is_empty())
+                        && !structural_scalar_roots.contains(&target_machine)
                     {
-                        structural_scalar_roots.push(*target_machine);
+                        structural_scalar_roots.push(target_machine);
                     }
                 }
             }
@@ -161,12 +160,16 @@ pub(super) fn discover(
                         // closure. A fresh record adds storage, not a callee.
                         continue;
                     }
-                    let CheckedUnitEffectOperationPlan::CallUnit { target_machine, .. } = operation
-                    else {
+                    // A scalar graph retains only ordinary Unit calls.
+                    let Some(call) = operation.call().filter(|call| {
+                        !call.is_boundary()
+                            && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                    }) else {
                         return unsupported("scalar graph retained an unsupported Unit effect");
                     };
-                    if !closure.contains(target_machine) && !new_roots.contains(target_machine) {
-                        new_roots.push(*target_machine);
+                    let target_machine = call.target.machine;
+                    if !closure.contains(&target_machine) && !new_roots.contains(&target_machine) {
+                        new_roots.push(target_machine);
                     }
                 }
             }

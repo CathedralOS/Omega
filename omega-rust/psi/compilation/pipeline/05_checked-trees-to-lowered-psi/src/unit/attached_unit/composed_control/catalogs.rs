@@ -100,7 +100,7 @@ fn lower_composed_services(
                 _ => return unsupported("composed Unit control contains a non-call operation"),
             }
         };
-        collect_service_summary(&facts.rows, call.service_reach(), &mut selected)?;
+        collect_service_summary(&facts.rows, call.target.service_reach, &mut selected)?;
     }
     for (boundary, _) in boundaries {
         collect_published_contract_services(

@@ -99,10 +99,9 @@ fn transition_arm_call_arguments_establish_nested_calls() {
         .operations
         .iter()
         .filter(|operation| {
-            matches!(
-                operation,
-                checked_trees::CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            )
+            operation
+                .call()
+                .is_some_and(|call| !call.is_boundary() && call.structural_result().is_some())
         })
         .count();
     assert_eq!(

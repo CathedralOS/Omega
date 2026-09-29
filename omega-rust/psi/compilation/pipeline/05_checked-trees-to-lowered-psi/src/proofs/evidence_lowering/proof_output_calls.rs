@@ -664,15 +664,15 @@ fn lower_unit_proof_output_runtime_call(
     let mut call_position = 0usize;
     let mut matching_position = None;
     for operation in &plan.operations {
-        let checked_trees::CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_machine,
-            target_state,
-            ..
-        } = operation
-        else {
+        // Only ordinary Unit calls carry runtime proof outputs.
+        let Some(call) = operation.call().filter(|call| {
+            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        }) else {
             continue;
         };
+        let coordinate = &call.coordinate;
+        let target_machine = &call.target.machine;
+        let target_state = &call.target.state;
         if usize::try_from(coordinate.statement_index).ok() == Some(runtime_call.statement_index)
             && usize::try_from(coordinate.call_ordinal).ok() == Some(runtime_call.call_ordinal)
         {

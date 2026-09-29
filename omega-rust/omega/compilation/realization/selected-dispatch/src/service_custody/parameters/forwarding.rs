@@ -25,33 +25,24 @@ pub(super) fn validate(
     {
         return Err("the caller widened beyond one free owned Service hop");
     }
+    // An internal call is an ordinary call with a Unit result.
     let forwards = plan
         .operations
         .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                claim_transfers,
-                ..
-            } => Some((
-                coordinate,
-                target_machine,
-                target_state,
-                structural_arguments,
-                claim_transfers,
-            )),
-            _ => None,
+        .filter_map(|operation| {
+            operation.call().filter(|call| {
+                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+            })
         })
         .collect::<Vec<_>>();
-    let [(coordinate, target_machine, target_state, structural_arguments, claim_transfers)] =
-        forwards.as_slice()
-    else {
+    let [forward] = forwards.as_slice() else {
         return Err("the caller does not retain exactly one internal call");
     };
-    let [argument] = structural_arguments.as_slice() else {
+    let coordinate = forward.coordinate;
+    let target_machine = forward.target.machine;
+    let target_state = forward.target.state;
+    let claim_transfers = forward.claim_transfers();
+    let [argument] = forward.structural_arguments.as_slice() else {
         return Err("the forwarding edge does not retain exactly one argument");
     };
     if !claim_transfers.is_empty()
@@ -69,9 +60,7 @@ pub(super) fn validate(
         .terminal_unit_effects
         .machines
         .iter()
-        .filter(|candidate| {
-            candidate.machine == **target_machine && candidate.state == **target_state
-        })
+        .filter(|candidate| candidate.machine == target_machine && candidate.state == target_state)
         .collect::<Vec<_>>();
     let [target] = targets.as_slice() else {
         return Err("the forwarding edge has no unique checked target plan");
@@ -110,9 +99,14 @@ pub(super) fn validate(
         CheckedUnitEffectOperationPlan::Complete { .. }
     ) || target_body.is_empty()
         || target_body.iter().any(|operation| {
-            !matches!(operation,
-                CheckedUnitEffectOperationPlan::BoundaryCall { target_state, .. }
-                    if requirement_states.iter().any(|signature| signature.symbol == *target_state))
+            // Each requirement call is a boundary call with a Unit result.
+            !operation.call().is_some_and(|call| {
+                call.is_boundary()
+                    && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+                    && requirement_states
+                        .iter()
+                        .any(|signature| signature.symbol == call.target.state)
+            })
         })
     {
         return Err("the forwarding target does not terminate in direct requirement calls");
@@ -139,7 +133,7 @@ pub(super) fn validate(
     if !matches!(source_calls, [source]
         if source.statement_index == usize::try_from(coordinate.statement_index).unwrap_or(usize::MAX)
             && source.call_ordinal == usize::try_from(coordinate.call_ordinal).unwrap_or(usize::MAX)
-            && source.target_symbol == **target_state
+            && source.target_symbol == target_state
             && !source.has_receiver)
     {
         return Err("the forwarding plan does not rejoin one exact internal source call");

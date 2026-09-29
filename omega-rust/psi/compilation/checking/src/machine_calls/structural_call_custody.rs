@@ -550,17 +550,17 @@ pub fn reconstruct_structural_call_custody(
     caller_state: SymbolHandle,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<CheckedStructuralCallCustodyPlan, &'static str> {
-    let CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate,
-        target_machine,
-        target_state,
-        result,
-        structural_arguments,
-        ..
-    } = operation
+    let Some((call, result)) = operation
+        .call()
+        .filter(|call| !call.is_boundary())
+        .and_then(|call| Some((call, call.structural_result()?)))
     else {
         return Err("structural custody requires an ordinary structural call");
     };
+    let coordinate = &call.coordinate;
+    let target_machine = &call.target.machine;
+    let target_state = &call.target.state;
+    let structural_arguments = &call.structural_arguments;
     let caller = program
         .machines()
         .iter()

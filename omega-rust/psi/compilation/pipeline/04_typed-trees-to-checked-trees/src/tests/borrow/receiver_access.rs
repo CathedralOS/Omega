@@ -71,9 +71,9 @@ fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::
 }
 
 /// Structural arguments of every runtime call in one Unit plan. A call whose
-/// result is its own operation keeps them on its `ScalarCall`; a call whose
-/// result lands at a scalar destination (a local or the machine's result) is
-/// the `Call` node of that destination's ordered computation.
+/// result is its own operation keeps them on its ordinary scalar call; a call
+/// whose result lands at a scalar destination (a local or the machine's
+/// result) is the `Call` node of that destination's ordered computation.
 fn call_structural_arguments(
     checked: &checked_trees::CheckedTrees,
     plan: &checked_trees::CheckedUnitEffectMachinePlan,
@@ -82,10 +82,11 @@ fn call_structural_arguments(
     let mut arguments = Vec::new();
     for operation in &plan.operations {
         match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            } => arguments.extend(structural_arguments.iter().cloned()),
+            checked_trees::CheckedUnitEffectOperationPlan::Call(call)
+                if !call.is_boundary() && call.scalar_result().is_some() =>
+            {
+                arguments.extend(call.structural_arguments.iter().cloned())
+            }
             checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                 value: checked_trees::CheckedCallScalarArgument::Computation(root),
                 ..

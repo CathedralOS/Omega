@@ -1,9 +1,7 @@
 //! Source and borrow ledgers cannot jointly substitute another live local.
 
-use checked_trees::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralArgumentSourcePlan,
-};
+use super::{is_ordinary_unit_call, ordinary_unit_call_mut};
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralArgumentSourcePlan};
 use terminal_production::{
     TerminalMachineSelection, TerminalProductionCustody, TerminalProductionTimings,
 };
@@ -15,11 +13,7 @@ fn caller(checked: &checked_trees::CheckedTrees) -> usize {
         .terminal_unit_effects
         .machines
         .iter()
-        .position(|plan| {
-            plan.operations.iter().any(|operation| {
-                matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-            })
-        })
+        .position(|plan| plan.operations.iter().any(is_ordinary_unit_call))
         .expect("ordinary Unit caller")
 }
 
@@ -39,14 +33,8 @@ fn local_unit_call_rejects_changed_access_and_missing_ordered_effects() {
             3 => operations.swap(0, 1),
             4 => operations.insert(1, operations[1].clone()),
             5 | 6 => {
-                let CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } = &mut operations[1]
-                else {
-                    panic!("Unit call");
-                };
-                structural_arguments[0].access = if mutation == 5 {
+                let call = ordinary_unit_call_mut(&mut operations[1]);
+                call.structural_arguments[0].access = if mutation == 5 {
                     CheckedStructuralAccess::SharedBorrow
                 } else {
                     CheckedStructuralAccess::Owned
@@ -75,14 +63,8 @@ fn local_unit_actual_cannot_change_its_retained_owner_kind_to_a_parameter() {
     let _ = super::artifact(&source);
     let caller = caller(&changed);
     let plan = &mut changed.facts.flow.terminal_unit_effects.machines[caller];
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    } = &mut plan.operations[1]
-    else {
-        panic!("Unit call");
-    };
-    structural_arguments[0].source =
+    let call = ordinary_unit_call_mut(&mut plan.operations[1]);
+    call.structural_arguments[0].source =
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index: 0 };
     assert!(
         terminal_production::TerminalProductionRequest::new(

@@ -72,48 +72,25 @@ pub(super) fn prepare(
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<PreparedCall, LoweringError> {
-    let (
-        target_machine,
-        scalar_arguments,
-        erased_scalar_arguments,
-        erased_proof_arguments,
-        structural_arguments,
-        claim_transfers,
-    ) = match operation {
-        CheckedUnitEffectOperationPlan::CallUnit {
-            target_machine,
-            scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } => (
-            target_machine,
-            scalar_arguments,
-            erased_scalar_arguments.as_slice(),
-            erased_proof_arguments.as_slice(),
-            structural_arguments,
-            claim_transfers.as_slice(),
-        ),
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            target_machine,
-            scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
-            structural_arguments,
-            custody,
-            ..
-        } => (
-            target_machine,
-            scalar_arguments,
-            erased_scalar_arguments.as_slice(),
-            erased_proof_arguments.as_slice(),
-            structural_arguments,
-            custody.claim_transfers.as_slice(),
-        ),
-        _ => return unsupported("ordinary call preparation has no call operation"),
+    // An ordinary call with a Unit or structural result; a structural call
+    // keeps its claim transfers in its custody record.
+    let Some((call, erased_scalar_arguments, erased_proof_arguments)) = operation
+        .call()
+        .filter(|call| !call.is_boundary() && call.scalar_result().is_none())
+        .and_then(|call| {
+            Some((
+                call,
+                call.erased_scalar_arguments()?,
+                call.erased_proof_arguments()?,
+            ))
+        })
+    else {
+        return unsupported("ordinary call preparation has no call operation");
     };
+    let target_machine = &call.target.machine;
+    let scalar_arguments = &call.scalar_arguments;
+    let structural_arguments = &call.structural_arguments;
+    let claim_transfers = call.claim_transfers();
     let checked_target = UnitBody::find(plans, *target_machine)?.entry()?;
     if target.erased_scalar_parameters.len() != checked_target.erased_scalar_parameters.len()
         || erased_scalar_arguments.len() != checked_target.erased_scalar_parameters.len()
@@ -351,18 +328,16 @@ pub(super) fn emit_structural(
     next_place: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<StructuralPlaceDeclaration, LoweringError> {
-    let CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate,
-        source_site,
-        result,
-        target_state,
-        target_machine,
-        custody,
-        ..
-    } = operation
+    let Some((call, result, custody)) = operation
+        .call()
+        .filter(|call| !call.is_boundary())
+        .and_then(|call| Some((call, call.structural_result()?, call.structural_custody()?)))
     else {
         return unsupported("structural call emission requires an owned result call");
     };
+    let coordinate = &call.coordinate;
+    let target_state = &call.target.state;
+    let target_machine = &call.target.machine;
     let id = operations.allocate();
     let place = place_id(allocate_dense(next_place)?);
     let structural_type = lookup_type_id(type_ids, &result.type_identity)?;
@@ -372,7 +347,7 @@ pub(super) fn emit_structural(
             statement_index: coordinate.statement_index as usize,
             call_ordinal: coordinate.call_ordinal as usize,
         },
-        *source_site,
+        call.source_site().flatten(),
         id,
         *target_state,
     )?;

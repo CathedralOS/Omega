@@ -5,6 +5,7 @@ use crate::tests::flow::terminal_unit::{
     PrimitiveType, checked, machine_named,
 };
 use crate::tests::front_end::typed_program;
+use checked_trees::CheckedUnitCallResult;
 
 #[test]
 fn retains_direct_and_nested_write_only_record_field_literal_stores() {
@@ -141,15 +142,13 @@ fn retains_only_certificate_backed_restored_reference_alias_call() {
     assert!(matches!(
         exercise.operations.as_slice(),
         [
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                structural_arguments,
-                ..
-            },
+            CheckedUnitEffectOperationPlan::Call(call),
             CheckedUnitEffectOperationPlan::Complete { .. },
-        ] if coordinate.statement_index == 2
-            && coordinate.call_ordinal == 0
-            && matches!(structural_arguments.as_slice(), [argument]
+        ] if !call.is_boundary()
+            && *call.result() == CheckedUnitCallResult::Unit
+            && call.coordinate.statement_index == 2
+            && call.coordinate.call_ordinal == 0
+            && matches!(call.structural_arguments.as_slice(), [argument]
                 if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.access
@@ -200,15 +199,13 @@ fn retains_only_certificate_backed_sole_shared_freeze_alias_call() {
     assert!(matches!(
         exercise.operations.as_slice(),
         [
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                structural_arguments,
-                ..
-            },
+            CheckedUnitEffectOperationPlan::Call(call),
             CheckedUnitEffectOperationPlan::Complete { .. },
-        ] if coordinate.statement_index == 2
-            && coordinate.call_ordinal == 0
-            && matches!(structural_arguments.as_slice(), [argument]
+        ] if !call.is_boundary()
+            && *call.result() == CheckedUnitCallResult::Unit
+            && call.coordinate.statement_index == 2
+            && call.coordinate.call_ordinal == 0
+            && matches!(call.structural_arguments.as_slice(), [argument]
                 if argument.source_parameter_index() == Some(0)
                     && argument.path.is_empty()
                     && argument.access
@@ -255,10 +252,7 @@ fn write_only_common_field_subloans_retain_independent_roots() {
         .for_machine(machine_named(&checked, "Root::forward"))
         .expect("disjoint projected write-only arguments compose");
     let [
-        CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        },
+        CheckedUnitEffectOperationPlan::Call(call),
         CheckedUnitEffectOperationPlan::Complete {
             statement_index: 1, ..
         },
@@ -266,8 +260,12 @@ fn write_only_common_field_subloans_retain_independent_roots() {
     else {
         panic!("one call retaining both projected loans followed by ordinary completion");
     };
-    assert_eq!(structural_arguments.len(), 2);
-    for (position, argument) in structural_arguments.iter().enumerate() {
+    assert!(
+        !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit,
+        "one call retaining both projected loans followed by ordinary completion"
+    );
+    assert_eq!(call.structural_arguments.len(), 2);
+    for (position, argument) in call.structural_arguments.iter().enumerate() {
         assert_eq!(argument.source_parameter_index(), Some(position as u32));
         assert_eq!(
             argument.access,

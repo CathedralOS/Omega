@@ -40,12 +40,10 @@ pub(crate) fn validate_permissions(
     consumer: &CheckedUnitEffectOperationPlan,
     residuals: &[CheckedUnitPartialAffineDiscardPlan],
 ) -> Result<(), LoweringError> {
-    let (CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate, result, ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        coordinate, result, ..
-    }) = producer
+    // A call with a structural result, ordinary or boundary.
+    let Some((coordinate, result)) = producer
+        .call()
+        .and_then(|call| Some((&call.coordinate, call.structural_result()?)))
     else {
         return unsupported("anonymous partial permissions have no structural producer");
     };
@@ -59,14 +57,14 @@ pub(crate) fn validate_permissions(
     else {
         return unsupported("anonymous partial permissions have no expression root");
     };
-    let CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate: consumer_coordinate,
-        structural_arguments,
-        ..
-    } = consumer
-    else {
+    // The consumer is an ordinary Unit call.
+    let Some(consumer) = consumer.call().filter(|call| {
+        !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+    }) else {
         return unsupported("anonymous partial permissions have no Unit consumer");
     };
+    let consumer_coordinate = &consumer.coordinate;
+    let structural_arguments = &consumer.structural_arguments;
     // The dying operand is the one sourced from this producer's binding;
     // sibling temporaries and unrelated arguments share the same consumer.
     let mut projected = structural_arguments.iter().filter(|argument| {

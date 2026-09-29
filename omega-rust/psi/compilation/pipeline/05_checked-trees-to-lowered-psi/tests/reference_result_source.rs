@@ -40,6 +40,49 @@ fn checked(prefix: &str) -> checked_trees::CheckedTrees {
     crate::front_end::checked_program(&source)
 }
 
+/// Whether `call` is an ordinary (non-boundary) call with a structural result.
+fn is_ordinary_structural_call(call: &checked_trees::CheckedUnitCallPlan) -> bool {
+    !call.is_boundary() && call.structural_result().is_some()
+}
+
+/// The first ordinary structural call in `plans` that `selects` accepts.
+fn ordinary_structural_call_mut(
+    plans: &mut [checked_trees::CheckedUnitEffectMachinePlan],
+    selects: impl Fn(&checked_trees::CheckedUnitCallPlan) -> bool,
+) -> &mut checked_trees::CheckedUnitCallPlan {
+    plans
+        .iter_mut()
+        .flat_map(|machine| &mut machine.operations)
+        .filter_map(checked_trees::CheckedUnitEffectOperationPlan::call_mut)
+        .find(|call| is_ordinary_structural_call(call) && selects(call))
+        .unwrap()
+}
+
+/// Whether `call` passes any projected structural argument.
+fn has_projected_argument(call: &checked_trees::CheckedUnitCallPlan) -> bool {
+    call.structural_arguments
+        .iter()
+        .any(|argument| !argument.path.is_empty())
+}
+
+/// Whether `call` retains a valid reference-result loan in its custody.
+fn has_reference_loan(call: &checked_trees::CheckedUnitCallPlan) -> bool {
+    call.structural_custody()
+        .is_some_and(|custody| custody.reference_loan.is_valid())
+}
+
+/// The valid reference loan an ordinary structural call's custody retains.
+/// Only an ordinary structural call retains structural custody.
+fn reference_call_loan(
+    operation: &checked_trees::CheckedUnitEffectOperationPlan,
+) -> Option<arena::Handle<checked_trees::BorrowLoanFact>> {
+    operation
+        .call()?
+        .structural_custody()
+        .map(|custody| custody.reference_loan)
+        .filter(|loan| loan.is_valid())
+}
+
 fn signed(value: i128) -> TerminalScalarValue {
     TerminalScalarValue::Integer {
         scalar_type: IntegerType::new(IntegerSign::Signed, 32).expect("i32 carrier"),
@@ -517,13 +560,26 @@ fn stored_reference_result_rejects_changed_return_and_actual_origins() {
                     original.state_parameters(helper_state)[0].symbol
             }
             4 => {
-                let Operation::StructuralCall { target_machine, target_state, target_contract_report_fingerprint, target_contract_commitment, .. } =
-                    changed.facts.flow.terminal_unit_effects.machines.iter_mut().flat_map(|machine| &mut machine.operations)
-                        .find(|operation| matches!(operation, Operation::StructuralCall { target_state, .. } if *target_state == helper_state.symbol)).unwrap() else { unreachable!() };
-                *target_machine = alternate.symbol;
-                *target_state = alternate_state;
-                *target_contract_report_fingerprint = alternate_contract.report_fingerprint;
-                *target_contract_commitment = alternate_contract.commitment;
+                let call = changed
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .machines
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .filter_map(Operation::call_mut)
+                    .find(|call| {
+                        is_ordinary_structural_call(call)
+                            && call.target.state == helper_state.symbol
+                    })
+                    .unwrap();
+                call.target.machine = alternate.symbol;
+                call.target.state = alternate_state;
+                call.target.contract_report_fingerprint = alternate_contract.report_fingerprint;
+                *call
+                    .contract_commitment_mut()
+                    .expect("an ordinary structural call retains its commitment") =
+                    alternate_contract.commitment;
             }
             _ => unreachable!(),
         }
@@ -580,8 +636,14 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
                 source.source = Source::Parameter { parameter_index: 1 };
             }
             1 => {
-                let Operation::StructuralCall { custody, .. } = plans.iter_mut().flat_map(|machine| &mut machine.operations)
-                    .find(|operation| matches!(operation, Operation::StructuralCall { custody, .. } if custody.reference_loan.is_valid())).unwrap() else { unreachable!() };
+                // Only an ordinary structural call retains structural custody.
+                let custody = plans
+                    .iter_mut()
+                    .flat_map(|machine| &mut machine.operations)
+                    .filter_map(Operation::call_mut)
+                    .filter_map(|call| call.structural_custody_mut())
+                    .find(|custody| custody.reference_loan.is_valid())
+                    .unwrap();
                 custody.reference_loan = arena::Handle::invalid();
             }
             2 => {
@@ -614,14 +676,7 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
                 let loan = plans
                     .iter()
                     .flat_map(|machine| &machine.operations)
-                    .find_map(|operation| match operation {
-                        Operation::StructuralCall { custody, .. }
-                            if custody.reference_loan.is_valid() =>
-                        {
-                            Some(custody.reference_loan)
-                        }
-                        _ => None,
-                    })
+                    .find_map(reference_call_loan)
                     .unwrap();
                 changed.facts.borrow.loans.get_mut(loan).root_symbol =
                     symbols::SymbolHandle::invalid();
@@ -630,14 +685,7 @@ fn reference_result_rejects_changed_source_loan_and_weakening() {
                 let loan = plans
                     .iter()
                     .flat_map(|machine| &machine.operations)
-                    .find_map(|operation| match operation {
-                        Operation::StructuralCall { custody, .. }
-                            if custody.reference_loan.is_valid() =>
-                        {
-                            Some(custody.reference_loan)
-                        }
-                        _ => None,
-                    })
+                    .find_map(reference_call_loan)
                     .unwrap();
                 let weakening = changed
                     .facts
@@ -901,10 +949,7 @@ fn projected_reference_result_rejects_sibling_leaf_rosters() {
 
 #[test]
 fn nested_call_record_argument_rejects_changed_leaf_custody() {
-    use checked_trees::{
-        CheckedUnitEffectOperationPlan as Operation,
-        CheckedUnitStructuralArgumentSourcePlan as Source,
-    };
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
     let original = crate::front_end::checked_program(NESTED_CALL_RECORD_ARGUMENT_SOURCE);
     let _ = terminal_production::TerminalProductionRequest::new(
         &original,
@@ -921,109 +966,44 @@ fn nested_call_record_argument_rejects_changed_leaf_custody() {
         match mutation {
             // The projected operand must keep its exact field edge.
             0 => {
-                let Operation::StructuralCall {
-                    structural_arguments,
-                    ..
-                } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
-                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                structural_arguments[0].path.clear();
+                let call = ordinary_structural_call_mut(plans, has_projected_argument);
+                call.structural_arguments[0].path.clear();
             }
             // The projected operand must stay rooted at the nested result
             // binding, not a fabricated parameter.
             1 => {
-                let Operation::StructuralCall {
-                    structural_arguments,
-                    ..
-                } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
-                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                structural_arguments[0].source = Source::Parameter { parameter_index: 0 };
+                let call = ordinary_structural_call_mut(plans, has_projected_argument);
+                call.structural_arguments[0].source = Source::Parameter { parameter_index: 0 };
             }
             // The owned subtree moves whole; a borrowed projection cannot.
             2 => {
-                let Operation::StructuralCall {
-                    structural_arguments,
-                    ..
-                } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
-                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                structural_arguments[0].access =
+                let call = ordinary_structural_call_mut(plans, has_projected_argument);
+                call.structural_arguments[0].access =
                     checked_trees::CheckedStructuralAccess::SharedBorrow;
             }
             // The consumer's returned leaf must keep its exact loan.
             3 => {
-                let Operation::StructuralCall { custody, .. } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { custody, .. }
-                            if custody.reference_loan.is_valid())
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                custody.reference_loan = arena::Handle::invalid();
+                let call = ordinary_structural_call_mut(plans, has_reference_loan);
+                call.structural_custody_mut()
+                    .expect("ordinary structural call custody")
+                    .reference_loan = arena::Handle::invalid();
             }
             // The nested producer is the non-zero-ordinal call; its result
             // binding must keep the exact returned carrier identity.
             4 => {
-                let Operation::StructuralCall { result, .. } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { coordinate, .. }
-                            if coordinate.call_ordinal != 0)
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
+                let call =
+                    ordinary_structural_call_mut(plans, |call| call.coordinate.call_ordinal != 0);
+                let (result, _) = call
+                    .structural_result_mut()
+                    .expect("structural call result");
                 result.type_identity = "named(forward_outer::bogus)".to_owned();
             }
             // The nested producer's whole actual must stay whole; projecting
             // it would strand sibling leaf custody.
             5 => {
-                let Operation::StructuralCall {
-                    structural_arguments,
-                    ..
-                } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { coordinate, .. }
-                            if coordinate.call_ordinal != 0)
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                structural_arguments[0].path.push(
+                let call =
+                    ordinary_structural_call_mut(plans, |call| call.coordinate.call_ordinal != 0);
+                call.structural_arguments[0].path.push(
                     checked_trees::CheckedUnitStructuralPathSegment::Field("inner".to_owned()),
                 );
             }
@@ -1086,10 +1066,7 @@ const PROJECTED_RECORD_ARGUMENT_SOURCE: &str = "data View { body: &mut i32; }
 
 #[test]
 fn projected_record_argument_rejects_changed_leaf_custody() {
-    use checked_trees::{
-        CheckedUnitEffectOperationPlan as Operation,
-        CheckedUnitStructuralArgumentSourcePlan as Source,
-    };
+    use checked_trees::CheckedUnitStructuralArgumentSourcePlan as Source;
     let original = crate::front_end::checked_program(PROJECTED_RECORD_ARGUMENT_SOURCE);
     let _ = terminal_production::TerminalProductionRequest::new(
         &original,
@@ -1106,73 +1083,26 @@ fn projected_record_argument_rejects_changed_leaf_custody() {
         match mutation {
             // The argument must keep its exact projected field edge.
             0 => {
-                let Operation::StructuralCall {
-                    structural_arguments,
-                    ..
-                } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
-                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                structural_arguments[0].path.clear();
+                let call = ordinary_structural_call_mut(plans, has_projected_argument);
+                call.structural_arguments[0].path.clear();
             }
             // The projected operand must keep its exact result binding.
             1 => {
-                let Operation::StructuralCall {
-                    structural_arguments,
-                    ..
-                } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
-                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                structural_arguments[0].source = Source::Parameter { parameter_index: 0 };
+                let call = ordinary_structural_call_mut(plans, has_projected_argument);
+                call.structural_arguments[0].source = Source::Parameter { parameter_index: 0 };
             }
             // The owned subtree moves whole; a borrowed projection cannot.
             2 => {
-                let Operation::StructuralCall {
-                    structural_arguments,
-                    ..
-                } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { structural_arguments, .. }
-                            if structural_arguments.iter().any(|argument| !argument.path.is_empty()))
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                structural_arguments[0].access =
+                let call = ordinary_structural_call_mut(plans, has_projected_argument);
+                call.structural_arguments[0].access =
                     checked_trees::CheckedStructuralAccess::SharedBorrow;
             }
             // The result loan must keep its exact leaf provenance.
             3 => {
-                let Operation::StructuralCall { custody, .. } = plans
-                    .iter_mut()
-                    .flat_map(|machine| &mut machine.operations)
-                    .find(|operation| {
-                        matches!(operation, Operation::StructuralCall { custody, .. }
-                            if custody.reference_loan.is_valid())
-                    })
-                    .unwrap()
-                else {
-                    unreachable!()
-                };
-                custody.reference_loan = arena::Handle::invalid();
+                let call = ordinary_structural_call_mut(plans, has_reference_loan);
+                call.structural_custody_mut()
+                    .expect("ordinary structural call custody")
+                    .reference_loan = arena::Handle::invalid();
             }
             _ => unreachable!(),
         }

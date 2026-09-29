@@ -43,14 +43,13 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         .iter()
         .flat_map(|operation| operation.with_value_calls())
         .any(|operation| {
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            } = operation
-            else {
+            // Only an ordinary Unit call projects an owned parameter here.
+            let Some(call) = operation.call().filter(|call| {
+                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+            }) else {
                 return false;
             };
-            structural_arguments.iter().any(|argument| {
+            call.structural_arguments.iter().any(|argument| {
                 argument.access == CheckedStructuralAccess::Owned
                     && !argument.path.is_empty()
                     && matches!(
@@ -76,26 +75,24 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
     if call_operations.is_empty() {
         return unsupported("partial affine Unit cleanup requires projected calls");
     }
-    let (root_source, root_type, producer_count, anonymous) = match &call_operations[0] {
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            result,
-            discard_result_on_return,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            result,
-            discard_result_on_return,
-            ..
-        } => {
+    // A call with a structural result, ordinary or boundary, produces the
+    // partial root; otherwise the root is the one structural parameter.
+    let producer = call_operations[0].call().and_then(|call| {
+        Some((
+            call.coordinate,
+            call.structural_result()?,
+            call.discard_result_on_return()?,
+        ))
+    });
+    let (root_source, root_type, producer_count, anonymous) = match producer {
+        Some((coordinate, result, discard_result_on_return)) => {
             if coordinate.statement_index != 0
                 || coordinate.call_ordinal > 1
                 || (coordinate.call_ordinal == 1 && call_operations.len() != 2)
                 || result.binding_ordinal != 0
                 || result.statement_index != 0
                 || result.multiplicity != Multiplicity::Affine
-                || *discard_result_on_return
+                || discard_result_on_return
                 || plan.structural_parameters.len() > 1
             {
                 return unsupported("partial affine result producer custody drifted");
@@ -109,7 +106,7 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
                 coordinate.call_ordinal == 1,
             )
         }
-        _ => {
+        None => {
             let [parameter] = plan.structural_parameters.as_slice() else {
                 return unsupported(
                     "partial affine Unit cleanup requires one structural parameter",
@@ -133,16 +130,16 @@ pub(super) fn lower_partial_affine_unit_cleanup_machine(
         symbols::SymbolHandle,
     )>::new();
     for (operation_ordinal, operation) in projected_calls.iter().enumerate() {
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_machine,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } = operation
-        else {
+        // Each projected move is an ordinary Unit call.
+        let Some(call) = operation.call().filter(|call| {
+            !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+        }) else {
             return unsupported("partial affine Unit cleanup operation sequence drifted");
         };
+        let coordinate = &call.coordinate;
+        let target_machine = &call.target.machine;
+        let structural_arguments = &call.structural_arguments;
+        let claim_transfers = call.claim_transfers();
         let [argument] = structural_arguments.as_slice() else {
             return unsupported("partial affine Unit cleanup requires one structural argument");
         };
@@ -403,11 +400,11 @@ fn lower_general_partial_affine_unit_cleanup_machine(
         .flat_map(|operation| operation.with_value_calls())
     {
         if let Some(call) = operation.call() {
-            let coordinate = call.coordinate();
+            let coordinate = call.coordinate;
             if !call_coordinates.insert((coordinate.statement_index, coordinate.call_ordinal)) {
                 return unsupported("partial affine Unit cleanup signature or coordinates drifted");
             }
-            for argument in call.structural_arguments() {
+            for argument in &call.structural_arguments {
                 if argument.access != CheckedStructuralAccess::Owned {
                     continue;
                 }

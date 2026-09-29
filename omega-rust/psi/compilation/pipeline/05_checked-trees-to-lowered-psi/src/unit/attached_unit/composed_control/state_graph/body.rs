@@ -7,6 +7,7 @@ use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
 use crate::emission::indexed_write::{self, IndexedWriteLeaf};
 use checked_trees::statement::StatementNode;
+use checked_trees::{CheckedUnitCallPlan, CheckedUnitCallResult};
 
 pub(super) fn validate(
     checked: &CheckedTrees,
@@ -33,14 +34,36 @@ pub(super) fn validate(
     let prefix = state.bindings.len();
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
     let returned_scalar = returned_scalar_binding(state);
-    let tail_value = usize::from(matches!(state.terminator, CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. })
-        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } | CheckedUnitEffectOperationPlan::EstablishReference { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))))
-        // A scalar final expression's own producer occupies the tail statement.
+    let tail_value = usize::from(
+        matches!(
+            state.terminator,
+            CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. }
+        ) && state.operations.last().is_some_and(|operation| {
+            let result = match operation {
+                CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                | CheckedUnitEffectOperationPlan::EstablishReference { result, .. } => Some(result),
+                // Any call with a structural result, ordinary or boundary.
+                CheckedUnitEffectOperationPlan::Call(call) => call.structural_result(),
+                _ => None,
+            };
+            result.is_some_and(|result| {
+                result.statement_index as usize == statements.len().saturating_sub(1)
+            })
+        }),
+    )
+        // A scalar final expression's own producer occupies the tail statement:
+        // a scalar local or an ordinary scalar call.
         + usize::from(returned_scalar.is_some_and(|binding| {
             binding.statement_index as usize + 1 == statements.len()
-                && state.operations.last().is_some_and(|operation| matches!(operation,
-                    CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. }
-                    | CheckedUnitEffectOperationPlan::ScalarCall { result, .. } if result == binding))
+                && state.operations.last().is_some_and(|operation| match operation {
+                    CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, .. } => {
+                        result == binding
+                    }
+                    CheckedUnitEffectOperationPlan::Call(call) => {
+                        !call.is_boundary() && call.scalar_result() == Some(binding)
+                    }
+                    _ => false,
+                })
         }));
     // Some operations continue the authored statement an earlier operation
     // began instead of consuming a new one; see `statement_continuations`.
@@ -134,10 +157,11 @@ pub(super) fn validate(
                 // A nested call's result binds in authored evaluation order
                 // before the construction that consumes it.
                 for call in calls {
-                    let CheckedUnitEffectOperationPlan::StructuralCall {
-                        result: call_result,
-                        ..
-                    } = call.operation()
+                    let Some(call_result) = call
+                        .operation()
+                        .call()
+                        .filter(|planned| !planned.is_boundary())
+                        .and_then(CheckedUnitCallPlan::structural_result)
                     else {
                         return unsupported(
                             "Unit graph structural call result lost its operation",
@@ -147,11 +171,9 @@ pub(super) fn validate(
                 }
                 check_structural_binding(result)?;
             }
-            CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
             // A view-subslice local binds its narrowed view in the same
             // namespace an `as_slice` view local's value does.
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
             | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. }
             // A `let`-bound closed scalar array takes the next structural
             // ordinal when checking plans it (`local_data`), so a later
@@ -177,32 +199,31 @@ pub(super) fn validate(
                             "Unit graph scalar binding count overflow",
                         ))?;
             }
-            // A boundary scalar result binds its local in the same dense
-            // namespace as an ordinary scalar call result.
-            CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate, result, ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate, result, ..
-            } => {
-                if result.binding_ordinal != next_scalar_binding {
-                    return unsupported("Unit graph scalar binding namespace drifted");
+            // A call's result binds in the structural or dense scalar
+            // namespace; a boundary result shares the namespace an ordinary
+            // result binds.
+            CheckedUnitEffectOperationPlan::Call(call) => match call.result() {
+                CheckedUnitCallResult::Unit => {}
+                CheckedUnitCallResult::Structural { binding, .. } => {
+                    check_structural_binding(binding)?;
                 }
-                // A discarded call result occupies its ordinal unclaimed; only
-                // a retained result advances the namespace.
-                if !crate::emission::call_source_custody::initializers::discards_result(
-                    checked,
-                    state.state,
-                    *coordinate,
-                )? {
-                    next_scalar_binding =
-                        next_scalar_binding
-                            .checked_add(1)
-                            .ok_or(LoweringError::Unsupported(
-                                "Unit graph scalar binding count overflow",
-                            ))?;
+                CheckedUnitCallResult::Scalar(result) => {
+                    if result.binding_ordinal != next_scalar_binding {
+                        return unsupported("Unit graph scalar binding namespace drifted");
+                    }
+                    // A discarded call result occupies its ordinal unclaimed;
+                    // only a retained result advances the namespace.
+                    if !crate::emission::call_source_custody::initializers::discards_result(
+                        checked,
+                        state.state,
+                        call.coordinate,
+                    )? {
+                        next_scalar_binding = next_scalar_binding.checked_add(1).ok_or(
+                            LoweringError::Unsupported("Unit graph scalar binding count overflow"),
+                        )?;
+                    }
                 }
-            }
+            },
             _ => {}
         }
         let ordinal = if continuations[index] {
@@ -371,16 +392,15 @@ pub(super) fn validate(
             {
                 validate_returned_value(checked, machine, state, result, value, *expression)?;
             }
-            (
-                CheckedUnitEffectOperationPlan::ScalarCall {
-                    coordinate, result, ..
-                },
-                StatementNode::Expression(_),
-            ) if returned_scalar == Some(result)
-                && coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && result.statement_index == coordinate.statement_index
-                && ordinal + 1 == statements.len() =>
+            // An ordinary scalar call owns the returned final expression.
+            (CheckedUnitEffectOperationPlan::Call(call), StatementNode::Expression(_))
+                if let Some(result) = call.scalar_result()
+                    && !call.is_boundary()
+                    && returned_scalar == Some(result)
+                    && call.coordinate.statement_index as usize == ordinal
+                    && call.coordinate.call_ordinal == 0
+                    && result.statement_index == call.coordinate.statement_index
+                    && ordinal + 1 == statements.len() =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
@@ -390,42 +410,12 @@ pub(super) fn validate(
                     &state.structural_parameters,
                 )?;
             }
+            // A kept structural result, ordinary or boundary; a boundary
+            // call completes no receipts inside a composed state.
             (
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate,
-                    result,
-                    discard_result_on_return,
-                    ..
-                },
+                CheckedUnitEffectOperationPlan::Call(call),
                 StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Call(_),
-            ) if coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && !discard_result_on_return
-                && result.statement_index as usize == ordinal =>
-            {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
-            }
-            (
-                CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate,
-                    result,
-                    completion_receipts,
-                    discard_result_on_return,
-                    ..
-                },
-                StatementNode::LocalData(_) | StatementNode::Call(_) | StatementNode::Expression(_),
-            ) if completion_receipts.is_empty()
-                && coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && !discard_result_on_return
-                && result.statement_index as usize == ordinal =>
-            {
+            ) if kept_structural_call_at(call, ordinal) => {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
                     machine,
@@ -441,26 +431,8 @@ pub(super) fn validate(
             // complete statement roster, so no member stands alone. Boundary
             // and ordinary calls produce the same replacement window; the
             // call owner separately checks their distinct authority contracts.
-            (
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    coordinate,
-                    result,
-                    discard_result_on_return: false,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    coordinate,
-                    result,
-                    discard_result_on_return: false,
-                    ..
-                },
-                StatementNode::Assignment(assignment),
-            ) if coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && result.statement_index as usize == ordinal
-                && !matches!(operation,
-                    CheckedUnitEffectOperationPlan::BoundaryStructuralCall { completion_receipts, .. }
-                        if !completion_receipts.is_empty()) =>
+            (CheckedUnitEffectOperationPlan::Call(call), StatementNode::Assignment(assignment))
+                if kept_structural_call_at(call, ordinal) =>
             {
                 validate_displaced_field_replacement(
                     checked, machine, source, state, ordinal, assignment,
@@ -629,44 +601,15 @@ pub(super) fn validate(
                     )?;
                 }
             }
+            // A Unit call: a boundary call consumes its boundary; an ordinary
+            // call may transfer no claims inside a composed state.
             (
-                CheckedUnitEffectOperationPlan::BoundaryCall {
-                    coordinate,
-                    target_state,
-                    structural_arguments,
-                    completion_receipts,
-                    ..
-                },
+                CheckedUnitEffectOperationPlan::Call(call),
                 StatementNode::Call(_) | StatementNode::Expression(_),
-            ) if coordinate.statement_index as usize == ordinal && coordinate.call_ordinal == 0 => {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
-                super::claims::validate_boundary_consumption(
-                    checked,
-                    machine,
-                    source,
-                    state,
-                    *coordinate,
-                    *target_state,
-                    structural_arguments,
-                    completion_receipts,
-                )?;
-            }
-            (
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    coordinate,
-                    claim_transfers,
-                    ..
-                },
-                StatementNode::Call(_) | StatementNode::Expression(_),
-            ) if claim_transfers.is_empty()
-                && coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0 =>
+            ) if *call.result() == CheckedUnitCallResult::Unit
+                && (call.is_boundary() || call.claim_transfers().is_empty())
+                && call.coordinate.statement_index as usize == ordinal
+                && call.coordinate.call_ordinal == 0 =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
@@ -675,18 +618,19 @@ pub(super) fn validate(
                     operation,
                     &state.structural_parameters,
                 )?;
+                validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
-            (
-                CheckedUnitEffectOperationPlan::ScalarCall {
-                    coordinate, result, ..
-                },
-                StatementNode::LocalData(local),
-            ) if !local.is_mutable
-                && coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && result.statement_index == coordinate.statement_index
-                && checked.primitive_type_reference(local.type_reference)
-                    == Some(result.primitive_type) =>
+            // A scalar call bound by an immutable `let`: the local's primitive
+            // is the call's result. A boundary call replays like an ordinary
+            // scalar call and consumes its boundary like a Unit boundary call.
+            (CheckedUnitEffectOperationPlan::Call(call), StatementNode::LocalData(local))
+                if let Some(result) = call.scalar_result()
+                    && !local.is_mutable
+                    && call.coordinate.statement_index as usize == ordinal
+                    && call.coordinate.call_ordinal == 0
+                    && result.statement_index == call.coordinate.statement_index
+                    && checked.primitive_type_reference(local.type_reference)
+                        == Some(result.primitive_type) =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
@@ -695,15 +639,19 @@ pub(super) fn validate(
                     operation,
                     &state.structural_parameters,
                 )?;
+                validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
+            // A scalar call whose result an assignment stores into a field
+            // replays like the `let`-bound arm: the store's checked value is
+            // the call's scalar result (its primitive matched the declared
+            // result type at plan construction).
             (
-                CheckedUnitEffectOperationPlan::ScalarCall {
-                    coordinate, result, ..
-                },
+                CheckedUnitEffectOperationPlan::Call(call),
                 StatementNode::Assignment(_) | StatementNode::Call(_),
-            ) if coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && result.statement_index == coordinate.statement_index =>
+            ) if call.scalar_result().is_some_and(|result| {
+                result.statement_index == call.coordinate.statement_index
+            }) && call.coordinate.statement_index as usize == ordinal
+                && call.coordinate.call_ordinal == 0 =>
             {
                 crate::emission::call_source_custody::validate_operation(
                     checked,
@@ -712,80 +660,7 @@ pub(super) fn validate(
                     operation,
                     &state.structural_parameters,
                 )?;
-            }
-            // A scalar boundary call bound by an immutable `let` replays like
-            // an ordinary scalar call and consumes its boundary like a Unit
-            // boundary call: the local's primitive is the call's result.
-            (
-                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    coordinate,
-                    result,
-                    target_state,
-                    structural_arguments,
-                    completion_receipts,
-                    ..
-                },
-                StatementNode::LocalData(local),
-            ) if !local.is_mutable
-                && coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && result.statement_index == coordinate.statement_index
-                && checked.primitive_type_reference(local.type_reference)
-                    == Some(result.primitive_type) =>
-            {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
-                super::claims::validate_boundary_consumption(
-                    checked,
-                    machine,
-                    source,
-                    state,
-                    *coordinate,
-                    *target_state,
-                    structural_arguments,
-                    completion_receipts,
-                )?;
-            }
-            // A scalar boundary call whose result an assignment stores into a
-            // field replays like the `let`-bound arm: the store's checked
-            // value is the call's scalar result (its primitive matched the
-            // declared result type at plan construction).
-            (
-                CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    coordinate,
-                    result,
-                    target_state,
-                    structural_arguments,
-                    completion_receipts,
-                    ..
-                },
-                StatementNode::Assignment(_) | StatementNode::Call(_),
-            ) if coordinate.statement_index as usize == ordinal
-                && coordinate.call_ordinal == 0
-                && result.statement_index == coordinate.statement_index =>
-            {
-                crate::emission::call_source_custody::validate_operation(
-                    checked,
-                    machine,
-                    state.state,
-                    operation,
-                    &state.structural_parameters,
-                )?;
-                super::claims::validate_boundary_consumption(
-                    checked,
-                    machine,
-                    source,
-                    state,
-                    *coordinate,
-                    *target_state,
-                    structural_arguments,
-                    completion_receipts,
-                )?;
+                validate_boundary_call_consumption(checked, machine, source, state, call)?;
             }
             (
                 CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. },
@@ -920,6 +795,42 @@ fn reordered_store(
 }
 
 /// The binding a scalar-result state's final expression returns, if any.
+/// Whether a call keeps a structural result bound at this statement: an
+/// ordinary call, or a boundary call that completes no receipts here.
+fn kept_structural_call_at(call: &CheckedUnitCallPlan, ordinal: usize) -> bool {
+    call.discard_result_on_return() == Some(false)
+        && (!call.is_boundary() || call.claim_transfers().is_empty())
+        && call.coordinate.statement_index as usize == ordinal
+        && call.coordinate.call_ordinal == 0
+        && call
+            .structural_result()
+            .is_some_and(|result| result.statement_index as usize == ordinal)
+}
+
+/// A boundary call consumes its boundary at its own statement; an ordinary
+/// call has no boundary to consume.
+fn validate_boundary_call_consumption(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    state: &CheckedComposedUnitControlStatePlan,
+    call: &CheckedUnitCallPlan,
+) -> Result<(), LoweringError> {
+    if !call.is_boundary() {
+        return Ok(());
+    }
+    super::claims::validate_boundary_consumption(
+        checked,
+        machine,
+        source,
+        state,
+        call.coordinate,
+        call.target.state,
+        &call.structural_arguments,
+        call.claim_transfers(),
+    )
+}
+
 fn returned_scalar_binding(
     state: &CheckedComposedUnitControlStatePlan,
 ) -> Option<&checked_trees::CheckedUnitScalarResultBindingPlan> {
@@ -1060,7 +971,7 @@ fn named_under_constraints(
 /// .as_mut_slice()`) binds the same compile-time carrier: the borrow
 /// analyzer minted its loan directly, so the binding plans nothing. An
 /// ordinary call result — the same `&mut` spelling with a flow call row —
-/// plans its `StructuralCall` and is not a marker.
+/// plans its structural call and is not a marker.
 fn is_exclusive_loan_marker(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
@@ -1187,7 +1098,7 @@ fn authored_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32>
         } => Some(*statement_index),
         CheckedUnitEffectOperationPlan::AtomicAccess(access) => Some(access.statement_index),
         _ => match operation.call() {
-            Some(call) => Some(call.coordinate().statement_index),
+            Some(call) => Some(call.coordinate.statement_index),
             None => continued_statement(operation),
         },
     }
@@ -1384,21 +1295,16 @@ fn validate_displaced_field_replacement(
         producer,
         checked.expression_table.expression(assignment.value),
     ) {
+        // Any call with a kept structural result, ordinary or boundary.
         (
-            CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                result,
-                discard_result_on_return: false,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate,
-                result,
-                discard_result_on_return: false,
-                ..
-            },
+            CheckedUnitEffectOperationPlan::Call(call),
             checked_trees::expression::ExpressionNode::Call(_),
-        ) if coordinate.call_ordinal == 0 => result,
+        ) if let Some(result) = call.structural_result()
+            && call.discard_result_on_return() == Some(false)
+            && call.coordinate.call_ordinal == 0 =>
+        {
+            result
+        }
         (
             CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                 result,

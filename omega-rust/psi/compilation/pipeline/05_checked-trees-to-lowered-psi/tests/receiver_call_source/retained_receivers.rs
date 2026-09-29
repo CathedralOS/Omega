@@ -5,6 +5,15 @@
 use super::{CheckedStructuralAccess, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::{LoweringError, TerminalMachineSelection};
 
+/// The ordinary (non-boundary) call with a scalar result, if `operation` is one.
+fn ordinary_scalar_call(
+    operation: &CheckedUnitEffectOperationPlan,
+) -> Option<&checked_trees::CheckedUnitCallPlan> {
+    operation
+        .call()
+        .filter(|call| !call.is_boundary() && call.scalar_result().is_some())
+}
+
 fn lower(
     checked: &checked_trees::CheckedTrees,
     name: &str,
@@ -57,12 +66,9 @@ fn statement_call_receiver_rejoins_its_authored_place() {
             .operations
             .iter()
             .enumerate()
-            .find_map(|(index, operation)| match operation {
-                CheckedUnitEffectOperationPlan::ScalarCall {
-                    structural_arguments,
-                    ..
-                } => Some((index, structural_arguments.first()?.clone())),
-                _ => None,
+            .find_map(|(index, operation)| {
+                let scalar_call = ordinary_scalar_call(operation)?;
+                Some((index, scalar_call.structural_arguments.first()?.clone()))
             })
             .unwrap_or_else(|| panic!("{call}: the discard keeps its scalar call"));
         assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
@@ -84,14 +90,12 @@ fn statement_call_receiver_rejoins_its_authored_place() {
                 .iter_mut()
                 .find(|plan| plan.machine == machine)
                 .unwrap();
-            let CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            } = &mut plan.operations[index]
-            else {
+            let Some(scalar_call) = plan.operations[index].call_mut().filter(|scalar_call| {
+                !scalar_call.is_boundary() && scalar_call.scalar_result().is_some()
+            }) else {
                 unreachable!()
             };
-            let argument = &mut structural_arguments[0];
+            let argument = &mut scalar_call.structural_arguments[0];
             match mutation {
                 "path" => {
                     argument.path = vec![checked_trees::CheckedUnitStructuralPathSegment::Field(
@@ -204,11 +208,10 @@ fn direct_receiver_initializers_stay_single_call_operations() {
     let calls = plan
         .operations
         .iter()
-        .filter(|operation| {
-            matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments, ..
-            } if structural_arguments.len() == 1
-                && structural_arguments[0].access == CheckedStructuralAccess::MutableBorrow)
+        .filter_map(ordinary_scalar_call)
+        .filter(|call| {
+            call.structural_arguments.len() == 1
+                && call.structural_arguments[0].access == CheckedStructuralAccess::MutableBorrow
         })
         .count();
     assert_eq!(

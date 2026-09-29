@@ -1,8 +1,13 @@
 //! A call whose value lands in a structural result binding. A returned
 //! reference or borrowed view carries a loan whose operands must be the
 //! caller's structural parameters or earlier results; any other result must
-//! be a claim-free affine value. Either way the call becomes one
-//! `StructuralCall` that carries the binding.
+//! be a claim-free affine value. Either way the call becomes one ordinary
+//! call with a structural result that carries the binding.
+
+use checked_trees::{
+    CheckedUnitCallParts, CheckedUnitCallPlan, CheckedUnitCallResult, CheckedUnitCallRoute,
+    CheckedUnitCallTarget, CheckedUnitCallTransfers,
+};
 
 use crate::execution::terminal_unit::cleanup::service_reach_is_empty;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
@@ -41,6 +46,12 @@ pub(super) fn build(
         structural_arguments,
         transfers,
     } = planned;
+    let call_target = CheckedUnitCallTarget {
+        machine: target_machine.symbol,
+        state: target_state.symbol,
+        contract_report_fingerprint: target_contract.report_fingerprint,
+        service_reach: call.service_reach,
+    };
     let phase = |name: &'static str| {
         trace.phase(name);
         trace.statement(Some(coordinate.statement_index));
@@ -229,26 +240,30 @@ pub(super) fn build(
             .is_some_and(|entry| entry.symbol == target_state.symbol)
         && machine_binders(program, target_machine).is_empty()
     {
-        return Some(CheckedUnitEffectOperationPlan::StructuralCall {
+        return CheckedUnitCallPlan::new(CheckedUnitCallParts {
             coordinate,
             source_site,
-            result: result.clone(),
-            custody: checked_trees::CheckedStructuralCallCustodyPlan {
-                reference_loan,
-                ..Default::default()
+            target: call_target,
+            route: CheckedUnitCallRoute::Module {
+                contract_commitment: Some(target_contract.commitment),
+                erased_scalar_arguments,
+                erased_proof_arguments,
             },
-            target_machine: target_machine.symbol,
-            target_state: target_state.symbol,
-            target_contract_report_fingerprint: target_contract.report_fingerprint,
-            target_contract_commitment: target_contract.commitment,
-            service_reach: call.service_reach,
             scalar_arguments,
-            erased_scalar_arguments,
-            erased_proof_arguments,
             structural_arguments,
-            discard_result_on_return: result.multiplicity == Multiplicity::Affine
-                && !reference_loan.is_valid(),
-        });
+            result: CheckedUnitCallResult::Structural {
+                binding: result.clone(),
+                discard_result_on_return: result.multiplicity == Multiplicity::Affine
+                    && !reference_loan.is_valid(),
+            },
+            transfers: CheckedUnitCallTransfers::StructuralCustody(
+                checked_trees::CheckedStructuralCallCustodyPlan {
+                    reference_loan,
+                    ..Default::default()
+                },
+            ),
+        })
+        .map(CheckedUnitEffectOperationPlan::Call);
     }
     phase("call operation: claim-free affine result");
     let target = facts
@@ -287,22 +302,24 @@ pub(super) fn build(
     {
         return None;
     }
-    Some(CheckedUnitEffectOperationPlan::StructuralCall {
+    CheckedUnitCallPlan::new(CheckedUnitCallParts {
         coordinate,
         source_site,
-        result: result.clone(),
-        custody: Default::default(),
-        target_machine: target_machine.symbol,
-        target_state: target_state.symbol,
-        target_contract_report_fingerprint: target_contract.report_fingerprint,
-        target_contract_commitment: target_contract.commitment,
-        service_reach: call.service_reach,
+        target: call_target,
+        route: CheckedUnitCallRoute::Module {
+            contract_commitment: Some(target_contract.commitment),
+            erased_scalar_arguments,
+            erased_proof_arguments,
+        },
         scalar_arguments,
-        erased_scalar_arguments,
-        erased_proof_arguments,
         structural_arguments,
-        discard_result_on_return: true,
+        result: CheckedUnitCallResult::Structural {
+            binding: result.clone(),
+            discard_result_on_return: true,
+        },
+        transfers: CheckedUnitCallTransfers::StructuralCustody(Default::default()),
     })
+    .map(CheckedUnitEffectOperationPlan::Call)
 }
 
 /// A call whose returned `&mut` structural view loans caller storage mints the

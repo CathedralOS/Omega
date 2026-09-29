@@ -917,17 +917,17 @@ fn byte_literal_call_operands_reject_owned_access_and_sibling_bindings() {
             .machines
             .iter_mut()
             .flat_map(|machine| &mut machine.operations)
-            .find_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => structural_arguments.iter_mut().find(|argument| {
+            .filter_map(CheckedUnitEffectOperationPlan::call_mut)
+            .filter(|call| {
+                !call.is_boundary() && *call.result() == checked_trees::CheckedUnitCallResult::Unit
+            })
+            .find_map(|call| {
+                call.structural_arguments.iter_mut().find(|argument| {
                     argument.source
                         == (CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                             binding_ordinal: 0,
                         })
-                }),
-                _ => None,
+                })
             })
             .expect("the helper call retains its named literal binding");
         match fault {

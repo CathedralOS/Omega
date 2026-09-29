@@ -21,7 +21,7 @@ pub(in crate::unit::attached_unit) fn validate_call_source(
     let Some(planned) = operation.call().filter(|planned| planned.is_boundary()) else {
         return Ok(());
     };
-    let (coordinate, boundary) = (planned.coordinate(), planned.target_machine());
+    let (coordinate, boundary) = (planned.coordinate, planned.target.machine);
     let Some(requirement) = requirements
         .iter()
         .find(|requirement| requirement.boundary == boundary)

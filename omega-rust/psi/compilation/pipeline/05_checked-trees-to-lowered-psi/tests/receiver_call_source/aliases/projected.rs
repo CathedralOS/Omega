@@ -1,5 +1,5 @@
 //! Source and resource custody for statically captured alias projections.
-use super::{CheckedUnitEffectOperationPlan, source, unit_plan};
+use super::{is_ordinary_unit_call, ordinary_unit_call_mut, source, unit_plan};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 use terminal_production::{
@@ -78,14 +78,17 @@ fn projected_aliases_compose_formation_and_receiver_paths() {
             let checked = crate::front_end::checked_program(&text);
             let caller_name = signature.split_once('(').unwrap().0;
             let plan = unit_plan(&checked, caller_name);
-            let CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            } = &plan.operations[0]
+            let Some(call) = plan.operations[0]
+                .call()
+                .filter(|call| is_ordinary_unit_call(call))
             else {
                 panic!("projected receiver call");
             };
-            assert_eq!(structural_arguments[0].path.len(), path_length, "{text}");
+            assert_eq!(
+                call.structural_arguments[0].path.len(),
+                path_length,
+                "{text}"
+            );
             let artifact = terminal_production::TerminalProductionRequest::new(
                 &checked,
                 TerminalMachineSelection::Name(caller_name),
@@ -196,22 +199,18 @@ fn projected_alias_replay_rejects_source_and_captured_place_substitution() {
                     arena::HandleSpan::empty()
             }
             _ => {
-                let CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } = &mut checked
-                    .facts
-                    .flow
-                    .terminal_unit_effects
-                    .machines
-                    .iter_mut()
-                    .find(|plan| plan.machine == caller)
-                    .unwrap()
-                    .operations[0]
-                else {
-                    panic!("call");
-                };
-                structural_arguments[0].path[0] =
+                let call = ordinary_unit_call_mut(
+                    &mut checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .machines
+                        .iter_mut()
+                        .find(|plan| plan.machine == caller)
+                        .unwrap()
+                        .operations[0],
+                );
+                call.structural_arguments[0].path[0] =
                     checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(0);
             }
         }

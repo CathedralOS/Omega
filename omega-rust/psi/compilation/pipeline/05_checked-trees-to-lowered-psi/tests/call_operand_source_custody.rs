@@ -84,42 +84,20 @@ fn encoded(checked: &checked_trees::CheckedTrees) -> (Vec<u8>, Vec<u8>) {
 }
 
 fn mutate_operation_custody(operation: &mut CheckedUnitEffectOperationPlan, mutation: u8) -> bool {
-    let (coordinate, target_state, source_site) = match operation {
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            target_state,
-            source_site,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            target_state,
-            source_site,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            target_state,
-            source_site,
-            ..
-        } => (coordinate, target_state, Some(source_site)),
-        CheckedUnitEffectOperationPlan::ScalarCall {
-            coordinate,
-            target_state,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_state,
-            ..
-        } => (coordinate, target_state, None),
-        _ => return false,
+    // Every boundary call, and ordinary Unit and scalar calls; an ordinary
+    // structural call keeps its own custody tests.
+    let Some(call) = operation
+        .call_mut()
+        .filter(|call| call.is_boundary() || call.structural_result().is_none())
+    else {
+        return false;
     };
     match mutation {
-        0 => coordinate.call_ordinal += 1,
-        1 => *target_state = symbols::SymbolHandle::invalid(),
+        0 => call.coordinate.call_ordinal += 1,
+        1 => call.target.state = symbols::SymbolHandle::invalid(),
         2 | 3 => {
-            let Some(source_site) = source_site else {
+            // Only the boundary calls here retain an authored source site.
+            let Some(source_site) = call.source_site_mut() else {
                 return false;
             };
             *source_site = if mutation == 2 {

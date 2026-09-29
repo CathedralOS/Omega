@@ -522,13 +522,16 @@ pub(super) fn build(
         &structural_arguments,
         PermissionEventKind::Transfer,
     )?;
-    Some(CheckedUnitEffectOperationPlan::BoundaryCall {
+    checked_trees::CheckedUnitCallPlan::new(checked_trees::CheckedUnitCallParts {
         coordinate,
         source_site,
-        target_machine: target,
-        target_state: target,
-        target_contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
-        service_reach: call.service_reach,
+        target: checked_trees::CheckedUnitCallTarget {
+            machine: target,
+            state: target,
+            contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
+            service_reach: call.service_reach,
+        },
+        route: checked_trees::CheckedUnitCallRoute::Boundary,
         scalar_arguments: checked_call_scalar_arguments(
             facts,
             state.symbol,
@@ -537,6 +540,8 @@ pub(super) fn build(
             true,
         )?,
         structural_arguments,
-        completion_receipts,
+        result: checked_trees::CheckedUnitCallResult::Unit,
+        transfers: checked_trees::CheckedUnitCallTransfers::CompletionReceipts(completion_receipts),
     })
+    .map(CheckedUnitEffectOperationPlan::Call)
 }

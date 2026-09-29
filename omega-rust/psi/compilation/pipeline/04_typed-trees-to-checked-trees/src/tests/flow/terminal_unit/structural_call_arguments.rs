@@ -5,6 +5,7 @@
 use super::CheckedUnitEffectOperationPlan;
 use crate::tests::flow::terminal_unit::checked;
 use crate::tests::flow::terminal_unit::machine_named;
+use checked_trees::CheckedUnitCallResult;
 
 fn operations(source: &str) -> Vec<CheckedUnitEffectOperationPlan> {
     let checked = checked(source);
@@ -46,28 +47,33 @@ fn copy_record_result_feeds_a_call_statement_argument() {
         "#,
     );
     let [
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate: nested_coordinate,
-            result: nested_result,
-            ..
-        },
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            structural_arguments,
-            ..
-        },
+        CheckedUnitEffectOperationPlan::Call(nested),
+        CheckedUnitEffectOperationPlan::Call(consuming),
         CheckedUnitEffectOperationPlan::Complete { .. },
     ] = operations.as_slice()
     else {
         panic!("nested structural call, consuming call, complete: {operations:#?}")
     };
-    assert_eq!(nested_coordinate.statement_index, 0);
-    assert_eq!(nested_coordinate.call_ordinal, 1);
+    let Some(nested_result) = nested.structural_result() else {
+        panic!("nested structural call, consuming call, complete: {operations:#?}")
+    };
+    assert!(
+        !nested.is_boundary()
+            && !consuming.is_boundary()
+            && *consuming.result() == CheckedUnitCallResult::Unit,
+        "nested structural call, consuming call, complete: {operations:#?}"
+    );
+    assert_eq!(nested.coordinate.statement_index, 0);
+    assert_eq!(nested.coordinate.call_ordinal, 1);
     assert_eq!(nested_result.binding_ordinal, 0);
     assert_eq!(
-        (coordinate.statement_index, coordinate.call_ordinal),
+        (
+            consuming.coordinate.statement_index,
+            consuming.coordinate.call_ordinal
+        ),
         (0, 0)
     );
+    let structural_arguments = &consuming.structural_arguments;
     let [argument] = structural_arguments.as_slice() else {
         panic!("the consuming call names exactly the nested result: {structural_arguments:#?}")
     };
@@ -198,15 +204,14 @@ fn mutable_borrow_of_indexed_structural_result_element_lends_the_element() {
         }
         "#,
     );
-    let Some(CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    }) = operations
-        .iter()
-        .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }))
-    else {
+    let Some(call) = operations.iter().find_map(|operation| {
+        operation
+            .call()
+            .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+    }) else {
         panic!("the bump call is planned: {operations:#?}")
     };
+    let structural_arguments = &call.structural_arguments;
     let [argument] = structural_arguments.as_slice() else {
         panic!("the call passes one structural argument: {structural_arguments:#?}")
     };

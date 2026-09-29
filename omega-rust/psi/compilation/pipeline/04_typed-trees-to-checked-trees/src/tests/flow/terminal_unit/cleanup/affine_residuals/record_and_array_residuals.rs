@@ -3,6 +3,7 @@ use crate::tests::flow::terminal_unit::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralFieldType,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape, checked, machine_named,
 };
+use checked_trees::CheckedUnitCallResult;
 
 #[test]
 fn retains_mixed_prefix_disjoint_field_transfers_with_maximal_residual_cleanup() {
@@ -32,10 +33,11 @@ fn retains_mixed_prefix_disjoint_field_transfers_with_maximal_residual_cleanup()
         plan.machine.operations[..3]
             .iter()
             .map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                } => structural_arguments[0].path.clone(),
+                CheckedUnitEffectOperationPlan::Call(call)
+                    if !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit =>
+                {
+                    call.structural_arguments[0].path.clone()
+                }
                 _ => panic!("partial cleanup begins with source-ordered Unit calls"),
             })
             .collect::<Vec<_>>(),

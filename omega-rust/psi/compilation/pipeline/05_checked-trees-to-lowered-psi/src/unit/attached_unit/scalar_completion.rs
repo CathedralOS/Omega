@@ -136,22 +136,11 @@ pub(super) fn validate(
         }
         _ => return unsupported("scalar completion source is not its call or immutable binding"),
     };
-    let mut producers = machine
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate,
-                result: candidate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate,
-                result: candidate,
-                ..
-            } if candidate == result => Some(*coordinate),
-            _ => None,
-        });
+    let mut producers = machine.operations.iter().filter_map(|operation| {
+        // Any call with a scalar result, ordinary or boundary.
+        let call = operation.call()?;
+        (call.scalar_result() == Some(result)).then_some(call.coordinate)
+    });
     let coordinate = producers.next().ok_or(LoweringError::Unsupported(
         "scalar completion has no exact call result",
     ))?;

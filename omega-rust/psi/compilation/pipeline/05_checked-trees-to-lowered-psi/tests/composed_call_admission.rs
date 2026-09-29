@@ -5,7 +5,10 @@
 //! copy refused. Each one lowers, passes independent verification after both
 //! codec roundtrips, and executes on every selected state.
 
-use checked_trees::{CheckedStructuralAccess, CheckedUnitEffectOperationPlan};
+use checked_trees::{
+    CheckedStructuralAccess, CheckedUnitCallPlan, CheckedUnitCallResult,
+    CheckedUnitEffectOperationPlan,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
@@ -14,6 +17,13 @@ use terminal_interpreter::{
     TerminalEffect, TerminalExecutionResult, TerminalScalarValue, TerminalStructuralValue,
     interpret_terminal_artifact_measured,
 };
+
+/// The ordinary (non-boundary) call that binds no result, if `operation` is one.
+fn ordinary_unit_call(operation: &CheckedUnitEffectOperationPlan) -> Option<&CheckedUnitCallPlan> {
+    operation
+        .call()
+        .filter(|call| !call.is_boundary() && *call.result() == CheckedUnitCallResult::Unit)
+}
 
 /// Lower `root`, verify the decoded artifact independently, run it once per
 /// entry argument and return each run's observed `Sink` values. `shape`
@@ -129,11 +139,11 @@ fn state_lends_an_established_scalar_array_to_a_borrowed_formal() {
         }
     "#;
     let lends_array = |operation: &CheckedUnitEffectOperationPlan| {
-        matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { structural_arguments, .. }
-        if structural_arguments.iter().any(|argument| {
-            argument.access == CheckedStructuralAccess::SharedBorrow
-                && argument.path.is_empty()
-        }))
+        ordinary_unit_call(operation).is_some_and(|call| {
+            call.structural_arguments.iter().any(|argument| {
+                argument.access == CheckedStructuralAccess::SharedBorrow && argument.path.is_empty()
+            })
+        })
     };
     assert_eq!(
         run(source, "Main::main", lends_array, &[true, false]),
@@ -159,12 +169,13 @@ fn state_moves_an_owned_parameter_into_a_unit_call() {
         }
     "#;
     let moves_parameter = |operation: &CheckedUnitEffectOperationPlan| {
-        matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { structural_arguments, .. }
-        if structural_arguments.iter().any(|argument| {
-            argument.source_parameter_index().is_some()
-                && argument.access == CheckedStructuralAccess::Owned
-                && argument.path.is_empty()
-        }))
+        ordinary_unit_call(operation).is_some_and(|call| {
+            call.structural_arguments.iter().any(|argument| {
+                argument.source_parameter_index().is_some()
+                    && argument.access == CheckedStructuralAccess::Owned
+                    && argument.path.is_empty()
+            })
+        })
     };
     assert_eq!(
         run(source, "Main::main", moves_parameter, &[true, false]),
