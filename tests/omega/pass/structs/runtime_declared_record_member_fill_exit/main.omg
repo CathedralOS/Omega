@@ -1,0 +1,19 @@
+// A declaration without an initializer may be filled member by member.
+// `mut` controls whole-local rebinding, not establishment of record fields.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Point { x: i32; y: i32; }
+data Main { console: Binding<Console>; }
+
+machine Main::main(&mut self) reaches Console {
+    let point: Point;
+    point.x = 7;
+    point.y = 12;
+    transition point.x == 7 && point.y == 12 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

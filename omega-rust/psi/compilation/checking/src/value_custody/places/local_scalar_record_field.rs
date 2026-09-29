@@ -32,8 +32,9 @@ pub struct LocalScalarRecordField {
     pub domain: ArithmeticDomain,
 }
 
-/// Resolve a field path below one prior, whole plain-owned local. A mutable
-/// source is observed at this statement, never equated with its initializer.
+/// Resolve a field path below one prior, whole plain-owned local. Storage is
+/// observed at this statement, never equated with its initializer: member
+/// writes need not rebind the local, so absence of `mut` does not freeze fields.
 /// The caller must bind the expression to this authored statement's evaluation
 /// graph. Open generic/qualified owners, erased fields and
 /// nominally qualified scalar fields require additional facts. Arithmetic policy
@@ -228,11 +229,10 @@ fn local_plain_record(
         return None;
     }
     let (ordinal, local) = program.state_local_declaration(state, receiver.symbol)?;
-    // A declared-but-uninitialized mutable record carries no initializer to
+    // A declared-but-uninitialized record carries no initializer to
     // observe; its storage is the zeroed establishment minted at declaration,
     // which the ledger and the ordered Unit effect independently proved.
-    let declared_zeroed = local.is_mutable
-        && !local.initial_value.is_valid()
+    let declared_zeroed = !local.initial_value.is_valid()
         && matches!(
             program
                 .type_reference_table

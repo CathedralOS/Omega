@@ -25,6 +25,74 @@ const SOURCE: &str = "
 ";
 
 #[test]
+fn declared_record_member_writes_keep_distinct_storage_and_establishment() {
+    let checked = crate::front_end::checked_program(
+        "data Point { x: i32; y: i32; }
+         data Main { observed: i32; }
+         machine Main::fill(&mut self) {
+             let point: Point;
+             let sibling: Point;
+             sibling.x = 99;
+             point.x = 7;
+             point.y = 12;
+             self.observed = point.x;
+             transition point.y == 12 { true -> done() false -> bad() }
+             state done(&mut self) {}
+             state bad(&mut self) { self.observed = 0; }
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::fill"))
+        .expect("member writes use the declared record's storage without rebinding it");
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
+        .expect("independent storage establishment and write replay");
+    let mut changed = lowered.semantic_module.clone();
+    let block = changed
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .find(|block| {
+            block.operations.iter().any(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::EstablishZeroedStructural { .. }
+                )
+            })
+        })
+        .expect("declaration establishes actual zero-constructible storage");
+    let position = block
+        .operations
+        .iter()
+        .position(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishZeroedStructural { .. }
+            )
+        })
+        .unwrap();
+    block.operations.remove(position);
+    assert!(
+        terminal_verifier::verify_module(&changed, &lowered.proof_bundle, &profile).is_err(),
+        "a store cannot invent its destination's establishment"
+    );
+}
+
+#[test]
+fn declared_record_support_does_not_grant_scalar_rebinding_or_linear_zero_values() {
+    for source in [
+        "machine main() -> i32 { let value: i32; value = 7; value }",
+        "data Receipt [linear] { code: i32; }
+         boundary requirement Receipt::ack(self);
+         machine main() { let receipt: Receipt; Receipt::ack(receipt); }",
+    ] {
+        assert!(
+            crate::front_end::checked_program_result(source).is_err(),
+            "zero storage is not rebinding permission or linear custody: {source}"
+        );
+    }
+}
+
+#[test]
 fn projected_self_borrow_lowers_from_its_declared_endpoint() {
     let checked = crate::front_end::checked_program(
         "data Inner { value: u64; }
