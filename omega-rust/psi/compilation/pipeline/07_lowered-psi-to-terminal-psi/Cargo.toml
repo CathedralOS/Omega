@@ -12,6 +12,7 @@ proof-admission = { path = "../../proof/admission" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 symbols = { path = "../../../foundation/symbols" }
+language-semantics = { path = "../../../foundation/language-semantics" }
 lowered-psi-to-lowered-psi = { path = "../06_lowered-psi-to-lowered-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 validation = { path = "../../checking" }

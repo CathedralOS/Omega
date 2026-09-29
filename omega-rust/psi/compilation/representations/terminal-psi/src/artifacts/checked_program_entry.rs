@@ -82,6 +82,39 @@ impl CheckedProgramEntryFusedServiceField {
     }
 }
 
+/// An erased receiver-tree field whose term a unique accessible nullary
+/// constructor determines (wiki/spec/proofs/contracts.md, Explicit erased
+/// bindings). Provisioning supplies that term exactly as construction elaborates an
+/// omitted erased initializer: the field has no storage and needs no
+/// establishment. This row is the positive Psi-side witness that the erased
+/// field is determined evidence rather than a Bound service whose
+/// establishment row went missing; it carries no establishment authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProgramEntryDeterminedEvidenceField {
+    carrier_type_identity: String,
+    field_path: Vec<String>,
+}
+
+impl CheckedProgramEntryDeterminedEvidenceField {
+    /// `field_path` is the complete route from the receiver root through each
+    /// enclosing record field or mixed-shape common field down to the erased
+    /// field itself, spelled as for [`CheckedProgramEntryFusedServiceField`].
+    pub fn new(carrier_type_identity: String, field_path: Vec<String>) -> Self {
+        Self {
+            carrier_type_identity,
+            field_path,
+        }
+    }
+
+    pub fn carrier_type_identity(&self) -> &str {
+        &self.carrier_type_identity
+    }
+
+    pub fn field_path(&self) -> &[String] {
+        &self.field_path
+    }
+}
+
 /// Checked-source receiver eligibility for zero establishment and no-code
 /// owned receiver disposal, bound to the exact Terminal attachment.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,6 +124,7 @@ pub struct CheckedProgramEntryReceiverEligibility {
     projection: CheckedProgramEntryReceiverProjection,
     terminal_receiver_type: StructuralTypeId,
     fused_service_fields: Vec<CheckedProgramEntryFusedServiceField>,
+    determined_evidence_fields: Vec<CheckedProgramEntryDeterminedEvidenceField>,
     cleanup: CheckedProgramEntryReceiverCleanup,
 }
 
@@ -109,8 +143,18 @@ impl CheckedProgramEntryReceiverEligibility {
             projection,
             terminal_receiver_type,
             fused_service_fields,
+            determined_evidence_fields: Vec::new(),
             cleanup,
         }
+    }
+
+    /// Attach the receiver tree's determined erased evidence rows.
+    pub fn with_determined_evidence_fields(
+        mut self,
+        determined_evidence_fields: Vec<CheckedProgramEntryDeterminedEvidenceField>,
+    ) -> Self {
+        self.determined_evidence_fields = determined_evidence_fields;
+        self
     }
 
     pub fn source_receiver_type_identity(&self) -> &str {
@@ -131,6 +175,10 @@ impl CheckedProgramEntryReceiverEligibility {
 
     pub fn fused_service_fields(&self) -> &[CheckedProgramEntryFusedServiceField] {
         &self.fused_service_fields
+    }
+
+    pub fn determined_evidence_fields(&self) -> &[CheckedProgramEntryDeterminedEvidenceField] {
+        &self.determined_evidence_fields
     }
 
     /// Whether this receiver's nominal cleanup must occupy its hosted

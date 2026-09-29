@@ -11,7 +11,8 @@ pub mod terminal_module;
 pub use language_semantics::byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 
 pub use artifacts::{
-    AdmissionEvidence, AdmissionKind, CertificateEnvelope, CheckedProgramEntryFusedServiceField,
+    AdmissionEvidence, AdmissionKind, CertificateEnvelope,
+    CheckedProgramEntryDeterminedEvidenceField, CheckedProgramEntryFusedServiceField,
     CheckedProgramEntryReceiverCleanup, CheckedProgramEntryReceiverEligibility,
     CheckedProgramEntryReceiverProjection, CheckedProgramEntryTerminalReceipt,
     ControlCycleEvidence, CorrelatedAffineBranchWitness, CorrelatedAffineStepWitness,

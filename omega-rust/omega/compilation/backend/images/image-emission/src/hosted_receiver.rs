@@ -23,6 +23,7 @@ pub struct HostedReceiverBinding {
     source: SelectedProgramEntrySourceSignature,
     physical: ProgramEntryPhysicalContractPlan,
     services: Vec<ProgramEntryFusedServiceEstablishment>,
+    determined_evidence: Vec<terminal_psi::CheckedProgramEntryDeterminedEvidenceField>,
     demand: crate::StackDemand,
     receiver_byte_count: u64,
     receiver_alignment: u64,
@@ -676,6 +677,7 @@ pub fn bind_hosted_receiver(
     source: &SelectedProgramEntrySourceSignature,
     physical: &ProgramEntryPhysicalContractPlan,
     services: &[ProgramEntryFusedServiceEstablishment],
+    determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
     demand: &crate::StackDemand,
     cleanup_occupancy: bool,
 ) -> Result<(), Diagnostic> {
@@ -683,11 +685,13 @@ pub fn bind_hosted_receiver(
         return Err(invalid(artifact.target));
     }
     crate::function_fragments::replay::validate(artifact)?;
-    let (receiver_byte_count, receiver_alignment) = receiver_layout(artifact, source, services)?;
+    let (receiver_byte_count, receiver_alignment) =
+        receiver_layout(artifact, source, services, determined_evidence)?;
     let binding = HostedReceiverBinding {
         source: source.clone(),
         physical: physical.clone(),
         services: services.to_vec(),
+        determined_evidence: determined_evidence.to_vec(),
         demand: demand.clone(),
         receiver_byte_count,
         receiver_alignment,
@@ -708,8 +712,12 @@ pub(crate) fn validate_binding(
         || binding.physical.target_slot().owner.native_target() != artifact.target
         || crate::derive_stack_demand(artifact, artifact.entry).map_err(|_| invalid())?
             != binding.demand
-        || receiver_layout(artifact, &binding.source, &binding.services)?
-            != (binding.receiver_byte_count, binding.receiver_alignment)
+        || receiver_layout(
+            artifact,
+            &binding.source,
+            &binding.services,
+            &binding.determined_evidence,
+        )? != (binding.receiver_byte_count, binding.receiver_alignment)
     {
         return Err(invalid());
     }
@@ -854,6 +862,7 @@ fn receiver_layout(
     artifact: &crate::ObjectArtifact,
     source: &SelectedProgramEntrySourceSignature,
     services: &[ProgramEntryFusedServiceEstablishment],
+    determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
 ) -> Result<(u64, u64), Diagnostic> {
     use calling_conventions::CallingPolicy;
     use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
@@ -938,21 +947,31 @@ fn receiver_layout(
     // layout therefore cannot tell a provider-backed field from a Bound field
     // whose row went missing, so a bare interface field rejects here by
     // design; admitting it would need a positive Psi-side witness that the
-    // field carries no Bound domain, never a missing-row fallback.
-    let mut erased = 0;
+    // field carries no Bound domain, never a missing-row fallback. Psi's
+    // determined-evidence rows are that witness for erased evidence a unique
+    // nullary constructor determines: such a field has no storage and needs
+    // no establishment, and it rejoins its row by complete route and carrier
+    // identity exactly as a service field rejoins its establishment.
+    let mut erased = ErasedRowUse::default();
     validate_receiver_fields(
         &target.graph.structural_types,
         fields,
         source,
         receiver_identity,
         &declaration.identity,
-        services,
+        ErasedRows {
+            services,
+            determined_evidence,
+        },
         &mut Vec::new(),
         &mut vec![parameter.structural_type],
         &mut erased,
         &invalid,
     )?;
-    if erased != services.len() || !native.shape.alignment.is_power_of_two() {
+    if erased.services != services.len()
+        || erased.determined_evidence != determined_evidence.len()
+        || !native.shape.alignment.is_power_of_two()
+    {
         return Err(invalid());
     }
     Ok((
@@ -962,12 +981,28 @@ fn receiver_layout(
 }
 
 /// Replay the receiver's record-field tree against the exact Fused
-/// establishment rows. Every erased field — at the receiver root or under
-/// nested record fields — must rejoin exactly one row by its complete field
-/// route, and every non-erased leaf keeps the zero-valid judgment. Nested
+/// establishment rows and determined-evidence rows. Every erased field — at
+/// the receiver root or under nested record fields — must rejoin exactly one
+/// row of exactly one roster by its complete field route, and every
+/// non-erased leaf keeps the zero-valid judgment. Nested
 /// `Structural` record children extend the route; array elements and sum
 /// cases cannot name a route and keep the source-free nested-erased
 /// rejection inside `zero_valid_record_storage`.
+/// The rows an erased receiver-tree field may rejoin: a Fused service
+/// establishment, or Psi's witness that the field is determined evidence.
+#[derive(Clone, Copy)]
+struct ErasedRows<'a> {
+    services: &'a [ProgramEntryFusedServiceEstablishment],
+    determined_evidence: &'a [terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
+}
+
+/// How many erased fields rejoined each roster; every row must be used.
+#[derive(Default)]
+struct ErasedRowUse {
+    services: usize,
+    determined_evidence: usize,
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_receiver_fields(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
@@ -975,10 +1010,10 @@ fn validate_receiver_fields(
     source: &SelectedProgramEntrySourceSignature,
     receiver_identity: &str,
     attachment_type_identity: &str,
-    services: &[ProgramEntryFusedServiceEstablishment],
+    rows: ErasedRows<'_>,
     field_path: &mut Vec<String>,
     visiting: &mut Vec<semantic_vocabulary::StructuralTypeId>,
-    erased: &mut usize,
+    erased: &mut ErasedRowUse,
     invalid: &dyn Fn() -> Diagnostic,
 ) -> Result<(), Diagnostic> {
     use terminal_psi::{StructuralFieldType, StructuralTypeShape};
@@ -990,12 +1025,25 @@ fn validate_receiver_fields(
                 return Err(invalid());
             };
             field_path.push(field.identity.clone());
-            let mut matches = services
+            let mut matches = rows
+                .services
                 .iter()
                 .filter(|row| row.field_path() == field_path.as_slice());
-            let outcome = match matches.next() {
-                None => Err(invalid()),
-                Some(row)
+            let mut determined = rows
+                .determined_evidence
+                .iter()
+                .filter(|row| row.field_path() == field_path.as_slice());
+            let outcome = match (matches.next(), determined.next()) {
+                (None, Some(row)) => {
+                    if determined.next().is_some() || row.carrier_type_identity() != type_identity {
+                        Err(invalid())
+                    } else {
+                        erased.determined_evidence += 1;
+                        Ok(())
+                    }
+                }
+                (None, None) | (Some(_), Some(_)) => Err(invalid()),
+                (Some(row), None)
                     if matches.next().is_some()
                         || row.source_signature_identity() != source.identity()
                         || row.target_slot() != source.target_slot()
@@ -1005,8 +1053,8 @@ fn validate_receiver_fields(
                 {
                     Err(invalid())
                 }
-                Some(_) => {
-                    *erased += 1;
+                (Some(_), None) => {
+                    erased.services += 1;
                     Ok(())
                 }
             };
@@ -1064,7 +1112,7 @@ fn validate_receiver_fields(
                                 source,
                                 receiver_identity,
                                 attachment_type_identity,
-                                services,
+                                rows,
                                 field_path,
                                 visiting,
                                 erased,

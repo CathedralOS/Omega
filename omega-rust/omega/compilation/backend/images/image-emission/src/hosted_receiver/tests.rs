@@ -1023,6 +1023,7 @@ fn hosted_receiver_binding(
         .expect("well-shaped source signature"),
         physical,
         services: Vec::new(),
+        determined_evidence: Vec::new(),
         demand: crate::StackDemand {
             psi: terminal_psi::TerminalPsiIdentity {
                 vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,

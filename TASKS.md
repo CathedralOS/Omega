@@ -1448,13 +1448,15 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Terminal verification, the codec, Omega stages 00, 02 and 03 and
   optimization-unit validation, so `data/runtime_mixed_shape_exit` exits 70 on
   macOS ARM64 and builds for linux_x86_64.
-  `generics/runtime_mixed_generic_erased_sum_exit` passes Psi and stops at
-  native receiver provisioning (`hosted receiver requires a checked ZII-valid
-  value with no executable nominal cleanup`): stage 07
-  `entry_receipt/receiver_eligibility.rs::zero_valid_fields` rejects every
-  nested erased field, while source checking judges one by its type; the unique
-  accessible nullary constructor rule of erased bindings determines its `proof
-  [erased]: Evidence`. The interpreter's `EstablishStructuralCase` still
+  `generics/runtime_mixed_generic_erased_sum_exit` and
+  `calls/runtime_enum_self_method_exit` keep erased evidence that a unique
+  nullary constructor determines in their receivers; stage 07 names each such
+  field in a determined-evidence receipt row, and the hosted bridge rejoins it
+  by route and carrier instead of requiring a service establishment, so both
+  exit 70 on macOS ARM64. All six `pass/` customers below now exit 70.
+  `pending/structs/case_field_type_store_shapes` runs natively with its exit-0
+  oracle; promoting it needs its corpus rows.
+  The interpreter's `EstablishStructuralCase` still
   requires a sum and keys payload scalars by field id on the root, where mixed
   common and payload ids collide.
   A plain domain that means exactly an interval constructs as a bounded payload

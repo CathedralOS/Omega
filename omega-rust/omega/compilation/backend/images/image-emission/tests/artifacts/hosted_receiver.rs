@@ -10,7 +10,7 @@
 //! shared container fixture existed here it was exercised only by
 //! native-realization's own tests.
 
-use super::fragment_container::compile_attached_entry;
+use super::fragment_container::{compile_attached_entry, terminal_structural_types};
 use super::hosted_exit_runtime::assert_exit;
 use image_emission::{
     bind_hosted_receiver, derive_stack_demand, emit_direct_executable_image,
@@ -102,6 +102,7 @@ pub(super) fn bind_receiver(
         signature,
         &physical_contract(profile),
         &[],
+        &[],
         &demand,
         cleanup_occupancy,
     )
@@ -175,7 +176,16 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
     bind_receiver(&mut artifact, &signature, profile, false);
     let demand = derive_stack_demand(&artifact, artifact.entry()).expect("demand");
     assert!(
-        bind_hosted_receiver(&mut artifact, &signature, &physical, &[], &demand, false).is_err(),
+        bind_hosted_receiver(
+            &mut artifact,
+            &signature,
+            &physical,
+            &[],
+            &[],
+            &demand,
+            false
+        )
+        .is_err(),
         "a second hosted receiver binding must reject",
     );
 
@@ -187,6 +197,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
             &mut unbound,
             &signature,
             &physical_contract(TargetProfile::MacosArm64),
+            &[],
             &[],
             &demand,
             false,
@@ -209,6 +220,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
             &mut unbound,
             &darwin_signature,
             &physical,
+            &[],
             &[],
             &demand,
             false
@@ -238,6 +250,7 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
             &free_signature,
             &physical,
             &[],
+            &[],
             &demand,
             false
         )
@@ -250,7 +263,16 @@ fn hosted_receiver_binding_fails_closed_before_bytes_exist() {
     let mut unbound = compile_attached_entry(RECEIVER_STORE, "Main::launch", profile).artifact;
     unbound.clear_fragment_replay_for_test();
     assert!(
-        bind_hosted_receiver(&mut unbound, &signature, &physical, &[], &demand, false).is_err(),
+        bind_hosted_receiver(
+            &mut unbound,
+            &signature,
+            &physical,
+            &[],
+            &[],
+            &demand,
+            false
+        )
+        .is_err(),
         "an object without fragment replay custody cannot bind a receiver",
     );
 }
@@ -487,4 +509,80 @@ fn hosted_receiver_darwin_image_replay_rejects_mutated_bridge_bytes() {
         validate_direct_executable_image(&artifact, &corrupted).is_err(),
         "a substituted Darwin bridge word rejects on replay",
     );
+}
+
+/// A receiver whose nested record carries erased evidence a unique nullary
+/// constructor determines. The field has no storage and no establishment.
+const RECEIVER_WITH_EVIDENCE: &str = r#"
+    data Evidence { case Only; }
+    data Holder { value: i32; proof [erased]: Evidence; }
+    data Main { value: i32; holder: Holder; }
+    machine Main::launch(&mut self) {
+        self.value = 17;
+    }
+"#;
+
+/// An erased receiver-tree field binds only against Psi's positive
+/// determined-evidence row for its exact route and carrier identity: without
+/// a row it could be a Bound service whose establishment went missing, so an
+/// absent, misrouted, retyped or surplus row rejects before bytes exist.
+#[test]
+fn determined_evidence_binds_only_against_its_exact_row() {
+    use terminal_psi::{
+        CheckedProgramEntryDeterminedEvidenceField, StructuralFieldType, StructuralTypeShape,
+    };
+    let profile = TargetProfile::LinuxX64;
+    let declarations = terminal_structural_types(RECEIVER_WITH_EVIDENCE, "Main::launch");
+    let record = |name: &str| {
+        let declaration = declarations
+            .iter()
+            .find(|declaration| declaration.identity.contains(name))
+            .expect("declared record");
+        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+            panic!("{name} is a record");
+        };
+        fields.clone()
+    };
+    let holder = record("Main")
+        .into_iter()
+        .find(|field| matches!(field.field_type, StructuralFieldType::Structural(_)))
+        .expect("the holder field")
+        .identity;
+    let (proof, carrier) = record("Holder")
+        .into_iter()
+        .find_map(|field| match field.field_type {
+            StructuralFieldType::Erased { type_identity } => Some((field.identity, type_identity)),
+            _ => None,
+        })
+        .expect("the erased evidence field");
+    let row = |carrier: &str, path: &[&String]| {
+        CheckedProgramEntryDeterminedEvidenceField::new(
+            carrier.to_owned(),
+            path.iter().map(|segment| (*segment).clone()).collect(),
+        )
+    };
+    let exact = row(&carrier, &[&holder, &proof]);
+    let bind = |rows: &[CheckedProgramEntryDeterminedEvidenceField]| {
+        let compiled = compile_attached_entry(RECEIVER_WITH_EVIDENCE, "Main::launch", profile);
+        let mut artifact = compiled.artifact;
+        let demand = derive_stack_demand(&artifact, artifact.entry()).expect("demand");
+        bind_hosted_receiver(
+            &mut artifact,
+            &compiled.signature,
+            &physical_contract(profile),
+            &[],
+            rows,
+            &demand,
+            false,
+        )
+    };
+    bind(std::slice::from_ref(&exact)).expect("the exact determined-evidence row binds");
+    for (rows, case) in [
+        (vec![], "an erased field with no row"),
+        (vec![row(&carrier, &[&proof])], "a row on a different route"),
+        (vec![row("named(name(Other))", &[&holder, &proof])], "a row for another carrier"),
+        (vec![exact.clone(), row(&carrier, &[&holder])], "a surplus row"),
+    ] {
+        assert!(bind(&rows).is_err(), "{case} must reject");
+    }
 }
