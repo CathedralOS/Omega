@@ -5,8 +5,8 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let a: i8 = 200i8;
-    transition a == 100 { true -> done() _ -> done() }
-    state done(&self) { self.console.exit_process(70); }
+    transition a == 100 { true -> done(main) _ -> done(main) }
+    state done(main: &Main) { main.console.exit_process(70); }
 }

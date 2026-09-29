@@ -13,14 +13,14 @@ data Msg {
     case Stop(code: i32);
 }
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) {
-    self.apply(Msg::Move { dx: 30, dy: 40 });
+machine Main::main(main: &mut Main) {
+    Main::apply(main, Msg::Move { dx: 30, dy: 40 });
 }
-machine Main::apply(&mut self, m: Msg) {
+machine Main::apply(main: &mut Main, m: Msg) {
     transition m {
-        Msg::Move { dx as step } if step == 30 -> good(step)
-        _ -> bad()
+        Msg::Move { dx as step } if step == 30 -> good(main, step)
+        _ -> bad(main)
     }
-    state good(&mut self, step: i32 [0..=50]) { let code: i32 = step + 40; self.console.exit_process(code); }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state good(main: &mut Main, step: i32 [0..=50]) { let code: i32 = step + 40; main.console.exit_process(code); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }

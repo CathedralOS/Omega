@@ -12,7 +12,7 @@ data Main {
     result64: f64;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     let next32: f32 = 1.00000011920928955078125;
     let cancel32: f32 = 0.0f32 - 1.0000002384185791015625;
     let mut result32: f32 = F32::fused_multiply_add(next32, next32, cancel32) + 0.0f32;
@@ -20,20 +20,20 @@ machine Main::main(&mut self) reaches Console {
     let next64: f64 = 1.0000000000000002220446049250313080847263336181640625;
     let cancel64: f64 =
         0.0 - 1.000000000000000444089209850062616169452667236328125;
-    self.result64 = F64::fused_multiply_add(next64, next64, cancel64);
+    main.result64 = F64::fused_multiply_add(next64, next64, cancel64);
 
     transition result32 > 0.0f32 {
-        true -> check64()
-        _ -> fail(71)
+        true -> check64(main)
+        _ -> fail(main, 71)
     }
 
-    state check64(&mut self) {
-        transition self.result64 > 0.0 {
-            true -> good()
-            _ -> fail(72)
+    state check64(main: &mut Main) {
+        transition main.result64 > 0.0 {
+            true -> good(main)
+            _ -> fail(main, 72)
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail(&mut self, code: i32) { self.console.exit_process(code); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state fail(main: &mut Main, code: i32) { main.console.exit_process(code); }
 }

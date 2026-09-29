@@ -11,12 +11,12 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let c: u8 = 200 + 100;   // 300 overflows u8 -> rejected
     transition c == 44 {
-        true -> good()
-        _ -> bad()
+        true -> good(main)
+        _ -> bad(main)
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(71); }
 }

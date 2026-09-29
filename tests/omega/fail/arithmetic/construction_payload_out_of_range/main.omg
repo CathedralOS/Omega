@@ -5,9 +5,9 @@ use omega::language::std::console;
 use omega::language::core::binding;
 data Slot { case Found(index: i32 [0..=15]); case Full; }
 data Main { console: Binding<Console>; }
-machine Main::run(&mut self, s: Slot) {
-    transition s { Slot::Found { index } -> done(index) Slot::Full -> stop() }
-    state done(&mut self, n: i32) { self.console.exit_process(0); }
-    state stop(&mut self) { self.console.exit_process(0); }
+machine Main::run(main: &mut Main, s: Slot) {
+    transition s { Slot::Found { index } -> done(main, index) Slot::Full -> stop(main) }
+    state done(main: &mut Main, n: i32) { main.console.exit_process(0); }
+    state stop(main: &mut Main) { main.console.exit_process(0); }
 }
-machine Main::main(&mut self) { self.run(Slot::Found { index: 9999 }); }
+machine Main::main(main: &mut Main) { Main::run(main, Slot::Found { index: 9999 }); }

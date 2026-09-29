@@ -23,9 +23,9 @@ demo_target2 machine Helper::pick(&self) -> i32 {
 
 data Main { console: Binding<Console>; helper: Helper; }
 
-machine Main::main(&mut self) {
-    let a: i32 = self.helper.pick();
-    transition a == 63 { true -> good() _ -> bad(71) }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+machine Main::main(main: &mut Main) {
+    let a: i32 = main.helper.pick();
+    transition a == 63 { true -> good(main) _ -> bad(main, 71) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main, code2: i32) { main.console.exit_process(code2); }
 }

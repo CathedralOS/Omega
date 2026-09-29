@@ -9,11 +9,11 @@ use omega::language::std::console;
 use omega::language::core::binding;
 data Desc { a: u32; b: u32; }
 data Main { console: Binding<Console>; buf: [u8; 16]; }
-machine Main::main(&mut self, offset: u32) {
-    transition { _ -> read(offset) }
-    state read(&mut self, off: u32) {
-        let d: &Desc = &self.buf[off] as &Desc;
-        transition { _ -> yes() }
+machine Main::main(main: &mut Main, offset: u32) {
+    transition { _ -> read(main, offset) }
+    state read(main: &mut Main, off: u32) {
+        let d: &Desc = &main.buf[off] as &Desc;
+        transition { _ -> yes(main) }
     }
-    state yes(&mut self) { self.console.exit_process(70); }
+    state yes(main: &mut Main) { main.console.exit_process(70); }
 }
