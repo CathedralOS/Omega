@@ -412,3 +412,38 @@ diffs are correct -- `machine ItemList::get_count(item_list: &ItemList)` with
 `ItemList::get_count(&self.list)` at the call -- and several are
 receiver-as-subject besides, `nested_call_tail_roots_exit` pinning "receiver-
 form tail on a member-path field" by name.
+
+## Why a state receiver cannot be dropped piecemeal
+
+Measured 2026-09-29. A state that READS `self` must declare the receiver:
+
+```
+machine Main::main(&mut self) reaches Console {
+    transition { _ -> done() }
+    state done() { self.console.exit_process(self.n); }
+}
+  error: machine `Main::main` state `done` uses `self`, which is not a declared
+         local, parameter, field, or type in this scope
+```
+
+The consequence is the one that matters for a bulk pass: a receiverless state
+cannot TRANSFER the receiver onward. Dropping it from a state whose own body
+names nothing still breaks a later state that needs it, which is the
+`state graph: terminator: conditional successors: receiver transfer` failure
+that reverted 31 of 40 samples in the combined sweep.
+
+So the rule is not per state. A state's receiver may be dropped only when no
+state reachable from it needs one -- in practice, only when the whole machine
+is free of `self`.
+
+**For samples that is never true today.** Applying the safe rule to the entire
+sample corpus qualifies **zero** files: every sample carrying states has at
+least one state reading `self.console`, and a routed `Binding<R>` cannot be a
+local. Samples are therefore gated exactly on the binding question, not on
+anything per-state.
+
+The count to watch is receiver OCCURRENCES, not files. A file leaves the
+"still has a receiver" list only when every receiver in it goes, so the
+partial migrations that are possible today are invisible to a file count:
+`samples/cli/simulation/elevator` is migrated and still holds 16. At this
+writing the corpus holds 3,078 occurrences in samples and 4,327 in canaries.
