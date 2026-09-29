@@ -352,10 +352,10 @@ fn collect_result_comparison_pairs(
                     | typed_trees::expression::BinaryOperator::Greater
                     | typed_trees::expression::BinaryOperator::GreaterOrEqual
             ) {
-                if expression_is_result(program, binary.left) {
+                if program.expression_table.names_reserved_result(binary.left) {
                     pairs.push((binary.right, return_type));
                 }
-                if expression_is_result(program, binary.right) {
+                if program.expression_table.names_reserved_result(binary.right) {
                     pairs.push((binary.left, return_type));
                 }
             }
@@ -398,17 +398,6 @@ fn collect_result_comparison_pairs(
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
     }
-}
-
-fn expression_is_result(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    matches!(
-        program.expression_table.expression(expression),
-        ExpressionNode::Name(path)
-            if matches!(
-                program.expression_table.name_path_members(path.members),
-                [name] if name.as_str() == "result"
-            )
-    )
 }
 
 fn land_float_value_for_type(

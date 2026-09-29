@@ -295,20 +295,6 @@ pub(crate) fn operator_contract_evidence(
         operator_symbol,
     )
 }
-
-fn expression_is_bare_result(
-    program: &TypedTrees,
-    expression: typed_trees::expression::ExpressionHandle,
-) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
-        return false;
-    };
-    name.as_str() == "result"
-}
-
 /// The carrier an `ensures` membership mints into: `result` for the exact
 /// result, or the exact `&mut` non-self parameter a boundary requirement
 /// mints through caller storage it borrows mutably. Other parameters are
@@ -318,7 +304,7 @@ fn ensured_subject_carrier(
     signature: &StateSignature,
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    if expression_is_bare_result(program, expression) {
+    if program.expression_table.names_reserved_result(expression) {
         return Some(signature.return_type);
     }
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {

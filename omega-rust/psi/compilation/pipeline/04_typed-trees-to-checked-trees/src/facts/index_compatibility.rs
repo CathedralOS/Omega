@@ -2124,7 +2124,9 @@ fn append_call_result_ensured_instances(
         // The subject must be the whole reserved result: a projection such
         // as `result.storage` belongs to that field's declared type.
         if !membership.semantic_domain.is_valid()
-            || !is_reserved_result_name(program, membership.value)
+            || !program
+                .expression_table
+                .names_reserved_result(membership.value)
         {
             continue;
         }
@@ -2155,33 +2157,6 @@ fn append_call_result_ensured_instances(
         });
     }
 }
-
-/// Whether a contract subject is the bare reserved `result` name: an
-/// unresolved single-member path spelled `result`, the same discriminator
-/// `validation::reserved_result_owner` applies before it looks the owning
-/// machine up. That owner lookup scans machines only, and a boundary trait
-/// signature's `result` has no machine; the facts read here are already
-/// scoped to one call's own contract row, so the spelling suffices.
-fn is_reserved_result_name(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    if !program.expression_table.expression_is_valid(expression) {
-        return false;
-    }
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    !path.symbol.is_valid()
-        && !path.head_symbol.is_valid()
-        && program
-            .expression_table
-            .name_path_member_symbols(path.member_symbols)
-            .iter()
-            .all(|symbol| !symbol.is_valid())
-        && matches!(
-            program.expression_table.name_path_members(path.members),
-            [name] if name.as_str() == "result"
-        )
-}
-
 fn call_return_type(
     program: &TypedTrees,
     state_symbol: SymbolHandle,

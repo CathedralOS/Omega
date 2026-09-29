@@ -529,7 +529,7 @@ pub(super) fn abstract_specification_place_type(
     let mut path = Vec::new();
     segments(program, expression, &mut path)?;
     let (mut type_reference, consumed) = match path.as_slice() {
-        [name, ..] if name == "result" => (bindings.result_type?, 1),
+        [name, ..] if language_core::is_reserved_result(name) => (bindings.result_type?, 1),
         [name, ..] if is_self_receiver(name) => {
             if let Some(type_reference) = bindings.self_type {
                 (type_reference, 1)
