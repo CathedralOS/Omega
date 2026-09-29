@@ -168,15 +168,35 @@ fn append(
         authored.source_target,
     )?;
     let parameters = target.parameters;
-    if parameters.iter().any(|parameter| parameter.is_self)
-        || parameters.len() != authored.scalar_arguments.len() + authored.structural_arguments.len()
+    // An implicit `self` position carries no authored argument but still
+    // occupies a positional slot in the lowered structural argument list:
+    // the receiver is materialized for the callee with no producer step of
+    // its own.
+    let implicit_self = |position: usize| {
+        parameters[position].is_self
+            && !authored
+                .structural_arguments
+                .iter()
+                .any(|(formal, _)| *formal as usize == position)
+    };
+    let implicit_self_count = (0..parameters.len())
+        .filter(|position| implicit_self(*position))
+        .count();
+    if parameters.len()
+        != authored.scalar_arguments.len()
+            + authored.structural_arguments.len()
+            + implicit_self_count
         || scalar_arguments.len() != authored.scalar_arguments.len()
-        || structural_arguments.len() != authored.structural_arguments.len()
+        || structural_arguments.len() != authored.structural_arguments.len() + implicit_self_count
     {
         return unsupported("nested argument schedule has no exact positional signature");
     }
     active.push(index);
     let mut scalar_ordinal = 0;
+    // Dense ordinal into the lowered structural argument list. Authored
+    // positions and lowered slots agree except at an implicit `self`, which
+    // has a slot but no authored formal.
+    let mut structural_ordinal = 0;
     for (position, parameter) in parameters.iter().enumerate() {
         if checked
             .primitive_type_reference(parameter.type_reference)
@@ -189,6 +209,10 @@ fn append(
             scalar_ordinal += 1;
             continue;
         }
+        if implicit_self(position) {
+            structural_ordinal += 1;
+            continue;
+        }
         let expression = authored
             .structural_arguments
             .iter()
@@ -196,13 +220,8 @@ fn append(
             .ok_or(LoweringError::Unsupported(
                 "nested structural argument has no authored position",
             ))?;
-        let structural_ordinal = authored
-            .structural_arguments
-            .iter()
-            .position(|(formal, _)| *formal as usize == position)
-            .ok_or(LoweringError::Unsupported(
-                "subslice argument has no structural ordinal",
-            ))?;
+        let argument_ordinal = structural_ordinal;
+        structural_ordinal += 1;
         let mut constructors = group.clone().filter(|producer| {
             matches!(
                 &plan.operations[*producer],
@@ -226,7 +245,7 @@ fn append(
                 return unsupported("array argument constructor changed during scheduling");
             };
             if !structural_arguments
-                .get(structural_ordinal)
+                .get(argument_ordinal)
                 .is_some_and(|argument| {
                     argument.source_structural_result_binding_ordinal()
                         == Some(result.binding_ordinal)
@@ -245,10 +264,10 @@ fn append(
             )?;
             continue;
         }
-        if byte_subslices::arguments(&plan.operations[index]).get(structural_ordinal).is_some_and(|argument| {
+        if byte_subslices::arguments(&plan.operations[index]).get(argument_ordinal).is_some_and(|argument| {
             matches!(argument.source, checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice { .. })
         }) {
-            steps.push(Step::Subslice { operation: index, ordinal: structural_ordinal });
+            steps.push(Step::Subslice { operation: index, ordinal: argument_ordinal });
             continue;
         }
         let Some(expression) = parameters::expression_producer(checked, expression) else {

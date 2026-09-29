@@ -74,9 +74,48 @@ pub(super) fn emit(
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked, plan.state, coordinate,
     )?;
+    // Lowered structural slots are authored formals plus implicit `self`
+    // positions, which carry a slot and no authored entry. The `ordinal`th
+    // lowered slot's authored formal is its position after every implicit
+    // receiver is skipped.
+    let target = crate::emission::call_source_custody::authored::target_signature(
+        checked,
+        plan.machine,
+        authored.source_target,
+    )?;
+    let authored_ordinal = {
+        let mut structural_slot = 0usize;
+        let mut found = None;
+        for (position, parameter) in target.parameters.iter().enumerate() {
+            if checked
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+            {
+                continue;
+            }
+            if structural_slot == ordinal {
+                let implicit_self = parameter.is_self
+                    && !authored
+                        .structural_arguments
+                        .iter()
+                        .any(|(formal, _)| *formal as usize == position);
+                found = (!implicit_self).then(|| {
+                    authored
+                        .structural_arguments
+                        .iter()
+                        .position(|(formal, _)| *formal as usize == position)
+                });
+                break;
+            }
+            structural_slot += 1;
+        }
+        found.flatten().ok_or(LoweringError::Unsupported(
+            "subslice disagrees with its authored call argument",
+        ))?
+    };
     if authored
         .structural_arguments
-        .get(ordinal)
+        .get(authored_ordinal)
         .is_none_or(|(_, source)| source != expression)
     {
         return unsupported("subslice disagrees with its authored call argument");
