@@ -4,29 +4,31 @@
 use crate::register_model::packed_memory::{X86_64_LOAD_PACKED, X86_64_STORE_PACKED};
 use crate::register_model::physical_model::{GPR64, VECTOR128, complement, sorted_units};
 use crate::register_model::{
-    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET, X86_64_BITS_TO_FLOAT32,
-    X86_64_BITS_TO_FLOAT64, X86_64_COMPARE_I64, X86_64_COMPARE_I64_IMMEDIATE,
-    X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_BYTES, X86_64_COPY_I64,
-    X86_64_DIVIDE_I64, X86_64_DIVIDE_U64, X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS,
-    X86_64_FRAME_ADDRESS, X86_64_HOSTED_EXIT_PROCESS_I32, X86_64_HOSTED_READ_BYTE,
-    X86_64_HOSTED_WRITE_BYTE_I32, X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP,
-    X86_64_LINUX_SYSTEM_CALL, X86_64_LOAD8, X86_64_LOAD8_INDEXED, X86_64_LOAD16, X86_64_LOAD32,
-    X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN, X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL,
-    X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_MULTIPLY_I64,
-    X86_64_REMAINDER_I64, X86_64_REMAINDER_U64, X86_64_REQUIRED_REGISTER_CONSTRAINTS,
-    X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64, X86_64_SATURATING_DIVIDE_SIGNED,
-    X86_64_SATURATING_MULTIPLY_CLAMPED, X86_64_SATURATING_MULTIPLY_U64,
-    X86_64_SATURATING_SUBTRACT_CLAMPED, X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SHIFT_I64,
-    X86_64_STORE, X86_64_STORE64, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
-    X86_64_SYSTEM_V_CALL, X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN,
-    X86_64_SYSTEM_V_RETURN_UNIT, X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT,
-    X86_64_TRAPPING_FIXED_PAIR, X86_64_TRAPPING_SHIFT,
-    canonical_x86_64_physical_register_model_identity, validated_x86_64_physical_register_model,
-    x86_64_microsoft_aggregate_call_keys, x86_64_microsoft_aggregate_return_keys,
-    x86_64_microsoft_normalized_foreign_call_keys, x86_64_microsoft_register_call_keys,
-    x86_64_microsoft_register_unit_call_keys, x86_64_system_v_aggregate_call_keys,
-    x86_64_system_v_aggregate_return_keys, x86_64_system_v_normalized_foreign_call_keys,
-    x86_64_system_v_register_call_keys, x86_64_system_v_register_unit_call_keys,
+    X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_ADDRESS_OFFSET,
+    X86_64_ATOMIC_COMPARE_EXCHANGE, X86_64_ATOMIC_LOAD, X86_64_ATOMIC_STORE, X86_64_ATOMIC_UPDATE,
+    X86_64_BITS_TO_FLOAT32, X86_64_BITS_TO_FLOAT64, X86_64_COMPARE_I64,
+    X86_64_COMPARE_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO, X86_64_CONDITIONAL_BRANCH,
+    X86_64_COPY_BYTES, X86_64_COPY_I64, X86_64_DIVIDE_I64, X86_64_DIVIDE_U64,
+    X86_64_FLOAT32_TO_BITS, X86_64_FLOAT64_TO_BITS, X86_64_FRAME_ADDRESS,
+    X86_64_HOSTED_EXIT_PROCESS_I32, X86_64_HOSTED_READ_BYTE, X86_64_HOSTED_WRITE_BYTE_I32,
+    X86_64_INLINE_ASSEMBLY_DEFAULT, X86_64_JUMP, X86_64_LINUX_SYSTEM_CALL, X86_64_LOAD8,
+    X86_64_LOAD8_INDEXED, X86_64_LOAD16, X86_64_LOAD32, X86_64_LOAD64, X86_64_MATERIALIZE_BOOLEAN,
+    X86_64_MATERIALIZE_I64, X86_64_MICROSOFT_CALL, X86_64_MICROSOFT_RETURN,
+    X86_64_MICROSOFT_RETURN_UNIT, X86_64_MULTIPLY_I64, X86_64_REMAINDER_I64, X86_64_REMAINDER_U64,
+    X86_64_REQUIRED_REGISTER_CONSTRAINTS, X86_64_SATURATING_ADD_CLAMPED, X86_64_SATURATING_ADD_U64,
+    X86_64_SATURATING_DIVIDE_SIGNED, X86_64_SATURATING_MULTIPLY_CLAMPED,
+    X86_64_SATURATING_MULTIPLY_U64, X86_64_SATURATING_SUBTRACT_CLAMPED,
+    X86_64_SATURATING_SUBTRACT_UNSIGNED, X86_64_SHIFT_I64, X86_64_STORE, X86_64_STORE64,
+    X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE, X86_64_SYSTEM_V_CALL,
+    X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64, X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
+    X86_64_TRAPPING_BINARY, X86_64_TRAPPING_CONVERT, X86_64_TRAPPING_FIXED_PAIR,
+    X86_64_TRAPPING_SHIFT, canonical_x86_64_physical_register_model_identity,
+    validated_x86_64_physical_register_model, x86_64_microsoft_aggregate_call_keys,
+    x86_64_microsoft_aggregate_return_keys, x86_64_microsoft_normalized_foreign_call_keys,
+    x86_64_microsoft_register_call_keys, x86_64_microsoft_register_unit_call_keys,
+    x86_64_system_v_aggregate_call_keys, x86_64_system_v_aggregate_return_keys,
+    x86_64_system_v_normalized_foreign_call_keys, x86_64_system_v_register_call_keys,
+    x86_64_system_v_register_unit_call_keys,
 };
 use crate::register_model::{
     float_scalar_calls, indirect_results, mixed_aggregate_calls, mixed_calls, packed_memory,
@@ -947,6 +949,83 @@ pub fn x86_64_register_constraint_catalog(
         clobbers: view("rflags").units.clone(),
     });
     mixed_aggregate_calls::append_constraints(&mut constraints, model);
+    // Atomic rows carry the LOCK-capable vocabulary every x86-64 target has
+    // had since the 486. The address is an ordinary base register; the cell
+    // it points at belongs to the memory effect, not this operand roster.
+    // `mov` plus `mfence` is the fixed-work store because `xchg` would
+    // destroy the incoming value register; fetch-and/or/xor have no
+    // fixed-work form without a hidden retry loop and stay unadmitted. The
+    // observed prior value is an early-clobber definition on every row it
+    // appears in, the same shape every other target's atomic rows carry.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_ATOMIC_LOAD,
+        operands: vec![allocatable(0, RegisterOperandAccess::Use, GPR64), {
+            let mut output = allocatable(1, RegisterOperandAccess::Def, GPR64);
+            output.early_clobber = true;
+            output
+        }],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    });
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_ATOMIC_STORE,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: Vec::new(),
+    });
+    // The update family reads the address and the incoming value and
+    // produces the observed prior cell. `LOCK XADD` and `XCHG` write the
+    // observed value into the register they read, so the realization copies
+    // the incoming value into the early-clobber output before the LOCK form.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_ATOMIC_UPDATE,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            {
+                let mut output = allocatable(2, RegisterOperandAccess::Def, GPR64);
+                output.early_clobber = true;
+                output
+            },
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: view("rflags").units.clone(),
+    });
+    // CMPXCHG reads the expected input from RAX and leaves the observed
+    // prior cell in it: the expected operand pins RAX, the observed output
+    // is an ordinary early-clobber register the encoding fills from RAX
+    // after the LOCK form, and RAX itself is a declared family clobber.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: X86_64_ATOMIC_COMPARE_EXCHANGE,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            fixed(1, RegisterOperandAccess::Use, "rax"),
+            allocatable(2, RegisterOperandAccess::Use, GPR64),
+            {
+                let mut output = allocatable(3, RegisterOperandAccess::Def, GPR64);
+                output.early_clobber = true;
+                output
+            },
+        ],
+        implicit_uses: Vec::new(),
+        implicit_defs: Vec::new(),
+        clobbers: {
+            let mut clobbers = view("rax").units.clone();
+            clobbers.extend(view("rflags").units.iter().copied());
+            clobbers.sort_unstable();
+            clobbers
+        },
+    });
     for (key, restore) in [
         (crate::X86_64_SAVE_FLOATING_CONTROL, false),
         (crate::X86_64_RESTORE_FLOATING_CONTROL, true),
