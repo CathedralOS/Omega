@@ -81,11 +81,11 @@ data Main {
     resolved_value: ResolvedValue;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.required_value.reset();
-    self.parent_value.reset();
-    self.resolved_value.reset();
-    self.console.exit_process(
-        self.required_value.value + self.parent_value.value + self.resolved_value.value,
+machine Main::main(main: &mut Main) reaches Console {
+    main.required_value.reset();
+    main.parent_value.reset();
+    main.resolved_value.reset();
+    main.console.exit_process(
+        main.required_value.value + main.parent_value.value + main.resolved_value.value,
     );
 }
