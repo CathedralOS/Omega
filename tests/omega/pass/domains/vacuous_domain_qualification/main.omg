@@ -6,7 +6,7 @@ domain i64::Distance = Km;
 
 data Main {}
 
-machine Main::main(&mut self) {
+machine Main::main() {
     let first: i64 in Km = 5 as i64 in Km;
     let second: i64 in Km = 6 as i64 in Km;
     let aliased: i64 in Distance = 7 as i64 in Distance;
