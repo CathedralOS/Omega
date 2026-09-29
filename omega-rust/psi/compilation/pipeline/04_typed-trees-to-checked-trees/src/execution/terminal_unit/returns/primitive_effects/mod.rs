@@ -229,17 +229,20 @@ fn direct_prefix_store(
 ) -> Option<()> {
     let CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
         path,
-        destination:
-            checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index: 0 },
+        destination: checked_trees::CheckedStoreRoot::Parameter { position },
         value: checked_trees::CheckedCallScalarArgument::Pure(value),
         ..
     } = store
     else {
         return None;
     };
+    // The store's authored root must name this lane's one borrowed parameter.
     let [destination] = structural_parameters else {
         return None;
     };
+    if destination.position != *position {
+        return None;
+    }
     let checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(destination_type) = shapes
         .types
         .get(&destination.type_identity)

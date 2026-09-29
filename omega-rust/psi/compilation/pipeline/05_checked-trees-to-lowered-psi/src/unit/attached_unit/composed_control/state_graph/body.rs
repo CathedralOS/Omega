@@ -546,16 +546,15 @@ pub(super) fn validate(
                 },
                 StatementNode::Assignment(_),
             ) => {
-                let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
-                    destination
-                else {
+                let checked_trees::CheckedStoreRoot::Parameter { position } = destination else {
                     return unsupported(
                         "Unit graph primitive store has no retained parameter destination",
                     );
                 };
                 let destination = state
                     .structural_parameters
-                    .get(*parameter_index as usize)
+                    .iter()
+                    .find(|parameter| parameter.position == *position)
                     .ok_or(LoweringError::Unsupported(
                         "Unit graph primitive store parameter is absent",
                     ))?;

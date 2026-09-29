@@ -4,7 +4,6 @@
 use crate::CheckedScalarExpression;
 use crate::checked_trees::flow::terminal::CheckedUnitStructuralPathSegment;
 use language_semantics::Multiplicity;
-use symbols::SymbolHandle;
 use typed_trees::types::PrimitiveType;
 
 /// Exact state-local coordinate receiving one primitive boundary result in a
@@ -29,11 +28,14 @@ pub struct CheckedUnitStructuralResultBindingPlan {
     pub multiplicity: Multiplicity,
 }
 
-/// Exact source occurrence of bounded byte-owner replacement.
+/// Exact source occurrence of bounded byte-owner replacement. The root is
+/// always an exclusive borrowed parameter: a local-rooted whole owner or byte
+/// field has no lowering and is refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedByteSequenceStorePlan {
     pub statement_index: u32,
-    pub destination_parameter_position: u32,
+    pub root: crate::CheckedStoreRoot,
+    /// The replaced place below `root`: the whole owner or one byte field.
     pub destination: CheckedByteSequenceStoreDestination,
     pub value: CheckedByteSequenceValuePlan,
 }
@@ -78,11 +80,12 @@ impl Default for CheckedByteSequenceValue {
 
 /// Exact source operands of a scalar byte replacement within the live prefix.
 /// The stored byte is a pure value or the statement's own call result; byte
-/// leaves lower no scalar computation, so `Computation` is refused.
+/// leaves lower no scalar computation, so `Computation` is refused. The root is
+/// a parameter; a local-rooted byte-field element is refused.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
     pub statement_index: u32,
-    pub destination_parameter_position: u32,
+    pub destination: crate::CheckedStoreRoot,
     pub carrier_path: Vec<CheckedUnitStructuralPathSegment>,
     pub field_identity: String,
     pub index: CheckedScalarExpression,
@@ -90,11 +93,12 @@ pub struct CheckedStructuralByteSequenceFieldByteStorePlan {
 }
 
 /// Exact authored operands of a write through a whole mutable byte view. The
-/// stored byte is refused as a `Computation` exactly as a byte replacement's.
+/// stored byte is refused as a `Computation`, and the root as a `Local`,
+/// exactly as a byte replacement's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedByteSequenceWritePlan {
     pub statement_index: u32,
-    pub destination_parameter_position: u32,
+    pub destination: crate::CheckedStoreRoot,
     pub index: CheckedScalarExpression,
     pub value: crate::CheckedStoreValue,
 }
@@ -109,15 +113,8 @@ pub struct CheckedByteSequenceWritePlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedElementViewWritePlan {
     pub statement_index: u32,
-    pub destination: crate::CheckedStructuralScalarFieldStoreDestination,
+    pub destination: crate::CheckedStoreRoot,
     pub index: CheckedScalarExpression,
     pub element: PrimitiveType,
     pub value: crate::CheckedStoreValue,
-}
-
-/// Primitive store custody stays separate from immutable scalar bindings.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedPrimitiveStoreDestination {
-    Parameter { parameter_index: u32 },
-    Local { symbol: SymbolHandle },
 }

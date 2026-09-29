@@ -5,14 +5,14 @@ use crate::checked_trees::flow::terminal::structural_return::CheckedUnitStructur
 use crate::checked_trees::flow::terminal::{
     CheckedBoundaryMachinePlan, CheckedByteSequenceStorePlan, CheckedByteSequenceWritePlan,
     CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan, CheckedElementViewWritePlan,
-    CheckedPrimitiveStoreDestination, CheckedProviderAttachmentRequirementPlan,
-    CheckedScalarStateTerminator, CheckedStructuralByteSequenceFieldByteStorePlan,
-    CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitPartialAffineDiscardPlan, CheckedUnitScalarResultBindingPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralDomainPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralResultBindingPlan, CheckedUnitStructuralTypePlan,
+    CheckedProviderAttachmentRequirementPlan, CheckedScalarStateTerminator,
+    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralScalarParameterPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallPlan,
+    CheckedUnitEntryClaimPlan, CheckedUnitPartialAffineDiscardPlan,
+    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,
+    CheckedUnitStructuralTypePlan,
 };
 use crate::checked_trees::values::CheckedErasedProofParameterPlan;
 use crate::{
@@ -206,7 +206,9 @@ pub enum CheckedUnitEffectOperationPlan {
         service_reach: ServiceReachSummary,
     },
     /// Replace one unrestricted primitive through an exclusive borrowed
-    /// parameter or initialized mutable local. A nonempty declared path selects
+    /// parameter (by authored position) or an initialized mutable local.
+    /// Primitive store custody stays separate from immutable scalar bindings.
+    /// A nonempty declared path selects
     /// a primitive leaf without inventing a scalar field identity: fields,
     /// literal elements, and runtime elements (`RuntimeIndex`, whose selector
     /// is evaluated before the value) compose in one path. Evaluate the
@@ -214,7 +216,7 @@ pub enum CheckedUnitEffectOperationPlan {
     /// before committing the write.
     WriteOnlyPrimitiveStore {
         statement_index: u32,
-        destination: CheckedPrimitiveStoreDestination,
+        destination: crate::CheckedStoreRoot,
         path: Vec<CheckedUnitStructuralPathSegment>,
         value: crate::CheckedCallScalarArgument,
     },

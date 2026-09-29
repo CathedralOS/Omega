@@ -56,9 +56,13 @@ pub(crate) fn validate_assignment(
         Some(statement_index),
         assignment.target,
     )?;
+    // Neither a whole byte owner nor a byte field has a local-rooted lowering.
+    let Some(position) = store.root.parameter_position() else {
+        return unsupported("byte-field store has no parameter root");
+    };
     let parameter = checked
         .state_parameters(state)
-        .get(store.destination_parameter_position as usize)
+        .get(position as usize)
         .ok_or(LoweringError::Unsupported(
             "byte-field store has no authored parameter",
         ))?;
@@ -279,9 +283,12 @@ pub(crate) fn emit(
 ) -> Result<OperationKind, LoweringError> {
     // Checked stores retain authored source positions. The evaluation binding
     // carries their exact lowered declarations after scalar/structural partition.
+    let Some(position) = store.root.parameter_position() else {
+        return unsupported("byte-field store destination has no parameter root");
+    };
     let (_, parameter) = parameters
         .iter()
-        .find(|(authored, _)| *authored == store.destination_parameter_position)
+        .find(|(authored, _)| *authored == position)
         .ok_or(LoweringError::Unsupported(
             "byte-field store destination is absent",
         ))?;

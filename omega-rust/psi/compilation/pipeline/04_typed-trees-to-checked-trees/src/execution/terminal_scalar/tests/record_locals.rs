@@ -50,7 +50,7 @@ fn mutable_record_field_stores_keep_local_identity_and_authored_order() {
         assert_eq!(store.statement_index, 2);
         assert_eq!(
             store.destination,
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local {
+            checked_trees::CheckedStoreRoot::Local {
                 symbol: local.symbol
             }
         );

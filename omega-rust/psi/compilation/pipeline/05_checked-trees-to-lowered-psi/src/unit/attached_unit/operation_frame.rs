@@ -679,22 +679,30 @@ impl OperationFrame<'_, '_> {
     fn write_only_primitive_store(
         &mut self,
         statement_index: u32,
-        destination: &checked_trees::CheckedPrimitiveStoreDestination,
+        destination: &checked_trees::CheckedStoreRoot,
         path: &[checked_trees::CheckedUnitStructuralPathSegment],
         value: &checked_trees::CheckedCallScalarArgument,
     ) -> Result<(), LoweringError> {
         let destination = match destination {
-            checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } => {
-                let parameter = self.parameters.get(*parameter_index as usize).ok_or(
-                    LoweringError::Unsupported("primitive store parameter is absent"),
-                )?;
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
+                // The root names the authored parameter position;
+                // `structural_parameters` pairs each checked plan's authored
+                // position with the declaration that position lowered into.
+                let (_, parameter) = self
+                    .evaluation
+                    .structural_parameters
+                    .iter()
+                    .find(|(authored, _)| authored == position)
+                    .ok_or(LoweringError::Unsupported(
+                        "primitive store parameter is absent",
+                    ))?;
                 crate::emission::primitive_store::parameter_destination(
                     parameter,
                     path,
                     self.structural_types.declarations(),
                 )?
             }
-            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol } => {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
                 if path.is_empty() {
                     let local = primitive_locals::find(self.primitive_locals, *symbol)?;
                     crate::emission::primitive_store::Destination {
@@ -908,7 +916,7 @@ impl OperationFrame<'_, '_> {
         // produced, resolved through the structural-local roster like a whole
         // structural store's local root.
         let (destination_place, destination_type) = match write.destination {
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
                 let (_, destination) = self
                     .evaluation
                     .structural_parameters
@@ -927,7 +935,7 @@ impl OperationFrame<'_, '_> {
                 }
                 (destination.place, destination.structural_type)
             }
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
                 self.local_store_root(symbol, &LocalStoreRoot::ELEMENT_VIEW_WRITE)?
             }
         };
@@ -946,7 +954,7 @@ impl OperationFrame<'_, '_> {
         // owned structural local roots it at the local's live home place,
         // resolved through the structural-local roster.
         let (destination_place, destination_type, lowered) = match store.destination {
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
                 // The destination names the authored parameter position;
                 // `structural_parameters` pairs each checked plan's authored
                 // position with the declaration that position lowered into.
@@ -968,7 +976,7 @@ impl OperationFrame<'_, '_> {
                     )?;
                 (destination.place, destination.structural_type, lowered)
             }
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
                 let (place, root_type) =
                     self.local_store_root(symbol, &LocalStoreRoot::SCALAR_FIELD_STORE)?;
                 let lowered =
@@ -1072,7 +1080,7 @@ impl OperationFrame<'_, '_> {
         // owned structural local roots it at the local's live home place.
         // The window pair below writes through either root identically.
         let (root_type, source) = match store.destination {
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
+            checked_trees::CheckedStoreRoot::Parameter { position } => {
                 // The destination field names the authored parameter position;
                 // the window source names its dense signature index instead.
                 // `structural_parameters` pairs each checked plan's authored
@@ -1092,7 +1100,7 @@ impl OperationFrame<'_, '_> {
                     },
                 )
             }
-            checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
+            checked_trees::CheckedStoreRoot::Local { symbol } => {
                 let (_, root_type) =
                     self.local_store_root(symbol, &LocalStoreRoot::CASE_FIELD_STORE)?;
                 (

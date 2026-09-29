@@ -59,8 +59,8 @@ pub use composed_unit_control_plans::{
 pub use result_binding_plans::{
     CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan, CheckedByteSequenceValue,
     CheckedByteSequenceValuePlan, CheckedByteSequenceWritePlan, CheckedElementViewWritePlan,
-    CheckedPrimitiveStoreDestination, CheckedStructuralByteSequenceFieldByteStorePlan,
-    CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralResultBindingPlan,
+    CheckedStructuralByteSequenceFieldByteStorePlan, CheckedUnitScalarResultBindingPlan,
+    CheckedUnitStructuralResultBindingPlan,
 };
 pub use return_plans::CheckedReturnPlan;
 pub use scalar_graph_plans::{

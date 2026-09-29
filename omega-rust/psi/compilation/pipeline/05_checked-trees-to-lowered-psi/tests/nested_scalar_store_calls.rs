@@ -66,10 +66,9 @@ fn dense_store_parameters_reject_redirected_source_and_shared_access() {
                 panic!("one authored field store")
             };
             assert_eq!(store.destination.parameter_position(), Some(1));
-            store.destination =
-                checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
-                    position: if mutation == 0 { 0 } else { 2 },
-                };
+            store.destination = checked_trees::CheckedStoreRoot::Parameter {
+                position: if mutation == 0 { 0 } else { 2 },
+            };
         }
         assert!(
             checked_trees_to_lowered_psi::lower_machine(

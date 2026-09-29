@@ -444,3 +444,57 @@ fn byte_replacement_keeps_rhs_receiver_and_authored_output_parameter_mapping() {
     assert!(operations.iter().any(|operation| matches!(operation.kind,
         OperationKind::StructuralByteSequenceFieldLength { source, .. } if source == receiver.place)));
 }
+
+/// Neither a byte field nor a whole bounded byte owner has a local-rooted
+/// lowering: replay refuses either store once its shared root names a local.
+#[test]
+fn byte_field_and_whole_owner_stores_refuse_a_local_root() {
+    for (source, machine) in [
+        (
+            r#"
+            domain [u8;3]::Utf8 requires valid_utf8(self);
+            data Record { out: [u8;3] in Utf8; }
+            machine Record::replace(&mut self) { self.out = "XXX"; }
+            "#,
+            "Record::replace",
+        ),
+        (
+            r#"
+            domain [u8; 16]::Utf8 requires valid_utf8(self);
+            data Formatter {}
+            machine Formatter::render(&mut self, marker: u32, output: &mut [u8; 16] in Utf8) {
+                output = "done";
+            }
+            "#,
+            "Formatter::render",
+        ),
+    ] {
+        let mut checked = crate::front_end::checked_program(source);
+        lower_machine(&checked, TerminalMachineSelection::Name(machine))
+            .unwrap_or_else(|error| panic!("{machine}: untampered store lowers: {error:?}"));
+        let store = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .flat_map(|plan| &mut plan.operations)
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{machine}: byte store"));
+        store.root = checked_trees::CheckedStoreRoot::Local {
+            symbol: symbols::SymbolHandle::invalid(),
+        };
+        let error = lower_machine(&checked, TerminalMachineSelection::Name(machine))
+            .expect_err("a byte store has no local root");
+        assert!(
+            matches!(
+                error,
+                super::LoweringError::Unsupported("byte-field store has no parameter root")
+            ),
+            "{machine}: {error:?}"
+        );
+    }
+}

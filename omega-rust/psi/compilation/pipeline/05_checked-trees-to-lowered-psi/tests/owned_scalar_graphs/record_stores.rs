@@ -106,9 +106,7 @@ fn store_cannot_resurrect_a_moved_local_from_its_declaration() {
 
 #[test]
 fn store_replay_rejects_substituted_local_and_field_custody() {
-    use checked_trees::{
-        CheckedStructuralScalarFieldStoreDestination, CheckedUnitEffectOperationPlan,
-    };
+    use checked_trees::{CheckedStoreRoot, CheckedUnitEffectOperationPlan};
     let (checked, _, _, _) = support::publish(SOURCE, "changed");
     let machine = checked
         .machines()
@@ -170,10 +168,7 @@ fn store_replay_rejects_substituted_local_and_field_custody() {
             panic!("store");
         };
         match corruption {
-            0 => {
-                store.destination =
-                    CheckedStructuralScalarFieldStoreDestination::Local { symbol: snapshot }
-            }
+            0 => store.destination = CheckedStoreRoot::Local { symbol: snapshot },
             1 => store.field_identity = "enabled".into(),
             2 => store.carrier_path.clear(),
             _ => {

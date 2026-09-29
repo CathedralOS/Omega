@@ -268,7 +268,7 @@ fn checked_realization_structural_scalar_field_store_plan(
     Some((
         checked_trees::CheckedStructuralScalarFieldStorePlan {
             statement_index: u32::try_from(statement_index).ok()?,
-            destination: checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter {
+            destination: checked_trees::CheckedStoreRoot::Parameter {
                 position: u32::try_from(*self_position).ok()?,
             },
             carrier_path,

@@ -342,6 +342,39 @@ fn indexed_byte_store_refuses_a_computation_value() {
     );
 }
 
+/// A byte-field element has no local-rooted lowering: replay refuses an
+/// indexed byte replacement whose shared store root names a local.
+#[test]
+fn indexed_byte_store_refuses_a_local_root() {
+    let mut checked = crate::front_end::checked_program(REPLACE);
+    let store = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .flat_map(|plan| &mut plan.operations)
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                Some(store)
+            }
+            _ => None,
+        })
+        .expect("indexed byte store");
+    store.destination = checked_trees::CheckedStoreRoot::Local {
+        symbol: symbols::SymbolHandle::invalid(),
+    };
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
+        .expect_err("a byte-field element has no local root");
+    assert!(
+        matches!(
+            error,
+            super::LoweringError::Unsupported("byte replacement has no parameter root")
+        ),
+        "{error:?}"
+    );
+}
+
 /// The serialized artifact carries the domain-bearing store's evidence: the
 /// receiver reconstructs the ASCII leg from the field declaration and
 /// verifies the certificate the producer attached. Tampering with the

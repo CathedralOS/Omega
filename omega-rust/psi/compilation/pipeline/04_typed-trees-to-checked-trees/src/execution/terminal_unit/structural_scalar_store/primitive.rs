@@ -126,7 +126,7 @@ pub(super) fn store_at(
             return None;
         }
         (
-            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
+            checked_trees::CheckedStoreRoot::Local { symbol },
             program.primitive_type_reference(local.type_reference)?,
         )
     } else if structural_local_before(
@@ -144,7 +144,7 @@ pub(super) fn store_at(
             return None;
         }
         (
-            checked_trees::CheckedPrimitiveStoreDestination::Local { symbol },
+            checked_trees::CheckedStoreRoot::Local { symbol },
             program.primitive_type_reference(validation::declared_place_type_raw(
                 program,
                 machine,
@@ -403,9 +403,9 @@ fn storage_place(
     )
 }
 
-/// The primitive store destination of an exclusive borrowed parameter, with
-/// its referee type. A whole store additionally needs an unrestricted,
-/// non-self parameter over a named referee.
+/// The primitive store root of an exclusive borrowed parameter, by its
+/// authored position, with its referee type. A whole store additionally needs
+/// an unrestricted, non-self parameter over a named referee.
 fn borrowed_parameter_destination(
     program: &TypedTrees,
     state: &typed_trees::state::State,
@@ -413,19 +413,15 @@ fn borrowed_parameter_destination(
     symbol: SymbolHandle,
     whole: bool,
 ) -> Option<(
-    checked_trees::CheckedPrimitiveStoreDestination,
+    checked_trees::CheckedStoreRoot,
     typed_trees::types::TypeReferenceHandle,
 )> {
-    let (parameter_index, destination) =
-        structural_parameters
-            .iter()
-            .enumerate()
-            .find(|(_, destination)| {
-                program
-                    .state_parameters(state)
-                    .get(destination.position as usize)
-                    .is_some_and(|parameter| parameter.symbol == symbol)
-            })?;
+    let destination = structural_parameters.iter().find(|destination| {
+        program
+            .state_parameters(state)
+            .get(destination.position as usize)
+            .is_some_and(|parameter| parameter.symbol == symbol)
+    })?;
     if (whole && (destination.is_self || destination.multiplicity != Multiplicity::Unrestricted))
         || destination.multiplicity == Multiplicity::Linear
         || !destination.qualifications.is_empty()
@@ -465,8 +461,8 @@ fn borrowed_parameter_destination(
         return None;
     }
     Some((
-        checked_trees::CheckedPrimitiveStoreDestination::Parameter {
-            parameter_index: u32::try_from(parameter_index).ok()?,
+        checked_trees::CheckedStoreRoot::Parameter {
+            position: destination.position,
         },
         *referee,
     ))
