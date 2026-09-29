@@ -31,6 +31,9 @@ mod discarded_results;
 #[path = "unit_state_graph/scalar_array_locals.rs"]
 mod scalar_array_locals;
 
+#[path = "unit_state_graph/nested_element_reads.rs"]
+mod nested_element_reads;
+
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: u8) reaches Output; }
     machine relay(bytes: &[u8], selected: bool, marker: u8) reaches Output {

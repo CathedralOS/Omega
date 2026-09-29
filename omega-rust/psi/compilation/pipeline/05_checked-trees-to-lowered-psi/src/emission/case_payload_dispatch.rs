@@ -432,12 +432,17 @@ pub(crate) fn substitute_direct(
             source,
             path,
             index,
+            inner_indexes,
             element_path,
             scalar_type,
         } => Direct::IndexedPrimitiveRead {
             source,
             path,
             index: Box::new(substitute_direct(*index, bound)),
+            inner_indexes: inner_indexes
+                .into_iter()
+                .map(|inner| substitute_direct(inner, bound))
+                .collect(),
             element_path,
             scalar_type,
         },

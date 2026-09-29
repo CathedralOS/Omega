@@ -71,9 +71,18 @@ pub(crate) fn validate_direct_parameter_types(
         | LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. } => Ok(()),
+        LoweredDirectExpression::IndexedPrimitiveRead {
+            index,
+            inner_indexes,
+            ..
+        } => {
+            validate_direct_parameter_types(index, parameter_types)?;
+            inner_indexes
+                .iter()
+                .try_for_each(|inner| validate_direct_parameter_types(inner, parameter_types))
+        }
         LoweredDirectExpression::ByteSequenceRead { index, .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { index, .. }
-        | LoweredDirectExpression::IndexedPrimitiveRead { index, .. }
         | LoweredDirectExpression::IndexedElementFieldRead { index, .. }
         | LoweredDirectExpression::ElementViewRead { index, .. } => {
             validate_direct_parameter_types(index, parameter_types)

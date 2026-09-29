@@ -20,6 +20,18 @@ use terminal_psi::{Operation, OperationKind, OperationResult, ValueDeclaration};
 /// places regardless of emission order.
 const TERMINAL_HOISTED_ELEMENT_PLACE_BASE: u64 = 1 << 62;
 
+/// Reserved obligation-identity namespace for the inner selectors of one
+/// nested element read (`self.a[i][k]`). A read owns the obligation after its
+/// own operation identity for its outer selector, the convention every
+/// runtime-indexed read shares; each inner `RuntimeIndex` segment needs a
+/// distinct obligation of the same operation, so it takes
+/// `base + operation * stride + ordinal` here. The dense operation and
+/// contract obligations stay far below this base, and structural Unit call
+/// requirements start at `1 << 63`, above it.
+const TERMINAL_NESTED_SELECTOR_OBLIGATION_BASE: u64 = 1 << 61;
+pub(crate) const TERMINAL_NESTED_SELECTOR_LIMIT: usize = 7;
+const TERMINAL_NESTED_SELECTOR_STRIDE: u64 = 8;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum LoweredDirectExpression {
     PrimitiveRead {
@@ -62,10 +74,14 @@ pub(crate) enum LoweredDirectExpression {
     /// element; for a record element it follows the selector down to one
     /// scalar field (`cells[i].hp`), which the verifier resolves against the
     /// element's declaration.
+    /// `inner_indexes` select again, in order, inside a selected element
+    /// that is itself a fixed array; each becomes its own `RuntimeIndex`
+    /// segment after the outer one.
     IndexedPrimitiveRead {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         index: Box<LoweredDirectExpression>,
+        inner_indexes: Vec<LoweredDirectExpression>,
         element_path: Vec<terminal_psi::StructuralPathSegment>,
         scalar_type: ScalarType,
     },
@@ -461,10 +477,18 @@ pub(crate) fn emit_direct_expression(
             source,
             path,
             index,
+            inner_indexes,
             element_path,
             scalar_type,
         } => {
+            // Selectors evaluate in authored order, outermost array first.
             let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            let inner_indexes = inner_indexes
+                .iter()
+                .map(|inner| {
+                    emit_direct_expression(inner, parameters, next_value_identity, operations)
+                })
+                .collect::<Vec<_>>();
             // The certificate proves `index < declared extent` against the
             // array's statically declared length, so no length observation is
             // needed: the verifier resolves the extent from the prefix.
@@ -476,6 +500,23 @@ pub(crate) fn emit_direct_expression(
             );
             let mut path = path.clone();
             path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
+            for (ordinal, index) in inner_indexes.into_iter().enumerate() {
+                assert!(
+                    ordinal < TERMINAL_NESTED_SELECTOR_LIMIT,
+                    "preparation bounds the nested selector count"
+                );
+                let obligation = obligation_id(
+                    operations
+                        .next_identity
+                        .checked_mul(TERMINAL_NESTED_SELECTOR_STRIDE)
+                        .and_then(|offset| {
+                            offset.checked_add(TERMINAL_NESTED_SELECTOR_OBLIGATION_BASE)
+                        })
+                        .and_then(|base| base.checked_add(ordinal as u64 + 1))
+                        .expect("nested selector obligations fit their reserved namespace"),
+                );
+                path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
+            }
             path.extend(element_path.iter().cloned());
             emit_scalar_leaf(
                 OperationKind::PrimitiveScalarRead {

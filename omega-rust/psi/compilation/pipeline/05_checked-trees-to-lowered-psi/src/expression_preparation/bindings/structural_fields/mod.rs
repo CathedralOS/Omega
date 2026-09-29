@@ -713,6 +713,53 @@ pub(crate) fn resolve_indexed_array(
     .or(Ok(None))
 }
 
+/// Resolve a read that selects inside nested fixed arrays (`self.a[i][k]`):
+/// `path` reaches the outer array and `inner_depth` further runtime selectors
+/// descend through its array elements to one primitive leaf. Returns the
+/// read's source, the static prefix and the leaf scalar type.
+pub(crate) fn resolve_nested_indexed_array(
+    fields: &[StructuralScalarFieldBinding],
+    position: u32,
+    path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    inner_depth: usize,
+) -> Result<
+    (
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        ScalarType,
+    ),
+    LoweringError,
+> {
+    let mut matching = fields
+        .iter()
+        .filter(|field| field.source_position == position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "nested indexed read has no readable binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("nested indexed read has ambiguous bindings");
+    }
+    let carrier = path
+        .iter()
+        .map(|segment| match segment {
+            checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) => {
+                Ok(CheckedUnitStructuralPathSegment::Field(identity.clone()))
+            }
+            checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(index) => {
+                Ok(CheckedUnitStructuralPathSegment::FixedIndex(*index))
+            }
+            _ => unsupported("nested indexed read has an unsupported case path"),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let (path, scalar_type) = crate::emission::primitive_store::lower_nested_indexed_path(
+        binding.structural_type,
+        &carrier,
+        inner_depth,
+        &binding.declarations,
+    )?;
+    Ok((binding.source, path, scalar_type))
+}
+
 /// Resolve a scalar field of a runtime-selected record element
 /// (`cells[i].hp`): `path` reaches the fixed array and `element_path` walks
 /// the selected element to one relevant integer or Boolean field. Returns the

@@ -1418,8 +1418,17 @@ fn scalar_expression_reads_position(
         Scalar::StructuralParameterField {
             parameter_position, ..
         } => *parameter_position == position,
-        Scalar::StructuralParameterIndexedRead { root, index, .. } => {
-            root.parameter() == Some(position) || scalar_expression_reads_position(index, position)
+        Scalar::StructuralParameterIndexedRead {
+            root,
+            index,
+            inner_indexes,
+            ..
+        } => {
+            root.parameter() == Some(position)
+                || scalar_expression_reads_position(index, position)
+                || inner_indexes
+                    .iter()
+                    .any(|inner| scalar_expression_reads_position(inner, position))
         }
         Scalar::IntegerBinary { left, right, .. } => {
             scalar_expression_reads_position(left, position)

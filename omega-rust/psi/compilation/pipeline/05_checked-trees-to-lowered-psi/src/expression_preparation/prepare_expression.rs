@@ -511,9 +511,65 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             root,
             path,
             index,
+            inner_indexes,
             element_path,
             primitive_type,
         } => {
+            // Nested selectors (`self.a[i][k]`) read only below a structural
+            // parameter's static field path; every selector keeps its own
+            // `RuntimeIndex` segment and obligation.
+            if !inner_indexes.is_empty() {
+                let checked_trees::CheckedStorageRoot::Parameter {
+                    index: parameter_position,
+                } = *root
+                else {
+                    return unsupported("nested element reads select below a parameter field");
+                };
+                if path.is_empty() || !element_path.is_empty() {
+                    return unsupported("nested element reads take a field path and a scalar leaf");
+                }
+                if inner_indexes.len()
+                    > crate::emission::operation_emission::expressions::TERMINAL_NESTED_SELECTOR_LIMIT
+                {
+                    return unsupported("nested element read exceeds its selector namespace");
+                }
+                let mut lower_index = |selector: &CheckedScalarExpression| {
+                    lower_checked_scalar_expression_with_parameters(
+                        selector,
+                        structural_parameters,
+                        structural_fields,
+                        structural_cases,
+                        primitive_storage,
+                        element_views,
+                        view_locals,
+                        structural_locals,
+                    )
+                    .and_then(exact_u64_index)
+                };
+                let index = lower_index(index)?;
+                let inner_indexes = inner_indexes
+                    .iter()
+                    .map(&mut lower_index)
+                    .collect::<Result<Vec<_>, _>>()?;
+                let (source, path, scalar_type) =
+                    crate::expression_preparation::bindings::structural_fields::resolve_nested_indexed_array(
+                        structural_fields,
+                        parameter_position,
+                        path,
+                        inner_indexes.len(),
+                    )?;
+                if scalar_type != terminal_scalar_type(*primitive_type)? {
+                    return unsupported("nested element read drifted from its leaf type");
+                }
+                return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
+                    source,
+                    path,
+                    index: Box::new(index),
+                    inner_indexes,
+                    element_path: Vec::new(),
+                    scalar_type,
+                });
+            }
             if let checked_trees::CheckedStorageRoot::OwnedLocal { symbol } = *root {
                 // An owned local's declared extent is on its place, so an
                 // element read needs no length observation — the verifier
@@ -537,6 +593,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                     source,
                     path: Vec::new(),
                     index: Box::new(exact_u64_index(index)?),
+                    inner_indexes: Vec::new(),
                     element_path: Vec::new(),
                     scalar_type: terminal_scalar_type(*primitive_type)?,
                 });
@@ -589,6 +646,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                         source,
                                         path,
                                         index: Box::new(index),
+                                        inner_indexes: Vec::new(),
                                         element_path,
                                         scalar_type,
                                     }
@@ -627,6 +685,7 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                                 source,
                                 path,
                                 index: Box::new(index),
+                                inner_indexes: Vec::new(),
                                 element_path: Vec::new(),
                                 scalar_type: element_scalar,
                             });

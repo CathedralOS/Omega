@@ -481,14 +481,19 @@ pub enum CheckedScalarExpression {
     /// parameter root counts authored state positions and an empty path
     /// selects the whole parameter, not a nominal field; a view-local root is
     /// the whole view with an empty path. The index remains an evaluated
-    /// dependency, not a fixed field projection. `element_path` projects from
-    /// the selected element to the scalar leaf read: empty for a scalar
-    /// element, record fields for a record element of a view
-    /// (`entries[index].value`).
+    /// dependency, not a fixed field projection. `inner_indexes` selects
+    /// further, in order, inside a selected element that is itself a fixed
+    /// array: `self.a[i][k]` is `index` `i` then inner index `k`. Each inner
+    /// selector is its own evaluated dependency and its own `index < extent`
+    /// obligation against the array it selects from; it is never folded into
+    /// one flattened offset. `element_path` projects from the selected element
+    /// to the scalar leaf read: empty for a scalar element, record fields for
+    /// a record element of a view (`entries[index].value`).
     StructuralParameterIndexedRead {
         root: CheckedStorageRoot,
         path: Vec<CheckedStructuralPredicatePathSegment>,
         index: Box<CheckedScalarExpression>,
+        inner_indexes: Vec<CheckedScalarExpression>,
         element_path: Vec<CheckedStructuralPredicatePathSegment>,
         primitive_type: typed_trees::types::PrimitiveType,
     },
@@ -559,8 +564,15 @@ impl CheckedScalarExpression {
             | Self::IntegerExactCast { operand, .. }
             | Self::IntegerWrappingCast { operand, .. }
             | Self::IntegerSaturatingCast { operand, .. } => operand.contains_trapping_operation(),
-            Self::StructuralParameterIndexedRead { index, .. } => {
+            Self::StructuralParameterIndexedRead {
+                index,
+                inner_indexes,
+                ..
+            } => {
                 index.contains_trapping_operation()
+                    || inner_indexes
+                        .iter()
+                        .any(CheckedScalarExpression::contains_trapping_operation)
             }
             Self::Boolean(expression) => expression.contains_trapping_operation(),
             Self::StructuralParameterByteLength { .. }

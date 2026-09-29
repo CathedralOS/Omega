@@ -90,6 +90,7 @@ fn integer(
             root,
             path,
             index,
+            inner_indexes,
             element_path,
             primitive_type,
         } => {
@@ -97,8 +98,11 @@ fn integer(
             (
                 *primitive_type,
                 match root.parameter() {
-                    // A record element's leaf carries only its leaf type.
-                    Some(_) if !element_path.is_empty() => primitive_range(*primitive_type)?,
+                    // A record element's leaf, or an element selected again
+                    // inside a nested array, carries only its leaf type.
+                    Some(_) if !element_path.is_empty() || !inner_indexes.is_empty() => {
+                        primitive_range(*primitive_type)?
+                    }
                     Some(position) => source.indexed_field(position, path, index.as_ref())?,
                     // A view local's elements carry only their element type.
                     None => primitive_range(*primitive_type)?,

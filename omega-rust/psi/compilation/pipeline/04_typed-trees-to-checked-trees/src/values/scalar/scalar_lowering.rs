@@ -434,6 +434,18 @@ pub(crate) fn lower_scalar_expression(
             )
             .then_some(field);
         }
+        if let Some(read) = nested_element_read(
+            program,
+            operators,
+            expression,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+        ) {
+            return Some(read);
+        }
         let selection = selected_element(
             program,
             operators,
@@ -450,6 +462,7 @@ pub(crate) fn lower_scalar_expression(
                 root: selection.root,
                 path: selection.path,
                 index: Box::new(selection.index),
+                inner_indexes: Vec::new(),
                 element_path: Vec::new(),
                 primitive_type,
             },
@@ -1266,6 +1279,167 @@ pub(super) fn selected_element(
     })
 }
 
+/// A selector beneath a runtime selector (`self.a[i][k]`, `self.a[i][1]`).
+/// Authored indexing nests outermost-last: `self.a[i][k]` is
+/// `Indexed(k)` over `Indexed(i)` over the static place `self.a`. The indexing
+/// directly over the static place is the ordinary element selection; every
+/// enclosing indexing selects again inside that element, which must itself be
+/// a fixed array, and contributes one inner selector in application order.
+///
+/// Each selector stays a separate evaluated dependency with its own
+/// `index < extent` obligation against the array it selects from, exactly as
+/// Terminal spells a `PrimitiveScalarRead` path with several `RuntimeIndex`
+/// segments. Folding the selectors into one flattened offset was rejected:
+/// it would erase the nested array types, their extents and the per-dimension
+/// bound each obligation proves. The leaf keeps its declared element type, so
+/// an element policy such as `i32 in Wrapping` survives into the read's
+/// arithmetic domain.
+///
+/// Scope: a structural parameter's static field path over owned fixed arrays.
+/// View and local roots and a field path after the inner selection keep
+/// declining.
+#[allow(clippy::too_many_arguments)]
+fn nested_element_read(
+    program: &TypedTrees,
+    operators: &CheckedOperatorFacts,
+    expression: ExpressionHandle,
+    parameters: &[StateParameter],
+    authored_parameters: &[StateParameter],
+    parameter_types: &[PrimitiveType],
+    locals: &[ScalarLocal],
+    exact_integer_casts: &[validation::ExactIntegerCastFact],
+) -> Option<(CheckedScalarExpression, ArithmeticDomain)> {
+    let mut enclosing = Vec::new();
+    let mut selection_expression = expression;
+    while let ExpressionNode::Indexed(indexed) =
+        program.expression_table.expression(selection_expression)
+    {
+        if structural_fields::structural_parameter_place(
+            program,
+            authored_parameters,
+            indexed.collection,
+        )
+        .is_some()
+        {
+            break;
+        }
+        // Only the top indexing may select with a literal: the source
+        // replay rejoins each enclosing selector as a runtime operand one
+        // level deeper, and a literal between two runtime selectors has no
+        // such position.
+        if matches!(
+            program.expression_table.expression(indexed.index),
+            ExpressionNode::Range(_)
+        ) || (!enclosing.is_empty()
+            && matches!(
+                program.expression_table.expression(indexed.index),
+                ExpressionNode::Integer(_)
+            ))
+        {
+            return None;
+        }
+        enclosing.push(selection_expression);
+        selection_expression = indexed.collection;
+    }
+    if enclosing.is_empty() {
+        return None;
+    }
+    let selection = selected_element(
+        program,
+        operators,
+        selection_expression,
+        parameters,
+        authored_parameters,
+        parameter_types,
+        locals,
+        exact_integer_casts,
+    )?;
+    if !matches!(
+        selection.root,
+        checked_trees::CheckedStorageRoot::Parameter { .. }
+    ) || selection.path.is_empty()
+        || selection.through_view
+    {
+        return None;
+    }
+    let mut element_type = selection.element_type;
+    let mut inner_indexes = Vec::with_capacity(enclosing.len());
+    for enclosing_expression in enclosing.into_iter().rev() {
+        let ExpressionNode::Indexed(indexed) =
+            program.expression_table.expression(enclosing_expression)
+        else {
+            return None;
+        };
+        if !structural_fields::indexed_read_is_builtin(
+            program,
+            operators,
+            authored_parameters,
+            enclosing_expression,
+            element_type,
+            indexed.index,
+        ) {
+            return None;
+        }
+        element_type = fixed_array_element(program, element_type)?;
+        let index =
+            land_anonymous_scalar_expression(program, operators, indexed.index, PrimitiveType::U64)
+                .or_else(|| {
+                    lower_scalar_expression(
+                        program,
+                        operators,
+                        indexed.index,
+                        parameters,
+                        authored_parameters,
+                        parameter_types,
+                        locals,
+                        exact_integer_casts,
+                    )
+                    .map(|(index, _)| index)
+                })?;
+        let index_type = scalar_expression_type(&index)?;
+        if !is_integer(index_type) || index_type == PrimitiveType::Addr {
+            return None;
+        }
+        inner_indexes.push(index);
+    }
+    let primitive_type = program.primitive_type_reference(element_type)?;
+    if !is_integer(primitive_type)
+        && !matches!(
+            primitive_type,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+        )
+    {
+        return None;
+    }
+    Some((
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            root: selection.root,
+            path: selection.path,
+            index: Box::new(selection.index),
+            inner_indexes,
+            element_path: Vec::new(),
+            primitive_type,
+        },
+        program.arithmetic_domain_for_type_reference(element_type),
+    ))
+}
+
+/// The element type of an owned fixed array, through arithmetic-policy
+/// qualifications on the array itself. A borrowed or slice element has no
+/// declared extent here and declines.
+fn fixed_array_element(
+    program: &TypedTrees,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::FixedArray { element_type, .. } => return Some(*element_type),
+            _ => return None,
+        }
+    }
+}
+
 /// One scalar leaf of a selected record element (`entries[index].value`
 /// through a borrowed view, `self.cells[self.i].hp` in a fixed array): the
 /// element selection a scalar element read takes, plus the static field path
@@ -1341,6 +1515,7 @@ fn view_element_field_read(
             root: selection.root,
             path: selection.path,
             index: Box::new(selection.index),
+            inner_indexes: Vec::new(),
             element_path,
             primitive_type,
         },
