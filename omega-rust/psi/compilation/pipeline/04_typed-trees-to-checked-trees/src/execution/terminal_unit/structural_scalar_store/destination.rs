@@ -119,12 +119,14 @@ pub(super) fn resolve<'a>(
         }
         _ => (assignment.target, None),
     };
-    let place = crate::flow::canonical_place_from_expression_in_state(
+    let Some(place) = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         ordinal,
         target,
-    )?;
+    ) else {
+        return None;
+    };
     let place = rejoin_loan_local(program, state, ordinal, place)?;
     let facts::PlaceRoot::Symbol(root_symbol) = place.root else {
         return None;
@@ -154,15 +156,28 @@ pub(super) fn resolve<'a>(
                 // place through the structural-local roster, so admission here
                 // only pins a unique earlier declaration of plain owned
                 // contents and a non-indexed destination.
-                return owned_local_root(
+                return borrowed_view_local_root(
                     program,
+                    facts,
+                    machine,
                     state,
                     root_symbol,
                     ordinal,
                     dynamic_index,
-                    place,
-                    selectors,
-                );
+                    place.clone(),
+                    selectors.clone(),
+                )
+                .or_else(|| {
+                    owned_local_root(
+                        program,
+                        state,
+                        root_symbol,
+                        ordinal,
+                        dynamic_index,
+                        place,
+                        selectors,
+                    )
+                });
             };
             if destinations.next().is_some() {
                 return None;
@@ -433,18 +448,24 @@ impl<'a> Destination<'a> {
                     // An arithmetic-policy shell (`[Entity; 3] in Wrapping`)
                     // qualifies element operations, not the array's layout.
                     let array = validation::unwrapped_type_reference(program, carrier_type)?;
-                    let TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: typed_trees::types::FixedArrayLength::Literal(length),
-                    } = program.type_reference_table.type_reference(array)
-                    else {
-                        return None;
+                    let (element_type, length) = match program
+                        .type_reference_table
+                        .type_reference(array)
+                    {
+                        TypeReferenceNode::FixedArray {
+                            element_type,
+                            length: typed_trees::types::FixedArrayLength::Literal(length),
+                        } => (*element_type, Some(*length)),
+                        TypeReferenceNode::Slice { element_type } => (*element_type, None),
+                        _ => return None,
                     };
-                    if crosses_reference(program, *element_type) {
+                    if crosses_reference(program, element_type) {
                         return None;
                     }
                     path.push(match segment {
-                        facts::PlaceSegment::FixedIndex { index } if *index < *length => {
+                        facts::PlaceSegment::FixedIndex { index }
+                            if length.is_none_or(|length| *index < length) =>
+                        {
                             CheckedUnitStructuralPathSegment::FixedIndex(
                                 u64::try_from(*index).ok()?,
                             )
@@ -454,7 +475,7 @@ impl<'a> Destination<'a> {
                         }
                         _ => return None,
                     });
-                    carrier_type = *element_type;
+                    carrier_type = element_type;
                 }
                 _ => return None,
             }
@@ -632,7 +653,9 @@ fn rejoin_loan_local(
     if declarations.next().is_some() {
         return None;
     }
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
+    let ExpressionNode::Borrow(borrow) = program
+        .expression_table
+        .expression(local.initial_value)
     else {
         return Some(place);
     };
@@ -649,4 +672,82 @@ fn rejoin_loan_local(
     )?;
     loaned.segments.extend(place.segments);
     Some(loaned)
+}
+
+/// An exclusive borrowed view is a root of its own: `let cell: &mut Cell =
+/// self.pick(bag)` binds one immutable `&mut` local whose referent storage is
+/// already established, so `cell.value = 7` is a field store through that
+/// view -- a `Local` destination whose home the structural-local roster
+/// resolves to the loaned place. The checked borrow ledger's single Mutable
+/// loan on the binding is the write authority this arm re-reads; formation,
+/// exclusivity and lifetime were all admitted by the loan itself.
+fn borrowed_view_local_root<'a>(
+    program: &'a TypedTrees,
+    facts: &CheckFacts,
+    machine: &'a typed_trees::machine::Machine,
+    state: &'a typed_trees::state::State,
+    root_symbol: SymbolHandle,
+    ordinal: usize,
+    dynamic_index: Option<typed_trees::expression::ExpressionHandle>,
+    place: crate::flow::CanonicalPlace,
+    selectors: Option<super::selectors::TargetSelectors>,
+) -> Option<Destination<'a>> {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let mut locals = statements
+        .iter()
+        .enumerate()
+        .filter_map(|(local_ordinal, statement)| match statement {
+            StatementNode::LocalData(local) if local.symbol == root_symbol => {
+                Some((local_ordinal, local))
+            }
+            _ => None,
+        });
+    let (local_ordinal, local) = locals.next()?;
+    if locals.next().is_some()
+        || local_ordinal >= ordinal
+        || local.is_mutable
+        || !program
+            .expression_table
+            .expression_is_valid(local.initial_value)
+    {
+        return None;
+    }
+    let (referee, access) = super::super::reference_results::mutable_borrowed_parts(
+        program,
+        local.type_reference,
+    )?;
+    if access != CheckedStructuralAccess::MutableBorrow {
+        return None;
+    }
+    let borrow_state = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, borrow_state)| borrow_state)
+        .find(|borrow_state| {
+            borrow_state.machine_symbol == machine.symbol
+                && borrow_state.state_symbol == state.symbol
+        })?;
+    let mut loans = facts
+        .borrow
+        .loans
+        .span_or_empty(borrow_state.loans)
+        .iter()
+        .filter(|loan| {
+            loan.owner_symbol == root_symbol && loan.statement_index == local_ordinal
+        });
+    let loan = loans.next()?;
+    if loans.next().is_some() || loan.kind != checked_trees::BorrowAccessKind::Mutable {
+        return None;
+    }
+    Some(Destination {
+        root: Root::Local {
+            symbol: root_symbol,
+        },
+        place,
+        dynamic_index,
+        selectors,
+        root_type: referee,
+        root_owner: crate::facts::field_domain::data_definition_for_field_type(program, referee),
+    })
 }

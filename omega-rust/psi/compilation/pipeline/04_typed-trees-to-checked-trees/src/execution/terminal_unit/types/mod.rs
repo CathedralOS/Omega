@@ -2746,6 +2746,38 @@ pub(crate) fn borrowed_named_view_referent(
     }
 }
 
+/// A `&mut R`/`&mut [T]` exclusive structural view: the exclusive-loan
+/// sibling of `borrowed_named_view`/`borrowed_slice_view`. The referent's
+/// storage lives in the caller's frame the same way, but writes flow
+/// through the loan — `parts` keeps the primitive-referent case.
+pub(crate) fn mutable_borrowed_view(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    mutable_borrowed_view_referent(program, type_reference).is_some()
+}
+
+/// The structural referee beneath a `&mut R`/`&mut [T]` exclusive view,
+/// with `Constrained` shells peeled as `mutable_borrowed_parts` walks them.
+/// Primitive referents stay with `parts`; anything else is not a structural
+/// view destination.
+pub(crate) fn mutable_borrowed_view_referent(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let Some((referee, CheckedStructuralAccess::MutableBorrow)) =
+        validation::reference_result_custody::mutable_borrowed_parts(program, type_reference)
+    else {
+        return None;
+    };
+    (program.primitive_type_reference(referee).is_none()
+        && matches!(
+            program.type_reference_table.type_reference(referee),
+            TypeReferenceNode::Named { .. } | TypeReferenceNode::Slice { .. }
+        ))
+    .then_some(referee)
+}
+
 /// The `type_identity` an anonymous-result plan mints for a borrowed-view
 /// result — the carrier's own identity with borrow and constraint shells
 /// peeled, exactly as `ShapeCollector::add_type` registers it.

@@ -245,6 +245,25 @@ pub(in crate::execution) fn build_call_operation(
                         != expected.type_identity
             }
             Some(ExpectedCallValueResult::Structural(expected))
+                if let Some(referee) =
+                    crate::execution::terminal_unit::types::mutable_borrowed_view_referent(
+                        program,
+                        target_state.return_type,
+                    ) =>
+            {
+                // A `&mut R`/`&mut [T]` result is the exclusive loan the
+                // shared-view arm above names for shared borrows: affine
+                // custody against the callee's storage, and `add_type`
+                // mints the peeled referent identity on the bound side.
+                let peeled = program
+                    .type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                        referee,
+                    ))
+                    .into_string();
+                expected.multiplicity != Multiplicity::Affine
+                    || peeled.as_str() != expected.type_identity
+            }
+            Some(ExpectedCallValueResult::Structural(expected))
                 if crate::execution::terminal_unit::types::borrowed_slice_view(
                     program,
                     target_state.return_type,
