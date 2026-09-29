@@ -13,7 +13,7 @@ The [dependent-value specification](../spec/language/dependent_values.md) define
 this systems fragment. The examples illustrate the required contracts, not a
 claim that every form is implemented. A strict relational bound also discharges
 representability through the ceiling's own
-carrier (`self.count < self.cap` proves `self.count + 1` fits because `cap`'s
+carrier (`counter.count < counter.cap` proves `counter.count + 1` fits because `cap`'s
 declared type bounds it). Scalar writes can transport established equality
 through their retained value expressions when intervening writes are accounted
 for; this does not preserve a stale fact about the overwritten place.
@@ -44,14 +44,14 @@ in `requires` does not invent a snapshot variable. For example, the caller can
 pass a scalar snapshot explicitly:
 
 ```omega
-machine Counter::bump(&mut self, before: u32)
+machine Counter::bump(counter: &mut Counter, before: u32)
 requires
-    self.count == before
-    self.count < self.cap
+    counter.count == before
+    counter.count < counter.cap
 ensures
-    self.count == before + 1
+    counter.count == before + 1
 {
-    self.count = self.count + 1;
+    counter.count = counter.count + 1;
 }
 ```
 
@@ -108,7 +108,7 @@ data Team { roster: [PlayerSlot; 8]; }
 ```
 
 The zero case contains no `Player`; constructing `Filled` owes a valid one.
-Machine-owned backing may likewise begin zeroed while gated fields remain
+Local or provisioned backing may likewise begin zeroed while gated fields remain
 inaccessible until established.
 
 Mutating witnesses and dependents can open an
@@ -185,7 +185,8 @@ The practical frame rule is preserve-unless-written, at exact storage granularit
 A checked implementation may publish a complete narrower mutation frame. An
 opaque or unknown dynamic call uses its conservative signature and authority
 ceiling; unknown is not an empty write set. Operand evaluation contributes writes
-too. Broad mutable receivers therefore lose more precision than narrow parameters.
+too. Parameters borrowing a whole aggregate therefore lose more precision than
+parameters borrowing only the needed fields.
 Default-domain facts must be restored before consumption; that is not a promise
 that the value stayed unchanged.
 
@@ -199,18 +200,20 @@ State signatures are arrival contracts. Every incoming transition proves them
 under the exact substitution, including backedges after mutation:
 
 ```omega
-state fill(&mut self, i: u64)
+state fill(buffer: &mut Buffer, i: u64)
 requires
-    i <= self.cap
+    i <= buffer.cap
 {
-    transition i < self.cap {
-        true -> fill(i + 1)
-        false -> done()
+    transition i < buffer.cap {
+        true -> fill(buffer, i + 1)
+        false -> done(buffer)
     }
 }
 ```
 
-This sketch assumes a `u64` capacity and the enclosing `done` state. The target
+This sketch assumes a `u64` capacity and an enclosing
+`state done(buffer: &mut Buffer)`. Each jump explicitly carries the buffer's loan;
+the scalar cursor is a state parameter, not persistent buffer scratch. The target
 may assume its own arrival facts, not stale machine-entry facts. Proof-only
 arguments obey the same substitution and validity rules before erasure; no hidden
 witness-transition syntax is needed. See [state contracts](../spec/language/state_contracts.md)

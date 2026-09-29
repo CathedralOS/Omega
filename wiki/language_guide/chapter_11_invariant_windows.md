@@ -18,13 +18,13 @@ where
     end: u32;
 }
 
-machine Span::shift(&mut self, delta: u32)
+machine Span::shift(span: &mut Span, delta: u32)
 requires
     delta <= 1000
-    self.end <= u32::Maximum - delta
+    span.end <= u32::Maximum - delta
 {
-    self.start = self.start + delta;
-    self.end = self.end + delta;
+    span.start = span.start + delta;
+    span.end = span.end + delta;
 }
 ```
 
@@ -32,6 +32,8 @@ The precondition makes the additions representable. The first assignment may
 temporarily break `start <= end`; the second restores it before return. A
 domain-preserving write needs no window. Otherwise the checker records the
 actual new contents and the obligation to re-establish the domain.
+The mutable access comes from the explicit `span` parameter, not from the
+qualified machine name. A caller supplies it as `Span::shift(&mut span, delta)`.
 
 [Dependent values](../spec/language/dependent_values.md#invariant-windows) owns
 the exact rules. This chapter explains how to use them; it does not claim that
