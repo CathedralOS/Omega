@@ -393,8 +393,7 @@ pass/effects/nominal_callback_const_reach checked 312ms
 pass/effects/nominal_callback_dependency checked 306ms
 pass/effects/structural_callback_reach checked 308ms
 pass/entry/service_borrowed_slice_call checked 432ms
-pass/errors/runtime_result_match_exit rejected 831ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/errors/runtime_result_match_exit checked 818ms @33ff1bce07c2454b95a446eb1410d3a70267f325
 pass/errors/trap_unrecoverable_statement checked 296ms
 pass/expressions/anonymous_numeric_match_subject checked 293ms
 pass/expressions/arithmetic_domain_cast_exit checked 1720ms
