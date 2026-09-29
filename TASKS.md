@@ -1742,18 +1742,31 @@ crash and native exit behavior. Use affected check/native corpus slices under
     tree pass the checker, including named operators with literal operands
     (`min(a * b, 11.5)`). On macOS ARM64, `pass/float/nested_float_operator_applications_exit`
     exits **70**, `arithmetic/stats_compute` **70**, `basics/unit_converter`
-    **70** and `rendering/mandelbrot` **0** natively.
-    `basics/temperature_convert`, `rendering/bouncing_ball_2d`,
-    `arithmetic/sensor_min_max` and `arithmetic/vector_distance` stop at the
-    float-to-integer policy cast store `(x as i32 in Saturating) as i32`
-    (`structural field store: pure source: scalar expression row`, also at
-    base with flat arithmetic), like `float/float_trapping_*`. A cast has no
-    call occurrence or selected conversion requirement to lower through; the
-    explicit `I32::from_f64` spelling selects the unqualified overload.
-    Float `clamp(..)` and `abs(..)` stop at review projection: their
-    synthesized `F64::minimum`/`F64::maximum` calls retain 0 authored
-    selection occurrences. `vector_distance` hits this at `abs(self.dx)`.
-    `rendering/mandelbrot_zoom` stops at its `Main::clock` Fused provider;
+    **70** and `rendering/mandelbrot` **0** natively. A float-to-integer
+    `in Saturating`/`in Trapping` cast binds, after named result-overload
+    resolution, to the destination-owned `I32::from_f64`-style overload its
+    result qualification selects (`validation::bind_float_conversion_casts`);
+    the Exact erasure `(..) as i32` of such an application adds no operation.
+    `pass/float/runtime_float_to_integer_policy_casts_exit` exits **70**.
+    `abs`/`clamp` applications keep their authored call's acknowledgement and
+    one Call selection each. Exact float-to-integer casts still have no route:
+    the unqualified conversion's `requires` entailment reads neither declared
+    float ranges nor dominating guards (**FLOAT-PROVIDERS**), so
+    `float/float_to_int_exact_proofs_exit` stays unexecuted and binding Exact
+    casts would reject valid programs. Trapping conversions reach Omega stage
+    00 without a native realization (`float/float_to_int_trapping_nan_traps`).
+    With these on base `b5cfc489741`, `basics/temperature_convert` met its
+    exit **68** oracle and `arithmetic/vector_distance` its exit **5**. On
+    `f34b0c7f56` both stop, like `arithmetic/sensor_min_max`, in stage 05
+    storage-read custody (`storage_reads/mod.rs`: `scalar read differs from
+    its authored binding or mutable place`). Two float-only programs reproduce
+    it with no cast or `min`/`max`: a state doing
+    `self.console.write_line("start"); self.celsius = 20.0; self.fahrenheit =
+    self.celsius * 1.8 + 32.0;` whose successor guards on `self.fahrenheit`
+    (red at `447fa43066` without these commits; the same state lowered at
+    `b5cfc489741`), and `self.nums[0] = 20.5; self.lo = self.nums[0];` in
+    one state (already red at `b5cfc489741`). `rendering/bouncing_ball_2d` and
+    `rendering/mandelbrot_zoom` stop at their `Main::clock` Fused provider;
     `gui/{window_demo,windowed_calculator}` stop after their float statements
     at a borrowed byte-array element argument and `gui/window_app` at a
     structural field store destination parameter. Pure scalar-graph machines
