@@ -16,6 +16,9 @@ use optimization_unit::{OptimizationNode, PsiOptimizationFunction, PsiRewriteCan
 
 use crate::OptimizationUnitValidationError;
 
+use abstract_operations::{
+    IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
+};
 pub(crate) use literal_facts::{
     direct_literal_integer_fact, literal_boolean_fact, literal_integer_fact, unary_integer_operand,
 };
@@ -61,27 +64,13 @@ type IntegerEvaluation = (
     OptimizationSafetyClass,
 );
 
+/// The binary integer operation a node denotes: an arithmetic or shift
+/// policy pair (a shift also names its independently typed count), or one
+/// bitwise operator.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum BinaryIntegerOperation {
-    ExactAdd,
-    ExactSubtract,
-    ExactMultiply,
-    WrappingAdd,
-    WrappingSubtract,
-    WrappingMultiply,
-    SaturatingAdd,
-    SaturatingSubtract,
-    SaturatingMultiply,
-    ExactDivide,
-    ExactRemainder,
-    WrappingDivide,
-    WrappingRemainder,
-    SaturatingDivide,
-    SaturatingRemainder,
-    ExactShiftLeft(IntegerType),
-    ExactShiftRight(IntegerType),
-    WrappingShiftLeft(IntegerType),
-    WrappingShiftRight(IntegerType),
+    Arithmetic(IntegerOverflowPolicy, IntegerArithmeticOperator),
+    Shift(IntegerShiftPolicy, IntegerShiftDirection, IntegerType),
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,

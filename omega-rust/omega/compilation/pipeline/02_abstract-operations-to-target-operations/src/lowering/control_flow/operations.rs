@@ -614,30 +614,13 @@ pub(super) fn lower_operation(
         | AbstractOperation::IntegerLessOrEqual { .. }
         | AbstractOperation::BooleanNot { .. }
         | AbstractOperation::BooleanEqual { .. }
-        | AbstractOperation::ExactIntegerAdd { .. }
-        | AbstractOperation::WrappingIntegerAdd { .. }
-        | AbstractOperation::SaturatingIntegerAdd { .. }
-        | AbstractOperation::WrappingIntegerSubtract { .. }
-        | AbstractOperation::SaturatingIntegerSubtract { .. }
-        | AbstractOperation::WrappingIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerMultiply { .. }
-        | AbstractOperation::SaturatingIntegerMultiply { .. }
+        | AbstractOperation::IntegerArithmetic { .. }
         | AbstractOperation::TrappingInteger { .. }
-        | AbstractOperation::ExactIntegerDivide { .. }
-        | AbstractOperation::ExactIntegerRemainder { .. }
-        | AbstractOperation::WrappingIntegerDivide { .. }
-        | AbstractOperation::WrappingIntegerRemainder { .. }
-        | AbstractOperation::SaturatingIntegerDivide { .. }
-        | AbstractOperation::SaturatingIntegerRemainder { .. }
         | AbstractOperation::IntegerBitwiseAnd { .. }
         | AbstractOperation::IntegerBitwiseOr { .. }
         | AbstractOperation::IntegerBitwiseXor { .. }
         | AbstractOperation::IntegerBitwiseNot { .. }
-        | AbstractOperation::WrappingIntegerShiftLeft { .. }
-        | AbstractOperation::WrappingIntegerShiftRight { .. }
-        | AbstractOperation::ExactIntegerShiftLeft { .. }
-        | AbstractOperation::ExactIntegerShiftRight { .. }
-        | AbstractOperation::ExactIntegerSubtract { .. }
+        | AbstractOperation::IntegerShift { .. }
         | AbstractOperation::IntegerExactCast { .. } => observations::lower(
             operation,
             function,

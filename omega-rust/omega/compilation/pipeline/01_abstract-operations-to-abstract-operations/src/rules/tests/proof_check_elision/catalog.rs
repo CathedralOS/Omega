@@ -1,5 +1,9 @@
 //! Catalog-level coverage for proof check elision.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 
 use super::super::super::ProofCertifiedDeadScalarEliminationRule;
 use crate::rules::tests::fixtures::dead_scalar_elimination::{
@@ -7,7 +11,6 @@ use crate::rules::tests::fixtures::dead_scalar_elimination::{
 };
 use crate::rules::tests::fixtures::sparse_conditional_constant_propagation::exact_cast_unit;
 use crate::{RuleAnalysisView, RuleProposalError, compute_analysis};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::AnalysisKind;
 use optimization_unit::{
     OptimizationFact, PsiRewriteCandidate, PsiRewritePatch,
@@ -97,108 +100,77 @@ fn proof_check_elision_binds_accepted_evidence_and_retains_its_catalog() {
 #[test]
 fn proof_check_elision_covers_the_closed_proof_bearing_scalar_vocabulary() {
     let seed = dead_exact_add_unit();
-    let O::ExactIntegerAdd {
+    let O::IntegerArithmetic {
         psi_operation,
-        obligation,
         result,
         scalar_type,
         left,
         right,
+        arithmetic,
+        ..
     } = seed.functions[0].blocks[0].nodes[2].operation
     else {
         unreachable!()
     };
+    assert!(arithmetic.is(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add));
+    let obligation = arithmetic
+        .obligation()
+        .expect("the pair carries its obligation");
+    let arithmetic = |policy, operator| O::IntegerArithmetic {
+        psi_operation,
+        result,
+        scalar_type,
+        arithmetic: IntegerArithmetic::new(policy, operator, Some(obligation))
+            .expect("admitted integer arithmetic"),
+        left,
+        right,
+    };
+    let exact_shift = |direction| O::IntegerShift {
+        psi_operation,
+        result,
+        value_type: scalar_type,
+        count_type: scalar_type,
+        policy: IntegerShiftPolicy::Exact { obligation },
+        direction,
+        value: left,
+        count: right,
+    };
     let operations = vec![
-        O::ExactIntegerAdd {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::ExactIntegerSubtract {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::ExactIntegerMultiply {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::ExactIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::ExactIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::WrappingIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::WrappingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::SaturatingIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::SaturatingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        },
-        O::ExactIntegerShiftLeft {
-            psi_operation,
-            obligation,
-            result,
-            value_type: scalar_type,
-            count_type: scalar_type,
-            value: left,
-            count: right,
-        },
-        O::ExactIntegerShiftRight {
-            psi_operation,
-            obligation,
-            result,
-            value_type: scalar_type,
-            count_type: scalar_type,
-            value: left,
-            count: right,
-        },
+        arithmetic(IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add),
+        arithmetic(
+            IntegerOverflowPolicy::Exact,
+            IntegerArithmeticOperator::Subtract,
+        ),
+        arithmetic(
+            IntegerOverflowPolicy::Exact,
+            IntegerArithmeticOperator::Multiply,
+        ),
+        arithmetic(
+            IntegerOverflowPolicy::Exact,
+            IntegerArithmeticOperator::Divide,
+        ),
+        arithmetic(
+            IntegerOverflowPolicy::Exact,
+            IntegerArithmeticOperator::Remainder,
+        ),
+        arithmetic(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Divide,
+        ),
+        arithmetic(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Remainder,
+        ),
+        arithmetic(
+            IntegerOverflowPolicy::Saturating,
+            IntegerArithmeticOperator::Divide,
+        ),
+        arithmetic(
+            IntegerOverflowPolicy::Saturating,
+            IntegerArithmeticOperator::Remainder,
+        ),
+        exact_shift(IntegerShiftDirection::Left),
+        exact_shift(IntegerShiftDirection::Right),
     ];
     for operation in operations {
         let mut unit = seed.clone();

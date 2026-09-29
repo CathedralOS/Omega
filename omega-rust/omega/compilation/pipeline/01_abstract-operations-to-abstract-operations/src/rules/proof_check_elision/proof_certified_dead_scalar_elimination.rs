@@ -1,7 +1,7 @@
 //! Exact proof-certified unused scalar elimination: the rule and its closed
 //! proof-bearing operation admission.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerShiftPolicy};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -57,72 +57,23 @@ pub(super) fn classify(operation: &O) -> Option<DeadScalarShape> {
             target_type,
             ..
         } => (*psi_operation, *result, ScalarType::Integer(*target_type)),
-        O::ExactIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
-            ..
-        }
-        | O::ExactIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
+            policy: IntegerShiftPolicy::Exact { .. },
             ..
         } => (*psi_operation, *result, ScalarType::Integer(*value_type)),
-        O::ExactIntegerAdd {
+        // Exact arithmetic and every divide or remainder carry an obligation.
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             ..
+        } if arithmetic.obligation().is_some() => {
+            (*psi_operation, *result, ScalarType::Integer(*scalar_type))
         }
-        | O::ExactIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } => (*psi_operation, *result, ScalarType::Integer(*scalar_type)),
         _ => return None,
     };
     Some(DeadScalarShape {

@@ -1,7 +1,10 @@
 use crate::tests::fixtures::scalar_units::exact_add_unit;
 use crate::tests::support::refresh_node_derivatives;
 use crate::validate_psi_optimization_unit;
-use abstract_operations::{AbstractFunctionResult, AbstractOperation as Operation};
+use abstract_operations::{
+    AbstractFunctionResult, AbstractOperation as Operation, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
+};
 use semantic_vocabulary::{
     IeeeFloatComparisonOperation, IeeeFloatFormat, IeeeFloatValue, ScalarType,
 };
@@ -33,9 +36,10 @@ fn comparison_unit() -> optimization_unit::PsiOptimizationUnit {
             }),
         };
     }
-    let Operation::ExactIntegerAdd {
+    let Operation::IntegerArithmetic {
         psi_operation,
         result,
+        arithmetic,
         left,
         right,
         ..
@@ -43,6 +47,11 @@ fn comparison_unit() -> optimization_unit::PsiOptimizationUnit {
     else {
         panic!("binary fixture");
     };
+    assert_eq!(
+        (arithmetic.policy(), arithmetic.operator()),
+        (IntegerOverflowPolicy::Exact, IntegerArithmeticOperator::Add),
+        "binary fixture"
+    );
     unit.functions[0].blocks[0].nodes[2].operation = Operation::IeeeFloatCompare {
         psi_operation,
         result,

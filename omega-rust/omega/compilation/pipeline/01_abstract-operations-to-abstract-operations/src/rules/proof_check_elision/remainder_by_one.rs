@@ -1,6 +1,6 @@
 //! Proof-certified remainder by one.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerArithmeticOperator};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -78,30 +78,17 @@ impl PsiOptimizationRule for LiveProofCertifiedIntegerRemainderByOneEliminationR
             for block in &function.blocks {
                 for (node_index, node) in block.nodes.iter().enumerate() {
                     let (psi_operation, result, scalar_type, left, right) = match &node.operation {
-                        O::ExactIntegerRemainder {
+                        O::IntegerArithmetic {
                             psi_operation,
                             result,
                             scalar_type,
                             left,
                             right,
+                            arithmetic,
                             ..
+                        } if arithmetic.operator() == IntegerArithmeticOperator::Remainder => {
+                            (psi_operation, result, scalar_type, left, right)
                         }
-                        | O::WrappingIntegerRemainder {
-                            psi_operation,
-                            result,
-                            scalar_type,
-                            left,
-                            right,
-                            ..
-                        }
-                        | O::SaturatingIntegerRemainder {
-                            psi_operation,
-                            result,
-                            scalar_type,
-                            left,
-                            right,
-                            ..
-                        } => (psi_operation, result, scalar_type, left, right),
                         _ => continue,
                     };
                     // Keep the earlier self-remainder rule as the sole owner

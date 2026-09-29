@@ -8,7 +8,9 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{
+    AbstractOperation, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_unit::{PsiProvenance, recompute_psi_optimization_unit_identity};
 use optimization_unit_semantics::OptimizationUnitValidationError;
 use semantic_vocabulary::ValueId;
@@ -321,7 +323,13 @@ fn member_subtraction<'function>(
             .find(|block| block.id == *member)
             .expect("member block exists");
         for node in &block.nodes {
-            if let AbstractOperation::ExactIntegerSubtract { left, .. } = &node.operation
+            if let AbstractOperation::IntegerArithmetic {
+                arithmetic, left, ..
+            } = &node.operation
+                && arithmetic.is(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Subtract,
+                )
                 && block
                     .parameters
                     .iter()
@@ -381,11 +389,25 @@ fn forged_obligated_computation_obligation_is_rejected_by_the_freeze_fence() {
     // from the seed — the obligation is source-owned evidence, not a
     // coordinate the relocation is free to respell.
     let forged = find_operation_mut(&mut unit, subtraction_operation);
-    let AbstractOperation::ExactIntegerSubtract { obligation, .. } = &mut forged.operation else {
+    let AbstractOperation::IntegerArithmetic { arithmetic, .. } = &mut forged.operation else {
         panic!("the relocated node keeps exact subtraction")
     };
-    *obligation = semantic_vocabulary::ObligationId::new(obligation.get() + 7)
-        .expect("a different obligation id");
+    assert!(arithmetic.is(
+        IntegerOverflowPolicy::Exact,
+        IntegerArithmeticOperator::Subtract
+    ));
+    let obligation = arithmetic
+        .obligation()
+        .expect("exact subtraction carries an obligation");
+    *arithmetic = IntegerArithmetic::new(
+        arithmetic.policy(),
+        arithmetic.operator(),
+        Some(
+            semantic_vocabulary::ObligationId::new(obligation.get() + 7)
+                .expect("a different obligation id"),
+        ),
+    )
+    .expect("admitted integer arithmetic");
     unit.identity = recompute_psi_optimization_unit_identity(&unit);
     assert!(matches!(
         crate::validation::validate_transformed_psi_optimization_unit(&input, &unit),
@@ -470,7 +492,17 @@ fn multi_entry_relocation_outside_the_shared_preheader_is_rejected_by_the_freeze
         .id;
     let (input, mut unit) = session.into_parts();
     let mut moved = take_operation(&mut unit, operation);
-    if let AbstractOperation::WrappingIntegerAdd { left, right, .. } = &mut moved.operation {
+    if let AbstractOperation::IntegerArithmetic {
+        arithmetic,
+        left,
+        right,
+        ..
+    } = &mut moved.operation
+        && arithmetic.is(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Add,
+        )
+    {
         *left = anchor;
         *right = anchor;
     }

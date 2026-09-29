@@ -1,6 +1,9 @@
 //! Independent operation-to-rule identity replay for integer constant evaluation.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use optimization_core::OptimizationRuleIdentity;
 
 use crate::OptimizationUnitValidationError;
@@ -10,45 +13,10 @@ pub(super) fn validate(
     actual: OptimizationRuleIdentity,
 ) -> Result<(), OptimizationUnitValidationError> {
     let canonical_name: &[u8] = match operation {
-        O::ExactIntegerAdd { .. } => b"omega.psi-rule.exact-integer-add-constants.v1",
-        O::ExactIntegerSubtract { .. } => b"omega.psi-rule.exact-integer-subtract-constants.v1",
-        O::ExactIntegerMultiply { .. } => b"omega.psi-rule.exact-integer-multiply-constants.v1",
-        O::WrappingIntegerAdd { .. } => b"omega.psi-rule.wrapping-integer-add-constants.v1",
-        O::WrappingIntegerSubtract { .. } => {
-            b"omega.psi-rule.wrapping-integer-subtract-constants.v1"
-        }
-        O::WrappingIntegerMultiply { .. } => {
-            b"omega.psi-rule.wrapping-integer-multiply-constants.v1"
-        }
-        O::SaturatingIntegerAdd { .. } => b"omega.psi-rule.saturating-integer-add-constants.v1",
-        O::SaturatingIntegerSubtract { .. } => {
-            b"omega.psi-rule.saturating-integer-subtract-constants.v1"
-        }
-        O::SaturatingIntegerMultiply { .. } => {
-            b"omega.psi-rule.saturating-integer-multiply-constants.v1"
-        }
-        O::ExactIntegerDivide { .. } => b"omega.psi-rule.exact-integer-divide-constants.v1",
-        O::ExactIntegerRemainder { .. } => b"omega.psi-rule.exact-integer-remainder-constants.v1",
-        O::WrappingIntegerDivide { .. } => b"omega.psi-rule.wrapping-integer-divide-constants.v1",
-        O::WrappingIntegerRemainder { .. } => {
-            b"omega.psi-rule.wrapping-integer-remainder-constants.v1"
-        }
-        O::SaturatingIntegerDivide { .. } => {
-            b"omega.psi-rule.saturating-integer-divide-constants.v1"
-        }
-        O::SaturatingIntegerRemainder { .. } => {
-            b"omega.psi-rule.saturating-integer-remainder-constants.v1"
-        }
-        O::ExactIntegerShiftLeft { .. } => b"omega.psi-rule.exact-integer-shift-left-constants.v1",
-        O::ExactIntegerShiftRight { .. } => {
-            b"omega.psi-rule.exact-integer-shift-right-constants.v1"
-        }
-        O::WrappingIntegerShiftLeft { .. } => {
-            b"omega.psi-rule.wrapping-integer-shift-left-constants.v1"
-        }
-        O::WrappingIntegerShiftRight { .. } => {
-            b"omega.psi-rule.wrapping-integer-shift-right-constants.v1"
-        }
+        O::IntegerArithmetic { arithmetic, .. } => arithmetic_rule_name(*arithmetic),
+        O::IntegerShift {
+            policy, direction, ..
+        } => shift_rule_name(*policy, *direction),
         O::IntegerExactCast { .. } => b"omega.psi-rule.exact-integer-cast-constants.v1",
         O::IntegerWiden { .. } => b"omega.psi-rule.integer-widen-constants.v1",
         O::IntegerBitwiseNot { .. } => b"omega.psi-rule.integer-bitwise-not-constants.v1",
@@ -62,4 +30,69 @@ pub(super) fn validate(
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
     Ok(())
+}
+
+/// The stable constant-evaluation rule of each arithmetic policy pair.
+fn arithmetic_rule_name(arithmetic: IntegerArithmetic) -> &'static [u8] {
+    use IntegerArithmeticOperator as Operator;
+    use IntegerOverflowPolicy as Policy;
+    match (arithmetic.policy(), arithmetic.operator()) {
+        (Policy::Exact, Operator::Add) => b"omega.psi-rule.exact-integer-add-constants.v1",
+        (Policy::Exact, Operator::Subtract) => {
+            b"omega.psi-rule.exact-integer-subtract-constants.v1"
+        }
+        (Policy::Exact, Operator::Multiply) => {
+            b"omega.psi-rule.exact-integer-multiply-constants.v1"
+        }
+        (Policy::Exact, Operator::Divide) => b"omega.psi-rule.exact-integer-divide-constants.v1",
+        (Policy::Exact, Operator::Remainder) => {
+            b"omega.psi-rule.exact-integer-remainder-constants.v1"
+        }
+        (Policy::Wrapping, Operator::Add) => b"omega.psi-rule.wrapping-integer-add-constants.v1",
+        (Policy::Wrapping, Operator::Subtract) => {
+            b"omega.psi-rule.wrapping-integer-subtract-constants.v1"
+        }
+        (Policy::Wrapping, Operator::Multiply) => {
+            b"omega.psi-rule.wrapping-integer-multiply-constants.v1"
+        }
+        (Policy::Wrapping, Operator::Divide) => {
+            b"omega.psi-rule.wrapping-integer-divide-constants.v1"
+        }
+        (Policy::Wrapping, Operator::Remainder) => {
+            b"omega.psi-rule.wrapping-integer-remainder-constants.v1"
+        }
+        (Policy::Saturating, Operator::Add) => {
+            b"omega.psi-rule.saturating-integer-add-constants.v1"
+        }
+        (Policy::Saturating, Operator::Subtract) => {
+            b"omega.psi-rule.saturating-integer-subtract-constants.v1"
+        }
+        (Policy::Saturating, Operator::Multiply) => {
+            b"omega.psi-rule.saturating-integer-multiply-constants.v1"
+        }
+        (Policy::Saturating, Operator::Divide) => {
+            b"omega.psi-rule.saturating-integer-divide-constants.v1"
+        }
+        (Policy::Saturating, Operator::Remainder) => {
+            b"omega.psi-rule.saturating-integer-remainder-constants.v1"
+        }
+    }
+}
+
+/// The stable constant-evaluation rule of each shift policy and direction.
+fn shift_rule_name(policy: IntegerShiftPolicy, direction: IntegerShiftDirection) -> &'static [u8] {
+    match (policy, direction) {
+        (IntegerShiftPolicy::Exact { .. }, IntegerShiftDirection::Left) => {
+            b"omega.psi-rule.exact-integer-shift-left-constants.v1"
+        }
+        (IntegerShiftPolicy::Exact { .. }, IntegerShiftDirection::Right) => {
+            b"omega.psi-rule.exact-integer-shift-right-constants.v1"
+        }
+        (IntegerShiftPolicy::Wrapping, IntegerShiftDirection::Left) => {
+            b"omega.psi-rule.wrapping-integer-shift-left-constants.v1"
+        }
+        (IntegerShiftPolicy::Wrapping, IntegerShiftDirection::Right) => {
+            b"omega.psi-rule.wrapping-integer-shift-right-constants.v1"
+        }
+    }
 }

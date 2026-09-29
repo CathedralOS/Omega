@@ -10,6 +10,8 @@ use crate::legalization::scalar_graph_input::value_type;
 use crate::legalization::scalar_graph_input::{
     saturating_carrier, supports_wrapping_division, trapping_form,
 };
+use abstract_operations::{IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy};
+use semantic_vocabulary::IntegerType;
 impl Checker<'_> {
     // Operation operands refer to established values; only the definition root
     // carries an operation. Never reconstruct an already-produced expression tree.
@@ -163,114 +165,32 @@ impl Checker<'_> {
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
-            Expression::SaturatingSubtract { psi_operation, left, right } => {
+            // An exact pair keeps the first exact node of its operation and
+            // must agree on operator and obligation. Every other pair names
+            // one node with its exact pair, obligation and admitted carrier.
+            Expression::Arithmetic { psi_operation, arithmetic, left, right } => {
+                if arithmetic.policy() == IntegerOverflowPolicy::Exact {
+                    let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
+                        AbstractOperation::IntegerArithmetic {psi_operation:operation,arithmetic:source,..} if operation == psi_operation && source.policy() == IntegerOverflowPolicy::Exact)) else {return false;};
+                    let AbstractOperation::IntegerArithmetic {result,arithmetic:source,left:source_left,right:source_right,..} = &node.operation else {return false;};
+                    return source.operator() == arithmetic.operator() && *result == resolved && source.obligation() == arithmetic.obligation()
+                        && self.integer_source(left,*source_left,aliases) && self.integer_source(right,*source_right,aliases);
+                }
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::SaturatingIntegerSubtract { psi_operation: operation, result, left: source_left, right: source_right, .. }
-                    if operation == psi_operation && *result == resolved
+                    AbstractOperation::IntegerArithmetic { psi_operation: operation, result, scalar_type, arithmetic: source, left: source_left, right: source_right }
+                    if operation == psi_operation && source == arithmetic && *result == resolved
+                        && arithmetic_carrier_admitted(*arithmetic, *scalar_type)
                         && self.integer_source(left, *source_left, aliases)
                         && self.integer_source(right, *source_right, aliases)))
             }
-            Expression::WrappingAdd { psi_operation, left, right } => {
+            Expression::Shift { psi_operation, policy, direction, count_type, value, count } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::WrappingIntegerAdd { psi_operation: operation, result, left: source_left, right: source_right, .. }
+                    AbstractOperation::IntegerShift { psi_operation: operation, result, count_type: expected_count_type, policy: source_policy, direction: source_direction, value: source_value, count: source_count, .. }
                     if operation == psi_operation && *result == resolved
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
-            }
-            Expression::WrappingSubtract { psi_operation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::WrappingIntegerSubtract { psi_operation: operation, result, left: source_left, right: source_right, .. }
-                    if operation == psi_operation && *result == resolved
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
-            }
-            Expression::WrappingMultiply { psi_operation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::WrappingIntegerMultiply { psi_operation: operation, result, left: source_left, right: source_right, .. }
-                    if operation == psi_operation && *result == resolved
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
-            }
-            Expression::WrappingShiftLeft { psi_operation, count_type, value, count }
-            | Expression::WrappingShiftRight { psi_operation, count_type, value, count } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                    let (operation, result, expected_count_type, source_value, source_count) =
-                        match (&node.operation, expression) {
-                            (AbstractOperation::WrappingIntegerShiftLeft {
-                                psi_operation: operation,
-                                result,
-                                count_type: expected_count_type,
-                                value: source_value,
-                                count: source_count,
-                                ..
-                            }, Expression::WrappingShiftLeft { .. })
-                            | (AbstractOperation::WrappingIntegerShiftRight {
-                                psi_operation: operation,
-                                result,
-                                count_type: expected_count_type,
-                                value: source_value,
-                                count: source_count,
-                                ..
-                            }, Expression::WrappingShiftRight { .. }) => (
-                                operation,
-                                result,
-                                expected_count_type,
-                                source_value,
-                                source_count,
-                            ),
-                            _ => return false,
-                        };
-                    operation == psi_operation && *result == resolved
+                        && source_policy == policy && source_direction == direction
                         && expected_count_type == count_type
                         && self.integer_source(value, *source_value, aliases)
-                        && self.integer_source(count, *source_count, aliases)
-                })
-            }
-            Expression::ExactShiftLeft { psi_operation, obligation, count_type, value, count }
-            | Expression::ExactShiftRight { psi_operation, obligation, count_type, value, count } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-                    let (operation, result, source_obligation, expected_count_type, source_value, source_count) =
-                        match (&node.operation, expression) {
-                            (AbstractOperation::ExactIntegerShiftLeft {
-                                psi_operation: operation,
-                                obligation: source_obligation,
-                                result,
-                                count_type: expected_count_type,
-                                value: source_value,
-                                count: source_count,
-                                ..
-                            }, Expression::ExactShiftLeft { .. })
-                            | (AbstractOperation::ExactIntegerShiftRight {
-                                psi_operation: operation,
-                                obligation: source_obligation,
-                                result,
-                                count_type: expected_count_type,
-                                value: source_value,
-                                count: source_count,
-                                ..
-                            }, Expression::ExactShiftRight { .. }) => (
-                                operation,
-                                result,
-                                source_obligation,
-                                expected_count_type,
-                                source_value,
-                                source_count,
-                            ),
-                            _ => return false,
-                        };
-                    operation == psi_operation && *result == resolved
-                        && source_obligation == obligation
-                        && expected_count_type == count_type
-                        && self.integer_source(value, *source_value, aliases)
-                        && self.integer_source(count, *source_count, aliases)
-                })
-            }
-            Expression::SaturatingAdd { psi_operation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::SaturatingIntegerAdd { psi_operation: operation, result, left: source_left, right: source_right, .. }
-                    if operation == psi_operation && *result == resolved
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
+                        && self.integer_source(count, *source_count, aliases)))
             }
             // The Trapping root names the exact abstract primitive, both
             // carrier axes and every operand in evaluation order; a
@@ -290,59 +210,6 @@ impl Checker<'_> {
                             }
                             _ => false,
                         }))
-            }
-            Expression::SaturatingMultiply { psi_operation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::SaturatingIntegerMultiply { psi_operation: operation, result, scalar_type, left: source_left, right: source_right }
-                    if operation == psi_operation && *result == resolved
-                        && saturating_carrier(*scalar_type).is_some()
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
-            }
-            Expression::ExactAdd {psi_operation,obligation,left,right} | Expression::ExactSubtract {psi_operation,obligation,left,right} | Expression::ExactMultiply {psi_operation,obligation,left,right} | Expression::ExactDivide {psi_operation,obligation,left,right} | Expression::ExactRemainder {psi_operation,obligation,left,right} => {
-                let Some(node) = self.optimized.blocks.iter().flat_map(|block|&block.nodes).find(|node| matches!(&node.operation,
-                    AbstractOperation::ExactIntegerAdd {psi_operation:operation,..} | AbstractOperation::ExactIntegerSubtract {psi_operation:operation,..} | AbstractOperation::ExactIntegerMultiply {psi_operation:operation,..} | AbstractOperation::ExactIntegerDivide {psi_operation:operation,..} | AbstractOperation::ExactIntegerRemainder {psi_operation:operation,..} if operation == psi_operation)) else {return false;};
-                let (result,source_obligation,source_left,source_right) = match (&node.operation,expression) {
-                    (AbstractOperation::ExactIntegerAdd {result,obligation,left,right,..},Expression::ExactAdd {..})
-                    | (AbstractOperation::ExactIntegerSubtract {result,obligation,left,right,..},Expression::ExactSubtract {..})
-                    | (AbstractOperation::ExactIntegerMultiply {result,obligation,left,right,..},Expression::ExactMultiply {..})
-                    | (AbstractOperation::ExactIntegerDivide {result,obligation,left,right,..},Expression::ExactDivide {..})
-                    | (AbstractOperation::ExactIntegerRemainder {result,obligation,left,right,..},Expression::ExactRemainder {..}) => (*result,*obligation,*left,*right),
-                    _ => return false,
-                };
-                result == resolved && source_obligation == *obligation && self.integer_source(left,source_left,aliases) && self.integer_source(right,source_right,aliases)
-            }
-            Expression::WrappingDivide { psi_operation, obligation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::WrappingIntegerDivide { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
-                    if operation == psi_operation && expected_obligation == obligation && *result == resolved
-                        && supports_wrapping_division(*scalar_type)
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
-            }
-            Expression::SaturatingDivide { psi_operation, obligation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::SaturatingIntegerDivide { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
-                    if operation == psi_operation && expected_obligation == obligation && *result == resolved
-                        && saturating_carrier(*scalar_type).is_some()
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
-            }
-            Expression::SaturatingRemainder { psi_operation, obligation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::SaturatingIntegerRemainder { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
-                    if operation == psi_operation && expected_obligation == obligation && *result == resolved
-                        && saturating_carrier(*scalar_type).is_some()
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
-            }
-            Expression::WrappingRemainder { psi_operation, obligation, left, right } => {
-                self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
-                    AbstractOperation::WrappingIntegerRemainder { psi_operation: operation, obligation: expected_obligation, result, scalar_type, left: source_left, right: source_right }
-                    if operation == psi_operation && expected_obligation == obligation && *result == resolved
-                        && supports_wrapping_division(*scalar_type)
-                        && self.integer_source(left, *source_left, aliases)
-                        && self.integer_source(right, *source_right, aliases)))
             }
             Expression::IntegerWiden { psi_operation, source_type, operand } => {
                 self.optimized.blocks.iter().flat_map(|block| &block.nodes).any(|node| matches!(&node.operation,
@@ -510,5 +377,21 @@ impl Checker<'_> {
                 == Some(ScalarType::Integer(right_scalar_type))
             && self.integer_source(left, source_left, aliases)
             && self.integer_source(right, source_right, aliases)
+    }
+}
+
+/// Saturating multiply, divide and remainder, and wrapping divide and
+/// remainder, are realized only over the carriers their selections support.
+fn arithmetic_carrier_admitted(arithmetic: IntegerArithmetic, scalar_type: IntegerType) -> bool {
+    use IntegerArithmeticOperator as Operator;
+    use IntegerOverflowPolicy as Policy;
+    match (arithmetic.policy(), arithmetic.operator()) {
+        (Policy::Saturating, Operator::Multiply | Operator::Divide | Operator::Remainder) => {
+            saturating_carrier(scalar_type).is_some()
+        }
+        (Policy::Wrapping, Operator::Divide | Operator::Remainder) => {
+            supports_wrapping_division(scalar_type)
+        }
+        _ => true,
     }
 }

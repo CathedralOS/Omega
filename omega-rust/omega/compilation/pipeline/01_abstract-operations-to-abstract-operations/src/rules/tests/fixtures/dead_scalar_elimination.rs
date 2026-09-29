@@ -4,7 +4,8 @@ use super::id;
 use crate::rules::tests::fixtures::proof_check_elision::exact_add_unit;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperation as O, AbstractOperationPlan,
+    AbstractOperation as O, AbstractOperationPlan, IntegerArithmetic, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
 };
 use optimization_unit::{
     PsiOptimizationUnit, recompute_psi_optimization_unit_identity,
@@ -61,10 +62,16 @@ pub(crate) fn dead_wrapping_add_unit() -> PsiOptimizationUnit {
                         scalar_type: ScalarType::Integer(integer),
                         value: IntegerValue::Unsigned(10),
                     },
-                    AbstractOperation::WrappingIntegerAdd {
+                    AbstractOperation::IntegerArithmetic {
                         psi_operation: id(1_218, OperationId::new),
                         result: sum,
                         scalar_type: integer,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Wrapping,
+                            IntegerArithmeticOperator::Add,
+                            None,
+                        )
+                        .expect("admitted integer arithmetic"),
                         left,
                         right,
                     },

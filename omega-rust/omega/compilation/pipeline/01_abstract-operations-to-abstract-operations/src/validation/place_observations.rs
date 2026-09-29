@@ -201,25 +201,8 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::IntegerBitwiseAnd { .. }
         | O::IntegerBitwiseOr { .. }
         | O::IntegerBitwiseXor { .. }
-        | O::WrappingIntegerShiftLeft { .. }
-        | O::WrappingIntegerShiftRight { .. }
-        | O::ExactIntegerShiftLeft { .. }
-        | O::ExactIntegerShiftRight { .. }
-        | O::WrappingIntegerAdd { .. }
-        | O::ExactIntegerAdd { .. }
-        | O::SaturatingIntegerAdd { .. }
-        | O::WrappingIntegerSubtract { .. }
-        | O::ExactIntegerSubtract { .. }
-        | O::SaturatingIntegerSubtract { .. }
-        | O::WrappingIntegerMultiply { .. }
-        | O::ExactIntegerMultiply { .. }
-        | O::SaturatingIntegerMultiply { .. }
-        | O::WrappingIntegerDivide { .. }
-        | O::ExactIntegerDivide { .. }
-        | O::SaturatingIntegerDivide { .. }
-        | O::WrappingIntegerRemainder { .. }
-        | O::ExactIntegerRemainder { .. }
-        | O::SaturatingIntegerRemainder { .. }
+        | O::IntegerShift { .. }
+        | O::IntegerArithmetic { .. }
         | O::IeeeFloatCompare { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::PrimitiveScalarRead { .. }
@@ -569,25 +552,8 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         | O::IntegerBitwiseXor { .. }
         | O::IntegerWiden { .. }
         | O::IntegerExactCast { .. }
-        | O::WrappingIntegerShiftLeft { .. }
-        | O::WrappingIntegerShiftRight { .. }
-        | O::ExactIntegerShiftLeft { .. }
-        | O::ExactIntegerShiftRight { .. }
-        | O::WrappingIntegerAdd { .. }
-        | O::ExactIntegerAdd { .. }
-        | O::SaturatingIntegerAdd { .. }
-        | O::WrappingIntegerSubtract { .. }
-        | O::ExactIntegerSubtract { .. }
-        | O::SaturatingIntegerSubtract { .. }
-        | O::WrappingIntegerMultiply { .. }
-        | O::ExactIntegerMultiply { .. }
-        | O::SaturatingIntegerMultiply { .. }
-        | O::WrappingIntegerDivide { .. }
-        | O::ExactIntegerDivide { .. }
-        | O::SaturatingIntegerDivide { .. }
-        | O::WrappingIntegerRemainder { .. }
-        | O::ExactIntegerRemainder { .. }
-        | O::SaturatingIntegerRemainder { .. }
+        | O::IntegerShift { .. }
+        | O::IntegerArithmetic { .. }
         | O::IeeeFloatCompare { .. }
         | O::NearestIeeeFloatFusedMultiplyAdd { .. }
         | O::Call { .. }

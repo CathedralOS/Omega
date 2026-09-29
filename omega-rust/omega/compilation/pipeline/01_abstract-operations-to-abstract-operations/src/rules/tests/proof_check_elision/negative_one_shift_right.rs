@@ -1,5 +1,6 @@
 //! Exact signed negative-one right-shift tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{AbstractOperation as O, IntegerShiftDirection, IntegerShiftPolicy};
 
 use super::super::super::LiveProofCertifiedExactSignedIntegerNegativeOneShiftRightEliminationRule;
 use crate::RuleAnalysisView;
@@ -7,7 +8,6 @@ use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_funct
 use crate::rules::tests::fixtures::proof_check_elision::{
     live_exact_signed_negative_one_shift_right_unit, live_proof_binary_identity_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_unit::{OptimizationFact, recompute_psi_optimization_unit_identity};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
@@ -37,12 +37,13 @@ fn proof_certified_exact_signed_negative_one_shift_right_declines_other_shapes()
         unsigned,
         IntegerValue::Unsigned(u8::MAX.into()),
         true,
-        |psi_operation, obligation, result, value_type, value, count| O::ExactIntegerShiftRight {
+        |psi_operation, obligation, result, value_type, value, count| O::IntegerShift {
             psi_operation,
-            obligation,
             result,
             value_type,
             count_type: unsigned,
+            policy: IntegerShiftPolicy::Exact { obligation },
+            direction: IntegerShiftDirection::Right,
             value,
             count,
         },
@@ -51,12 +52,13 @@ fn proof_certified_exact_signed_negative_one_shift_right_declines_other_shapes()
         signed,
         IntegerValue::Signed(-1),
         true,
-        |psi_operation, obligation, result, value_type, value, count| O::ExactIntegerShiftLeft {
+        |psi_operation, obligation, result, value_type, value, count| O::IntegerShift {
             psi_operation,
-            obligation,
             result,
             value_type,
             count_type: signed,
+            policy: IntegerShiftPolicy::Exact { obligation },
+            direction: IntegerShiftDirection::Left,
             value,
             count,
         },
@@ -65,15 +67,15 @@ fn proof_certified_exact_signed_negative_one_shift_right_declines_other_shapes()
         signed,
         IntegerValue::Signed(-1),
         true,
-        |psi_operation, _obligation, result, value_type, value, count| {
-            O::WrappingIntegerShiftRight {
-                psi_operation,
-                result,
-                value_type,
-                count_type: signed,
-                value,
-                count,
-            }
+        |psi_operation, _obligation, result, value_type, value, count| O::IntegerShift {
+            psi_operation,
+            result,
+            value_type,
+            count_type: signed,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction: IntegerShiftDirection::Right,
+            value,
+            count,
         },
     );
     let dead =

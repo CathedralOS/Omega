@@ -8,6 +8,7 @@ use crate::legalization::scalar_graph_input::target::control_flow::scalar_return
 use crate::legalization::scalar_graph_input::target::control_flow::scalar_return_tests::operation;
 use crate::legalization::scalar_graph_input::target::control_flow::scalar_return_tests::value;
 use crate::legalization::scalar_graph_input::u64_type;
+use abstract_operations::{IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy};
 
 fn owned_fixture(
     native: ::target::NativeTarget,
@@ -311,13 +312,18 @@ fn unobserved_owned_unrestricted_arrivals_keep_abi_without_affine_disposal() {
 fn unobserved_owned_arrivals_do_not_supply_missing_arithmetic_authority() {
     let native = ::target::NativeTarget::macos_arm64();
     let (mut plan, _, _) = owned_fixture(native);
-    plan.functions[0].operations[5] = AbstractOperation::ExactIntegerSubtract {
+    plan.functions[0].operations[5] = AbstractOperation::IntegerArithmetic {
         psi_operation: operation(4),
         result: value(6),
         scalar_type: u64_type(),
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Exact,
+            IntegerArithmeticOperator::Subtract,
+            Some(ObligationId::new(1).unwrap()),
+        )
+        .expect("admitted integer arithmetic"),
         left: value(2),
         right: value(4),
-        obligation: ObligationId::new(1).unwrap(),
     };
     let target = abstract_operations_to_target_operations::lower_to_target_operations(
         &plan,

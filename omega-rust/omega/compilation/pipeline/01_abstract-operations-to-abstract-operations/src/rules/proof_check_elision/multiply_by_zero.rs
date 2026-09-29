@@ -1,6 +1,8 @@
 //! Proof-certified exact multiplication by zero.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -19,17 +21,24 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_exact_integer_multiply_by_zero_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
-    let O::ExactIntegerMultiply {
+    let O::IntegerArithmetic {
         psi_operation,
         result,
         scalar_type,
         left,
         right,
+        arithmetic,
         ..
     } = operation
     else {
         return Vec::new();
     };
+    if !arithmetic.is(
+        IntegerOverflowPolicy::Exact,
+        IntegerArithmeticOperator::Multiply,
+    ) {
+        return Vec::new();
+    }
     vec![
         (
             ProofCertifiedScalarIdentityShape {

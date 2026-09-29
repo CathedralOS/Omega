@@ -2,7 +2,8 @@
 use super::LegalizationError;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractStructuralCallResult,
+    AbstractStructuralCallResult, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftPolicy,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
@@ -13,7 +14,9 @@ use optimization_unit::{
     OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     ValueDefinitionSite,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, MachineId, ObligationId, OperationId, ScalarType, ValueId,
+};
 use target_operations::{TargetFunction, TargetOperationPlan};
 pub(super) mod call_origin;
 mod control;
@@ -364,61 +367,75 @@ pub(super) fn match_input(
         {
             return Err(LegalizationError::custody());
         }
-        if let AbstractOperation::ExactIntegerAdd {
+        let obligation_custody_missing = |psi_operation: OperationId, obligation: ObligationId| {
+            !unit.accepted_obligation_facts.iter().any(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == psi_operation
+                    && fact.obligation == obligation
+            }) || !optimized.facts.iter().any(|fact| {
+                matches!(fact,
+                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
+                    if *referenced == obligation && *support == psi_operation)
+            })
+        };
+        // Every obligation-bearing integer pair keeps accepted custody,
+        // except saturating remainder, which this check has never named.
+        let integer_obligation = match &node.operation {
+            AbstractOperation::IntegerShift {
+                psi_operation,
+                policy: IntegerShiftPolicy::Exact { obligation },
+                ..
+            } => Some((*psi_operation, *obligation)),
+            AbstractOperation::IntegerArithmetic {
+                psi_operation,
+                arithmetic,
+                ..
+            } if !arithmetic.is(
+                IntegerOverflowPolicy::Saturating,
+                IntegerArithmeticOperator::Remainder,
+            ) =>
+            {
+                arithmetic
+                    .obligation()
+                    .map(|obligation| (*psi_operation, obligation))
+            }
+            _ => None,
+        };
+        if let Some((psi_operation, obligation)) = integer_obligation
+            && obligation_custody_missing(psi_operation, obligation)
+        {
+            return Err(LegalizationError::custody());
+        }
+        if let AbstractOperation::ByteSequenceWrite {
             psi_operation,
             obligation,
             ..
         }
-        | AbstractOperation::ExactIntegerSubtract {
+        | AbstractOperation::StructuralByteSequenceFieldByteStore {
             psi_operation,
             obligation,
             ..
         }
-        | AbstractOperation::ExactIntegerMultiply {
+        | AbstractOperation::StructuralByteSequenceFieldRead {
             psi_operation,
             obligation,
             ..
         }
-        | AbstractOperation::ExactIntegerDivide {
+        | AbstractOperation::EstablishByteSequenceConcatenation {
+            psi_operation,
+            capacity_obligation: obligation,
+            ..
+        }
+        | AbstractOperation::ByteSequenceStore {
             psi_operation,
             obligation,
             ..
         }
-        | AbstractOperation::ExactIntegerRemainder {
+        | AbstractOperation::StructuralByteSequenceFieldStore {
             psi_operation,
             obligation,
             ..
         }
-        | AbstractOperation::ExactIntegerShiftLeft {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftRight {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerDivide {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | AbstractOperation::ByteSequenceWrite { psi_operation, obligation, .. }
-        | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, obligation, .. }
-        | AbstractOperation::StructuralByteSequenceFieldRead { psi_operation, obligation, .. }
-        | AbstractOperation::EstablishByteSequenceConcatenation { psi_operation, capacity_obligation: obligation, .. }
-        | AbstractOperation::ByteSequenceStore { psi_operation, obligation, .. } | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, obligation, .. }
         | AbstractOperation::ByteSequenceRead {
             psi_operation,
             obligation,
@@ -434,17 +451,17 @@ pub(super) fn match_input(
             obligation,
             ..
         }
-        | AbstractOperation::ElementViewWrite { psi_operation, obligation, .. }
+        | AbstractOperation::ElementViewWrite {
+            psi_operation,
+            obligation,
+            ..
+        }
         | AbstractOperation::ElementViewSubslice {
             psi_operation,
             obligation,
             ..
         } = &node.operation
-            && (!unit.accepted_obligation_facts.iter().any(|fact|
-                fact.machine == optimized.machine && fact.operation == *psi_operation && fact.obligation == *obligation)
-                || !optimized.facts.iter().any(|fact| matches!(fact,
-                    optimization_unit::OptimizationFact::OperationObligationReference { obligation: referenced, support }
-                    if referenced == obligation && support == psi_operation)))
+            && obligation_custody_missing(*psi_operation, *obligation)
         {
             return Err(LegalizationError::custody());
         }

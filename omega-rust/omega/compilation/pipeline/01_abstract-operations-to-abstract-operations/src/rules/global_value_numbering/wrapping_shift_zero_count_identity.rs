@@ -1,7 +1,7 @@
 //! The exact wrapping shift-zero-count rule, and the closed semantic partition
 //! (`classify`) it proposes over.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerShiftDirection, IntegerShiftPolicy};
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -38,13 +38,15 @@ impl PsiOptimizationRule for WrappingShiftZeroCountIdentityRule {
 
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
     match operation {
-        O::WrappingIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
             value,
             count,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction: IntegerShiftDirection::Left,
         } => vec![TotalScalarIdentityShape {
             source_operation: *psi_operation,
             result: *result,
@@ -55,13 +57,15 @@ pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
             identity: TotalScalarIdentityKind::WrappingIntegerShiftLeftZeroCount,
             expected_law_value: integer_zero(*count_type),
         }],
-        O::WrappingIntegerShiftRight {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
             value,
             count,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction: IntegerShiftDirection::Right,
         } => vec![TotalScalarIdentityShape {
             source_operation: *psi_operation,
             result: *result,

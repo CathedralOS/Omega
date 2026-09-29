@@ -447,29 +447,12 @@ pub(crate) fn substitute_invariant_scalar_operands(
         | O::IntegerBitwiseAnd { left, right, .. }
         | O::IntegerBitwiseOr { left, right, .. }
         | O::IntegerBitwiseXor { left, right, .. }
-        | O::WrappingIntegerAdd { left, right, .. }
-        | O::ExactIntegerAdd { left, right, .. }
-        | O::SaturatingIntegerAdd { left, right, .. }
-        | O::WrappingIntegerSubtract { left, right, .. }
-        | O::ExactIntegerSubtract { left, right, .. }
-        | O::SaturatingIntegerSubtract { left, right, .. }
-        | O::WrappingIntegerMultiply { left, right, .. }
-        | O::ExactIntegerMultiply { left, right, .. }
-        | O::SaturatingIntegerMultiply { left, right, .. }
-        | O::WrappingIntegerDivide { left, right, .. }
-        | O::ExactIntegerDivide { left, right, .. }
-        | O::SaturatingIntegerDivide { left, right, .. }
-        | O::WrappingIntegerRemainder { left, right, .. }
-        | O::ExactIntegerRemainder { left, right, .. }
-        | O::SaturatingIntegerRemainder { left, right, .. }
+        | O::IntegerArithmetic { left, right, .. }
         | O::IeeeFloatCompare { left, right, .. } => {
             substitute(left, substitution);
             substitute(right, substitution);
         }
-        O::WrappingIntegerShiftLeft { value, count, .. }
-        | O::WrappingIntegerShiftRight { value, count, .. }
-        | O::ExactIntegerShiftLeft { value, count, .. }
-        | O::ExactIntegerShiftRight { value, count, .. } => {
+        O::IntegerShift { value, count, .. } => {
             substitute(value, substitution);
             substitute(count, substitution);
         }

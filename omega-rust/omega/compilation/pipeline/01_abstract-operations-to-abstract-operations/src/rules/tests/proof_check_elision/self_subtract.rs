@@ -1,5 +1,8 @@
 //! Exact self-subtraction tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 
 use super::super::super::{
     LiveProofCertifiedExactIntegerSelfSubtractEliminationRule, PROOF_CHECK_ELISION_PASS_NAME,
@@ -10,7 +13,6 @@ use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
     live_exact_self_subtract_unit, live_proof_binary_identity_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     OptimizationPassIdentity, OptimizationRuleContract, OptimizationRuleIdentity,
     OptimizationSafetyClass, ScalarConstantFactIdentity,
@@ -215,10 +217,16 @@ fn proof_certified_exact_self_subtract_declines_and_rejects_corruption() {
     );
 
     let mut wrong_policy = unit.clone();
-    wrong_policy.functions[0].blocks[0].nodes[0].operation = O::WrappingIntegerSubtract {
+    wrong_policy.functions[0].blocks[0].nodes[0].operation = O::IntegerArithmetic {
         psi_operation: patch.source_operation,
         result: patch.result,
         scalar_type: integer,
+        arithmetic: IntegerArithmetic::new(
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Subtract,
+            None,
+        )
+        .expect("admitted integer arithmetic"),
         left: id(333, ValueId::new),
         right: id(333, ValueId::new),
     };
@@ -250,11 +258,16 @@ fn proof_certified_exact_self_subtract_declines_and_rejects_corruption() {
         integer,
         IntegerValue::Unsigned(1),
         false,
-        |psi_operation, obligation, result, scalar_type, left, right| O::ExactIntegerSubtract {
+        |psi_operation, obligation, result, scalar_type, left, right| O::IntegerArithmetic {
             psi_operation,
-            obligation,
             result,
             scalar_type,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Subtract,
+                Some(obligation),
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },
@@ -265,28 +278,36 @@ fn proof_certified_exact_self_subtract_declines_and_rejects_corruption() {
             integer,
             IntegerValue::Unsigned(1),
             false,
-            |psi_operation, _obligation, result, scalar_type, left, right| {
-                O::WrappingIntegerSubtract {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    left,
-                    right,
-                }
+            |psi_operation, _obligation, result, scalar_type, left, right| O::IntegerArithmetic {
+                psi_operation,
+                result,
+                scalar_type,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Subtract,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
+                left,
+                right,
             },
         ),
         live_proof_binary_identity_unit(
             integer,
             IntegerValue::Unsigned(1),
             false,
-            |psi_operation, _obligation, result, scalar_type, left, right| {
-                O::SaturatingIntegerSubtract {
-                    psi_operation,
-                    result,
-                    scalar_type,
-                    left,
-                    right,
-                }
+            |psi_operation, _obligation, result, scalar_type, left, right| O::IntegerArithmetic {
+                psi_operation,
+                result,
+                scalar_type,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Saturating,
+                    IntegerArithmeticOperator::Subtract,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
+                left,
+                right,
             },
         ),
         discard_scalar_function_result(live_exact_self_subtract_unit(integer)),

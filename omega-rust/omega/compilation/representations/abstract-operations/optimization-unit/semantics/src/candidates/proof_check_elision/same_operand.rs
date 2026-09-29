@@ -8,7 +8,9 @@ use crate::{
     OptimizationUnitValidationError, ValidatedPsiRewrite, reconstruct_closed_scalar_node_boundary,
     validate_psi_optimization_unit,
 };
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationRuleIdentity,
     OptimizationSafetyClass, OptimizationValidatorIdentity,
@@ -47,99 +49,41 @@ pub(crate) fn independent_same_operand_integer_constant(
     operation: &O,
     law: ProofCertifiedSameOperandIntegerConstantLaw,
 ) -> Option<IndependentSameOperandIntegerConstant> {
-    let (psi_operation, obligation, result, scalar_type, left, right) = match (law, operation) {
+    let O::IntegerArithmetic {
+        psi_operation,
+        result,
+        scalar_type,
+        arithmetic,
+        left,
+        right,
+    } = operation
+    else {
+        return None;
+    };
+    let obligation = arithmetic.obligation()?;
+    let admitted = match (law, arithmetic.operator()) {
         (
             ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero,
-            O::ExactIntegerSubtract {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *scalar_type,
-            *left,
-            *right,
-        ),
+            IntegerArithmeticOperator::Subtract,
+        ) => arithmetic.policy() == IntegerOverflowPolicy::Exact,
         (
             ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero,
-            O::ExactIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            }
-            | O::WrappingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            }
-            | O::SaturatingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *scalar_type,
-            *left,
-            *right,
-        ),
+            IntegerArithmeticOperator::Remainder,
+        ) => true,
         (
             ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne,
-            O::ExactIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            }
-            | O::WrappingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            }
-            | O::SaturatingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-        ) if scalar_type.carrier() == IntegerCarrier::Fixed
-            && !(scalar_type.sign() == IntegerSign::Signed && scalar_type.bits() == 1) =>
-        {
-            (
-                *psi_operation,
-                *obligation,
-                *result,
-                *scalar_type,
-                *left,
-                *right,
-            )
+            IntegerArithmeticOperator::Divide,
+        ) => {
+            scalar_type.carrier() == IntegerCarrier::Fixed
+                && !(scalar_type.sign() == IntegerSign::Signed && scalar_type.bits() == 1)
         }
-        _ => return None,
+        _ => false,
     };
+    if !admitted {
+        return None;
+    }
+    let (psi_operation, result, scalar_type, left, right) =
+        (*psi_operation, *result, *scalar_type, *left, *right);
     (left == right).then_some(IndependentSameOperandIntegerConstant {
         psi_operation,
         obligation,

@@ -16,14 +16,15 @@ use super::super::super::{
 };
 use crate::rules::tests::fixtures::dead_scalar_elimination::dead_exact_add_unit;
 use crate::rules::tests::fixtures::proof_check_elision::{
-    SelfDividePolicy, SelfRemainderPolicy, live_divide_by_one_unit, live_exact_add_zero_unit,
-    live_exact_multiply_by_zero_unit, live_exact_self_subtract_unit,
-    live_exact_signed_negative_one_shift_right_unit, live_exact_zero_value_shift_unit,
-    live_remainder_by_one_unit, live_self_divide_unit, live_self_remainder_unit,
-    live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
+    live_divide_by_one_unit, live_exact_add_zero_unit, live_exact_multiply_by_zero_unit,
+    live_exact_self_subtract_unit, live_exact_signed_negative_one_shift_right_unit,
+    live_exact_zero_value_shift_unit, live_remainder_by_one_unit, live_self_divide_unit,
+    live_self_remainder_unit, live_signed_remainder_by_negative_one_unit, live_zero_dividend_unit,
 };
 use crate::{PsiOptimizationRule, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
 };
@@ -78,11 +79,16 @@ fn cases() -> Vec<Case> {
             live_divide_by_one_unit(
                 unsigned,
                 |psi_operation, obligation, result, scalar_type, left, right| {
-                    O::ExactIntegerDivide {
+                    O::IntegerArithmetic {
                         psi_operation,
-                        obligation,
                         result,
                         scalar_type,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Exact,
+                            IntegerArithmeticOperator::Divide,
+                            Some(obligation),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left,
                         right,
                     }
@@ -98,11 +104,16 @@ fn cases() -> Vec<Case> {
             live_zero_dividend_unit(
                 unsigned,
                 |psi_operation, obligation, result, scalar_type, left, right| {
-                    O::ExactIntegerDivide {
+                    O::IntegerArithmetic {
                         psi_operation,
-                        obligation,
                         result,
                         scalar_type,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Exact,
+                            IntegerArithmeticOperator::Divide,
+                            Some(obligation),
+                        )
+                        .expect("admitted integer arithmetic"),
                         left,
                         right,
                     }
@@ -119,19 +130,19 @@ fn cases() -> Vec<Case> {
             LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
         ),
         case(
-            live_self_remainder_unit(unsigned, SelfRemainderPolicy::Exact),
+            live_self_remainder_unit(unsigned, IntegerOverflowPolicy::Exact),
             LiveProofCertifiedIntegerSelfRemainderEliminationRule,
         ),
         case(
-            live_self_divide_unit(unsigned, SelfDividePolicy::Exact),
+            live_self_divide_unit(unsigned, IntegerOverflowPolicy::Exact),
             LiveProofCertifiedIntegerSelfDivideEliminationRule,
         ),
         case(
-            live_remainder_by_one_unit(unsigned, SelfRemainderPolicy::Exact),
+            live_remainder_by_one_unit(unsigned, IntegerOverflowPolicy::Exact),
             LiveProofCertifiedIntegerRemainderByOneEliminationRule,
         ),
         case(
-            live_signed_remainder_by_negative_one_unit(signed, SelfRemainderPolicy::Exact),
+            live_signed_remainder_by_negative_one_unit(signed, IntegerOverflowPolicy::Exact),
             LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule,
         ),
         case(

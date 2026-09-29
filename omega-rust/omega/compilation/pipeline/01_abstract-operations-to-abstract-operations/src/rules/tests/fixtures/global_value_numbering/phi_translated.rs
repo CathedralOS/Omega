@@ -1,7 +1,8 @@
 use super::super::{id, with_synthetic_accepted_obligations};
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
+    AbstractOperationPlan, AbstractParameter, AbstractResult, AbstractSuccessor, IntegerArithmetic,
+    IntegerArithmeticOperator, IntegerOverflowPolicy, ValueBinding,
 };
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
@@ -49,11 +50,16 @@ pub(crate) fn phi_translated_gvn_fixture(
     let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
     let wide = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
     let redundant_expression = if proof_certified || compatible_policy {
-        AbstractOperation::ExactIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation: id(1_713, OperationId::new),
-            obligation: id(1_721, ObligationId::new),
             result: redundant,
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Add,
+                Some(id(1_721, ObligationId::new)),
+            )
+            .expect("admitted integer arithmetic"),
             left: join_input,
             right: join_input,
         }
@@ -66,19 +72,30 @@ pub(crate) fn phi_translated_gvn_fixture(
         }
     };
     let left_expression = if proof_certified {
-        AbstractOperation::ExactIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation: id(1_715, OperationId::new),
-            obligation: id(1_722, ObligationId::new),
             result: left_leader,
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Add,
+                Some(id(1_722, ObligationId::new)),
+            )
+            .expect("admitted integer arithmetic"),
             left: left_input,
             right: left_input,
         }
     } else if compatible_policy {
-        AbstractOperation::WrappingIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation: id(1_715, OperationId::new),
             result: left_leader,
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Wrapping,
+                IntegerArithmeticOperator::Add,
+                None,
+            )
+            .expect("admitted integer arithmetic"),
             left: left_input,
             right: left_input,
         }
@@ -91,27 +108,44 @@ pub(crate) fn phi_translated_gvn_fixture(
         }
     };
     let right_expression = if proof_certified {
-        AbstractOperation::ExactIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation: id(1_716, OperationId::new),
-            obligation: id(1_723, ObligationId::new),
             result: right_leader,
             scalar_type: integer,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Add,
+                Some(id(1_723, ObligationId::new)),
+            )
+            .expect("admitted integer arithmetic"),
             left: right_input,
             right: right_input,
         }
     } else if compatible_policy {
         match right_arm {
-            PhiTranslatedRightArm::Matching => AbstractOperation::SaturatingIntegerAdd {
+            PhiTranslatedRightArm::Matching => AbstractOperation::IntegerArithmetic {
                 psi_operation: id(1_716, OperationId::new),
                 result: right_leader,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Saturating,
+                    IntegerArithmeticOperator::Add,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left: right_input,
                 right: right_input,
             },
-            PhiTranslatedRightArm::Missing => AbstractOperation::WrappingIntegerSubtract {
+            PhiTranslatedRightArm::Missing => AbstractOperation::IntegerArithmetic {
                 psi_operation: id(1_716, OperationId::new),
                 result: right_leader,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Subtract,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left: right_input,
                 right: right_input,
             },
@@ -131,10 +165,16 @@ pub(crate) fn phi_translated_gvn_fixture(
                 scalar_type: integer,
                 operand: right_input,
             },
-            PhiTranslatedRightArm::Missing => AbstractOperation::WrappingIntegerAdd {
+            PhiTranslatedRightArm::Missing => AbstractOperation::IntegerArithmetic {
                 psi_operation: id(1_716, OperationId::new),
                 result: right_leader,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Wrapping,
+                    IntegerArithmeticOperator::Add,
+                    None,
+                )
+                .expect("admitted integer arithmetic"),
                 left: right_input,
                 right: right_input,
             },

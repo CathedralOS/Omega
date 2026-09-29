@@ -384,56 +384,29 @@ pub(super) fn project(
         AbstractOperation::Call { .. } => {
             call_instructions::project_call(node, native, plan, unit)?
         }
-        AbstractOperation::SaturatingIntegerSubtract { .. }
-        | AbstractOperation::SaturatingIntegerAdd { .. }
-        | AbstractOperation::SaturatingIntegerMultiply { .. } => {
-            scalar_instructions::project_saturating_integer_arithmetic(node, optimized)?
-        }
-        AbstractOperation::SaturatingIntegerDivide { .. } => {
-            scalar_instructions::project_saturating_integer_divide(node, optimized, unit)?
-        }
         AbstractOperation::TrappingInteger { .. } => {
             scalar_instructions::project_trapping_integer(node, optimized)?
         }
-        AbstractOperation::SaturatingIntegerRemainder { .. } => {
-            scalar_instructions::project_saturating_integer_remainder(node, optimized, unit)?
-        }
-        AbstractOperation::WrappingIntegerAdd { left, right, .. } => {
-            LegalizedScalarInstructionKind::WrappingAdd {
+        AbstractOperation::IntegerArithmetic {
+            psi_operation,
+            scalar_type,
+            arithmetic,
+            left,
+            right,
+            ..
+        } => scalar_instructions::project_integer_arithmetic(
+            scalar_instructions::IntegerArithmeticNode {
+                psi_operation: *psi_operation,
+                scalar_type: *scalar_type,
+                arithmetic: *arithmetic,
                 left: *left,
                 right: *right,
-            }
-        }
-        AbstractOperation::WrappingIntegerSubtract { left, right, .. } => {
-            LegalizedScalarInstructionKind::WrappingSubtract {
-                left: *left,
-                right: *right,
-            }
-        }
-        AbstractOperation::WrappingIntegerMultiply { left, right, .. } => {
-            LegalizedScalarInstructionKind::WrappingMultiply {
-                left: *left,
-                right: *right,
-            }
-        }
-        AbstractOperation::WrappingIntegerShiftLeft { .. }
-        | AbstractOperation::WrappingIntegerShiftRight { .. }
-        | AbstractOperation::ExactIntegerShiftLeft { .. }
-        | AbstractOperation::ExactIntegerShiftRight { .. } => {
+            },
+            optimized,
+            unit,
+        )?,
+        AbstractOperation::IntegerShift { .. } => {
             scalar_instructions::project_shift(node, optimized, unit)?
-        }
-        AbstractOperation::WrappingIntegerRemainder { .. } => {
-            scalar_instructions::project_wrapping_integer_remainder(node, optimized, unit)?
-        }
-        AbstractOperation::WrappingIntegerDivide { .. } => {
-            scalar_instructions::project_wrapping_integer_divide(node, optimized, unit)?
-        }
-        AbstractOperation::ExactIntegerAdd { .. }
-        | AbstractOperation::ExactIntegerSubtract { .. }
-        | AbstractOperation::ExactIntegerMultiply { .. }
-        | AbstractOperation::ExactIntegerDivide { .. }
-        | AbstractOperation::ExactIntegerRemainder { .. } => {
-            scalar_instructions::project_exact_integer_add(node, optimized, unit)?
         }
         AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::IntegerEqual { .. }

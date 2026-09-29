@@ -1,15 +1,15 @@
 //! Signed remainder-by-negative-one tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{AbstractOperation as O, IntegerOverflowPolicy};
 
 use super::super::super::LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule;
 use crate::rules::tests::fixtures::dead_scalar_elimination::discard_scalar_function_result;
 use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
-    SelfRemainderPolicy, live_remainder_by_one_unit, live_self_remainder_unit,
+    live_remainder_by_one_unit, live_self_remainder_unit,
     live_signed_remainder_by_negative_one_unit,
 };
 use crate::{AnalysisProduct, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     AnalysisKind, OptimizationFactReference, OptimizationValidatorIdentity,
     ScalarConstantFactIdentity,
@@ -32,9 +32,9 @@ use semantic_vocabulary::{
 fn proof_certified_signed_remainder_by_negative_one_materializes_zero_for_every_policy() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
     for policy in [
-        SelfRemainderPolicy::Exact,
-        SelfRemainderPolicy::Wrapping,
-        SelfRemainderPolicy::Saturating,
+        IntegerOverflowPolicy::Exact,
+        IntegerOverflowPolicy::Wrapping,
+        IntegerOverflowPolicy::Saturating,
     ] {
         let unit = live_signed_remainder_by_negative_one_unit(integer, policy);
         let contract =
@@ -139,7 +139,7 @@ fn proof_certified_signed_remainder_by_negative_one_materializes_zero_for_every_
 fn proof_certified_signed_remainder_by_negative_one_declines_and_rejects_corruption() {
     let integer = IntegerType::new(IntegerSign::Signed, 8).unwrap();
     let contract = LiveProofCertifiedSignedIntegerRemainderByNegativeOneEliminationRule::contract();
-    let unit = live_signed_remainder_by_negative_one_unit(integer, SelfRemainderPolicy::Exact);
+    let unit = live_signed_remainder_by_negative_one_unit(integer, IntegerOverflowPolicy::Exact);
     let mut manager = crate::AnalysisManager::new(&unit);
     let products = manager
         .require_all(&unit, contract.required_analyses())
@@ -302,10 +302,10 @@ fn proof_certified_signed_remainder_by_negative_one_declines_and_rejects_corrupt
         missing_reference,
         missing_catalog,
         discard_scalar_function_result(unit.clone()),
-        live_self_remainder_unit(integer, SelfRemainderPolicy::Exact),
+        live_self_remainder_unit(integer, IntegerOverflowPolicy::Exact),
         live_remainder_by_one_unit(
             IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
-            SelfRemainderPolicy::Exact,
+            IntegerOverflowPolicy::Exact,
         ),
     ] {
         let mut manager = crate::AnalysisManager::new(&ineligible);

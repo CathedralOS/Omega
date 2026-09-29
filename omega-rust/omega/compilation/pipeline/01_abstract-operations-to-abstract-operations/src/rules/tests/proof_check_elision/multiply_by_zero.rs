@@ -1,5 +1,8 @@
 //! Exact multiplication-by-zero tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 
 use super::super::super::LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule;
 use crate::RuleAnalysisView;
@@ -7,7 +10,6 @@ use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
     live_divide_by_one_unit, live_exact_multiply_by_zero_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::ScalarConstantFactIdentity;
 use optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite,
@@ -116,11 +118,16 @@ fn proof_certified_exact_multiply_by_zero_declines_and_rejects_corruption() {
 
     let nonzero = live_divide_by_one_unit(
         integer,
-        |psi_operation, obligation, result, scalar_type, left, right| O::ExactIntegerMultiply {
+        |psi_operation, obligation, result, scalar_type, left, right| O::IntegerArithmetic {
             psi_operation,
-            obligation,
             result,
             scalar_type,
+            arithmetic: IntegerArithmetic::new(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Multiply,
+                Some(obligation),
+            )
+            .expect("admitted integer arithmetic"),
             left,
             right,
         },

@@ -1,5 +1,6 @@
 //! Exact zero-value shift tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{AbstractOperation as O, IntegerShiftDirection, IntegerShiftPolicy};
 
 use super::super::super::LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;
 use crate::RuleAnalysisView;
@@ -8,7 +9,6 @@ use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
     live_exact_zero_value_shift_unit, live_proof_binary_identity_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_core::{
     OptimizationFactReference, OptimizationValidatorIdentity, ScalarConstantFactIdentity,
 };
@@ -313,12 +313,13 @@ fn proof_certified_exact_zero_value_shift_declines_and_rejects_corruption() {
         integer,
         IntegerValue::Unsigned(0),
         false,
-        |psi_operation, obligation, result, value_type, value, count| O::ExactIntegerShiftLeft {
+        |psi_operation, obligation, result, value_type, value, count| O::IntegerShift {
             psi_operation,
-            obligation,
             result,
             value_type,
             count_type: integer,
+            policy: IntegerShiftPolicy::Exact { obligation },
+            direction: IntegerShiftDirection::Left,
             value,
             count,
         },
@@ -341,15 +342,15 @@ fn proof_certified_exact_zero_value_shift_declines_and_rejects_corruption() {
         integer,
         IntegerValue::Unsigned(0),
         true,
-        |psi_operation, _obligation, result, value_type, value, count| {
-            O::WrappingIntegerShiftLeft {
-                psi_operation,
-                result,
-                value_type,
-                count_type: integer,
-                value,
-                count,
-            }
+        |psi_operation, _obligation, result, value_type, value, count| O::IntegerShift {
+            psi_operation,
+            result,
+            value_type,
+            count_type: integer,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction: IntegerShiftDirection::Left,
+            value,
+            count,
         },
     );
     let mut manager = crate::AnalysisManager::new(&wrapping);

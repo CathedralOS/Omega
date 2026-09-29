@@ -1,6 +1,7 @@
 //! Modular arithmetic retains ordered, width-normalized SSA definitions.
 use abstract_operations::{
     AbstractFunctionResult, AbstractOperation, AbstractParameter, AbstractResult,
+    IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
 };
 use legalized_operations::LegalizedScalarInstructionKind;
 use selected_instructions::SelectedInstructionKind;
@@ -41,18 +42,30 @@ fn wrapping_add_replays_width_policy_snapshot_and_normalized_consumers() {
                     scalar_type,
                 });
                 function.operations = vec![
-                    AbstractOperation::WrappingIntegerAdd {
+                    AbstractOperation::IntegerArithmetic {
                         psi_operation: OperationId::new(1).unwrap(),
                         result: value(3),
                         scalar_type: integer,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Wrapping,
+                            IntegerArithmeticOperator::Add,
+                            None,
+                        )
+                        .expect("admitted integer arithmetic"),
                         left: value(1),
                         right: value(2),
                     },
                     // A produced value may be both operands without duplication of its producer.
-                    AbstractOperation::WrappingIntegerAdd {
+                    AbstractOperation::IntegerArithmetic {
                         psi_operation: OperationId::new(2).unwrap(),
                         result: value(4),
                         scalar_type: integer,
+                        arithmetic: IntegerArithmetic::new(
+                            IntegerOverflowPolicy::Wrapping,
+                            IntegerArithmeticOperator::Add,
+                            None,
+                        )
+                        .expect("admitted integer arithmetic"),
                         left: value(3),
                         right: value(3),
                     },
@@ -107,14 +120,19 @@ fn wrapping_add_replays_width_policy_snapshot_and_normalized_consumers() {
                     else {
                         panic!("second wrapping definition")
                     };
-                    let TargetIntegerExpression::WrappingAdd {
+                    let TargetIntegerExpression::Arithmetic {
                         psi_operation,
+                        arithmetic,
                         left,
                         right,
                     } = expression
                     else {
                         panic!("wrapping policy")
                     };
+                    assert!(arithmetic.is(
+                        IntegerOverflowPolicy::Wrapping,
+                        IntegerArithmeticOperator::Add
+                    ));
                     match mutation {
                         "operand" => {
                             **left = TargetIntegerExpression::Immediate {
@@ -129,9 +147,14 @@ fn wrapping_add_replays_width_policy_snapshot_and_normalized_consumers() {
                         "result" => result_home.source_value = value(3),
                         "reevaluation" => **left = first_expression,
                         _ => {
-                            *expression = TargetIntegerExpression::ExactAdd {
+                            *expression = TargetIntegerExpression::Arithmetic {
                                 psi_operation: *psi_operation,
-                                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                                arithmetic: IntegerArithmetic::new(
+                                    IntegerOverflowPolicy::Exact,
+                                    IntegerArithmeticOperator::Add,
+                                    Some(semantic_vocabulary::ObligationId::new(1).unwrap()),
+                                )
+                                .expect("admitted integer arithmetic"),
                                 left: left.clone(),
                                 right: right.clone(),
                             }

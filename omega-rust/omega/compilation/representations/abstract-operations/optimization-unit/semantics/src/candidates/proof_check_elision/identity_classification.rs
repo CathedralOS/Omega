@@ -1,5 +1,8 @@
 //! Independent proof-certified scalar identity classification.
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use optimization_unit::ProofCertifiedScalarIdentityKind;
 use semantic_vocabulary::{
     IntegerCarrier, IntegerSign, IntegerType, IntegerValue, OperationId, ValueId,
@@ -21,423 +24,100 @@ pub(crate) fn independent_proof_certified_scalar_identity(
     operation: &O,
     identity: ProofCertifiedScalarIdentityKind,
 ) -> Option<IndependentProofCertifiedScalarIdentity> {
-    let row = match (operation, identity) {
-        (
-            O::ExactIntegerAdd {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *right,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::ExactIntegerAdd {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerAddZeroRight,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *right,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::ExactIntegerSubtract {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerSubtractZeroRight,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *right,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::ExactIntegerMultiply {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *right,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_one(*scalar_type),
-        ),
-        (
-            O::ExactIntegerMultiply {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *right,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_one(*scalar_type),
-        ),
-        (
-            O::ExactIntegerShiftLeft {
-                psi_operation,
-                obligation,
-                result,
-                value_type,
-                count_type,
-                value,
-                count,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroCount,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *value,
-            *count,
-            *value_type,
-            *count_type,
-            independent_integer_zero(*count_type),
-        ),
-        (
-            O::ExactIntegerShiftRight {
-                psi_operation,
-                obligation,
-                result,
-                value_type,
-                count_type,
-                value,
-                count,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroCount,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *value,
-            *count,
-            *value_type,
-            *count_type,
-            independent_integer_zero(*count_type),
-        ),
-        (
-            O::ExactIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *right,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_one(*scalar_type),
-        ),
-        (
-            O::WrappingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *right,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_one(*scalar_type),
-        ),
-        (
-            O::SaturatingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                right,
-            },
-            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *right,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_one(*scalar_type),
-        ),
-        (
-            O::ExactIntegerMultiply {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::ExactIntegerMultiply {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                right,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *right,
-            *right,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::ExactIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::WrappingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::SaturatingIntegerDivide {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::ExactIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::WrappingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::SaturatingIntegerRemainder {
-                psi_operation,
-                obligation,
-                result,
-                scalar_type,
-                left,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *left,
-            *left,
-            *scalar_type,
-            *scalar_type,
-            independent_integer_zero(*scalar_type),
-        ),
-        (
-            O::ExactIntegerShiftLeft {
-                psi_operation,
-                obligation,
-                result,
-                value_type,
-                value,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *value,
-            *value,
-            *value_type,
-            *value_type,
-            independent_integer_zero(*value_type),
-        ),
-        (
-            O::ExactIntegerShiftRight {
-                psi_operation,
-                obligation,
-                result,
-                value_type,
-                value,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue,
-        ) => (
-            *psi_operation,
-            *obligation,
-            *result,
-            *value,
-            *value,
-            *value_type,
-            *value_type,
-            independent_integer_zero(*value_type),
-        ),
-        (
-            O::ExactIntegerShiftRight {
-                psi_operation,
-                obligation,
-                result,
-                value_type,
-                value,
-                ..
-            },
-            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightNegativeOneValue,
-        ) if value_type.carrier() == IntegerCarrier::Fixed
-            && value_type.sign() == IntegerSign::Signed =>
-        {
+    use IntegerArithmeticOperator as Operator;
+    use IntegerOverflowPolicy as Policy;
+    use ProofCertifiedScalarIdentityKind as Kind;
+    let row = match operation {
+        O::IntegerArithmetic {
+            psi_operation,
+            result,
+            scalar_type,
+            arithmetic,
+            left,
+            right,
+        } => {
+            let obligation = arithmetic.obligation()?;
+            let zero = independent_integer_zero(*scalar_type);
+            let one = independent_integer_one(*scalar_type);
+            // (replacement, identity operand, identity constant)
+            let (replacement, identity_operand, identity_constant) =
+                match (arithmetic.policy(), arithmetic.operator(), identity) {
+                    (Policy::Exact, Operator::Add, Kind::ExactIntegerAddZeroLeft) => {
+                        (*right, *left, zero)
+                    }
+                    (Policy::Exact, Operator::Add, Kind::ExactIntegerAddZeroRight)
+                    | (Policy::Exact, Operator::Subtract, Kind::ExactIntegerSubtractZeroRight) => {
+                        (*left, *right, zero)
+                    }
+                    (Policy::Exact, Operator::Multiply, Kind::ExactIntegerMultiplyOneLeft) => {
+                        (*right, *left, one)
+                    }
+                    (Policy::Exact, Operator::Multiply, Kind::ExactIntegerMultiplyOneRight)
+                    | (Policy::Exact, Operator::Divide, Kind::ExactIntegerDivideOneRight)
+                    | (Policy::Wrapping, Operator::Divide, Kind::WrappingIntegerDivideOneRight)
+                    | (
+                        Policy::Saturating,
+                        Operator::Divide,
+                        Kind::SaturatingIntegerDivideOneRight,
+                    ) => (*left, *right, one),
+                    (Policy::Exact, Operator::Multiply, Kind::ExactIntegerMultiplyZeroLeft)
+                    | (Policy::Exact, Operator::Divide, Kind::ExactIntegerDivideZeroLeft)
+                    | (Policy::Wrapping, Operator::Divide, Kind::WrappingIntegerDivideZeroLeft)
+                    | (
+                        Policy::Saturating,
+                        Operator::Divide,
+                        Kind::SaturatingIntegerDivideZeroLeft,
+                    )
+                    | (Policy::Exact, Operator::Remainder, Kind::ExactIntegerRemainderZeroLeft)
+                    | (
+                        Policy::Wrapping,
+                        Operator::Remainder,
+                        Kind::WrappingIntegerRemainderZeroLeft,
+                    )
+                    | (
+                        Policy::Saturating,
+                        Operator::Remainder,
+                        Kind::SaturatingIntegerRemainderZeroLeft,
+                    ) => (*left, *left, zero),
+                    (Policy::Exact, Operator::Multiply, Kind::ExactIntegerMultiplyZeroRight) => {
+                        (*right, *right, zero)
+                    }
+                    _ => return None,
+                };
             (
+                *psi_operation,
+                obligation,
+                *result,
+                replacement,
+                identity_operand,
+                *scalar_type,
+                *scalar_type,
+                identity_constant,
+            )
+        }
+        O::IntegerShift {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            policy: IntegerShiftPolicy::Exact { obligation },
+            direction,
+            value,
+            count,
+        } => match (direction, identity) {
+            (IntegerShiftDirection::Left, Kind::ExactIntegerShiftLeftZeroCount)
+            | (IntegerShiftDirection::Right, Kind::ExactIntegerShiftRightZeroCount) => (
+                *psi_operation,
+                *obligation,
+                *result,
+                *value,
+                *count,
+                *value_type,
+                *count_type,
+                independent_integer_zero(*count_type),
+            ),
+            (IntegerShiftDirection::Left, Kind::ExactIntegerShiftLeftZeroValue)
+            | (IntegerShiftDirection::Right, Kind::ExactIntegerShiftRightZeroValue) => (
                 *psi_operation,
                 *obligation,
                 *result,
@@ -445,9 +125,25 @@ pub(crate) fn independent_proof_certified_scalar_identity(
                 *value,
                 *value_type,
                 *value_type,
-                IntegerValue::Signed(-1),
-            )
-        }
+                independent_integer_zero(*value_type),
+            ),
+            (IntegerShiftDirection::Right, Kind::ExactIntegerShiftRightNegativeOneValue)
+                if value_type.carrier() == IntegerCarrier::Fixed
+                    && value_type.sign() == IntegerSign::Signed =>
+            {
+                (
+                    *psi_operation,
+                    *obligation,
+                    *result,
+                    *value,
+                    *value,
+                    *value_type,
+                    *value_type,
+                    IntegerValue::Signed(-1),
+                )
+            }
+            _ => return None,
+        },
         _ => return None,
     };
     Some(IndependentProofCertifiedScalarIdentity {

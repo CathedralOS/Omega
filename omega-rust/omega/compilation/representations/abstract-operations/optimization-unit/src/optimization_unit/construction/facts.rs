@@ -139,62 +139,21 @@ fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, 
             psi_operation,
             obligation,
             ..
-        }
-        | O::ExactIntegerShiftLeft {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::ExactIntegerShiftRight {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::ExactIntegerAdd {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::ExactIntegerSubtract {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::ExactIntegerMultiply {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::ExactIntegerDivide {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::ExactIntegerRemainder {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::WrappingIntegerDivide {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::WrappingIntegerRemainder {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::SaturatingIntegerDivide {
-            psi_operation,
-            obligation,
-            ..
-        }
-        | O::SaturatingIntegerRemainder {
-            psi_operation,
-            obligation,
-            ..
         } => Some((*obligation, *psi_operation)),
+        O::IntegerShift {
+            psi_operation,
+            policy,
+            ..
+        } => policy
+            .obligation()
+            .map(|obligation| (obligation, *psi_operation)),
+        O::IntegerArithmetic {
+            psi_operation,
+            arithmetic,
+            ..
+        } => arithmetic
+            .obligation()
+            .map(|obligation| (obligation, *psi_operation)),
         _ => None,
     }
 }

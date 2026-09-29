@@ -6,7 +6,10 @@
 use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
+use abstract_operations::{
+    AbstractOperation, AbstractStructuralCallResult, IntegerArithmeticOperator,
+    IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
+};
 use legalized_operations::{
     LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, LegalizedValueDefinition, NativeCallOrigin,
@@ -99,32 +102,19 @@ pub(super) fn validate(
             }
         }
         (
-            LegalizedScalarInstructionKind::WrappingAdd { left, right },
-            AbstractOperation::WrappingIntegerAdd {
+            LegalizedScalarInstructionKind::WrappingAdd { left, right }
+            | LegalizedScalarInstructionKind::WrappingSubtract { left, right }
+            | LegalizedScalarInstructionKind::WrappingMultiply { left, right },
+            AbstractOperation::IntegerArithmetic {
                 left: source_left,
                 right: source_right,
                 scalar_type,
+                arithmetic,
                 ..
             },
-        )
-        | (
-            LegalizedScalarInstructionKind::WrappingSubtract { left, right },
-            AbstractOperation::WrappingIntegerSubtract {
-                left: source_left,
-                right: source_right,
-                scalar_type,
-                ..
-            },
-        )
-        | (
-            LegalizedScalarInstructionKind::WrappingMultiply { left, right },
-            AbstractOperation::WrappingIntegerMultiply {
-                left: source_left,
-                right: source_right,
-                scalar_type,
-                ..
-            },
-        ) if left == source_left
+        ) if legalized_arithmetic_pair(&actual.kind)
+            == Some((arithmetic.policy(), arithmetic.operator()))
+            && left == source_left
             && right == source_right
             && scalar_graph_input::scalar_shape(ScalarType::Integer(*scalar_type)).is_some()
             && [left, right].iter().all(|value| {
@@ -139,40 +129,27 @@ pub(super) fn validate(
                 carrier,
                 left,
                 right,
-            },
-            AbstractOperation::SaturatingIntegerSubtract {
-                left: source_left,
-                right: source_right,
-                scalar_type,
-                ..
-            },
-        )
-        | (
-            LegalizedScalarInstructionKind::SaturatingAdd {
+            }
+            | LegalizedScalarInstructionKind::SaturatingAdd {
+                carrier,
+                left,
+                right,
+            }
+            | LegalizedScalarInstructionKind::SaturatingMultiply {
                 carrier,
                 left,
                 right,
             },
-            AbstractOperation::SaturatingIntegerAdd {
+            AbstractOperation::IntegerArithmetic {
                 left: source_left,
                 right: source_right,
                 scalar_type,
+                arithmetic,
                 ..
             },
-        )
-        | (
-            LegalizedScalarInstructionKind::SaturatingMultiply {
-                carrier,
-                left,
-                right,
-            },
-            AbstractOperation::SaturatingIntegerMultiply {
-                left: source_left,
-                right: source_right,
-                scalar_type,
-                ..
-            },
-        ) if left == source_left
+        ) if legalized_arithmetic_pair(&actual.kind)
+            == Some((arithmetic.policy(), arithmetic.operator()))
+            && left == source_left
             && right == source_right
             && scalar_graph_input::saturating_carrier(*scalar_type) == Some(*carrier)
             && [left, right].iter().all(|value| {
@@ -241,15 +218,23 @@ pub(super) fn validate(
                 obligation,
                 accepted_fact,
             },
-            AbstractOperation::SaturatingIntegerDivide {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation,
-                obligation: source_obligation,
                 scalar_type,
+                arithmetic,
                 left: source_left,
                 right: source_right,
                 ..
             },
-        ) => {
+        ) if arithmetic.is(
+            IntegerOverflowPolicy::Saturating,
+            IntegerArithmeticOperator::Divide,
+        ) =>
+        {
+            let Some(source_obligation) = arithmetic.obligation() else {
+                return Err(invalid);
+            };
+            let source_obligation = &source_obligation;
             let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
                 fact.machine == optimized.machine
                     && fact.operation == *psi_operation
@@ -281,15 +266,23 @@ pub(super) fn validate(
                 obligation,
                 accepted_fact,
             },
-            AbstractOperation::SaturatingIntegerRemainder {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation,
-                obligation: source_obligation,
                 scalar_type,
+                arithmetic,
                 left: source_left,
                 right: source_right,
                 ..
             },
-        ) => {
+        ) if arithmetic.is(
+            IntegerOverflowPolicy::Saturating,
+            IntegerArithmeticOperator::Remainder,
+        ) =>
+        {
+            let Some(source_obligation) = arithmetic.obligation() else {
+                return Err(invalid);
+            };
+            let source_obligation = &source_obligation;
             let mut facts = unit.accepted_obligation_facts.iter().filter(|fact| {
                 fact.machine == optimized.machine
                     && fact.operation == *psi_operation
@@ -800,36 +793,51 @@ pub(super) fn validate(
         )?,
         (
             LegalizedScalarInstructionKind::WrappingShiftLeft { .. },
-            AbstractOperation::WrappingIntegerShiftLeft { .. },
+            AbstractOperation::IntegerShift {
+                policy: IntegerShiftPolicy::Wrapping,
+                direction: IntegerShiftDirection::Left,
+                ..
+            },
         )
         | (
             LegalizedScalarInstructionKind::WrappingShiftRight { .. },
-            AbstractOperation::WrappingIntegerShiftRight { .. },
+            AbstractOperation::IntegerShift {
+                policy: IntegerShiftPolicy::Wrapping,
+                direction: IntegerShiftDirection::Right,
+                ..
+            },
         )
         | (
             LegalizedScalarInstructionKind::ExactShiftLeft { .. },
-            AbstractOperation::ExactIntegerShiftLeft { .. },
+            AbstractOperation::IntegerShift {
+                policy: IntegerShiftPolicy::Exact { .. },
+                direction: IntegerShiftDirection::Left,
+                ..
+            },
         )
         | (
             LegalizedScalarInstructionKind::ExactShiftRight { .. },
-            AbstractOperation::ExactIntegerShiftRight { .. },
+            AbstractOperation::IntegerShift {
+                policy: IntegerShiftPolicy::Exact { .. },
+                direction: IntegerShiftDirection::Right,
+                ..
+            },
         ) => scalar_instructions::validate_shift(actual, node, optimized, unit)?,
         (
-            LegalizedScalarInstructionKind::WrappingRemainder { .. },
-            AbstractOperation::WrappingIntegerRemainder { .. },
-        )
-        | (
-            LegalizedScalarInstructionKind::WrappingDivide { .. },
-            AbstractOperation::WrappingIntegerDivide { .. },
-        ) => scalar_instructions::validate_wrapping_division(actual, node, optimized, unit)?,
+            LegalizedScalarInstructionKind::WrappingRemainder { .. }
+            | LegalizedScalarInstructionKind::WrappingDivide { .. },
+            AbstractOperation::IntegerArithmetic { arithmetic, .. },
+        ) if legalized_arithmetic_pair(&actual.kind)
+            == Some((arithmetic.policy(), arithmetic.operator())) =>
+        {
+            scalar_instructions::validate_wrapping_division(actual, node, optimized, unit)?
+        }
         (
             LegalizedScalarInstructionKind::ExactBinary { .. },
-            AbstractOperation::ExactIntegerAdd { .. }
-            | AbstractOperation::ExactIntegerSubtract { .. }
-            | AbstractOperation::ExactIntegerMultiply { .. }
-            | AbstractOperation::ExactIntegerDivide { .. }
-            | AbstractOperation::ExactIntegerRemainder { .. },
-        ) => scalar_instructions::validate_exact_binary(actual, node, optimized, unit)?,
+            AbstractOperation::IntegerArithmetic { arithmetic, .. },
+        ) if arithmetic.policy() == IntegerOverflowPolicy::Exact => {
+            scalar_instructions::validate_exact_binary(actual, node, optimized, unit)?
+        }
         (
             LegalizedScalarInstructionKind::Compare { .. },
             AbstractOperation::BooleanEqual { .. }
@@ -857,4 +865,36 @@ fn indices_rejoin(
                 && index.stride == element.stride
                 && index.extent == element.extent
         })
+}
+
+/// The integer arithmetic pair a legalized kind realizes, when it realizes
+/// one outside the exact family (whose replay owns its operator).
+fn legalized_arithmetic_pair(
+    kind: &LegalizedScalarInstructionKind,
+) -> Option<(IntegerOverflowPolicy, IntegerArithmeticOperator)> {
+    use IntegerArithmeticOperator as Operator;
+    use IntegerOverflowPolicy as Policy;
+    Some(match kind {
+        LegalizedScalarInstructionKind::WrappingAdd { .. } => (Policy::Wrapping, Operator::Add),
+        LegalizedScalarInstructionKind::WrappingSubtract { .. } => {
+            (Policy::Wrapping, Operator::Subtract)
+        }
+        LegalizedScalarInstructionKind::WrappingMultiply { .. } => {
+            (Policy::Wrapping, Operator::Multiply)
+        }
+        LegalizedScalarInstructionKind::WrappingDivide { .. } => {
+            (Policy::Wrapping, Operator::Divide)
+        }
+        LegalizedScalarInstructionKind::WrappingRemainder { .. } => {
+            (Policy::Wrapping, Operator::Remainder)
+        }
+        LegalizedScalarInstructionKind::SaturatingAdd { .. } => (Policy::Saturating, Operator::Add),
+        LegalizedScalarInstructionKind::SaturatingSubtract { .. } => {
+            (Policy::Saturating, Operator::Subtract)
+        }
+        LegalizedScalarInstructionKind::SaturatingMultiply { .. } => {
+            (Policy::Saturating, Operator::Multiply)
+        }
+        _ => return None,
+    })
 }

@@ -5,7 +5,9 @@ use super::{
     ValueDefinitionSite, evaluate_call_plan, scalar_shape,
 };
 use crate::LegalizationError;
-use abstract_operations::AbstractStructuralCallResult;
+use abstract_operations::{
+    AbstractStructuralCallResult, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     TerminalAffineCleanupAction,
@@ -77,26 +79,28 @@ pub(super) fn body(function: &PsiOptimizationFunction) -> bool {
                 | AbstractOperation::IntegerEqual { .. }
                 | AbstractOperation::IntegerLessThan { .. }
                 | AbstractOperation::IntegerLessOrEqual { .. }
-                | AbstractOperation::SaturatingIntegerSubtract { .. }
-                | AbstractOperation::SaturatingIntegerAdd { .. }
-                | AbstractOperation::SaturatingIntegerMultiply { .. }
                 | AbstractOperation::TrappingInteger { .. }
-                | AbstractOperation::ExactIntegerAdd { .. }
-                | AbstractOperation::ExactIntegerDivide { .. }
-                | AbstractOperation::ExactIntegerRemainder { .. }
-                | AbstractOperation::ExactIntegerSubtract { .. }
-                | AbstractOperation::ExactIntegerMultiply { .. }
-                | AbstractOperation::WrappingIntegerSubtract { .. }
-                | AbstractOperation::WrappingIntegerMultiply { .. }
-                | AbstractOperation::WrappingIntegerDivide { .. }
-                | AbstractOperation::WrappingIntegerShiftLeft { .. }
-                | AbstractOperation::WrappingIntegerShiftRight { .. }
-                | AbstractOperation::ExactIntegerShiftLeft { .. }
-                | AbstractOperation::ExactIntegerShiftRight { .. }
+                | AbstractOperation::IntegerShift { .. }
                 | AbstractOperation::IntegerBitwiseOr { .. }
                 | AbstractOperation::IntegerBitwiseNot { .. }
                 | AbstractOperation::Call { .. }
                 | AbstractOperation::EstablishPrimitiveLocal { .. } => true,
+                AbstractOperation::IntegerArithmetic { arithmetic, .. } => matches!(
+                    (arithmetic.policy(), arithmetic.operator()),
+                    (IntegerOverflowPolicy::Exact, _)
+                        | (
+                            IntegerOverflowPolicy::Saturating,
+                            IntegerArithmeticOperator::Add
+                                | IntegerArithmeticOperator::Subtract
+                                | IntegerArithmeticOperator::Multiply
+                        )
+                        | (
+                            IntegerOverflowPolicy::Wrapping,
+                            IntegerArithmeticOperator::Subtract
+                                | IntegerArithmeticOperator::Multiply
+                                | IntegerArithmeticOperator::Divide
+                        )
+                ),
                 AbstractOperation::PrimitiveLocalStore { destination, .. }
                 | AbstractOperation::PrimitiveScalarRead {
                     source: destination,

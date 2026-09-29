@@ -2,7 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use semantic_vocabulary::{ScalarType, ValueId};
 
 use super::{ScalarExpressionRow, TotalScalarExpressionKey, canonical_pair};
@@ -182,111 +185,66 @@ pub(in crate::rules::global_value_numbering) fn total_scalar_expression(
                 ScalarType::Integer(*scalar_type),
             )
         }
-        O::WrappingIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
             result,
             value_type,
             count_type,
+            policy: IntegerShiftPolicy::Wrapping,
+            direction,
             value,
             count,
         } => (
-            TotalScalarExpressionKey::WrappingShiftLeft(*value_type, *count_type, *value, *count),
+            match direction {
+                IntegerShiftDirection::Left => TotalScalarExpressionKey::WrappingShiftLeft(
+                    *value_type,
+                    *count_type,
+                    *value,
+                    *count,
+                ),
+                IntegerShiftDirection::Right => TotalScalarExpressionKey::WrappingShiftRight(
+                    *value_type,
+                    *count_type,
+                    *value,
+                    *count,
+                ),
+            },
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
         ),
-        O::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-        } => (
-            TotalScalarExpressionKey::WrappingShiftRight(*value_type, *count_type, *value, *count),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-        ),
-        O::WrappingIntegerAdd {
+        O::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
         } => {
-            let (left, right) = canonical_pair(*left, *right);
+            use IntegerArithmeticOperator as Operator;
+            use IntegerOverflowPolicy as Policy;
+            use TotalScalarExpressionKey as Key;
+            // Add and multiply commute; subtract keeps its operand order.
+            let (low, high) = canonical_pair(*left, *right);
+            let key = match (arithmetic.policy(), arithmetic.operator()) {
+                (Policy::Wrapping, Operator::Add) => Key::WrappingAdd(*scalar_type, low, high),
+                (Policy::Wrapping, Operator::Subtract) => {
+                    Key::WrappingSubtract(*scalar_type, *left, *right)
+                }
+                (Policy::Wrapping, Operator::Multiply) => {
+                    Key::WrappingMultiply(*scalar_type, low, high)
+                }
+                (Policy::Saturating, Operator::Add) => Key::SaturatingAdd(*scalar_type, low, high),
+                (Policy::Saturating, Operator::Subtract) => {
+                    Key::SaturatingSubtract(*scalar_type, *left, *right)
+                }
+                (Policy::Saturating, Operator::Multiply) => {
+                    Key::SaturatingMultiply(*scalar_type, low, high)
+                }
+                _ => return None,
+            };
             (
-                TotalScalarExpressionKey::WrappingAdd(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
-        O::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            TotalScalarExpressionKey::WrappingSubtract(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-        ),
-        O::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = canonical_pair(*left, *right);
-            (
-                TotalScalarExpressionKey::WrappingMultiply(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
-        O::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = canonical_pair(*left, *right);
-            (
-                TotalScalarExpressionKey::SaturatingAdd(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-            )
-        }
-        O::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            TotalScalarExpressionKey::SaturatingSubtract(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-        ),
-        O::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = canonical_pair(*left, *right);
-            (
-                TotalScalarExpressionKey::SaturatingMultiply(*scalar_type, left, right),
+                key,
                 *psi_operation,
                 *result,
                 ScalarType::Integer(*scalar_type),

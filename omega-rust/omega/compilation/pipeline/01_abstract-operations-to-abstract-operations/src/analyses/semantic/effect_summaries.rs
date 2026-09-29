@@ -307,25 +307,8 @@ fn operation_effect(
         | O::IntegerBitwiseAnd { .. }
         | O::IntegerBitwiseOr { .. }
         | O::IntegerBitwiseXor { .. }
-        | O::WrappingIntegerShiftLeft { .. }
-        | O::WrappingIntegerShiftRight { .. }
-        | O::ExactIntegerShiftLeft { .. }
-        | O::ExactIntegerShiftRight { .. }
-        | O::WrappingIntegerAdd { .. }
-        | O::ExactIntegerAdd { .. }
-        | O::SaturatingIntegerAdd { .. }
-        | O::WrappingIntegerSubtract { .. }
-        | O::ExactIntegerSubtract { .. }
-        | O::SaturatingIntegerSubtract { .. }
-        | O::WrappingIntegerMultiply { .. }
-        | O::ExactIntegerMultiply { .. }
-        | O::ExactIntegerDivide { .. }
-        | O::ExactIntegerRemainder { .. }
-        | O::WrappingIntegerDivide { .. }
-        | O::WrappingIntegerRemainder { .. }
-        | O::SaturatingIntegerDivide { .. }
-        | O::SaturatingIntegerRemainder { .. }
-        | O::SaturatingIntegerMultiply { .. } => (EffectClass::PureScalar, No, No, No, No),
+        | O::IntegerShift { .. }
+        | O::IntegerArithmetic { .. } => (EffectClass::PureScalar, No, No, No, No),
         O::EstablishPrimitiveLocal { .. }
         | O::PrimitiveLocalStore { .. }
         | O::PrimitiveScalarRead { .. }

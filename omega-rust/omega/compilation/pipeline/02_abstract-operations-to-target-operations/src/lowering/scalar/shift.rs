@@ -1,125 +1,60 @@
 //! Exact and wrapping integer-shift semantics.
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
+use abstract_operations::{IntegerShiftDirection, IntegerShiftPolicy};
 use semantic_vocabulary::{IntegerType, ValueId};
 use std::collections::BTreeMap;
 use target_operations::TargetIntegerExpression;
-#[derive(Clone, Copy)]
-pub(in crate::lowering::scalar) enum WrappingShiftKind {
-    Left,
-    Right,
-}
 
+/// Lower one shift. A wrapping shift of two immediates folds; an exact shift
+/// always stays a runtime expression so its in-range count obligation keeps
+/// custody.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering::scalar) fn lower_wrapping_shift(
+pub(in crate::lowering::scalar) fn lower_shift(
     values: &BTreeMap<ValueId, KnownScalar>,
     result: ValueId,
     value_type: IntegerType,
     count_type: IntegerType,
     value_id: ValueId,
     count_id: ValueId,
-    kind: WrappingShiftKind,
+    policy: IntegerShiftPolicy,
+    direction: IntegerShiftDirection,
     psi_operation: semantic_vocabulary::OperationId,
 ) -> Result<KnownInteger, LoweringError> {
+    let mismatch = match policy {
+        IntegerShiftPolicy::Wrapping => LoweringError::WrappingShiftOperandTypeMismatch(result),
+        IntegerShiftPolicy::Exact { .. } => LoweringError::ExactShiftOperandTypeMismatch(result),
+    };
     let operand = |id, expected_type| match values.get(&id).cloned() {
         Some(KnownScalar::Integer { scalar_type, value }) if scalar_type == expected_type => {
             Ok(value)
         }
-        Some(_) => Err(LoweringError::WrappingShiftOperandTypeMismatch(result)),
+        Some(_) => Err(mismatch.clone()),
         None => Err(LoweringError::UnknownValue(id)),
     };
     let value = operand(value_id, value_type)?;
     let count = operand(count_id, count_type)?;
-    Ok(match (value, count) {
-        (KnownInteger::Immediate(value), KnownInteger::Immediate(count)) => {
-            let shifted = match kind {
-                WrappingShiftKind::Left => value_type.wrapping_shift_left(value, count_type, count),
-                WrappingShiftKind::Right => {
-                    value_type.wrapping_shift_right(value, count_type, count)
-                }
-            }
-            .ok_or(LoweringError::WrappingShiftOperandTypeMismatch(result))?;
-            KnownInteger::Immediate(shifted)
-        }
-        (value, count) => {
-            let value = Box::new(value.into_expression(value_id));
-            let count = Box::new(count.into_expression(count_id));
-            KnownInteger::Runtime(match kind {
-                WrappingShiftKind::Left => TargetIntegerExpression::WrappingShiftLeft {
-                    psi_operation,
-                    count_type,
-                    value,
-                    count,
-                },
-                WrappingShiftKind::Right => TargetIntegerExpression::WrappingShiftRight {
-                    psi_operation,
-                    count_type,
-                    value,
-                    count,
-                },
-            })
-        }
-    })
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(in crate::lowering::scalar) fn lower_exact_shift_right(
-    values: &BTreeMap<ValueId, KnownScalar>,
-    result: ValueId,
-    value_type: IntegerType,
-    count_type: IntegerType,
-    value_id: ValueId,
-    count_id: ValueId,
-    psi_operation: semantic_vocabulary::OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<KnownInteger, LoweringError> {
-    let operand = |id, expected_type| match values.get(&id).cloned() {
-        Some(KnownScalar::Integer { scalar_type, value }) if scalar_type == expected_type => {
-            Ok(value)
-        }
-        Some(_) => Err(LoweringError::ExactShiftOperandTypeMismatch(result)),
-        None => Err(LoweringError::UnknownValue(id)),
-    };
-    let value = operand(value_id, value_type)?;
-    let count = operand(count_id, count_type)?;
-    Ok(KnownInteger::Runtime(
-        TargetIntegerExpression::ExactShiftRight {
-            psi_operation,
-            obligation,
-            count_type,
-            value: Box::new(value.into_expression(value_id)),
-            count: Box::new(count.into_expression(count_id)),
-        },
-    ))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(in crate::lowering::scalar) fn lower_exact_shift_left(
-    values: &BTreeMap<ValueId, KnownScalar>,
-    result: ValueId,
-    value_type: IntegerType,
-    count_type: IntegerType,
-    value_id: ValueId,
-    count_id: ValueId,
-    psi_operation: semantic_vocabulary::OperationId,
-    obligation: semantic_vocabulary::ObligationId,
-) -> Result<KnownInteger, LoweringError> {
-    let operand = |id, expected_type| match values.get(&id).cloned() {
-        Some(KnownScalar::Integer { scalar_type, value }) if scalar_type == expected_type => {
-            Ok(value)
-        }
-        Some(_) => Err(LoweringError::ExactShiftOperandTypeMismatch(result)),
-        None => Err(LoweringError::UnknownValue(id)),
-    };
-    let value = operand(value_id, value_type)?;
-    let count = operand(count_id, count_type)?;
-    Ok(KnownInteger::Runtime(
-        TargetIntegerExpression::ExactShiftLeft {
-            psi_operation,
-            obligation,
-            count_type,
-            value: Box::new(value.into_expression(value_id)),
-            count: Box::new(count.into_expression(count_id)),
-        },
-    ))
+    if policy == IntegerShiftPolicy::Wrapping
+        && let (KnownInteger::Immediate(value_constant), KnownInteger::Immediate(count_constant)) =
+            (&value, &count)
+    {
+        let shifted = policy
+            .evaluate(
+                direction,
+                value_type,
+                *value_constant,
+                count_type,
+                *count_constant,
+            )
+            .ok_or(mismatch)?;
+        return Ok(KnownInteger::Immediate(shifted));
+    }
+    Ok(KnownInteger::Runtime(TargetIntegerExpression::Shift {
+        psi_operation,
+        policy,
+        direction,
+        count_type,
+        value: Box::new(value.into_expression(value_id)),
+        count: Box::new(count.into_expression(count_id)),
+    }))
 }

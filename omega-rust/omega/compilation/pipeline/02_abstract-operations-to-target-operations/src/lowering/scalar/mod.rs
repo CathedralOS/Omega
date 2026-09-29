@@ -13,6 +13,4 @@ pub(in crate::lowering) use expressions::{
 };
 pub(in crate::lowering) use integer_binary::{IntegerBinaryKind, lower_integer_binary};
 pub(in crate::lowering) use integer_operation::try_lower_integer_operation;
-use shift::{
-    WrappingShiftKind, lower_exact_shift_left, lower_exact_shift_right, lower_wrapping_shift,
-};
+use shift::lower_shift;

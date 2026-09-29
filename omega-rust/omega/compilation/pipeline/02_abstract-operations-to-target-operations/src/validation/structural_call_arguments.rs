@@ -3498,121 +3498,19 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             target_type,
             ..
         } => integer(*psi_operation, *result, *target_type),
-        AbstractOperation::WrappingIntegerShiftLeft {
-            psi_operation,
-            result,
-            value_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftLeft {
-            psi_operation,
-            result,
-            value_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftRight {
+        AbstractOperation::IntegerShift {
             psi_operation,
             result,
             value_type,
             ..
         } => integer(*psi_operation, *result, *value_type),
-        AbstractOperation::WrappingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerMultiply {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
             ..
         }
         | AbstractOperation::TrappingInteger {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerRemainder {
             psi_operation,
             result,
             scalar_type,

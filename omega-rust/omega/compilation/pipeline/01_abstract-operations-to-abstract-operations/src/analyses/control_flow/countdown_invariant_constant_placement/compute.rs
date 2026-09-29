@@ -10,6 +10,7 @@ use super::{
     ValidatedCountdownInvariantConstantAnalysis, ValidatedCountedLoopAnalysis,
     ValidatedOptimizerCycleComponents, ValueId, recompute_psi_optimization_unit_identity,
 };
+use abstract_operations::{IntegerArithmeticOperator, IntegerOverflowPolicy};
 pub(super) fn propose(
     unit: &PsiOptimizationUnit,
     custody: &ValidatedOptimizerCycleComponents,
@@ -171,25 +172,30 @@ fn check_consumer(
         }
         (
             CountdownInvariantConstantRole::BackedgeDecrementOne,
-            O::ExactIntegerSubtract {
+            O::IntegerArithmetic {
                 psi_operation,
-                obligation,
                 result,
                 scalar_type,
+                arithmetic,
                 left,
                 right,
             },
-        ) => {
+        ) if (arithmetic.policy(), arithmetic.operator())
+            == (
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Subtract,
+            ) =>
+        {
             (
                 *psi_operation,
-                *obligation,
+                arithmetic.obligation(),
                 *result,
                 *scalar_type,
                 *left,
                 *right,
             ) == (
                 operation,
-                certificate.descent.subtract_obligation,
+                Some(certificate.descent.subtract_obligation),
                 certificate.descent.argument,
                 certificate.rank_type,
                 certificate.descent.source_parameter,

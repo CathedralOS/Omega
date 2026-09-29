@@ -1,29 +1,18 @@
 //! Integer binary-operation kinds, folding, and target-expression construction.
 use super::{KnownInteger, KnownScalar};
 use crate::LoweringError;
+use abstract_operations::{IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy};
 use semantic_vocabulary::{IntegerType, IntegerValue, ValueId};
 use std::collections::BTreeMap;
 use target_operations::TargetIntegerExpression;
+/// A binary integer operation over two operands of one carrier: a bitwise
+/// operator, or an arithmetic policy pair with the obligation it carries.
 #[derive(Clone, Copy)]
 pub(in crate::lowering) enum IntegerBinaryKind {
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
-    WrappingAdd,
-    ExactAdd(semantic_vocabulary::ObligationId),
-    SaturatingAdd,
-    WrappingSubtract,
-    ExactSubtract(semantic_vocabulary::ObligationId),
-    SaturatingSubtract,
-    WrappingMultiply,
-    ExactMultiply(semantic_vocabulary::ObligationId),
-    SaturatingMultiply,
-    ExactDivide(semantic_vocabulary::ObligationId),
-    ExactRemainder(semantic_vocabulary::ObligationId),
-    WrappingDivide(semantic_vocabulary::ObligationId),
-    WrappingRemainder(semantic_vocabulary::ObligationId),
-    SaturatingDivide(semantic_vocabulary::ObligationId),
-    SaturatingRemainder(semantic_vocabulary::ObligationId),
+    Arithmetic(IntegerArithmetic),
 }
 pub(in crate::lowering) fn lower_integer_binary(
     values: &BTreeMap<ValueId, KnownScalar>,
@@ -66,34 +55,51 @@ pub(in crate::lowering) fn lower_integer_binary(
 
 impl IntegerBinaryKind {
     fn mismatch(self, result: ValueId) -> LoweringError {
-        match self {
+        use IntegerArithmeticOperator as Operator;
+        use IntegerOverflowPolicy as Policy;
+        let arithmetic = match self {
             Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => {
-                LoweringError::IntegerBitwiseOperandTypeMismatch(result)
+                return LoweringError::IntegerBitwiseOperandTypeMismatch(result);
             }
-            Self::WrappingAdd | Self::ExactAdd(_) => {
+            Self::Arithmetic(arithmetic) => arithmetic,
+        };
+        // Exact add, subtract and multiply share their wrapping sibling's
+        // rejection.
+        match (arithmetic.policy(), arithmetic.operator()) {
+            (Policy::Wrapping | Policy::Exact, Operator::Add) => {
                 LoweringError::WrappingAddOperandTypeMismatch(result)
             }
-            Self::SaturatingAdd => LoweringError::SaturatingAddOperandTypeMismatch(result),
-            Self::WrappingSubtract | Self::ExactSubtract(_) => {
+            (Policy::Saturating, Operator::Add) => {
+                LoweringError::SaturatingAddOperandTypeMismatch(result)
+            }
+            (Policy::Wrapping | Policy::Exact, Operator::Subtract) => {
                 LoweringError::WrappingSubtractOperandTypeMismatch(result)
             }
-            Self::SaturatingSubtract => {
+            (Policy::Saturating, Operator::Subtract) => {
                 LoweringError::SaturatingSubtractOperandTypeMismatch(result)
             }
-            Self::WrappingMultiply | Self::ExactMultiply(_) => {
+            (Policy::Wrapping | Policy::Exact, Operator::Multiply) => {
                 LoweringError::WrappingMultiplyOperandTypeMismatch(result)
             }
-            Self::SaturatingMultiply => {
+            (Policy::Saturating, Operator::Multiply) => {
                 LoweringError::SaturatingMultiplyOperandTypeMismatch(result)
             }
-            Self::ExactDivide(_) => LoweringError::ExactDivideOperandTypeMismatch(result),
-            Self::ExactRemainder(_) => LoweringError::ExactRemainderOperandTypeMismatch(result),
-            Self::WrappingDivide(_) => LoweringError::WrappingDivideOperandTypeMismatch(result),
-            Self::WrappingRemainder(_) => {
+            (Policy::Exact, Operator::Divide) => {
+                LoweringError::ExactDivideOperandTypeMismatch(result)
+            }
+            (Policy::Exact, Operator::Remainder) => {
+                LoweringError::ExactRemainderOperandTypeMismatch(result)
+            }
+            (Policy::Wrapping, Operator::Divide) => {
+                LoweringError::WrappingDivideOperandTypeMismatch(result)
+            }
+            (Policy::Wrapping, Operator::Remainder) => {
                 LoweringError::WrappingRemainderOperandTypeMismatch(result)
             }
-            Self::SaturatingDivide(_) => LoweringError::SaturatingDivideOperandTypeMismatch(result),
-            Self::SaturatingRemainder(_) => {
+            (Policy::Saturating, Operator::Divide) => {
+                LoweringError::SaturatingDivideOperandTypeMismatch(result)
+            }
+            (Policy::Saturating, Operator::Remainder) => {
                 LoweringError::SaturatingRemainderOperandTypeMismatch(result)
             }
         }
@@ -109,21 +115,7 @@ impl IntegerBinaryKind {
             Self::BitwiseAnd => scalar_type.bitwise_and(left, right),
             Self::BitwiseOr => scalar_type.bitwise_or(left, right),
             Self::BitwiseXor => scalar_type.bitwise_xor(left, right),
-            Self::WrappingAdd => scalar_type.wrapping_add(left, right),
-            Self::ExactAdd(_) => scalar_type.exact_add(left, right),
-            Self::SaturatingAdd => scalar_type.saturating_add(left, right),
-            Self::WrappingSubtract => scalar_type.wrapping_sub(left, right),
-            Self::ExactSubtract(_) => scalar_type.exact_sub(left, right),
-            Self::SaturatingSubtract => scalar_type.saturating_sub(left, right),
-            Self::WrappingMultiply => scalar_type.wrapping_mul(left, right),
-            Self::ExactMultiply(_) => scalar_type.exact_mul(left, right),
-            Self::SaturatingMultiply => scalar_type.saturating_mul(left, right),
-            Self::ExactDivide(_) => scalar_type.exact_div(left, right),
-            Self::ExactRemainder(_) => scalar_type.exact_rem(left, right),
-            Self::WrappingDivide(_) => scalar_type.wrapping_div(left, right),
-            Self::WrappingRemainder(_) => scalar_type.wrapping_rem(left, right),
-            Self::SaturatingDivide(_) => scalar_type.saturating_div(left, right),
-            Self::SaturatingRemainder(_) => scalar_type.saturating_rem(left, right),
+            Self::Arithmetic(arithmetic) => arithmetic.evaluate(scalar_type, left, right),
         }
     }
 
@@ -151,107 +143,21 @@ impl IntegerBinaryKind {
                 left,
                 right,
             },
-            Self::WrappingAdd => TargetIntegerExpression::WrappingAdd {
+            Self::Arithmetic(arithmetic) => TargetIntegerExpression::Arithmetic {
                 psi_operation,
-                left,
-                right,
-            },
-            Self::ExactAdd(obligation) => TargetIntegerExpression::ExactAdd {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::SaturatingAdd => TargetIntegerExpression::SaturatingAdd {
-                psi_operation,
-                left,
-                right,
-            },
-            Self::WrappingSubtract => TargetIntegerExpression::WrappingSubtract {
-                psi_operation,
-                left,
-                right,
-            },
-            Self::ExactSubtract(obligation) => TargetIntegerExpression::ExactSubtract {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::SaturatingSubtract => TargetIntegerExpression::SaturatingSubtract {
-                psi_operation,
-                left,
-                right,
-            },
-            Self::WrappingMultiply => TargetIntegerExpression::WrappingMultiply {
-                psi_operation,
-                left,
-                right,
-            },
-            Self::ExactMultiply(obligation) => TargetIntegerExpression::ExactMultiply {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::SaturatingMultiply => TargetIntegerExpression::SaturatingMultiply {
-                psi_operation,
-                left,
-                right,
-            },
-            Self::ExactDivide(obligation) => TargetIntegerExpression::ExactDivide {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::ExactRemainder(obligation) => TargetIntegerExpression::ExactRemainder {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::WrappingDivide(obligation) => TargetIntegerExpression::WrappingDivide {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::WrappingRemainder(obligation) => TargetIntegerExpression::WrappingRemainder {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::SaturatingDivide(obligation) => TargetIntegerExpression::SaturatingDivide {
-                psi_operation,
-                obligation,
-                left,
-                right,
-            },
-            Self::SaturatingRemainder(obligation) => TargetIntegerExpression::SaturatingRemainder {
-                psi_operation,
-                obligation,
+                arithmetic,
                 left,
                 right,
             },
         }
     }
-}
 
-impl IntegerBinaryKind {
+    /// A proof-bearing pair is never folded here: its verifier-discharged
+    /// obligation stays attached to the runtime expression.
     fn is_proof_bearing(self) -> bool {
-        matches!(
-            self,
-            Self::ExactAdd(_)
-                | Self::ExactSubtract(_)
-                | Self::ExactMultiply(_)
-                | Self::ExactDivide(_)
-                | Self::ExactRemainder(_)
-                | Self::WrappingDivide(_)
-                | Self::WrappingRemainder(_)
-                | Self::SaturatingDivide(_)
-                | Self::SaturatingRemainder(_)
-        )
+        match self {
+            Self::BitwiseAnd | Self::BitwiseOr | Self::BitwiseXor => false,
+            Self::Arithmetic(arithmetic) => arithmetic.obligation().is_some(),
+        }
     }
 }

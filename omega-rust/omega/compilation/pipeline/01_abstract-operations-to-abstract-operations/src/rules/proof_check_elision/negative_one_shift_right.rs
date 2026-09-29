@@ -1,6 +1,6 @@
 //! Proof-certified exact signed right shifts of a negative-one value.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractOperation as O, IntegerShiftDirection, IntegerShiftPolicy};
 use optimization_core::{
     AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationPassIdentity,
     OptimizationRuleContract, OptimizationRuleIdentity, OptimizationSafetyClass,
@@ -19,11 +19,13 @@ use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
 fn proof_certified_exact_signed_integer_negative_one_shift_right_shapes(
     operation: &O,
 ) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
-    let O::ExactIntegerShiftRight {
+    let O::IntegerShift {
         psi_operation,
         result,
         value_type,
         value,
+        policy: IntegerShiftPolicy::Exact { .. },
+        direction: IntegerShiftDirection::Right,
         ..
     } = operation
     else {

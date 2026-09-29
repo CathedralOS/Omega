@@ -12,9 +12,12 @@ use crate::legalization::scalar_graph_input::value_type;
 use crate::legalization::scalar_graph_input::{
     saturating_carrier, supports_wrapping_division, trapping_form, trapping_operands_rejoin,
 };
-use abstract_operations::AbstractStructuralCallResult;
+use abstract_operations::{
+    AbstractStructuralCallResult, IntegerArithmetic, IntegerArithmeticOperator,
+    IntegerOverflowPolicy,
+};
 use optimization_unit::OptimizationBlock;
-use semantic_vocabulary::OperationId;
+use semantic_vocabulary::{IntegerType, OperationId};
 /// Why a node has no legal instruction row. Only the first kind is a custody
 /// defect; the second is a limit of this stage that the diagnostic must name.
 pub(in crate::legalization) enum NodeRejection {
@@ -251,48 +254,16 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
             Ok((*psi_operation, *result))
         }
-        AbstractOperation::WrappingIntegerAdd {
+        AbstractOperation::IntegerArithmetic {
             psi_operation,
             result,
             scalar_type,
+            arithmetic,
             ..
-        }
-        | AbstractOperation::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
+        } if integer_arithmetic_admitted(*arithmetic, *scalar_type) => {
             Ok((*psi_operation, *result))
         }
-        AbstractOperation::WrappingIntegerShiftLeft {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerShiftRight {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftLeft {
-            psi_operation,
-            result,
-            value_type,
-            count_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerShiftRight {
+        AbstractOperation::IntegerShift {
             psi_operation,
             result,
             value_type,
@@ -306,48 +277,6 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             // the hardware modulo reduction.
             Ok((*psi_operation, *result))
         }
-        AbstractOperation::WrappingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::WrappingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } if supports_wrapping_division(*scalar_type) => Ok((*psi_operation, *result)),
-        AbstractOperation::SaturatingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::SaturatingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } if saturating_carrier(*scalar_type).is_some() => Ok((*psi_operation, *result)),
         AbstractOperation::TrappingInteger {
             psi_operation,
             result,
@@ -355,50 +284,6 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             operand_type,
             operation,
         } if trapping_form(*scalar_type, *operand_type, operation.primitive()).is_some() => {
-            Ok((*psi_operation, *result))
-        }
-        AbstractOperation::ExactIntegerDivide {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerRemainder {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
-            // Exact divide/remainder admit every fixed 8/16/32/64 carrier.
-            // Non-u64 carriers normalize into signed i64, where the proven
-            // NonZeroDivisor and ResultRepresentable obligations exclude every
-            // input the signed divide would fault on; u64 keeps its unsigned
-            // entry because its dividend range escapes i64.
-            Ok((*psi_operation, *result))
-        }
-        AbstractOperation::ExactIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        }
-        | AbstractOperation::ExactIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            ..
-        } if scalar_shape(ScalarType::Integer(*scalar_type)).is_some() => {
-            // Exact add/sub/mul use the full-register operation for every
-            // fixed native carrier. Inputs are sign/zero normalized; the
-            // retained representability proof makes the result canonical
-            // without the truncation needed by wrapping arithmetic.
-            // Signedness is not an admission fence.
             Ok((*psi_operation, *result))
         }
         AbstractOperation::IntegerEqual {
@@ -449,6 +334,29 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
         _ => Err(NodeRejection::UnsupportedFamily),
     }
 }
+/// The carriers each integer arithmetic pair is realized on. Saturating pairs
+/// need a saturating carrier and wrapping divide/remainder a divisible one.
+/// Every other pair admits each fixed native carrier: exact divide/remainder
+/// normalize non-u64 carriers into signed i64, where the proven NonZeroDivisor
+/// and ResultRepresentable obligations exclude every input the signed divide
+/// would fault on (u64 keeps its unsigned entry because its dividend range
+/// escapes i64), and exact add/sub/mul use the full-register operation over
+/// sign/zero normalized inputs, where the retained representability proof
+/// makes the result canonical without the truncation wrapping arithmetic
+/// needs. Signedness is not an admission fence.
+fn integer_arithmetic_admitted(arithmetic: IntegerArithmetic, scalar_type: IntegerType) -> bool {
+    match (arithmetic.policy(), arithmetic.operator()) {
+        (IntegerOverflowPolicy::Saturating, _) => saturating_carrier(scalar_type).is_some(),
+        (
+            IntegerOverflowPolicy::Wrapping,
+            IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder,
+        ) => supports_wrapping_division(scalar_type),
+        (IntegerOverflowPolicy::Wrapping | IntegerOverflowPolicy::Exact, _) => {
+            scalar_shape(ScalarType::Integer(scalar_type)).is_some()
+        }
+    }
+}
+
 fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -> bool {
     if let ScalarType::Integer(integer) = scalar
         && matches!(integer.bits(), 8 | 16 | 32 | 64)
@@ -1009,27 +917,19 @@ pub(super) fn validate(
                 }
                 ScalarType::Integer(*scalar_type)
             }
-            AbstractOperation::SaturatingIntegerSubtract {
+            // Exact pairs keep their proven operand custody; every other
+            // pair rejoins both operands to the carrier it is admitted on.
+            AbstractOperation::IntegerArithmetic {
                 scalar_type,
-                left,
-                right,
-                ..
-            }
-            | AbstractOperation::SaturatingIntegerAdd {
-                scalar_type,
-                left,
-                right,
-                ..
-            }
-            | AbstractOperation::SaturatingIntegerMultiply {
-                scalar_type,
+                arithmetic,
                 left,
                 right,
                 ..
             } => {
-                if saturating_carrier(*scalar_type).is_none()
-                    || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
-                    || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
+                if arithmetic.policy() != IntegerOverflowPolicy::Exact
+                    && (!integer_arithmetic_admitted(*arithmetic, *scalar_type)
+                        || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
+                        || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type)))
                 {
                     return Err(LegalizationError::custody());
                 }
@@ -1048,95 +948,7 @@ pub(super) fn validate(
                 }
                 ScalarType::Integer(*scalar_type)
             }
-            AbstractOperation::SaturatingIntegerDivide {
-                scalar_type,
-                left,
-                right,
-                ..
-            }
-            | AbstractOperation::SaturatingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-                ..
-            } => {
-                if saturating_carrier(*scalar_type).is_none()
-                    || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
-                    || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
-                {
-                    return Err(LegalizationError::custody());
-                }
-                ScalarType::Integer(*scalar_type)
-            }
-            AbstractOperation::WrappingIntegerAdd {
-                scalar_type,
-                left,
-                right,
-                ..
-            }
-            | AbstractOperation::WrappingIntegerSubtract {
-                scalar_type,
-                left,
-                right,
-                ..
-            }
-            | AbstractOperation::WrappingIntegerMultiply {
-                scalar_type,
-                left,
-                right,
-                ..
-            } => {
-                if scalar_shape(ScalarType::Integer(*scalar_type)).is_none()
-                    || [left, right].iter().any(|value| {
-                        value_type(optimized, **value) != Some(ScalarType::Integer(*scalar_type))
-                    })
-                {
-                    return Err(LegalizationError::custody());
-                }
-                ScalarType::Integer(*scalar_type)
-            }
-            AbstractOperation::WrappingIntegerDivide {
-                scalar_type,
-                left,
-                right,
-                ..
-            }
-            | AbstractOperation::WrappingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-                ..
-            } => {
-                if !supports_wrapping_division(*scalar_type)
-                    || value_type(optimized, *left) != Some(ScalarType::Integer(*scalar_type))
-                    || value_type(optimized, *right) != Some(ScalarType::Integer(*scalar_type))
-                {
-                    return Err(LegalizationError::custody());
-                }
-                ScalarType::Integer(*scalar_type)
-            }
-            AbstractOperation::WrappingIntegerShiftLeft {
-                value_type: shift_value_type,
-                count_type,
-                value,
-                count,
-                ..
-            }
-            | AbstractOperation::WrappingIntegerShiftRight {
-                value_type: shift_value_type,
-                count_type,
-                value,
-                count,
-                ..
-            }
-            | AbstractOperation::ExactIntegerShiftLeft {
-                value_type: shift_value_type,
-                count_type,
-                value,
-                count,
-                ..
-            }
-            | AbstractOperation::ExactIntegerShiftRight {
+            AbstractOperation::IntegerShift {
                 value_type: shift_value_type,
                 count_type,
                 value,
@@ -1151,13 +963,6 @@ pub(super) fn validate(
                     return Err(LegalizationError::custody());
                 }
                 ScalarType::Integer(*shift_value_type)
-            }
-            AbstractOperation::ExactIntegerAdd { scalar_type, .. }
-            | AbstractOperation::ExactIntegerSubtract { scalar_type, .. }
-            | AbstractOperation::ExactIntegerMultiply { scalar_type, .. }
-            | AbstractOperation::ExactIntegerDivide { scalar_type, .. }
-            | AbstractOperation::ExactIntegerRemainder { scalar_type, .. } => {
-                ScalarType::Integer(*scalar_type)
             }
             AbstractOperation::IntegerEqual { left, right, .. }
             | AbstractOperation::IntegerLessThan { left, right, .. }

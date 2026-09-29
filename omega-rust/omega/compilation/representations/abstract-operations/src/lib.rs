@@ -16,9 +16,10 @@ pub use abstract_operations::{
     AbstractStoredDynamicDispatch, AbstractStructuralBinding, AbstractStructuralCallResult,
     AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
     AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
-    AtomicReadsFrom, AtomicReadsFromViolation, CompletionClaimSource, StructuralTypeCatalog,
-    ValueBinding, atomic, calls, control_flow, happens_before_atomic_coherence_violation,
-    operations, ownership, values,
+    AtomicReadsFrom, AtomicReadsFromViolation, CompletionClaimSource, IntegerArithmetic,
+    IntegerArithmeticOperator, IntegerOverflowPolicy, IntegerShiftDirection, IntegerShiftPolicy,
+    StructuralTypeCatalog, ValueBinding, atomic, calls, control_flow,
+    happens_before_atomic_coherence_violation, operations, ownership, values,
 };
 pub use abstract_operations::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,

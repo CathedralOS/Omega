@@ -2,12 +2,19 @@
 //! arithmetic, quotient and remainder, shifts, and bitwise operations, each
 //! one row of the table below over the one traversal in `propose`.
 //!
-//! `IntegerBinaryKind` is the closed operation vocabulary the table names;
-//! `integer_binary_shapes::classify` recognizes a node's shape; `evaluate`
-//! folds two constants under the kind's semantics; `witness` binds the
-//! constant facts (and, for proof-certified kinds, the accepted obligation)
-//! the rewrite carries. The pass owner remains the only local rule-order point.
+//! `IntegerBinaryKind` is the closed rule vocabulary the table names: an
+//! arithmetic or shift policy pair, or one bitwise operator.
+//! `integer_binary_shapes::classify` recognizes a node's shape and the exact
+//! operation it computes; `evaluate` folds two constants under that
+//! operation; `witness` binds the constant facts (and, for proof-certified
+//! kinds, the accepted obligation) the rewrite carries. The pass owner remains
+//! the only local rule-order point.
 
+use abstract_operations::{
+    IntegerArithmetic, IntegerArithmeticOperator, IntegerArithmeticOperator as Operator,
+    IntegerOverflowPolicy, IntegerOverflowPolicy as Policy, IntegerShiftDirection,
+    IntegerShiftDirection as Direction, IntegerShiftPolicy,
+};
 use optimization_core::{
     AnalysisKind, OptimizationRuleContract, OptimizationSafetyClass, ScalarConstantFactIdentity,
 };
@@ -29,105 +36,79 @@ fn contract(rule_name: &[u8], safety: OptimizationSafetyClass) -> OptimizationRu
 }
 
 constant_fold_rules! {
-    ExactIntegerAddConstantsRule = (b"omega.psi-rule.exact-integer-add-constants.v1", ProofCertified, IntegerBinaryKind::ExactAdd);
-    ExactIntegerDivideConstantsRule = (b"omega.psi-rule.exact-integer-divide-constants.v1", ProofCertified, IntegerBinaryKind::ExactDivide);
-    ExactIntegerMultiplyConstantsRule = (b"omega.psi-rule.exact-integer-multiply-constants.v1", ProofCertified, IntegerBinaryKind::ExactMultiply);
-    ExactIntegerRemainderConstantsRule = (b"omega.psi-rule.exact-integer-remainder-constants.v1", ProofCertified, IntegerBinaryKind::ExactRemainder);
-    ExactIntegerShiftLeftConstantsRule = (b"omega.psi-rule.exact-integer-shift-left-constants.v1", ProofCertified, IntegerBinaryKind::ExactShiftLeft);
-    ExactIntegerShiftRightConstantsRule = (b"omega.psi-rule.exact-integer-shift-right-constants.v1", ProofCertified, IntegerBinaryKind::ExactShiftRight);
-    ExactIntegerSubtractConstantsRule = (b"omega.psi-rule.exact-integer-subtract-constants.v1", ProofCertified, IntegerBinaryKind::ExactSubtract);
+    ExactIntegerAddConstantsRule = (b"omega.psi-rule.exact-integer-add-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Exact, Operator::Add));
+    ExactIntegerDivideConstantsRule = (b"omega.psi-rule.exact-integer-divide-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Exact, Operator::Divide));
+    ExactIntegerMultiplyConstantsRule = (b"omega.psi-rule.exact-integer-multiply-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Exact, Operator::Multiply));
+    ExactIntegerRemainderConstantsRule = (b"omega.psi-rule.exact-integer-remainder-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Exact, Operator::Remainder));
+    ExactIntegerShiftLeftConstantsRule = (b"omega.psi-rule.exact-integer-shift-left-constants.v1", ProofCertified, IntegerBinaryKind::Shift(Policy::Exact, Direction::Left));
+    ExactIntegerShiftRightConstantsRule = (b"omega.psi-rule.exact-integer-shift-right-constants.v1", ProofCertified, IntegerBinaryKind::Shift(Policy::Exact, Direction::Right));
+    ExactIntegerSubtractConstantsRule = (b"omega.psi-rule.exact-integer-subtract-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Exact, Operator::Subtract));
     IntegerBitwiseAndConstantsRule = (b"omega.psi-rule.integer-bitwise-and-constants.v1", ExactOperationSemantics, IntegerBinaryKind::BitwiseAnd);
     IntegerBitwiseOrConstantsRule = (b"omega.psi-rule.integer-bitwise-or-constants.v1", ExactOperationSemantics, IntegerBinaryKind::BitwiseOr);
     IntegerBitwiseXorConstantsRule = (b"omega.psi-rule.integer-bitwise-xor-constants.v1", ExactOperationSemantics, IntegerBinaryKind::BitwiseXor);
-    SaturatingIntegerAddConstantsRule = (b"omega.psi-rule.saturating-integer-add-constants.v1", ExactOperationSemantics, IntegerBinaryKind::SaturatingAdd);
-    SaturatingIntegerDivideConstantsRule = (b"omega.psi-rule.saturating-integer-divide-constants.v1", ProofCertified, IntegerBinaryKind::SaturatingDivide);
-    SaturatingIntegerMultiplyConstantsRule = (b"omega.psi-rule.saturating-integer-multiply-constants.v1", ExactOperationSemantics, IntegerBinaryKind::SaturatingMultiply);
-    SaturatingIntegerRemainderConstantsRule = (b"omega.psi-rule.saturating-integer-remainder-constants.v1", ProofCertified, IntegerBinaryKind::SaturatingRemainder);
-    SaturatingIntegerSubtractConstantsRule = (b"omega.psi-rule.saturating-integer-subtract-constants.v1", ExactOperationSemantics, IntegerBinaryKind::SaturatingSubtract);
-    WrappingIntegerAddConstantsRule = (b"omega.psi-rule.wrapping-integer-add-constants.v1", ExactOperationSemantics, IntegerBinaryKind::WrappingAdd);
-    WrappingIntegerDivideConstantsRule = (b"omega.psi-rule.wrapping-integer-divide-constants.v1", ProofCertified, IntegerBinaryKind::WrappingDivide);
-    WrappingIntegerMultiplyConstantsRule = (b"omega.psi-rule.wrapping-integer-multiply-constants.v1", ExactOperationSemantics, IntegerBinaryKind::WrappingMultiply);
-    WrappingIntegerRemainderConstantsRule = (b"omega.psi-rule.wrapping-integer-remainder-constants.v1", ProofCertified, IntegerBinaryKind::WrappingRemainder);
-    WrappingIntegerShiftLeftConstantsRule = (b"omega.psi-rule.wrapping-integer-shift-left-constants.v1", ExactOperationSemantics, IntegerBinaryKind::WrappingShiftLeft);
-    WrappingIntegerShiftRightConstantsRule = (b"omega.psi-rule.wrapping-integer-shift-right-constants.v1", ExactOperationSemantics, IntegerBinaryKind::WrappingShiftRight);
-    WrappingIntegerSubtractConstantsRule = (b"omega.psi-rule.wrapping-integer-subtract-constants.v1", ExactOperationSemantics, IntegerBinaryKind::WrappingSubtract);
+    SaturatingIntegerAddConstantsRule = (b"omega.psi-rule.saturating-integer-add-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Arithmetic(Policy::Saturating, Operator::Add));
+    SaturatingIntegerDivideConstantsRule = (b"omega.psi-rule.saturating-integer-divide-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Saturating, Operator::Divide));
+    SaturatingIntegerMultiplyConstantsRule = (b"omega.psi-rule.saturating-integer-multiply-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Arithmetic(Policy::Saturating, Operator::Multiply));
+    SaturatingIntegerRemainderConstantsRule = (b"omega.psi-rule.saturating-integer-remainder-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Saturating, Operator::Remainder));
+    SaturatingIntegerSubtractConstantsRule = (b"omega.psi-rule.saturating-integer-subtract-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Arithmetic(Policy::Saturating, Operator::Subtract));
+    WrappingIntegerAddConstantsRule = (b"omega.psi-rule.wrapping-integer-add-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Arithmetic(Policy::Wrapping, Operator::Add));
+    WrappingIntegerDivideConstantsRule = (b"omega.psi-rule.wrapping-integer-divide-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Wrapping, Operator::Divide));
+    WrappingIntegerMultiplyConstantsRule = (b"omega.psi-rule.wrapping-integer-multiply-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Arithmetic(Policy::Wrapping, Operator::Multiply));
+    WrappingIntegerRemainderConstantsRule = (b"omega.psi-rule.wrapping-integer-remainder-constants.v1", ProofCertified, IntegerBinaryKind::Arithmetic(Policy::Wrapping, Operator::Remainder));
+    WrappingIntegerShiftLeftConstantsRule = (b"omega.psi-rule.wrapping-integer-shift-left-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Shift(Policy::Wrapping, Direction::Left));
+    WrappingIntegerShiftRightConstantsRule = (b"omega.psi-rule.wrapping-integer-shift-right-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Shift(Policy::Wrapping, Direction::Right));
+    WrappingIntegerSubtractConstantsRule = (b"omega.psi-rule.wrapping-integer-subtract-constants.v1", ExactOperationSemantics, IntegerBinaryKind::Arithmetic(Policy::Wrapping, Operator::Subtract));
 }
 
+/// The rule vocabulary: which constant-fold rule owns a node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum IntegerBinaryKind {
-    ExactAdd,
-    ExactSubtract,
-    ExactMultiply,
-    WrappingAdd,
-    WrappingSubtract,
-    WrappingMultiply,
-    SaturatingAdd,
-    SaturatingSubtract,
-    SaturatingMultiply,
-    ExactDivide,
-    ExactRemainder,
-    WrappingDivide,
-    WrappingRemainder,
-    SaturatingDivide,
-    SaturatingRemainder,
-    ExactShiftLeft,
-    ExactShiftRight,
-    WrappingShiftLeft,
-    WrappingShiftRight,
+    Arithmetic(IntegerOverflowPolicy, IntegerArithmeticOperator),
+    Shift(IntegerOverflowPolicy, IntegerShiftDirection),
     BitwiseAnd,
     BitwiseOr,
     BitwiseXor,
 }
 
+/// The exact operation one binary integer node computes.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum IntegerBinaryOperation {
+    Arithmetic(IntegerArithmetic),
+    Shift {
+        policy: IntegerShiftPolicy,
+        direction: IntegerShiftDirection,
+        count_type: IntegerType,
+    },
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+}
+
+impl IntegerBinaryOperation {
+    fn kind(self) -> IntegerBinaryKind {
+        match self {
+            Self::Arithmetic(arithmetic) => {
+                IntegerBinaryKind::Arithmetic(arithmetic.policy(), arithmetic.operator())
+            }
+            Self::Shift {
+                policy, direction, ..
+            } => IntegerBinaryKind::Shift(policy.overflow_policy(), direction),
+            Self::BitwiseAnd => IntegerBinaryKind::BitwiseAnd,
+            Self::BitwiseOr => IntegerBinaryKind::BitwiseOr,
+            Self::BitwiseXor => IntegerBinaryKind::BitwiseXor,
+        }
+    }
+}
+
+/// One binary integer node: its source, result, carrier and operands. A
+/// shift's value is `left` and its count `right`.
 pub(super) struct IntegerBinaryShape {
     pub(super) source: OperationId,
     pub(super) result: ValueId,
     pub(super) scalar_type: IntegerType,
     pub(super) left: ValueId,
     pub(super) right: ValueId,
-    pub(super) count_type: Option<IntegerType>,
-    pub(super) kind: IntegerBinaryKind,
-}
-
-impl IntegerBinaryShape {
-    pub(super) fn scalar(
-        source: OperationId,
-        result: ValueId,
-        scalar_type: IntegerType,
-        left: ValueId,
-        right: ValueId,
-        kind: IntegerBinaryKind,
-    ) -> Self {
-        Self {
-            source,
-            result,
-            scalar_type,
-            left,
-            right,
-            count_type: None,
-            kind,
-        }
-    }
-
-    pub(super) fn shift(
-        source: OperationId,
-        result: ValueId,
-        value_type: IntegerType,
-        count_type: IntegerType,
-        value: ValueId,
-        count: ValueId,
-        kind: IntegerBinaryKind,
-    ) -> Self {
-        Self {
-            source,
-            result,
-            scalar_type: value_type,
-            left: value,
-            right: count,
-            count_type: Some(count_type),
-            kind,
-        }
-    }
+    pub(super) operation: IntegerBinaryOperation,
 }
 
 fn propose(
@@ -150,7 +131,7 @@ fn propose(
                 let Some(shape) = integer_binary_shapes::classify(&node.operation) else {
                     continue;
                 };
-                if shape.kind != kind {
+                if shape.operation.kind() != kind {
                     continue;
                 }
                 let Some((left_value, left_fact)) =
@@ -215,45 +196,18 @@ fn evaluate(
     left: IntegerValue,
     right: IntegerValue,
 ) -> Option<IntegerValue> {
-    match shape.kind {
-        IntegerBinaryKind::ExactAdd => shape.scalar_type.exact_add(left, right),
-        IntegerBinaryKind::ExactSubtract => shape.scalar_type.exact_sub(left, right),
-        IntegerBinaryKind::ExactMultiply => shape.scalar_type.exact_mul(left, right),
-        IntegerBinaryKind::WrappingAdd => shape.scalar_type.wrapping_add(left, right),
-        IntegerBinaryKind::WrappingSubtract => shape.scalar_type.wrapping_sub(left, right),
-        IntegerBinaryKind::WrappingMultiply => shape.scalar_type.wrapping_mul(left, right),
-        IntegerBinaryKind::SaturatingAdd => shape.scalar_type.saturating_add(left, right),
-        IntegerBinaryKind::SaturatingSubtract => shape.scalar_type.saturating_sub(left, right),
-        IntegerBinaryKind::SaturatingMultiply => shape.scalar_type.saturating_mul(left, right),
-        IntegerBinaryKind::ExactDivide => shape.scalar_type.exact_div(left, right),
-        IntegerBinaryKind::ExactRemainder => shape.scalar_type.exact_rem(left, right),
-        IntegerBinaryKind::WrappingDivide => shape.scalar_type.wrapping_div(left, right),
-        IntegerBinaryKind::WrappingRemainder => shape.scalar_type.wrapping_rem(left, right),
-        IntegerBinaryKind::SaturatingDivide => shape.scalar_type.saturating_div(left, right),
-        IntegerBinaryKind::SaturatingRemainder => shape.scalar_type.saturating_rem(left, right),
-        IntegerBinaryKind::ExactShiftLeft => shape.scalar_type.exact_shift_left(
-            left,
-            shape.count_type.expect("shift count type"),
-            right,
-        ),
-        IntegerBinaryKind::ExactShiftRight => shape.scalar_type.exact_shift_right(
-            left,
-            shape.count_type.expect("shift count type"),
-            right,
-        ),
-        IntegerBinaryKind::WrappingShiftLeft => shape.scalar_type.wrapping_shift_left(
-            left,
-            shape.count_type.expect("shift count type"),
-            right,
-        ),
-        IntegerBinaryKind::WrappingShiftRight => shape.scalar_type.wrapping_shift_right(
-            left,
-            shape.count_type.expect("shift count type"),
-            right,
-        ),
-        IntegerBinaryKind::BitwiseAnd => shape.scalar_type.bitwise_and(left, right),
-        IntegerBinaryKind::BitwiseOr => shape.scalar_type.bitwise_or(left, right),
-        IntegerBinaryKind::BitwiseXor => shape.scalar_type.bitwise_xor(left, right),
+    match shape.operation {
+        IntegerBinaryOperation::Arithmetic(arithmetic) => {
+            arithmetic.evaluate(shape.scalar_type, left, right)
+        }
+        IntegerBinaryOperation::Shift {
+            policy,
+            direction,
+            count_type,
+        } => policy.evaluate(direction, shape.scalar_type, left, count_type, right),
+        IntegerBinaryOperation::BitwiseAnd => shape.scalar_type.bitwise_and(left, right),
+        IntegerBinaryOperation::BitwiseOr => shape.scalar_type.bitwise_or(left, right),
+        IntegerBinaryOperation::BitwiseXor => shape.scalar_type.bitwise_xor(left, right),
     }
 }
 

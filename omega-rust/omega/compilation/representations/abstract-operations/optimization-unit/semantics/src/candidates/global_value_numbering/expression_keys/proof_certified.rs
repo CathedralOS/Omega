@@ -2,7 +2,10 @@
 use crate::candidates::global_value_numbering::expression_keys::{
     IndependentProofScalarExpressionKey, independent_pair,
 };
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use semantic_vocabulary::{OperationId, ScalarType, ValueId};
 
 pub(crate) fn independent_proof_scalar_expression(
@@ -29,178 +32,87 @@ pub(crate) fn independent_proof_scalar_expression(
             ScalarType::Integer(*target_type),
             *obligation,
         ),
-        O::ExactIntegerShiftLeft {
+        O::IntegerShift {
             psi_operation,
-            obligation,
             result,
             value_type,
             count_type,
+            policy: IntegerShiftPolicy::Exact { obligation },
+            direction,
             value,
             count,
         } => (
-            IndependentProofScalarExpressionKey::ExactShiftLeft(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
+            match direction {
+                IntegerShiftDirection::Left => IndependentProofScalarExpressionKey::ExactShiftLeft(
+                    *value_type,
+                    *count_type,
+                    *value,
+                    *count,
+                ),
+                IntegerShiftDirection::Right => {
+                    IndependentProofScalarExpressionKey::ExactShiftRight(
+                        *value_type,
+                        *count_type,
+                        *value,
+                        *count,
+                    )
+                }
+            },
             *psi_operation,
             *result,
             ScalarType::Integer(*value_type),
             *obligation,
         ),
-        O::ExactIntegerShiftRight {
+        O::IntegerArithmetic {
             psi_operation,
-            obligation,
-            result,
-            value_type,
-            count_type,
-            value,
-            count,
-        } => (
-            IndependentProofScalarExpressionKey::ExactShiftRight(
-                *value_type,
-                *count_type,
-                *value,
-                *count,
-            ),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*value_type),
-            *obligation,
-        ),
-        O::ExactIntegerAdd {
-            psi_operation,
-            obligation,
             result,
             scalar_type,
+            arithmetic,
             left,
             right,
         } => {
-            let (left, right) = independent_pair(*left, *right);
+            use IndependentProofScalarExpressionKey as Key;
+            use IntegerArithmeticOperator as Operator;
+            use IntegerOverflowPolicy as Policy;
+            let obligation = arithmetic.obligation()?;
+            // Add and multiply commute; every other operator keeps its
+            // operand order.
+            let (low, high) = independent_pair(*left, *right);
+            let key = match (arithmetic.policy(), arithmetic.operator()) {
+                (Policy::Exact, Operator::Add) => Key::ExactAdd(*scalar_type, low, high),
+                (Policy::Exact, Operator::Subtract) => {
+                    Key::ExactSubtract(*scalar_type, *left, *right)
+                }
+                (Policy::Exact, Operator::Multiply) => Key::ExactMultiply(*scalar_type, low, high),
+                (Policy::Exact, Operator::Divide) => Key::ExactDivide(*scalar_type, *left, *right),
+                (Policy::Exact, Operator::Remainder) => {
+                    Key::ExactRemainder(*scalar_type, *left, *right)
+                }
+                (Policy::Wrapping, Operator::Divide) => {
+                    Key::WrappingDivide(*scalar_type, *left, *right)
+                }
+                (Policy::Wrapping, Operator::Remainder) => {
+                    Key::WrappingRemainder(*scalar_type, *left, *right)
+                }
+                (Policy::Saturating, Operator::Divide) => {
+                    Key::SaturatingDivide(*scalar_type, *left, *right)
+                }
+                (Policy::Saturating, Operator::Remainder) => {
+                    Key::SaturatingRemainder(*scalar_type, *left, *right)
+                }
+                (
+                    Policy::Wrapping | Policy::Saturating,
+                    Operator::Add | Operator::Subtract | Operator::Multiply,
+                ) => return None,
+            };
             (
-                IndependentProofScalarExpressionKey::ExactAdd(*scalar_type, left, right),
+                key,
                 *psi_operation,
                 *result,
                 ScalarType::Integer(*scalar_type),
-                *obligation,
+                obligation,
             )
         }
-        O::ExactIntegerSubtract {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentProofScalarExpressionKey::ExactSubtract(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            *obligation,
-        ),
-        O::ExactIntegerMultiply {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => {
-            let (left, right) = independent_pair(*left, *right);
-            (
-                IndependentProofScalarExpressionKey::ExactMultiply(*scalar_type, left, right),
-                *psi_operation,
-                *result,
-                ScalarType::Integer(*scalar_type),
-                *obligation,
-            )
-        }
-        O::ExactIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentProofScalarExpressionKey::ExactDivide(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            *obligation,
-        ),
-        O::ExactIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentProofScalarExpressionKey::ExactRemainder(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            *obligation,
-        ),
-        O::WrappingIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentProofScalarExpressionKey::WrappingDivide(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            *obligation,
-        ),
-        O::WrappingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentProofScalarExpressionKey::WrappingRemainder(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            *obligation,
-        ),
-        O::SaturatingIntegerDivide {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentProofScalarExpressionKey::SaturatingDivide(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            *obligation,
-        ),
-        O::SaturatingIntegerRemainder {
-            psi_operation,
-            obligation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => (
-            IndependentProofScalarExpressionKey::SaturatingRemainder(*scalar_type, *left, *right),
-            *psi_operation,
-            *result,
-            ScalarType::Integer(*scalar_type),
-            *obligation,
-        ),
         _ => return None,
     })
 }

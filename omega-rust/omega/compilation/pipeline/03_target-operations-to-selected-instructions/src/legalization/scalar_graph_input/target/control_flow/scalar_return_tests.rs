@@ -10,7 +10,10 @@ use crate::LegalizationError;
 use crate::legalization::scalar_graph_input::target::Expression;
 use crate::legalization::scalar_graph_input::u32_type;
 use crate::legalization::scalar_graph_input::u64_type;
-use abstract_operations::{AbstractBlockEntry, AbstractParameter, AbstractResult, ValueBinding};
+use abstract_operations::{
+    AbstractBlockEntry, AbstractParameter, AbstractResult, IntegerArithmetic,
+    IntegerArithmeticOperator, IntegerOverflowPolicy, ValueBinding,
+};
 use semantic_vocabulary::{
     EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId, OperationId,
 };
@@ -115,13 +118,18 @@ fn fixture(
                 when_true: successor(2, 3),
                 when_false: successor(3, 4),
             },
-            AbstractOperation::ExactIntegerSubtract {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation(4),
                 result: value(6),
                 scalar_type: u64_type(),
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Subtract,
+                    Some(ObligationId::new(1).unwrap()),
+                )
+                .expect("admitted integer arithmetic"),
                 left: value(2),
                 right: value(4),
-                obligation: ObligationId::new(1).unwrap(),
             },
             AbstractOperation::Call {
                 psi_operation: operation(5),
@@ -132,13 +140,18 @@ fn fixture(
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
             },
-            AbstractOperation::ExactIntegerAdd {
+            AbstractOperation::IntegerArithmetic {
                 psi_operation: operation(6),
                 result: value(8),
                 scalar_type: u64_type(),
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Add,
+                    Some(ObligationId::new(2).unwrap()),
+                )
+                .expect("admitted integer arithmetic"),
                 left: value(7),
                 right: value(3),
-                obligation: ObligationId::new(2).unwrap(),
             },
             jump(4, 8),
             AbstractOperation::Return {
@@ -462,16 +475,27 @@ fn scalar_cycle_rejects_changed_arithmetic_and_call_rows() {
                     TargetScalarExpression::Integer {
                         scalar_type,
                         expression:
-                            Expression::ExactSubtract {
-                                obligation, left, ..
+                            Expression::Arithmetic {
+                                arithmetic, left, ..
                             },
                     },
             } = &mut graph.blocks[2].operations[0]
             else {
                 panic!("subtract");
             };
+            assert!(arithmetic.is(
+                IntegerOverflowPolicy::Exact,
+                IntegerArithmeticOperator::Subtract
+            ));
             match mutation {
-                "arithmetic obligation" => *obligation = ObligationId::new(99).unwrap(),
+                "arithmetic obligation" => {
+                    *arithmetic = IntegerArithmetic::new(
+                        arithmetic.policy(),
+                        arithmetic.operator(),
+                        Some(ObligationId::new(99).unwrap()),
+                    )
+                    .expect("admitted integer arithmetic")
+                }
                 "arithmetic operand" => {
                     **left = Expression::Immediate {
                         source_value: value(3),

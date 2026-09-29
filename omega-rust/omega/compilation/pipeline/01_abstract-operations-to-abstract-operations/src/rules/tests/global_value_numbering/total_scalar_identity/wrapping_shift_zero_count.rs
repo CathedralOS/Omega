@@ -1,5 +1,6 @@
 //! Wrapping shift-by-zero-count semantic and replay coverage.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{AbstractOperation as O, IntegerShiftDirection, IntegerShiftPolicy};
 
 use super::super::super::super::WrappingShiftZeroCountIdentityRule;
 use crate::rules::tests::fixtures::global_value_numbering::{
@@ -8,7 +9,6 @@ use crate::rules::tests::fixtures::global_value_numbering::{
 };
 use crate::rules::tests::fixtures::id;
 use crate::{AnalysisProduct, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{
     PsiOptimizationUnit, PsiRewriteCandidate, recompute_psi_optimization_unit_identity,
@@ -74,12 +74,15 @@ fn rule_rejects_nonzero_exact_dead_and_mistyped_counts() {
         false,
         true,
     );
-    exact.functions[0].blocks[0].nodes[1].operation = O::ExactIntegerShiftLeft {
+    exact.functions[0].blocks[0].nodes[1].operation = O::IntegerShift {
         psi_operation: id(1_907, OperationId::new),
-        obligation: id(1_909, ObligationId::new),
         result: id(1_905, ValueId::new),
         value_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
         count_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+        policy: IntegerShiftPolicy::Exact {
+            obligation: id(1_909, ObligationId::new),
+        },
+        direction: IntegerShiftDirection::Left,
         value: id(1_903, ValueId::new),
         count: id(1_904, ValueId::new),
     };
@@ -125,8 +128,12 @@ fn rule_rejects_nonzero_exact_dead_and_mistyped_counts() {
         false,
         true,
     );
-    let O::WrappingIntegerShiftRight { count_type, .. } =
-        &mut mistyped.functions[0].blocks[0].nodes[1].operation
+    let O::IntegerShift {
+        count_type,
+        policy: IntegerShiftPolicy::Wrapping,
+        direction: IntegerShiftDirection::Right,
+        ..
+    } = &mut mistyped.functions[0].blocks[0].nodes[1].operation
     else {
         unreachable!()
     };

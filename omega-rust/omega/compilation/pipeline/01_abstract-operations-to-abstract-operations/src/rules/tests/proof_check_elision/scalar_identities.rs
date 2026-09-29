@@ -1,5 +1,9 @@
 //! General proof-certified scalar identity tests.
 use crate::rules::registry::PsiOptimizationRule;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 
 use super::super::super::LiveProofCertifiedIntegerIdentityEliminationRule;
 use crate::RuleAnalysisView;
@@ -7,7 +11,6 @@ use crate::rules::tests::fixtures::id;
 use crate::rules::tests::fixtures::proof_check_elision::{
     exact_add_unit, live_exact_add_zero_unit,
 };
-use abstract_operations::AbstractOperation as O;
 use optimization_unit::{
     OptimizationFact, ProofCertifiedScalarIdentityKind, PsiRewritePatch,
     recompute_psi_optimization_unit_identity,
@@ -31,11 +34,16 @@ fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {
         (
             IntegerValue::Unsigned(0),
             IntegerValue::Unsigned(7),
-            O::ExactIntegerAdd {
+            O::IntegerArithmetic {
                 psi_operation: source,
-                obligation,
                 result,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Add,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
@@ -44,11 +52,16 @@ fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {
         (
             IntegerValue::Unsigned(7),
             IntegerValue::Unsigned(0),
-            O::ExactIntegerAdd {
+            O::IntegerArithmetic {
                 psi_operation: source,
-                obligation,
                 result,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Add,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
@@ -57,11 +70,16 @@ fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {
         (
             IntegerValue::Unsigned(7),
             IntegerValue::Unsigned(0),
-            O::ExactIntegerSubtract {
+            O::IntegerArithmetic {
                 psi_operation: source,
-                obligation,
                 result,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Subtract,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
@@ -70,11 +88,16 @@ fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {
         (
             IntegerValue::Unsigned(1),
             IntegerValue::Unsigned(7),
-            O::ExactIntegerMultiply {
+            O::IntegerArithmetic {
                 psi_operation: source,
-                obligation,
                 result,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Multiply,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
@@ -83,11 +106,16 @@ fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {
         (
             IntegerValue::Unsigned(7),
             IntegerValue::Unsigned(1),
-            O::ExactIntegerMultiply {
+            O::IntegerArithmetic {
                 psi_operation: source,
-                obligation,
                 result,
                 scalar_type: integer,
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Multiply,
+                    Some(obligation),
+                )
+                .expect("admitted integer arithmetic"),
                 left,
                 right,
             },
@@ -96,12 +124,13 @@ fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {
         (
             IntegerValue::Unsigned(7),
             IntegerValue::Unsigned(0),
-            O::ExactIntegerShiftLeft {
+            O::IntegerShift {
                 psi_operation: source,
-                obligation,
                 result,
                 value_type: integer,
                 count_type: integer,
+                policy: IntegerShiftPolicy::Exact { obligation },
+                direction: IntegerShiftDirection::Left,
                 value: left,
                 count: right,
             },
@@ -110,12 +139,13 @@ fn live_proof_certified_identity_vocabulary_is_closed_and_canonical() {
         (
             IntegerValue::Unsigned(7),
             IntegerValue::Unsigned(0),
-            O::ExactIntegerShiftRight {
+            O::IntegerShift {
                 psi_operation: source,
-                obligation,
                 result,
                 value_type: integer,
                 count_type: integer,
+                policy: IntegerShiftPolicy::Exact { obligation },
+                direction: IntegerShiftDirection::Right,
                 value: left,
                 count: right,
             },

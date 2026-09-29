@@ -9,7 +9,10 @@ use crate::rules::tests::fixtures::global_value_numbering::{
 };
 use crate::rules::tests::fixtures::id;
 use crate::{PsiOptimizationRule, RuleAnalysisView};
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmetic, IntegerArithmeticOperator, IntegerOverflowPolicy,
+    IntegerShiftDirection, IntegerShiftPolicy,
+};
 use optimization_unit::{
     PsiRewriteCandidate, PsiRewritePatch, recompute_psi_optimization_unit_identity,
 };
@@ -22,230 +25,78 @@ use semantic_vocabulary::{
 
 #[test]
 fn compatible_policy_key_matrix_binds_sign_width_family_policy_and_operand_order() {
-    #[derive(Clone, Copy)]
-    enum ArithmeticFamily {
-        Add,
-        Subtract,
-        Multiply,
-    }
-    #[derive(Clone, Copy)]
-    enum LeaderPolicy {
-        Wrapping,
-        Saturating,
-    }
-
+    use IntegerArithmeticOperator as Operator;
+    use IntegerOverflowPolicy as Policy;
     let operation = id(20_101, OperationId::new);
     let result = id(20_102, ValueId::new);
     let obligation = id(20_103, ObligationId::new);
     let left = id(20_104, ValueId::new);
     let right = id(20_105, ValueId::new);
+    let arithmetic = |policy, operator, scalar_type, left, right| O::IntegerArithmetic {
+        psi_operation: operation,
+        result,
+        scalar_type,
+        arithmetic: IntegerArithmetic::new(
+            policy,
+            operator,
+            (policy == Policy::Exact).then_some(obligation),
+        )
+        .expect("admitted integer arithmetic"),
+        left,
+        right,
+    };
+    let shift = |policy, direction, value_type, count_type, value, count| O::IntegerShift {
+        psi_operation: operation,
+        result,
+        value_type,
+        count_type,
+        policy,
+        direction,
+        value,
+        count,
+    };
     for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
         for bits in [8, 32, 128] {
             let scalar_type = IntegerType::new(sign, bits).unwrap();
             let foreign_domain = IntegerType::new(sign, bits / 2 + 1).unwrap();
-            for family in [
-                ArithmeticFamily::Add,
-                ArithmeticFamily::Subtract,
-                ArithmeticFamily::Multiply,
-            ] {
-                let redundant = match family {
-                    ArithmeticFamily::Add => O::ExactIntegerAdd {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left,
-                        right,
-                    },
-                    ArithmeticFamily::Subtract => O::ExactIntegerSubtract {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left,
-                        right,
-                    },
-                    ArithmeticFamily::Multiply => O::ExactIntegerMultiply {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left,
-                        right,
-                    },
-                };
+            for operator in [Operator::Add, Operator::Subtract, Operator::Multiply] {
+                let redundant = arithmetic(Policy::Exact, operator, scalar_type, left, right);
                 let redundant_key = compatible_policy_scalar_redundant(&redundant).unwrap().0;
-                for policy in [LeaderPolicy::Wrapping, LeaderPolicy::Saturating] {
-                    let leader = match (family, policy) {
-                        (ArithmeticFamily::Add, LeaderPolicy::Wrapping) => O::WrappingIntegerAdd {
-                            psi_operation: operation,
-                            result,
-                            scalar_type,
-                            left,
-                            right,
-                        },
-                        (ArithmeticFamily::Add, LeaderPolicy::Saturating) => {
-                            O::SaturatingIntegerAdd {
-                                psi_operation: operation,
-                                result,
-                                scalar_type,
-                                left,
-                                right,
-                            }
-                        }
-                        (ArithmeticFamily::Subtract, LeaderPolicy::Wrapping) => {
-                            O::WrappingIntegerSubtract {
-                                psi_operation: operation,
-                                result,
-                                scalar_type,
-                                left,
-                                right,
-                            }
-                        }
-                        (ArithmeticFamily::Subtract, LeaderPolicy::Saturating) => {
-                            O::SaturatingIntegerSubtract {
-                                psi_operation: operation,
-                                result,
-                                scalar_type,
-                                left,
-                                right,
-                            }
-                        }
-                        (ArithmeticFamily::Multiply, LeaderPolicy::Wrapping) => {
-                            O::WrappingIntegerMultiply {
-                                psi_operation: operation,
-                                result,
-                                scalar_type,
-                                left,
-                                right,
-                            }
-                        }
-                        (ArithmeticFamily::Multiply, LeaderPolicy::Saturating) => {
-                            O::SaturatingIntegerMultiply {
-                                psi_operation: operation,
-                                result,
-                                scalar_type,
-                                left,
-                                right,
-                            }
-                        }
-                    };
+                for policy in [Policy::Wrapping, Policy::Saturating] {
+                    let leader = arithmetic(policy, operator, scalar_type, left, right);
                     assert_eq!(
                         compatible_policy_scalar_leader(&leader).unwrap().0,
                         redundant_key
                     );
                 }
-                let swapped = match family {
-                    ArithmeticFamily::Add => O::ExactIntegerAdd {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left: right,
-                        right: left,
-                    },
-                    ArithmeticFamily::Subtract => O::ExactIntegerSubtract {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left: right,
-                        right: left,
-                    },
-                    ArithmeticFamily::Multiply => O::ExactIntegerMultiply {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        scalar_type,
-                        left: right,
-                        right: left,
-                    },
-                };
+                let swapped = arithmetic(Policy::Exact, operator, scalar_type, right, left);
                 let swapped_key = compatible_policy_scalar_redundant(&swapped).unwrap().0;
-                assert_eq!(
-                    redundant_key == swapped_key,
-                    !matches!(family, ArithmeticFamily::Subtract)
-                );
-                let foreign = O::WrappingIntegerAdd {
-                    psi_operation: operation,
-                    result,
-                    scalar_type: foreign_domain,
-                    left,
-                    right,
-                };
+                assert_eq!(redundant_key == swapped_key, operator != Operator::Subtract);
+                let foreign =
+                    arithmetic(Policy::Wrapping, Operator::Add, foreign_domain, left, right);
                 assert_ne!(
                     compatible_policy_scalar_leader(&foreign).unwrap().0,
                     redundant_key
                 );
             }
 
-            for shift_left in [true, false] {
+            for direction in [IntegerShiftDirection::Left, IntegerShiftDirection::Right] {
                 let count_type = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
-                let leader = if shift_left {
-                    O::WrappingIntegerShiftLeft {
-                        psi_operation: operation,
-                        result,
-                        value_type: scalar_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
-                } else {
-                    O::WrappingIntegerShiftRight {
-                        psi_operation: operation,
-                        result,
-                        value_type: scalar_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
-                };
-                let redundant = if shift_left {
-                    O::ExactIntegerShiftLeft {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        value_type: scalar_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
-                } else {
-                    O::ExactIntegerShiftRight {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        value_type: scalar_type,
-                        count_type,
-                        value: left,
-                        count: right,
-                    }
-                };
+                let exact = IntegerShiftPolicy::Exact { obligation };
+                let leader = shift(
+                    IntegerShiftPolicy::Wrapping,
+                    direction,
+                    scalar_type,
+                    count_type,
+                    left,
+                    right,
+                );
+                let redundant = shift(exact, direction, scalar_type, count_type, left, right);
                 assert_eq!(
                     compatible_policy_scalar_leader(&leader).unwrap().0,
                     compatible_policy_scalar_redundant(&redundant).unwrap().0
                 );
-                let reversed = if shift_left {
-                    O::ExactIntegerShiftLeft {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        value_type: scalar_type,
-                        count_type,
-                        value: right,
-                        count: left,
-                    }
-                } else {
-                    O::ExactIntegerShiftRight {
-                        psi_operation: operation,
-                        obligation,
-                        result,
-                        value_type: scalar_type,
-                        count_type,
-                        value: right,
-                        count: left,
-                    }
-                };
+                let reversed = shift(exact, direction, scalar_type, count_type, right, left);
                 assert_ne!(
                     compatible_policy_scalar_leader(&leader).unwrap().0,
                     compatible_policy_scalar_redundant(&reversed).unwrap().0

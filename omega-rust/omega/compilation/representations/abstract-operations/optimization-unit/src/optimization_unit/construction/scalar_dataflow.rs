@@ -69,77 +69,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
             scalar_type,
             ..
         }
-        | O::WrappingIntegerAdd {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerAdd {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerAdd {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerSubtract {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerSubtract {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerSubtract {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerMultiply {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerMultiply {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerDivide {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::ExactIntegerRemainder {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerDivide {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::WrappingIntegerRemainder {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerDivide {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerRemainder {
-            result,
-            scalar_type,
-            ..
-        }
-        | O::SaturatingIntegerMultiply {
+        | O::IntegerArithmetic {
             result,
             scalar_type,
             ..
@@ -159,16 +89,7 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
             target_type,
             ..
         } => Some((*result, ScalarType::Integer(*target_type))),
-        O::WrappingIntegerShiftLeft {
-            result, value_type, ..
-        }
-        | O::WrappingIntegerShiftRight {
-            result, value_type, ..
-        }
-        | O::ExactIntegerShiftLeft {
-            result, value_type, ..
-        }
-        | O::ExactIntegerShiftRight {
+        O::IntegerShift {
             result, value_type, ..
         } => Some((*result, ScalarType::Integer(*value_type))),
         O::AtomicEvent { event, .. } => {
@@ -263,21 +184,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         | O::IntegerBitwiseAnd { left, right, .. }
         | O::IntegerBitwiseOr { left, right, .. }
         | O::IntegerBitwiseXor { left, right, .. }
-        | O::WrappingIntegerAdd { left, right, .. }
-        | O::ExactIntegerAdd { left, right, .. }
-        | O::SaturatingIntegerAdd { left, right, .. }
-        | O::WrappingIntegerSubtract { left, right, .. }
-        | O::ExactIntegerSubtract { left, right, .. }
-        | O::SaturatingIntegerSubtract { left, right, .. }
-        | O::WrappingIntegerMultiply { left, right, .. }
-        | O::ExactIntegerMultiply { left, right, .. }
-        | O::ExactIntegerDivide { left, right, .. }
-        | O::ExactIntegerRemainder { left, right, .. }
-        | O::WrappingIntegerDivide { left, right, .. }
-        | O::WrappingIntegerRemainder { left, right, .. }
-        | O::SaturatingIntegerDivide { left, right, .. }
-        | O::SaturatingIntegerRemainder { left, right, .. }
-        | O::SaturatingIntegerMultiply { left, right, .. } => vec![*left, *right],
+        | O::IntegerArithmetic { left, right, .. } => vec![*left, *right],
         O::TrappingInteger { operation, .. } => operation.operands(),
         O::IeeeFloatCompare { left, right, .. } => vec![*left, *right],
         O::NearestIeeeFloatFusedMultiplyAdd {
@@ -286,10 +193,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
             addend,
             ..
         } => vec![*left, *right, *addend],
-        O::WrappingIntegerShiftLeft { value, count, .. }
-        | O::WrappingIntegerShiftRight { value, count, .. }
-        | O::ExactIntegerShiftLeft { value, count, .. }
-        | O::ExactIntegerShiftRight { value, count, .. } => vec![*value, *count],
+        O::IntegerShift { value, count, .. } => vec![*value, *count],
         O::Jump { bindings, .. } => bindings.iter().map(|binding| binding.argument).collect(),
         O::Conditional {
             condition,

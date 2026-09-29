@@ -1,7 +1,9 @@
 //! The exact wrapping neutral-arithmetic rule, and the closed semantic partition
 //! (`classify`) it proposes over.
 
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{
+    AbstractOperation as O, IntegerArithmeticOperator, IntegerOverflowPolicy,
+};
 use optimization_core::OptimizationRuleContract;
 use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate, TotalScalarIdentityKind};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
@@ -38,81 +40,52 @@ impl PsiOptimizationRule for WrappingNeutralArithmeticIdentityRule {
 
 /// Return the exact laws in canonical left-literal/right-literal tie order.
 pub(super) fn classify(operation: &O) -> Vec<TotalScalarIdentityShape> {
-    match operation {
-        O::WrappingIntegerAdd {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => vec![
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *right,
-                law_operand: *left,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::WrappingIntegerAddZeroLeft,
-                expected_law_value: integer_value(*scalar_type, 0),
-            },
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *left,
-                law_operand: *right,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::WrappingIntegerAddZeroRight,
-                expected_law_value: integer_value(*scalar_type, 0),
-            },
-        ],
-        O::WrappingIntegerSubtract {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => vec![TotalScalarIdentityShape {
-            source_operation: *psi_operation,
-            result: *result,
-            replacement: *left,
-            law_operand: *right,
-            scalar_type: *scalar_type,
-            law_operand_type: *scalar_type,
-            identity: TotalScalarIdentityKind::WrappingIntegerSubtractZeroRight,
-            expected_law_value: integer_value(*scalar_type, 0),
-        }],
-        O::WrappingIntegerMultiply {
-            psi_operation,
-            result,
-            scalar_type,
-            left,
-            right,
-        } => vec![
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *right,
-                law_operand: *left,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::WrappingIntegerMultiplyOneLeft,
-                expected_law_value: integer_value(*scalar_type, 1),
-            },
-            TotalScalarIdentityShape {
-                source_operation: *psi_operation,
-                result: *result,
-                replacement: *left,
-                law_operand: *right,
-                scalar_type: *scalar_type,
-                law_operand_type: *scalar_type,
-                identity: TotalScalarIdentityKind::WrappingIntegerMultiplyOneRight,
-                expected_law_value: integer_value(*scalar_type, 1),
-            },
-        ],
-        _ => Vec::new(),
+    use TotalScalarIdentityKind as Kind;
+    let O::IntegerArithmetic {
+        psi_operation,
+        result,
+        scalar_type,
+        arithmetic,
+        left,
+        right,
+    } = operation
+    else {
+        return Vec::new();
+    };
+    if arithmetic.policy() != IntegerOverflowPolicy::Wrapping {
+        return Vec::new();
     }
+    let zero = integer_value(*scalar_type, 0);
+    let one = integer_value(*scalar_type, 1);
+    // (replacement, law operand, identity, expected law value)
+    let laws = match arithmetic.operator() {
+        IntegerArithmeticOperator::Add => vec![
+            (*right, *left, Kind::WrappingIntegerAddZeroLeft, zero),
+            (*left, *right, Kind::WrappingIntegerAddZeroRight, zero),
+        ],
+        IntegerArithmeticOperator::Subtract => {
+            vec![(*left, *right, Kind::WrappingIntegerSubtractZeroRight, zero)]
+        }
+        IntegerArithmeticOperator::Multiply => vec![
+            (*right, *left, Kind::WrappingIntegerMultiplyOneLeft, one),
+            (*left, *right, Kind::WrappingIntegerMultiplyOneRight, one),
+        ],
+        IntegerArithmeticOperator::Divide | IntegerArithmeticOperator::Remainder => Vec::new(),
+    };
+    laws.into_iter()
+        .map(
+            |(replacement, law_operand, identity, expected_law_value)| TotalScalarIdentityShape {
+                source_operation: *psi_operation,
+                result: *result,
+                replacement,
+                law_operand,
+                scalar_type: *scalar_type,
+                law_operand_type: *scalar_type,
+                identity,
+                expected_law_value,
+            },
+        )
+        .collect()
 }
 
 const fn integer_value(scalar_type: IntegerType, value: u128) -> IntegerValue {
