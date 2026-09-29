@@ -859,6 +859,7 @@ pass/structs/deep_nested_write_paths_exit rejected 462ms
 pass/structs/mutable_array_record_state_transfer built 707ms exit:70
 pass/structs/mutable_record_state_transfer built 629ms exit:70
 pass/structs/nested_unused_provider_fields built 600ms exit:70
+pass/structs/runtime_declared_record_member_fill_exit built 748ms exit:70 @2688b8aa6c7a
 pass/structs/runtime_local_record_policy_exit built 1277ms exit:70
 pass/structs/runtime_nested_struct_construction_exit built 724ms exit:70
 pass/structs/runtime_struct_array_literal_exit rejected 514ms
