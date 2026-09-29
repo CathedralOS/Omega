@@ -486,3 +486,68 @@ fn projected_transition_cleanup_admits_multi_state_machines() {
         checked.facts.flow.terminal_structural_control_cleanups
     );
 }
+
+#[test]
+fn case_bound_payload_moves_transfer_from_owned_parameter_subjects() {
+    // `hop(cmd)` moves the arm-bound payload out of the dispatched
+    // parameter's case; the subject's residual dies with the dispatch's own
+    // consumption, so the source state keeps its cleanup plan and both
+    // ordinary edges mint rows.
+    let checked = checked_program(
+        r#"
+        data Cmd { tag: i32; }
+        data Msg { case A(cmd: Cmd); case B; }
+        machine dispatch(m: Msg) {
+            transition m {
+                Msg::A { cmd } -> hop(cmd)
+                Msg::B -> done()
+            }
+            state hop(cmd: Cmd) {}
+            state done() {}
+        }
+        "#,
+    );
+    let (machine, entry) = machine_and_entry_state(&checked, "dispatch");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_state(machine, entry)
+        .expect("a dispatch-consumed subject's residual must not withhold the source state's cleanup plan");
+    assert_eq!(plan.edges.len(), 2);
+    assert!(
+        plan.edges
+            .iter()
+            .all(|edge| edge.trivial_affine_discard_parameter_positions.is_empty())
+    );
+}
+
+#[test]
+fn expression_sibling_arms_keep_the_scrutinee_locals_exit_drop() {
+    // An `(expression)` arm mints no successor row: the scrutinee local is
+    // retained to the exit drop its state-exit cleanup classifies, and the
+    // named arm keeps its edge. Before this admission the whole plan was
+    // withheld at the named-target requirement.
+    let checked = crate::tests::front_end::checked_program(
+        r#"
+        data Cmd { tag: i32; }
+        data Msg { case A(cmd: Cmd); case B; }
+        machine run() -> i32 {
+            let m: Msg = Msg::A { cmd: Cmd { tag: 1 } };
+            transition m {
+                Msg::A { cmd } -> hop(cmd)
+                Msg::B -> (0)
+            }
+            state hop(cmd: Cmd) -> i32 { 0 }
+        }
+        "#,
+    );
+    let (machine, entry) = machine_and_entry_state(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_control_cleanups
+        .for_state(machine, entry)
+        .expect("a retained scrutinee local must not withhold the source state's cleanup plan");
+    assert_eq!(plan.edges.len(), 1);
+}
