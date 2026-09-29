@@ -1,5 +1,5 @@
-//! Nearest-even IEEE forms: one operation whose result has one interchange
-//! format.
+//! IEEE forms: one operation on one interchange format, rounding to nearest
+//! (ties to even) or, for conversion to an integer, toward zero.
 //!
 //! Scalar graphs hold IEEE values as raw payloads in general registers, the
 //! same carrier IEEE comparison and field storage use, and integers in
@@ -10,12 +10,13 @@
 //! ties to even; no trap unmasking; no flush to zero), and moves the result
 //! payload back. The scratch registers are declared clobbers.
 //!
-//! Tags: 230 plus the dense ordinal, so the 24 forms occupy 230 through 253
-//! of the one-byte machine-tag space. Only 254 and 255 remain; a further
-//! family (for example float-to-integer conversion) needs a wider tag.
+//! Every form shares machine tag 230, followed in each identity and codec by
+//! one payload byte holding its dense ordinal.
 
 pub use semantic_vocabulary::IeeeFloatFormat;
-pub use target_operations::{IeeeFloatArithmeticOperation, IeeeFloatIntegerSource};
+pub use target_operations::{
+    IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IeeeFloatArithmeticForm {
@@ -56,17 +57,25 @@ impl IeeeFloatArithmeticForm {
         operation * 2 + format
     }
 
-    /// The one machine-semantic and alternative-family tag of each form:
-    /// 230 plus its dense ordinal (230 through 253), above every fixed,
-    /// saturating, Trapping and atomic tag. Forms are appended, never
-    /// renumbered.
+    /// The one machine-semantic and alternative-family tag every form
+    /// shares. The one-byte tag space has no room for a dense block per form,
+    /// so each identity, program encoding and recovery codec writes the
+    /// form's [`Self::machine_payload`] byte directly after this tag.
+    pub const FAMILY_TAG: u8 = 230;
+
     pub const fn machine_tag(self) -> u8 {
-        230 + self.ordinal()
+        Self::FAMILY_TAG
     }
 
-    pub const fn from_machine_tag(tag: u8) -> Option<Self> {
-        if tag >= 230 && ((tag - 230) as usize) < Self::COUNT {
-            Some(Self::ALL[(tag - 230) as usize])
+    /// The payload byte after [`Self::FAMILY_TAG`]: the dense ordinal.
+    /// Forms are appended, never renumbered.
+    pub const fn machine_payload(self) -> u8 {
+        self.ordinal()
+    }
+
+    pub const fn from_machine_payload(payload: u8) -> Option<Self> {
+        if (payload as usize) < Self::COUNT {
+            Some(Self::ALL[payload as usize])
         } else {
             None
         }
@@ -91,13 +100,16 @@ mod tests {
     fn forms_are_dense_distinct_and_round_trip_their_tags() {
         for (ordinal, form) in IeeeFloatArithmeticForm::ALL.into_iter().enumerate() {
             assert_eq!(usize::from(form.ordinal()), ordinal);
+            assert_eq!(form.machine_tag(), IeeeFloatArithmeticForm::FAMILY_TAG);
             assert_eq!(
-                IeeeFloatArithmeticForm::from_machine_tag(form.machine_tag()),
+                IeeeFloatArithmeticForm::from_machine_payload(form.machine_payload()),
                 Some(form)
             );
         }
-        assert_eq!(IeeeFloatArithmeticForm::from_machine_tag(229), None);
-        assert_eq!(IeeeFloatArithmeticForm::from_machine_tag(254), None);
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 24);
+        assert_eq!(
+            IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
+            None
+        );
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 36);
     }
 }

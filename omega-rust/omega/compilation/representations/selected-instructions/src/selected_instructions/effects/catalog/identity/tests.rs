@@ -505,9 +505,14 @@ fn saturating_catalog_identity_binds_keys_and_gives_every_carrier_a_distinct_fam
             tags.push(tag);
         }
     }
-    let every_tag: std::collections::BTreeSet<u8> = MachineSemanticKind::ALL
+    let every_tag: std::collections::BTreeSet<(u8, Option<u8>)> = MachineSemanticKind::ALL
         .iter()
-        .map(|semantic| semantic_kind_tag(*semantic))
+        .map(|semantic| {
+            (
+                semantic_kind_tag(*semantic),
+                super::semantic_kind_payload(*semantic),
+            )
+        })
         .collect();
     assert_eq!(every_tag.len(), MachineSemanticKind::ALL.len());
     tags.sort_unstable();
@@ -996,7 +1001,12 @@ fn trapping_family_tags_are_dense_distinct_and_pinned() {
     }
     let every_tag = MachineSemanticKind::ALL
         .iter()
-        .map(|semantic| semantic_kind_tag(*semantic))
+        .map(|semantic| {
+            (
+                semantic_kind_tag(*semantic),
+                super::semantic_kind_payload(*semantic),
+            )
+        })
         .collect::<std::collections::BTreeSet<_>>();
     assert_eq!(every_tag.len(), MachineSemanticKind::ALL.len());
 }
@@ -1417,53 +1427,71 @@ fn machine_alternative_identity_bytes_are_pinned_for_every_variant() {
 }
 
 #[test]
-fn float_arithmetic_family_tags_are_dense_distinct_and_pinned() {
+fn float_forms_share_one_tag_and_pin_their_payload_ordinals() {
     use crate::{IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat};
     let pinned = [
         (
             IeeeFloatArithmeticOperation::Add,
             IeeeFloatFormat::Binary32,
-            230,
+            0,
         ),
         (
             IeeeFloatArithmeticOperation::Add,
             IeeeFloatFormat::Binary64,
-            231,
+            1,
         ),
         (
             IeeeFloatArithmeticOperation::Subtract,
             IeeeFloatFormat::Binary64,
-            233,
+            3,
         ),
         (
             IeeeFloatArithmeticOperation::Divide,
             IeeeFloatFormat::Binary64,
-            237,
+            7,
+        ),
+        (
+            IeeeFloatArithmeticOperation::Minimum,
+            IeeeFloatFormat::Binary32,
+            8,
+        ),
+        (
+            IeeeFloatArithmeticOperation::SquareRoot,
+            IeeeFloatFormat::Binary64,
+            15,
         ),
     ];
-    for (operation, format, expected) in pinned {
+    for (operation, format, payload) in pinned {
         let form = IeeeFloatArithmeticForm { operation, format };
-        assert_eq!(
-            alternative_family_tag(MachineAlternativeFamily::NearestIeeeFloatArithmetic(form)),
-            expected
-        );
-        assert_eq!(
-            semantic_kind_tag(MachineSemanticKind::NearestIeeeFloatArithmetic(form)),
-            expected
-        );
+        let family = MachineAlternativeFamily::NearestIeeeFloatArithmetic(form);
+        let semantic = MachineSemanticKind::NearestIeeeFloatArithmetic(form);
+        assert_eq!(alternative_family_tag(family), 230);
+        assert_eq!(semantic_kind_tag(semantic), 230);
+        assert_eq!(super::alternative_family_payload(family), Some(payload));
+        assert_eq!(super::semantic_kind_payload(semantic), Some(payload));
     }
     let atomic = crate::AtomicForm::ALL
         .iter()
         .map(|form| form.machine_tag())
         .max()
         .unwrap();
-    for form in IeeeFloatArithmeticForm::ALL {
-        let tag =
-            alternative_family_tag(MachineAlternativeFamily::NearestIeeeFloatArithmetic(form));
-        assert!(tag > atomic, "{form:?} aliases an atomic family tag");
-        assert!(
-            MachineSemanticKind::ALL
-                .contains(&MachineSemanticKind::NearestIeeeFloatArithmetic(form))
-        );
+    assert!(IeeeFloatArithmeticForm::FAMILY_TAG > atomic);
+    // Every other family writes no payload, so the float tag cannot be read
+    // as the prefix of another family's identity.
+    for semantic in MachineSemanticKind::ALL {
+        let float = matches!(semantic, MachineSemanticKind::NearestIeeeFloatArithmetic(_));
+        assert_eq!(super::semantic_kind_payload(semantic).is_some(), float);
+        assert_eq!(semantic_kind_tag(semantic) == 230, float, "{semantic:?}");
     }
+    // The key identity carries the payload between tag and variant.
+    let form = IeeeFloatArithmeticForm::ALL[9];
+    let mut bytes = Vec::new();
+    crate::encode_machine_alternative_key_identity(
+        &mut bytes,
+        crate::MachineAlternativeKey {
+            family: MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
+            variant: 0,
+        },
+    );
+    assert_eq!(bytes[..2], [230, 9]);
 }

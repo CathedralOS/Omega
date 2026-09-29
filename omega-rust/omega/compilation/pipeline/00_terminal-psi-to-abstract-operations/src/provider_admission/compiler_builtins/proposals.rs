@@ -240,32 +240,44 @@ fn compiler_builtin_execution(
             domain,
         } => {
             use effects::CompilerNumericType as Numeric;
+            use numerics::arithmetic::ArithmeticDomain;
+            use target_operations::{IeeeFloatIntegerCarrier as Carrier, IeeeFloatToIntegerDomain};
+            let float = |numeric| match numeric {
+                Numeric::F32 => Some(semantic_vocabulary::IeeeFloatFormat::Binary32),
+                Numeric::F64 => Some(semantic_vocabulary::IeeeFloatFormat::Binary64),
+                _ => None,
+            };
+            let carrier = |numeric| match numeric {
+                Numeric::I32 => Some(Carrier::I32),
+                Numeric::I64 => Some(Carrier::I64),
+                Numeric::U32 => Some(Carrier::U32),
+                _ => None,
+            };
             // Conversions into a float format are total nearest-even Exact
-            // requirements. Float-to-integer conversions (every domain) and
-            // the integer carriers without a one-instruction conversion on
-            // both architectures stay unrealized.
-            if domain != numerics::arithmetic::ArithmeticDomain::Exact {
-                return None;
+            // requirements. Conversions to an integer truncate: Exact and
+            // Saturating realize as one clamped truncation, Trapping has no
+            // realization. Carriers without a native conversion on both
+            // architectures stay unrealized.
+            match (float(source), float(target), domain) {
+                (Some(from), Some(format), ArithmeticDomain::Exact) if from != format => {
+                    (Arithmetic::ConvertFormat, format)
+                }
+                (None, Some(format), ArithmeticDomain::Exact) => {
+                    (Arithmetic::FromInteger(carrier(source)?), format)
+                }
+                (Some(format), None, ArithmeticDomain::Exact | ArithmeticDomain::Saturating) => (
+                    Arithmetic::TruncateToInteger {
+                        target: carrier(target)?,
+                        domain: if domain == ArithmeticDomain::Exact {
+                            IeeeFloatToIntegerDomain::Exact
+                        } else {
+                            IeeeFloatToIntegerDomain::Saturating
+                        },
+                    },
+                    format,
+                ),
+                _ => return None,
             }
-            let format = match target {
-                Numeric::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
-                Numeric::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
-                _ => return None,
-            };
-            let operation = match source {
-                Numeric::F32 | Numeric::F64 if source != target => Arithmetic::ConvertFormat,
-                Numeric::I32 => {
-                    Arithmetic::FromInteger(target_operations::IeeeFloatIntegerSource::I32)
-                }
-                Numeric::I64 => {
-                    Arithmetic::FromInteger(target_operations::IeeeFloatIntegerSource::I64)
-                }
-                Numeric::U32 => {
-                    Arithmetic::FromInteger(target_operations::IeeeFloatIntegerSource::U32)
-                }
-                _ => return None,
-            };
-            (operation, format)
         }
         CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. } => return None,
     };

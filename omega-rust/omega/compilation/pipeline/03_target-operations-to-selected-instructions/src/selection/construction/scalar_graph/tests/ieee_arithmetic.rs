@@ -23,11 +23,24 @@ use semantic_vocabulary::{
 pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
     use IeeeFloatArithmeticOperation::{
         Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, Negate, SquareRoot,
-        Subtract,
+        Subtract, TruncateToInteger,
     };
-    use selected_instructions::IeeeFloatIntegerSource::{I32, I64, U32};
+    use selected_instructions::IeeeFloatIntegerCarrier::{I32, I64, U32};
     let left = operands[0];
     let right = operands.get(1).copied().unwrap_or_default();
+    if let TruncateToInteger { target, .. } = form.operation {
+        // Rust's float-to-integer `as` saturates and maps NaN to zero, the
+        // Saturating contract; `i32` results keep a sign-extended carrier.
+        let value = match form.format {
+            IeeeFloatFormat::Binary32 => f64::from(f32::from_bits(left as u32)),
+            IeeeFloatFormat::Binary64 => f64::from_bits(left),
+        };
+        return match target {
+            I32 => value as i32 as i64 as u64,
+            I64 => value as i64 as u64,
+            U32 => u64::from(value as u32),
+        };
+    }
     match form.format {
         IeeeFloatFormat::Binary32 => {
             let (a, b) = (f32::from_bits(left as u32), f32::from_bits(right as u32));
@@ -57,6 +70,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                     FromInteger(I32) => left as u32 as i32 as f32,
                     FromInteger(I64) => left as i64 as f32,
                     FromInteger(U32) => left as u32 as f32,
+                    TruncateToInteger { .. } => unreachable!("integer results return above"),
                 }
                 .to_bits(),
             )
@@ -88,6 +102,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                 FromInteger(I32) => f64::from(left as u32 as i32),
                 FromInteger(I64) => left as i64 as f64,
                 FromInteger(U32) => f64::from(left as u32),
+                TruncateToInteger { .. } => unreachable!("integer results return above"),
             }
             .to_bits()
         }
@@ -100,10 +115,29 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
 fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
     use IeeeFloatArithmeticOperation::{
         Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, Negate, SquareRoot,
-        Subtract,
+        Subtract, TruncateToInteger,
     };
     use IeeeFloatFormat::{Binary32, Binary64};
-    use selected_instructions::IeeeFloatIntegerSource::{I32, I64, U32};
+    use selected_instructions::IeeeFloatIntegerCarrier::{I32, I64, U32};
+    use selected_instructions::IeeeFloatToIntegerDomain::{Exact, Saturating};
+    if let TruncateToInteger { target, domain } = form.operation {
+        // Exact cases truncate an in-range operand toward zero; Saturating
+        // cases clamp an out-of-range operand or map NaN to zero.
+        return match (form.format, target, domain) {
+            (Binary64, I32, Exact) => [0x4093_4b99_9999_999a, 0, 1234],
+            (Binary64, I64, Exact) => [0x4340_0000_0000_0000, 0, 9_007_199_254_740_992],
+            (Binary64, U32, Exact) => [0x41e6_5a0b_c000_0000, 0, 3_000_000_000],
+            (Binary64, I32, Saturating) => [0x41e6_5a0b_c000_0000, 0, 0x7fff_ffff],
+            (Binary64, I64, Saturating) => [0x7ff8_0000_0000_0000, 0, 0],
+            (Binary64, U32, Saturating) => [0x41f2_a05f_2000_0000, 0, 0xffff_ffff],
+            (Binary32, I32, Exact) => [0x4b80_0000, 0, 16_777_216],
+            (Binary32, I64, Exact) => [0x5380_0000, 0, 1_099_511_627_776],
+            (Binary32, U32, Exact) => [0x4f6e_6b28, 0, 4_000_000_000],
+            (Binary32, I32, Saturating) => [0x5015_02f9, 0, 0x7fff_ffff],
+            (Binary32, I64, Saturating) => [0x5f50_2ab5, 0, 0x7fff_ffff_ffff_ffff],
+            (Binary32, U32, Saturating) => [0xc0a0_0000, 0, 0],
+        };
+    }
     match (form.format, form.operation) {
         // 1 + 3*2^-54 -> 1 + 2^-52
         (Binary64, Add) => [
@@ -166,6 +200,7 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
         (Binary32, FromInteger(I64)) => [9_007_199_254_740_993, 0, 0x5a00_0000],
         // u32::MAX rounds up to 2^32.
         (Binary32, FromInteger(U32)) => [0xffff_ffff, 0, 0x4f80_0000],
+        (_, TruncateToInteger { .. }) => unreachable!("integer results return above"),
     }
 }
 
@@ -188,7 +223,7 @@ fn arithmetic_source(
     let mut compare = block.instructions.pop().unwrap();
     let left_value = block.instructions[0].result.unwrap().value;
     let right_value = block.instructions[1].result.unwrap().value;
-    let scalar = ScalarType::IeeeFloat(form.format);
+    let scalar = form.operation.result_type(form.format);
     let row = |template: &legalized_operations::LegalizedScalarInstruction,
                raw: u64,
                node: u32,
@@ -235,11 +270,21 @@ fn arithmetic_source(
         block: block_id,
         node: 4,
     };
-    compare.kind = LegalizedScalarInstructionKind::IeeeFloatCompare {
-        comparison: Relation::Equal,
-        format: form.format,
-        left: ValueId::new(16).unwrap(),
-        right: ValueId::new(17).unwrap(),
+    compare.kind = if matches!(scalar, ScalarType::IeeeFloat(_)) {
+        LegalizedScalarInstructionKind::IeeeFloatCompare {
+            comparison: Relation::Equal,
+            format: form.format,
+            left: ValueId::new(16).unwrap(),
+            right: ValueId::new(17).unwrap(),
+        }
+    } else {
+        LegalizedScalarInstructionKind::Compare {
+            predicate: legalized_operations::LegalizedScalarComparison::Equal,
+            operand_type: scalar,
+            right_operand_type: scalar,
+            left: ValueId::new(16).unwrap(),
+            right: ValueId::new(17).unwrap(),
+        }
     };
     block
         .instructions

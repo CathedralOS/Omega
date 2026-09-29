@@ -58,8 +58,8 @@ impl HostedWriteByteI32Realization {
     }
 }
 
-/// Inline nearest-even IEEE operation for one selected float provider whose
-/// result has `format`. The call's scalar arguments become the operation's
+/// Inline IEEE operation on `format` for one selected float provider. The
+/// call's scalar arguments become the operation's
 /// operands in authored order and its scalar result the operation's result;
 /// no call, frame, or import exists. Both supported architectures carry
 /// scalar IEEE binary32/binary64 arithmetic, selection, square root and

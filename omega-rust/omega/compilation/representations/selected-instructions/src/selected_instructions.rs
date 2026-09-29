@@ -20,7 +20,8 @@ pub mod calls;
 mod ieee_float_arithmetic;
 pub use atomic::{AtomicForm, AtomicOperation, AtomicWidth};
 pub use ieee_float_arithmetic::{
-    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerSource,
+    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
+    IeeeFloatIntegerCarrier, IeeeFloatToIntegerDomain,
 };
 pub mod constraints;
 pub mod control_flow;

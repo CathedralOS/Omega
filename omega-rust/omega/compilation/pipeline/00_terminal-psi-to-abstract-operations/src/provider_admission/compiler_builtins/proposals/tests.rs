@@ -131,11 +131,11 @@ fn called_intrinsics_keep_original_plan_indices_and_execution_identity() {
 #[test]
 fn duplicate_missing_and_unsupported_executions_keep_lexical_diagnostics() {
     use CompilerIntrinsicExecutionIdentity::{HostedReadByte, NamedFloatConversion};
-    // Float-to-integer conversion has no native realization yet.
+    // Trapping float-to-integer conversion has no native realization.
     let saturating = NamedFloatConversion {
         source: effects::CompilerNumericType::F64,
         target: effects::CompilerNumericType::I32,
-        domain: numerics::arithmetic::ArithmeticDomain::Saturating,
+        domain: numerics::arithmetic::ArithmeticDomain::Trapping,
     };
     let (first, first_retained) = selected_plan(
         "first",
@@ -287,14 +287,14 @@ fn float_arithmetic_rows_project_exact_executions_and_comparisons_do_not() {
 }
 
 #[test]
-fn named_float_rows_project_exact_executions_and_other_conversions_do_not() {
+fn named_float_rows_project_exact_executions_and_unrealized_rows_do_not() {
     use effects::CompilerNumericType as Numeric;
     use numerics::arithmetic::ArithmeticDomain;
     use numerics::literals::FloatFormat;
     use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
     use target_operations::{
         CompilerBuiltinExecution, IeeeFloatArithmeticOperation as Arithmetic,
-        IeeeFloatIntegerSource as Integer,
+        IeeeFloatIntegerCarrier as Integer, IeeeFloatToIntegerDomain,
     };
     let conversion =
         |source, target, domain| CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
@@ -327,6 +327,26 @@ fn named_float_rows_project_exact_executions_and_other_conversions_do_not() {
             ("g_i32", Some(conversion(Numeric::I32, Numeric::F64, exact))),
             ("h_i64", Some(conversion(Numeric::I64, Numeric::F32, exact))),
             ("i_u32", Some(conversion(Numeric::U32, Numeric::F64, exact))),
+            (
+                "j_to_i32",
+                Some(conversion(Numeric::F64, Numeric::I32, exact)),
+            ),
+            (
+                "k_to_i64",
+                Some(conversion(
+                    Numeric::F32,
+                    Numeric::I64,
+                    ArithmeticDomain::Saturating,
+                )),
+            ),
+            (
+                "l_to_u32",
+                Some(conversion(
+                    Numeric::F64,
+                    Numeric::U32,
+                    ArithmeticDomain::Saturating,
+                )),
+            ),
         ],
     );
     let float_results = [
@@ -350,6 +370,9 @@ fn named_float_rows_project_exact_executions_and_other_conversions_do_not() {
             "g_i32",
             "h_i64",
             "i_u32",
+            "j_to_i32",
+            "k_to_i64",
+            "l_to_u32",
         ]),
         &float_results,
     )
@@ -364,6 +387,27 @@ fn named_float_rows_project_exact_executions_and_other_conversions_do_not() {
         (Arithmetic::FromInteger(Integer::I32), Binary64),
         (Arithmetic::FromInteger(Integer::I64), Binary32),
         (Arithmetic::FromInteger(Integer::U32), Binary64),
+        (
+            Arithmetic::TruncateToInteger {
+                target: Integer::I32,
+                domain: IeeeFloatToIntegerDomain::Exact,
+            },
+            Binary64,
+        ),
+        (
+            Arithmetic::TruncateToInteger {
+                target: Integer::I64,
+                domain: IeeeFloatToIntegerDomain::Saturating,
+            },
+            Binary32,
+        ),
+        (
+            Arithmetic::TruncateToInteger {
+                target: Integer::U32,
+                domain: IeeeFloatToIntegerDomain::Saturating,
+            },
+            Binary64,
+        ),
     ];
     assert_eq!(
         proposals
@@ -378,24 +422,27 @@ fn named_float_rows_project_exact_executions_and_other_conversions_do_not() {
         )
     );
 
-    // Float-to-integer conversions in every domain, carriers without a
-    // one-instruction conversion on both architectures, a same-format
-    // conversion, and a format-free builtin whose boundary has no float
-    // result all stay unrealized.
+    // Trapping float-to-integer conversion, carriers without a native
+    // conversion on both architectures, a same-format conversion, and a
+    // format-free builtin whose boundary has no float result stay unrealized.
     let (plan, retained) = selected_plan(
         "named",
         &[
             (
-                "saturating",
+                "trapping",
                 Some(conversion(
                     Numeric::F64,
                     Numeric::I32,
-                    ArithmeticDomain::Saturating,
+                    ArithmeticDomain::Trapping,
                 )),
             ),
             (
-                "to_i32",
-                Some(conversion(Numeric::F64, Numeric::I32, exact)),
+                "to_u64",
+                Some(conversion(
+                    Numeric::F64,
+                    Numeric::U64,
+                    ArithmeticDomain::Saturating,
+                )),
             ),
             (
                 "from_u64",
@@ -413,8 +460,8 @@ fn named_float_rows_project_exact_executions_and_other_conversions_do_not() {
         std::slice::from_ref(&plan),
         provenance(std::slice::from_ref(&retained)),
         &demands(&[
-            "saturating",
-            "to_i32",
+            "trapping",
+            "to_u64",
             "from_u64",
             "from_i8",
             "same",

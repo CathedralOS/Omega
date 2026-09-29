@@ -102,9 +102,9 @@ fn decode_kind(
     allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
-        tag if crate::IeeeFloatArithmeticForm::from_machine_tag(tag).is_some() => {
+        crate::IeeeFloatArithmeticForm::FAMILY_TAG => {
             SelectedInstructionKind::NearestIeeeFloatArithmetic {
-                form: crate::IeeeFloatArithmeticForm::from_machine_tag(tag)
+                form: crate::IeeeFloatArithmeticForm::from_machine_payload(cursor.byte()?)
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             }
         }
@@ -468,9 +468,9 @@ fn decode_alternative_for_version(
     allow_jump: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
-        tag if crate::IeeeFloatArithmeticForm::from_machine_tag(tag).is_some() => {
+        crate::IeeeFloatArithmeticForm::FAMILY_TAG => {
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(
-                crate::IeeeFloatArithmeticForm::from_machine_tag(tag)
+                crate::IeeeFloatArithmeticForm::from_machine_payload(cursor.byte()?)
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             )
         }
