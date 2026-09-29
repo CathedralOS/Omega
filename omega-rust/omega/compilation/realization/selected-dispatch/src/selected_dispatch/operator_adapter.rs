@@ -122,7 +122,14 @@ pub(super) fn resolve_checked_adapter_for_operator(
             )));
         }
     };
-    let direct_provider = provider_planning::exact_checked_adapter(&checked.typed, plan, row);
+    let direct_provider = provider_planning::exact_checked_adapter(
+        provider_planning::ProviderPlanningContext::new(
+            &checked.typed,
+            source::DependencyScope::Product,
+        ),
+        plan,
+        row,
+    );
     let specialized = checked
         .typed
         .machine_specializations

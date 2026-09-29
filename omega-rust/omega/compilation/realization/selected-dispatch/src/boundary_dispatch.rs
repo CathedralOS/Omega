@@ -53,7 +53,15 @@ fn selected_service_plan_matches_requirement(
         .traits()
         .iter()
         .find(|definition| definition.symbol == requirement)
-        .and_then(|definition| provider_planning::service_schema::from_typed(typed, definition))
+        .and_then(|definition| {
+            provider_planning::service_schema::from_typed(
+                provider_planning::ProviderPlanningContext::new(
+                    typed,
+                    source::DependencyScope::Product,
+                ),
+                definition,
+            )
+        })
     else {
         return false;
     };
@@ -736,7 +744,10 @@ fn reject_unselected_direct_requirement_calls(
             .iter()
             .filter(|plan| {
                 provider_planning::service_schema::schema_binds_exact_boundary_requirement(
-                    typed,
+                    provider_planning::ProviderPlanningContext::new(
+                        typed,
+                        source::DependencyScope::Product,
+                    ),
                     &plan.schema,
                     requirement,
                 )

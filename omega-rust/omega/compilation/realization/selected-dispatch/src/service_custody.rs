@@ -281,9 +281,10 @@ fn validate_receipt(
         )));
         return;
     };
-    let Some(schema) =
-        provider_planning::service_schema::from_typed(checked, requirement_definition)
-    else {
+    let Some(schema) = provider_planning::service_schema::from_typed(
+        provider_planning::ProviderPlanningContext::new(checked, source::DependencyScope::Product),
+        requirement_definition,
+    ) else {
         diagnostics.push(Diagnostic::error(format!(
             "checked routed Binding field `{}::{}` cannot reconstruct its boundary schema",
             owner.name, field.name,

@@ -125,10 +125,10 @@ struct Fixture {
 
 fn fixture() -> Fixture {
     let mut typed = typed_with_core_service("selected-dispatch/dispatch.omg", SOURCE);
-    let plans = provider_planning::derive_satisfies_plans(
-        &typed,
-        ProviderPlanDerivation::unevaluated(None),
-    )
+    let plans = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
     .into_iter()
     .map(|derived| derived.plan)
     .collect::<Vec<_>>();

@@ -69,7 +69,10 @@ pub(super) fn validate(
     )?;
     let (replayed, _) =
         provider_planning::selected_provider_plan_facts_with_independent_components(
-            &compilation.typed,
+            provider_planning::ProviderPlanningContext::new(
+                &compilation.typed,
+                source::DependencyScope::Product,
+            ),
             compilation.custody.evaluated_via_bindings(),
             selected,
             &independent_components,
@@ -191,8 +194,13 @@ fn validate_target_defaults(compilation: &PackageReviewInput<'_>) -> Result<(), 
                     "target default has no exact authored selecting machine",
                 ));
             };
-            let current =
-                provider_planning::harvest_provider_selections(&compilation.typed, machine)?;
+            let current = provider_planning::harvest_provider_selections(
+                provider_planning::ProviderPlanningContext::new(
+                    &compilation.typed,
+                    source::DependencyScope::Product,
+                ),
+                machine,
+            )?;
             if !current.contains(declaration) {
                 return Err(rejected(
                     "target default differs from its current authored selection",

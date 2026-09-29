@@ -36,7 +36,17 @@ pub use operator_adapter::{
 pub fn settle_selected_execution_dispatch(
     mut checked: Arc<CheckedTrees>,
     selected_provider_plans: &SelectedProviderPlanFacts,
+    selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
 ) -> Result<Arc<CheckedTrees>, Vec<Diagnostic>> {
+    if selected_provider_provenance.iter().any(|provider| {
+        selected_provider_plans
+            .plan_by_exact_evidence(provider.plan.report_fingerprint(), &provider.plan)
+            .is_none()
+    }) {
+        return Err(vec![Diagnostic::error(
+            "comparison provider provenance disagrees with the selected provider plans",
+        )]);
+    }
     // Calls retain their public requirement through Terminal Psi. Selecting
     // its provider adds associations, not new source facts or execution plans;
     // rebuilding Psi here would introduce a second stage entrance and require
@@ -45,8 +55,11 @@ pub fn settle_selected_execution_dispatch(
         &mut checked,
         selected_provider_plans,
     )?;
-    let executions =
-        float_comparisons::selected_executions(&checked, selected_provider_plans.plans())?;
+    let executions = float_comparisons::selected_executions(
+        &checked,
+        source::DependencyScope::Product,
+        selected_provider_provenance,
+    )?;
     if !checked
         .facts
         .operators
@@ -58,4 +71,19 @@ pub fn settle_selected_execution_dispatch(
         float_comparisons::replace_executions(Arc::make_mut(&mut checked), executions);
     }
     Ok(checked)
+}
+
+/// Settle comparison execution without importing runtime adapter dispatch or
+/// service grants. Build admission uses this same comparison producer before
+/// effects; unlike the product's provisional route, every Build demand must
+/// have an executable selected child.
+pub fn settle_selected_comparison_execution(
+    checked: &mut CheckedTrees,
+    scope: source::DependencyScope,
+    selected_provider_provenance: &[provider_planning::SelectedProviderReviewProvenance],
+) -> Result<(), Vec<Diagnostic>> {
+    let executions =
+        float_comparisons::selected_executions(checked, scope, selected_provider_provenance)?;
+    float_comparisons::replace_executions(checked, executions);
+    Ok(())
 }

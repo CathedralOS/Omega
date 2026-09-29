@@ -233,8 +233,13 @@ mod tests {
                 &source,
             );
             let plans = provider_planning::derive_satisfies_plans(
-                &typed,
-                provider_planning::ProviderPlanDerivation::unevaluated(None),
+                provider_planning::ProviderPlanDerivation::unevaluated(
+                    provider_planning::ProviderPlanningContext::new(
+                        &typed,
+                        source::DependencyScope::Product,
+                    ),
+                    None,
+                ),
             );
             let [derived] = plans.as_slice() else {
                 panic!("one exact comparison provider is required")
@@ -244,21 +249,16 @@ mod tests {
                 &typed_trees_to_checked_trees::CheckingRequest::settled(),
             )
             .expect("check primitive comparison call");
-            let uses = checked
-                .facts
-                .operators
-                .named_requirement_uses
-                .iter()
-                .map(|(_, requirement_use)| requirement_use.requirement_symbol)
-                .collect::<Vec<_>>();
-            let [selected_use] = uses.as_slice() else {
-                panic!("token syntax must retain one ordinary requirement call")
+            let [application] = checked.facts.operators.boundary_applications.as_slice() else {
+                panic!("token syntax must retain one exact boundary application")
             };
+            let selected_use = application.requirement_symbol;
+            assert_eq!(selected_use, derived.provenance.schema.symbol());
             assert!(matches!(
                 derive_selected_compiler_intrinsic_execution_identity(
                     &checked,
                     &derived.plan,
-                    *selected_use
+                    selected_use
                 )
                 .expect("primitive comparisons retain closed execution identities"),
                 Some(SelectedCompilerIntrinsicExecutionIdentity::Closed(_))
@@ -272,7 +272,7 @@ mod tests {
                 derive_selected_compiler_intrinsic_execution_identity(
                     &checked,
                     &mismatched,
-                    *selected_use
+                    selected_use
                 )
                 .is_err()
             );

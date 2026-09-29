@@ -1,3 +1,4 @@
+use crate::ProviderPlanningContext;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
@@ -81,14 +82,16 @@ impl ProviderOperatorFamilySelection {
 
     /// Derive the complete canonical family roster from one exact resolved
     /// operator symbol. The family is every boundary overload declared at
-    /// the representative's package-qualified path, whether top-level or
+    /// the representative's package-qualified path within the supplied context,
+    /// whether top-level or
     /// domain-owned; declaration order and the spelling the build used are
     /// not part of the result.
     pub fn derive(
-        typed: &TypedTrees,
+        context: ProviderPlanningContext<'_>,
         operator_symbol: SymbolHandle,
         authored_path: String,
     ) -> Result<Self, String> {
+        let typed = context.typed;
         let Some(representative) =
             typed_trees::operator::declaration_by_symbol(typed, operator_symbol)
         else {
@@ -96,14 +99,15 @@ impl ProviderOperatorFamilySelection {
                 "provider selection subject `{authored_path}` has no exact retained operator declaration"
             ));
         };
-        if !crate::service_schema::is_product_declaration(typed, representative.symbol) {
+        if !context.contains(representative.symbol) {
             return Err(format!(
-                "provider selection subject `{authored_path}` belongs to build scope, not the product"
+                "provider selection subject `{authored_path}` is outside the {:?} planning context",
+                context.scope,
             ));
         }
         let canonical_path = operator_canonical_path(typed, representative);
         let package = typed.symbols.symbol_package_identity(representative.symbol);
-        let coordinates = family_coordinates(typed, package, &canonical_path)?;
+        let coordinates = family_coordinates(context, package, &canonical_path)?;
         Self::new(package, canonical_path, authored_path, coordinates)
     }
 
@@ -118,8 +122,9 @@ impl ProviderOperatorFamilySelection {
     /// resolves is stale, a member resolving outside the family is padding,
     /// and a same-spelled member with another symbol or telescope is a
     /// substitution. Each rejection names the coordinate.
-    pub fn replay_against_typed(&self, typed: &TypedTrees) -> Vec<String> {
-        let expected = match family_coordinates(typed, self.package, &self.canonical_path) {
+    pub fn replay_against_typed(&self, context: ProviderPlanningContext<'_>) -> Vec<String> {
+        let typed = context.typed;
+        let expected = match family_coordinates(context, self.package, &self.canonical_path) {
             Ok(expected) => expected,
             Err(reason) => return vec![reason],
         };
@@ -188,10 +193,11 @@ fn operator_canonical_path(
 /// in declaration order; [`ProviderOperatorFamilySelection::new`] canonicalizes
 /// and deduplicates the result.
 fn family_coordinates(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     package: Option<semantic_vocabulary::PackageKeyIdentity>,
     canonical_path: &str,
 ) -> Result<Vec<ProviderOperatorFamilyCoordinate>, String> {
+    let typed = context.typed;
     typed
         .operators()
         .iter()
@@ -204,7 +210,7 @@ fn family_coordinates(
         )
         .filter(|operator| {
             operator.is_boundary
-                && crate::service_schema::is_product_declaration(typed, operator.symbol)
+                && context.contains(operator.symbol)
                 && typed.symbols.symbol_package_identity(operator.symbol) == package
                 && operator_canonical_path(typed, operator) == canonical_path
         })
@@ -378,6 +384,103 @@ impl ProviderSelection {
 #[cfg(test)]
 mod tests {
     use super::{ProviderSelectionIdentity, ProviderSelectionSubject, SymbolHandle};
+
+    #[test]
+    fn family_derivation_harvest_and_replay_keep_checked_purposes_separate() {
+        let text = r#"
+            data Convert {}
+            boundary operator Convert::apply(value: i32) -> i32;
+            boundary operator Convert::apply(value: u32) -> u32;
+            data Provider {}
+            machine Provider::provider_defaults() {
+                select_provider<Convert::apply, Provider>();
+            }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        let tokens = source_files_to_tokens::Lexer::new(text)
+            .tokenize()
+            .expect("tokenize family defaults");
+        for scope in [
+            source::DependencyScope::Build,
+            source::DependencyScope::Product,
+        ] {
+            let source_id = sources
+                .add_checked_instance(
+                    "package/defaults.omg".into(),
+                    text.to_owned(),
+                    "package".into(),
+                    semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+                    source::SourceOrigin::User,
+                    source::SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id;
+            let parsed = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+                .expect("parse scoped family defaults");
+            syntax.extend_from(&parsed);
+        }
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(std::sync::Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve each purpose independently");
+        let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type scoped family defaults");
+        for (scope, other_scope) in [
+            (
+                source::DependencyScope::Build,
+                source::DependencyScope::Product,
+            ),
+            (
+                source::DependencyScope::Product,
+                source::DependencyScope::Build,
+            ),
+        ] {
+            let context = crate::ProviderPlanningContext::new(&typed, scope);
+            let other_context = crate::ProviderPlanningContext::new(&typed, other_scope);
+            let machine = typed
+                .machines()
+                .iter()
+                .find(|machine| {
+                    machine.name.as_str() == "Provider::provider_defaults"
+                        && context.contains(machine.symbol)
+                })
+                .expect("one default declaration in each purpose");
+            let selections = crate::harvest_provider_selections(context, machine)
+                .expect("harvest defaults in their declaration context");
+            let [selection] = selections.as_slice() else {
+                panic!("one family selection, got {selections:?}");
+            };
+            let ProviderSelectionSubject::BoundaryOperatorFamily(family) = &selection.subject
+            else {
+                panic!("default selects an operator family");
+            };
+            assert_eq!(family.coordinates().len(), 2);
+            assert!(family.coordinates().iter().all(|coordinate| {
+                context.contains(coordinate.symbol) && !other_context.contains(coordinate.symbol)
+            }));
+            assert!(context.contains(selection.provider_type.symbol));
+            assert!(family.replay_against_typed(context).is_empty());
+            assert!(!family.replay_against_typed(other_context).is_empty());
+            assert!(
+                super::ProviderOperatorFamilySelection::derive(
+                    other_context,
+                    family.coordinates()[0].symbol,
+                    family.authored_path.clone(),
+                )
+                .is_err()
+            );
+            assert!(crate::harvest_provider_selections(other_context, machine).is_err());
+        }
+        let product = crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+        let build = crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Build);
+        assert!(crate::collect_executed_provider_selections(product, &[]).is_ok());
+        assert!(crate::collect_executed_provider_selections(build, &[]).is_err());
+    }
 
     fn identity(
         symbol: u32,

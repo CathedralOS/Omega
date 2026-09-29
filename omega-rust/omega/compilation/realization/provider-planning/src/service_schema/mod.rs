@@ -1,13 +1,13 @@
 //! Derive provider service schemas from checked declaration surfaces.
 //!
-//! These schemas describe the final product, after host build evaluation.
-//! The assembled tree may retain a second checked copy of a dependency for
-//! build execution. Equal package and signature identities do not authorize
-//! that copy to supply a product schema or provider.
+//! The caller selects a Build or product declaration context. The assembled
+//! tree may retain both checked copies of a dependency; equal package and
+//! signature identities do not authorize substituting one for the other.
 //! Portable requirement names are complete module paths projected from the
 //! exact symbol, paired with package identity. An authored leaf is not unique
 //! even inside one package; replay must use the same projection as derivation.
 
+use crate::planning_context::ProviderPlanningContext;
 use effects::provider_plan::{
     ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceProgressEstablishmentRoute,
     ServiceProgressEstablishmentRouteKind, ServiceProgressPremise, ServiceProgressSubject,
@@ -21,33 +21,28 @@ pub fn is_product_declaration(
     program: &typed_trees::TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> bool {
-    program
-        .symbols
-        .symbol_provenance_source_span(symbol)
-        .and_then(|span| program.symbols.source_file(span))
-        // Standalone/toolchain and source-free fixtures retain their existing
-        // declaration frontier; generated symbols follow authored provenance.
-        .is_none_or(|file| file.dependency_scope == source::DependencyScope::Product)
+    ProviderPlanningContext::new(program, source::DependencyScope::Product).contains(symbol)
 }
 
 /// PRV2: reify a typed boundary trait's callable surface. `None` for a
 /// non-boundary trait (only boundary traits have service schemas).
 pub fn from_typed(
-    program: &typed_trees::TypedTrees,
+    context: ProviderPlanningContext<'_>,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
 ) -> Option<ServiceSchema> {
-    from_typed_instance(program, trait_definition, &[])
+    from_typed_instance(context, trait_definition, &[])
 }
 
 /// Reify one concrete generic boundary instance. The argument tuple is
 /// semantic input only for resolving evaluated calling-plan identity;
 /// policy type/source names remain absent from the published schema.
 pub fn from_typed_instance(
-    program: &typed_trees::TypedTrees,
+    context: ProviderPlanningContext<'_>,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
     boundary_arguments: &[typed_trees::types::TypeReferenceHandle],
 ) -> Option<ServiceSchema> {
-    if !trait_definition.is_boundary || !is_product_declaration(program, trait_definition.symbol) {
+    let program = context.typed;
+    if !trait_definition.is_boundary || !context.contains(trait_definition.symbol) {
         return None;
     }
     let mut methods = Vec::new();
@@ -74,10 +69,11 @@ pub fn from_typed_instance(
 /// shared carrier; operator slots use their stable signature identity so
 /// f32/f64 overloads can never collide or be selected as one another.
 pub fn from_typed_operator(
-    program: &typed_trees::TypedTrees,
+    context: ProviderPlanningContext<'_>,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> Option<ServiceSchema> {
-    if !is_product_declaration(program, operator.symbol) {
+    let program = context.typed;
+    if !context.contains(operator.symbol) {
         return None;
     }
     operator.is_boundary.then(|| ServiceSchema {
@@ -135,11 +131,12 @@ pub fn from_typed_operator(
 /// too, or a foreign declaration could substitute for the selected
 /// coordinate.
 pub fn schema_binds_exact_boundary_operator(
-    program: &typed_trees::TypedTrees,
+    context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
     operator: &typed_trees::operator::OperatorDefinition,
 ) -> bool {
-    is_product_declaration(program, operator.symbol)
+    let program = context.typed;
+    context.contains(operator.symbol)
         && operator.is_boundary
         && typed_trees::operator::boundary_operator_requirement_identity(program, operator)
             == schema.trait_name
@@ -150,11 +147,12 @@ pub fn schema_binds_exact_boundary_operator(
 /// Trait names share the same package-blind replay hazard as operator
 /// requirement identities.
 pub fn schema_binds_exact_boundary_trait(
-    program: &typed_trees::TypedTrees,
+    context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,
 ) -> bool {
-    is_product_declaration(program, trait_definition.symbol)
+    let program = context.typed;
+    context.contains(trait_definition.symbol)
         && trait_definition.is_boundary
         && program.trait_declaration_path(trait_definition) == schema.trait_name
         && program
@@ -166,15 +164,16 @@ pub fn schema_binds_exact_boundary_trait(
 /// Whether a service schema binds exactly this top-level boundary
 /// requirement machine.
 pub fn schema_binds_exact_boundary_requirement(
-    program: &typed_trees::TypedTrees,
+    context: ProviderPlanningContext<'_>,
     schema: &ServiceSchema,
     requirement: &typed_trees::machine::Machine,
 ) -> bool {
-    is_product_declaration(program, requirement.symbol)
+    let program = context.typed;
+    context.contains(requirement.symbol)
         && requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
         && program.symbols.symbol_package_identity(requirement.symbol)
             == schema.trait_package_identity
-        && from_typed_boundary_requirement(program, requirement)
+        && from_typed_boundary_requirement(context, requirement)
             .is_some_and(|candidate| candidate.trait_name == schema.trait_name)
 }
 
@@ -189,10 +188,11 @@ pub fn schema_binds_exact_boundary_requirement(
 /// roster is the exact carrier joining that template to each closed
 /// application identity Terminal Psi mints.
 pub fn from_typed_boundary_requirement(
-    program: &typed_trees::TypedTrees,
+    context: ProviderPlanningContext<'_>,
     requirement: &typed_trees::machine::Machine,
 ) -> Option<ServiceSchema> {
-    if !is_product_declaration(program, requirement.symbol)
+    let program = context.typed;
+    if !context.contains(requirement.symbol)
         || !requirement.symbol.is_valid()
         || requirement.supply_mode != language_semantics::MachineSupplyMode::TopLevelRequirement
         || requirement.body_is_present
@@ -780,4 +780,242 @@ fn boundary_trait_name_for_type(
         .iter()
         .find(|definition| definition.is_boundary && definition.symbol == symbol)
         .map(|definition| program.trait_declaration_path(definition))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::evaluated_via_bindings::evaluate_via_bindings;
+    use crate::planning_context::ProviderPlanningContext;
+    use crate::provider_planning::{
+        DerivedProviderPlan, ProviderPlanDerivation, ProviderPlanProvenance,
+        derive_satisfies_plans, validate_derived_provider_plan_candidates,
+    };
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source::{DependencyScope, SourceMap, SourceOrigin, SourceResolutionStratum};
+    use std::path::PathBuf;
+    use std::sync::Arc;
+    use symbols::SymbolKind;
+    use typed_trees::TypedTrees;
+
+    fn scoped_provider_copies() -> TypedTrees {
+        let text = r#"
+            boundary trait Surface {
+                machine invoke();
+            }
+            data Provider {}
+            machine Provider::invoke() satisfies Surface::invoke {}
+        "#;
+        let package = PackageKeyIdentity::from_digest([7; 32]).expect("nonzero package identity");
+        let mut sources = SourceMap::default();
+        let mut syntax = syntax_trees::SyntaxTrees::default();
+        let tokens = source_files_to_tokens::Lexer::new(text)
+            .tokenize()
+            .expect("tokenize provider fixture");
+        for scope in [DependencyScope::Build, DependencyScope::Product] {
+            let source_id = sources
+                .add_checked_instance(
+                    PathBuf::from("package/shared.omg"),
+                    text.to_owned(),
+                    PathBuf::from("package"),
+                    Some(package),
+                    SourceOrigin::User,
+                    SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id;
+            let parsed = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens)
+                .expect("parse scoped provider fixture");
+            syntax.extend_from(&parsed);
+        }
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                syntax: &syntax,
+                sources: Some(Arc::new(sources)),
+                top_level_bindings: Vec::new(),
+            },
+        )
+        .expect("resolve both provider contexts independently");
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
+            .expect("type both provider contexts")
+    }
+
+    #[test]
+    fn derived_provider_replay_rejects_other_scope_provenance_with_identical_portable_plan() {
+        let typed = scoped_provider_copies();
+        let contexts = [DependencyScope::Build, DependencyScope::Product]
+            .map(|scope| ProviderPlanningContext::new(&typed, scope));
+        let plans = contexts.map(|context| {
+            let derived =
+                derive_satisfies_plans(ProviderPlanDerivation::unevaluated(context, None));
+            let [plan] = derived.as_slice() else {
+                panic!("one provider plan per scope, got {derived:?}");
+            };
+            assert_eq!(plan.plan.rows.len(), 1);
+            plan.clone()
+        });
+        assert_eq!(
+            plans[0].plan, plans[1].plan,
+            "scope is not portable plan identity"
+        );
+        assert_ne!(plans[0].provenance, plans[1].provenance);
+
+        for (context, plan, other) in [
+            (contexts[0], &plans[0], &plans[1]),
+            (contexts[1], &plans[1], &plans[0]),
+        ] {
+            let bindings = evaluate_via_bindings(context, None, None)
+                .expect("checked adapters need no via evaluation");
+            let diagnostics = validate_derived_provider_plan_candidates(
+                context,
+                &bindings,
+                std::slice::from_ref(plan),
+            );
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+            // Keep the semantic plan and table fixed. Each retained coordinate
+            // must reject its equal-looking declaration from the other purpose.
+            for (role, provenance) in [
+                (
+                    "schema",
+                    ProviderPlanProvenance {
+                        schema: other.provenance.schema,
+                        ..plan.provenance.clone()
+                    },
+                ),
+                (
+                    "provider",
+                    ProviderPlanProvenance {
+                        provider_type: other.provenance.provider_type,
+                        ..plan.provenance.clone()
+                    },
+                ),
+                (
+                    "requirement",
+                    ProviderPlanProvenance {
+                        row_requirements: other.provenance.row_requirements.clone(),
+                        ..plan.provenance.clone()
+                    },
+                ),
+                (
+                    "realization",
+                    ProviderPlanProvenance {
+                        row_realizations: other.provenance.row_realizations.clone(),
+                        ..plan.provenance.clone()
+                    },
+                ),
+            ] {
+                let substituted = DerivedProviderPlan {
+                    plan: plan.plan.clone(),
+                    provenance,
+                };
+                let diagnostics =
+                    validate_derived_provider_plan_candidates(context, &bindings, &[substituted]);
+                assert!(
+                    diagnostics.iter().any(|diagnostic| {
+                        diagnostic.message.contains(&format!("retained {role}"))
+                            && diagnostic.message.contains("planning context")
+                    }),
+                    "other-scope {role} must reject in {:?}: {diagnostics:?}",
+                    context.scope,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn empty_evaluated_binding_table_retains_its_scope_through_derivation_and_replay() {
+        let typed = scoped_provider_copies();
+        let target = target::TargetProfile::WindowsX64;
+        for (scope, other_scope) in [
+            (DependencyScope::Build, DependencyScope::Product),
+            (DependencyScope::Product, DependencyScope::Build),
+        ] {
+            let context = ProviderPlanningContext::new(&typed, scope);
+            let other_context = ProviderPlanningContext::new(&typed, other_scope);
+            let bindings = evaluate_via_bindings(context, Some(target), None)
+                .expect("evaluate empty binding table");
+            assert!(bindings.rows().is_empty());
+            assert_eq!(bindings.scope(), scope);
+            assert_eq!(bindings.target(), Some(target));
+            let derivation = ProviderPlanDerivation::evaluated(
+                context,
+                Some(target.target_name()),
+                &bindings,
+                &[],
+            )
+            .expect("same-scope empty table admits derivation");
+            let plans = derive_satisfies_plans(derivation);
+            assert_eq!(plans.len(), 1);
+            let diagnostics = validate_derived_provider_plan_candidates(context, &bindings, &plans);
+            assert!(diagnostics.is_empty(), "{diagnostics:?}");
+
+            let diagnostics = bindings
+                .validate_against_typed(other_context)
+                .expect_err("an empty table still belongs to its original scope");
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains("different dependency purpose")
+                }),
+                "{diagnostics:?}"
+            );
+            assert!(
+                ProviderPlanDerivation::evaluated(
+                    other_context,
+                    Some(target.target_name()),
+                    &bindings,
+                    &[],
+                )
+                .is_err()
+            );
+            // No candidate rows can cause this rejection: the table's own
+            // retained purpose must survive even when both populations are empty.
+            let diagnostics =
+                validate_derived_provider_plan_candidates(other_context, &bindings, &[]);
+            assert!(
+                diagnostics.iter().any(|diagnostic| {
+                    diagnostic.message.contains("different dependency purpose")
+                }),
+                "{diagnostics:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn declaration_context_follows_generated_provenance_and_preserves_source_free_behavior() {
+        let mut typed = scoped_provider_copies();
+        let [build, product] = [DependencyScope::Build, DependencyScope::Product].map(|scope| {
+            let context = ProviderPlanningContext::new(&typed, scope);
+            typed
+                .traits()
+                .iter()
+                .find(|definition| context.contains(definition.symbol))
+                .expect("one trait per checked purpose")
+                .symbol
+        });
+        let generated_build = typed.symbols.insert_generated_root_from(
+            build,
+            SymbolKind::Trait,
+            "GeneratedBuildService",
+        );
+        let generated_product = typed.symbols.insert_generated_root_from(
+            product,
+            SymbolKind::Trait,
+            "GeneratedProductService",
+        );
+        let build_context = ProviderPlanningContext::new(&typed, DependencyScope::Build);
+        let product_context = ProviderPlanningContext::new(&typed, DependencyScope::Product);
+
+        assert!(build_context.contains(generated_build));
+        assert!(!build_context.contains(generated_product));
+        assert!(product_context.contains(generated_product));
+        assert!(!product_context.contains(generated_build));
+        assert!(
+            typed
+                .symbols
+                .symbol_provenance_source_span(typed.symbols.root())
+                .is_none()
+        );
+        assert!(build_context.contains(typed.symbols.root()));
+        assert!(product_context.contains(typed.symbols.root()));
+    }
 }

@@ -109,9 +109,11 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
     ) {
         return Ok(None);
     }
+    let provider_context =
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     if typed.operators().iter().any(|operator| {
         provider_planning::service_schema::schema_binds_exact_boundary_operator(
-            typed,
+            provider_context,
             &plan.schema,
             operator,
         )
@@ -147,7 +149,7 @@ pub(crate) fn resolve_selected_adapter_target<'a>(
         .iter()
         .filter(|requirement| {
             provider_planning::service_schema::schema_binds_exact_boundary_requirement(
-                typed,
+                provider_context,
                 &plan.schema,
                 requirement,
             )
@@ -275,7 +277,11 @@ pub(crate) fn resolve_selected_adapter_row(
             plan.name,
         )));
     }
-    let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
+    let adapter = provider_planning::exact_checked_adapter(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+    )?;
     if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
@@ -478,7 +484,11 @@ fn resolve_top_level_requirement_adapter_row(
             plan.name,
         )));
     }
-    let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
+    let adapter = provider_planning::exact_checked_adapter(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+    )?;
     if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",
@@ -840,7 +850,11 @@ fn resolve_family_adapter_row(
             plan.name,
         )));
     }
-    let adapter = provider_planning::exact_checked_adapter(typed, plan, row)?;
+    let adapter = provider_planning::exact_checked_adapter(
+        provider_planning::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        plan,
+        row,
+    )?;
     if typed.attached_data_path(adapter).as_deref() != Some(plan.provider_type.as_str()) {
         return Err(Diagnostic::error(format!(
             "selected checked adapter `{machine_identity}` does not belong to nominal provider `{}`",

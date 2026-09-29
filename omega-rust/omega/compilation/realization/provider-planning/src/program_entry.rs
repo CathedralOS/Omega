@@ -731,7 +731,11 @@ pub fn validate_selected_program_entry_calling_plan(
             expected_semantic,
         ))]);
     }
-    let service_schema = crate::service_schema::from_typed(typed, schema).ok_or_else(|| {
+    let service_schema = crate::service_schema::from_typed(
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        schema,
+    )
+    .ok_or_else(|| {
         vec![Diagnostic::error(format!(
             "target entry schema `{schema_name}` is not a boundary service schema"
         ))]

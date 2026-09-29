@@ -28,9 +28,13 @@ pub fn validate_selected_synchronous_invocation_cycles(
                 }
             };
             let target_names = match &row.binding {
-                ProviderBinding::CheckedAdapter { .. } => {
-                    exact_checked_adapter_invocations(typed, &inferred, source, method, row)
-                }
+                ProviderBinding::CheckedAdapter { .. } => exact_checked_adapter_invocations(
+                    crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+                    &inferred,
+                    source,
+                    method,
+                    row,
+                ),
                 _ => exact_authored_invocations(source, method),
             };
             let target_names = match target_names {

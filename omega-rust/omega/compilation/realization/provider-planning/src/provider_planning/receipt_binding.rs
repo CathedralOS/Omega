@@ -139,7 +139,10 @@ pub(super) fn plan_admitted_receipt_updates(
             .copied()
             .filter(|grant| {
                 crate::service_schema::schema_binds_exact_boundary_trait(
-                    &checked.typed,
+                    crate::ProviderPlanningContext::new(
+                        &checked.typed,
+                        source::DependencyScope::Product,
+                    ),
                     &grant.selected_plan.schema,
                     owner,
                 )

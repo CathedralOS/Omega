@@ -6,6 +6,22 @@ use crate::interpreter::evaluator::{
     TypeReferenceNode, TypedTrees, Value, ambient_step_budget, trap, unsupported, wrap_to_width,
 };
 impl<'program> Evaluator<'program> {
+    pub(in crate::interpreter) fn new_build(
+        program: crate::interpreter::BuildMachineProgram<'program>,
+    ) -> Self {
+        match program {
+            crate::interpreter::BuildMachineProgram::Typed(typed) => Self::new(typed, &[]),
+            crate::interpreter::BuildMachineProgram::Checked(checked) => {
+                let mut evaluator = Self::new(&checked.typed, &[]);
+                evaluator.operator_facts = Some(&checked.facts.operators);
+                // Runtime dispatch can carry relationships admitted for the
+                // product, not this activation. Host authority still enters
+                // only through the Build owner's explicit execution grants.
+                evaluator
+            }
+        }
+    }
+
     pub(in crate::interpreter) fn new(
         program: &'program TypedTrees,
         stdin: &'program [u8],

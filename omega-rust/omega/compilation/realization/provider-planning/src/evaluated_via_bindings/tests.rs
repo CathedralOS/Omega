@@ -106,13 +106,18 @@ fn product_binding_evaluation_excludes_build_checked_leaves() {
             let typed =
                 symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                     .unwrap();
-            let result =
-                super::evaluate_via_bindings(&typed, Some(TargetProfile::WindowsX64), None);
+            let provider_context =
+                crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
+            let result = super::evaluate_via_bindings(
+                provider_context,
+                Some(TargetProfile::WindowsX64),
+                None,
+            );
             if scope == source::DependencyScope::Build {
                 let table = result.expect("host leaves must not run in product binding evaluation");
                 assert!(table.rows().is_empty());
                 table
-                    .validate_against_typed(&typed)
+                    .validate_against_typed(provider_context)
                     .expect("replay uses the same product frontier");
             } else {
                 // This fixture deliberately returns u8 rather than an admitted
@@ -194,6 +199,7 @@ fn replay_fixture(source: &str) -> ReplayFixture {
         .expect("producer entry");
     let producer_symbol = producer.symbol;
     let table = EvaluatedViaBindingTable {
+        scope: source::DependencyScope::Product,
         target: Some(TargetProfile::WindowsX64),
         rows: vec![EvaluatedViaBindingRow {
             realization_machine: realization.symbol,
@@ -214,7 +220,10 @@ fn replay_fixture(source: &str) -> ReplayFixture {
         }],
     };
     table
-        .validate_against_typed(&typed)
+        .validate_against_typed(crate::ProviderPlanningContext::new(
+            &typed,
+            source::DependencyScope::Product,
+        ))
         .expect("fixture table rejoins exact typed custody");
     ReplayFixture {
         typed,
@@ -318,17 +327,19 @@ fn rejects_width_and_field_drift() {
 fn exact_candidate_and_selected_replay_cover_every_provider_schema_category() {
     for source in replay_sources() {
         let fixture = replay_fixture(source);
+        let provider_context =
+            crate::ProviderPlanningContext::new(&fixture.typed, source::DependencyScope::Product);
         let derived = ProviderPlanDerivation::evaluated(
-            &fixture.typed,
+            provider_context,
             Some("windows_x86_64"),
             &fixture.table,
             &[],
         )
-        .map(|derivation| derive_satisfies_plans(&fixture.typed, derivation))
+        .map(derive_satisfies_plans)
         .expect("strict evaluated-via derivation");
         assert_eq!(derived.len(), 1);
         let diagnostics =
-            validate_derived_provider_plan_candidates(&fixture.typed, &fixture.table, &derived);
+            validate_derived_provider_plan_candidates(provider_context, &fixture.table, &derived);
         assert!(
             diagnostics.is_empty(),
             "exact candidate provenance must replay: {diagnostics:?}"
@@ -336,7 +347,7 @@ fn exact_candidate_and_selected_replay_cover_every_provider_schema_category() {
         let selected =
             select_derived_provider_plans(&derived, target::NativeTarget::windows_x64(), &[], &[])
                 .expect("unique exact provider candidate");
-        selected_provider_plan_facts(&fixture.typed, &fixture.table, selected)
+        selected_provider_plan_facts(provider_context, &fixture.table, selected)
             .expect("selected provider provenance must replay");
     }
 }
@@ -345,13 +356,15 @@ fn exact_candidate_and_selected_replay_cover_every_provider_schema_category() {
 fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
     for source in replay_sources() {
         let fixture = replay_fixture(source);
+        let provider_context =
+            crate::ProviderPlanningContext::new(&fixture.typed, source::DependencyScope::Product);
         let derived = ProviderPlanDerivation::evaluated(
-            &fixture.typed,
+            provider_context,
             Some("windows_x86_64"),
             &fixture.table,
             &[],
         )
-        .map(|derivation| derive_satisfies_plans(&fixture.typed, derivation))
+        .map(derive_satisfies_plans)
         .expect("strict evaluated-via derivation");
         let producer = fixture
             .typed
@@ -364,7 +377,7 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
         slot_fallback[0].plan.rows[0].binding = ProviderBinding::VtableSlot { index: 0 };
         assert!(
             !validate_derived_provider_plan_candidates(
-                &fixture.typed,
+                provider_context,
                 &fixture.table,
                 &slot_fallback,
             )
@@ -385,7 +398,7 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
         };
         assert!(
             !validate_derived_provider_plan_candidates(
-                &fixture.typed,
+                provider_context,
                 &fixture.table,
                 &adapter_fallback,
             )
@@ -398,7 +411,7 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
         };
         assert!(
             !validate_derived_provider_plan_candidates(
-                &fixture.typed,
+                provider_context,
                 &fixture.table,
                 &import_substitution,
             )
@@ -415,8 +428,12 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
             .provenance
             .row_realizations[0] = fixture.producer;
         assert!(
-            selected_provider_plan_facts(&fixture.typed, &fixture.table, realization_substitution)
-                .is_err()
+            selected_provider_plan_facts(
+                provider_context,
+                &fixture.table,
+                realization_substitution
+            )
+            .is_err()
         );
 
         let mut requirement_substitution = selected.clone();
@@ -425,8 +442,12 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
             .provenance
             .row_requirements[0] = fixture.producer;
         assert!(
-            selected_provider_plan_facts(&fixture.typed, &fixture.table, requirement_substitution)
-                .is_err()
+            selected_provider_plan_facts(
+                provider_context,
+                &fixture.table,
+                requirement_substitution
+            )
+            .is_err()
         );
 
         let mut selected_binding_substitution = selected;
@@ -435,7 +456,7 @@ fn provider_replay_rejects_every_fallback_and_provenance_substitution() {
         };
         assert!(
             selected_provider_plan_facts(
-                &fixture.typed,
+                provider_context,
                 &fixture.table,
                 selected_binding_substitution
             )

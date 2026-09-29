@@ -80,6 +80,7 @@ pub fn settle_selected_execution(
     checked.program = crate::settle_selected_execution_dispatch(
         checked.program,
         &checked.selected_provider_plan_facts,
+        &settlement.selected_provider_provenance,
     )?;
     let accepted_binding = |role| {
         settlement

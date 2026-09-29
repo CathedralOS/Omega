@@ -1,23 +1,30 @@
 //! Exact conformance of checked adapters to provider schemas, with the
-//! invocations and realizations that prove it.
+//! invocations and realizations that prove it. Every declaration join uses the
+//! caller's explicit planning context; portable identity cannot select a scope.
 
+use crate::ProviderPlanningContext;
 use crate::provider_planning::provenance_replay::requirement_identities::{
     exact_satisfied_requirement_identity, external_provider_binding, realization_machine_identity,
 };
-use crate::provider_planning::{
-    ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema, TypedTrees,
-};
+use crate::provider_planning::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceSchema};
 
 pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
-    typed: &'typed TypedTrees,
+    context: ProviderPlanningContext<'typed>,
     top_level_symbols: &mut Option<validation::TopLevelSymbols<'typed>>,
     adapter: &'typed typed_trees::machine::Machine,
     plan: &effects::provider_plan::ProviderPlan,
     row: &effects::provider_plan::ProviderPlanRow,
 ) -> bool {
+    let typed = context.typed;
+    if !context.contains(adapter.symbol)
+        || adapter.attached_data_symbol.is_valid()
+            && !context.contains(adapter.attached_data_symbol)
+    {
+        return false;
+    }
     let top_level_requirement = typed.machines().iter().find(|requirement| {
         requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && crate::service_schema::from_typed_boundary_requirement(typed, requirement).as_ref()
+            && crate::service_schema::from_typed_boundary_requirement(context, requirement).as_ref()
                 == Some(&plan.schema)
     });
     if let Some(requirement) = top_level_requirement {
@@ -30,7 +37,10 @@ pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
                 .machine_trait_conformances(adapter)
                 .iter()
                 .any(|conformance| {
-                    if conformance.external_binding.is_some() {
+                    if conformance.external_binding.is_some()
+                        || !context.contains(conformance.symbol)
+                        || !context.contains(conformance.requirement_symbol)
+                    {
                         return false;
                     }
                     let direct = matches!(
@@ -59,6 +69,7 @@ pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
                     // requirement this plan's schema binds.
                     let Some(template) = typed.machines().iter().find(|candidate| {
                         candidate.symbol == conformance.symbol
+                            && context.contains(candidate.symbol)
                             && conformance.requirement_symbol == candidate.symbol
                             && candidate.supply_mode
                                 == language_semantics::MachineSupplyMode::TopLevelRequirement
@@ -72,12 +83,14 @@ pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
                         adapter,
                         template,
                     )
-                    .is_some_and(|closed| closed.symbol == requirement.symbol)
+                    .is_some_and(|closed| {
+                        closed.symbol == requirement.symbol && context.contains(closed.symbol)
+                    })
                 });
     }
 
     let operator = typed.operators().iter().find(|operator| {
-        crate::service_schema::schema_binds_exact_boundary_operator(typed, &plan.schema, operator)
+        crate::service_schema::schema_binds_exact_boundary_operator(context, &plan.schema, operator)
     });
     if let Some(operator) = operator {
         let identity =
@@ -89,6 +102,8 @@ pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
                 .iter()
                 .any(|conformance| {
                     conformance.external_binding.is_none()
+                        && context.contains(conformance.symbol)
+                        && context.contains(conformance.requirement_symbol)
                         && typed_trees::operator::resolve_satisfied_checked_operator_for_conformance(
                             typed,
                             adapter,
@@ -101,7 +116,11 @@ pub(crate) fn checked_adapter_has_exact_conformance<'typed>(
     typed
         .machine_trait_conformances(adapter)
         .iter()
-        .filter(|conformance| conformance.external_binding.is_none())
+        .filter(|conformance| {
+            conformance.external_binding.is_none()
+                && context.contains(conformance.symbol)
+                && context.contains(conformance.requirement_symbol)
+        })
         .filter_map(|conformance| {
             conformance.requirement.as_ref()?;
             Some(exact_satisfied_requirement_identity(
@@ -142,9 +161,10 @@ pub(crate) fn exact_schema_method_for_row<'plan>(
 }
 
 pub(crate) fn exact_canonical_provider_schema(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
 ) -> Result<ServiceSchema, diagnostics::Diagnostic> {
+    let typed = context.typed;
     if plan.schema.trait_name.is_empty() {
         return Err(diagnostics::Diagnostic::error(format!(
             "ProviderPlan `{}` has no exact canonical typed schema identity",
@@ -160,7 +180,7 @@ pub(crate) fn exact_canonical_provider_schema(
         .iter()
         .filter(|definition| {
             crate::service_schema::schema_binds_exact_boundary_trait(
-                typed,
+                context,
                 &plan.schema,
                 definition,
             )
@@ -171,7 +191,7 @@ pub(crate) fn exact_canonical_provider_schema(
         .iter()
         .filter(|operator| {
             crate::service_schema::schema_binds_exact_boundary_operator(
-                typed,
+                context,
                 &plan.schema,
                 operator,
             )
@@ -182,7 +202,7 @@ pub(crate) fn exact_canonical_provider_schema(
         .iter()
         .filter(|requirement| {
             crate::service_schema::schema_binds_exact_boundary_requirement(
-                typed,
+                context,
                 &plan.schema,
                 requirement,
             )
@@ -205,7 +225,7 @@ pub(crate) fn exact_canonical_provider_schema(
                             && typed.data_declaration_path(carrier) == plan.provider_type
                     })
                         && conformance.trait_symbol == definition.symbol
-                        && crate::service_schema::is_product_declaration(typed, conformance.carrier_symbol)
+                        && context.contains(conformance.carrier_symbol)
                         && typed.symbols.symbol_package_identity(conformance.carrier_symbol)
                             == plan.provider_type_package_identity
                 })
@@ -226,7 +246,7 @@ pub(crate) fn exact_canonical_provider_schema(
                     )));
                 }
             };
-            crate::service_schema::from_typed_instance(typed, definition, &arguments).ok_or_else(|| {
+            crate::service_schema::from_typed_instance(context, definition, &arguments).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed boundary schema",
                     plan.name, plan.schema.trait_name,
@@ -234,14 +254,14 @@ pub(crate) fn exact_canonical_provider_schema(
             })
         }
         ([], [requirement], []) => {
-            crate::service_schema::from_typed_boundary_requirement(typed, requirement).ok_or_else(|| {
+            crate::service_schema::from_typed_boundary_requirement(context, requirement).ok_or_else(|| {
                 diagnostics::Diagnostic::error(format!(
                     "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed top-level boundary-requirement schema",
                     plan.name, plan.schema.trait_name,
                 ))
             })
         }
-        ([], [], [operator]) => crate::service_schema::from_typed_operator(typed, operator).ok_or_else(|| {
+        ([], [], [operator]) => crate::service_schema::from_typed_operator(context, operator).ok_or_else(|| {
             diagnostics::Diagnostic::error(format!(
                 "ProviderPlan `{}` exact schema `{}` did not reconstruct as a canonical typed boundary-operator schema",
                 plan.name, plan.schema.trait_name,
@@ -300,12 +320,21 @@ pub(crate) fn exact_row_for_schema_method<'plan>(
 /// Join one selected top-level requirement or legacy operator to its exact
 /// checked adapter. Absence means the declaration has no boundary schema or
 /// the selected realization is not a checked body; malformed authority rejects.
+/// A retained requirement outside the supplied context rejects rather than
+/// appearing to have no schema.
 /// Execution admissibility and source operands remain the interpreter's work.
 pub fn selected_requirement_checked_adapter<'typed>(
-    typed: &'typed TypedTrees,
+    context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     requirement: symbols::SymbolHandle,
 ) -> Result<Option<&'typed typed_trees::machine::Machine>, diagnostics::Diagnostic> {
+    let typed = context.typed;
+    if !context.contains(requirement) {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "selected requirement {:?} for ProviderPlan `{}` is outside the {:?} planning context",
+            requirement, plan.name, context.scope,
+        )));
+    }
     // Actual machines own their schemas, including token-spelled requirements.
     // A signature view must not supply a fallback schema for an invalid machine.
     let schema = if let Some(machine) = typed
@@ -313,13 +342,13 @@ pub fn selected_requirement_checked_adapter<'typed>(
         .iter()
         .find(|machine| machine.symbol == requirement)
     {
-        crate::service_schema::from_typed_boundary_requirement(typed, machine)
+        crate::service_schema::from_typed_boundary_requirement(context, machine)
     } else {
         typed
             .operators()
             .iter()
             .find(|operator| operator.symbol == requirement)
-            .and_then(|operator| crate::service_schema::from_typed_operator(typed, operator))
+            .and_then(|operator| crate::service_schema::from_typed_operator(context, operator))
     };
     let Some(schema) = schema else {
         return Ok(None);
@@ -363,14 +392,17 @@ pub fn selected_requirement_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    exact_checked_adapter(typed, plan, row).map(Some)
+    exact_checked_adapter(context, plan, row).map(Some)
 }
 
+/// Rejoin one active adapter within the caller's declaration context, retaining
+/// exact callable, package, provider and satisfies-edge custody.
 pub fn exact_checked_adapter<'typed>(
-    typed: &'typed TypedTrees,
+    context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
 ) -> Result<&'typed typed_trees::machine::Machine, diagnostics::Diagnostic> {
+    let typed = context.typed;
     let ProviderBinding::CheckedAdapter {
         machine_identity,
         machine_package_identity,
@@ -399,9 +431,9 @@ pub fn exact_checked_adapter<'typed>(
         .filter(|candidate| {
             // Target selection leaves inactive siblings in the checked source
             // set. They share the callable identity but cannot supply the
-            // selected product; only the active declaration has no target tag.
+            // selected context; only the active declaration has no target tag.
             candidate.target.is_none()
-                && crate::service_schema::is_product_declaration(typed, candidate.symbol)
+                && context.contains(candidate.symbol)
                 && typed
                     .normalized_machine_overload_identity(candidate)
                     .is_some_and(|identity| identity.identity() == *machine_identity)
@@ -443,6 +475,25 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
+    if adapter.attached_data_symbol.is_valid() && !context.contains(adapter.attached_data_symbol) {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "checked adapter `{machine_identity}` for ProviderPlan `{}` retains a provider outside the {:?} planning context",
+            plan.name, context.scope,
+        )));
+    }
+    if typed
+        .machine_trait_conformances(adapter)
+        .iter()
+        .any(|conformance| {
+            !context.contains(conformance.symbol)
+                || !context.contains(conformance.requirement_symbol)
+        })
+    {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "checked adapter `{machine_identity}` for ProviderPlan `{}` retains a satisfies edge outside the {:?} planning context",
+            plan.name, context.scope,
+        )));
+    }
     let actual_package_identity = typed.symbols.symbol_package_identity(adapter.symbol);
     if actual_package_identity != *machine_package_identity {
         return Err(diagnostics::Diagnostic::error(format!(
@@ -450,38 +501,41 @@ pub fn exact_checked_adapter<'typed>(
             plan.name,
         )));
     }
-    validate_exact_requirement_lifetime_partition(typed, plan, row, adapter)?;
+    validate_exact_requirement_lifetime_partition(context, plan, row, adapter)?;
     Ok(adapter)
 }
 
 fn validate_exact_requirement_lifetime_partition(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     realization: &typed_trees::machine::Machine,
 ) -> Result<(), diagnostics::Diagnostic> {
-    let matching = typed
-        .machine_trait_conformances(realization)
-        .iter()
-        .filter_map(|conformance| {
-            let typed_trees::machine::SatisfiedDeclaration::Trait {
-                definition,
-                requirement,
-            } = typed_trees::machine::resolve_satisfied_declaration(
-                typed,
-                realization,
-                conformance,
-            )?
-            else {
-                return None;
-            };
-            (typed
-                .normalized_trait_requirement_overload_identity(definition, requirement)
-                .identity()
-                == row.requirement_identity)
-                .then_some(conformance)
-        })
-        .collect::<Vec<_>>();
+    let typed = context.typed;
+    let mut matching = Vec::new();
+    for conformance in typed.machine_trait_conformances(realization) {
+        let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+            definition,
+            requirement,
+        }) = typed_trees::machine::resolve_satisfied_declaration(typed, realization, conformance)
+        else {
+            continue;
+        };
+        if typed
+            .normalized_trait_requirement_overload_identity(definition, requirement)
+            .identity()
+            != row.requirement_identity
+        {
+            continue;
+        }
+        if !context.contains(definition.symbol) || !context.contains(requirement.symbol) {
+            return Err(diagnostics::Diagnostic::error(format!(
+                "ProviderPlan `{}` row `{}` requirement lifetime edge is outside the {:?} planning context",
+                plan.name, row.requirement_identity, context.scope,
+            )));
+        }
+        matching.push(conformance);
+    }
     match matching.as_slice() {
         [] if row.requirement_lifetime_partition.is_empty() => Ok(()),
         [conformance]
@@ -509,16 +563,17 @@ fn validate_exact_requirement_lifetime_partition(
 }
 
 pub(crate) fn exact_top_level_external_realization<'typed>(
-    typed: &'typed TypedTrees,
+    context: ProviderPlanningContext<'typed>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
 ) -> Result<&'typed typed_trees::machine::Machine, diagnostics::Diagnostic> {
+    let typed = context.typed;
     let requirements = typed
         .machines()
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
+                && crate::service_schema::from_typed_boundary_requirement(context, requirement)
                     .as_ref()
                     == Some(&plan.schema)
                 && typed
@@ -538,7 +593,9 @@ pub(crate) fn exact_top_level_external_realization<'typed>(
         .machines()
         .iter()
         .filter(|machine| {
-            typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
+            context.contains(machine.symbol)
+                && context.contains(machine.attached_data_symbol)
+                && typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
                 && typed.symbols.symbol_package_identity(machine.symbol)
                     == plan.origin_package_identity
                 && !machine.body_is_present
@@ -588,16 +645,17 @@ pub(crate) fn exact_top_level_external_realization<'typed>(
 }
 
 pub(crate) fn has_exact_top_level_ordinary_realization(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
 ) -> bool {
+    let typed = context.typed;
     let requirements = typed
         .machines()
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
+                && crate::service_schema::from_typed_boundary_requirement(context, requirement)
                     .as_ref()
                     == Some(&plan.schema)
                 && typed
@@ -612,7 +670,9 @@ pub(crate) fn has_exact_top_level_ordinary_realization(
         .machines()
         .iter()
         .filter(|machine| {
-            typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
+            context.contains(machine.symbol)
+                && context.contains(machine.attached_data_symbol)
+                && typed.attached_data_path(machine).as_deref() == Some(plan.provider_type.as_str())
                 && typed.symbols.symbol_package_identity(machine.symbol)
                     == plan.origin_package_identity
                 && !machine.body_is_present
@@ -638,10 +698,11 @@ pub(crate) fn has_exact_top_level_ordinary_realization(
 }
 
 fn exact_invocation_service_name(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     machine: &typed_trees::machine::Machine,
     target: flow_effects::InvocationTarget,
 ) -> Result<String, diagnostics::Diagnostic> {
+    let typed = context.typed;
     let symbol = match target {
         flow_effects::InvocationTarget::Parameter(index) => {
             let Some(entry) = typed.machine_states(machine).first() else {
@@ -686,6 +747,12 @@ fn exact_invocation_service_name(
             machine.name,
         )));
     }
+    if !context.contains(symbol) {
+        return Err(diagnostics::Diagnostic::error(format!(
+            "checked adapter `{}` synchronous-invocation service {:?} is outside the {:?} planning context",
+            machine.name, symbol, context.scope,
+        )));
+    }
     let matches = typed
         .traits()
         .iter()
@@ -703,12 +770,13 @@ fn exact_invocation_service_name(
 }
 
 pub(crate) fn exact_checked_adapter_invocations(
-    typed: &TypedTrees,
+    context: ProviderPlanningContext<'_>,
     inferred: &flow_effects::InvocationInferencePlan,
     plan: &ProviderPlan,
     method: &effects::provider_plan::ServiceMethod,
     row: &ProviderPlanRow,
 ) -> Result<Vec<String>, diagnostics::Diagnostic> {
+    let typed = context.typed;
     let ProviderBinding::CheckedAdapter {
         machine_identity, ..
     } = &row.binding
@@ -718,7 +786,7 @@ pub(crate) fn exact_checked_adapter_invocations(
             plan.name, row.requirement_identity,
         )));
     };
-    let adapter = exact_checked_adapter(typed, plan, row)?;
+    let adapter = exact_checked_adapter(context, plan, row)?;
     let summaries = inferred
         .machines
         .iter()
@@ -735,7 +803,7 @@ pub(crate) fn exact_checked_adapter_invocations(
             && typed
                 .normalized_machine_overload_identity(requirement)
                 .is_some_and(|identity| identity.identity() == method.requirement_identity)
-            && crate::service_schema::is_product_declaration(typed, requirement.symbol)
+            && context.contains(requirement.symbol)
             && typed.symbols.symbol_package_identity(requirement.symbol)
                 == method.requirement_owner_package_identity
     });
@@ -744,7 +812,7 @@ pub(crate) fn exact_checked_adapter_invocations(
         .iter()
         .filter(|definition| {
             definition.is_boundary
-                && crate::service_schema::is_product_declaration(typed, definition.symbol)
+                && context.contains(definition.symbol)
                 && typed.trait_declaration_path(definition) == method.requirement_owner
                 && typed.symbols.symbol_package_identity(definition.symbol)
                     == method.requirement_owner_package_identity
@@ -759,7 +827,7 @@ pub(crate) fn exact_checked_adapter_invocations(
                 .iter()
                 .filter(|operator| {
                     operator.is_boundary
-                        && crate::service_schema::is_product_declaration(typed, operator.symbol)
+                        && context.contains(operator.symbol)
                         && typed_trees::operator::boundary_operator_requirement_identity(
                             typed, operator,
                         ) == method.requirement_owner
@@ -788,7 +856,7 @@ pub(crate) fn exact_checked_adapter_invocations(
 
     let mut names = Vec::new();
     for target in &summary.inferred_transitive {
-        let target_name = exact_invocation_service_name(typed, adapter, *target)?;
+        let target_name = exact_invocation_service_name(context, adapter, *target)?;
         let self_forwarded = *target == flow_effects::InvocationTarget::Parameter(0)
             && boundary.is_some_and(|boundary| {
                 let parameter_count = typed

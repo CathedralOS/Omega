@@ -20,6 +20,7 @@ effects = { path = "../backend/plans/provider-evidence" }
 optimization-core = { path = "../../foundation/optimization-core" }
 package-compilation = { path = "../../packages/compilation-inputs" }
 provider-planning = { path = "../realization/provider-planning" }
+selected-dispatch = { path = "../realization/selected-dispatch" }
 representation-planning = { path = "../../../psi/compilation/checking/representation-planning" }
 target = { path = "../backend/target" }
 trust-model = { path = "../realization/trust-model" }

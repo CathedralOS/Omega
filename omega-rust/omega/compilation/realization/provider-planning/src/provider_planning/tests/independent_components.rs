@@ -69,7 +69,7 @@ impl IndependentSelection {
         components: &[VerifiedComponent],
     ) -> Result<SelectedProviderPlanFacts, Vec<diagnostics::Diagnostic>> {
         selected_provider_plan_facts_with_independent_components(
-            &self.typed,
+            crate::ProviderPlanningContext::new(&self.typed, source::DependencyScope::Product),
             &self.evaluated_bindings,
             self.selected.clone(),
             components,
@@ -123,8 +123,10 @@ fn independent_selection(mode: CompositionMode) -> IndependentSelection {
     .expect("resolve independent selection fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type independent selection fixture");
+    let provider_context =
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product);
     let evaluated_bindings =
-        crate::evaluated_via_bindings::evaluate_via_bindings(&typed, None, None)
+        crate::evaluated_via_bindings::evaluate_via_bindings(provider_context, None, None)
             .expect("the checked fixture has an exact empty evaluated-via table");
     let requirement = typed
         .machines()
@@ -141,7 +143,8 @@ fn independent_selection(mode: CompositionMode) -> IndependentSelection {
         .iter()
         .find(|definition| definition.name.as_str() == "LapicCompletion")
         .expect("nominal provider type");
-    let derived = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None));
+    let derived =
+        derive_satisfies_plans(ProviderPlanDerivation::unevaluated(provider_context, None));
     assert_eq!(derived.len(), 1, "one exact checked provider plan");
     let selection = crate::ProviderSelection {
         subject: crate::ProviderSelectionSubject::BoundaryRequirement(
@@ -460,7 +463,7 @@ fn independent_selection_rejects_without_any_verified_component() {
     // The route without a component input is the same fence with nothing
     // supplied, so existing callers keep rejecting every independent edge.
     let without_input = selected_provider_plan_facts(
-        &selection.typed,
+        crate::ProviderPlanningContext::new(&selection.typed, source::DependencyScope::Product),
         &selection.evaluated_bindings,
         selection.selected.clone(),
     )

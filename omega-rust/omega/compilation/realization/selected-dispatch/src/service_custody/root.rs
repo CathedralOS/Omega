@@ -315,8 +315,13 @@ pub fn derive_fused_program_entry_establishments(
             )));
             continue;
         };
-        let Some(schema) = provider_planning::service_schema::from_typed(checked, requirement)
-        else {
+        let Some(schema) = provider_planning::service_schema::from_typed(
+            provider_planning::ProviderPlanningContext::new(
+                checked,
+                source::DependencyScope::Product,
+            ),
+            requirement,
+        ) else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected ProgramEntry Binding field `{}::{}` cannot reconstruct its schema",
                 owner.name,

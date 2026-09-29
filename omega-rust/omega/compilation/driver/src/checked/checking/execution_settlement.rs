@@ -63,8 +63,9 @@ pub(crate) fn check_selected_execution(
         .iter()
         .map(|acceptance| acceptance.digest)
         .collect();
-    let settled_target_machines =
-        selected_target_machine_declarations.settle_provider_defaults(&mut typed)?;
+    let settled_target_machines = selected_target_machine_declarations.settle_provider_defaults(
+        provider_planning::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+    )?;
     let provider_planning::CheckedProviderSelection {
         provider_plans,
         evaluated_via_bindings,

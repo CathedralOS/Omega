@@ -23,6 +23,8 @@ pub(super) fn derive_selected_installation_reach_resolutions(
     let mut resolutions = Vec::new();
     let mut pending = Vec::new();
     let mut diagnostics = Vec::new();
+    let provider_context =
+        crate::ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product);
     for plan in selected.plans() {
         let top_level_requirements = checked
             .typed
@@ -32,7 +34,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
                 requirement.supply_mode
                     == language_semantics::MachineSupplyMode::TopLevelRequirement
                     && crate::service_schema::from_typed_boundary_requirement(
-                        &checked.typed,
+                        provider_context,
                         requirement,
                     )
                     .as_ref()
@@ -70,7 +72,7 @@ pub(super) fn derive_selected_installation_reach_resolutions(
         // typed operator schema. Do not make the trait-only installation-reach
         // pass reinterpret them as missing trait requirements.
         let is_boundary_operator_plan = checked.typed.operators().iter().any(|operator| {
-            crate::service_schema::from_typed_operator(&checked.typed, operator).as_ref()
+            crate::service_schema::from_typed_operator(provider_context, operator).as_ref()
                 == Some(&plan.schema)
         });
         if is_boundary_operator_plan {

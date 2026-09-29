@@ -332,7 +332,10 @@ impl CheckedCompilation {
             })
             .filter_map(|definition| {
                 provider_planning::service_schema::from_typed(
-                    &self.execution.settled.program.typed,
+                    provider_planning::ProviderPlanningContext::new(
+                        &self.execution.settled.program.typed,
+                        source::DependencyScope::Product,
+                    ),
                     definition,
                 )
             })

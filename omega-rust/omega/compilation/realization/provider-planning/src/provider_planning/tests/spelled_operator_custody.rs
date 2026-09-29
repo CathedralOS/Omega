@@ -27,10 +27,13 @@ fn fixed_token_checked_adapter_fixture() -> (checked_trees::CheckedTrees, Provid
     .expect("resolve fixed-token checked-adapter fixture");
     let typed = symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type fixed-token checked-adapter fixture");
-    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-        .into_iter()
-        .map(|derived| derived.plan)
-        .collect::<Vec<_>>();
+    let plans = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!(
             "fixed-token checked-adapter fixture must derive one provider plan, got {}",
@@ -113,7 +116,9 @@ fn selected_requirement_adapter_requires_the_complete_schema_and_one_exact_row()
         .expect("one spelled boundary-operator use")
         .1
         .selected_operator_symbol;
-    let adapter = crate::selected_requirement_checked_adapter(&checked.typed, &plan, requirement)
+    let provider_context =
+        crate::ProviderPlanningContext::new(&checked.typed, source::DependencyScope::Product);
+    let adapter = crate::selected_requirement_checked_adapter(provider_context, &plan, requirement)
         .expect("exact selected authority")
         .expect("selected checked body");
     assert_eq!(adapter.name.as_str(), "CheckedMathProvider::add");
@@ -121,21 +126,21 @@ fn selected_requirement_adapter_requires_the_complete_schema_and_one_exact_row()
     let mut changed_schema = plan.clone();
     changed_schema.schema.methods[0].parameter_count += 1;
     assert!(
-        crate::selected_requirement_checked_adapter(&checked.typed, &changed_schema, requirement)
+        crate::selected_requirement_checked_adapter(provider_context, &changed_schema, requirement)
             .is_err(),
         "matching overload identity alone cannot authorize a different schema"
     );
     let mut duplicate_row = plan.clone();
     duplicate_row.rows.push(plan.rows[0].clone());
     assert!(
-        crate::selected_requirement_checked_adapter(&checked.typed, &duplicate_row, requirement)
+        crate::selected_requirement_checked_adapter(provider_context, &duplicate_row, requirement)
             .is_err(),
         "a selected requirement must retain exactly one realization row"
     );
     let mut wrong_row = plan.clone();
     wrong_row.rows[0].requirement_identity.clear();
     assert!(
-        crate::selected_requirement_checked_adapter(&checked.typed, &wrong_row, requirement)
+        crate::selected_requirement_checked_adapter(provider_context, &wrong_row, requirement)
             .is_err(),
         "the realization row must bind the exact schema method"
     );
@@ -161,10 +166,13 @@ fn self_spelling_checked_adapter_fixture() -> (checked_trees::CheckedTrees, Prov
         }
     "#;
     let typed = super::typed_fixture(source);
-    let plans = derive_satisfies_plans(&typed, ProviderPlanDerivation::unevaluated(None))
-        .into_iter()
-        .map(|derived| derived.plan)
-        .collect::<Vec<_>>();
+    let plans = derive_satisfies_plans(ProviderPlanDerivation::unevaluated(
+        crate::ProviderPlanningContext::new(&typed, source::DependencyScope::Product),
+        None,
+    ))
+    .into_iter()
+    .map(|derived| derived.plan)
+    .collect::<Vec<_>>();
     let [plan] = plans.as_slice() else {
         panic!(
             "self-spelling checked-adapter fixture must derive one provider plan, got {}",

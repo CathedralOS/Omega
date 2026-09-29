@@ -8,6 +8,8 @@ struct PackageFixture {
     sources: source::SourceMap,
     typed: typed_trees::TypedTrees,
     packages: package_compilation::PackageCompilationInputs,
+    target_machine_declarations:
+        provider_planning::target_machines::SelectedTargetMachineDeclarations,
 }
 
 impl PackageFixture {
@@ -58,6 +60,7 @@ impl PackageFixture {
             sources,
             typed,
             packages,
+            target_machine_declarations: Default::default(),
         }
     }
 
@@ -65,6 +68,7 @@ impl PackageFixture {
         BuildEvaluationRequest {
             root_path: &self.root,
             typed: &self.typed,
+            target_machine_declarations: &self.target_machine_declarations,
             build_source_id: has_companion.then_some(self.source_id),
             sources: &self.sources,
             package_inputs: Some(&self.packages),
@@ -88,6 +92,7 @@ fn no_build_evaluation_preserves_default_configuration_and_evidence() {
         BuildEvaluationRequest {
             root_path: std::path::Path::new("main.omg"),
             typed: &typed,
+            target_machine_declarations: &Default::default(),
             build_source_id: None,
             sources: &sources,
             package_inputs: None,
@@ -126,6 +131,7 @@ fn absent_build_does_not_capture_an_execution_snapshot() {
         BuildEvaluationRequest {
             root_path: std::path::Path::new("main.omg"),
             typed: &typed,
+            target_machine_declarations: &Default::default(),
             build_source_id: None,
             sources: &sources,
             package_inputs: None,

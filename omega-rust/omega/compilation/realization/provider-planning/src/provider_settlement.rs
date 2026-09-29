@@ -91,27 +91,28 @@ pub fn settle_checked_providers(
         .map(target::TargetProfile::native_target)
         .unwrap_or_else(target::NativeTarget::host);
     let target_provider_defaults = settled_target_machines.provider_defaults;
+    let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
     let evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_via_bindings(
-        typed,
+        context,
         planning_target,
         package_inputs,
     )?;
     let derived_provider_plans = crate::ProviderPlanDerivation::evaluated(
-        typed,
+        context,
         target_name,
         &evaluated_via_bindings,
         &settled_target_machines.origins,
     )
-    .map(|derivation| derive_satisfies_plans(typed, derivation))?;
+    .map(derive_satisfies_plans)?;
     let mut provider_plans = derived_provider_plans
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
     let diagnostics = crate::validate_derived_provider_plan_candidates(
-        typed,
+        context,
         &evaluated_via_bindings,
         &derived_provider_plans,
     );
@@ -224,7 +225,7 @@ pub fn settle_checked_providers(
     )?;
     let (mut selected_provider_plan_facts, mut selected_provider_provenance) =
         crate::selected_provider_plan_facts_with_independent_components(
-            typed,
+            crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
             &evaluated_via_bindings,
             selected_provider_plans,
             &independent_components,

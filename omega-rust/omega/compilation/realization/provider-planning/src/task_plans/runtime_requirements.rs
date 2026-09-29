@@ -69,7 +69,10 @@ pub(crate) fn selected_task_runtime_provider(
         .iter()
         .filter(|plan| {
             crate::service_schema::schema_binds_exact_boundary_trait(
-                &program.typed,
+                crate::ProviderPlanningContext::new(
+                    &program.typed,
+                    source::DependencyScope::Product,
+                ),
                 &plan.schema,
                 requirement_owner,
             ) && plan.schema.trait_package_identity == requirement_owner_package

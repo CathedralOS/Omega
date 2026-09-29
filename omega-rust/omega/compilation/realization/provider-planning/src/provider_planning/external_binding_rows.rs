@@ -154,7 +154,10 @@ fn extract_external_binding_rows_for_scope(
             if matches!(&binding, ExternalBindingKind::CompilerIntrinsic { .. })
                 && typed.operators().iter().any(|operator| {
                     crate::service_schema::schema_binds_exact_boundary_operator(
-                        typed,
+                        crate::ProviderPlanningContext::new(
+                            typed,
+                            source::DependencyScope::Product,
+                        ),
                         &plan.schema,
                         operator,
                     )
@@ -265,12 +268,14 @@ fn selected_source_boundary_entry_plan(
         )));
     }
 
+    let provider_context =
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
     let schema_operators = typed
         .operators()
         .iter()
         .filter(|operator| {
             crate::service_schema::schema_binds_exact_boundary_operator(
-                typed,
+                provider_context,
                 &plan.schema,
                 operator,
             )
@@ -310,8 +315,11 @@ fn selected_source_boundary_entry_plan(
         .iter()
         .filter(|requirement| {
             requirement.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-                && crate::service_schema::from_typed_boundary_requirement(typed, requirement)
-                    .as_ref()
+                && crate::service_schema::from_typed_boundary_requirement(
+                    provider_context,
+                    requirement,
+                )
+                .as_ref()
                     == Some(&plan.schema)
         })
         .collect::<Vec<_>>();
@@ -363,7 +371,7 @@ fn selected_source_boundary_entry_plan(
         .iter()
         .filter(|definition| {
             crate::service_schema::schema_binds_exact_boundary_trait(
-                typed,
+                provider_context,
                 &plan.schema,
                 definition,
             )
