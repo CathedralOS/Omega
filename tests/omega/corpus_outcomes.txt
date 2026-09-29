@@ -76,7 +76,7 @@ pass/borrows/borrow_returned_window_write_and_call checked 352ms
 pass/borrows/borrow_stated_index_disequality_mut checked 350ms
 pass/borrows/projected_indexed_member_loan checked 6758ms
 pass/borrows/projected_local_member_loan checked 6737ms
-pass/borrows/projected_mut_member_loan checked 9627ms
+pass/borrows/projected_mut_member_loan checked 9038ms
 pass/borrows/projected_param_member_loan rejected 6297ms
 	native artifact canonical abstract optimization failed: abstract optimization failed: Run(InitialValidation(InvalidStructuralTypeIdentity(StructuralTypeId(3))))
 pass/borrows/projected_scalar_member_loan checked 6696ms
