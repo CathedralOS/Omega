@@ -150,6 +150,13 @@ fn prove(
     }) {
         return Some(true);
     }
+    // A bound at or beyond the substituted operand's carrier extent is
+    // vacuous -- every `s: u64` already satisfies `s <= u64::MAX`, and the
+    // operand reader below cannot even name literals outside i64. Discharge
+    // by carrier before the evidence path runs.
+    if carrier_extent_discharge(program, machine, state, &explicit, &arguments, binary) {
+        return Some(true);
+    }
     let operand = |expression| match program.expression_table.expression(expression) {
         ExpressionNode::Integer(literal) => literal
             .value_i64()
@@ -229,6 +236,67 @@ fn prove(
         BinaryOperator::GreaterOrEqual => left_low? >= right_high?,
         _ => return None,
     })
+}
+
+/// Whether one conjunct is vacuous under the substituted operand's carrier:
+/// the comparison's subject resolves to a call argument whose type's full
+/// extent already lies inside the bound the literal states. Only the same
+/// literal-vs-parameter surface the operand read below resolves qualifies --
+/// two literals belong to the closed evaluator and two subjects have no
+/// carrier extent to quote.
+fn carrier_extent_discharge(
+    program: &TypedTrees,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    explicit: &[&typed_trees::signature::StateParameter],
+    arguments: &[ExpressionHandle],
+    binary: &typed_trees::expression::TableBinaryExpression,
+) -> bool {
+    let left_literal = validation::closed_integer_range_bound(program, binary.left);
+    let right_literal = validation::closed_integer_range_bound(program, binary.right);
+    let (subject, subject_on_left, bound) = match (left_literal, right_literal) {
+        (Some(value), None) => (binary.right, false, value),
+        (None, Some(value)) => (binary.left, true, value),
+        _ => return false,
+    };
+    let ExpressionNode::Name(path) = program.expression_table.expression(subject) else {
+        return false;
+    };
+    if !(path.symbol.is_valid() && path.head_symbol == path.symbol) {
+        return false;
+    }
+    let Some(argument) = explicit
+        .iter()
+        .position(|parameter| parameter.symbol == path.symbol)
+        .and_then(|position| arguments.get(position))
+    else {
+        return false;
+    };
+    let maximum = crate::checks::ranges::types::expression_integer_carrier_maximum(
+        program, machine, state, *argument,
+    )
+    .map(numerics::bignum::BigInt::from_u64);
+    let minimum = crate::checks::ranges::types::expression_integer_carrier_minimum(
+        program, machine, state, *argument,
+    );
+    match (binary.operator, subject_on_left) {
+        // `x < C` / `C > x`: every value stays under C exactly when the
+        // carrier's top does.
+        (BinaryOperator::Less, true) | (BinaryOperator::Greater, false) => {
+            maximum.is_some_and(|maximum| bound > maximum)
+        }
+        (BinaryOperator::LessOrEqual, true) | (BinaryOperator::GreaterOrEqual, false) => {
+            maximum.is_some_and(|maximum| bound >= maximum)
+        }
+        // `x > C` / `C < x`: the carrier's floor already clears C.
+        (BinaryOperator::Greater, true) | (BinaryOperator::Less, false) => {
+            minimum.is_some_and(|minimum| bound < minimum)
+        }
+        (BinaryOperator::GreaterOrEqual, true) | (BinaryOperator::LessOrEqual, false) => {
+            minimum.is_some_and(|minimum| bound <= minimum)
+        }
+        _ => false,
+    }
 }
 
 /// Whether a member chain reads a field of the machine's own receiver.
