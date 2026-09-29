@@ -341,3 +341,88 @@ fn verified_owned_array_read_retains_exact_parameter_and_projection() {
         ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
     );
 }
+
+/// `board.cells[index].hp` read as a store value: Terminal spells one
+/// primitive read whose path selects the element at run time and ends at the
+/// element's `hp` field, and target-neutral Omega keeps that exact path. A
+/// substituted final field (`tag`, a `u8`, for an `i32` read) or a field the
+/// element does not declare is refused before any abstract operation exists.
+#[test]
+fn verified_runtime_element_field_read_retains_its_exact_path() {
+    let source = r#"
+        data Cell { tag: u8; hp: i32; }
+        data Board { cells: [Cell; 4]; scratch: i32; }
+        machine copy(board: &mut Board, index: u64 [0..=3]) {
+            board.scratch = board.cells[index].hp;
+        }
+    "#;
+    let tokens = Lexer::new(source).tokenize().expect("tokenize source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse source");
+    let resolved = resolve(ResolutionRequest::new(&syntax)).expect("resolve source");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type source");
+    let checked = lower_typed_trees(typed, &CheckingRequest::settled()).expect("check source");
+    let terminal = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("copy"),
+    )
+    .expect("runtime element field read lowers to verified Terminal Psi");
+    fn element_path(leaf: &str, path: &[terminal_psi::StructuralPathSegment]) -> bool {
+        matches!(path, [
+            terminal_psi::StructuralPathSegment::Field(array),
+            terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+            terminal_psi::StructuralPathSegment::Field(field),
+        ] if array == "cells" && field == leaf)
+    }
+    // The codec's module check, Terminal verification and stage 00 each
+    // rebuild the read's leaf; `None` is a refusal by any of them.
+    let lower = |module: &terminal_psi::TerminalModule| {
+        let semantic = encode_module(module).ok()?;
+        let proof = encode_proof_section(module, &terminal.proof_bundle).ok()?;
+        lower_artifact(
+            terminal_psi_to_abstract_operations::ArtifactSections {
+                semantic_bytes: &semantic,
+                proof_bytes: &proof,
+                obligation_ledger_bytes: None,
+            },
+            &AdmissionProfile::default(),
+        )
+        .ok()
+        .map(|admitted| admitted.into_plan())
+    };
+    let plan = lower(&terminal.semantic_module)
+        .expect("verified runtime element field read reaches target-neutral Omega");
+    let read = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operations)
+        .find_map(|operation| match operation {
+            AbstractOperation::PrimitiveScalarRead { path, result, .. } => Some((path, result)),
+            _ => None,
+        })
+        .expect("one runtime element field read");
+    assert!(element_path("hp", read.0), "{:?}", read.0);
+    assert_eq!(
+        read.1.scalar_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap())
+    );
+
+    for leaf in ["tag", "missing"] {
+        let mut changed = terminal.semantic_module.clone();
+        let path = changed
+            .machines
+            .iter_mut()
+            .flat_map(|machine| machine.blocks.iter_mut())
+            .flat_map(|block| block.operations.iter_mut())
+            .find_map(|operation| match &mut operation.kind {
+                terminal_psi::OperationKind::PrimitiveScalarRead { path, .. }
+                    if element_path("hp", path) =>
+                {
+                    Some(path)
+                }
+                _ => None,
+            })
+            .expect("the Terminal read");
+        *path.last_mut().unwrap() = terminal_psi::StructuralPathSegment::Field(leaf.into());
+        assert!(lower(&changed).is_none(), "a substituted {leaf} field");
+    }
+}

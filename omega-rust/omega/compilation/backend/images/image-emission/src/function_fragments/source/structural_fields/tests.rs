@@ -179,6 +179,103 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
     }
 }
 
+/// A read of a runtime-selected record element's field (`cells[i].hp`)
+/// publishes its exact path. Publication rebuilds the leaf from declarations
+/// with Terminal's read rule, so a substituted field is not this read's
+/// subject, even when the abstract and target rows agree on it.
+#[test]
+fn runtime_element_field_publication_rebuilds_the_declared_field() {
+    use terminal_psi::StructuralPathSegment as Segment;
+    use terminal_psi::{
+        BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    let (mut function, mut target) = field_fixture(scalar);
+    let parameter = function.structural_parameters[0].clone();
+    let identity = OperationId::new(1).unwrap();
+    let result = AbstractResult {
+        value: ValueId::new(1).unwrap(),
+        scalar_type: scalar,
+    };
+    let selector = ValueId::new(7).unwrap();
+    let path = |leaf: &str| {
+        vec![
+            Segment::RuntimeIndex {
+                index: selector,
+                obligation: semantic_vocabulary::ObligationId::new(3).unwrap(),
+            },
+            Segment::Field(leaf.into()),
+        ]
+    };
+    let cell = StructuralTypeId::new(2).unwrap();
+    let field = |raw, identity: &str, field_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(raw).unwrap(),
+        identity: identity.into(),
+        relevance: BindingRelevance::Relevant,
+        field_type,
+    };
+    target.graph.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: parameter.structural_type,
+            identity: "test::Cells".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: cell,
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: cell,
+            identity: "test::Cell".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    field(
+                        1,
+                        "tag",
+                        StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                        )),
+                    ),
+                    field(2, "hp", StructuralFieldType::Scalar(scalar)),
+                ],
+            },
+        },
+    ]
+    .into();
+    let traversal = target_operations::TargetStructuralRuntimeIndex {
+        operand: target_operations::TargetUnitScalarArgumentSource::Parameter {
+            parameter_index: 0,
+            source_value: selector,
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        },
+        stride: 8,
+    };
+    let mut rows = |leaf: &str, target_leaf: &str| {
+        function.operations[0] = AbstractOperation::PrimitiveScalarRead {
+            psi_operation: identity,
+            result,
+            source: parameter.place,
+            path: path(leaf),
+        };
+        let mut target = target.clone();
+        target.graph.blocks[0].operations[0] = TargetUnitOperation::PrimitiveScalarRead {
+            psi_operation: identity,
+            result,
+            source: parameter.place,
+            path: path(target_leaf),
+            indices: vec![traversal.clone()],
+        };
+        retained(&function, &function.operations[0], &target)
+    };
+    assert!(rows("hp", "hp"));
+    assert!(!rows("hp", "tag"), "the target row names another field");
+    assert!(!rows("tag", "tag"), "a u8 field is no i32 read");
+    assert!(
+        !rows("missing", "missing"),
+        "an undeclared field names nothing"
+    );
+}
+
 fn field_fixture(scalar_type: ScalarType) -> (AbstractFunction, TargetFunction) {
     // These fixtures isolate source membership, not object/load replay certificates.
     let machine = MachineId::new(1).unwrap();

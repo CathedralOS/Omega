@@ -561,7 +561,7 @@ pub(super) fn validate_operation(
                     )
                     .find(|parameter| parameter.place == *expected_source)
                     .ok_or(LegalizationError::custody())?;
-                crate::structural_inputs::structural_reference_input::primitive_geometry(
+                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                     root.structural_type,
                     expected_path,
                     expected.scalar_type,

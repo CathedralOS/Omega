@@ -151,7 +151,7 @@ pub(super) fn lower(
                         .map(|parameter| parameter.structural_type)
                 })
                 .ok_or_else(invalid)?;
-            if super::primitive_projection::leaf_type(types, identity, path, |index| {
+            if super::primitive_projection::read_leaf_type(types, identity, path, |index| {
                 super::structural_scalar_fields::dominating_scalar_type(
                     machine,
                     block,

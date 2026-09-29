@@ -79,7 +79,7 @@ pub(super) fn readable(
                         || parameter.multiplicity == StructuralMultiplicity::Unrestricted)
                     && parameter.qualifications.is_empty()
                     && parameter.projected_qualifications.is_empty()
-                    && crate::structural_inputs::structural_reference_input::primitive_geometry(
+                    && crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                         parameter.structural_type,
                         path,
                         scalar,
@@ -131,7 +131,7 @@ pub(super) fn read_geometry(
             let signature = source.structural.as_ref()?;
             let parameter = borrowed_parameter(source, *place)?;
             let (offset, _, elements) =
-                crate::structural_inputs::structural_reference_input::primitive_geometry(
+                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
                     parameter.structural_type,
                     path,
                     scalar,
