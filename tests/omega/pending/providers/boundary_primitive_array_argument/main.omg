@@ -1,3 +1,15 @@
+// STATUS (swarm sweep, omega-71254d80532): the original `call operation:
+// boundary arguments` omission is dead. The same program now --checks clean
+// and declines deeper, at terminal-artifact production:
+// `InvalidProviderCandidate { boundary, candidate }` — the stateful provider
+// keeps its `&mut self` receiver in candidate.parameters while the boundary's
+// service receiver carries no scalar slot, failing the provider-candidates
+// signature/refinement mirror (terminal-psi verification
+// validation/foundation/provider_candidates.rs). Producer side lives in
+// 05 unit/attached_unit provider emission, under OPERATOR-BOUNDARY-TERMINAL.
+// The receiver-free twin (fixture bare_byte_array_boundary_argument) passes
+// natively with exit 0 on linux_x86_64.
+//
 // A boundary-call parameter whose declared type is a fixed array of PRIMITIVE
 // elements has no lowering route, and neither does such a result. Reduced from
 // three GUI samples that all stop at the same call,
