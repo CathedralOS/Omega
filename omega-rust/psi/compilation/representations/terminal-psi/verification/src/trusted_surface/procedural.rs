@@ -109,16 +109,16 @@ rows! {
     NORM_PREDICATE_DENOTATION => (
         "conversion:predicate-denotation",
         NormalizationConversion,
-        "a proposition whose Boolean and exact fixed-integer comparison denotation is computed under a bounded recursion, substitution, and clone budget over the validated context",
-        "the denotation normal form used by PredicateDenotation, including independently typed integer values and literals; mixed comparisons retain exact subjects and carriers in mathematical relations, unsupported compound endpoints and IEEE relations remain unchanged, and unbounded or malformed propositions reject before evaluation",
+        "a proposition validated under its original context and bounded recursion, substitution, and clone budget; closed IEEE comparisons require two exact-bit literals of the same declared format",
+        "the Boolean and exact fixed-integer denotation normal form, retaining exact subjects and carriers in mixed mathematical comparisons; closed same-format IEEE literals are decoded to exact FloatSemantics meanings before comparison, with equal signed zeros, unordered nonreflexive NaNs, and explicit logical complements; open IEEE relations remain atomic with no unknown-float reflexivity, unsupported compound endpoints remain unchanged, and unbounded or malformed propositions reject before evaluation without carrier coercion",
         &["formation:proposition-context", "formation:mathematical-core", "primitive:closed-integer-relation"],
-        &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/budget.rs"), pa!( "kernel.rs")]
+        &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/budget.rs"), pa!( "kernel.rs"), "omega-rust/psi/foundation/numerics/src/float_semantics.rs", "omega-rust/psi/foundation/numerics/src/bignum/exact_float.rs"]
     );
     NORM_VALUE_EQUALITY_DENOTATION => (
         "conversion:value-equality-denotation",
         NormalizationConversion,
         "a proposition plus an ordered roster of proved value-to-term equations",
-        "the denotation normal form under exactly those equations; mathematical constructors recursively retain operand order and substitute typed values through the existing exact fixed-integer lift; wrapping and other opaque scalar constructors remain unchanged, and only representable closed literals may change carrier without changing value",
+        "the denotation normal form under exactly those equations; mathematical constructors retain operand order through the exact fixed-integer lift, while IEEE literal substitution retains exact bits and format, preserves ordered comparison operands, and canonicalizes only symmetric equality and inequality; payload equations do not assert IEEE reflexivity, wrapping and other opaque constructors remain unchanged, and only representable closed integer literals may change carrier without changing value",
         &["conversion:predicate-denotation"],
         &[pa!( "predicate_denotation.rs"), pa!( "predicate_denotation/value_equalities.rs"), pa!( "proof/integer_math_normalization.rs")]
     );
@@ -400,9 +400,9 @@ rows! {
         "formation:proposition-context",
         SharedFormation,
         "a proposition and the value/place context it is checked under",
-        "only well-formed propositions over known values, places, and types are judged; malformed propositions reject before any rule runs",
+        "only well-formed propositions over known values, places, and types are judged; IEEE literal operands retain exact bits and format, IEEE comparisons require one format, and only symmetric equality and inequality require canonical operand order; malformed propositions reject before any rule runs",
         &["formation:module-structure"],
-        &[tv!( "validation/propositions.rs"), sv!( "proposition.rs")]
+        &[tv!( "validation/propositions.rs"), sv!( "proposition.rs"), sv!( "proposition/scalar_terms.rs"), sv!( "proposition/propositions.rs"), sv!( "proposition/value_ids.rs")]
     );
     FORM_OPERATION_VALIDATION => (
         "formation:operation-validation",

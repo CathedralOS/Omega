@@ -6,7 +6,7 @@ use super::{
 };
 use semantic_vocabulary::{IntegerMathTerm, ScalarType};
 pub(crate) trait PredicateTerms {
-    fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>;
+    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError>;
     fn boolean(&self, expression: &CheckedBooleanExpression) -> Result<ScalarTerm, LoweringError>;
     fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
         Proposition::LessThan(left, right)
@@ -61,8 +61,8 @@ fn proposition_with_polarity(
     ))?;
     match predicate {
         CheckedBooleanExpression::IntegerComparison { kind, left, right } => {
-            let left = terms.integer(left)?;
-            let right = terms.integer(right)?;
+            let left = terms.scalar(left)?;
+            let right = terms.scalar(right)?;
             if left.scalar_type() != right.scalar_type() {
                 let ScalarType::Integer(left_type) = left.scalar_type() else {
                     return unsupported("integer contract comparison has a noninteger operand");
@@ -102,6 +102,13 @@ fn proposition_with_polarity(
                     Proposition::LessOrEqual(right, left)
                 }
             })
+        }
+        CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right } => {
+            ieee_float_proposition(
+                if positive { *kind } else { kind.negated() },
+                terms.scalar(left)?,
+                terms.scalar(right)?,
+            )
         }
         CheckedBooleanExpression::And { left, right }
         | CheckedBooleanExpression::Or { left, right } => {
@@ -153,6 +160,35 @@ fn proposition_with_polarity(
         }
         _ => unsupported("result contract has an unsupported scalar predicate"),
     }
+}
+
+/// IEEE order keeps operand direction and explicit unordered-inclusive
+/// negation. Integer complements (`!(a < b)` becoming `b <= a`) are not valid
+/// at NaN, and canonical sorting is valid only for equality and inequality.
+pub(crate) fn ieee_float_proposition(
+    kind: semantic_vocabulary::IeeeFloatComparisonKind,
+    mut left: ScalarTerm,
+    mut right: ScalarTerm,
+) -> Result<Proposition, LoweringError> {
+    let ScalarType::IeeeFloat(format) = left.scalar_type() else {
+        return unsupported("IEEE contract comparison operand is not a float");
+    };
+    if right.scalar_type() != ScalarType::IeeeFloat(format) {
+        return unsupported("IEEE contract comparison operands have different float formats");
+    }
+    if kind.is_symmetric() && left > right {
+        std::mem::swap(&mut left, &mut right);
+    }
+    let proposition = Proposition::ScalarIeeeFloatComparison {
+        kind,
+        format,
+        left,
+        right,
+    };
+    proposition
+        .validate()
+        .map_err(LoweringError::InvalidCrashPredicate)?;
+    Ok(proposition)
 }
 
 /// Share the Boolean equivalence law without sharing atomic namespaces or

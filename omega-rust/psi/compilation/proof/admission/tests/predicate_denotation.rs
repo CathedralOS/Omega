@@ -12,6 +12,109 @@ fn boolean(identity: u64) -> ScalarTerm {
     ScalarTerm::value(ValueId::new(identity).unwrap(), ScalarType::Boolean)
 }
 
+#[test]
+fn closed_ieee_order_preserves_nan_signed_zero_and_format() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
+    for (left_binary32, right_binary32, left_binary64, right_binary64, equal, less, less_equal) in [
+        (0x8000_0000, 0, 0x8000_0000_0000_0000, 0, true, false, true),
+        (
+            0x7fc0_0001,
+            0,
+            0x7ff8_0000_0000_0001,
+            0,
+            false,
+            false,
+            false,
+        ),
+        (
+            0xff80_0000,
+            0x7f80_0000,
+            0xfff0_0000_0000_0000,
+            0x7ff0_0000_0000_0000,
+            false,
+            true,
+            true,
+        ),
+        (0xbf80_0000, 0, 0xbff0_0000_0000_0000, 0, false, true, true),
+        (
+            0x0000_0001,
+            0,
+            0x0000_0000_0000_0001,
+            0,
+            false,
+            false,
+            false,
+        ),
+    ] {
+        for (left, right) in [
+            (
+                IeeeFloatValue::Binary32(left_binary32),
+                IeeeFloatValue::Binary32(right_binary32),
+            ),
+            (
+                IeeeFloatValue::Binary64(left_binary64),
+                IeeeFloatValue::Binary64(right_binary64),
+            ),
+        ] {
+            let format = left.format();
+            for (kind, holds) in [
+                (Kind::Equal, equal),
+                (Kind::NotEqual, !equal),
+                (Kind::LessThan, less),
+                (Kind::LessOrEqual, less_equal),
+                (Kind::NotLessThan, !less),
+                (Kind::NotLessOrEqual, !less_equal),
+            ] {
+                let mut left = ScalarTerm::IeeeFloatLiteral(left);
+                let mut right = ScalarTerm::IeeeFloatLiteral(right);
+                if kind.is_symmetric() && left > right {
+                    std::mem::swap(&mut left, &mut right);
+                }
+                let goal = Proposition::ScalarIeeeFloatComparison {
+                    kind,
+                    format,
+                    left,
+                    right,
+                };
+                let converted =
+                    check_predicate_denotations(&PropositionContext::default(), &goal, &[], &[])
+                        .unwrap();
+                assert_eq!(
+                    converted.goal(),
+                    if holds {
+                        &Proposition::Truth
+                    } else {
+                        &Proposition::Falsehood
+                    },
+                    "{format:?} {kind:?}: {goal:?}"
+                );
+            }
+        }
+    }
+    let subject = ScalarTerm::value(
+        ValueId::new(1).unwrap(),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+    );
+    let goal = Proposition::ScalarIeeeFloatComparison {
+        kind: Kind::Equal,
+        format: IeeeFloatFormat::Binary64,
+        left: subject.clone(),
+        right: subject,
+    };
+    let context = PropositionContext::from_value_types([(
+        ValueId::new(1).unwrap(),
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+    )])
+    .unwrap();
+    assert_eq!(
+        check_predicate_denotations(&context, &goal, &[], &[])
+            .unwrap()
+            .goal(),
+        &goal,
+        "unknown IEEE values are not reflexive"
+    );
+}
+
 fn boolean_context() -> PropositionContext {
     PropositionContext::from_value_types(
         [1, 2].map(|identity| (ValueId::new(identity).unwrap(), ScalarType::Boolean)),

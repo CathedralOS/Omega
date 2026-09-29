@@ -47,11 +47,7 @@ pub(in crate::encoding::recovery) fn boolean_expression(
                 right: reader.boxed(scalar_expression)?,
             },
             7 => Expression::IeeeFloatComparison {
-                kind: match reader.byte()? {
-                    0 => PackageReviewIeeeFloatComparisonKind::Equal,
-                    1 => PackageReviewIeeeFloatComparisonKind::NotEqual,
-                    _ => return Err(Error::InvalidTag),
-                },
+                kind: ieee_float_comparison_kind(reader)?,
                 primitive_type: primitive_type(reader)?,
                 left: structural_field(reader)?,
                 right: structural_field(reader)?,
@@ -77,8 +73,27 @@ pub(in crate::encoding::recovery) fn boolean_expression(
                 left: reader.boxed(boolean_expression)?,
                 right: reader.boxed(boolean_expression)?,
             },
+            13 => Expression::ScalarIeeeFloatComparison {
+                kind: ieee_float_comparison_kind(reader)?,
+                left: reader.boxed(scalar_expression)?,
+                right: reader.boxed(scalar_expression)?,
+            },
             _ => return Err(Error::InvalidTag),
         })
+    })
+}
+
+fn ieee_float_comparison_kind(
+    reader: &mut Reader<'_>,
+) -> Result<PackageReviewIeeeFloatComparisonKind, Error> {
+    Ok(match reader.byte()? {
+        0 => PackageReviewIeeeFloatComparisonKind::Equal,
+        1 => PackageReviewIeeeFloatComparisonKind::NotEqual,
+        2 => PackageReviewIeeeFloatComparisonKind::LessThan,
+        3 => PackageReviewIeeeFloatComparisonKind::LessOrEqual,
+        4 => PackageReviewIeeeFloatComparisonKind::NotLessThan,
+        5 => PackageReviewIeeeFloatComparisonKind::NotLessOrEqual,
+        _ => return Err(Error::InvalidTag),
     })
 }
 

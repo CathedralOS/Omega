@@ -124,7 +124,10 @@ impl Budget {
     ) -> Result<(), PredicateDenotationError> {
         self.step(depth)?;
         match value {
-            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
             ScalarTerm::BooleanField { path, .. }
             | ScalarTerm::IntegerField { path, .. }
             | ScalarTerm::ViewExtent { path, .. } => self.count(path.len())?,

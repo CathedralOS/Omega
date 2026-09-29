@@ -46,10 +46,18 @@ impl<'input> ValueEqualities<'input> {
         match &mut transported {
             Proposition::Equal(left, right)
             | Proposition::LessThan(left, right)
-            | Proposition::LessOrEqual(left, right)
-            | Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+            | Proposition::LessOrEqual(left, right) => {
                 *left = self.scalar(left, budget, depth + 1, &mut Vec::new())?;
                 *right = self.scalar(right, budget, depth + 1, &mut Vec::new())?;
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind, left, right, ..
+            } => {
+                *left = self.scalar(left, budget, depth + 1, &mut Vec::new())?;
+                *right = self.scalar(right, budget, depth + 1, &mut Vec::new())?;
+                if kind.is_symmetric() && left > right {
+                    std::mem::swap(left, right);
+                }
             }
             Proposition::Conjunction(children) | Proposition::Disjunction(children) => {
                 for child in children {
@@ -258,7 +266,8 @@ impl<'input> ValueEqualities<'input> {
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::Boolean(_)
-            | ScalarTerm::Integer { .. } => {}
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
         Ok(transported)
     }

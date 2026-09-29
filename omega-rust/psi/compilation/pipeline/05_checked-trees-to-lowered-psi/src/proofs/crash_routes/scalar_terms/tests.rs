@@ -2,8 +2,8 @@
 //!
 //! A float operand is an ordinary scalar term, but an IEEE comparison is an
 //! atomic proposition (`Proposition::ScalarIeeeFloatComparison`, handled by
-//! `crash_predicates`): IEEE equality is non-reflexive at NaN and distinguishes
-//! signed zero, so it can never be a generic/reflexive `ScalarTerm`. The term
+//! `crash_predicates`): IEEE equality is non-reflexive at NaN and equates
+//! signed zeros, so it can never be a generic/reflexive equality. The term
 //! lane must refuse it rather than silently weakening it into Boolean equality.
 
 use super::{
@@ -90,19 +90,22 @@ fn integer_comparison_rejects_float_operands() {
 }
 
 #[test]
-fn ieee_float_literal_has_no_generic_scalar_term() {
-    let Err(error) = lowered_direct_scalar_term(
-        &LoweredDirectExpression::IeeeFloatLiteral {
-            value: IeeeFloatValue::Binary32(0x3f80_0000),
-        },
-        &[],
-        &[],
-    ) else {
-        panic!("an IEEE float literal must not become a generic scalar term");
-    };
-    assert!(
-        matches!(&error, LoweringError::Unsupported(message) if message
-            .contains("generic scalar crash terms do not carry IEEE float literals")),
-        "{error:?}"
-    );
+fn ieee_float_literal_retains_exact_bits_in_scalar_contract_terms() {
+    for value in [
+        IeeeFloatValue::Binary32(0x3f80_0000),
+        IeeeFloatValue::Binary32(0x8000_0000),
+        IeeeFloatValue::Binary32(0x7fc0_002a),
+        IeeeFloatValue::Binary64(0x8000_0000_0000_0000),
+    ] {
+        let term = lowered_direct_scalar_term(
+            &LoweredDirectExpression::IeeeFloatLiteral { value },
+            &[],
+            &[],
+        )
+        .expect("exact IEEE literal is a typed contract operand");
+        assert_eq!(
+            term,
+            semantic_vocabulary::ScalarTerm::IeeeFloatLiteral(value)
+        );
+    }
 }

@@ -949,7 +949,10 @@ fn validate_boolean_field_terms(
                 validate_term(module, machine, value, runtime_requirements)?;
                 validate_term(module, machine, count, runtime_requirements)?;
             }
-            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
         Ok(())
     }

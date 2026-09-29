@@ -97,6 +97,7 @@ fn scalar(
             }
             Ok(())
         }
+        Expression::Float32Literal(_) | Expression::Float64Literal(_) => Ok(()),
         Expression::IntegerBinary { left, right, .. } => {
             scalar(left, parameters, depth + 1)?;
             scalar(right, parameters, depth + 1)

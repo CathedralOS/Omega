@@ -247,7 +247,7 @@ fn validate_term_scope(
                 });
             }
         }
-        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } | ScalarTerm::IeeeFloatLiteral(_) => {}
     }
     Ok(())
 }

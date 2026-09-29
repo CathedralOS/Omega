@@ -97,22 +97,24 @@ impl Proposition {
                     left.validate()?;
                     right.validate()?;
                 }
-                Self::IeeeFloatComparison { left, right, .. } => {
+                Self::IeeeFloatComparison {
+                    kind, left, right, ..
+                } => {
                     if left.path.is_empty() || right.path.is_empty() {
                         return Err(PropositionError::EmptyIeeeFloatStructuralFieldPath);
                     }
-                    if left > right {
+                    if kind.is_symmetric() && left > right {
                         return Err(PropositionError::NonCanonicalIeeeFloatComparisonOperands);
                     }
                 }
                 Self::ScalarIeeeFloatComparison {
+                    kind,
                     format,
                     left,
                     right,
-                    ..
                 } => {
                     require_ieee_float_operands(*format, left, right)?;
-                    if left > right {
+                    if kind.is_symmetric() && left > right {
                         return Err(
                             PropositionError::NonCanonicalScalarIeeeFloatComparisonOperands,
                         );
@@ -407,7 +409,9 @@ impl PropositionContext {
                 | ScalarTerm::IntegerBitwiseNot { operand, .. }
                 | ScalarTerm::IntegerWiden { operand, .. }
                 | ScalarTerm::IntegerExactCast { operand, .. } => pending.push(operand),
-                ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+                ScalarTerm::Boolean(_)
+                | ScalarTerm::Integer { .. }
+                | ScalarTerm::IeeeFloatLiteral(_) => {}
             }
         }
         Ok(())

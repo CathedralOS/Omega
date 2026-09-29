@@ -344,7 +344,7 @@ struct ScalarContractTerms<'namespace> {
 }
 
 impl PredicateTerms for ScalarContractTerms<'_> {
-    fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         // Member leaves root at the contract's structural parameters and
         // mint field-rooted scalar terms; the entry namespace carries the
         // declarations and types the path resolves against.

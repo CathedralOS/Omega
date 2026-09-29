@@ -1010,26 +1010,34 @@ static OP_SATURATING_INTEGER_REMAINDER: TrustedSurfaceEntry = entry(
     PROOF_BEARING_SITES,
 );
 
-// -- Rows producing no proposition facts --
+// -- Exact literal reconstruction --
 
 static OP_IEEE_FLOAT_CONSTANT: TrustedSurfaceEntry = entry(
     "operation:ieee-float-constant",
-    "a validated IEEE float literal result under the declared float meaning",
-    "no proposition facts: the vocabulary has no IEEE scalar term; validation alone carries the row",
-    &["formation:operation-validation", "formation:float-meaning"],
+    "a validated IEEE float constant operation whose scalar result has exactly the literal's declared format",
+    "reconstruction derives the result-to-literal equation from the operation's exact bits, not a producer-asserted proposition; this is payload identity retaining signed zero and NaN payloads, not IEEE equality, finiteness, or a range bound",
+    &[
+        "formation:operation-validation",
+        "formation:float-meaning",
+        "formation:proposition-context",
+        "fact:semantic-axiom-roster",
+    ],
     &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT],
 );
+
+// -- Rows producing no proposition facts --
+
 static OP_NEAREST_IEEE_FLOAT_FUSED_MULTIPLY_ADD: TrustedSurfaceEntry = entry(
     "operation:nearest-ieee-float-fused-multiply-add",
     "three validated same-format IEEE operands under the declared float meaning",
-    "no proposition facts: the vocabulary has no IEEE scalar term; validation alone carries the row",
+    "no proposition facts: this row reconstructs no scalar result equation; validation alone carries the row",
     &["formation:operation-validation", "formation:float-meaning"],
     &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT],
 );
 static OP_IEEE_FLOAT_COMPARE: TrustedSurfaceEntry = entry(
     "operation:ieee-float-compare",
     "two validated same-format IEEE operands under the declared float meaning",
-    "no proposition facts: the vocabulary has no IEEE scalar term; validation alone carries the row",
+    "no proposition facts: this row reconstructs no comparison-result equation; validation alone carries the row",
     &["formation:operation-validation", "formation:float-meaning"],
     &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_FLOAT],
 );

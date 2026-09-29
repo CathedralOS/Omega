@@ -290,6 +290,134 @@ fn numeric(signature: &str, predicate: &str) -> TypedTrees {
     ))
 }
 
+fn float_boundary(primitive: &str, predicate: &str) -> TypedTrees {
+    let mut program = typed_program(&format!(
+        "data Conversion {{}} boundary operator Conversion::value(input: {primitive}) -> i8\nrequires {predicate};"
+    ));
+    validation::land_float_literal_destinations(&mut program);
+    program
+}
+
+fn read_float_boundary(program: &TypedTrees) -> Option<CheckedBooleanExpression> {
+    let operator = &program.operators()[0];
+    let expression = program
+        .operator_contracts(operator)
+        .iter()
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .find_map(|fact| match fact {
+            ProofFact::Expression(expression) => Some(*expression),
+            _ => None,
+        })
+        .expect("one boundary requirement");
+    super::lower_operator_crash_contract_expression(
+        program,
+        &CheckedOperatorFacts::default(),
+        operator,
+        expression,
+    )
+}
+
+#[test]
+fn ieee_boundary_requirements_keep_literal_bits_and_order() {
+    use checked_trees::{
+        CheckedIeeeFloatComparisonKind as Kind, CheckedScalarExpression as Scalar,
+    };
+    use semantic_vocabulary::IeeeFloatValue;
+    for (primitive, literal, bits) in [
+        (
+            "f32",
+            "128.0f32",
+            IeeeFloatValue::Binary32(128.0f32.to_bits()),
+        ),
+        (
+            "f64",
+            "128.0f64",
+            IeeeFloatValue::Binary64(128.0f64.to_bits()),
+        ),
+        ("f64", "128.0", IeeeFloatValue::Binary64(128.0f64.to_bits())),
+        (
+            "f32",
+            "-129.0",
+            IeeeFloatValue::Binary32((-129.0f32).to_bits()),
+        ),
+        ("f32", "-0.0f32", IeeeFloatValue::Binary32(0x8000_0000)),
+        (
+            "f64",
+            "-2147483649.0",
+            IeeeFloatValue::Binary64((-2147483649.0f64).to_bits()),
+        ),
+    ] {
+        for (relation, expected_kind, reverse) in [
+            ("==", Kind::Equal, false),
+            ("!=", Kind::NotEqual, false),
+            ("<", Kind::LessThan, false),
+            ("<=", Kind::LessOrEqual, false),
+            (">", Kind::LessThan, true),
+            (">=", Kind::LessOrEqual, true),
+        ] {
+            let program = float_boundary(primitive, &format!("input {relation} {literal}"));
+            let Some(CheckedBooleanExpression::ScalarIeeeFloatComparison { kind, left, right }) =
+                read_float_boundary(&program)
+            else {
+                panic!("IEEE boundary relation {primitive}: input {relation} {literal}");
+            };
+            assert_eq!(kind, expected_kind);
+            let (parameter, endpoint) = if reverse {
+                (right, left)
+            } else {
+                (left, right)
+            };
+            assert!(matches!(*parameter, Scalar::Parameter { position: 0, .. }));
+            assert_eq!(*endpoint, Scalar::IeeeFloatLiteral { value: bits });
+        }
+    }
+    let program = float_boundary(
+        "f32",
+        "input == input && input > -129.0f32 && input < 128.0f32",
+    );
+    assert!(matches!(
+        read_float_boundary(&program),
+        Some(CheckedBooleanExpression::And { .. })
+    ));
+}
+
+#[test]
+fn ieee_boundary_requirements_reject_mixed_formats_and_foreign_formals() {
+    assert!(read_float_boundary(&float_boundary("f32", "input < 128.0f64")).is_none());
+    let mut program = float_boundary("f32", "input < 128.0f32");
+    let operator = &program.operators()[0];
+    let parameter = program.operator_parameters(operator)[0].symbol;
+    let names = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, expression)| {
+            matches!(expression, ExpressionNode::Name(name) if name.symbol == parameter)
+                .then_some(handle)
+        })
+        .collect::<Vec<_>>();
+    for handle in names {
+        let ExpressionNode::Name(name) = program.expression_table.expression_mut(handle) else {
+            unreachable!()
+        };
+        name.symbol = SymbolHandle::invalid();
+        name.head_symbol = SymbolHandle::invalid();
+    }
+    assert!(read_float_boundary(&program).is_none());
+}
+
+#[test]
+fn ieee_boundary_requirements_do_not_assume_authored_ordering_meaning() {
+    for declaration in ["operator", "boundary operator"] {
+        let mut program = typed_program(&format!(
+            "data Conversion {{}} boundary operator Conversion::value(input: f32) -> i8
+         requires input < 128.0f32;
+         {declaration} < f32::custom(left: f32, right: f32) -> bool;"
+        ));
+        validation::land_float_literal_destinations(&mut program);
+        assert!(read_float_boundary(&program).is_none());
+    }
+}
+
 #[test]
 fn integer_entry_comparisons_reject_unsupported_terms_and_bad_landings() {
     for (signature, predicate) in [

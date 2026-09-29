@@ -529,6 +529,70 @@ fn proof_format_round_trips_atomic_ieee_structural_equality() {
 }
 
 #[test]
+fn ieee_literal_predicates_round_trip_exact_bits_in_both_artifact_sections() {
+    use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
+    for (left, right) in [
+        (
+            IeeeFloatValue::Binary32(0x8000_0000),
+            IeeeFloatValue::Binary32(0),
+        ),
+        (
+            IeeeFloatValue::Binary32(0x7fc0_0123),
+            IeeeFloatValue::Binary32(0x7fc0_0456),
+        ),
+        (
+            IeeeFloatValue::Binary64(0xfff0_0000_0000_0000),
+            IeeeFloatValue::Binary64(0x7ff0_0000_0000_0000),
+        ),
+        (
+            IeeeFloatValue::Binary64(0x7ff8_0000_0000_0123),
+            IeeeFloatValue::Binary64(1),
+        ),
+    ] {
+        for kind in [
+            Kind::Equal,
+            Kind::NotEqual,
+            Kind::LessThan,
+            Kind::LessOrEqual,
+            Kind::NotLessThan,
+            Kind::NotLessOrEqual,
+        ] {
+            let format = left.format();
+            let mut left = ScalarTerm::IeeeFloatLiteral(left);
+            let mut right = ScalarTerm::IeeeFloatLiteral(right);
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            let conclusion = Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format,
+                left,
+                right,
+            };
+            let mut module = semantic_module();
+            module.machines[0].contract.requires = vec![conclusion.clone()];
+            let bytes =
+                terminal_codec::encode_module(&module).expect("float predicate semantic bytes");
+            assert_eq!(decode_module(&bytes).unwrap(), module);
+            let mut bundle = ProofBundle::default();
+            bundle.evidence.push(ObligationEvidence {
+                obligation: obligation_id(72),
+                route: EvidenceRoute::CertificateDerived(CertificateEnvelope {
+                    identity: evidence_id(72),
+                    proof_system_marker: ProofSystemMarker::CURRENT,
+                    proof: ProofNode {
+                        conclusion,
+                        rule: ProofRule::Assumption { index: 0 },
+                    },
+                }),
+            });
+            let bytes = encode_proof_bundle(&bundle).expect("float predicate proof bytes");
+            assert_eq!(decode_proof_bundle(&bytes).unwrap(), bundle);
+        }
+    }
+}
+
+#[test]
 fn proof_format_round_trips_atomic_byte_sequence_equality() {
     let left = ByteSequenceStructuralField::new(
         place_id(1),

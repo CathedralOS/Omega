@@ -627,8 +627,25 @@ pub(super) fn append_operation(
         | OperationKind::SaturatingIntegerMultiply { .. } => {
             unreachable!("goal-free scalar rows return before specialized reconstruction")
         }
-        OperationKind::IeeeFloatConstant { .. }
-        | OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
+        OperationKind::IeeeFloatConstant { value } => {
+            let result = operation
+                .result
+                .scalar_ref()
+                .filter(|result| result.scalar_type == ScalarType::IeeeFloat(value.format()))
+                .ok_or(ModuleError::OperationSemanticSchema(
+                    terminal_semantics::OperationSemanticError::ResultShapeMismatch(
+                        terminal_semantics::OperationSemanticTag::IeeeFloatConstant,
+                    ),
+                ))?;
+            // This is exact payload identity, not IEEE source `==`: NaN bits
+            // and signed zero survive transport into the call's predicate.
+            axioms.push(Proposition::Equal(
+                ScalarTerm::value(result.id, result.scalar_type),
+                ScalarTerm::IeeeFloatLiteral(value),
+            ));
+            Ok(())
+        }
+        OperationKind::NearestIeeeFloatFusedMultiplyAdd { .. }
         | OperationKind::IeeeFloatCompare { .. }
         | OperationKind::StoreDynamicDescriptor { .. } => Ok(()),
         OperationKind::AtomicAccess { .. } => {

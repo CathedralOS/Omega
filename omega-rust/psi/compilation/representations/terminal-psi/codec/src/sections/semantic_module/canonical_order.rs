@@ -876,15 +876,19 @@ fn validate_canonical_proposition(
                         validate_integer_math_term_depth(left)?;
                         validate_integer_math_term_depth(right)?;
                     }
-                    Proposition::IeeeFloatComparison { left, right, .. } => {
-                        if left > right {
+                    Proposition::IeeeFloatComparison {
+                        kind, left, right, ..
+                    } => {
+                        if kind.is_symmetric() && left > right {
                             return Err(CodecError::NonCanonicalOrder("IEEE equality operands"));
                         }
                     }
-                    Proposition::ScalarIeeeFloatComparison { left, right, .. } => {
+                    Proposition::ScalarIeeeFloatComparison {
+                        kind, left, right, ..
+                    } => {
                         validate_scalar_term_depth(left)?;
                         validate_scalar_term_depth(right)?;
-                        if left > right {
+                        if kind.is_symmetric() && left > right {
                             return Err(CodecError::NonCanonicalOrder(
                                 "scalar IEEE equality operands",
                             ));
@@ -1068,7 +1072,8 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), CodecError> {
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::Boolean(_)
-            | ScalarTerm::Integer { .. } => {}
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
     }
     Ok(())

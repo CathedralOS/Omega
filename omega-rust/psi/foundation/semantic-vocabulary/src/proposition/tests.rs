@@ -7,6 +7,59 @@ use super::{
 use crate::ValueId;
 
 #[test]
+fn ieee_literal_predicates_keep_format_order_and_nan_complements() {
+    use crate::{IeeeFloatComparisonKind as Kind, IeeeFloatFormat as Format, IeeeFloatValue};
+    let high = ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0x7f80_0000));
+    let low = ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(0));
+    assert!(high > low);
+    assert_eq!(high.scalar_type(), ScalarType::IeeeFloat(Format::Binary32));
+    assert_eq!(high.integer_value(), None);
+    assert!(high.validate().is_ok());
+    for kind in [
+        Kind::LessThan,
+        Kind::LessOrEqual,
+        Kind::NotLessThan,
+        Kind::NotLessOrEqual,
+    ] {
+        assert!(!kind.is_symmetric());
+        assert_eq!(kind.negated().negated(), kind);
+        assert!(
+            Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format: Format::Binary32,
+                left: high.clone(),
+                right: low.clone()
+            }
+            .validate()
+            .is_ok()
+        );
+    }
+    for kind in [Kind::Equal, Kind::NotEqual] {
+        assert!(kind.is_symmetric());
+        assert!(
+            Proposition::ScalarIeeeFloatComparison {
+                kind,
+                format: Format::Binary32,
+                left: high.clone(),
+                right: low.clone()
+            }
+            .validate()
+            .is_err()
+        );
+    }
+    assert!(
+        Proposition::ScalarIeeeFloatComparison {
+            kind: Kind::LessThan,
+            format: Format::Binary32,
+            left: low,
+            right: ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary64(0)),
+        }
+        .validate()
+        .is_err()
+    );
+}
+
+#[test]
 fn integer_widening_requires_range_containment_and_preserves_closed_values() {
     let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let u16_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");

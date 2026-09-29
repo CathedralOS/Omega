@@ -34,6 +34,7 @@ fn context(axioms: &[Proposition]) -> PropositionContext {
                 types.insert(*id, *scalar_type);
             }
             ScalarTerm::Boolean(_)
+            | ScalarTerm::IeeeFloatLiteral(_)
             | ScalarTerm::Integer { .. }
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IntegerField { .. }

@@ -225,6 +225,10 @@ pub(in crate::encoding::recovery) fn every_boolean_variant_comparison_kind_and_s
     for kind in [
         PackageReviewIeeeFloatComparisonKind::Equal,
         PackageReviewIeeeFloatComparisonKind::NotEqual,
+        PackageReviewIeeeFloatComparisonKind::LessThan,
+        PackageReviewIeeeFloatComparisonKind::LessOrEqual,
+        PackageReviewIeeeFloatComparisonKind::NotLessThan,
+        PackageReviewIeeeFloatComparisonKind::NotLessOrEqual,
     ] {
         for primitive_type in [Primitive::F32, Primitive::F64] {
             boolean_roundtrip(Boolean::IeeeFloatComparison {
@@ -234,6 +238,19 @@ pub(in crate::encoding::recovery) fn every_boolean_variant_comparison_kind_and_s
                 right: field(),
             });
         }
+        boolean_roundtrip(Boolean::ScalarIeeeFloatComparison {
+            kind,
+            left: Box::new(Scalar::Parameter {
+                position: 0,
+                primitive_type: Primitive::F32,
+            }),
+            right: Box::new(Scalar::Float32Literal(0x4300_0000)),
+        });
+        boolean_roundtrip(Boolean::ScalarIeeeFloatComparison {
+            kind,
+            left: Box::new(Scalar::Float64Literal(0x8000_0000_0000_0000)),
+            right: Box::new(Scalar::Float64Literal(0x7ff8_0000_0000_002a)),
+        });
     }
 }
 

@@ -98,3 +98,97 @@ fn boundary_requires_rejects_missing_obligations_and_foreign_values() {
         Err(ModuleError::MalformedProposition(_))
     ));
 }
+
+#[test]
+fn ordered_ieee_boundary_requires_use_reconstructed_literal_bits() {
+    use proof_admission::{PrimitiveJudgment, ProofNode, ProofRule, check_certificate};
+    use semantic_vocabulary::{
+        IeeeFloatComparisonKind as Kind, IeeeFloatFormat, IeeeFloatValue, PropositionContext,
+    };
+    let format = IeeeFloatFormat::Binary32;
+    let scalar_type = ScalarType::IeeeFloat(format);
+    let subject = ScalarTerm::value(value_id(1), scalar_type);
+    let literal =
+        |value: f32| ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(value.to_bits()));
+    let relation = |kind, left, right| Proposition::ScalarIeeeFloatComparison {
+        kind,
+        format,
+        left,
+        right,
+    };
+    let mut clauses = vec![
+        relation(Kind::Equal, subject.clone(), subject.clone()),
+        relation(Kind::LessThan, literal(-129.0), subject.clone()),
+        relation(Kind::LessThan, subject.clone(), literal(128.0)),
+    ];
+    clauses.sort();
+    let mut module = boundary_call_module();
+    module.boundary_machines[0].scalar_parameters = vec![scalar_type];
+    module.boundary_machines[0].scalar_requires = vec![Proposition::Conjunction(clauses)];
+    let operations = &mut module.machines[0].blocks[0].operations;
+    operations[0].result = terminal_psi::OperationResult::Scalar(terminal_psi::ValueDeclaration {
+        id: value_id(1),
+        scalar_type,
+        qualifications: Default::default(),
+    });
+    let OperationKind::BoundaryCall {
+        requirement_obligations,
+        ..
+    } = &mut operations[1].kind
+    else {
+        panic!("boundary call");
+    };
+    *requirement_obligations = vec![obligation_id(1)];
+    let context = PropositionContext::from_value_types([(value_id(1), scalar_type)]).unwrap();
+    for (bits, accepted) in [
+        ((-8.75f32).to_bits(), true),
+        ((-129.0f32).to_bits(), false),
+        (128.0f32.to_bits(), false),
+        (0x7fc0_0001, false),
+        (0x7f80_0000, false),
+    ] {
+        module.machines[0].blocks[0].operations[0].kind = OperationKind::IeeeFloatConstant {
+            value: IeeeFloatValue::Binary32(bits),
+        };
+        let reconstructed = reconstruct_terminal_obligations(&module).expect("typed IEEE contract");
+        let site = reconstructed
+            .obligations()
+            .iter()
+            .find(|site| site.obligation.id == obligation_id(1))
+            .unwrap();
+        let equation = Proposition::Equal(
+            subject.clone(),
+            ScalarTerm::IeeeFloatLiteral(IeeeFloatValue::Binary32(bits)),
+        );
+        let index = site
+            .semantic_axioms
+            .iter()
+            .position(|axiom| axiom == &equation)
+            .expect("literal operation, not frontend facts, establishes the exact bits");
+        let proof = ProofNode {
+            conclusion: site.obligation.proposition.clone(),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(ProofNode {
+                    conclusion: Proposition::Truth,
+                    rule: ProofRule::Primitive(PrimitiveJudgment::Truth),
+                }),
+                equalities: vec![ProofNode {
+                    conclusion: equation,
+                    rule: ProofRule::SemanticAxiom { index },
+                }],
+            },
+        };
+        assert_eq!(
+            check_certificate(
+                &context,
+                &site.obligation.proposition,
+                &site.requirements,
+                &site.semantic_axioms,
+                &proof
+            )
+            .is_ok(),
+            accepted,
+            "bits {bits:x}"
+        );
+    }
+}

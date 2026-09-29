@@ -22,6 +22,20 @@ fn encode_scalar_node(
     expression: &PackageReviewScalarExpression,
 ) -> Result<(), PackageReviewEncodingError> {
     match expression {
+        PackageReviewScalarExpression::Float32Literal(bits) => {
+            encoder.tag("float32_literal", 9);
+            encoder.field("bits", |encoder| {
+                encoder.u32(*bits);
+                Ok(())
+            })?;
+        }
+        PackageReviewScalarExpression::Float64Literal(bits) => {
+            encoder.tag("float64_literal", 10);
+            encoder.field("bits", |encoder| {
+                encoder.u64(*bits);
+                Ok(())
+            })?;
+        }
         PackageReviewScalarExpression::Parameter {
             position,
             primitive_type,
