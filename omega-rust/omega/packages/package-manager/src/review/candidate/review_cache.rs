@@ -20,12 +20,12 @@
 //! are misses, never trusted rows — the worst outcome is a fresh compile.
 //!
 //! `CheckedCompilation` itself is deliberately not persisted: its sealed
-//! program storage is not serializable. The cache stores the three things a
+//! program storage is not serializable. The cache stores the facts a
 //! carried occurrence's `checked` field is actually consumed for — the
-//! tolerated flag, the source-consumption commitment inputs, and the
-//! published independent-component description — and substitutes them at the
-//! three read sites in `package_pass`. The graph root is never cached: its
-//! checked compilation is handed back as the update's real product.
+//! tolerated flag, the source-consumption commitment inputs, the
+//! published independent-component description and target-entry candidate.
+//! Entry candidates remain proposals, not admission authority. The graph root
+//! is never cached: its checked compilation is the update's real product.
 //!
 //! The toolchain stamp binds a record to the binary that minted it
 //! (`OMEGA_RELEASE_VERSION`/`OMEGA_RELEASE_COMMIT` at compile time, falling
@@ -72,9 +72,9 @@ use super::semantic_bindings::SemanticBindingReviewCandidate;
 use crate::declarations::{DependencyPurpose, PackageKey};
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-KEY-V1\0";
+const RECORD_KEY_DOMAIN: &[u8] = b"OMEGA-COMPILED-REVIEW-CACHE-KEY-V2\0";
 const RECORD_EXTENSION: &str = "rec";
-const RECORD_VERSION: u16 = 1;
+const RECORD_VERSION: u16 = 2;
 const DEFAULT_MAX_RECORDS: usize = 256;
 const DEFAULT_MAX_RECORD_BYTES: u64 = 512 * 1024 * 1024;
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
@@ -177,13 +177,14 @@ fn resolution_digest(resolution: &ImmutableSourceResolution) -> [u8; 32] {
 }
 
 /// The substitution payload replacing a persisted occurrence's
-/// `CheckedCompilation`: everything the three read sites consume.
+/// `CheckedCompilation`: the facts needed by carried dependency occurrences.
 #[derive(Debug, Clone)]
 pub(crate) struct CachedOccurrenceFacts {
     pub tolerated_unsettled_service_fields: bool,
     pub consumed_units: Vec<ConsumedSourceUnit>,
     pub source_consumption_commitment: PackageSourceConsumptionCommitment,
     pub component_description: Option<IndependentComponentDescription>,
+    pub target_entry_candidate: Option<SemanticBindingReviewCandidate>,
 }
 
 /// The decoded contents of one cache record. `key` and `resolution` are not
@@ -433,6 +434,12 @@ pub(crate) fn record_compiled_review(
             consumed_units,
             source_consumption_commitment: review.source_consumption_commitment(),
             component_description,
+            target_entry_candidate: super::semantic_bindings::candidate_target_entry_binding(
+                checked,
+                review.key(),
+                review.generated_source_bundle().target(),
+            )
+            .ok()?,
         },
         policy_canonical_bytes: u64::try_from(policy_canonical_bytes).ok()?,
         obligation_ledger_bytes: u64::try_from(obligation_ledger_bytes).ok()?,
@@ -1195,6 +1202,11 @@ fn encode_record(review: &CachedCompiledReview, out: &mut Vec<u8>) {
         out,
         encode_component_description,
     );
+    encode_optional(
+        review.facts.target_entry_candidate.as_ref(),
+        out,
+        encode_candidate,
+    );
     out.extend_from_slice(&review.policy_canonical_bytes.to_le_bytes());
     out.extend_from_slice(&review.obligation_ledger_bytes.to_le_bytes());
 }
@@ -1253,6 +1265,7 @@ fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     let source_consumption_commitment =
         PackageSourceConsumptionCommitment::from_retained_digest(cursor_digest(&mut cursor)?);
     let component_description = recover_optional(&mut cursor, recover_component_description)?;
+    let target_entry_candidate = recover_optional(&mut cursor, recover_candidate)?;
     let policy_canonical_bytes = cursor.u64()?;
     let obligation_ledger_bytes = cursor.u64()?;
     if !cursor.exhausted() {
@@ -1282,6 +1295,7 @@ fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
             consumed_units,
             source_consumption_commitment,
             component_description,
+            target_entry_candidate,
         },
         policy_canonical_bytes,
         obligation_ledger_bytes,

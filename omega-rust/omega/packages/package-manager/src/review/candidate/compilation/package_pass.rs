@@ -111,6 +111,17 @@ pub(super) enum OccurrenceCompile {
 }
 
 impl OccurrenceCompile {
+    fn target_entry_candidate(
+        &self,
+        owner: &PackageKey,
+        target: target::TargetProfile,
+    ) -> Result<Option<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
+        match self {
+            Self::Checked(checked) => candidate_target_entry_binding(checked, owner, target),
+            Self::Cached(facts) => Ok(facts.target_entry_candidate.clone()),
+        }
+    }
+
     fn tolerated_unsettled_service_fields(&self) -> bool {
         match self {
             Self::Checked(checked) => checked.tolerated_unsettled_service_fields(),
@@ -581,6 +592,17 @@ pub(super) fn compile_dependency_closure(
                     &key,
                     &review,
                 )?;
+                // Consumers need the same entry-schema offer whether this
+                // dependency compiled now, in a prior pass, or in a prior
+                // invocation. An offer is not an accepted binding: only the
+                // discovery pass may use it to propose a checked selection.
+                if discovery == TargetEntryDiscovery::Dependencies {
+                    target_entry_candidates.extend(
+                        compile
+                            .target_entry_candidate(&key, checked_target)?
+                            .map(|candidate| (purpose, candidate)),
+                    );
+                }
                 let review_position = reviews.len();
                 review_positions[position][purpose_slot(purpose)] = Some(review_position);
                 reviews.push(review);
@@ -972,6 +994,9 @@ pub(super) fn compile_dependency_closure(
         carried: carried_occurrences,
     })
 }
+
+#[cfg(test)]
+mod tests;
 
 /// Join one retained review's projected restricted build requests against an
 /// armed checkpoint, rejecting any request no grant covered. A consuming
