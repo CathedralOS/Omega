@@ -178,19 +178,19 @@ encoding_policy<Value>(field: FieldInfo,
                        selection: &mut EncodingSelection<Value>)
 
     if field is the special timestamp member:
-        selection.select<UnixTimestampEncoding>()
+        EncodingSelection::select<UnixTimestampEncoding>(selection)
         return
     apply the explicitly selected type rules
 ```
 
 FieldInfo describes the exact member; the compiler supplies Value statically.
 EncodingSelection is a library-specific instance of a scoped typed selection
-receiver, not a runtime conformance lookup object. `select` names an exact
-conformance application or exact machine appropriate to the receiver's declared
-requirement. An encoder data type alone is not a request to discover a map.
+context passed as an explicit parameter, not a runtime conformance lookup object.
+`select` names an exact conformance application or exact machine appropriate to
+its declared requirement. An encoder data type alone is not a request to discover a map.
 All generic conformance arguments retain their ordinary explicit-selection rules.
 
-The receiver pins the member, qualified field type, and required operation.
+The selection context pins the member, qualified field type, and required operation.
 Each included field has exactly one valid selection on every successful policy
 completion. Missing and multiple selections reject; selecting twice is not
 last-write-wins. Explicit policy failure need not fabricate a selection. A
@@ -198,7 +198,7 @@ partial-coverage contract may instead permit an explicit exclusion, with its
 coverage retained. A skipped callback due to failure is not a successful omission.
 
 These obligations may be expressed with ordinary state contracts or linear
-selection obligations, but a mutable receiver alone does not establish them.
+selection obligations, but a mutable context parameter alone does not establish them.
 The finalized selection set is independently checked for coverage and full
 requirement refinement, not merely a chosen operation's name/signature.
 
@@ -223,12 +223,12 @@ an encoder but does not execute runtime output or device access.
 
 The typed selection operation is new compiler-recognized behavior, not provider
 selection reused unchanged. It records an exact static declaration/application
-choice inside the evaluation-local receiver. It cannot mutate global compiler
+choice inside the evaluation-local selection context. It cannot mutate global compiler
 state, acquire Build authority, append provider-plan rows, or bypass visibility
 and conformance checking.
 
-The evaluation root owns the receiver, invokes the policy, and freezes its
-completed choices into an ordinary owned symbolic result snapshot. The author's
+The evaluation root owns the selection context, lends it explicitly to the policy,
+and freezes its completed choices into an ordinary owned symbolic result snapshot. The author's
 policy need not return first-class conformance evidence. Ordinary hermetic
 evaluation returns the snapshot; no mutable argument, evaluator reference, host
 address, or out-of-band compiler mutation escapes. The records describe choices,

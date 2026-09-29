@@ -311,9 +311,10 @@ trait-level coverage gate is deferred. Reflection visitation establishes its
 declared member/case coverage through checked elaboration, not an arbitrary
 body-coverage proposition or a separate generator-unroll keyword.
 
-Reflection policy receivers are owned within an evaluation root. That root
-freezes completed selections into an ordinary symbolic result snapshot; the
-policy's mutable receiver does not escape or mutate compiler state out of band.
+Reflection selection contexts are owned within an evaluation root and lent to
+policy machines through ordinary explicit parameters. That root freezes completed
+selections into an ordinary symbolic result snapshot; the mutable context loan
+does not escape or mutate compiler state out of band.
 The [selection result contract](reflection.md#selection-evaluation-and-retained-results)
 requires independent resolution, coverage, access, and requirement validation.
 Choosing a static declaration is not manufacturing proof or a runtime callable.

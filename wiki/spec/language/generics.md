@@ -372,7 +372,7 @@ retain exact subject relationships rather than guessed static type keys.
 
 An explicit per-member selection policy receives the actual qualified field
 type as a static parameter. It selects an exact operation or conformance through
-the [scoped selection receiver](reflection.md#explicit-operation-selection),
+the [scoped selection context](reflection.md#explicit-operation-selection),
 not ambient discovery or a new field-declaration binder. Policies may use
 generic type rules and member-specific exceptions. Reflection does not weaken
 types before generic binding, change exact `==` into assignability, or make
