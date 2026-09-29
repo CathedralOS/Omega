@@ -23,64 +23,57 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     host: Binding<TimeHost>;
-    first_ticks: u64;
-    second_ticks: u64;
-    frequency: u64;
-    wall_raw: u64;
-    wall_units: u64;
-    wall_offset: u64;
-    unix_seconds: u64;
 }
 
-machine Main::main(&mut self) reaches Console + TimeHost {
-    self.first_ticks = self.host.monotonic_ticks();
-    self.host.sleep(30);
-    self.second_ticks = self.host.monotonic_ticks();
+machine Main::main(context: &mut Main) reaches Console + TimeHost {
+    let first_ticks: u64 = context.host.monotonic_ticks();
+    context.host.sleep(30);
+    let second_ticks: u64 = context.host.monotonic_ticks();
     // 30ms of CLOCK_UPTIME_RAW nanoseconds: strictly greater, never equal.
-    transition self.second_ticks > self.first_ticks {
-        true -> check_frequency()
-        false -> fail_monotonic()
+    transition second_ticks > first_ticks {
+        true -> check_frequency(&mut context)
+        false -> fail_monotonic(&mut context)
     }
-    state check_frequency(&mut self) {
-        self.frequency = self.host.monotonic_ticks_per_second();
-        transition self.frequency == 1000000000 {
-            true -> check_units()
-            false -> fail_frequency()
+    state check_frequency(context: &mut Main) {
+        let frequency: u64 = context.host.monotonic_ticks_per_second();
+        transition frequency == 1000000000 {
+            true -> check_units(&mut context)
+            false -> fail_frequency(&mut context)
         }
     }
-    state check_units(&mut self) {
-        self.wall_units = self.host.wall_clock_units_per_second();
-        transition self.wall_units == 1000000000 {
-            true -> check_offset()
-            false -> fail_units()
+    state check_units(context: &mut Main) {
+        let wall_units: u64 = context.host.wall_clock_units_per_second();
+        transition wall_units == 1000000000 {
+            true -> check_offset(&mut context)
+            false -> fail_units(&mut context)
         }
     }
-    state check_offset(&mut self) {
-        self.wall_offset = self.host.wall_clock_epoch_offset_seconds();
-        transition self.wall_offset == 0 {
-            true -> check_wall_lower()
-            false -> fail_offset()
+    state check_offset(context: &mut Main) {
+        let wall_offset: u64 = context.host.wall_clock_epoch_offset_seconds();
+        transition wall_offset == 0 {
+            true -> check_wall_lower(&mut context)
+            false -> fail_offset(&mut context)
         }
     }
-    state check_wall_lower(&mut self) {
-        self.wall_raw = self.host.wall_clock_raw();
-        self.unix_seconds = self.wall_raw / 1000000000;
-        transition self.unix_seconds > 1767225600 {
-            true -> check_wall_upper()
-            false -> fail_wall_low()
+    state check_wall_lower(context: &mut Main) {
+        let wall_raw: u64 = context.host.wall_clock_raw();
+        let unix_seconds: u64 = wall_raw / 1000000000;
+        transition unix_seconds > 1767225600 {
+            true -> check_wall_upper(&mut context, unix_seconds)
+            false -> fail_wall_low(&mut context)
         }
     }
-    state check_wall_upper(&mut self) {
-        transition self.unix_seconds < 3350000000 {
-            true -> good()
-            false -> fail_wall_high()
+    state check_wall_upper(context: &mut Main, unix_seconds: u64) {
+        transition unix_seconds < 3350000000 {
+            true -> good(&mut context)
+            false -> fail_wall_high(&mut context)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail_monotonic(&mut self) { self.console.exit_process(1); }
-    state fail_frequency(&mut self) { self.console.exit_process(2); }
-    state fail_units(&mut self) { self.console.exit_process(3); }
-    state fail_offset(&mut self) { self.console.exit_process(4); }
-    state fail_wall_low(&mut self) { self.console.exit_process(5); }
-    state fail_wall_high(&mut self) { self.console.exit_process(6); }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state fail_monotonic(context: &mut Main) { context.console.exit_process(1); }
+    state fail_frequency(context: &mut Main) { context.console.exit_process(2); }
+    state fail_units(context: &mut Main) { context.console.exit_process(3); }
+    state fail_offset(context: &mut Main) { context.console.exit_process(4); }
+    state fail_wall_low(context: &mut Main) { context.console.exit_process(5); }
+    state fail_wall_high(context: &mut Main) { context.console.exit_process(6); }
 }
