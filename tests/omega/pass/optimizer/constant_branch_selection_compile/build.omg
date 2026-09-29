@@ -3,10 +3,10 @@
 
 machine build(builder: &mut Build) {
     builder.application("constant_branch_selection_compile");
-    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
-    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_arm64::ProgramEntry, main);
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
     builder.optimizations.enable(
         Optimization::SelectedConstantBranchFoldV1,
     );

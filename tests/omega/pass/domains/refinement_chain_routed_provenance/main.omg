@@ -34,13 +34,10 @@ ensures
     token
 }
 
-data Main {
-}
-
 machine consume(token: Token in Issued::Fresh) {
 }
 
-machine Main::main(&mut self) {
+machine main() {
     let token: Token in Issued = Token::issue(7);
     let fresh: Token in Issued = Token::refresh(token);
     consume(fresh);

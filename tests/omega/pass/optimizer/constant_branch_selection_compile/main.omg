@@ -6,9 +6,6 @@
 // false, so the fold jumps the untaken edge. `Main::main` keeps a runtime
 // `==` branch beside it that the same pass must decline.
 
-data Main {
-}
-
 machine decide(value: i64) -> i64 {
     transition value < value {
         true -> taken()
@@ -19,12 +16,12 @@ machine decide(value: i64) -> i64 {
     state untaken() -> i64 { 43i64 }
 }
 
-machine Main::main(&mut self) {
+machine main() {
     let decided: i64 = decide(7i64);
     transition decided == 0i64 {
         true -> done()
         _ -> done()
     }
 
-    state done(&mut self) { }
+    state done() { }
 }

@@ -42,6 +42,4 @@ machine Harness::forward(harness: & Harness, raw: Token) -> Token suspends; reac
     transition { _ -> forwarded }
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

@@ -3,9 +3,7 @@
 use logger_kit::main::Sink;
 use logger_kit::main::log_quiet;
 
-data Main { }
-
-machine Main::main(&mut self)
+machine main()
 reaches Sink
 {
     log_quiet("nothing to say");
