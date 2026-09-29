@@ -19,6 +19,26 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn qualified_static_binding_context_lowers_without_attachment() {
+    let checked = checked_binding_context(
+        "pub boundary trait Host { machine ticks() -> u64; machine mark(value: u64); }
+         pub data Clock { host: Binding<Host>; }
+         machine Clock::read(clock: &mut Clock) reaches Host {
+             let ticks: u64 = clock.host.ticks();
+             Host::mark(ticks);
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Clock::read"))
+        .expect("qualified static context lowers");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("qualified static context is independently verified");
+}
+
+#[test]
 fn explicit_binding_context_preserves_boundary_source_custody() {
     for projection in ["clock.host", "context.clock.host"] {
         let parameter = if projection.starts_with("context") {

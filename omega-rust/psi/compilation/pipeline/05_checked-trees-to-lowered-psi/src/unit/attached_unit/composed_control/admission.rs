@@ -203,7 +203,13 @@ pub(super) fn exact_attachment<'a>(
     if machines.next().is_some() {
         return unsupported("composed Unit attachment has duplicate authored machines");
     }
-    if machine.attached_data.is_none() {
+    let has_receiver = checked.machine_states(machine).iter().any(|state| {
+        checked
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.is_self)
+    });
+    if !has_receiver {
         if plan.attachment_type_identity.is_some()
             || !plan.provider_attachment_requirements.is_empty()
         {
