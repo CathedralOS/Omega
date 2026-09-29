@@ -150,6 +150,7 @@ fn shared_integer_runtime_parameters(
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
         | LoweredDirectExpression::IndexedPrimitiveRead { .. }
+        | LoweredDirectExpression::IndexedElementFieldRead { .. }
         | LoweredDirectExpression::ByteSequenceLength { .. }
         | LoweredDirectExpression::ByteSequenceFieldLength { .. }
         | LoweredDirectExpression::ElementViewLength { .. }

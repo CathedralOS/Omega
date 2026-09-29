@@ -209,6 +209,9 @@ fn lower_terminal_selection(
     // validation; a nonempty table is then refused by the execution gate below
     // until executable quotient lowering exists.
     retain_checked_quotient_correspondences(checked, &mut lowered.semantic_module)?;
+    crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
+        &mut lowered.semantic_module,
+    );
     // Unit closures can be provisional inputs to cleanup/borrow assembly.
     // Discharge operand obligations only after the selected module is complete.
     if completion.operands == OperandProofCompletion::Finalize {

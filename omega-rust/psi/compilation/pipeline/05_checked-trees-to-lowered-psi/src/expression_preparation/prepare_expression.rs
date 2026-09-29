@@ -570,24 +570,42 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
                         // follows the selector with the element path; the
                         // array's declared extent still bounds the selector.
                         if !element_path.is_empty() {
-                            let (source, path, element_path, leaf) =
+                            let (source, path, leaf, scalar_type) =
                                 crate::expression_preparation::bindings::structural_fields::resolve_indexed_element_field(
                                     structural_fields,
                                     parameter_position,
                                     path,
                                     element_path,
                                 )?;
-                            if leaf != terminal_scalar_type(*primitive_type)? {
+                            if scalar_type != terminal_scalar_type(*primitive_type)? {
                                 return unsupported(
                                     "indexed element field read drifted from its field type",
                                 );
                             }
-                            return Ok(LoweredDirectExpression::IndexedPrimitiveRead {
-                                source,
-                                path,
-                                index: Box::new(index),
-                                element_path,
-                                scalar_type: leaf,
+                            use crate::emission::primitive_store::IndexedElementLeaf;
+                            return Ok(match leaf {
+                                IndexedElementLeaf::Flat(element_path) => {
+                                    LoweredDirectExpression::IndexedPrimitiveRead {
+                                        source,
+                                        path,
+                                        index: Box::new(index),
+                                        element_path,
+                                        scalar_type,
+                                    }
+                                }
+                                IndexedElementLeaf::Hoist {
+                                    element,
+                                    carrier,
+                                    field,
+                                } => LoweredDirectExpression::IndexedElementFieldRead {
+                                    source,
+                                    path,
+                                    index: Box::new(index),
+                                    element,
+                                    carrier,
+                                    field,
+                                    scalar_type,
+                                },
                             });
                         }
                         // A path ending at a fixed array declares its extent

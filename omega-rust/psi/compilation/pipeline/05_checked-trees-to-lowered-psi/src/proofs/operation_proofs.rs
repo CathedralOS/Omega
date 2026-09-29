@@ -45,6 +45,9 @@ fn finalize_operation_proofs_inner(
         crate::proofs::scalar_block_invariants::retain_provable_bounded(lowered, roster_rounds)?,
     );
     drop(_retain_scope);
+    crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
+        &mut lowered.semantic_module,
+    );
     let started = std::time::Instant::now();
     let validated = terminal_verifier::validate_module(&lowered.semantic_module)
         .map_err(LoweringError::InvalidTerminalModule)?;
