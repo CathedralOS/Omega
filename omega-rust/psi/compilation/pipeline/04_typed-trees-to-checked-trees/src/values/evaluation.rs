@@ -164,7 +164,13 @@ fn integer(
             let (source, value) = integer(operand, resolve_binding)?;
             Some((target, source.widen_value_to(target, value)?))
         }
+        // An equal-width integer re-view reads the same two's-complement
+        // bits on the view carrier: exactly the modular image.
         CheckedScalarExpression::IntegerWrappingCast {
+            primitive_type,
+            operand,
+        }
+        | CheckedScalarExpression::RepresentationView {
             primitive_type,
             operand,
         } => {

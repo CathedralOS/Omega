@@ -415,6 +415,7 @@ impl Context<'_> {
                     | Scalar::IntegerWrappingCast { .. }
                     | Scalar::IntegerSaturatingCast { .. }
                     | Scalar::IntegerTrappingCast { .. }
+                    | Scalar::RepresentationView { .. }
             )
             && self.checked.primitive_type_reference(cast.target_type) == value.primitive_type()
         {
@@ -555,6 +556,21 @@ impl Context<'_> {
                     && self.scalar(cast.value, operand, operands, depth + 1)
             }
             Scalar::Boolean(boolean) => self.boolean(source, boolean, operands, depth + 1),
+            // A retained re-view rejoins one authored recast to the same view
+            // carrier -- inline, or through the loan local bound to it -- and
+            // its operand rejoins the viewed place itself. A different view
+            // carrier, a non-recast cast, or an identity pair is not the
+            // judgment stage 04 retained.
+            Scalar::RepresentationView {
+                primitive_type,
+                operand,
+            } => self
+                .authored_recast(source)
+                .is_some_and(|(target_type, viewed)| {
+                    self.checked.primitive_type_reference(target_type) == Some(*primitive_type)
+                        && operand.primitive_type() != Some(*primitive_type)
+                        && self.scalar(viewed, operand, operands, depth + 1)
+                }),
             // Exact read identities, paths and their namespaces are checked by
             // scalar_source_custody; these forms introduce no scalar operator.
             Scalar::Parameter { .. } | Scalar::Local { .. } | Scalar::StorageRead { .. } => {
@@ -1114,6 +1130,65 @@ impl Context<'_> {
                 .expression_table
                 .expression_count()
                 .saturating_mul(4)
+    }
+
+    /// The authored recast a re-view read rejoins: the stated view type and
+    /// the viewed place, with the authored `&`/`&mut` spellings peeled from
+    /// both sides of the cast. A bare name resolves through the immutable
+    /// loan local of this state that binds it; any other spelling is not a
+    /// recast.
+    fn authored_recast(
+        &self,
+        source: ExpressionHandle,
+    ) -> Option<(checked_trees::types::TypeReferenceHandle, ExpressionHandle)> {
+        let table = &self.checked.expression_table;
+        let mut expression = source;
+        if let ExpressionNode::Name(name) = table.expression(expression) {
+            if !name.symbol.is_valid()
+                || name.symbol != name.head_symbol
+                || table.name_path_members(name.members).len() != 1
+            {
+                return None;
+            }
+            let (_, state) = crate::expression_preparation::source_custody::authored_state(
+                self.checked,
+                self.state,
+            )
+            .ok()?;
+            let mut locals = self
+                .checked
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .take(usize::try_from(self.statement).ok()?)
+                .filter_map(|statement| match statement {
+                    checked_trees::statement::StatementNode::LocalData(local)
+                        if local.symbol == name.symbol =>
+                    {
+                        Some(local)
+                    }
+                    _ => None,
+                });
+            let local = locals.next()?;
+            if locals.next().is_some() || local.is_mutable || !local.initial_value.is_valid() {
+                return None;
+            }
+            expression = local.initial_value;
+        }
+        while let ExpressionNode::Borrow(borrow) = table.expression(expression) {
+            expression = borrow.target;
+        }
+        let ExpressionNode::Cast(cast) = table.expression(expression) else {
+            return None;
+        };
+        if !cast.form.is_recast() {
+            return None;
+        }
+        let mut viewed = cast.value;
+        while let ExpressionNode::Borrow(borrow) = table.expression(viewed) {
+            viewed = borrow.target;
+        }
+        Some((cast.target_type, viewed))
     }
 
     fn retagged_literal(

@@ -179,7 +179,13 @@ fn integer(
                 },
             )
         }
+        // An equal-width integer re-view reads the same two's-complement
+        // bits on the view carrier: exactly the modular image.
         Expression::IntegerWrappingCast {
+            primitive_type,
+            operand,
+        }
+        | Expression::RepresentationView {
             primitive_type,
             operand,
         } => {

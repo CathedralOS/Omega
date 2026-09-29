@@ -28,6 +28,19 @@ offending `as` expression (the stray cast itself for the positional sweep, the
 let's initializer for the unspelled reference pun), so fenced positions and
 judgment refusals name their exact site.
 
+Checked trees retain a whole-place scalar re-view as
+`CheckedScalarExpression::RepresentationView`: the source place's read at its
+declared carrier beneath the view carrier. A same-carrier recast changes only
+facts and reads the place directly. Stage 05 lowers the source read with its
+declared-type checks intact and replays the carrier relation
+(`expression_preparation/representation_view.rs`): equal-width integer
+carriers read the two's-complement modular image. Boolean and IEEE float
+cross-carrier views (`bool` as `u8`, `f32` as `u32`) reject there because
+Terminal Psi has no bit-reinterpretation or 0/1-landing re-view operation yet;
+Boolean view targets still retag their guard leaf until that form exists.
+Reads through an immutable `&mut` place-loan local re-evaluate the loaned place
+like shared loan locals do.
+
 Native and interpreter projection/state forwarding preserve backing identity.
 `Placed<P, T>` and its accessors are excluded: representation equivalence
 cannot replace the placement access plan. Focused source cases live in

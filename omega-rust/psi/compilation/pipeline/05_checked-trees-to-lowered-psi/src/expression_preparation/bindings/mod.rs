@@ -885,6 +885,7 @@ impl ScalarBindings {
             CheckedScalarExpression::IntegerBitwiseNot { operand, .. }
             | CheckedScalarExpression::IntegerWiden { operand, .. }
             | CheckedScalarExpression::IntegerWrappingCast { operand, .. }
+            | CheckedScalarExpression::RepresentationView { operand, .. }
             | CheckedScalarExpression::IntegerSaturatingCast { operand, .. }
             | CheckedScalarExpression::IntegerExactCast { operand, .. }
             | CheckedScalarExpression::IntegerTrappingCast { operand, .. } => {
