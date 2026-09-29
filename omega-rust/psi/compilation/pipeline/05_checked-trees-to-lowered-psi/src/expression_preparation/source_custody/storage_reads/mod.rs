@@ -720,9 +720,13 @@ fn constant_index_u64(checked: &CheckedTrees, index: ExpressionHandle) -> Option
     }
 }
 
-/// A local binding whose declared carrier is a fixed or borrowed sequence:
-/// its own symbol roots element reads, unlike scalar locals which rejoin
-/// through `authored_storage_read`.
+/// A local binding declared as an owned fixed array: its own symbol roots
+/// element reads, unlike scalar locals which rejoin through
+/// `authored_storage_read`. This mirrors the checker's owned-local root, the
+/// only root whose literal element reads retain an `IndexedPrimitive` leaf. A
+/// borrowed `&[T]` view local roots its reads at the view its establishment
+/// published (`CheckedStorageRoot::ViewLocal`), which retains only the
+/// selector, so it must not mint an owned leaf here.
 fn fixed_carrier_local(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
@@ -742,19 +746,13 @@ fn fixed_carrier_local(
     if locals.next().is_some() {
         return None;
     }
-    let mut reference = local.type_reference;
-    loop {
-        match checked.type_reference_table.type_reference(reference) {
-            checked_trees::types::TypeReferenceNode::Reference { referee, .. }
-            | checked_trees::types::TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => reference = *referee,
-            checked_trees::types::TypeReferenceNode::FixedArray { .. }
-            | checked_trees::types::TypeReferenceNode::Slice { .. } => break,
-            _ => return None,
-        }
-    }
-    Some(local.symbol)
+    matches!(
+        checked
+            .type_reference_table
+            .type_reference(local.type_reference),
+        checked_trees::types::TypeReferenceNode::FixedArray { .. }
+    )
+    .then_some(local.symbol)
 }
 
 fn collect_owned_field(
