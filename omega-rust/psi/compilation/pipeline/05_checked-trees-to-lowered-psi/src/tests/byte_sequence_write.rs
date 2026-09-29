@@ -2,13 +2,8 @@
 
 use super::{LoweringError, lower_machine};
 use crate::TerminalMachineSelection;
-use checked_trees::{
-    CheckedScalarExpression, CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment,
-};
-use terminal_interpreter::AcceptTerminalEffects;
-use terminal_interpreter::TerminalStructuralInputs;
+use checked_trees::{CheckedScalarExpression, CheckedUnitEffectOperationPlan};
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
-use terminal_psi::{StructuralPathSegment, StructuralTypeShape};
 pub(super) const PUT: &str = r#"
     machine put(out: &mut [u8], byte: u8) {
         transition out.len > 0 {
@@ -131,10 +126,14 @@ fn byte_view_write_rejects_changed_source_operands_access_and_roster() {
     }
 }
 
+/// `put` writes through a bare `&mut [u8]`, so it may store bytes that break a
+/// caller field's declared predicate. Terminal opens no invariant window on a
+/// field, so lending a `Utf8` field to that view is refused at the exact call
+/// argument (`wiki/spec/terminal-psi/structural_access.md`: "passing a
+/// restricted field to a bare mutable byte view is rejected"), whatever the
+/// field held before the call.
 #[test]
-fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
-    // This fixture uses the existing checked UTF-8 literal initialization route;
-    // it does not establish raw fixed-array or complete read_line support.
+fn a_restricted_field_cannot_be_lent_to_a_bare_mutable_byte_helper() {
     for initial in ["old", ""] {
         let checked = crate::front_end::checked_program(&format!(
             r#"
@@ -146,148 +145,23 @@ fn guarded_mutable_byte_write_keeps_original_field_extent_and_tail() {
             self.other = "QQ";
             put(&mut self.out, 65);
             put(&mut self.out, 0);
-            // The loans retired `self.out`'s `Utf8` coverage and a machine's
-            // return re-proves its readable `&mut` referents' declared field
-            // facts, so the field is re-established before `self` is handed
-            // back. The committed `put` bytes are observed mid-execution at
-            // the fuel pauses below.
             self.out = "ok";
         }}
     "#
         ));
-        let artifact = terminal_production::TerminalProductionRequest::new(
-            &checked,
-            terminal_production::TerminalMachineSelection::Name("Record::run"),
-        )
-        .produce(TerminalProductionCustody::artifact_only(
-            &mut TerminalProductionTimings::default(),
-        ))
-        .expect("checked caller retains original borrowed field backing")
-        .into_artifact();
-        let mut redirected = checked.clone();
-        let caller = redirected
-            .facts
-            .flow
-            .terminal_unit_effects
-            .machines
-            .iter_mut()
-            .find(|plan| {
-                plan.operations.iter().any(|operation| {
-                    matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                })
-            })
-            .unwrap();
-        let CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        } = caller
-            .operations
-            .iter_mut()
-            .find(|operation| matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. }))
-            .unwrap()
-        else {
-            panic!("ordinary put")
-        };
-        structural_arguments[0].path =
-            vec![CheckedUnitStructuralPathSegment::Field("other".into())];
+        let error = lower_machine(&checked, TerminalMachineSelection::Name("Record::run"))
+            .expect_err("the restricted field cannot enter a bare mutable view");
         assert!(
-            lower_machine(&redirected, TerminalMachineSelection::Name("Record::run")).is_err(),
-            "same-typed sibling cannot replace authored output"
-        );
-        let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
-        let entry = module
-            .machines
-            .iter()
-            .find(|machine| machine.id == module.entry)
-            .unwrap();
-        let declaration = module
-            .structural_types
-            .iter()
-            .find(|declaration| declaration.id == entry.structural_parameters[0].structural_type)
-            .unwrap();
-        let StructuralTypeShape::Record {
-            fields: declared_fields,
-            ..
-        } = &declaration.shape
-        else {
-            panic!("caller record")
-        };
-        let fields = ["out", "other"].map(|identity| {
-            let field = declared_fields
-                .iter()
-                .find(|field| field.identity == identity)
-                .unwrap();
-            (Vec::<StructuralPathSegment>::new(), field.id)
-        });
-        assert_ne!(fields[0].1, fields[1].1);
-        let mut execution = terminal_interpreter::TerminalExecution::start_artifact(
-            artifact.semantic_bytes(),
-            artifact.proof_bytes(),
-            &proof_admission::AdmissionProfile::default(),
-            &[],
-            TerminalStructuralInputs {
-                arguments: &[terminal_interpreter::TerminalStructuralValue {
-                    opaque_identity: 73,
-                    structural_type: entry.structural_parameters[0].structural_type,
-                    qualifications: Vec::new(),
-                    path: Vec::new(),
-                }],
-                ..Default::default()
-            },
-        )
-        .unwrap();
-        let mut fuel = terminal_fuel::TerminalFuelMeter::with_allowance(0);
-        let mut complete = false;
-        let mut observed = Vec::new();
-        for _ in 0..100 {
-            let status = execution
-                .resume(&mut fuel, &mut AcceptTerminalEffects)
-                .unwrap();
-            let before = execution
-                .structural_byte_sequence_field(73, &fields[0].0, fields[0].1)
-                .map(<[u8]>::to_vec);
-            match status {
-                terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_) => {
-                    observed.push(before.clone());
-                    assert!(matches!(
-                        execution
-                            .resume(&mut fuel, &mut AcceptTerminalEffects)
-                            .unwrap(),
-                        terminal_interpreter::TerminalExecutionStatus::SponsorExhausted(_)
-                    ));
-                    assert_eq!(
-                        execution.structural_byte_sequence_field(73, &fields[0].0, fields[0].1),
-                        before.as_deref()
-                    );
-                    fuel.replenish(1).unwrap();
-                }
-                terminal_interpreter::TerminalExecutionStatus::Complete(_) => {
-                    assert!(execution.effects().is_empty());
-                    assert_eq!(before.as_deref(), Some(b"ok".as_slice()));
-                    assert_eq!(
-                        execution.structural_byte_sequence_field(73, &fields[1].0, fields[1].1),
-                        Some(b"QQ".as_slice())
-                    );
-                    complete = true;
-                    break;
-                }
-                terminal_interpreter::TerminalExecutionStatus::Crashed(crash) => {
-                    panic!("unexpected crash: {crash:?}")
-                }
-            }
-        }
-        assert!(
-            complete,
-            "guarded writes did not complete with incremental fuel"
-        );
-        assert!(
-            observed.iter().any(|bytes| bytes.as_deref()
-                == Some(if initial.is_empty() {
-                    initial.as_bytes()
-                } else {
-                    b"\0ld".as_slice()
-                })),
-            "the committed guarded writes were observable before the return repair: {observed:?}"
+            matches!(
+                error,
+                LoweringError::InvalidTerminalModule(
+                    terminal_verifier::ModuleError::InvalidStructuralArgumentPath {
+                        argument_index: 0,
+                        ..
+                    }
+                )
+            ),
+            "{initial:?}: {error:?}"
         );
     }
 }
