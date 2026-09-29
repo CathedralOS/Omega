@@ -17,7 +17,7 @@ data Clamper {
 }
 
 // Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
-machine Clamper::clamp_sum(&self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
+machine clamp_sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.len > 0 {
         true -> clamp_sum(s[1..], acc + max(0, min(s[0], 60)))
         false -> (acc)
@@ -39,7 +39,7 @@ machine Main::main(&mut self) reaches Console {
     self.clamper.values[4] = 30;
 
     let s: &[i32 in Wrapping] = self.clamper.values.as_slice();
-    let total: i32 = self.clamper.clamp_sum(s, 0) as i32;
+    let total: i32 = clamp_sum(s, 0) as i32;
     self.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
     self.console.write_line("[press Enter to close]");
     _ = block self.console.read_line(&mut self.pause);
