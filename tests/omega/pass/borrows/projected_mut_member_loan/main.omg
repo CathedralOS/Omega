@@ -22,8 +22,18 @@ machine Main::main(&mut self) reaches Console {
         transition loan.tag == 9 { true -> done() _ -> bad() }
     }
 
+    // The loan's name died at the edge: `done` reads the same storage
+    // through the receiver root and must observe the loan's write.
     state done(&mut self) {
+        transition self.inner.tag == 9 { true -> ok() _ -> stale() }
+    }
+
+    state ok(&mut self) {
         self.console.exit_process(0);
+    }
+
+    state stale(&mut self) {
+        self.console.exit_process(2);
     }
 
     state bad(&mut self) {
