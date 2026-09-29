@@ -323,29 +323,65 @@ fn owned_parameter_reseats_window_through_exact_abi_transport() {
 #[test]
 fn state_loan_window_uses_the_arriving_address_through_selection_replay() {
     use abstract_operations::{AbstractBlockEntry, AbstractStructuralBinding};
-    use semantic_vocabulary::{BlockId, EdgeId};
+    use semantic_vocabulary::{BlockId, EdgeId, StructuralCaseId, ValueId};
 
     let mut source = source(StructuralAccess::MutableBorrow);
+    let status = StructuralTypeId::new(30).unwrap();
+    let case = StructuralCaseId::new(1).unwrap();
+    source
+        .structural_types
+        .make_mut()
+        .push(StructuralTypeDeclaration {
+            id: status,
+            identity: "test::Status".into(),
+            shape: StructuralTypeShape::Sum {
+                cases: vec![terminal_psi::StructuralCaseDeclaration {
+                    id: case,
+                    identity: "Ready".into(),
+                    fields: Vec::new(),
+                }],
+            },
+        });
+    let outer = source
+        .structural_types
+        .make_mut()
+        .iter_mut()
+        .find(|declaration| declaration.id == root(StructuralAccess::MutableBorrow).structural_type)
+        .unwrap();
+    let StructuralTypeShape::Record { fields } = &mut outer.shape else {
+        unreachable!()
+    };
+    fields.push(field(3, "status", StructuralFieldType::Structural(status)));
     let function = &mut source.functions[0];
-    function.operations.remove(0);
     let mut arrival = root(StructuralAccess::MutableBorrow);
     arrival.place = place(4);
     for operation in &mut function.operations {
         match operation {
+            AbstractOperation::StructuralLeafCopy { source, .. } => *source = arrival.place,
             AbstractOperation::MoveStructuralField { source, .. } => {
                 *source =
                     abstract_operations::StructuralWindowRoot::BorrowedParameter(arrival.clone());
             }
-            AbstractOperation::StoreStructuralField {
-                destination, value, ..
-            } => {
+            AbstractOperation::StoreStructuralField { destination, .. } => {
                 *destination =
                     abstract_operations::StructuralWindowRoot::BorrowedParameter(arrival.clone());
-                value.place = place(3);
             }
             _ => {}
         }
     }
+    function.operations.insert(
+        0,
+        AbstractOperation::StructuralCaseMembership {
+            psi_operation: operation(9),
+            result: abstract_operations::AbstractResult {
+                value: ValueId::new(9).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            },
+            source: arrival.place,
+            path: vec![StructuralPathSegment::Field("status".into())],
+            case,
+        },
+    );
     let body = BlockId::new(2).unwrap();
     function.operations.insert(
         0,
@@ -408,11 +444,17 @@ fn state_loan_window_uses_the_arriving_address_through_selection_replay() {
         )
         .unwrap();
         let mut changed = target.clone();
-        let TargetUnitOperation::StoreStructuralField { destination, .. } =
-            &mut changed.functions[0].graph.blocks[1].operations[1]
-        else {
-            unreachable!()
-        };
+        let destination = changed.functions[0].graph.blocks[1]
+            .operations
+            .iter_mut()
+            .find_map(|operation| {
+                if let TargetUnitOperation::StoreStructuralField { destination, .. } = operation {
+                    Some(destination)
+                } else {
+                    None
+                }
+            })
+            .unwrap();
         // Equal referent types do not let a stale incoming carrier replace the
         // transferred loan's declaration.
         *destination = abstract_operations::StructuralWindowRoot::BorrowedParameter(root(

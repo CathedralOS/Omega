@@ -40,6 +40,8 @@ pub(super) fn copy(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         home.structural_type()
+    } else if let Some(parameter) = super::transfers::address_parameter(function, live, *source) {
+        parameter.structural_type
     } else {
         super::structural_case::parameter_root(prepared, *source)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?

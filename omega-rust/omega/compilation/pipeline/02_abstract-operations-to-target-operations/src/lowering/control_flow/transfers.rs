@@ -60,7 +60,7 @@ pub(super) fn enter(block: &AbstractBlockEntry, live: &mut LiveDefinitions) {
     }
 }
 
-/// A shared block parameter carried as its referent's address. The type rule
+/// A borrowed block parameter carried as its referent's address. The type rule
 /// is shared with every Omega stage; each stage replays its own edge sources.
 pub(super) fn is_address_join(
     parameter: &terminal_psi::StructuralParameterDeclaration,
@@ -69,6 +69,24 @@ pub(super) fn is_address_join(
     abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
         structural_types.get(&identity).copied()
     })
+}
+
+/// The declared referent behind a live edge-forwarded address. Consumers use
+/// this same arrival for reads, copies and restoration; no entry ABI row is
+/// fabricated, and a declaration alone cannot revive an unavailable carrier.
+pub(super) fn address_parameter<'a>(
+    function: &'a AbstractFunction,
+    live: &LiveDefinitions,
+    place: semantic_vocabulary::PlaceId,
+) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+    if !live.address_joins.contains(&place) {
+        return None;
+    }
+    function
+        .block_entries
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .find(|parameter| parameter.place == place)
 }
 
 /// An address-join edge lends one readable root, or a static projection
