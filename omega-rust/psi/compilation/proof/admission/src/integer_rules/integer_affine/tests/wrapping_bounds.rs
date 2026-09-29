@@ -11,6 +11,128 @@ use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::{IntegerSign, ValueId};
 
 #[test]
+fn wrapping_product_bounds_require_the_entire_rectangle_to_fit() {
+    let signed = [
+        (-128, -128),
+        (-128, 127),
+        (-10, -2),
+        (-4, 5),
+        (-1, -1),
+        (0, 0),
+        (1, 9),
+        (2, 10),
+        (20, 20),
+        (127, 127),
+    ];
+    let unsigned = [
+        (0, 0),
+        (0, 1),
+        (1, 9),
+        (2, 10),
+        (20, 20),
+        (255, 255),
+        (0, 255),
+    ];
+    for (sign, intervals) in [
+        (IntegerSign::Signed, signed.as_slice()),
+        (IntegerSign::Unsigned, unsigned.as_slice()),
+    ] {
+        let integer_type = IntegerType::new(sign, 8).unwrap();
+        let context = PropositionContext::from_value_types((1..=2).map(|identity| {
+            (
+                ValueId::new(identity).unwrap(),
+                ScalarType::Integer(integer_type),
+            )
+        }))
+        .unwrap();
+        let left = value(1, integer_type);
+        let right = value(2, integer_type);
+        let product =
+            ScalarTerm::wrapping_integer_multiply(integer_type, left.clone(), right.clone())
+                .unwrap();
+        let form = check_integer_affine_witness(
+            &context,
+            &[],
+            &IntegerAffineWitness {
+                root: left.clone(),
+                target: product.clone(),
+                definition_axioms: vec![],
+                literal_axioms: vec![],
+            },
+        )
+        .unwrap();
+        let integer = |number: i128| {
+            if sign == IntegerSign::Signed {
+                literal(integer_type, number)
+            } else {
+                unsigned_literal(integer_type, number as u128)
+            }
+        };
+        for &(left_minimum, left_maximum) in intervals {
+            for &(right_minimum, right_maximum) in intervals {
+                // Enumerate actual i8/u8 products independently of the mapper's
+                // corner calculation, including wrap at either opposite endpoint.
+                let mut fits = true;
+                let mut minimum = i128::MAX;
+                let mut maximum = i128::MIN;
+                for left_value in left_minimum..=left_maximum {
+                    for right_value in right_minimum..=right_maximum {
+                        let mathematical = left_value * right_value;
+                        let stored = if sign == IntegerSign::Signed {
+                            (mathematical as i8) as i128
+                        } else {
+                            (mathematical as u8) as i128
+                        };
+                        fits &= mathematical == stored;
+                        minimum = minimum.min(stored);
+                        maximum = maximum.max(stored);
+                    }
+                }
+                for lower in [true, false] {
+                    let mut parts = vec![
+                        Proposition::LessOrEqual(integer(left_minimum), left.clone()),
+                        Proposition::LessOrEqual(left.clone(), integer(left_maximum)),
+                        Proposition::LessOrEqual(integer(right_minimum), right.clone()),
+                        Proposition::LessOrEqual(right.clone(), integer(right_maximum)),
+                    ];
+                    if !lower {
+                        parts.swap(0, 1);
+                        parts.swap(2, 3);
+                    }
+                    let mapped =
+                        map_integer_affine_bound(&form, &Proposition::Conjunction(parts.clone()));
+                    if !fits {
+                        assert_eq!(
+                            mapped,
+                            Err(IntegerAffineBoundConversionError::DirectMultiplyBoundOverflow)
+                        );
+                        continue;
+                    }
+                    assert_eq!(
+                        mapped,
+                        Ok(if lower {
+                            Proposition::LessOrEqual(integer(minimum), product.clone())
+                        } else {
+                            Proposition::LessOrEqual(product.clone(), integer(maximum))
+                        })
+                    );
+                    let mut wrong_operand = parts.clone();
+                    wrong_operand[2] = parts[0].clone();
+                    assert!(
+                        map_integer_affine_bound(&form, &Proposition::Conjunction(wrong_operand))
+                            .is_err()
+                    );
+                    parts.swap(0, 1);
+                    assert!(
+                        map_integer_affine_bound(&form, &Proposition::Conjunction(parts)).is_err()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn wrapping_add_backward_maps_strict_bounds_with_headroom_evidence() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 16).expect("u16");
     let operand = value(1, integer_type);

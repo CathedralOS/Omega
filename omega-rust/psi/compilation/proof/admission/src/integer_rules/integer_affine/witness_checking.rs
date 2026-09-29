@@ -184,6 +184,11 @@ pub fn check_integer_affine_witness(
             scalar_type,
             left,
             right,
+        }
+        | ScalarTerm::WrappingIntegerMultiply {
+            scalar_type,
+            left,
+            right,
         } = &witness.target
         && (left.as_ref() == &witness.root || right.as_ref() == &witness.root)
         && scalar_type.carrier() == IntegerCarrier::Fixed

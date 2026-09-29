@@ -1,10 +1,14 @@
-//! Carry a prior exact product's tight endpoints into later arithmetic.
+//! Carry a prior product's tight endpoints into later arithmetic.
 //!
-//! The existing four-corner rule bounds the mathematical product, not its
+//! For exact products, the four-corner rule bounds the mathematical product, not its
 //! stored scalar result. Transport through the cited prior definition, then
 //! use the kernel's existing scalar/math citation normalization under a
 //! discharged hypothesis. Every step is ordinary published proof evidence;
 //! neither a new checker rule nor a producer-asserted interval is required.
+//! Wrapping products use the same four corners, but admission requires the
+//! complete rectangle to fit the carrier and yields a scalar bound. Transport
+//! that bound directly; wrapping expressions do not unconditionally equal the
+//! unbounded mathematical product.
 
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
@@ -26,11 +30,16 @@ pub(super) fn definition_bounds(
     proofs: &[ProofNode],
     discovered: &mut Vec<ProofNode>,
 ) {
-    let ScalarTerm::ExactIntegerMultiply {
+    let (ScalarTerm::ExactIntegerMultiply {
         scalar_type,
         left,
         right,
-    } = expression
+    }
+    | ScalarTerm::WrappingIntegerMultiply {
+        scalar_type,
+        left,
+        right,
+    }) = expression
     else {
         return;
     };
@@ -81,22 +90,28 @@ pub(super) fn definition_bounds(
         let Ok(mapped) = map_integer_affine_bound(&form, &evidence) else {
             continue;
         };
-        let Proposition::IntegerMathLessOrEqual(mapped_left, mapped_right) = &mapped else {
-            continue;
-        };
-        let (literal, product) = if lower {
-            (mapped_left, mapped_right)
-        } else {
-            (mapped_right, mapped_left)
-        };
-        let IntegerMathTerm::IntegerLiteral(bound) = literal else {
-            continue;
-        };
-        let Some(bound) = bound.as_integer_value(*scalar_type) else {
-            continue;
-        };
-        let Ok(scalar_literal) = ScalarTerm::integer(*scalar_type, bound) else {
-            continue;
+        let scalar_literal = match &mapped {
+            Proposition::LessOrEqual(first, second) => {
+                if lower {
+                    first.clone()
+                } else {
+                    second.clone()
+                }
+            }
+            Proposition::IntegerMathLessOrEqual(first, second) => {
+                let IntegerMathTerm::IntegerLiteral(bound) = (if lower { first } else { second })
+                else {
+                    continue;
+                };
+                let Some(bound) = bound.as_integer_value(*scalar_type) else {
+                    continue;
+                };
+                let Ok(literal) = ScalarTerm::integer(*scalar_type, bound) else {
+                    continue;
+                };
+                literal
+            }
+            _ => continue,
         };
         let scalar_bound = if lower {
             Proposition::LessOrEqual(scalar_literal, output.clone())
@@ -106,11 +121,6 @@ pub(super) fn definition_bounds(
         if proofs.iter().any(|proof| proof.conclusion == scalar_bound) {
             continue;
         }
-        let mathematical_bound = if lower {
-            Proposition::IntegerMathLessOrEqual(literal.clone(), output_math.clone())
-        } else {
-            Proposition::IntegerMathLessOrEqual(output_math.clone(), literal.clone())
-        };
         let mut definition = ProofNode {
             conclusion: semantic_axioms[definition_axiom].clone(),
             rule: ProofRule::SemanticAxiom {
@@ -125,18 +135,8 @@ pub(super) fn definition_bounds(
                 },
             };
         }
-        let equality = ProofNode {
-            conclusion: Proposition::IntegerMathEqual(output_math.clone(), product.clone()),
-            rule: ProofRule::ValueEqualityTransport {
-                premise: Box::new(ProofNode {
-                    conclusion: Proposition::IntegerMathEqual(product.clone(), product.clone()),
-                    rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
-                }),
-                equalities: vec![definition],
-            },
-        };
         let mapped_proof = ProofNode {
-            conclusion: mapped,
+            conclusion: mapped.clone(),
             rule: ProofRule::IntegerAffineBound {
                 root_bound: Box::new(ProofNode {
                     conclusion: evidence,
@@ -145,6 +145,40 @@ pub(super) fn definition_bounds(
                     ),
                 }),
                 witness: witness.clone(),
+            },
+        };
+        if matches!(mapped, Proposition::LessOrEqual(..)) {
+            discovered.push(ProofNode {
+                conclusion: scalar_bound,
+                rule: ProofRule::IntegerOrderSubstitution {
+                    relation: Box::new(mapped_proof),
+                    equality: Box::new(definition),
+                    endpoint: usize::from(lower),
+                },
+            });
+            continue;
+        }
+        let Proposition::IntegerMathLessOrEqual(mapped_left, mapped_right) = &mapped else {
+            continue;
+        };
+        let (literal, product) = if lower {
+            (mapped_left, mapped_right)
+        } else {
+            (mapped_right, mapped_left)
+        };
+        let mathematical_bound = if lower {
+            Proposition::IntegerMathLessOrEqual(literal.clone(), output_math.clone())
+        } else {
+            Proposition::IntegerMathLessOrEqual(output_math.clone(), literal.clone())
+        };
+        let equality = ProofNode {
+            conclusion: Proposition::IntegerMathEqual(output_math.clone(), product.clone()),
+            rule: ProofRule::ValueEqualityTransport {
+                premise: Box::new(ProofNode {
+                    conclusion: Proposition::IntegerMathEqual(product.clone(), product.clone()),
+                    rule: ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
+                }),
+                equalities: vec![definition],
             },
         };
         let transported = ProofNode {

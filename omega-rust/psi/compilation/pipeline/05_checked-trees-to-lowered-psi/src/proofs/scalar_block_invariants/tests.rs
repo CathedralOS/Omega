@@ -192,6 +192,51 @@ fn lower_field_loop(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
 }
 
 #[test]
+fn bounded_wrapping_product_retains_digit_bound_across_a_join() {
+    let source = r#"
+        domain [u8; 1]::Utf8 requires valid_utf8(self);
+        machine narrow(value: i32) -> u8 { (value as u8 in Trapping) as u8 }
+        data Product { text: [u8; 1] in Utf8; tens: i32 in Wrapping; byte: u8; }
+        machine Product::run(&mut self, left: i32 [1..=9], right: i32 [1..=9]) {
+            self.text = " ";
+            self.tens = (left as i32 in Wrapping) * (right as i32 in Wrapping);
+            self.tens = self.tens / 10;
+            transition self.tens > 0 { true -> digit() _ -> space() }
+            state digit(&mut self) {
+                self.byte = narrow((self.tens + 48) as i32);
+                transition { _ -> write() }
+            }
+            state space(&mut self) {
+                self.byte = 32;
+                transition { _ -> write() }
+            }
+            state write(&mut self) { self.text[0] = self.byte; }
+        }
+    "#;
+    let lowered = lower_field_loop(source, "Product::run");
+    let mut changed = lowered.clone();
+    changed.semantic_module.scalar_block_invariants.clear();
+    changed.proof_bundle = terminal_verifier::ProofBundle::default();
+    let alternate = changed
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::IntegerConstant { value }
+                if *value == semantic_vocabulary::IntegerValue::Unsigned(32) =>
+            {
+                Some(value)
+            }
+            _ => None,
+        })
+        .expect("space branch has a literal byte");
+    *alternate = semantic_vocabulary::IntegerValue::Unsigned(128);
+    assert!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err());
+}
+
+#[test]
 fn nested_loop_preserves_field_bounds_for_a_computed_joined_byte() {
     let source = "
         domain [u8; 4]::Utf8 requires valid_utf8(self);
