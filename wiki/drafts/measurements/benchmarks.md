@@ -71,11 +71,12 @@ when this block drifts.
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-b5ab8878609b | measured 32403.6 ms | measured 156237824 B compile | measured 8192 B | measured 4.45419 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-b936e1ff6607 | measured 32298.3 ms | measured 156192768 B compile | measured 8192 B | measured 4.47536 ms |
 | linux_x86_64 | linux x86_64 | wrapping_square_sum | sel-bacb0af6ca52 | measured 32416.8 ms | measured 156332032 B compile | measured 8192 B | measured 4.61253 ms |
-| macos_arm64 | darwin arm64 | prime_counter | default | measured 896376 ms | measured 247644160 B compile | measured 16640 B | measured 6.41542 ms |
-| macos_arm64 | darwin arm64 | standalone | default | measured 38553.9 ms | measured 120684544 B compile | measured 16640 B | skipped (--no-run was passed) |
-| macos_arm64 | darwin arm64 | structural_proofs | default | measured 23487.6 ms | measured 123912192 B compile | measured 16640 B | skipped (--no-run was passed) |
+| macos_arm64 | darwin arm64 | cli_mvp | default | measured 10023 ms | measured 245415936 B compile | measured 16640 B | measured 4.06571 ms |
+| macos_arm64 | darwin arm64 | prime_counter | default | measured 12451.1 ms | measured 257376256 B compile | measured 16640 B | measured 3.59921 ms |
+| macos_arm64 | darwin arm64 | standalone | default | measured 3648.5 ms | measured 167919616 B compile | measured 16640 B | skipped (--no-run was passed) |
+| macos_arm64 | darwin arm64 | structural_proofs | default | measured 3779.12 ms | measured 178143232 B compile | measured 16640 B | skipped (--no-run was passed) |
 | macos_arm64 | linux x86_64 | wrapping_square_sum | default | measured 24453.9 ms | measured 151724032 B compile | measured 16640 B | skipped (--no-run was passed) |
-| macos_arm64 | darwin arm64 | wrapping_square_sum | sel-44c60ac57c66 | measured 21863.9 ms | measured 126173184 B compile | measured 16640 B | measured 5.40896 ms |
+| macos_arm64 | darwin arm64 | wrapping_square_sum | sel-44c60ac57c66 | measured 4106.06 ms | measured 181436416 B compile | measured 16640 B | measured 4.81942 ms |
 | macos_x86_64 | darwin arm64 | standalone | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | darwin arm64 | structural_proofs | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |
 | macos_x86_64 | darwin arm64 | wrapping_square_sum | default | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) | non-applicable (no bound required root slot `macos_x86_64::ProgramEntry`) |

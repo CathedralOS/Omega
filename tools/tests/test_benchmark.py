@@ -489,6 +489,31 @@ class ReviewSettlement(unittest.TestCase):
                 "no review lines\n", project, "linux_arm64")
             self.assertEqual(chosen.name, "review-linux_arm64.txt")
 
+    def test_published_lock_survives_an_empty_resume(self):
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            reviews = project / "build" / "package-manager"
+            reviews.mkdir(parents=True)
+            review = reviews / "review-macos_arm64.txt"
+            update_output = f"review: {review}\n"
+
+            def fake_run(argv, cwd):
+                if "--resume" in argv:
+                    # A depend-free project publishes the lock in the
+                    # first update; resuming finds nothing pending.
+                    return 1, "no pending package review\n"
+                review.write_text("decision x pending\n")
+                (project / "omega.lock").write_text("lock v\n")
+                return 0, update_output
+
+            with patch.object(benchmark, "run_plain", fake_run):
+                lock = benchmark.settle_package_review(
+                    Path("/fake/omega"), project, "macos_arm64")
+            self.assertEqual(lock, project / "omega.lock")
+
 
 class ProbeSelection(unittest.TestCase):
     def test_probe_prefers_psi_phase_rules(self):
