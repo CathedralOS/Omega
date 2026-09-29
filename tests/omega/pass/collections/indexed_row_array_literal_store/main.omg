@@ -2,8 +2,8 @@
 // closed-literal store once per element: the destination's fixed or runtime
 // index segment prefixes the leaf roster's literal indices, and the
 // selector's bound re-proves from the same facts an element store uses.
-// This moved on the lane's stage-04 repair but predates the swarm pin
-// carrying it -- promote to pass/ once a bundle after the repair verifies.
+// (Promoted: the stage-04 repair this pinned has landed and the fixture
+// checks on the release bundle.)
 //
 //   self.grid[0] = [1, 2, 3]     checks (fixed index)
 //   self.grid[i] = [10, 20, 30]  checks under `requires i <= 1` (runtime)

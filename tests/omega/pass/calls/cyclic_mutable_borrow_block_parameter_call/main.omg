@@ -1,14 +1,10 @@
-// PENDING canary: a `&mut` machine argument rebinds through an UNRANKED
-// control cycle's block-parameter channel, then is re-borrowed whole into a
-// unit machine call. The terminal CallUnit argument spells the place with an
-// empty path and `MutableBorrow` access — a call-scoped loan created and
-// released inside the operation, the same custody pattern the cyclic
-// eligibility arm admits for persistent receivers. The arm keys that
-// admission on MACHINE structural parameters only, so the block-parameter
-// rebinding channel falls outside every admitted shape:
-//
-//   InvalidTerminalModule(ControlCycleIneligible {
-//       block: ..., reason: BlockOperation { block: ..., operation: ... } })
+// A `&mut` machine argument rebinds through an UNRANKED control cycle's
+// block-parameter channel, then is re-borrowed whole into a unit machine
+// call. The terminal CallUnit argument spells the place with an empty path
+// and `MutableBorrow` access — a call-scoped loan created and released
+// inside the operation, the same custody pattern the cyclic eligibility arm
+// admits for persistent receivers. The arm now reaches the block-parameter
+// rebinding channel as well, so this shape checks.
 //
 // Reduced from squalr's `Mini` provider loop — `module: &mut NormalizedModule`
 // carried through the cycle and forwarded to `module.set_module_name(...)`,
