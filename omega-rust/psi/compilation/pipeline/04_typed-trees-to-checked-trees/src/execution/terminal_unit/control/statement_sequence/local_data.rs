@@ -106,6 +106,27 @@ pub(super) fn plan(
         .expression_is_valid(local.initial_value)
         && !uninit_zeroed
     {
+        // An uninitialized structural local still declares its binding: a
+        // later `&mut` borrow or out-parameter write is what establishes its
+        // storage, and those writers rejoin against the binding row by
+        // symbol. Minting the row here is the only producer for locals that
+        // are declared unassigned — skipping it leaves the whole machine's
+        // unit plan omitted even though every writer plans elsewhere.
+        if !erased_locals.contains(&local.symbol)
+            && program.primitive_type_reference(local.type_reference).is_none()
+        {
+            local_phase("statement sequence: local data: deferred structural binding");
+            let result = CheckedUnitStructuralResultBindingPlan {
+                statement_index,
+                binding_ordinal: u32::try_from(*structural_count).ok()?,
+                type_identity: shapes.add_type(local.type_reference, binders, &[])?,
+                multiplicity: program.type_multiplicity(local.type_reference),
+            };
+            *structural_count = structural_count.checked_add(1)?;
+            structural_results.push((result, facts::PlaceRoot::Symbol(local.symbol)));
+            structural_local_symbols.push(local.symbol);
+            return Some(LocalPlan::Planned);
+        }
         return None;
     }
     if erased_locals.contains(&local.symbol) || is_record_pattern_marker(local) {
