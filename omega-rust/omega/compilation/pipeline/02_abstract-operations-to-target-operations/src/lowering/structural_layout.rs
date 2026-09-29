@@ -723,12 +723,19 @@ pub(super) fn resolve_structural_projection_path(
                     .get(&structural_type)
                     .copied()
                     .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-                let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
-                    return Err(LoweringError::UnknownStructuralType(structural_type));
+                let element = match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, length } => {
+                        if *index >= *length {
+                            return Err(LoweringError::UnknownStructuralType(structural_type));
+                        }
+                        *element
+                    }
+                    // A view's storage is element-contiguous like the
+                    // array's; its bound lives in the verifier's extent
+                    // obligation rather than a literal type length.
+                    StructuralTypeShape::ElementView { element } => *element,
+                    _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
                 };
-                if *index >= length {
-                    return Err(LoweringError::UnknownStructuralType(structural_type));
-                }
                 let shape = structural_shape(element, declarations, cache, active)?;
                 let stride = checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))
                     .ok_or(LoweringError::StructuralTypeTooLarge(root_type))?;
@@ -798,10 +805,16 @@ pub(super) fn runtime_projection(
             .get(&structural_type)
             .copied()
             .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-        let StructuralTypeShape::FixedArray { element, .. } = declaration.shape else {
-            return Err(LoweringError::UnsupportedStructuralReference(
-                structural_type,
-            ));
+        let element = match &declaration.shape {
+            StructuralTypeShape::FixedArray { element, .. }
+            // A view carries no literal length: the selector's bound is the
+            // operation's own obligation against the stored extent.
+            | StructuralTypeShape::ElementView { element } => *element,
+            _ => {
+                return Err(LoweringError::UnsupportedStructuralReference(
+                    structural_type,
+                ));
+            }
         };
         let element_shape = structural_shape(element, declarations, cache, active)?;
         let stride =

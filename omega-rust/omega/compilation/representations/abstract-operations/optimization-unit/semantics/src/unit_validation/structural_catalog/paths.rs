@@ -68,6 +68,17 @@ pub(crate) fn resolve_structural_path(
                 terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
                 terminal_psi::StructuralTypeShape::FixedArray { element, .. },
             ) => *element,
+            // A view's extent is its stored runtime length: the index step
+            // selects an element whose bound the owning operation carries
+            // as its verified obligation.
+            (
+                terminal_psi::StructuralPathSegment::FixedIndex(_),
+                terminal_psi::StructuralTypeShape::ElementView { element },
+            ) => *element,
+            (
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                terminal_psi::StructuralTypeShape::ElementView { element },
+            ) => *element,
             _ => return None,
         };
     }

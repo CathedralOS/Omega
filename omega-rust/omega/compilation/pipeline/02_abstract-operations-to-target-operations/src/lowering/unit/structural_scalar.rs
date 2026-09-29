@@ -203,12 +203,27 @@ pub(in crate::lowering) fn lower_field_store(
             direct_scalar_field_offset(carrier_type, *field, value.scalar_type, structural_types)?
         }
     };
+    // The descriptor-size ceiling bounds a store inside its destination's
+    // own storage. A view destination only stores through the loan: its
+    // referent's extent is the runtime bound, and the descriptor's 16-byte
+    // base+extent carrier is not the write's frame.
+    let destination_is_view = matches!(
+        structural_types
+            .get(&destination.structural_type())
+            .map(|declaration| &declaration.shape),
+        Some(
+            terminal_psi::StructuralTypeShape::ElementView { .. }
+                | terminal_psi::StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                )
+        )
+    );
     let field_byte_offset = carrier_byte_offset
         .checked_add(scalar_byte_offset)
         .filter(|offset| {
             offset
                 .checked_add(field_byte_size)
-                .is_some_and(|end| end <= destination_shape.byte_size)
+                .is_some_and(|end| destination_is_view || end <= destination_shape.byte_size)
         })
         .ok_or(LoweringError::StructuralTypeTooLarge(
             destination.structural_type(),

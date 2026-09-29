@@ -106,13 +106,41 @@ pub(super) fn validate(
     if row.result.is_some() || !declared {
         return Err(replay.invalid());
     }
-    let pointer = replay
+    let view_home = replay
         .transport
-        .pointers
+        .element_views
         .iter()
-        .find(|(place, _)| *place == destination.place())
-        .map(|(_, register)| *register)
-        .ok_or_else(|| replay.invalid())?;
+        .find(|view| view.place == destination.place())
+        .copied();
+    let destination_is_view = view_home.is_some()
+        || crate::selection::established_view_input::element_view_type(source, destination.place())
+            .is_some();
+    let pointer = if destination_is_view {
+        // The construction emits the descriptor load (or the home's backing
+        // register) ahead of the store; replay checks the same sequence.
+        let backing =
+            super::element_views::element_backing_pointer(replay, row, destination.place())?;
+        if let Some(view) = view_home {
+            let base = super::result(replay, destination.place(), byte_offset)?;
+            replay.check_instruction(
+                SelectedInstructionKind::ByteViewAddress,
+                replay.constraints.keys.add_i64,
+                &[backing, view.byte_offset, base],
+                &super::provenance(row),
+            )?;
+            base
+        } else {
+            backing
+        }
+    } else {
+        replay
+            .transport
+            .pointers
+            .iter()
+            .find(|(place, _)| *place == destination.place())
+            .map(|(_, register)| *register)
+            .ok_or_else(|| replay.invalid())?
+    };
     let (_, register, _, scalar) = replay
         .resolve(value.value)
         .ok_or_else(|| replay.invalid())?;

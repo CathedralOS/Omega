@@ -992,6 +992,15 @@ fn project_inner<'a>(
                     .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
                 carrier = *element;
             }
+            (Projection::FixedIndex(position), StructuralTypeShape::ElementView { element }) => {
+                // A view's referent storage is element-contiguous; its
+                // stored extent, not a literal length, bounds the index.
+                let element_shape = shape(*element, declarations)?;
+                let stride = align(element_shape.byte_size, element_shape.alignment)?;
+                offset = offset
+                    .checked_add(u32::try_from(u64::from(stride).checked_mul(position)?).ok()?)?;
+                carrier = *element;
+            }
             (Projection::FieldName(name), StructuralTypeShape::Record { fields }) => {
                 let mut field_offset = 0;
                 let mut found = None;
@@ -1186,10 +1195,26 @@ fn scalar_field_geometry(
             }
             let offset = carrier_offset.checked_add(offset)?;
             let bytes = u8::try_from(scalar_shape(scalar)?.byte_size).ok()?;
-            if u64::from(offset)
-                .checked_add(runtime_reach(&elements)?)?
-                .checked_add(u64::from(bytes))?
-                > u64::from(shape(root, declarations)?.byte_size)
+            // A view root's descriptor is not the write's frame: the
+            // referent's extent bounds the store, so the descriptor-size
+            // ceiling applies only to storage the path stays inside.
+            let descriptor_frame = matches!(
+                declarations
+                    .iter()
+                    .find(|declaration| declaration.id == root)
+                    .map(|declaration| &declaration.shape),
+                Some(
+                    StructuralTypeShape::ElementView { .. }
+                        | StructuralTypeShape::ByteSequence(
+                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+                        )
+                )
+            );
+            if !descriptor_frame
+                && u64::from(offset)
+                    .checked_add(runtime_reach(&elements)?)?
+                    .checked_add(u64::from(bytes))?
+                    > u64::from(shape(root, declarations)?.byte_size)
             {
                 return None;
             }
