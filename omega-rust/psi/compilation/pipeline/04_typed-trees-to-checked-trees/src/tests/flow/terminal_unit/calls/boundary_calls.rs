@@ -330,7 +330,7 @@ fn boundary_requirement(
 }
 
 #[test]
-fn retains_static_attached_root_helper_port_and_boundary_settlement() {
+fn retains_qualified_static_root_helper_port_and_boundary_settlement() {
     let checked = checked(
         r#"
         pub data Acknowledgement [linear] {
@@ -374,25 +374,16 @@ fn retains_static_attached_root_helper_port_and_boundary_settlement() {
     let settle_symbol = machine_named(&checked, "settle");
     let root = plans
         .for_machine(root_symbol)
-        .expect("static attached root plan");
+        .expect("qualified static root plan");
     let helper = plans
         .for_machine(helper_symbol)
-        .expect("static attached helper plan");
+        .expect("qualified static helper plan");
     let settle = plans
         .boundary_for_machine(settle_symbol)
         .expect("boundary settlement plan");
 
-    assert!(
-        root.attachment_type_identity
-            .as_deref()
-            .is_some_and(|identity| identity.contains("Root"))
-    );
-    assert!(
-        helper
-            .attachment_type_identity
-            .as_deref()
-            .is_some_and(|identity| identity.contains("Helper"))
-    );
+    assert!(root.attachment_type_identity.is_none());
+    assert!(helper.attachment_type_identity.is_none());
     assert_eq!(root.structural_parameters.len(), 1);
     assert_eq!(helper.structural_parameters.len(), 1);
     assert_eq!(
