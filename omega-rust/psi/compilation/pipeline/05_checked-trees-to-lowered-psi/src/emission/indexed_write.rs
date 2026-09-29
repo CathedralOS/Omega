@@ -52,16 +52,12 @@ pub(crate) enum IndexedWriteLeaf<'a> {
 /// lowered storage its destination resolves in.
 #[derive(Clone, Copy)]
 pub(crate) enum IndexedWriteTarget<'a> {
-    /// The byte view names its `&mut` parameter by authored position.
-    ByteView {
-        write: &'a CheckedByteSequenceWritePlan,
-        parameters: &'a [StructuralParameterDeclaration],
-    },
-    /// The byte field names its root parameter by authored position.
-    ByteField {
-        store: &'a CheckedStructuralByteSequenceFieldByteStorePlan,
-        parameters: &'a [StructuralParameterDeclaration],
-    },
+    /// The byte view names its `&mut` parameter by authored position, which
+    /// `emit` resolves in the frame's authored parameter roster.
+    ByteView(&'a CheckedByteSequenceWritePlan),
+    /// The byte field names its root parameter by authored position, which
+    /// `emit` resolves in the same roster.
+    ByteField(&'a CheckedStructuralByteSequenceFieldByteStorePlan),
     /// The frame already resolved the view's home place and type from its
     /// parameter or local root.
     ElementView {
@@ -523,8 +519,8 @@ enum DestinationShape {
 impl<'a> IndexedWriteTarget<'a> {
     pub(crate) fn leaf(self) -> IndexedWriteLeaf<'a> {
         match self {
-            Self::ByteView { write, .. } => IndexedWriteLeaf::ByteView(write),
-            Self::ByteField { store, .. } => IndexedWriteLeaf::ByteField(store),
+            Self::ByteView(write) => IndexedWriteLeaf::ByteView(write),
+            Self::ByteField(store) => IndexedWriteLeaf::ByteField(store),
             Self::ElementView { write, .. } => IndexedWriteLeaf::ElementView(write),
         }
     }
@@ -532,19 +528,27 @@ impl<'a> IndexedWriteTarget<'a> {
     /// The leaf's own emission-time destination check. A byte leaf's
     /// custody failure reports the leaf's operand wording, which has always
     /// covered custody and operands together.
+    ///
+    /// `parameters` pairs each authored parameter position with the
+    /// declaration it lowered into. A byte leaf's root is authored; the
+    /// declaration's own `position` can be dense (the ordinary machine
+    /// counts structural parameters only), so a scalar formal ahead of the
+    /// root would make a lookup by declaration position select the next
+    /// borrowed parameter, or none.
     fn destination(
         self,
+        parameters: &[(u32, StructuralParameterDeclaration)],
         structural_types: &[StructuralTypeDeclaration],
         operands: &'static str,
     ) -> Result<Destination, LoweringError> {
         match self {
-            Self::ByteView { write, parameters } => {
+            Self::ByteView(write) => {
                 let Some(position) = write.destination.parameter_position() else {
                     return unsupported("byte-view write destination has no parameter root");
                 };
-                let parameter = parameters
+                let (_, parameter) = parameters
                     .iter()
-                    .find(|parameter| parameter.position == position)
+                    .find(|(authored, _)| *authored == position)
                     .ok_or(LoweringError::Unsupported(
                         "byte-view write destination is absent",
                     ))?;
@@ -571,13 +575,13 @@ impl<'a> IndexedWriteTarget<'a> {
                     shape: DestinationShape::ByteView,
                 })
             }
-            Self::ByteField { store, parameters } => {
+            Self::ByteField(store) => {
                 let Some(position) = store.destination.parameter_position() else {
                     return unsupported("byte replacement destination has no parameter root");
                 };
-                let parameter = parameters
+                let (_, parameter) = parameters
                     .iter()
-                    .find(|parameter| parameter.position == position)
+                    .find(|(authored, _)| *authored == position)
                     .ok_or(LoweringError::Unsupported(
                         "byte replacement destination is absent",
                     ))?;
@@ -585,7 +589,7 @@ impl<'a> IndexedWriteTarget<'a> {
                     crate::emission::structural_scalar_store::lower_structural_field_place(
                         store.statement_index,
                         store.statement_index,
-                        position,
+                        parameter.position,
                         &store.carrier_path,
                         &store.field_identity,
                         parameter,
@@ -722,8 +726,11 @@ impl Destination {
 /// Emit one indexed write after the frame lowered its index and value: the
 /// leaf's destination check, the shared operand check, the index coordinate,
 /// the value, the destination's length, and the write with its obligation.
+/// `parameters` is the frame's authored-to-lowered parameter roster, in which
+/// a byte leaf resolves its root.
 pub(crate) fn emit(
     target: IndexedWriteTarget<'_>,
+    parameters: &[(u32, StructuralParameterDeclaration)],
     structural_types: &[StructuralTypeDeclaration],
     index: &LoweredDirectExpression,
     value: &LoweredDirectExpression,
@@ -733,7 +740,7 @@ pub(crate) fn emit(
     operations: &mut OperationBuffer,
 ) -> Result<OperationKind, LoweringError> {
     let operands = target.leaf().wording().operands;
-    let destination = target.destination(structural_types, operands)?;
+    let destination = target.destination(parameters, structural_types, operands)?;
     if !matches!(index.scalar_type(), ScalarType::Integer(_))
         || value.scalar_type() != destination.value_type
         || direct_expression_contains_short_circuit(index)
@@ -800,4 +807,109 @@ fn emit_index_coordinate(
         next_obligation,
         operations,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        CheckedByteSequenceWritePlan, CheckedScalarExpression, CheckedStoreRoot, CheckedStoreValue,
+        IndexedWriteTarget, LoweredDirectExpression, LoweringError, OperationBuffer, OperationKind,
+        PlaceId, PrimitiveType, StructuralAccess, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeId,
+        StructuralTypeShape, ValueDeclaration, ValueId, emit, terminal_scalar_type,
+    };
+    use semantic_vocabulary::IntegerValue;
+
+    /// The ordinary machine's roster for `put(before: &mut [u8], index: u64,
+    /// target: &mut [u8], after: &mut [u8])`: the three views' declarations
+    /// carry dense positions 0, 1 and 2 under authored positions 0, 2 and 3.
+    /// An ordinary byte-view write cannot publish yet (its bound obligation
+    /// does not see a `requires` premise), so emission is checked directly:
+    /// each authored root selects its own place, and the scalar formal's
+    /// position selects none. Looking the authored position up among the
+    /// declarations' dense positions instead selected `after`'s place for
+    /// `target` and found nothing for `after`.
+    #[test]
+    fn a_byte_view_write_resolves_its_authored_root_past_a_scalar_formal() {
+        let view = StructuralTypeId::new(1).unwrap();
+        let structural_types = [StructuralTypeDeclaration {
+            id: view,
+            identity: "[u8]".into(),
+            shape: StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access: None },
+            ),
+        }];
+        let roster = [0_u32, 2, 3]
+            .into_iter()
+            .zip(1_u32..)
+            .map(|(authored, place)| {
+                (
+                    authored,
+                    StructuralParameterDeclaration {
+                        place: PlaceId::new(place.into()).unwrap(),
+                        position: place - 1,
+                        is_self: false,
+                        structural_type: view,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        access: StructuralAccess::MutableBorrow,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let index_type = terminal_scalar_type(PrimitiveType::U64).unwrap();
+        let byte_type = terminal_scalar_type(PrimitiveType::U8).unwrap();
+        let values = [ValueDeclaration {
+            id: ValueId::new(1).unwrap(),
+            scalar_type: index_type,
+            qualifications: Default::default(),
+        }];
+        let index = LoweredDirectExpression::Parameter {
+            position: 0,
+            scalar_type: index_type,
+        };
+        let value = LoweredDirectExpression::IntegerLiteral {
+            value: IntegerValue::Unsigned(9),
+            scalar_type: byte_type,
+        };
+        let emit_at = |position| {
+            let literal = CheckedScalarExpression::IntegerLiteral {
+                literal: numerics::literals::IntegerLiteral::from_value(0),
+            };
+            let write = CheckedByteSequenceWritePlan {
+                statement_index: 0,
+                destination: CheckedStoreRoot::Parameter { position },
+                index: literal.clone(),
+                value: CheckedStoreValue::Pure(literal),
+            };
+            emit(
+                IndexedWriteTarget::ByteView(&write),
+                &roster,
+                &structural_types,
+                &index,
+                &value,
+                &values,
+                &mut 2,
+                &mut 1,
+                &mut OperationBuffer::new(0),
+            )
+        };
+        for (authored, place) in [(0, 1), (2, 2), (3, 3)] {
+            match emit_at(authored) {
+                Ok(OperationKind::ByteSequenceWrite { destination, .. }) => assert_eq!(
+                    destination,
+                    PlaceId::new(place).unwrap(),
+                    "authored position {authored}"
+                ),
+                other => panic!("authored position {authored}: {other:?}"),
+            }
+        }
+        assert!(matches!(
+            emit_at(1),
+            Err(LoweringError::Unsupported(
+                "byte-view write destination is absent"
+            ))
+        ));
+    }
 }

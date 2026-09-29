@@ -1,0 +1,76 @@
+// RUN CANARY (exit 70). A byte store names its borrowed destination by
+// authored parameter position. Both helpers below put the scalar `index`
+// before their destination `target`, so `target` is authored position 2 but
+// the second borrowed parameter, and `after` is the third. Each store must
+// replace one byte of `target` and leave `before` and `after` as they were.
+//
+// `replace` is an ordinary machine body. A byte-field byte store that read
+// authored position 2 as a dense index among the borrowed parameters would
+// write `after` instead (exit 71). `put` is a state graph, whose byte-view
+// write resolves its root through the state's own parameters. Any other
+// outcome exits 72.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+domain [u8; 3]::Utf8
+requires
+    valid_utf8(self);
+
+data Cell {
+    text: [u8; 3] in Utf8;
+}
+
+data Main {
+    console: Binding<Console>;
+    before: Cell;
+    target: Cell;
+    after: Cell;
+    view_before: [u8; 2];
+    view_target: [u8; 2];
+    view_after: [u8; 2];
+}
+
+machine replace(before: &mut Cell, index: u64 [0..=2], target: &mut Cell, after: &mut Cell) {
+    before.text = "AAA";
+    target.text = "BBB";
+    after.text = "CCC";
+    target.text[index] = 90;
+}
+
+machine put(before: &mut [u8], index: u64, target: &mut [u8], after: &mut [u8]) {
+    transition index < target.len {
+        true -> store(before, index, target, after)
+        _ -> skip()
+    }
+
+    state store(before: &mut [u8], index: u64, target: &mut [u8], after: &mut [u8]) {
+        target[index] = 9;
+    }
+
+    state skip() {}
+}
+
+machine Main::main(&mut self) reaches Console {
+    replace(&mut self.before, 1, &mut self.target, &mut self.after);
+    put(&mut self.view_before, 1, &mut self.view_target, &mut self.view_after);
+    transition self.target.text == "BZB"
+        && self.before.text == "AAA"
+        && self.after.text == "CCC"
+        && self.view_target[1] == 9
+        && self.view_before[1] == 0
+        && self.view_after[1] == 0 {
+        true -> good()
+        _ -> wrong()
+    }
+
+    state wrong(&mut self) {
+        transition self.after.text == "CZC" {
+            true -> wrote_after()
+            _ -> other()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state wrote_after(&mut self) { self.console.exit_process(71); }
+    state other(&mut self) { self.console.exit_process(72); }
+}

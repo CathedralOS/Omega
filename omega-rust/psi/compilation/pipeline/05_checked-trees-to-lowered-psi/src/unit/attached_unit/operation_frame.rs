@@ -496,16 +496,11 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
                 self.structural_byte_sequence_field_store(store)
             }
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => self
-                .indexed_write(IndexedWriteTarget::ByteField {
-                    store,
-                    parameters: self.parameters,
-                }),
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                self.indexed_write(IndexedWriteTarget::ByteField(store))
+            }
             CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                self.indexed_write(IndexedWriteTarget::ByteView {
-                    write,
-                    parameters: self.parameters,
-                })
+                self.indexed_write(IndexedWriteTarget::ByteView(write))
             }
             CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
                 self.element_view_write(write)
@@ -827,7 +822,10 @@ impl OperationFrame<'_, '_> {
     /// assignment's scalar namespace, and `indexed_write::emit` checks the
     /// leaf's destination and emits the coordinate, length and write. Only a
     /// byte field's dense namespace carries the resolved structural field and
-    /// case observations.
+    /// case observations. A byte leaf's authored root resolves in
+    /// `structural_parameters`, the authored-to-lowered pairing the field,
+    /// case-field and element-view stores use, not in `parameters`, whose
+    /// positions are dense on the ordinary route.
     fn indexed_write(&mut self, target: IndexedWriteTarget<'_>) -> Result<(), LoweringError> {
         let leaf = target.leaf();
         let dense;
@@ -855,6 +853,7 @@ impl OperationFrame<'_, '_> {
         let value = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
         let kind = crate::emission::indexed_write::emit(
             target,
+            &self.evaluation.structural_parameters,
             self.structural_types.declarations(),
             &index,
             &value,
