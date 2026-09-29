@@ -770,22 +770,7 @@ fn ensures_result_interval(program: &TypedTrees, machine: &Machine, entry: &Stat
                 (binary.left, binary.right, true),
                 (binary.right, binary.left, false),
             ] {
-                let names_result = matches!(
-                    program.expression_table.expression(subject),
-                    ExpressionNode::Name(path)
-                        if !path.symbol.is_valid()
-                            && !path.head_symbol.is_valid()
-                            && !program
-                                .expression_table
-                                .name_path_member_symbols(path.member_symbols)
-                                .iter()
-                                .any(|symbol| symbol.is_valid())
-                            && matches!(
-                                program.expression_table.name_path_members(path.members),
-                                [name] if name.as_str() == "result"
-                            )
-                );
-                if !names_result {
+                if !program.expression_table.names_reserved_result(subject) {
                     continue;
                 }
                 if let Some(bound) = literal_i64(program, operand).map(Interval::constant) {

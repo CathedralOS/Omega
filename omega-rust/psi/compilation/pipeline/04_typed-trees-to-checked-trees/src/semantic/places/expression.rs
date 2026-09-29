@@ -187,7 +187,7 @@ fn instantiate_call_contract_name_path_place(
     let target_parameters = super::call_target_parameters(program, call.target_state_symbol)?;
     let first_member = members.first().map(|member| member.as_str());
 
-    let mut place = if first_member == Some("result") {
+    let mut place = if first_member.is_some_and(language_core::is_reserved_result) {
         if let Some((statement_index, expression)) = result {
             super::canonical_place_to_fact_place_in_state(
                 program,

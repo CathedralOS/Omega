@@ -74,7 +74,7 @@ pub(crate) fn fact_mentions_proof_only_data(
             match members {
                 [single] => {
                     let entry = program.machine_states(machine).first()?;
-                    if single.as_str() == "result" {
+                    if program.expression_table.names_reserved_result(expression) {
                         if entry.return_type.is_valid() {
                             return classification.proof_only_mention(program, entry.return_type);
                         }

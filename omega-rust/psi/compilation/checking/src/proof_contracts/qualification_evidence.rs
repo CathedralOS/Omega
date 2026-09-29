@@ -35,7 +35,9 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
                         program,
                         membership.domain,
                     ) {
-                        if !expression_is_bare_result(program, membership.value)
+                        if !program
+                            .expression_table
+                            .names_reserved_result(membership.value)
                             && !expression_is_mutable_parameter(
                                 program,
                                 signature,
@@ -60,7 +62,10 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
                         continue;
                     };
 
-                    let subject = if expression_is_bare_result(program, membership.value) {
+                    let subject = if program
+                        .expression_table
+                        .names_reserved_result(membership.value)
+                    {
                         Some((signature.return_type, "result"))
                     } else {
                         mutable_parameter(program, signature, membership.value)
@@ -94,7 +99,11 @@ fn validate_boundary_requirements(program: &TypedTrees, diagnostics: &mut Vec<Di
                             trait_definition.name,
                             signature.name,
                             domain.name,
-                            if subject_name == "result" { "result" } else { "parameter" },
+                            if language_core::is_reserved_result(&subject_name) {
+                                "result"
+                            } else {
+                                "parameter"
+                            },
                             program.display_type_reference_with_constraints(subject),
                             program.display_type_reference_with_constraints(domain.target_type),
                         )));
@@ -191,16 +200,6 @@ fn validate_external_machine_claims(program: &TypedTrees, diagnostics: &mut Vec<
             }
         }
     }
-}
-
-fn expression_is_bare_result(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
-        return false;
-    };
-    name.as_str() == "result"
 }
 
 /// An `ensures` subject that names an exact mutable non-self parameter: the

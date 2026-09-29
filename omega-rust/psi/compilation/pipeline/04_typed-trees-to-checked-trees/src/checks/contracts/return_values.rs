@@ -3,7 +3,7 @@
 use checked_trees::FlowExitFact;
 use typed_trees::{
     TypedTrees,
-    expression::{ExpressionHandle, ExpressionNode},
+    expression::ExpressionHandle,
     machine::Machine,
     statement::{StatementNode, TransitionExit, TransitionTargetNode},
 };
@@ -55,11 +55,10 @@ pub(super) fn is_result_reference(
     let Some(entry) = program.machine_states(machine).first() else {
         return false;
     };
-    !program
-        .state_parameters(entry)
-        .iter()
-        .any(|parameter| parameter.name.as_str() == "result")
-        && matches!(program.expression_table.expression(expression), ExpressionNode::Name(path)
-            if matches!(program.expression_table.name_path_members(path.members), [name]
-                if name.as_str() == "result"))
+    language_core::signature_reserves_result(
+        program
+            .state_parameters(entry)
+            .iter()
+            .map(|parameter| parameter.name.as_str()),
+    ) && program.expression_table.names_reserved_result(expression)
 }

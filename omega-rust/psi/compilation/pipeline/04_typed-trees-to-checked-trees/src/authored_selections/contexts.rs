@@ -1182,7 +1182,7 @@ fn infer_expression_type(
             if name.is_self_receiver() {
                 return environment.self_type;
             }
-            if name.as_str() == "result" {
+            if program.expression_table.names_reserved_result(expression) {
                 return environment.result_type.map(InferredType::TypeReference);
             }
             let mut matches = environment

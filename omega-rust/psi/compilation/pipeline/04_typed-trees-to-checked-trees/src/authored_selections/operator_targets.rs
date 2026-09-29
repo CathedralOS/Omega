@@ -635,7 +635,7 @@ fn operator_contract_value_type(
             // The name match is a field comparison; the containment walk
             // visits every contract expression, so it runs only for an
             // operator whose signature could type the name at all.
-            let type_reference = if name == "result" {
+            let type_reference = if language_core::is_reserved_result(name) {
                 operator.return_type
             } else {
                 program

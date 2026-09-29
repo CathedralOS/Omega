@@ -120,7 +120,7 @@ pub(crate) fn project_contract_name_expression(
         Some(PackageReviewContractExpression::Parameter(
             portable_parameter_position(position)?,
         ))
-    } else if root_name.is_some_and(|name| name.as_str() == "result") {
+    } else if root_name.is_some_and(|name| language_core::is_reserved_result(name.as_str())) {
         Some(PackageReviewContractExpression::Result)
     } else if let Some(position) = binder_position {
         Some(PackageReviewContractExpression::GenericBinder(

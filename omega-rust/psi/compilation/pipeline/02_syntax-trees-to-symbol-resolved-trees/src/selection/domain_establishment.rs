@@ -616,5 +616,5 @@ fn expression_is_bare_result(
     else {
         return false;
     };
-    name.as_str() == "result"
+    language_core::is_reserved_result(name.as_str())
 }

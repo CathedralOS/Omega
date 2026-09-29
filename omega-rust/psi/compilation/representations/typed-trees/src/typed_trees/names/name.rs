@@ -47,6 +47,13 @@ impl Identifier {
     pub fn is_self_receiver(&self) -> bool {
         language_core::is_self_receiver(self.as_str())
     }
+
+    /// Whether this identifier spells the reserved `result` binder; see
+    /// `language_core::contract_result`. A spelling test only: ask
+    /// `ExpressionTable::names_reserved_result` of a resolved occurrence.
+    pub fn is_reserved_result(&self) -> bool {
+        language_core::is_reserved_result(self.as_str())
+    }
 }
 
 impl From<&str> for Identifier {

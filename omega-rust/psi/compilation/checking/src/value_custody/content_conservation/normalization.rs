@@ -172,7 +172,7 @@ fn normalize_projection_subject(
     };
     let (root_name, root_symbol, mut segments) =
         collect_structural_place(context.program, borrowed)?;
-    let (root, root_type) = if root_name == "result" {
+    let (root, root_type) = if language_core::is_reserved_result(&root_name) {
         if version == ContentPlaceVersion::Entry {
             return Err(
                 "`old(result)` is invalid: `result` does not exist at callable entry".to_owned(),
@@ -566,7 +566,7 @@ fn structural_place_matches(
     segments: &[ContentPlaceSegment],
 ) -> bool {
     let root_matches = match &expected.root {
-        ContentPlaceRoot::Result => root_name == "result",
+        ContentPlaceRoot::Result => language_core::is_reserved_result(root_name),
         ContentPlaceRoot::Parameter { symbol, name, .. } => {
             (*symbol == root_symbol && symbol.is_valid()) || name == root_name
         }

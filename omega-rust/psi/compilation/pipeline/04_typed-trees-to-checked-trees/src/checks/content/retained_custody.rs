@@ -50,7 +50,9 @@ pub(crate) fn check_callable(
             let ProofFact::Membership(membership) = fact else {
                 continue;
             };
-            if expression_is_bare_result(program, membership.value)
+            if program
+                .expression_table
+                .names_reserved_result(membership.value)
                 && let Some(domain) = nominal_domain_application(program, membership.domain_symbol)
             {
                 push_unique_domain_application(&mut result_domains, domain);
@@ -510,14 +512,6 @@ fn nominal_domain_application(
 fn type_contains_reference(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
     type_reference.is_valid() && crate::borrow::view_link::returns_borrow(program, type_reference)
 }
-
-fn expression_is_bare_result(program: &TypedTrees, expression: ExpressionHandle) -> bool {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return false;
-    };
-    matches!(program.expression_table.name_path_members(path.members), [name] if name.as_str() == "result")
-}
-
 fn expression_names_parameter(
     program: &TypedTrees,
     expression: ExpressionHandle,

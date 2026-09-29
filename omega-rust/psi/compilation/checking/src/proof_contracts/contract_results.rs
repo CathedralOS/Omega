@@ -113,19 +113,7 @@ pub fn reserved_result_owner(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
-    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
-        return None;
-    };
-    if path.symbol.is_valid()
-        || path.head_symbol.is_valid()
-        || program
-            .expression_table
-            .name_path_member_symbols(path.member_symbols)
-            .iter()
-            .any(|symbol| symbol.is_valid())
-        || !matches!(program.expression_table.name_path_members(path.members),
-        [name] if name.as_str() == "result")
-    {
+    if !program.expression_table.names_reserved_result(expression) {
         return None;
     }
 
@@ -262,9 +250,9 @@ fn owns_result(
         && program
             .type_reference_table
             .contains_type_reference(return_type)
-        && !parameters
-            .iter()
-            .any(|parameter| parameter.name.as_str() == "result")
+        && language_core::signature_reserves_result(
+            parameters.iter().map(|parameter| parameter.name.as_str()),
+        )
 }
 
 /// The callable contracts of one program, in `callable_contracts` order, and
@@ -391,7 +379,7 @@ mod tests {
             .filter_map(|(handle, expression)| {
                 matches!(expression, ExpressionNode::Name(path)
                 if matches!(program.expression_table.name_path_members(path.members),
-                    [name] if name.as_str() == "result"))
+                    [name] if name.is_reserved_result()))
                 .then_some(handle)
             })
             .collect()

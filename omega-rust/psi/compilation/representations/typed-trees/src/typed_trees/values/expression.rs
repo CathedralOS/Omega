@@ -1195,6 +1195,23 @@ impl ExpressionTable {
         self.name_path_member_symbols.span_or_empty(span)
     }
 
+    /// Whether `expression` is the reserved `result` occurrence of its
+    /// contract owner: a bare `result` that resolution left unbound. An entry
+    /// parameter named `result` shadows the binder, and resolution binds the
+    /// occurrence to that parameter instead; see `language_core::contract_result`.
+    pub fn names_reserved_result(&self, expression: ExpressionHandle) -> bool {
+        let ExpressionNode::Name(path) = self.expression(expression) else {
+            return false;
+        };
+        !path.symbol.is_valid()
+            && !path.head_symbol.is_valid()
+            && matches!(self.name_path_members(path.members), [name] if name.is_reserved_result())
+            && self
+                .name_path_member_symbols(path.member_symbols)
+                .iter()
+                .all(|symbol| !symbol.is_valid())
+    }
+
     /// Whether two expressions in this table are structurally identical: same node
     /// shapes, literals, names/symbols, and operators, recursively. Lowering copies
     /// expression trees per use site, so a SHARED source expression (e.g. the subject

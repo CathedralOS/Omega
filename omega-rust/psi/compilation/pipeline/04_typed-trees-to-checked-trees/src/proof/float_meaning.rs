@@ -338,11 +338,13 @@ fn direct_machine_result_source(
     }
     let machine = crate::lookup::machine_by_symbol(program, owner_machine)?;
     let entry = program.machine_states(machine).first()?;
-    if program
-        .state_parameters(entry)
-        .iter()
-        .any(|parameter| !parameter.is_self && program.symbols.name(parameter.symbol) == "result")
-    {
+    if !language_core::signature_reserves_result(
+        program
+            .state_parameters(entry)
+            .iter()
+            .filter(|parameter| !parameter.is_self)
+            .map(|parameter| program.symbols.name(parameter.symbol)),
+    ) {
         return None;
     }
     let primitive = program.primitive_type_reference(entry.return_type)?;
@@ -800,11 +802,14 @@ fn imported_call_operand_key(
         return CheckedFloatProjectionSourceKey::TypedExpression(*argument);
     }
     let parameter_named_result = target_parameters.is_some_and(|parameters| {
-        parameters.iter().any(|parameter| {
-            !parameter.is_self && program.symbols.name(parameter.symbol) == "result"
-        })
+        !language_core::signature_reserves_result(
+            parameters
+                .iter()
+                .filter(|parameter| !parameter.is_self)
+                .map(|parameter| program.symbols.name(parameter.symbol)),
+        )
     });
-    if name.as_str() == "result" && !parameter_named_result {
+    if name.is_reserved_result() && !parameter_named_result {
         return CheckedFloatProjectionSourceKey::DirectCallResult { use_site };
     }
     CheckedFloatProjectionSourceKey::TypedExpression(invocation.source)
@@ -819,13 +824,10 @@ fn imported_operation_operand_key(
     use_site: CheckedFloatUseSite,
     use_expression: typed_trees::expression::ExpressionHandle,
 ) -> CheckedFloatProjectionSourceKey {
-    let ExpressionNode::Name(path) = program.expression_table.expression(invocation.source) else {
-        return CheckedFloatProjectionSourceKey::TypedExpression(invocation.source);
-    };
-    let [name] = program.expression_table.name_path_members(path.members) else {
-        return CheckedFloatProjectionSourceKey::TypedExpression(invocation.source);
-    };
-    if name.as_str() == "result" {
+    if program
+        .expression_table
+        .names_reserved_result(invocation.source)
+    {
         return CheckedFloatProjectionSourceKey::DirectOperationResult {
             use_site,
             use_expression,

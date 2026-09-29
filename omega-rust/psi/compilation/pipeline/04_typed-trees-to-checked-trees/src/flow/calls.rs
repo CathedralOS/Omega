@@ -829,21 +829,16 @@ fn append_ensures_result_rows(
             let typed_trees::domain::ProofFact::Membership(membership) = fact else {
                 continue;
             };
-            let typed_trees::expression::ExpressionNode::Name(result) =
-                program.expression_table.expression(membership.value)
-            else {
-                continue;
-            };
             // This occurrence is already selected from this exact callable's
             // ensures, including bodyless trait requirements. It must be the
             // reserved result form, never a same-spelled parameter.
-            if result.symbol.is_valid()
-                || result.head_symbol.is_valid()
-                || !matches!(program.expression_table.name_path_members(result.members), [name] if name.as_str() == "result")
+            if !program
+                .expression_table
+                .names_reserved_result(membership.value)
                 || parameters.is_some_and(|parameters| {
-                    parameters
-                        .iter()
-                        .any(|parameter| parameter.name.as_str() == "result")
+                    !language_core::signature_reserves_result(
+                        parameters.iter().map(|parameter| parameter.name.as_str()),
+                    )
                 })
             {
                 continue;
@@ -990,7 +985,7 @@ pub(crate) fn ensured_parameter_position(
     let [name] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
-    if name.as_str() == "result" {
+    if program.expression_table.names_reserved_result(value) {
         return None;
     }
     parameters
