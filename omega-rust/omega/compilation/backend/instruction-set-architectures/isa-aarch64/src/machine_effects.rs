@@ -55,7 +55,7 @@ pub fn aarch64_machine_effect_catalog(
         register_constraints: constraints.identity(),
         selected_keys: selected_keys.clone(),
         declarations: selected_keys
-            .declaration_keys()
+            .declaration_keys(target)
             .into_iter()
             .map(|(semantic, constraint)| {
                 if let MachineSemanticKind::AtomicAccess(form) = semantic {

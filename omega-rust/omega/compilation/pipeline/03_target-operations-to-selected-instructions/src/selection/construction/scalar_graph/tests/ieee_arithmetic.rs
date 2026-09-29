@@ -22,10 +22,10 @@ use semantic_vocabulary::{
 /// strictly smaller or greater, as `FloatSemantics::minimum`/`maximum` do.
 pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, IsInfinite, IsNan, Maximum, Minimum, Multiply,
-        MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
+        Add, ConvertFormat, Divide, FromInteger, FusedMultiplyAdd, IsInfinite, IsNan, Maximum,
+        Minimum, Multiply, MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
     };
-    use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32};
+    use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32, U64};
     let left = operands[0];
     let right = operands.get(1).copied().unwrap_or_default();
     if let TruncateToInteger { target, .. } = form.operation {
@@ -43,6 +43,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
             U8 => u64::from(value as u8),
             U16 => u64::from(value as u16),
             U32 => u64::from(value as u32),
+            U64 => value as u64,
         };
     }
     match form.format {
@@ -54,6 +55,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                     Subtract => a - b,
                     Multiply => a * b,
                     MultiplyThenAdd => a * b + f32::from_bits(operands[2] as u32),
+                    FusedMultiplyAdd => a.mul_add(b, f32::from_bits(operands[2] as u32)),
                     IsNan => return u64::from(a.is_nan()),
                     IsInfinite => return u64::from(a.is_infinite()),
                     Divide => a / b,
@@ -81,6 +83,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                     FromInteger(I16) => f32::from(left as u16 as i16),
                     FromInteger(U8) => f32::from(left as u8),
                     FromInteger(U16) => f32::from(left as u16),
+                    FromInteger(U64) => left as f32,
                     TruncateToInteger { .. } => unreachable!("integer results return above"),
                 }
                 .to_bits(),
@@ -93,6 +96,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                 Subtract => a - b,
                 Multiply => a * b,
                 MultiplyThenAdd => a * b + f64::from_bits(operands[2]),
+                FusedMultiplyAdd => a.mul_add(b, f64::from_bits(operands[2])),
                 IsNan => return u64::from(a.is_nan()),
                 IsInfinite => return u64::from(a.is_infinite()),
                 Divide => a / b,
@@ -120,6 +124,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                 FromInteger(I16) => f64::from(left as u16 as i16),
                 FromInteger(U8) => f64::from(left as u8),
                 FromInteger(U16) => f64::from(left as u16),
+                FromInteger(U64) => left as f64,
                 TruncateToInteger { .. } => unreachable!("integer results return above"),
             }
             .to_bits()
@@ -132,16 +137,32 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
 /// minimum/maximum case has a NaN first operand, which yields the second.
 fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
     use IeeeFloatArithmeticOperation::{
-        Add, ConvertFormat, Divide, FromInteger, IsInfinite, IsNan, Maximum, Minimum, Multiply,
-        MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
+        Add, ConvertFormat, Divide, FromInteger, FusedMultiplyAdd, IsInfinite, IsNan, Maximum,
+        Minimum, Multiply, MultiplyThenAdd, Negate, SquareRoot, Subtract, TruncateToInteger,
     };
     use IeeeFloatFormat::{Binary32, Binary64};
-    use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32};
-    use selected_instructions::IeeeFloatToIntegerDomain::{Exact, Saturating};
+    use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32, U64};
+    use selected_instructions::IeeeFloatToIntegerDomain::{Exact, Saturating, Trapping};
     if let TruncateToInteger { target, domain } = form.operation {
+        if domain == Trapping {
+            // This semantic selection test exercises an in-range operand;
+            // native conversion fixtures separately exercise the trap paths.
+            return case(IeeeFloatArithmeticForm {
+                operation: TruncateToInteger {
+                    target,
+                    domain: Exact,
+                },
+                format: form.format,
+            });
+        }
         // Exact cases truncate an in-range operand toward zero; Saturating
         // cases clamp an out-of-range operand or map NaN to zero.
         return match (form.format, target, domain) {
+            (Binary64, U64, Exact) => [0x43e0_0000_0000_0000, 0, 1 << 63],
+            (Binary32, U64, Exact) => [0x5f00_0000, 0, 1 << 63],
+            (Binary64, U64, Saturating) => [0x7ff0_0000_0000_0000, 0, u64::MAX],
+            (Binary32, U64, Saturating) => [0x7f80_0000, 0, u64::MAX],
+            (_, _, Trapping) => unreachable!("in-range trapping cases use the exact operand above"),
             (Binary64, I32, Exact) => [0x4093_4b99_9999_999a, 0, 1234],
             (Binary64, I64, Exact) => [0x4340_0000_0000_0000, 0, 9_007_199_254_740_992],
             (Binary64, U32, Exact) => [0x41e6_5a0b_c000_0000, 0, 3_000_000_000],
@@ -179,6 +200,14 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
         (Binary64, IsInfinite) => [0xfff0_0000_0000_0000, 0, 1],
         (Binary32, MultiplyThenAdd) => [0x3f80_0001, 0x3f80_0001, 0],
         (Binary64, MultiplyThenAdd) => [0x3ff0_0000_0000_0001, 0x3ff0_0000_0000_0001, 0],
+        (Binary32, FusedMultiplyAdd) => [0x3f80_0001, 0x3f80_0001, 0x2880_0000],
+        (Binary64, FusedMultiplyAdd) => [
+            0x3ff0_0000_0000_0001,
+            0x3ff0_0000_0000_0001,
+            0x3970_0000_0000_0000,
+        ],
+        (Binary32, FromInteger(U64)) => [u64::MAX, 0, 0x5f80_0000],
+        (Binary64, FromInteger(U64)) => [u64::MAX, 0, 0x43f0_0000_0000_0000],
         // 1 + 3*2^-54 -> 1 + 2^-52
         (Binary64, Add) => [
             0x3ff0_0000_0000_0000,
@@ -386,6 +415,23 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
             fixed_inputs: Vec::new(),
         };
         for form in IeeeFloatArithmeticForm::ALL {
+            if form.operation == IeeeFloatArithmeticOperation::FusedMultiplyAdd
+                && target.architecture == target::Architecture::X86_64
+            {
+                assert!(
+                    build(
+                        0,
+                        &arithmetic_source(target, form),
+                        target,
+                        &constraints,
+                        environment.physical(),
+                        environment.constraints(),
+                    )
+                    .is_err(),
+                    "x86 baseline cannot invent FMA feature custody"
+                );
+                continue;
+            }
             let [left, right, expected] = case(form);
             let operands = &[left, right, multiply_add_addend(form)][..form.operand_count()];
             assert_eq!(host(form, operands), expected, "{form:?}");

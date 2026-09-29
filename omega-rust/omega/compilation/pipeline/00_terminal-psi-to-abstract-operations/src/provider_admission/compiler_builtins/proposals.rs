@@ -234,6 +234,18 @@ fn compiler_builtin_execution(
             // Format-bearing identities must not borrow an unrelated boundary's
             // result format. Complete signature admission below remains required.
             match function {
+                symbols::BuiltinFunction::FloatFusedMultiplyAddF32 => {
+                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation: Arithmetic::FusedMultiplyAdd,
+                        format: semantic_vocabulary::IeeeFloatFormat::Binary32,
+                    });
+                }
+                symbols::BuiltinFunction::FloatFusedMultiplyAddF64 => {
+                    return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                        operation: Arithmetic::FusedMultiplyAdd,
+                        format: semantic_vocabulary::IeeeFloatFormat::Binary64,
+                    });
+                }
                 symbols::BuiltinFunction::FloatMultiplyThenAddF32 => {
                     return Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
                         operation: Arithmetic::MultiplyThenAdd,

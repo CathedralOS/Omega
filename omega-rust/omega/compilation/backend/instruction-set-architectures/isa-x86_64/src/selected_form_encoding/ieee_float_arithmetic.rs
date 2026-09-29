@@ -156,18 +156,18 @@ pub(crate) fn footprint(
 
 /// Encoded bytes: the shortest form uses only `rax`..`rdi`, the longest only
 /// `r8`..`r15`, which adds one REX byte per general-register field.
-fn size(form: IeeeFloatArithmeticForm) -> MachineSizeKnowledge {
-    MachineSizeKnowledge::EncoderResolved {
-        minimum_bytes: canonical(form, &[0, 0, 0, 0]).len() as u16,
-        maximum_bytes: Some(canonical(form, &[8, 8, 8, 8]).len() as u16),
-    }
+fn size(form: IeeeFloatArithmeticForm) -> Result<MachineSizeKnowledge, Error> {
+    Ok(MachineSizeKnowledge::EncoderResolved {
+        minimum_bytes: canonical(form, &[0, 0, 0, 0])?.len() as u16,
+        maximum_bytes: Some(canonical(form, &[8, 8, 8, 8])?.len() as u16),
+    })
 }
 
 pub(crate) fn declaration(
     form: IeeeFloatArithmeticForm,
     constraint: RegisterConstraintKey,
-) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
+) -> Result<MachineEffectDeclaration, Error> {
+    Ok(MachineEffectDeclaration {
         semantic: MachineSemanticKind::NearestIeeeFloatArithmetic(form),
         constraint,
         memory: MachineMemoryEffect::NoneV1,
@@ -189,11 +189,11 @@ pub(crate) fn declaration(
                 variant: 0,
             },
             applicability: MachineAlternativeApplicability::Always,
-            size: size(form),
+            size: size(form)?,
             latency: MachineLatencyKnowledge::StableBaselineUnavailable,
             encoded: effects(form),
         }],
-    }
+    })
 }
 
 /// One instruction of a form, by its fields.
@@ -647,7 +647,7 @@ const fn binary_opcode(operation: IeeeFloatArithmeticOperation) -> Option<u8> {
 
 /// The canonical instructions of one form: `registers` holds the operand
 /// general registers in authored order followed by the result register.
-fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> {
+fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<Instruction>, Error> {
     let double = !form.is_binary32();
     let result = registers[form.operand_count()];
     let move_in = |general: u8, xmm: u8, wide: bool| Instruction::Transfer {
@@ -668,7 +668,10 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
         destination: LEFT_SCRATCH,
         source: LEFT_SCRATCH,
     };
-    match form.operation {
+    Ok(match form.operation {
+        // Baseline SSE2 has no single-rounding multiply-add. Optional FMA3
+        // requires a separately admitted feature and provider occurrence.
+        IeeeFloatArithmeticOperation::FusedMultiplyAdd => return Err(Error::EncodedFormMismatch),
         IeeeFloatArithmeticOperation::IsInfinite => vec![
             move_in(registers[0], LEFT_SCRATCH, double),
             Instruction::ShiftLeft {
@@ -846,13 +849,13 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
             move_in(registers[1], RIGHT_SCRATCH, double),
             Instruction::Scalar {
                 double,
-                opcode: binary_opcode(binary).expect("every remaining operation is binary"),
+                opcode: binary_opcode(binary).ok_or(Error::EncodedFormMismatch)?,
                 destination: LEFT_SCRATCH,
                 source: RIGHT_SCRATCH,
             },
             move_out,
         ],
-    }
+    })
 }
 
 /// `2^31`, `2^63` and `2^32 - 1` as binary64 payloads: the first operand
@@ -1032,12 +1035,12 @@ fn truncation_landed(target: IeeeFloatIntegerCarrier, result: u8) -> Vec<Instruc
     program
 }
 
-fn canonical(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<u8> {
+fn canonical(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Result<Vec<u8>, Error> {
     let mut bytes = Vec::with_capacity(24);
-    for instruction in program(form, registers) {
+    for instruction in program(form, registers)? {
         encode_instruction(&mut bytes, instruction);
     }
-    bytes
+    Ok(bytes)
 }
 
 fn registers(
@@ -1046,6 +1049,9 @@ fn registers(
     alternative: MachineAlternativeKey,
     operands: &[RegisterViewId],
 ) -> Result<Vec<u8>, Error> {
+    if form.operation == IeeeFloatArithmeticOperation::FusedMultiplyAdd {
+        return Err(Error::EncodedFormMismatch);
+    }
     if physical.identity() != crate::canonical_x86_64_physical_register_model_identity() {
         return Err(Error::NonCanonicalPhysicalModel);
     }
@@ -1070,7 +1076,7 @@ pub(crate) fn encode(
     operands: &[RegisterViewId],
 ) -> Result<ValidatedX86_64SelectedFormEncoding, Error> {
     let registers = registers(physical, form, alternative, operands)?;
-    let bytes = canonical(form, &registers);
+    let bytes = canonical(form, &registers)?;
     validate(physical, form, alternative, operands, &bytes)
 }
 
@@ -1092,7 +1098,7 @@ pub(crate) fn validate(
         decoded.push(instruction);
         rest = tail;
     }
-    if decoded != program(form, &registers) || bytes != canonical(form, &registers) {
+    if decoded != program(form, &registers)? || bytes != canonical(form, &registers)? {
         return Err(Error::EncodedFormMismatch);
     }
     Ok(ValidatedX86_64SelectedFormEncoding {
@@ -1134,6 +1140,48 @@ mod tests {
             .unwrap()
             .bytes()
             .to_vec()
+    }
+
+    #[test]
+    fn baseline_public_encoders_reject_fused_multiply_add_without_feature_custody() {
+        let physical = register_model::validate_physical_register_model(
+            crate::x86_64_physical_register_model(),
+        )
+        .unwrap();
+        let operands =
+            ["rax", "rcx", "rdx", "rax"].map(|name| physical.model().view_named(name).unwrap().id);
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            let form = IeeeFloatArithmeticForm {
+                operation: IeeeFloatArithmeticOperation::FusedMultiplyAdd,
+                format,
+            };
+            let kind =
+                selected_instructions::SelectedInstructionKind::NearestIeeeFloatArithmetic { form };
+            assert!(
+                crate::encode_x86_64_selected_form(&physical, kind, key(form), &operands).is_err()
+            );
+            let unfused = bytes_of(
+                IeeeFloatArithmeticOperation::MultiplyThenAdd,
+                format,
+                &["rax", "rcx", "rdx", "rax"],
+            );
+            for bytes in [
+                &[][..],
+                unfused.as_slice(),
+                &[0xc4, 0xe2, 0x71, 0x99, 0xc2][..],
+            ] {
+                assert!(
+                    crate::validate_x86_64_selected_form_encoding(
+                        &physical,
+                        kind,
+                        key(form),
+                        &operands,
+                        bytes,
+                    )
+                    .is_err()
+                );
+            }
+        }
     }
 
     #[test]
@@ -1407,6 +1455,12 @@ mod tests {
         let all = [view("rdx"), view("rsi"), view("r15"), view("r8")];
         for form in IeeeFloatArithmeticForm::ALL {
             let operands = &all[4 - form.operand_count() - 1..];
+            if form.operation == IeeeFloatArithmeticOperation::FusedMultiplyAdd {
+                assert!(encode(&physical, form, key(form), operands).is_err());
+                assert!(validate(&physical, form, key(form), operands, &[]).is_err());
+                assert!(super::size(form).is_err());
+                continue;
+            }
             let bytes = encode(&physical, form, key(form), operands)
                 .unwrap()
                 .bytes()
@@ -1414,7 +1468,7 @@ mod tests {
             let super::MachineSizeKnowledge::EncoderResolved {
                 minimum_bytes,
                 maximum_bytes: Some(maximum_bytes),
-            } = super::size(form)
+            } = super::size(form).unwrap()
             else {
                 panic!("scalar SSE2 forms declare bounded encoded sizes");
             };

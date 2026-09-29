@@ -82,6 +82,33 @@ struct RetainedPlan {
     row_compiler_intrinsic_executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
 
+#[test]
+fn fused_identity_keeps_its_own_format_and_one_rounding() {
+    use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
+    use symbols::BuiltinFunction;
+    use target_operations::{CompilerBuiltinExecution, IeeeFloatArithmeticOperation};
+    for (function, format) in [
+        (BuiltinFunction::FloatFusedMultiplyAddF32, Binary32),
+        (BuiltinFunction::FloatFusedMultiplyAddF64, Binary64),
+    ] {
+        for proposed in [None, Some(Binary32), Some(Binary64)] {
+            let execution = CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                operation: IeeeFloatArithmeticOperation::FusedMultiplyAdd,
+                format,
+            };
+            let identity = CompilerIntrinsicExecutionIdentity::BuiltinFunction(function);
+            assert_eq!(
+                super::compiler_builtin_execution(identity, proposed),
+                Some(execution)
+            );
+            assert_eq!(
+                super::super::compiler_intrinsic_execution_identity(execution),
+                identity
+            );
+        }
+    }
+}
+
 fn provenance(
     plans: &[RetainedPlan],
 ) -> impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'_>> {
@@ -201,17 +228,14 @@ fn called_intrinsics_keep_original_plan_indices_and_execution_identity() {
 
 #[test]
 fn duplicate_missing_and_unsupported_executions_keep_lexical_diagnostics() {
-    use CompilerIntrinsicExecutionIdentity::{HostedReadByte, NamedFloatConversion};
-    // Trapping float-to-integer conversion has no native realization.
-    let saturating = NamedFloatConversion {
-        source: effects::CompilerNumericType::F64,
-        target: effects::CompilerNumericType::I32,
-        domain: numerics::arithmetic::ArithmeticDomain::Trapping,
-    };
+    use CompilerIntrinsicExecutionIdentity::{BuiltinFunction, HostedReadByte};
+    // A directed FMA still has no native realization; neither the nearest
+    // FMA nor a float-to-integer conversion can substitute for it.
+    let unsupported = BuiltinFunction(symbols::BuiltinFunction::FloatFusedMultiplyAddTowardZeroF64);
     let (first, first_retained) = selected_plan(
         "first",
         &[
-            ("zeta", Some(saturating)),
+            ("zeta", Some(unsupported)),
             ("beta", None),
             ("alpha", Some(HostedReadByte)),
             ("alpha", None),

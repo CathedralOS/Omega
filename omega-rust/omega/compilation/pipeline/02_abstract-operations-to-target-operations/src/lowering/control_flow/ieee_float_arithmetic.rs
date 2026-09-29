@@ -17,8 +17,8 @@ use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{
     BoundaryExecutionBinding, BoundaryRealization, BoundarySettlementBinding,
-    BoundarySettlementRealization, CompilerBuiltinExecution, NearestIeeeFloatArithmeticRealization,
-    TargetUnitOperation, TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
+    BoundarySettlementRealization, CompilerBuiltinExecution, TargetUnitOperation,
+    TargetUnitScalarHomeRequirement, TerminalPsiProvenance,
 };
 
 /// Whether this boundary's admitted settlement realizes inline arithmetic.
@@ -86,7 +86,7 @@ pub(super) fn lower(
         return Err(mismatch);
     };
     if binding.execution != execution
-        || !NearestIeeeFloatArithmeticRealization::supports_target(target)
+        || !realization.supports_target(target)
         || !realization.signature_matches(&declaration.scalar_parameters, scalar)
         || !declaration.structural_parameters.is_empty()
         || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)

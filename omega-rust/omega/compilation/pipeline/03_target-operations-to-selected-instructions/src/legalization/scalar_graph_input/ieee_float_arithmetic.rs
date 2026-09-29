@@ -16,8 +16,8 @@ use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractOpe
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{MachineId, OperationId, ValueId};
 use target_operations::{
-    BoundaryExecutionBinding, CompilerBuiltinExecution, NearestIeeeFloatArithmeticRealization,
-    TargetOperationPlan, TargetUnitOperation, TargetUnitScalarArgumentSource,
+    BoundaryExecutionBinding, CompilerBuiltinExecution, TargetOperationPlan, TargetUnitOperation,
+    TargetUnitScalarArgumentSource,
 };
 
 /// The unique inline float-arithmetic row one boundary call emitted, if any.
@@ -118,7 +118,7 @@ pub(in crate::legalization) fn validate(
     if psi_operation != expected_operation
         || boundary != expected_boundary
         || *execution != expected_execution
-        || !NearestIeeeFloatArithmeticRealization::supports_target(native)
+        || !realization.supports_target(native)
         || declaration.attachment.is_some()
         || !realization.signature_matches(&declaration.scalar_parameters, scalar)
         || !declaration.structural_parameters.is_empty()

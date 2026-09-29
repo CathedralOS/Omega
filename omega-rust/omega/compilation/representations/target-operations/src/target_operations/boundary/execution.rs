@@ -41,8 +41,9 @@ pub struct ProviderExecutionBinding {
 /// carrier, rounding toward zero as the conversion requirement declares.
 /// Classification instead returns Boolean, with no rounding or payload result.
 ///
-/// Multiply-then-add reads three operands and rounds twice; binary arithmetic
-/// reads two operands, and unary operations read one. The operand of
+/// Multiply-then-add and fused multiply-add read three operands, with two
+/// roundings and one rounding respectively; binary arithmetic reads two
+/// operands, and unary operations read one. The operand of
 /// `ConvertFormat` has the other interchange format; the
 /// operand of `FromInteger` is its named integer carrier.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -80,6 +81,9 @@ pub enum IeeeFloatArithmeticOperation {
     /// Round the product first, then add and round again. This must never
     /// select a fused instruction, including when all operands are finite.
     MultiplyThenAdd,
+    /// One rounding of the exact product plus addend. Never substitute the
+    /// separately rounded multiply-then-add operation.
+    FusedMultiplyAdd,
     /// Classify one evaluated payload; every NaN is true, all other values false.
     IsNan,
     /// True for either infinity; false for finite values and every NaN.
@@ -176,8 +180,8 @@ impl Ord for IeeeFloatArithmeticOperation {
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 44] = {
-        let mut all = [Self::Add; 44];
+    pub const ALL: [Self; 45] = {
+        let mut all = [Self::Add; 45];
         let fixed = [
             Self::Add,
             Self::Subtract,
@@ -210,6 +214,7 @@ impl IeeeFloatArithmeticOperation {
         all[30] = Self::MultiplyThenAdd;
         all[31] = Self::IsNan;
         all[32] = Self::IsInfinite;
+        all[44] = Self::FusedMultiplyAdd;
         all
     };
 
@@ -232,6 +237,7 @@ impl IeeeFloatArithmeticOperation {
             Self::SquareRoot => 7,
             Self::ConvertFormat => 8,
             Self::MultiplyThenAdd => 30,
+            Self::FusedMultiplyAdd => 44,
             Self::IsNan => 31,
             Self::IsInfinite => 32,
             // The 32- and 64-bit carriers came first (9 through 17); the
@@ -269,7 +275,7 @@ impl IeeeFloatArithmeticOperation {
     /// The semantic arity; transport and receiving checks use this same count.
     pub const fn operand_count(self) -> usize {
         match self {
-            Self::MultiplyThenAdd => 3,
+            Self::MultiplyThenAdd | Self::FusedMultiplyAdd => 3,
             Self::Add
             | Self::Subtract
             | Self::Multiply
@@ -346,6 +352,7 @@ mod tests {
             assert_eq!(usize::from(operation.ordinal()), ordinal, "{operation:?}");
         }
         assert_eq!(Operation::MultiplyThenAdd.ordinal(), 30);
+        assert_eq!(Operation::FusedMultiplyAdd.ordinal(), 44);
         assert_eq!(Operation::IsNan.ordinal(), 31);
         assert_eq!(Operation::IsInfinite.ordinal(), 32);
         assert_eq!(Operation::FromInteger(Carrier::U64).ordinal(), 33);

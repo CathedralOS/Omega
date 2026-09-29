@@ -71,13 +71,17 @@ pub struct NearestIeeeFloatArithmeticRealization {
 }
 
 impl NearestIeeeFloatArithmeticRealization {
-    /// The local target catalog: AArch64 FP/SIMD and x86-64 SSE2 scalar
-    /// arithmetic are architectural baselines on every native target.
-    pub fn supports_target(target: target::NativeTarget) -> bool {
-        matches!(
-            target.architecture,
-            target::Architecture::Aarch64 | target::Architecture::X86_64
-        )
+    /// AArch64 provides scalar FMA in its baseline FP instruction set. x86's
+    /// SSE2 baseline does not: its separate AVX/FMA3 route must carry selected
+    /// feature evidence, which this catalog does not own. Equal signatures
+    /// cannot donate that authority or select two roundings instead.
+    pub fn supports_target(&self, target: target::NativeTarget) -> bool {
+        match target.architecture {
+            target::Architecture::Aarch64 => true,
+            target::Architecture::X86_64 => {
+                self.operation != crate::IeeeFloatArithmeticOperation::FusedMultiplyAdd
+            }
+        }
     }
 
     /// Whether a boundary with these scalar parameters and this scalar

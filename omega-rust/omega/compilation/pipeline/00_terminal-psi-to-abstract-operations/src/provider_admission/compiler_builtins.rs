@@ -187,7 +187,7 @@ fn float_arithmetic_realization(
     target: target::NativeTarget,
     boundary: &terminal_psi::BoundaryMachineDeclaration,
 ) -> Result<NearestIeeeFloatArithmeticRealization, String> {
-    if !NearestIeeeFloatArithmeticRealization::supports_target(target) {
+    if !realization.supports_target(target) {
         return Err(format!(
             "has no local target catalog realization on {target:?}"
         ));
@@ -269,6 +269,14 @@ fn compiler_intrinsic_execution_identity(
                     }
                     semantic_vocabulary::IeeeFloatFormat::Binary64 => {
                         symbols::BuiltinFunction::FloatMultiplyThenAddF64
+                    }
+                }),
+                Arithmetic::FusedMultiplyAdd => builtin(match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                        symbols::BuiltinFunction::FloatFusedMultiplyAddF32
+                    }
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                        symbols::BuiltinFunction::FloatFusedMultiplyAddF64
                     }
                 }),
                 Arithmetic::Negate => {
