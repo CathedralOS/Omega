@@ -336,3 +336,34 @@ call sites pass **no structural argument** -- no call site at all, or scalar
 arguments only. Every operation whose caller must hand it a record, a
 projection or a carrier waits on the structural-argument transport, alongside
 the 119 samples.
+
+## Scratch-to-locals is a separate, smaller seam -- and it has its own limit
+
+Hoisting a scratch field to a local is independent of receiver removal: the
+machine keeps its receiver and only the value moves. That half of the work can
+proceed while every migration blocker above stands, and it is how `bit_shift`
+and `vending_machine` landed.
+
+The population is small, though. Filtering every sample for a **scalar** field
+that is used in exactly one state and assigned there -- so a local fully
+replaces it -- returns 2. Most sample fields genuinely cross a state edge, or
+are a `Binding<R>` carrier or an input buffer, neither of which can be a local.
+
+An earlier count of 85 was wrong: it counted fields appearing in one state
+without requiring an assignment, and included carriers and buffers.
+
+### A local sum-typed transition subject does not check
+
+`brightness_control` assigns `command: Command` and immediately uses it as its
+transition subject, so it reads as pure scratch. It is not:
+
+```
+let command: Command = Command::SetLevel { level: 65 };
+transition command { ... }
+```
+
+checks as a **field** and fails as a **local**, with `selected ProgramEntry
+establishment rejoins 0 Terminal attachment identities`. The sample checks
+today, so this was reverted. Hoisting a scalar is safe; hoisting a sum-typed
+value that a transition dispatches on is not, and the two need separating
+before any bulk pass.
