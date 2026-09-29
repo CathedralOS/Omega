@@ -209,5 +209,54 @@ pub(super) fn operand(
     Ok(cast.value)
 }
 
+/// Rejoin an authored-custody conversion to its cast occurrence and operand.
+/// The operand's carrier is the cast's own source primitive — narrowing and
+/// policy-bearing forms are exactly what the pure lane cannot carry — while
+/// the node still proves the authored occurrence and its checked result type.
+pub(super) fn authored_operand(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    state: symbols::SymbolHandle,
+    _statement: u32,
+    source: ExpressionHandle,
+    operand: CheckedScalarComputationHandle,
+    result_type: TypeReferenceHandle,
+    primitive: PrimitiveType,
+) -> Result<ExpressionHandle, LoweringError> {
+    let ExpressionNode::Cast(cast) = checked.expression_table.expression(source) else {
+        return unsupported("authored cast computation lost its authored cast");
+    };
+    let nodes = &checked.facts.values.scalar_computations.nodes;
+    if result_type != cast.result_type
+        || checked.primitive_type_reference(cast.result_type) != Some(primitive)
+        || !nodes.is_valid(operand)
+        || !super::operand_scopes::cast_requires_custody(checked, machine, state, cast)?
+    {
+        return unsupported("authored cast computation changed its cast or operand carrier");
+    }
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|candidate| candidate.symbol == machine)
+        .ok_or(LoweringError::Unsupported(
+            "authored cast computation lost its machine",
+        ))?;
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|candidate| candidate.symbol == state)
+        .ok_or(LoweringError::Unsupported(
+            "authored cast computation lost its state",
+        ))?;
+    let source_type =
+        validation::expression_result_type_reference(checked, machine, state, cast.value).ok_or(
+            LoweringError::Unsupported("authored cast computation lost its operand type"),
+        )?;
+    if checked.primitive_type_reference(source_type) != Some(nodes.get(operand).primitive_type) {
+        return unsupported("authored cast computation substituted its operand carrier");
+    }
+    Ok(cast.value)
+}
+
 #[cfg(test)]
 mod tests;

@@ -20,7 +20,8 @@ pub(super) fn boolean_result(
         CheckedScalarComputationKind::SelectedComparison { .. }
         | CheckedScalarComputationKind::StructuralField { .. }
         | CheckedScalarComputationKind::CaseMembership { .. }
-        | CheckedScalarComputationKind::BooleanToInteger { .. } => None,
+        | CheckedScalarComputationKind::BooleanToInteger { .. }
+        | CheckedScalarComputationKind::AuthoredCast { .. } => None,
         CheckedScalarComputationKind::Qualification { operand, .. } => {
             boolean_result(plans, *operand)
         }

@@ -1281,6 +1281,7 @@ fn computation_reads_position(
                 left, right, ..
             } => pending.extend([*left, *right]),
             checked_trees::CheckedScalarComputationKind::Qualification { operand, .. }
+            | checked_trees::CheckedScalarComputationKind::AuthoredCast { operand, .. }
             | checked_trees::CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                 pending.push(*operand)
             }

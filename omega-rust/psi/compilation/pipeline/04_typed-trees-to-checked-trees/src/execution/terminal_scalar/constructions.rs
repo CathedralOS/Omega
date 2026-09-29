@@ -213,6 +213,7 @@ pub(super) fn retain_shapes(
                 pending.extend([*left, *right])
             }
             CheckedScalarComputationKind::Qualification { operand, .. }
+            | CheckedScalarComputationKind::AuthoredCast { operand, .. }
             | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                 pending.push(*operand)
             }

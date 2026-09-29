@@ -963,6 +963,7 @@ fn collect(
             )?;
         }
         CheckedScalarComputationKind::Qualification { operand, .. }
+        | CheckedScalarComputationKind::AuthoredCast { operand, .. }
         | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
             collect(
                 facts,

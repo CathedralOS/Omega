@@ -42,7 +42,8 @@ fn value_type(
     let node = plans.nodes.get(handle);
     let result = match &node.kind {
         CheckedScalarComputationKind::CaseMembership { .. } => ScalarType::Boolean.into(),
-        CheckedScalarComputationKind::Qualification { result_type, .. } => {
+        CheckedScalarComputationKind::Qualification { result_type, .. }
+        | CheckedScalarComputationKind::AuthoredCast { result_type, .. } => {
             qualifications.value_type(checked, *result_type)?
         }
         CheckedScalarComputationKind::Call { target_state, .. } => {

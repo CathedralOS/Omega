@@ -120,6 +120,7 @@ pub(in crate::execution::terminal_unit) fn reads_receiver(
                 pending.extend([*condition, *when_true, *when_false]);
             }
             CheckedScalarComputationKind::Qualification { operand, .. }
+            | CheckedScalarComputationKind::AuthoredCast { operand, .. }
             | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                 pending.push(*operand)
             }

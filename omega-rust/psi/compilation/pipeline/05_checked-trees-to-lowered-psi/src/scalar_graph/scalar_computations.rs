@@ -25,6 +25,7 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph::{
 };
 use arena::Handle;
 use checked_trees::{CheckedScalarComputation, CheckedScalarComputationKind};
+use numerics::arithmetic::ArithmeticDomain;
 
 pub(crate) mod arrays;
 mod boundary_calls;
@@ -677,6 +678,65 @@ impl<'a> Expansion<'a> {
                     });
                     self.argument(&operand, input_types, qualify, site, active)?
                 }
+            }
+            CheckedScalarComputationKind::AuthoredCast {
+                operand, domain, ..
+            } => {
+                // The operand completes at its own carrier, then the authored
+                // conversion applies once: widening is total, the remaining
+                // exact form lands through the obligation-carrying cast, and
+                // the policy domains share the pure lane's composite casts.
+                let operand = Argument::Computation(operand);
+                let operand_type = self.argument_type(&operand, site, input_types)?;
+                let ScalarType::Integer(source_type) = operand_type.scalar_type else {
+                    return unsupported("authored conversion requires fixed integer carriers");
+                };
+                let ScalarType::Integer(target_type) = result_type.scalar_type else {
+                    return unsupported("authored conversion requires fixed integer carriers");
+                };
+                let mut operand_types = input_types.to_vec();
+                operand_types.push(operand_type);
+                let operand_expression = parameter(input_types.len(), operand_type);
+                let conversion = match domain {
+                    ArithmeticDomain::Exact => {
+                        if source_type.can_widen_to(target_type) {
+                            LoweredDirectExpression::IntegerWiden {
+                                scalar_type: result_type.scalar_type,
+                                operand: Box::new(operand_expression),
+                            }
+                        } else {
+                            LoweredDirectExpression::IntegerExactCast {
+                                scalar_type: result_type.scalar_type,
+                                operand: Box::new(operand_expression),
+                            }
+                        }
+                    }
+                    ArithmeticDomain::Wrapping => {
+                        crate::expression_preparation::wrapping_cast::wrapping_cast(
+                            operand_expression,
+                            source_type,
+                            result_type.scalar_type,
+                        )?
+                    }
+                    ArithmeticDomain::Saturating => {
+                        crate::expression_preparation::saturating_cast::saturating_cast(
+                            operand_expression,
+                            source_type,
+                            result_type.scalar_type,
+                        )?
+                    }
+                    ArithmeticDomain::Trapping => LoweredDirectExpression::IntegerTrappingCast {
+                        scalar_type: result_type.scalar_type,
+                        operand: Box::new(operand_expression),
+                    },
+                };
+                let bound = self.binding(
+                    &operand_types,
+                    operand_types.len(),
+                    target,
+                    LoweredScalarBinding::Expression(conversion),
+                );
+                self.argument(&operand, input_types, bound, site, active)?
             }
             CheckedScalarComputationKind::Dispatch { subject, arms, .. } => self.dispatch(
                 subject,
