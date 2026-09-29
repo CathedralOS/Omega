@@ -303,6 +303,58 @@ fn resolve_source(
                 });
                 cursor = indexed.collection;
             }
+            // A field selector is read when this structural operand is
+            // evaluated. Replay its source coordinate here; the operand
+            // emitter owns the resulting snapshot and its bounds obligation.
+            ExpressionNode::Indexed(indexed)
+                if !matches!(
+                    checked.expression_table.expression(indexed.index),
+                    ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+                ) =>
+            {
+                let selector = crate::expression_preparation::source_custody::structural_places::field_selector(
+                    checked,
+                    machine,
+                    state,
+                    indexed.index,
+                )?;
+                if !validation::place_has_builtin_coordinates(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    cursor,
+                ) {
+                    return unsupported("projected receiver index has no builtin address meaning");
+                }
+                let reference = validation::declared_place_type_raw(
+                    &checked.typed,
+                    machine,
+                    Some(state),
+                    indexed.collection,
+                )
+                .and_then(|reference| {
+                    validation::unwrapped_type_reference(&checked.typed, reference)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "projected receiver index has no declared collection",
+                ))?;
+                if !matches!(
+                    checked.type_reference_table.type_reference(reference),
+                    TypeReferenceNode::FixedArray {
+                        length: checked_trees::types::FixedArrayLength::Literal(_),
+                        ..
+                    }
+                ) {
+                    return unsupported("projected receiver index has no literal array length");
+                }
+                path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
+                    checked_trees::CheckedRuntimeIndex::StructuralField(selector),
+                ));
+                captured_segments.push(facts::PlaceSegment::Index {
+                    expression: indexed.index,
+                });
+                cursor = indexed.collection;
+            }
             ExpressionNode::Indexed(indexed) => {
                 let ExpressionNode::Integer(index) =
                     checked.expression_table.expression(indexed.index)

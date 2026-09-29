@@ -40,9 +40,10 @@ pub(crate) fn lower_structural_path(
 /// A checked argument path can carry a runtime selector only when the
 /// operand lowering owns the index's evaluation and obligation: a dense
 /// scalar parameter of the calling state is already in the caller's operand
-/// frame, and a `StructuralField` selector consumes the field read
-/// `mint_runtime_index_selectors` emitted in argument order ahead of this
-/// lowering. Either way the call allocates the selector's bound obligation
+/// frame, and a `StructuralField` selector consumes a field snapshot already
+/// evaluated at its authored operand position. Unit calls mint these reads in
+/// their operation frame; scalar computations carry them through their ordered
+/// operand blocks. The call allocates each selector's bound obligation
 /// from the emission context (the same counter `allocate_requirement`
 /// serves). An `AssignmentIndex` segment belongs to a store destination, not
 /// a call argument, so it is refused here.

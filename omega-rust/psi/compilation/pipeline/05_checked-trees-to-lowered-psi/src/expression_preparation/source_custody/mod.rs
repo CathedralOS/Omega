@@ -49,6 +49,7 @@ mod parameters;
 pub(crate) mod primitive_references;
 pub(crate) mod record_fields;
 mod storage_reads;
+pub(crate) mod structural_places;
 
 // Calls and selected comparisons: direct calls, computed invocations, the
 // checked flow fact behind a Unit scalar call, and the boundary application

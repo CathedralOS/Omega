@@ -1,6 +1,7 @@
-//! One authored formal stream interleaves scalar operands and array construction.
-//! An array's leaf staging is retired at its constructor, leaving earlier scalar
-//! actuals intact. CPS attaches this stream only to the selected expression path.
+//! One authored formal stream interleaves scalar arguments, selector snapshots
+//! and structural construction. Snapshots survive later effects without becoming
+//! callee arguments; constructor leaves retire at their own constructor. CPS
+//! attaches this stream only to the selected expression path.
 use super::super::direct_expression_contains_short_circuit;
 use super::{
     Argument, CheckedScalarComputationKind, CheckedScalarExpressionRole, CheckedTrees, Computation,
@@ -24,6 +25,10 @@ enum Operand {
     /// call reads it through a shared borrow.
     ByteLiteral(literals::Slot),
     Scalar(Argument),
+    Selector {
+        structural_ordinal: usize,
+        value: Argument,
+    },
     Array {
         slot: arrays::Slot,
         leaves: Vec<Argument>,
@@ -323,7 +328,7 @@ impl Expansion<'_> {
                 .ok_or(LoweringError::Unsupported(
                     "computed structural arguments have a stale span",
                 ))?;
-        let structural_arguments = structural_arguments::lower(
+        let mut structural_arguments = structural_arguments::lower(
             self.checked,
             source_call,
             target_machine,
@@ -480,6 +485,17 @@ impl Expansion<'_> {
                         .clone();
                     operands.push(Operand::ByteLiteral(slot));
                 }
+                for segment in &structural_arguments[structural_ordinal].path {
+                    if let checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                        checked_trees::CheckedRuntimeIndex::StructuralField(field),
+                    ) = segment
+                    {
+                        operands.push(Operand::Selector {
+                            structural_ordinal,
+                            value: Argument::Value(site.bindings.runtime_index_field(field)?),
+                        });
+                    }
+                }
                 structural_ordinal += 1;
             } else {
                 let scalar = scalars
@@ -495,6 +511,7 @@ impl Expansion<'_> {
             return unsupported("computed call formal roster is incomplete");
         }
         let mut prefixes = vec![input_types.to_vec()];
+        let mut scalar_actuals = Vec::new();
         for operand in &operands {
             let mut prefix = prefixes
                 .last()
@@ -502,8 +519,22 @@ impl Expansion<'_> {
                     "computed call lost its input prefix",
                 ))?
                 .clone();
-            if let Operand::Scalar(argument) = operand {
-                prefix.push(self.argument_type(argument, site, input_types)?);
+            match operand {
+                Operand::Scalar(argument) => {
+                    let value_type = self.argument_type(argument, site, input_types)?;
+                    scalar_actuals.push(parameter(prefix.len(), value_type));
+                    prefix.push(value_type);
+                }
+                Operand::Selector {
+                    structural_ordinal,
+                    value,
+                } => {
+                    structural_arguments[*structural_ordinal]
+                        .selector_positions
+                        .push(prefix.len());
+                    prefix.push(self.argument_type(value, site, input_types)?);
+                }
+                _ => {}
             }
             prefixes.push(prefix);
         }
@@ -522,7 +553,7 @@ impl Expansion<'_> {
             result_type,
             call_types,
             site.bindings,
-            parameters_for_actuals(call_types, input_types.len()),
+            scalar_actuals,
             structural_arguments,
             ScalarCallCrashScope::Arguments,
             crate::scalar_graph::scalar_contracts::caller_erased_proof_roster(
@@ -544,9 +575,10 @@ impl Expansion<'_> {
         for (ordinal, operand) in operands.iter().enumerate().rev() {
             let prefix = &prefixes[ordinal];
             continuation = match operand {
-                Operand::Scalar(argument) => {
-                    self.argument(argument, prefix, continuation, site, active)?
-                }
+                Operand::Scalar(argument)
+                | Operand::Selector {
+                    value: argument, ..
+                } => self.argument(argument, prefix, continuation, site, active)?,
                 Operand::ByteLiteral(slot) => self.push(LoweredScalarBranchState {
                     structural_parameters: Vec::new(),
                     parameter_types: prefix.clone(),

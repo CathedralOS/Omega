@@ -79,6 +79,7 @@ pub(super) fn lower(
                         return unsupported("computed case differs from its exact owned formal");
                     }
                     return Ok(PreparedStructuralArgument {
+                        selector_positions: Vec::new(),
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
@@ -140,6 +141,7 @@ pub(super) fn lower(
                         }
                     }
                     return Ok(PreparedStructuralArgument {
+                        selector_positions: Vec::new(),
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
@@ -214,6 +216,7 @@ pub(super) fn lower(
                         return unsupported("computed range cannot project its descriptor");
                     }
                     return Ok(PreparedStructuralArgument {
+                        selector_positions: Vec::new(),
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::SharedBorrow,
@@ -236,12 +239,14 @@ pub(super) fn lower(
                         return unsupported("computed literal cannot project its view");
                     }
                     return Ok(PreparedStructuralArgument {
+                        selector_positions: Vec::new(),
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::SharedBorrow,
                     });
                 }
                 return Ok(PreparedStructuralArgument {
+                    selector_positions: Vec::new(),
                     place: bindings.borrowed_structural_place(
                         argument,
                         caller_machine,

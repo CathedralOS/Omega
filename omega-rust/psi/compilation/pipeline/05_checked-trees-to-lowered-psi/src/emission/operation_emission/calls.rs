@@ -28,6 +28,8 @@ pub(crate) struct PreparedStructuralArgument {
     pub(crate) place: semantic_vocabulary::PlaceId,
     pub(crate) access: terminal_psi::StructuralAccess,
     pub(crate) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    /// Field-selector snapshots in path order, carried in the call input frame.
+    pub(crate) selector_positions: Vec<usize>,
 }
 
 impl PreparedStructuralArgument {
@@ -53,6 +55,7 @@ impl PreparedStructuralArgument {
             place: argument.place,
             access: argument.access,
             path,
+            selector_positions: Vec::new(),
         })
     }
 
@@ -61,15 +64,36 @@ impl PreparedStructuralArgument {
         values: &[ValueDeclaration],
         calls: &mut CallEmissionContext<'_>,
     ) -> Result<StructuralArgument, LoweringError> {
+        let selectors = self
+            .selector_positions
+            .iter()
+            .map(|position| {
+                let value = values.get(*position).ok_or(LoweringError::Unsupported(
+                    "captured selector has no value in the call input frame",
+                ))?;
+                if !matches!(
+                    value.scalar_type,
+                    semantic_vocabulary::ScalarType::Integer(integer) if !integer.is_address()
+                ) {
+                    return unsupported("captured selector is not an integer");
+                }
+                Ok(value.id)
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        let mut selectors = selectors.into_iter();
+        let path = crate::expression_preparation::bindings::structural_paths::lower_argument_path(
+            &self.path,
+            Some(values),
+            &mut selectors,
+            Some(calls),
+        )?;
+        if selectors.next().is_some() {
+            return unsupported("captured selectors exceed the structural argument path");
+        }
         Ok(StructuralArgument {
             place: self.place,
             access: self.access,
-            path: crate::expression_preparation::bindings::structural_paths::lower_argument_path(
-                &self.path,
-                Some(values),
-                &mut std::iter::empty(),
-                Some(calls),
-            )?,
+            path,
         })
     }
 }

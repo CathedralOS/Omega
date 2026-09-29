@@ -108,6 +108,7 @@ pass/calls/nested_call_runtime_index_arg_exit checked 985ms
 pass/calls/nested_call_tail_roots_exit checked 5981ms
 pass/calls/nested_machine_continuation checked 1719ms
 pass/calls/nested_value_call_arg_compile checked 1385ms
+pass/calls/ordered_field_selector_calls_exit checked 925ms @e3012d6c0627+wt
 pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 736ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1245ms

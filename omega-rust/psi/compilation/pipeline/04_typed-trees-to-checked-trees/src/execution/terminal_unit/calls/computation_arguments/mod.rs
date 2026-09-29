@@ -628,6 +628,7 @@ fn borrowed_nominal_argument(
             && matches!(
                 field.field_type,
                 CheckedUnitStructuralFieldType::Scalar(_)
+                    | CheckedUnitStructuralFieldType::BoundedInteger(_)
                     | CheckedUnitStructuralFieldType::Structural { .. }
             )
     };
@@ -698,9 +699,7 @@ fn borrowed_nominal_argument(
             && !whole_primitive_scalar
             && !shapes.types.values().all(|shape| {
                 matches!(&shape.shape, CheckedUnitStructuralTypeShape::Record { fields }
-                if fields.iter().all(|field| !field.relevance.is_erased()
-                    && matches!(field.field_type, CheckedUnitStructuralFieldType::Scalar(_)
-                        | CheckedUnitStructuralFieldType::Structural { .. })))
+                if fields.iter().all(&plain_field))
             }))
     {
         return None;
