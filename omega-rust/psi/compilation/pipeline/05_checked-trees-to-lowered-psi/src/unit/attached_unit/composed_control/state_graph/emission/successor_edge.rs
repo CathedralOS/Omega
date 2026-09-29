@@ -15,8 +15,8 @@ use super::super::super::super::{
 };
 use super::super::super::LoweringError;
 use super::super::{
-    CheckedStructuralControlSuccessorPlan, case_emission, case_leaf_copy, ranking, result_custody,
-    scalars, subslices,
+    CheckedComposedUnitControlStatePlan, CheckedStructuralControlSuccessorPlan, case_emission,
+    case_leaf_copy, ranking, result_custody, scalars, subslices,
 };
 use super::StateGraphEmission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
@@ -730,4 +730,56 @@ pub(super) struct EmittedState<'e> {
     pub(super) next_block: &'e mut u64,
     pub(super) next_edge: &'e mut u64,
     pub(super) edge_blocks: &'e mut Vec<Block>,
+}
+
+/// The whole place the state's case dispatch consumes on one arm — the
+/// tested subject resolved to its current emitted place. An `(expression)`
+/// arm's private return edge releases it exactly as a named successor's
+/// edge does. Parameter subjects answer through the arm's recorded
+/// consumption first (the guard's membership test names the tested
+/// position); every arm answers through the checked subject argument
+/// itself, so a local subject or a non-membership guard resolves without a
+/// consumption record.
+pub(super) fn dispatched_subject_place(
+    state: &CheckedComposedUnitControlStatePlan,
+    state_parameters: &[StructuralParameterDeclaration],
+    evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
+    operations: &OperationBuffer,
+    statement_ordinal: u32,
+) -> Result<Option<PlaceId>, LoweringError> {
+    for (ordinal, position) in super::super::edges::case_subject_consumptions(&state.terminator) {
+        if ordinal != statement_ordinal {
+            continue;
+        }
+        if let Some((_, parameter)) =
+            evaluation
+                .structural_parameters
+                .iter()
+                .find(|(source_position, parameter)| {
+                    *source_position == position && parameter.access == StructuralAccess::Owned
+                })
+        {
+            return Ok(Some(evaluation.current_structural_place(parameter.place)));
+        }
+    }
+    for subject in super::super::edges::dispatch_subjects(state) {
+        match &subject.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => {
+                if let Some(parameter) = state_parameters.get(*parameter_index as usize) {
+                    return Ok(Some(evaluation.current_structural_place(parameter.place)));
+                }
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } => {
+                return Ok(Some(evaluation.current_structural_place(
+                    case_emission::result(state, *binding_ordinal, operations)?.place(),
+                )));
+            }
+            _ => {}
+        }
+    }
+    Ok(None)
 }

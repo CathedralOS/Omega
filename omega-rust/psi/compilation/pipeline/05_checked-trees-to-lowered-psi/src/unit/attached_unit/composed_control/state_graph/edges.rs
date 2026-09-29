@@ -888,6 +888,153 @@ pub(super) fn validate_fallback(
     }
 }
 
+/// The tested subject of a case-membership guard, peeled to its whole
+/// structural parameter position; `true ==` wrappings are checker artifacts.
+fn guard_subject_position(guard: &checked_trees::CheckedCallScalarArgument) -> Option<u32> {
+    let Some(checked_trees::CheckedScalarExpression::Boolean(guard)) = guard.as_pure() else {
+        return None;
+    };
+    let membership = match guard.as_ref() {
+        checked_trees::CheckedBooleanExpression::Equal { left, right } => {
+            match (left.as_ref(), right.as_ref()) {
+                (checked_trees::CheckedBooleanExpression::Constant(true), tested)
+                | (tested, checked_trees::CheckedBooleanExpression::Constant(true)) => tested,
+                _ => return None,
+            }
+        }
+        tested => tested,
+    };
+    match membership {
+        checked_trees::CheckedBooleanExpression::StructuralCaseMembership { subject, .. }
+            if subject.path.is_empty() =>
+        {
+            Some(subject.parameter_position)
+        }
+        _ => None,
+    }
+}
+
+/// The authored transition ordinal a `(expression)` return arm answers —
+/// the same ordinal rule the checker applies to a `Return` fallback arm.
+pub(super) fn return_arm_statement_ordinal(
+    arm: &checked_trees::CheckedConditionalReturnArm,
+) -> u32 {
+    match arm {
+        checked_trees::CheckedConditionalReturnArm::Scalar {
+            statement_ordinal, ..
+        } => *statement_ordinal,
+        checked_trees::CheckedConditionalReturnArm::Structural(operation) => match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => {
+                result.statement_index
+            }
+            _ => 0,
+        },
+    }
+}
+
+/// The owned parameter each edge of a case-test dispatch consumes, keyed by
+/// the edge's transition ordinal: a tested arm consumes its own subject, and
+/// the dispatch's closing `_` arm the subject of the arm before it.
+pub(super) fn case_subject_consumptions(
+    terminator: &checked_trees::CheckedComposedUnitControlTerminatorPlan,
+) -> Vec<(u32, u32)> {
+    let subject = guard_subject_position;
+    match terminator {
+        CheckedComposedUnitControlTerminatorPlan::Conditional {
+            guard,
+            when_true,
+            when_false,
+        } => subject(guard)
+            .map(|position| {
+                vec![
+                    (when_true.statement_ordinal, position),
+                    (when_false.statement_ordinal, position),
+                ]
+            })
+            .unwrap_or_default(),
+        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+            guard,
+            jump,
+            return_arm,
+            ..
+        } => subject(guard)
+            .map(|position| {
+                vec![
+                    (jump.statement_ordinal, position),
+                    (return_arm_statement_ordinal(return_arm), position),
+                ]
+            })
+            .unwrap_or_default(),
+        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+            let mut consumed = arms
+                .iter()
+                .filter_map(|arm| {
+                    subject(arm.guard()).map(|position| (arm.statement_ordinal(), position))
+                })
+                .collect::<Vec<_>>();
+            if let Some(position) = arms.last().and_then(|arm| subject(arm.guard())) {
+                consumed.push((fallback.statement_ordinal(), position));
+            }
+            consumed
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// The whole subjects a state dispatches on, one entry per case-tested
+/// terminator form. An `(expression)` arm's private return edge disposes the
+/// subject exactly as a named successor's edge does, so the subject's
+/// checked exit drop remains required evidence here but must not become a
+/// second disposal at the return.
+pub(super) fn dispatch_subjects(
+    state: &CheckedComposedUnitControlStatePlan,
+) -> Vec<&checked_trees::CheckedUnitStructuralArgumentPlan> {
+    fn payload_subjects(
+        successor: &CheckedStructuralControlSuccessorPlan,
+    ) -> impl Iterator<Item = &checked_trees::CheckedUnitStructuralArgumentPlan> {
+        successor
+            .transfers
+            .iter()
+            .filter_map(|transfer| match &transfer.source {
+                checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
+                    subject,
+                    ..
+                } => Some(subject),
+                _ => None,
+            })
+    }
+    match &state.terminator {
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum { subject, .. } => {
+            vec![subject]
+        }
+        CheckedComposedUnitControlTerminatorPlan::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => payload_subjects(when_true)
+            .chain(payload_subjects(when_false))
+            .collect(),
+        CheckedComposedUnitControlTerminatorPlan::ConditionalReturn { jump, .. } => {
+            payload_subjects(jump).collect()
+        }
+        CheckedComposedUnitControlTerminatorPlan::GuardedJumps { arms, fallback } => {
+            let mut subjects = arms
+                .iter()
+                .filter_map(|arm| arm.successor())
+                .flat_map(payload_subjects)
+                .collect::<Vec<_>>();
+            if let checked_trees::CheckedGuardedJumpFallbackPlan::Successor(successor) = fallback {
+                subjects.extend(payload_subjects(successor));
+            }
+            subjects
+        }
+        _ => Vec::new(),
+    }
+}
+
 /// Reconstruct the remaining whole-parameter drops at an ordinary return.
 /// Call consumption and return disposal are separate uses of the same source root.
 pub(super) fn return_discards(
@@ -909,6 +1056,39 @@ pub(super) fn return_discards(
     } else {
         Vec::new()
     };
+    // The subject a case-tested terminator consumes dies on each arm's edge
+    // rather than at the return: its checked exit drop is required evidence,
+    // but the return does not dispose it a second time. Locals name it by
+    // their declaration or producing binding; parameters by structural
+    // index.
+    let mut subject_locals = Vec::new();
+    let mut subject_parameters = Vec::new();
+    for subject in dispatch_subjects(state) {
+        match &subject.source {
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            } => subject_parameters.push(*parameter_index as usize),
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
+            | checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } => {
+                subject_locals.push(*symbol);
+            }
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal,
+            } => {
+                for result in state.operations.iter().filter_map(result_custody::result) {
+                    if result.binding_ordinal == *binding_ordinal
+                        && let Some(StatementNode::LocalData(local)) = checked
+                            .statement_table
+                            .statements(source.statement_nodes)
+                            .get(result.statement_index as usize)
+                    {
+                        subject_locals.push(local.symbol);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
     let mut drops = Vec::new();
     for (_, event) in checked
         .facts
@@ -930,17 +1110,23 @@ pub(super) fn return_discards(
         }) {
             continue;
         }
-        let index = state
-            .structural_parameters
-            .iter()
-            .position(|parameter| {
-                parameters
-                    .get(parameter.position as usize)
-                    .is_some_and(|source| event.root == facts::PlaceRoot::Symbol(source.symbol))
-            })
-            .ok_or(LoweringError::Unsupported(
-                "Unit return has an unaccounted local drop",
-            ))?;
+        let index = match state.structural_parameters.iter().position(|parameter| {
+            parameters
+                .get(parameter.position as usize)
+                .is_some_and(|source| event.root == facts::PlaceRoot::Symbol(source.symbol))
+        }) {
+            Some(index) => index,
+            None => {
+                if let facts::PlaceRoot::Symbol(symbol) = event.root
+                    && subject_locals.contains(&symbol)
+                {
+                    continue;
+                }
+                return Err(LoweringError::Unsupported(
+                    "Unit return has an unaccounted local drop",
+                ));
+            }
+        };
         let parameter = &state.structural_parameters[index];
         if parameter.access != checked_trees::CheckedStructuralAccess::Owned
             || parameter.multiplicity != Multiplicity::Affine
@@ -1084,6 +1270,27 @@ pub(super) fn return_discards(
             return unsupported("case return changed its subject disposal custody");
         }
         consumed.push(index);
+    }
+    // The same disposal holds for case-tested dispatches minted as guarded
+    // chains or conditional returns: the subject's whole drop is required
+    // evidence its arm edges already discharge.
+    if !matches!(
+        state.terminator,
+        CheckedComposedUnitControlTerminatorPlan::ClosedSum { .. }
+    ) {
+        for index in subject_parameters {
+            let Some(parameter) = state.structural_parameters.get(index) else {
+                return unsupported("case return lost its consumed parameter");
+            };
+            if parameter.access != checked_trees::CheckedStructuralAccess::Owned
+                || parameter.multiplicity != Multiplicity::Affine
+                || !drops.contains(&index)
+                || consumed.contains(&index)
+            {
+                return unsupported("case return changed its subject disposal custody");
+            }
+            consumed.push(index);
+        }
     }
     drops.retain(|index| !consumed.contains(index));
     Ok(drops)
