@@ -7,7 +7,7 @@
 use std::collections::BTreeMap;
 
 use semantic_vocabulary::{BlockId, PropositionContext, ScalarTerm, ScalarType, ValueId};
-use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule, Terminator};
+use terminal_psi::{Block, OperationKind, TerminalMachine, TerminalModule};
 
 pub(super) struct MachineReconstructionContext<'a> {
     pub(super) reconstruct_path_facts: bool,
@@ -24,9 +24,21 @@ impl<'a> MachineReconstructionContext<'a> {
         machine: &'a TerminalMachine,
         crash_facts: bool,
     ) -> Self {
-        let reconstruct_path_facts = (!crash_facts && module.scalar_block_invariants.iter().any(|invariant| invariant.machine == machine.id)) || matches!(machine.ranked_scc, Some(terminal_psi::TerminalRankedScc::Natural(_))) || machine.blocks.iter().any(|block| {
-            block.operations.iter().any(|operation| {
-                matches!(
+        // Crash questions include operation sites as well as terminators.
+        // Their facts must not depend on an unrelated neighboring operation
+        // happening to enable control-edge reconstruction.
+        let reconstruct_path_facts = crash_facts
+            || module
+                .scalar_block_invariants
+                .iter()
+                .any(|invariant| invariant.machine == machine.id)
+            || matches!(
+                machine.ranked_scc,
+                Some(terminal_psi::TerminalRankedScc::Natural(_))
+            )
+            || machine.blocks.iter().any(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(
                     &operation.kind,
                     OperationKind::Call { .. }
                         | OperationKind::StructuralCaseLeafCopy { .. }
@@ -70,10 +82,8 @@ impl<'a> MachineReconstructionContext<'a> {
                                 semantic_vocabulary::CanonicalStructuralPathSegment::Case(_)
                             ))
                     )
-            })
-        }) || (crash_facts && machine.blocks.iter().any(|block| {
-            matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())
-        }));
+                })
+            });
         let value_types = machine
             .parameters
             .iter()

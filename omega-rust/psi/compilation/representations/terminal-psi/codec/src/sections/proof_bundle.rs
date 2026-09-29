@@ -44,7 +44,7 @@ use wire::{Reader, Writer};
 const MAGIC: &[u8; 8] = b"PSIPRF\0\0";
 
 /// Single current pre-release proof vocabulary marker.
-pub(crate) const FORMAT_MARKER: u16 = 34;
+pub(crate) const FORMAT_MARKER: u16 = 35;
 
 /// Subject-sealed canonical proof section: the artifact-bound form of a proof
 /// bundle. The section header names the exact semantic subject the bundle was

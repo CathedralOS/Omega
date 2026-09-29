@@ -511,8 +511,8 @@ rows! {
     FORM_CRASH_REQUIREMENTS => (
         "formation:crash-entry-requirements",
         SharedFormation,
-        "a machine's declared entry requirements over typed invocation formals, including integer-order and order-chain requirements and complements of supported scalar crash predicates",
-        "entry requirements independently prove published coverage or disprove every uncovered invocation alternative without rewriting retained routes; exact forwarding and opposite-predicate formation remain trusted Rust decisions, while producer stages emit certificate supplies for verifier-reconstructed goals and consumers only re-decide supplied nodes through the certificate checker, whose covered decisions the mathematical-core kernel re-decides",
+        "a machine's declared entry requirements and independently reconstructed pre-operation paths, including integer-order chains, exact primitive failure predicates and complements of supported scalar crash predicates",
+        "certificates independently prove published coverage or disprove every uncovered invocation alternative on every retained path without importing the operation's normal-return facts; cyclic operation coverage retains entry-only facts without invariant custody; exact forwarding and predicate formation remain trusted Rust decisions, while producers emit certificate supplies and consumers only replay them through the certificate checker and mathematical-core kernel",
         &["formation:crash-validation", "formation:mathematical-core"],
         &[pa!( "admission/denotation.rs"), pa!( "certificate_search.rs"), pa!( "certificate_search/integer_order.rs"), pa!( "certificate_search/order_chain.rs"), tv!( "verification/reconstruction/crash_obligations.rs"), tv!( "verification.rs")]
     );

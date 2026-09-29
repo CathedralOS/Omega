@@ -120,6 +120,19 @@ pub(super) fn reconstruct(
                 &context.value_types,
                 &mut axioms,
             )?;
+            let prior_sites = sites.len();
+            super::crash_obligations::append_operation_site(
+                module,
+                machine,
+                current,
+                operation,
+                &context.value_types,
+                &axioms,
+                &mut sites,
+            )?;
+            for site in &sites[prior_sites..] {
+                budget.retain(site.semantic_axioms.len(), machine.id)?;
+            }
             operation_facts::append_operation(
                 module,
                 machine,

@@ -63,7 +63,7 @@ fn grouped_recursive_component_evidence_round_trips_and_rejects_reordering() {
         evidence_producers: Vec::new(),
     };
     let bytes = encode_proof_bundle(&bundle).expect("grouped recursion evidence encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut reordered = bundle;
@@ -170,7 +170,7 @@ fn proof_format_round_trips_terminal_proposition_disjunction() {
     assert_eq!(accepted.assumptions[0].proposition, Proposition::Truth);
 
     let bytes = encode_proof_bundle(&bundle).expect("disjunction proof bytes encode");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(bytes[40], 9, "canonical disjunction-introduction tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
@@ -236,7 +236,7 @@ fn proof_format_assigns_tag_eleven_to_integer_order_substitution() {
     };
 
     let bytes = encode_proof_bundle(&wire_bundle).expect("integer substitution node encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(bytes[34], 11, "canonical integer-order-substitution tag");
     assert_eq!(&bytes[41..45], &1_u32.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(wire_bundle));
@@ -352,7 +352,7 @@ fn proof_format_assigns_tag_twelve_to_integer_affine_bound() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer affine bound node encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(bytes[34], 12, "canonical integer-affine-bound tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -431,7 +431,7 @@ fn proof_format_assigns_tag_fourteen_to_integer_correlated_forbidden_roots() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("integer correlated proof node encodes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(bytes[34], 14, "canonical correlated-forbidden-roots tag");
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle));
 
@@ -497,7 +497,7 @@ fn proof_format_round_trips_atomic_ieee_structural_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("IEEE proof bytes encode");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut inequality = bundle.clone();
@@ -562,7 +562,7 @@ fn proof_format_round_trips_atomic_byte_sequence_equality() {
         }],
     };
     let bytes = encode_proof_bundle(&bundle).expect("byte-sequence proof bytes encode");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 
     let mut noncanonical = bundle;

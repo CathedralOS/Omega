@@ -59,14 +59,25 @@ pub(crate) fn crash_roster(module: &TerminalModule) -> Vec<CrashObligationEviden
                 CrashObligationQuestion::Continuation {
                     coverage_goals,
                     refutation_goal,
+                    paths,
                 } => (
                     coverage_goals
                         .iter()
-                        .map(|goal| produce(goal, &[]))
+                        .map(|goal| {
+                            paths
+                                .iter()
+                                .flat_map(|axioms| produce(goal, axioms))
+                                .collect()
+                        })
                         .collect(),
                     refutation_goal
                         .iter()
-                        .map(|goal| produce(goal, &[]))
+                        .map(|goal| {
+                            paths
+                                .iter()
+                                .flat_map(|axioms| produce(goal, axioms))
+                                .collect()
+                        })
                         .collect(),
                 ),
             };

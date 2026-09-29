@@ -67,7 +67,7 @@ fn proof_format_canonically_encodes_content_certificates() {
         .expect("reflexive content certificate");
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -109,7 +109,7 @@ fn proof_format_canonically_encodes_closed_saturating_arithmetic() {
     )
     .expect("closed u8 saturating addition proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -151,7 +151,7 @@ fn proof_format_canonically_encodes_closed_wrapping_subtraction() {
     )
     .expect("closed u8 wrapping subtraction proves 251");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -193,7 +193,7 @@ fn proof_format_canonically_encodes_closed_saturating_subtraction() {
     )
     .expect("closed u8 saturating subtraction proves zero");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -235,7 +235,7 @@ fn proof_format_canonically_encodes_closed_wrapping_multiplication() {
     )
     .expect("closed u8 wrapping multiplication proves four");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -284,7 +284,7 @@ fn proof_format_canonically_encodes_sum_case_content_certificates() {
     };
 
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 
@@ -326,7 +326,7 @@ fn proof_format_canonically_encodes_closed_saturating_multiplication() {
     )
     .expect("closed u8 saturating multiplication proves 255");
     let bytes = encode_proof_bundle(&bundle).expect("current proof bytes");
-    assert_eq!(&bytes[8..10], &34_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
     assert_eq!(decode_proof_bundle(&bytes), Ok(bundle.clone()));
 }
 

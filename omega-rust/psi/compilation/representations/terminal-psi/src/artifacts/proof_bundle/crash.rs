@@ -2,8 +2,9 @@
 //!
 //! A crash obligation is a question the verifier reconstructs from the module
 //! alone: an asserted `Crash` terminator guard against every independently
-//! reconstructed path into its site, or one uncovered call continuation's
-//! coverage/refutation goals under invocation-entry requirements. The rows
+//! reconstructed path into its site, a primitive's intrinsic trap against
+//! its published ceiling, or one uncovered call continuation's goals under
+//! entry requirements and independently reconstructed pre-call facts. The rows
 //! here carry the producer's answer — which denotation lane each proof node
 //! was built under and the node itself — keyed by the exact reconstructed
 //! question owner. Verification looks rows up by owner and re-decides every
@@ -16,7 +17,9 @@ use crate::artifacts::proof_bundle::ProofNode;
 
 /// The exact crash question a certificate roster answers.
 ///
-/// `Site` names one `Crash` terminator by its machine, block, and outgoing
+/// `OperationSite` names a primitive's intrinsic crash by its machine, block
+/// and operation, without inventing a control-flow edge. `Site` names one
+/// `Crash` terminator by its machine, block, and outgoing
 /// edge. `Continuation` names one uncovered same-cause continuation bucket at
 /// one call or crash-contract operation. Reconstruction derives every owner
 /// from the module; a bundle row naming anything else is unknown evidence.
@@ -31,6 +34,12 @@ pub enum CrashObligationOwner {
         machine: MachineId,
         operation: OperationId,
         cause: CrashCause,
+    },
+    /// A primitive's intrinsic failure, before its normal-result equation.
+    OperationSite {
+        machine: MachineId,
+        block: BlockId,
+        operation: OperationId,
     },
 }
 
@@ -52,8 +61,10 @@ pub struct CrashCertificate {
 /// Slot arity is part of the canonical row shape and is checked against the
 /// reconstructed question:
 ///
-/// - For a `Site` owner, `coverage` has one roster per asserted `site_guard`
-///   predicate in guard order; every roster is replayed under each
+/// - For a `Site` or `OperationSite` owner, `coverage` has one roster per
+///   reconstructed coverage goal (asserted `site_guard` predicates for a
+///   terminator, the published same-cause ceiling for a primitive).
+///   Every roster is replayed under each
 ///   reconstructed path's axiom list. `refutation` has one roster per
 ///   reconstructed path into the site, in path order; a roster proves
 ///   `Falsehood` under its path's axioms to discharge that path as
@@ -62,8 +73,9 @@ pub struct CrashCertificate {
 /// - For a `Continuation` owner, `coverage` has one roster per reconstructed
 ///   same-cause published-bucket coverage goal, and `refutation` is empty
 ///   when the uncovered roster forms no complement goal or carries exactly
-///   one roster proving that goal. Either lane discharging the question
-///   accepts the continuation.
+///   one roster proving that goal. Every reconstructed pre-call path must
+///   discharge one of these goals; a certificate from one path does not
+///   establish coverage of another.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrashObligationEvidence {
     pub owner: CrashObligationOwner,

@@ -303,7 +303,7 @@ fn each_alternative_needs_coverage_or_disproof() {
 }
 
 #[test]
-fn current_body_value_cannot_borrow_an_entry_disproof() {
+fn current_body_value_needs_its_own_pre_operation_disproof() {
     let mut checked = module();
     checked.machines[0].contract.crash_routes.clear();
     checked.machines[0].contract.requires = vec![nonnegative(RIGHT)];
@@ -313,9 +313,18 @@ fn current_body_value_cannot_borrow_an_entry_disproof() {
     };
     *right = id(50, ValueId::new);
     // The existing constant is an ordinary SSA body value, not formal RIGHT.
-    // Even its known zero must not be inferred from unrelated entry facts.
+    // Its known zero is independently reconstructed before the operation.
     checked.machines[0].blocks[0].operations.swap(0, 1);
     contract(&mut checked).crash_continuations = vec![guarded(CrashCause::Trap, negative(50))];
+    verify(&checked);
+    // Removing the unrelated formal requirement changes no local evidence.
+    checked.machines[0].contract.requires.clear();
+    verify(&checked);
+    // A negative local cannot borrow RIGHT's nonnegative entry requirement.
+    checked.machines[0].contract.requires = vec![nonnegative(RIGHT)];
+    checked.machines[0].blocks[0].operations[0].kind = OperationKind::IntegerConstant {
+        value: IntegerValue::Signed(-1),
+    };
     uncovered(&checked);
 }
 
