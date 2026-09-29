@@ -1,10 +1,8 @@
-data Main {}
-
-machine Main::main(&mut self) {
-    let value: u64 = self.countdown(2);
+machine main() {
+    let value: u64 = countdown(2);
 }
 
-machine Main::countdown(&mut self, remaining: u64)
+machine countdown(remaining: u64)
 terminates by remaining;
 -> u64
 {
