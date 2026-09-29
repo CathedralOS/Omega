@@ -392,7 +392,7 @@ pub(super) fn header(
         .iter()
         .flat_map(|block| &block.structural_parameters)
         .any(|parameter| {
-            !byte_parameter(parameter, plan)
+            !borrowed_view_parameter(parameter, plan)
                 && super::address_joins::parameter(optimized, parameter.place, plan).is_none()
                 && block_home_layout(parameter, plan).is_err()
         })
@@ -438,6 +438,30 @@ pub(in crate::legalization) fn block_home_layout(
         },
         plan,
     )
+}
+
+/// A block may receive a borrowed byte or element view descriptor. Both
+/// carry an exact address and extent that edge replay transfers unchanged;
+/// the view's own reads, lengths and subslices replay against that same
+/// parameter place. Ordinary call arguments keep the byte-only rule below.
+fn borrowed_view_parameter(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    plan: &AbstractOperationPlan,
+) -> bool {
+    byte_parameter(parameter, plan)
+        || (!parameter.is_self
+            && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && matches!(
+                parameter.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && plan.structural_types.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+            }))
 }
 
 fn byte_parameter(

@@ -352,3 +352,201 @@ fn element_leaf_geometry_checks_nested_offsets_and_erased_fields() {
         Some((0, 2))
     );
 }
+
+/// A state that receives an element view binds it as a block parameter. The
+/// entry measures its own view parameter, then transfers it to the successor,
+/// which measures the transferred descriptor. The other successor reads a
+/// field of a shared record, so the function replays its complete aggregate
+/// signature, including every block parameter. `block_access` is the
+/// successor parameter's access, bound from an argument of the same access.
+fn arrival_source(block_access: StructuralAccess) -> abstract_operations::AbstractOperationPlan {
+    use abstract_operations::{AbstractBlockEntry, AbstractStructuralBinding, AbstractSuccessor};
+    use semantic_vocabulary::BlockId;
+    use terminal_psi::StructuralArgument;
+    let (mut source, _, _) = crate::tests::fixtures::plain_unit::plain_unit_fixture();
+    let element = StructuralTypeId::new(1).unwrap();
+    let view = StructuralTypeId::new(2).unwrap();
+    let place = PlaceId::new(10).unwrap();
+    let arrived = PlaceId::new(11).unwrap();
+    let holder = StructuralTypeId::new(3).unwrap();
+    let held = PlaceId::new(12).unwrap();
+    let count = integer(IntegerSign::Unsigned, 64);
+    source.structural_types = vec![
+        StructuralTypeDeclaration {
+            id: element,
+            identity: "Entry".into(),
+            shape: StructuralTypeShape::PrimitiveScalar(integer(IntegerSign::Signed, 32)),
+        },
+        StructuralTypeDeclaration {
+            id: view,
+            identity: "Entries".into(),
+            shape: StructuralTypeShape::ElementView { element },
+        },
+        StructuralTypeDeclaration {
+            id: holder,
+            identity: "Holder".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(integer(IntegerSign::Signed, 32)),
+                }],
+            },
+        },
+    ]
+    .into();
+    let parameter = |place, access| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type: view,
+        multiplicity: StructuralMultiplicity::Unrestricted,
+        access,
+        qualifications: vec![],
+        projected_qualifications: vec![],
+    };
+    let function = &mut source.functions[0];
+    function.parameters = vec![AbstractParameter {
+        value: ValueId::new(100).unwrap(),
+        scalar_type: count,
+    }];
+    function.structural_parameters = vec![
+        parameter(place, StructuralAccess::SharedBorrow),
+        StructuralParameterDeclaration {
+            position: 1,
+            structural_type: holder,
+            ..parameter(held, StructuralAccess::SharedBorrow)
+        },
+    ];
+    function.block_entries = vec![
+        AbstractBlockEntry {
+            structural_parameters: Vec::new(),
+            block: BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            operation_offset: 0,
+        },
+        AbstractBlockEntry {
+            structural_parameters: vec![parameter(arrived, block_access)],
+            block: BlockId::new(2).unwrap(),
+            parameters: Vec::new(),
+            operation_offset: 3,
+        },
+        AbstractBlockEntry {
+            structural_parameters: Vec::new(),
+            block: BlockId::new(3).unwrap(),
+            parameters: Vec::new(),
+            operation_offset: 5,
+        },
+    ];
+    let successor = |identity, target, transfer: bool| AbstractSuccessor {
+        structural_bindings: if transfer {
+            vec![AbstractStructuralBinding {
+                parameter: arrived,
+                argument: StructuralArgument {
+                    place,
+                    access: block_access,
+                    path: Vec::new(),
+                },
+            }]
+        } else {
+            Vec::new()
+        },
+        psi_edge: EdgeId::new(identity).unwrap(),
+        target: BlockId::new(target).unwrap(),
+        bindings: Vec::new(),
+        trivial_affine_discards: Vec::new(),
+    };
+    let length = |operation, value, source| O::ElementViewLength {
+        psi_operation: OperationId::new(operation).unwrap(),
+        result: AbstractResult {
+            value: ValueId::new(value).unwrap(),
+            scalar_type: count,
+        },
+        source,
+    };
+    function.operations = vec![
+        length(10, 101, place),
+        O::IntegerLessThan {
+            psi_operation: OperationId::new(11).unwrap(),
+            result: ValueId::new(102).unwrap(),
+            left: ValueId::new(100).unwrap(),
+            right: ValueId::new(101).unwrap(),
+        },
+        O::Conditional {
+            condition: ValueId::new(102).unwrap(),
+            when_true: successor(10, 2, true),
+            when_false: successor(11, 3, false),
+        },
+        length(12, 103, arrived),
+        O::ReturnUnit {
+            psi_edge: EdgeId::new(12).unwrap(),
+            cleanup_actions: Vec::new(),
+        },
+        O::IntegerStructuralField {
+            psi_operation: OperationId::new(13).unwrap(),
+            result: AbstractResult {
+                value: ValueId::new(104).unwrap(),
+                scalar_type: integer(IntegerSign::Signed, 32),
+            },
+            source: held,
+            path: Vec::new(),
+            field: StructuralFieldId::new(1).unwrap(),
+        },
+        O::ReturnUnit {
+            psi_edge: EdgeId::new(13).unwrap(),
+            cleanup_actions: Vec::new(),
+        },
+    ];
+    source
+}
+
+/// A borrowed element view crosses a state arrival exactly as a byte view
+/// does: the successor's block parameter is admitted and its measurement
+/// replays. An owned element-view parameter has no block home and is refused.
+#[test]
+fn a_borrowed_element_view_arrives_through_a_block_parameter() {
+    for native in [
+        target::NativeTarget::linux_x64(),
+        target::NativeTarget::linux_arm64(),
+        target::NativeTarget::macos_arm64(),
+        target::NativeTarget::windows_x64(),
+    ] {
+        let source = arrival_source(StructuralAccess::SharedBorrow);
+        let targeted = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap();
+        let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let legalized = crate::legalize_target_operations(&targeted, &source, &unit)
+            .unwrap_or_else(|error| panic!("{native:?}: {error:?}"));
+        crate::validate_legalized_operations(&targeted, &source, &unit, legalized.plan().clone())
+            .unwrap();
+
+        let owned = arrival_source(StructuralAccess::Owned);
+        let refused = abstract_operations_to_target_operations::lower_to_target_operations(
+            &owned,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .map_err(|_| ())
+        .and_then(|targeted| {
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &owned,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .map_err(|_| ())?;
+            crate::legalize_target_operations(&targeted, &owned, &unit)
+                .map(|_| ())
+                .map_err(|_| ())
+        });
+        assert!(
+            refused.is_err(),
+            "{native:?}: an owned view has no block home"
+        );
+    }
+}
