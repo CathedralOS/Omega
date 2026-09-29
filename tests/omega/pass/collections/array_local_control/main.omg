@@ -15,5 +15,4 @@ machine choose(enabled: bool, value: u8) -> u8 {
 
 machine selected(enabled: bool, value: u8) -> [u8; 2] { [choose(enabled, value), 9u8] }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

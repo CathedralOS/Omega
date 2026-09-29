@@ -62,9 +62,6 @@ machine forward(limited: &write Limited, depth: u8) requires depth <= 10
     replace(&write limited, depth);
 }
 
-data Main {
-}
-
-machine Main::main(&mut self)
+machine main()
 {
 }

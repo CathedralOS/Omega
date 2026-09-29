@@ -11,9 +11,7 @@ data Holder { bytes: [u8; 0]; }
 
 machine first(rows: [[u8; 0]; 1]) -> [u8; 0] { rows[0] }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     let from_literal: [u8; 0] = [];
     let from_bytes: [u8; 0] = "";
     let nested: [[u8; 0]; 0] = [];

@@ -12,5 +12,4 @@ machine later_key(input: Key) -> Key {
     let KEY: Key = input;
     selected
 }
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

@@ -20,5 +20,4 @@ machine array_comparison(value: u16) -> [bool; 2] {
     array_result(returned, second)
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

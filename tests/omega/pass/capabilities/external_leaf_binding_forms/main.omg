@@ -25,5 +25,4 @@ macos_arm64 machine import_leaf() satisfies Mixed::via_import via import_binding
 data NativeTable { reserved0: addr; reserved1: addr; via_vtable: addr; }
 macos_arm64 machine NativeTable::vtable_leaf() satisfies Mixed::via_vtable via ForeignBinding::VtableField(via_vtable);
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}
