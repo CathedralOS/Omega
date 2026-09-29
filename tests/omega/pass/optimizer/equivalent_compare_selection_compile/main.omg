@@ -7,9 +7,6 @@
 // computes and the pass removes it. `Main::main` keeps a runtime `==`
 // compare with no reaching shadow that the same pass must decline.
 
-data Main {
-}
-
 machine probe(left: i64) -> i64 {
     let zero: i64 = 0i64;
     transition left < 0i64 && left < zero {
@@ -21,12 +18,12 @@ machine probe(left: i64) -> i64 {
     state no() -> i64 { 0i64 }
 }
 
-machine Main::main(&mut self) {
+machine main() {
     let observed: i64 = probe(7i64);
     transition observed == 0i64 {
         true -> done()
         _ -> done()
     }
 
-    state done(&mut self) { }
+    state done() { }
 }

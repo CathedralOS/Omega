@@ -27,6 +27,4 @@ reaches ExtentRootProvider
     transition { _ -> (consume_granted(granted)) }
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

@@ -2,22 +2,19 @@ data Entry {
     value: i32;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) -> u64 {
+machine main() -> u64 {
     transition {
         _ -> 0
     }
 
-    state choose(&mut self, entries: &[Entry]) -> u64 {
+    state choose(entries: &[Entry]) -> u64 {
         transition 2 <= entries.len {
             true -> length(entries[2..])
             false -> 0
         }
     }
 
-    state length(&mut self, entries: &[Entry]) -> u64 {
+    state length(entries: &[Entry]) -> u64 {
         transition {
             _ -> entries.len
         }

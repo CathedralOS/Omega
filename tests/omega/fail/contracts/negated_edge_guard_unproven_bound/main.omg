@@ -6,20 +6,18 @@ machine check(v: u64)
 requires v < 50u64
 {}
 
-data Main {}
-
 machine opaque() -> u64 {
     transition { _ -> (75u64) }
 }
 
-machine Main::main(&mut self) {
+machine main() {
     let v: u64 = opaque();
     transition v >= 100u64 {
         true -> bad()
         _ -> then(v)
     }
-    state then(&mut self, v: u64) {
+    state then(v: u64) {
         check(v);
     }
-    state bad(&mut self) {}
+    state bad() {}
 }

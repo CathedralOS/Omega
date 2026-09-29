@@ -2,8 +2,8 @@ machine build(builder: &mut Build) {
     builder.application("carry_permission_provider_adapter");
     builder.accept_boundary<ClaimProvider>();
     builder.select_provider<ClaimProvider, ClaimProviderImpl>();
-    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
-    builder.roots.bind(linux_arm64::ProgramEntry, Main::main);
-    builder.roots.bind(macos_arm64::ProgramEntry, Main::main);
+    builder.roots.bind(windows_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_x86_64::ProgramEntry, main);
+    builder.roots.bind(linux_arm64::ProgramEntry, main);
+    builder.roots.bind(macos_arm64::ProgramEntry, main);
 }

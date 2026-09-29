@@ -10,9 +10,7 @@
 // site -- including the recursive one -- and this program simply compiles.
 domain i32::Logged;
 
-data Main { }
-
-machine Main::main(&mut self) {
+machine main() {
     walk(3);
 }
 
@@ -26,9 +24,9 @@ machine walk(n: i32) {
         _ -> done()
     }
 
-    state descend(&mut self, n: i32) {
+    state descend(n: i32) {
         walk(n - 1);
     }
 
-    state done(&mut self) { }
+    state done() { }
 }
