@@ -23,8 +23,10 @@ use crate::flow::FlowOwnershipEventSource;
 /// The permission ledger is authoritative for which whole affine parameters
 /// are eligible for no-code state-exit disposal. Per-arm move discovery is the
 /// same checked ownership input used by multiplicity validation. Anything that
-/// needs local, projected, nominal, or claim-bearing cleanup omits the complete
-/// state plan rather than publishing partial evidence.
+/// needs projected, nominal, or claim-bearing cleanup omits the complete
+/// state plan rather than publishing partial evidence. Exact local result
+/// obligations stay separate: ordinary completion disposes the local, while
+/// a named successor must account for its selected transfer or disposal.
 pub(crate) fn build_checked_structural_control_cleanup_plans(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -949,6 +951,18 @@ pub(super) fn state_exit_result_locals(
             };
             if transition.exit != TransitionExit::Ordinary || transition.continuation.is_valid() {
                 return None;
+            }
+            // A Unit completion retains the local for ordinary exit disposal;
+            // only named edges may transfer it. Count this as a real exit,
+            // keeping the exact transfer-ledger comparison below: a fabricated
+            // move on a returning edge must still reject the complete roster.
+            if matches!(
+                program.statement_table.transition_target(transition.target),
+                TransitionTargetNode::Terminal
+            ) && super::terminal_unit::cleanup_type_is_unit(program, state.return_type)
+            {
+                edge_count += 1;
+                continue;
             }
             let TransitionTargetNode::Named {
                 path, arguments, ..

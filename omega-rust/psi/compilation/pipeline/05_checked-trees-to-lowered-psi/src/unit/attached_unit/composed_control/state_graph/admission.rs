@@ -570,6 +570,23 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                         )
                     };
                 let arm_ordinal = match return_arm {
+                    checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal }
+                        if plan.result == checked_trees::CheckedControlResultPlan::Unit
+                            && return_source.exit == TransitionExit::Ordinary
+                            && !return_source.continuation.is_valid()
+                            && matches!(
+                                checked
+                                    .statement_table
+                                    .transition_target(return_source.target),
+                                checked_trees::statement::TransitionTargetNode::Terminal
+                            ) =>
+                    {
+                        // Rejoin the exact normal completion before applying
+                        // ordinary return disposal. A crash or named jump
+                        // cannot acquire cleanup/return authority by relabeling.
+                        edges::return_discards(checked, plan.machine, source, state)?;
+                        *statement_ordinal as usize
+                    }
                     checked_trees::CheckedConditionalReturnArm::Structural(
                         checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                             result,
@@ -597,7 +614,7 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                     }
                     _ => {
                         return unsupported(
-                            "Unit graph conditional return arm is neither a structural value producer nor the scalar result",
+                            "Unit graph conditional return arm does not match its declared completion",
                         );
                     }
                 };

@@ -1030,6 +1030,10 @@ pub(super) fn return_discards(
     let local_discards = if matches!(
         state.terminator,
         CheckedComposedUnitControlTerminatorPlan::ReturnUnit
+            | CheckedComposedUnitControlTerminatorPlan::ConditionalReturn {
+                return_arm: checked_trees::CheckedConditionalReturnArm::Unit { .. },
+                ..
+            }
     ) {
         result_custody::local_discards(checked, machine, source, state, None)?
     } else {

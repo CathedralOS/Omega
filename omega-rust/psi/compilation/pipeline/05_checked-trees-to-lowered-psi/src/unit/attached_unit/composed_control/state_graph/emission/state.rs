@@ -205,7 +205,8 @@ impl StateGraphEmission<'_, '_> {
                         CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. },
                     ),
                 ) => Some(result.statement_index),
-                (
+                (true, checked_trees::CheckedConditionalReturnArm::Unit { statement_ordinal })
+                | (
                     true,
                     checked_trees::CheckedConditionalReturnArm::Scalar {
                         statement_ordinal, ..
