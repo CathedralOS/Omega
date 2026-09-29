@@ -381,11 +381,11 @@ impl ComponentEraEntryLedger {
         candidate: ComponentEraCandidate,
         receipt: ComponentEraPublicationReceipt,
     ) -> Result<(), Box<EraPublicationError>> {
-        let reject = |candidate, receipt, diagnostic: &str| {
+        let reject = |candidate, receipt, rejection: EraPublicationRejection| {
             Err(Box::new(EraPublicationError {
                 candidate,
                 receipt,
-                diagnostic: diagnostic.into(),
+                rejection,
             }))
         };
         if candidate.era_identity == 0
@@ -398,13 +398,17 @@ impl ComponentEraEntryLedger {
                 .trim()
                 .is_empty()
         {
-            return reject(candidate, receipt, "component era candidate is incomplete");
+            return reject(
+                candidate,
+                receipt,
+                EraPublicationRejection::IncompleteCandidate,
+            );
         }
         if self.eras.len() >= self.maximum_live_eras {
             return reject(
                 candidate,
                 receipt,
-                "component era publication exceeds the live-era retention limit",
+                EraPublicationRejection::LiveEraRetentionLimitExceeded,
             );
         }
         if self
@@ -412,7 +416,7 @@ impl ComponentEraEntryLedger {
             .iter()
             .any(|record| record.candidate.era_identity == candidate.era_identity)
         {
-            return reject(candidate, receipt, "component era identity is already live");
+            return reject(candidate, receipt, EraPublicationRejection::EraAlreadyLive);
         }
         if receipt.publication_identity == 0
             || self
@@ -422,7 +426,7 @@ impl ComponentEraEntryLedger {
             return reject(
                 candidate,
                 receipt,
-                "component era publication receipt is zero or replayed",
+                EraPublicationRejection::ZeroOrReplayedPublicationIdentity,
             );
         }
         let exact = candidate.binding_contract_identity == self.binding_contract_identity
@@ -442,21 +446,25 @@ impl ComponentEraEntryLedger {
             return reject(
                 candidate,
                 receipt,
-                "component era publication does not bind and expose the exact candidate",
+                EraPublicationRejection::CandidateBindingJoin,
             );
         }
         if self.current_era.is_some() && !receipt.previous_era_closed {
             return reject(
                 candidate,
                 receipt,
-                "component era publication does not close the previous era to future entry",
+                EraPublicationRejection::PreviousEraNotClosed,
             );
         }
         if let Err(diagnostic) = self.executable_tcbs.admit_era(
             candidate.era_identity,
             candidate.executable_tcb_acceptance.clone(),
         ) {
-            return reject(candidate, receipt, diagnostic.as_str());
+            return reject(
+                candidate,
+                receipt,
+                EraPublicationRejection::ExecutableTcbAdmission(diagnostic),
+            );
         }
         if let Some(previous) = self.current_era {
             self.eras
@@ -490,23 +498,25 @@ impl ComponentEraEntryLedger {
         era_identity: u64,
         entry_contract_identity: &str,
     ) -> Result<ProgramLocalRootEpochLease, ProgramLocalRootEpochLeaseAcquisitionError> {
-        let reject = |diagnostic: &str| ProgramLocalRootEpochLeaseAcquisitionError {
-            identity,
-            era_identity,
-            entry_contract_identity: entry_contract_identity.to_owned(),
-            diagnostic: diagnostic.into(),
+        let reject = |rejection: ProgramLocalRootEpochLeaseAcquisitionRejection| {
+            ProgramLocalRootEpochLeaseAcquisitionError {
+                identity,
+                era_identity,
+                entry_contract_identity: entry_contract_identity.to_owned(),
+                rejection,
+            }
         };
         if self
             .issued_program_local_root_epoch_leases
             .contains(&identity)
         {
             return Err(reject(
-                "program-local root epoch-lease identity is already issued or consumed",
+                ProgramLocalRootEpochLeaseAcquisitionRejection::IdentityConsumed,
             ));
         }
         if self.current_era != Some(era_identity) {
             return Err(reject(
-                "program-local root epoch lease requires the exact current component era",
+                ProgramLocalRootEpochLeaseAcquisitionRejection::NotCurrentEra,
             ));
         }
         let Some(record) = self
@@ -515,7 +525,7 @@ impl ComponentEraEntryLedger {
             .find(|record| record.candidate.era_identity == era_identity)
         else {
             return Err(reject(
-                "program-local root epoch lease names an unpublished component era",
+                ProgramLocalRootEpochLeaseAcquisitionRejection::UnpublishedEra,
             ));
         };
         let exact_contract = !entry_contract_identity.is_empty()
@@ -523,7 +533,7 @@ impl ComponentEraEntryLedger {
             && entry_contract_identity == record.candidate.entry_contract_identity;
         if record.state != ComponentEraEntryState::Open || !exact_contract {
             return Err(reject(
-                "program-local root epoch lease requires the exact open published entry contract",
+                ProgramLocalRootEpochLeaseAcquisitionRejection::OpenContractJoin,
             ));
         }
 
@@ -558,13 +568,13 @@ impl ComponentEraEntryLedger {
     pub fn validate_program_local_root_epoch_lease(
         &self,
         lease: &ProgramLocalRootEpochLease,
-    ) -> Result<(), String> {
+    ) -> Result<(), ProgramLocalRootEpochLeaseValidationRejection> {
         let Some(record) = self
             .eras
             .iter()
             .find(|record| record.candidate.era_identity == lease.era_identity)
         else {
-            return Err("program-local root epoch lease names an era outside this ledger".into());
+            return Err(ProgramLocalRootEpochLeaseValidationRejection::ForeignEra);
         };
         let exact = self.current_era == Some(lease.era_identity)
             && record.state == ComponentEraEntryState::Open
@@ -588,9 +598,7 @@ impl ComponentEraEntryLedger {
                 .program_local_root_epoch_leases
                 .contains(&lease.identity);
         if !exact {
-            return Err(
-                "program-local root epoch lease is not live in the exact current open era".into(),
-            );
+            return Err(ProgramLocalRootEpochLeaseValidationRejection::NotLiveInCurrentOpenEra);
         }
         Ok(())
     }
@@ -610,8 +618,7 @@ impl ComponentEraEntryLedger {
         else {
             return Err(ProgramLocalRootEpochLeaseReleaseError {
                 lease,
-                diagnostic: "program-local root epoch lease names an era outside this ledger"
-                    .into(),
+                rejection: ProgramLocalRootEpochLeaseReleaseRejection::ForeignEra,
             });
         };
         let exact = lease.ledger == self.identity
@@ -636,9 +643,7 @@ impl ComponentEraEntryLedger {
         if !exact {
             return Err(ProgramLocalRootEpochLeaseReleaseError {
                 lease,
-                diagnostic:
-                    "program-local root epoch lease does not belong to this exact published era"
-                        .into(),
+                rejection: ProgramLocalRootEpochLeaseReleaseRejection::ExactPublishedEraJoin,
             });
         }
         let removed = record
@@ -655,7 +660,7 @@ impl ComponentEraEntryLedger {
         let Some(current) = self.current_era else {
             return Err(EraEntryError {
                 receipt,
-                diagnostic: "component binding has no published era".into(),
+                rejection: EraEntryRejection::NoPublishedEra,
             });
         };
         let Some(record) = self
@@ -665,7 +670,7 @@ impl ComponentEraEntryLedger {
         else {
             return Err(EraEntryError {
                 receipt,
-                diagnostic: "current component era is absent from its ledger".into(),
+                rejection: EraEntryRejection::CurrentEraAbsent,
             });
         };
         let exact = receipt.invocation_identity != 0
@@ -679,7 +684,10 @@ impl ComponentEraEntryLedger {
             && receipt.entry_linearized
             && record.state == ComponentEraEntryState::Open;
         if !exact {
-            return Err(EraEntryError { receipt, diagnostic: "component entry receipt does not linearize exactly once into the current open era".into() });
+            return Err(EraEntryError {
+                receipt,
+                rejection: EraEntryRejection::ExactLinearizationJoin,
+            });
         }
         record.active_entries += 1;
         self.consumed_invocations.push(receipt.invocation_identity);
@@ -705,7 +713,7 @@ impl ComponentEraEntryLedger {
             return Err(Box::new(EraLeaveError {
                 entry,
                 receipt,
-                diagnostic: "entered component era is no longer live".into(),
+                rejection: EraLeaveRejection::EraNotLive,
             }));
         };
         let exact = receipt.invocation_identity == entry.invocation_identity
@@ -719,8 +727,7 @@ impl ComponentEraEntryLedger {
             return Err(Box::new(EraLeaveError {
                 entry,
                 receipt,
-                diagnostic: "component leave receipt does not complete the exact active entry"
-                    .into(),
+                rejection: EraLeaveRejection::ExactActiveEntryJoin,
             }));
         }
         record.active_entries -= 1;
@@ -740,7 +747,7 @@ impl ComponentEraEntryLedger {
         else {
             return Err(EraQuiescenceError {
                 receipt,
-                diagnostic: "component era is not live".into(),
+                rejection: EraQuiescenceRejection::EraNotLive,
             });
         };
         let exact = receipt.binding_contract_identity == self.binding_contract_identity
@@ -750,7 +757,10 @@ impl ComponentEraEntryLedger {
             && receipt.residual_lifetime_cohort_holds == 0
             && receipt.all_dispositions_complete;
         if !exact {
-            return Err(EraQuiescenceError { receipt, diagnostic: "component era quiescence requires closing, zero entries, zero program-local root authority holds, and complete cohort disposition".into() });
+            return Err(EraQuiescenceError {
+                receipt,
+                rejection: EraQuiescenceRejection::ClosingCohortJoin,
+            });
         }
         record.state = ComponentEraEntryState::Quiescent;
         Ok(())
@@ -767,14 +777,13 @@ impl ComponentEraEntryLedger {
         else {
             return Err(EraRetirementError {
                 receipt,
-                diagnostic: "component era is not live".into(),
+                rejection: EraRetirementRejection::EraNotLive,
             });
         };
         if !self.eras[index].program_local_root_epoch_leases.is_empty() {
             return Err(EraRetirementError {
                 receipt,
-                diagnostic: "component era retirement rejects while program-local root epoch leases remain live"
-                    .into(),
+                rejection: EraRetirementRejection::EpochLeasesLive,
             });
         }
         let exact = receipt.retirement_identity != 0
@@ -786,13 +795,16 @@ impl ComponentEraEntryLedger {
             && self.eras[index].state == ComponentEraEntryState::Quiescent
             && self.current_era != Some(receipt.era_identity);
         if !exact {
-            return Err(EraRetirementError { receipt, diagnostic: "component era retirement requires a noncurrent quiescent released cohort and fresh receipt".into() });
+            return Err(EraRetirementError {
+                receipt,
+                rejection: EraRetirementRejection::QuiescentReleaseJoin,
+            });
         }
         self.executable_tcbs
             .retire_era_after_quiescence(receipt.era_identity)
             .map_err(|diagnostic| EraRetirementError {
                 receipt: receipt.clone(),
-                diagnostic,
+                rejection: EraRetirementRejection::ExecutableTcbRetirement(diagnostic),
             })?;
         self.eras.remove(index);
         self.consumed_retirements.push(receipt.retirement_identity);
@@ -800,16 +812,24 @@ impl ComponentEraEntryLedger {
     }
 }
 
+/// The checkable judgment a rejected replay arrives at: which clause of the
+/// ledger's custody join refused the evidence. The error types below carry a
+/// rejection instead of a bare diagnostic so a caller — or a substitution
+/// matrix — can assert the exact decision rather than matching message text.
+/// `diagnostic()` still renders the same human-readable message.
 macro_rules! recoverable_error {
-    ($name:ident, $value:ident, $type:ty) => {
+    ($name:ident, $value:ident, $type:ty, $rejection:ty) => {
         #[derive(Debug)]
         pub struct $name {
             $value: $type,
-            diagnostic: String,
+            rejection: $rejection,
         }
         impl $name {
-            pub const fn diagnostic(&self) -> &str {
-                self.diagnostic.as_str()
+            pub fn rejection(&self) -> $rejection {
+                self.rejection.clone()
+            }
+            pub fn diagnostic(&self) -> &str {
+                self.rejection.diagnostic()
             }
             pub fn into_value(self) -> $type {
                 self.$value
@@ -818,45 +838,286 @@ macro_rules! recoverable_error {
     };
 }
 
+/// The checkable judgment of a rejected publication: which clause of the
+/// ledger's publication replay refused the candidate/receipt pair.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EraPublicationRejection {
+    /// A zero identity or blank contract/plan coordinate failed the
+    /// completeness precheck.
+    IncompleteCandidate,
+    /// The live-era roster already retains `maximum_live_eras` records.
+    LiveEraRetentionLimitExceeded,
+    /// The candidate's era identity is already a live record.
+    EraAlreadyLive,
+    /// The minted publication identity is zero or already consumed.
+    ZeroOrReplayedPublicationIdentity,
+    /// A copied coordinate diverges from the retained candidate or the
+    /// ledger's own published identities, or the new era is not exposed.
+    CandidateBindingJoin,
+    /// A live predecessor was not reported closed to future entry.
+    PreviousEraNotClosed,
+    /// The embedded coexisting-TCB set refused the candidate's acceptance
+    /// evidence; the payload is that admission's own diagnostic.
+    ExecutableTcbAdmission(String),
+}
+
+impl EraPublicationRejection {
+    pub fn diagnostic(&self) -> &str {
+        match self {
+            Self::IncompleteCandidate => "component era candidate is incomplete",
+            Self::LiveEraRetentionLimitExceeded => {
+                "component era publication exceeds the live-era retention limit"
+            }
+            Self::EraAlreadyLive => "component era identity is already live",
+            Self::ZeroOrReplayedPublicationIdentity => {
+                "component era publication receipt is zero or replayed"
+            }
+            Self::CandidateBindingJoin => {
+                "component era publication does not bind and expose the exact candidate"
+            }
+            Self::PreviousEraNotClosed => {
+                "component era publication does not close the previous era to future entry"
+            }
+            Self::ExecutableTcbAdmission(diagnostic) => diagnostic.as_str(),
+        }
+    }
+}
+
+/// The checkable judgment of a rejected entry replay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EraEntryRejection {
+    /// No era has published: there is no current record to bind.
+    NoPublishedEra,
+    /// The ledger's current era is absent from its own roster.
+    CurrentEraAbsent,
+    /// A copied coordinate diverges from the ledger's retained state, the
+    /// invocation is replayed, or the era is not the open current one.
+    ExactLinearizationJoin,
+}
+
+impl EraEntryRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::NoPublishedEra => "component binding has no published era",
+            Self::CurrentEraAbsent => "current component era is absent from its ledger",
+            Self::ExactLinearizationJoin => {
+                "component entry receipt does not linearize exactly once into the current open era"
+            }
+        }
+    }
+}
+
+/// The checkable judgment of a rejected leave replay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EraLeaveRejection {
+    /// The entry's era is absent from the ledger's live roster.
+    EraNotLive,
+    /// The receipt diverges from the active entry, or the invocation holds
+    /// no active membership.
+    ExactActiveEntryJoin,
+}
+
+impl EraLeaveRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::EraNotLive => "entered component era is no longer live",
+            Self::ExactActiveEntryJoin => {
+                "component leave receipt does not complete the exact active entry"
+            }
+        }
+    }
+}
+
+/// The checkable judgment of a rejected quiescence replay.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EraQuiescenceRejection {
+    /// The receipt's era is absent from the ledger's live roster.
+    EraNotLive,
+    /// The era is not a fully-drained Closing record, or the receipt
+    /// diverges from the ledger's identities.
+    ClosingCohortJoin,
+}
+
+impl EraQuiescenceRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::EraNotLive => "component era is not live",
+            Self::ClosingCohortJoin => {
+                "component era quiescence requires closing, zero entries, zero program-local root \
+                 authority holds, and complete cohort disposition"
+            }
+        }
+    }
+}
+
+/// The checkable judgment of a rejected retirement replay.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EraRetirementRejection {
+    /// The receipt's era is absent from the ledger's live roster.
+    EraNotLive,
+    /// Program-local root epoch leases still pin the era.
+    EpochLeasesLive,
+    /// The era is not a noncurrent quiescent record, the cohort is not
+    /// released, or the minted retirement identity is zero or consumed.
+    QuiescentReleaseJoin,
+    /// The embedded coexisting-TCB set refused the retirement; the payload
+    /// is its own replay diagnostic.
+    ExecutableTcbRetirement(String),
+}
+
+impl EraRetirementRejection {
+    pub fn diagnostic(&self) -> &str {
+        match self {
+            Self::EraNotLive => "component era is not live",
+            Self::EpochLeasesLive => {
+                "component era retirement rejects while program-local root epoch leases remain live"
+            }
+            Self::QuiescentReleaseJoin => {
+                "component era retirement requires a noncurrent quiescent released cohort and \
+                 fresh receipt"
+            }
+            Self::ExecutableTcbRetirement(diagnostic) => diagnostic.as_str(),
+        }
+    }
+}
+
+/// The checkable judgment of a rejected epoch-lease acquisition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramLocalRootEpochLeaseAcquisitionRejection {
+    /// The minted lease identity is already issued or consumed.
+    IdentityConsumed,
+    /// The request names an era that is not the ledger's current era.
+    NotCurrentEra,
+    /// The request names an era this ledger never published.
+    UnpublishedEra,
+    /// The era is not open, or the contract diverges from the ledger's or
+    /// the retained candidate's entry-contract identity.
+    OpenContractJoin,
+}
+
+impl ProgramLocalRootEpochLeaseAcquisitionRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::IdentityConsumed => {
+                "program-local root epoch-lease identity is already issued or consumed"
+            }
+            Self::NotCurrentEra => {
+                "program-local root epoch lease requires the exact current component era"
+            }
+            Self::UnpublishedEra => {
+                "program-local root epoch lease names an unpublished component era"
+            }
+            Self::OpenContractJoin => {
+                "program-local root epoch lease requires the exact open published entry contract"
+            }
+        }
+    }
+}
+
+/// The checkable judgment of a rejected epoch-lease validation — the
+/// stricter replay that additionally requires the lease's era to be the
+/// current open one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramLocalRootEpochLeaseValidationRejection {
+    /// The lease names an era absent from this ledger's roster.
+    ForeignEra,
+    /// A binding diverges from the retained era record or the ledger's
+    /// identities, or the era is no longer the current open one.
+    NotLiveInCurrentOpenEra,
+}
+
+impl ProgramLocalRootEpochLeaseValidationRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::ForeignEra => "program-local root epoch lease names an era outside this ledger",
+            Self::NotLiveInCurrentOpenEra => {
+                "program-local root epoch lease is not live in the exact current open era"
+            }
+        }
+    }
+}
+
+/// The checkable judgment of a rejected epoch-lease release.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProgramLocalRootEpochLeaseReleaseRejection {
+    /// The lease names an era absent from this ledger's roster.
+    ForeignEra,
+    /// A binding diverges from the retained era record, the ledger's
+    /// identities, or the issued-hold sets.
+    ExactPublishedEraJoin,
+}
+
+impl ProgramLocalRootEpochLeaseReleaseRejection {
+    pub const fn diagnostic(&self) -> &'static str {
+        match self {
+            Self::ForeignEra => "program-local root epoch lease names an era outside this ledger",
+            Self::ExactPublishedEraJoin => {
+                "program-local root epoch lease does not belong to this exact published era"
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct EraPublicationError {
     candidate: ComponentEraCandidate,
     receipt: ComponentEraPublicationReceipt,
-    diagnostic: String,
+    rejection: EraPublicationRejection,
 }
 impl EraPublicationError {
-    pub const fn diagnostic(&self) -> &str {
-        self.diagnostic.as_str()
+    pub fn rejection(&self) -> EraPublicationRejection {
+        self.rejection.clone()
+    }
+    pub fn diagnostic(&self) -> &str {
+        self.rejection.diagnostic()
     }
     pub fn into_parts(self) -> (ComponentEraCandidate, ComponentEraPublicationReceipt) {
         (self.candidate, self.receipt)
     }
 }
-recoverable_error!(EraEntryError, receipt, ComponentEraEntryReceipt);
+recoverable_error!(
+    EraEntryError,
+    receipt,
+    ComponentEraEntryReceipt,
+    EraEntryRejection
+);
 
 #[derive(Debug)]
 pub struct EraLeaveError {
     entry: ActiveComponentEraEntry,
     receipt: ComponentEraLeaveReceipt,
-    diagnostic: String,
+    rejection: EraLeaveRejection,
 }
 impl EraLeaveError {
-    pub const fn diagnostic(&self) -> &str {
-        self.diagnostic.as_str()
+    pub fn rejection(&self) -> EraLeaveRejection {
+        self.rejection
+    }
+    pub fn diagnostic(&self) -> &str {
+        self.rejection.diagnostic()
     }
     pub fn into_parts(self) -> (ActiveComponentEraEntry, ComponentEraLeaveReceipt) {
         (self.entry, self.receipt)
     }
 }
-recoverable_error!(EraQuiescenceError, receipt, ComponentEraQuiescenceReceipt);
-recoverable_error!(EraRetirementError, receipt, ComponentEraRetirementReceipt);
+recoverable_error!(
+    EraQuiescenceError,
+    receipt,
+    ComponentEraQuiescenceReceipt,
+    EraQuiescenceRejection
+);
+recoverable_error!(
+    EraRetirementError,
+    receipt,
+    ComponentEraRetirementReceipt,
+    EraRetirementRejection
+);
 
 #[derive(Debug)]
 pub struct ProgramLocalRootEpochLeaseAcquisitionError {
     identity: ProgramLocalRootEpochLeaseId,
     era_identity: u64,
     entry_contract_identity: String,
-    diagnostic: String,
+    rejection: ProgramLocalRootEpochLeaseAcquisitionRejection,
 }
 
 impl ProgramLocalRootEpochLeaseAcquisitionError {
@@ -872,20 +1133,28 @@ impl ProgramLocalRootEpochLeaseAcquisitionError {
         &self.entry_contract_identity
     }
 
-    pub const fn diagnostic(&self) -> &str {
-        self.diagnostic.as_str()
+    pub fn rejection(&self) -> ProgramLocalRootEpochLeaseAcquisitionRejection {
+        self.rejection
+    }
+
+    pub fn diagnostic(&self) -> &str {
+        self.rejection.diagnostic()
     }
 }
 
 #[derive(Debug)]
 pub struct ProgramLocalRootEpochLeaseReleaseError {
     lease: ProgramLocalRootEpochLease,
-    diagnostic: String,
+    rejection: ProgramLocalRootEpochLeaseReleaseRejection,
 }
 
 impl ProgramLocalRootEpochLeaseReleaseError {
-    pub const fn diagnostic(&self) -> &str {
-        self.diagnostic.as_str()
+    pub fn rejection(&self) -> ProgramLocalRootEpochLeaseReleaseRejection {
+        self.rejection
+    }
+
+    pub fn diagnostic(&self) -> &str {
+        self.rejection.diagnostic()
     }
 
     pub fn into_lease(self) -> ProgramLocalRootEpochLease {

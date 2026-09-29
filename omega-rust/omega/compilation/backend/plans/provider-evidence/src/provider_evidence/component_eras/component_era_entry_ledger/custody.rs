@@ -21,17 +21,32 @@
 //! indistinguishable release of that hold. A receipt minted under a foreign
 //! ledger's contract identities, or carrying a stale era or invocation
 //! coordinate, rejects against this ledger's records.
+//!
+//! Each replay answers a named `*Rejection` decision rather than a
+//! diagnostic string, so every representable field of a family declares one
+//! `*FieldForTest` variant — multiple variants per field where the axes
+//! differ — and runs through `run_one_field_substitution_matrix`. The legs
+//! that need ledger staging the honest record cannot carry — a predecessor
+//! to close, an already-consumed identity, an entry already settled, an era
+//! held open by an occupied entry or live lease — stay authored beside the
+//! matrices that pin them.
 
 use super::{
     ActiveComponentEraEntry, ComponentEraCandidate, ComponentEraEntryLedger,
     ComponentEraEntryReceipt, ComponentEraEntryState, ComponentEraLeaveReceipt,
     ComponentEraLedgerId, ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt,
-    ComponentEraRetirementReceipt, ExecutableTcbProfileAcceptance,
-    InstalledArtifactOccurrenceDigest, ProgramLocalRootEpochLease, ProgramLocalRootEpochLeaseId,
+    ComponentEraRetirementReceipt, EraEntryRejection, EraLeaveRejection, EraPublicationRejection,
+    EraQuiescenceRejection, EraRetirementRejection, ExecutableTcbProfileAcceptance,
+    InstalledArtifactOccurrenceDigest, ProgramLocalRootEpochLease,
+    ProgramLocalRootEpochLeaseAcquisitionRejection, ProgramLocalRootEpochLeaseId,
+    ProgramLocalRootEpochLeaseReleaseRejection, ProgramLocalRootEpochLeaseValidationRejection,
 };
 use crate::{
     ExecutableTcbManifest, ExecutableTcbProfile, ExecutionScope, IncompleteScopePolicy,
     ScopeCompleteness, evaluate_executable_tcb_profile,
+};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
 };
 
 fn acceptance(name: &str, closure: u64) -> ExecutableTcbProfileAcceptance {
@@ -190,94 +205,280 @@ fn foreign_publish_supersede_quiesce(
         .expect("quiescence");
 }
 
-/// The receipt-binding join at publication: every copied coordinate must
-/// equal the retained candidate and the ledger's published identities.
-const PUBLICATION_BINDING: &str = "does not bind and expose the exact candidate";
-
-/// Apply one substitution to an honest first-era publication and replay it
-/// against a fresh ledger. The returned ledger proves rejection left the
-/// containing state untouched.
-fn rejected_publication(
-    mutate: impl FnOnce(&mut ComponentEraCandidate, &mut ComponentEraPublicationReceipt),
-) -> (ComponentEraEntryLedger, String) {
-    let mut ledger = ledger(4);
-    let mut candidate = candidate(10);
-    let mut receipt =
-        ComponentEraPublicationReceipt::from_runtime(100, &ledger, &candidate, true, false);
-    mutate(&mut candidate, &mut receipt);
-    let error = ledger
-        .publish(candidate, receipt)
-        .expect_err("a substituted publication must not commit");
-    assert_eq!(ledger.current_era(), None, "rejection retains no era");
-    assert!(
-        ledger.live_eras().next().is_none(),
-        "rejection retains no live era record"
-    );
-    (ledger, error.diagnostic().to_owned())
+/// The publication join `publish` replays: the candidate argument plus the
+/// receipt claiming to bind and expose it. The receipt carries its own copy
+/// of the candidate, so substituting either side of the pair diverges the
+/// binding join.
+#[derive(Debug, Clone, PartialEq)]
+struct PublicationJoin {
+    candidate: ComponentEraCandidate,
+    receipt: ComponentEraPublicationReceipt,
 }
 
-fn publication_reject_with(
-    fragment: &str,
-    mutate: impl FnOnce(&mut ComponentEraCandidate, &mut ComponentEraPublicationReceipt),
+/// An honest first-era publication on an empty ledger.
+fn honest_publication() -> PublicationJoin {
+    let staged = ledger(4);
+    let candidate = candidate(10);
+    PublicationJoin {
+        receipt: ComponentEraPublicationReceipt::from_runtime(
+            100, &staged, &candidate, true, false,
+        ),
+        candidate,
+    }
+}
+
+/// An authentic publication minted under `foreign_ledger`'s contract
+/// identities: donor evidence whose retained custody must differ.
+fn foreign_publication() -> PublicationJoin {
+    let mut foreign = foreign_ledger(4);
+    foreign_publish(&mut foreign, 10, 700);
+    let candidate = foreign_candidate(20);
+    PublicationJoin {
+        receipt: ComponentEraPublicationReceipt::from_runtime(
+            701, &foreign, &candidate, true, true,
+        ),
+        candidate,
+    }
+}
+
+/// The publication family's independent checker: replay `publish` on a fresh
+/// empty ledger. Rejection must leave the containing state untouched.
+fn replay_publication(join: &PublicationJoin) -> Result<PublicationJoin, EraPublicationRejection> {
+    let mut ledger = ledger(4);
+    match ledger.publish(join.candidate.clone(), join.receipt.clone()) {
+        Ok(()) => Ok(join.clone()),
+        Err(error) => {
+            assert_eq!(ledger.current_era(), None, "rejection retains no era");
+            assert!(
+                ledger.live_eras().next().is_none(),
+                "rejection retains no live era record"
+            );
+            Err(error.rejection())
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of [`ComponentEraPublicationReceipt`]; checked
+    /// by `publish`'s replay of every copied coordinate against the retained
+    /// candidate argument and the ledger's own published identities.
+    /// `previous_era_closed` binds only once a predecessor exists, so its leg
+    /// needs the routing-switch staging and stays authored in the test — as
+    /// do the consumed-identity replay and the already-live and
+    /// retention-limit rejections.
+    pub enum PublicationReceiptFieldForTest {
+        // `publication_identity = 0`: the consumed-identity precheck.
+        PublicationIdentity,
+        BindingContractIdentity,
+        EntryContractIdentity,
+        // `None` -> `Some(10)`: claims a predecessor that never existed.
+        PreviousEraIdentity,
+        CandidateEraIdentity,
+        CandidateArtifactOccurrenceDigest,
+        CandidateCompatibilityReportIdentity,
+        CandidateEntryPlanIdentity,
+        CandidateEntryPlanReceiptIdentity,
+        // The retained whole-candidate copy swapped wholesale.
+        CandidateWholesale,
+        // One inner field of the retained candidate copy.
+        RetainedCandidateEntryContract,
+        RetainedCandidateCompatibilityReport,
+        NewEraVisible,
+        // An authentic receipt minted under a foreign ledger's contracts.
+        ForeignReceipt,
+    }
+}
+
+/// Substitute exactly one receipt field; the published candidate argument
+/// stays honest, so only the replay can expose the drift.
+fn substitute_publication_receipt_for_test(
+    join: &mut PublicationJoin,
+    field: PublicationReceiptFieldForTest,
+    donor: &PublicationJoin,
 ) {
-    let (_, diagnostic) = rejected_publication(mutate);
-    assert!(
-        diagnostic.contains(fragment),
-        "expected `{fragment}` among `{diagnostic}`"
-    );
+    use PublicationReceiptFieldForTest as Field;
+    match field {
+        Field::PublicationIdentity => join.receipt.publication_identity = 0,
+        Field::BindingContractIdentity => {
+            join.receipt.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::EntryContractIdentity => {
+            join.receipt.entry_contract_identity = "ForeignEntry/v1".into()
+        }
+        Field::PreviousEraIdentity => join.receipt.previous_era_identity = Some(10),
+        Field::CandidateEraIdentity => join.receipt.candidate_era_identity = 99,
+        Field::CandidateArtifactOccurrenceDigest => {
+            join.receipt.candidate_artifact_occurrence_digest =
+                InstalledArtifactOccurrenceDigest::from_sha256([0xEE; 32])
+        }
+        Field::CandidateCompatibilityReportIdentity => {
+            join.receipt
+                .candidate_artifact_instance_compatibility_report_identity += 1
+        }
+        Field::CandidateEntryPlanIdentity => {
+            join.receipt.candidate_entry_plan_identity = "entry-plan:foreign".into()
+        }
+        Field::CandidateEntryPlanReceiptIdentity => {
+            join.receipt.candidate_entry_plan_admission_receipt_identity =
+                "receipt:entry-plan:foreign".into()
+        }
+        Field::CandidateWholesale => join.receipt.candidate = candidate(99),
+        Field::RetainedCandidateEntryContract => {
+            join.receipt.candidate.entry_contract_identity = "OtherEntry/v1".into()
+        }
+        Field::RetainedCandidateCompatibilityReport => {
+            join.receipt
+                .candidate
+                .artifact_instance_compatibility_report_identity = 4_444
+        }
+        Field::NewEraVisible => join.receipt.new_era_visible = false,
+        Field::ForeignReceipt => join.receipt = donor.receipt.clone(),
+    }
+}
+
+/// Every leg rejects inside the binding join except the zeroed publication
+/// identity, which the consumed-identity precheck refuses first.
+fn publication_receipt_outcome(
+    field: PublicationReceiptFieldForTest,
+) -> MutationOutcome<EraPublicationRejection> {
+    MutationOutcome::ExactError(match field {
+        PublicationReceiptFieldForTest::PublicationIdentity => {
+            EraPublicationRejection::ZeroOrReplayedPublicationIdentity
+        }
+        _ => EraPublicationRejection::CandidateBindingJoin,
+    })
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of the [`ComponentEraCandidate`] publish
+    /// argument; the receipt retains the honest copy, so every substitution
+    /// diverges the binding join — or trips the completeness precheck, or the
+    /// embedded coexisting-TCB admission replay. The already-live era and
+    /// retention-limit rejections need staged ledger state and stay authored
+    /// in the test.
+    pub enum PublicationCandidateFieldForTest {
+        // `era_identity = 0`: the completeness precheck.
+        EraIdentityZeroed,
+        EraIdentitySubstituted,
+        ArtifactOccurrenceDigest,
+        CompatibilityReportIdentityZeroed,
+        CompatibilityReportIdentitySubstituted,
+        BindingContractIdentitySubstituted,
+        BindingContractIdentityCleared,
+        EntryContractIdentitySubstituted,
+        EntryContractIdentityCleared,
+        EntryPlanIdentitySubstituted,
+        EntryPlanIdentityCleared,
+        EntryPlanReceiptIdentitySubstituted,
+        EntryPlanReceiptIdentityCleared,
+        // Same-scope acceptance evidence while the receipt still binds the
+        // honest candidate.
+        ExecutableTcbAcceptanceSubstituted,
+        // A scope-drifting acceptance honestly rebound into the receipt:
+        // the binding join clears and the coexisting-TCB admission refuses.
+        ExecutableTcbAcceptanceHonestlyRebound,
+    }
+}
+
+/// Substitute exactly one candidate field; the receipt retains the copy
+/// minted over the honest candidate — except `HonestlyRebound`, which
+/// remints the containing receipt so the substitution reaches the embedded
+/// TCB admission replay.
+fn substitute_publication_candidate_for_test(
+    join: &mut PublicationJoin,
+    field: PublicationCandidateFieldForTest,
+    _donor: &PublicationJoin,
+) {
+    use PublicationCandidateFieldForTest as Field;
+    match field {
+        Field::EraIdentityZeroed => join.candidate.era_identity = 0,
+        Field::EraIdentitySubstituted => join.candidate.era_identity = 99,
+        Field::ArtifactOccurrenceDigest => {
+            join.candidate.artifact_occurrence_digest =
+                InstalledArtifactOccurrenceDigest::from_sha256([0x77; 32])
+        }
+        Field::CompatibilityReportIdentityZeroed => {
+            join.candidate
+                .artifact_instance_compatibility_report_identity = 0
+        }
+        Field::CompatibilityReportIdentitySubstituted => {
+            join.candidate
+                .artifact_instance_compatibility_report_identity += 1
+        }
+        Field::BindingContractIdentitySubstituted => {
+            join.candidate.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::BindingContractIdentityCleared => join.candidate.binding_contract_identity.clear(),
+        Field::EntryContractIdentitySubstituted => {
+            join.candidate.entry_contract_identity = "ForeignEntry/v1".into()
+        }
+        Field::EntryContractIdentityCleared => join.candidate.entry_contract_identity.clear(),
+        Field::EntryPlanIdentitySubstituted => {
+            join.candidate.entry_plan_identity = "entry-plan:foreign".into()
+        }
+        Field::EntryPlanIdentityCleared => join.candidate.entry_plan_identity.clear(),
+        Field::EntryPlanReceiptIdentitySubstituted => {
+            join.candidate.entry_plan_admission_receipt_identity = "receipt:foreign".into()
+        }
+        Field::EntryPlanReceiptIdentityCleared => {
+            join.candidate.entry_plan_admission_receipt_identity.clear()
+        }
+        Field::ExecutableTcbAcceptanceSubstituted => {
+            join.candidate.executable_tcb_acceptance = acceptance("substituted-era", 999)
+        }
+        Field::ExecutableTcbAcceptanceHonestlyRebound => {
+            join.candidate.executable_tcb_acceptance = isolated_acceptance();
+            let staged = ledger(4);
+            join.receipt = ComponentEraPublicationReceipt::from_runtime(
+                join.receipt.publication_identity,
+                &staged,
+                &join.candidate,
+                join.receipt.new_era_visible,
+                join.receipt.previous_era_closed,
+            );
+        }
+    }
+}
+
+/// The completeness-precheck legs name `IncompleteCandidate`, the honestly
+/// rebound scope drift names the embedded TCB admission's exact refusal, and
+/// every other leg diverges the binding join.
+fn publication_candidate_outcome(
+    field: PublicationCandidateFieldForTest,
+) -> MutationOutcome<EraPublicationRejection> {
+    use PublicationCandidateFieldForTest as Field;
+    MutationOutcome::ExactError(match field {
+        Field::EraIdentityZeroed
+        | Field::CompatibilityReportIdentityZeroed
+        | Field::BindingContractIdentityCleared
+        | Field::EntryContractIdentityCleared
+        | Field::EntryPlanIdentityCleared
+        | Field::EntryPlanReceiptIdentityCleared => EraPublicationRejection::IncompleteCandidate,
+        Field::ExecutableTcbAcceptanceHonestlyRebound => {
+            EraPublicationRejection::ExecutableTcbAdmission(
+                "accepted executable manifest scope IsolatedProvider(77) does not match \
+                 coexistence scope CallerAddressSpace"
+                    .into(),
+            )
+        }
+        _ => EraPublicationRejection::CandidateBindingJoin,
+    })
 }
 
 #[test]
 fn component_era_publication_receipt_rejects_every_one_field_substitution() {
     // Every receipt field copied at minting replays against the retained
     // candidate argument and the ledger's own identities.
-    publication_reject_with("receipt is zero or replayed", |_, receipt| {
-        receipt.publication_identity = 0;
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.binding_contract_identity = "ForeignBinding/v1".into();
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.entry_contract_identity = "ForeignEntry/v1".into();
-    });
-    // `previous_era_identity` must equal the ledger's current era — `None`
-    // before the first publication; a fabricated predecessor rejects, and on
-    // a routing switch any drift from the exact superseded era rejects.
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.previous_era_identity = Some(10);
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.candidate_era_identity = 99;
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.candidate_artifact_occurrence_digest =
-            InstalledArtifactOccurrenceDigest::from_sha256([0xEE; 32]);
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.candidate_artifact_instance_compatibility_report_identity += 1;
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.candidate_entry_plan_identity = "entry-plan:foreign".into();
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.candidate_entry_plan_admission_receipt_identity =
-            "receipt:entry-plan:foreign".into();
-    });
-    // The retained whole-candidate copy: a wholesale or an inner-field
-    // substitution both diverge from the published argument.
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.candidate = candidate(99);
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.candidate.entry_contract_identity = "OtherEntry/v1".into();
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt
-            .candidate
-            .artifact_instance_compatibility_report_identity = 4_444;
-    });
-    publication_reject_with(PUBLICATION_BINDING, |_, receipt| {
-        receipt.new_era_visible = false;
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "component era publication receipt",
+        fields: PublicationReceiptFieldForTest::INVENTORY,
+        honest: &honest_publication,
+        donor: foreign_publication(),
+        custody: &Clone::clone,
+        substitute: &substitute_publication_receipt_for_test,
+        check: &replay_publication,
+        outcome: &publication_receipt_outcome,
+        joined_replay: None,
     });
 
     // `previous_era_closed` is replay-bound once a predecessor exists: the
@@ -291,12 +492,9 @@ fn component_era_publication_receipt_rejects_every_one_field_substitution() {
     let error = switched
         .publish(next, receipt)
         .expect_err("an unclosed previous era must reject");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not close the previous era"),
-        "{}",
-        error.diagnostic()
+    assert_eq!(
+        error.rejection(),
+        EraPublicationRejection::PreviousEraNotClosed
     );
     assert_eq!(
         switched.live_eras().collect::<Vec<_>>(),
@@ -311,10 +509,9 @@ fn component_era_publication_receipt_rejects_every_one_field_substitution() {
     let error = switched
         .publish(next, receipt)
         .expect_err("a fabricated predecessor must reject");
-    assert!(
-        error.diagnostic().contains(PUBLICATION_BINDING),
-        "{}",
-        error.diagnostic()
+    assert_eq!(
+        error.rejection(),
+        EraPublicationRejection::CandidateBindingJoin
     );
 
     // The minted `publication_identity` is adopted verbatim — a fresh nonce
@@ -328,27 +525,9 @@ fn component_era_publication_receipt_rejects_every_one_field_substitution() {
     let error = adopted
         .publish(replayed, receipt)
         .expect_err("a replayed publication identity must reject");
-    assert!(
-        error.diagnostic().contains("zero or replayed"),
-        "{}",
-        error.diagnostic()
-    );
-
-    // A receipt minted under a foreign ledger's contract identities cannot
-    // move this ledger's routing.
-    let mut foreign = foreign_ledger(4);
-    foreign_publish(&mut foreign, 10, 700);
-    let ours = candidate(10);
-    let foreign_receipt =
-        ComponentEraPublicationReceipt::from_runtime(701, &foreign, &ours, true, false);
-    let mut ledger = ledger(4);
-    let error = ledger
-        .publish(ours, foreign_receipt)
-        .expect_err("a foreign-ledger receipt must reject");
-    assert!(
-        error.diagnostic().contains(PUBLICATION_BINDING),
-        "{}",
-        error.diagnostic()
+    assert_eq!(
+        error.rejection(),
+        EraPublicationRejection::ZeroOrReplayedPublicationIdentity
     );
 }
 
@@ -357,68 +536,17 @@ fn component_era_candidate_rejects_every_one_field_substitution() {
     // The publish argument is the family's other half: every candidate field
     // is bound either by the completeness precheck, by the ledger's contract
     // identities, or by the receipt's copied coordinates.
-    publication_reject_with("candidate is incomplete", |candidate, _| {
-        candidate.era_identity = 0;
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "component era publication candidate",
+        fields: PublicationCandidateFieldForTest::INVENTORY,
+        honest: &honest_publication,
+        donor: foreign_publication(),
+        custody: &Clone::clone,
+        substitute: &substitute_publication_candidate_for_test,
+        check: &replay_publication,
+        outcome: &publication_candidate_outcome,
+        joined_replay: None,
     });
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.era_identity = 99;
-    });
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.artifact_occurrence_digest =
-            InstalledArtifactOccurrenceDigest::from_sha256([0x77; 32]);
-    });
-    publication_reject_with("candidate is incomplete", |candidate, _| {
-        candidate.artifact_instance_compatibility_report_identity = 0;
-    });
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.artifact_instance_compatibility_report_identity += 1;
-    });
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.binding_contract_identity = "ForeignBinding/v1".into();
-    });
-    publication_reject_with("candidate is incomplete", |candidate, _| {
-        candidate.binding_contract_identity.clear();
-    });
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.entry_contract_identity = "ForeignEntry/v1".into();
-    });
-    publication_reject_with("candidate is incomplete", |candidate, _| {
-        candidate.entry_contract_identity.clear();
-    });
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.entry_plan_identity = "entry-plan:foreign".into();
-    });
-    publication_reject_with("candidate is incomplete", |candidate, _| {
-        candidate.entry_plan_identity.clear();
-    });
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.entry_plan_admission_receipt_identity = "receipt:foreign".into();
-    });
-    publication_reject_with("candidate is incomplete", |candidate, _| {
-        candidate.entry_plan_admission_receipt_identity.clear();
-    });
-    // A same-scope evidence substitution diverges from the receipt's copy.
-    publication_reject_with(PUBLICATION_BINDING, |candidate, _| {
-        candidate.executable_tcb_acceptance = acceptance("substituted-era", 999);
-    });
-
-    // A scope-drifting acceptance honestly reminted into the receipt passes
-    // the binding join and is refused by the embedded coexisting-TCB
-    // admission replay itself.
-    let mut scoped = ledger(4);
-    let mut drifted = candidate(10);
-    drifted.executable_tcb_acceptance = isolated_acceptance();
-    let receipt = ComponentEraPublicationReceipt::from_runtime(100, &scoped, &drifted, true, false);
-    let error = scoped
-        .publish(drifted, receipt)
-        .expect_err("a scope-drifting acceptance must not be admitted");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not match coexistence scope"),
-        "{}",
-        error.diagnostic()
-    );
 
     // A second publication of a live era identity rejects even under a fresh
     // receipt; exceeding the live-era retention limit rejects before binding.
@@ -430,11 +558,7 @@ fn component_era_candidate_rejects_every_one_field_substitution() {
     let error = existing
         .publish(duplicate, receipt)
         .expect_err("a duplicated era identity must reject");
-    assert!(
-        error.diagnostic().contains("already live"),
-        "{}",
-        error.diagnostic()
-    );
+    assert_eq!(error.rejection(), EraPublicationRejection::EraAlreadyLive);
 
     let mut capped = ledger(1);
     publish(&mut capped, 10, 100);
@@ -443,87 +567,108 @@ fn component_era_candidate_rejects_every_one_field_substitution() {
     let error = capped
         .publish(overflow, receipt)
         .expect_err("a publication beyond the retention limit must reject");
-    assert!(
-        error.diagnostic().contains("retention limit"),
-        "{}",
-        error.diagnostic()
+    assert_eq!(
+        error.rejection(),
+        EraPublicationRejection::LiveEraRetentionLimitExceeded
     );
 }
 
-/// Apply one substitution to an entry receipt minted for the current open
-/// era and replay it; the ledger must keep the era and its entry count.
-fn rejected_entry(
-    mutate: impl FnOnce(&mut ComponentEraEntryReceipt),
-) -> (ComponentEraEntryLedger, String) {
+/// An honest entry receipt minted for the current open era.
+fn honest_entry_receipt() -> ComponentEraEntryReceipt {
     let mut ledger = ledger(4);
     publish(&mut ledger, 10, 100);
-    let mut receipt =
-        ComponentEraEntryReceipt::from_runtime(500, &ledger, 10, "entry-plan:10".into(), true);
-    mutate(&mut receipt);
-    let error = ledger
-        .enter(receipt)
-        .expect_err("a substituted entry receipt must not enter");
-    assert_eq!(
-        ledger.live_eras().collect::<Vec<_>>(),
-        vec![(10, ComponentEraEntryState::Open, 0)],
-        "rejection leaves the era open with no entry recorded"
-    );
-    (ledger, error.diagnostic().to_owned())
+    ComponentEraEntryReceipt::from_runtime(500, &ledger, 10, "entry-plan:10".into(), true)
+}
+
+/// An authentic entry receipt minted under `foreign_ledger`'s contracts.
+fn foreign_entry_receipt() -> ComponentEraEntryReceipt {
+    let mut foreign = foreign_ledger(4);
+    foreign_publish(&mut foreign, 10, 700);
+    ComponentEraEntryReceipt::from_runtime(500, &foreign, 10, "entry-plan:10".into(), true)
+}
+
+/// The entry family's independent checker: replay `enter` on a ledger whose
+/// era 10 is the open current one. Rejection keeps the era and records no
+/// entry.
+fn replay_entry(
+    receipt: &ComponentEraEntryReceipt,
+) -> Result<ComponentEraEntryReceipt, EraEntryRejection> {
+    let mut ledger = ledger(4);
+    publish(&mut ledger, 10, 100);
+    match ledger.enter(receipt.clone()) {
+        Ok(_entry) => Ok(receipt.clone()),
+        Err(error) => {
+            assert_eq!(
+                ledger.live_eras().collect::<Vec<_>>(),
+                vec![(10, ComponentEraEntryState::Open, 0)],
+                "rejection leaves the era open with no entry recorded"
+            );
+            Err(error.rejection())
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of [`ComponentEraEntryReceipt`]; checked by
+    /// `enter`'s replay of every copied coordinate against the current open
+    /// era's retained record. The no-published-era lookup, the consumed
+    /// invocation replay, and the closing-era leg need different retained
+    /// state and stay authored in the test.
+    pub enum EntryReceiptFieldForTest {
+        // `invocation_identity = 0`: the fresh-nonce clause.
+        InvocationIdentity,
+        BindingContractIdentity,
+        EntryContractIdentity,
+        // Names the never-published sibling era.
+        ResolvedEraIdentityStale,
+        // Names an era outside this ledger's roster.
+        ResolvedEraIdentityForeign,
+        EntryPlanIdentity,
+        // `entry_linearized = false`: the linearization clause.
+        EntryLinearizationDropped,
+        // An authentic receipt minted under a foreign ledger's contracts.
+        ForeignReceipt,
+    }
+}
+
+/// Substitute exactly one entry receipt field.
+fn substitute_entry_receipt_for_test(
+    receipt: &mut ComponentEraEntryReceipt,
+    field: EntryReceiptFieldForTest,
+    donor: &ComponentEraEntryReceipt,
+) {
+    use EntryReceiptFieldForTest as Field;
+    match field {
+        Field::InvocationIdentity => receipt.invocation_identity = 0,
+        Field::BindingContractIdentity => {
+            receipt.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::EntryContractIdentity => receipt.entry_contract_identity = "ForeignEntry/v1".into(),
+        Field::ResolvedEraIdentityStale => receipt.resolved_era_identity = 20,
+        Field::ResolvedEraIdentityForeign => receipt.resolved_era_identity = 99,
+        Field::EntryPlanIdentity => receipt.entry_plan_identity = "entry-plan:foreign".into(),
+        Field::EntryLinearizationDropped => receipt.entry_linearized = false,
+        Field::ForeignReceipt => *receipt = donor.clone(),
+    }
+}
+
+fn entry_receipt_outcome(_field: EntryReceiptFieldForTest) -> MutationOutcome<EraEntryRejection> {
+    MutationOutcome::ExactError(EraEntryRejection::ExactLinearizationJoin)
 }
 
 #[test]
 fn component_era_entry_receipt_rejects_every_one_field_substitution() {
-    let cases: Vec<(&'static str, Box<dyn Fn(&mut ComponentEraEntryReceipt)>)> = vec![
-        (
-            "invocation_identity::zero",
-            Box::new(|receipt| {
-                receipt.invocation_identity = 0;
-            }),
-        ),
-        (
-            "binding_contract_identity",
-            Box::new(|receipt| {
-                receipt.binding_contract_identity = "ForeignBinding/v1".into();
-            }),
-        ),
-        (
-            "entry_contract_identity",
-            Box::new(|receipt| {
-                receipt.entry_contract_identity = "ForeignEntry/v1".into();
-            }),
-        ),
-        (
-            "resolved_era_identity::stale",
-            Box::new(|receipt| {
-                receipt.resolved_era_identity = 20;
-            }),
-        ),
-        (
-            "resolved_era_identity::foreign",
-            Box::new(|receipt| {
-                receipt.resolved_era_identity = 99;
-            }),
-        ),
-        (
-            "entry_plan_identity",
-            Box::new(|receipt| {
-                receipt.entry_plan_identity = "entry-plan:foreign".into();
-            }),
-        ),
-        (
-            "entry_linearized::false",
-            Box::new(|receipt| {
-                receipt.entry_linearized = false;
-            }),
-        ),
-    ];
-    for (name, mutate) in cases {
-        let (_, diagnostic) = rejected_entry(mutate);
-        assert!(
-            diagnostic.contains("does not linearize exactly once"),
-            "{name}: {diagnostic}"
-        );
-    }
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "component era entry receipt",
+        fields: EntryReceiptFieldForTest::INVENTORY,
+        honest: &honest_entry_receipt,
+        donor: foreign_entry_receipt(),
+        custody: &Clone::clone,
+        substitute: &substitute_entry_receipt_for_test,
+        check: &replay_entry,
+        outcome: &entry_receipt_outcome,
+        joined_replay: None,
+    });
 
     // With no published era there is no current record to bind at all.
     let mut empty = ledger(4);
@@ -532,11 +677,7 @@ fn component_era_entry_receipt_rejects_every_one_field_substitution() {
     let error = empty
         .enter(unpublished)
         .expect_err("an entry without a published era must reject");
-    assert!(
-        error.diagnostic().contains("no published era"),
-        "{}",
-        error.diagnostic()
-    );
+    assert_eq!(error.rejection(), EraEntryRejection::NoPublishedEra);
 
     // The minted `invocation_identity` is adopted verbatim — a fresh nonce
     // enters — but once consumed it cannot linearize a second entry.
@@ -550,13 +691,7 @@ fn component_era_entry_receipt_rejects_every_one_field_substitution() {
     let error = entered
         .enter(replay)
         .expect_err("a replayed invocation identity must reject");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not linearize exactly once"),
-        "{}",
-        error.diagnostic()
-    );
+    assert_eq!(error.rejection(), EraEntryRejection::ExactLinearizationJoin);
     assert_eq!(
         entered.live_eras().collect::<Vec<_>>(),
         vec![(10, ComponentEraEntryState::Open, 1)]
@@ -570,43 +705,36 @@ fn component_era_entry_receipt_rejects_every_one_field_substitution() {
     let error = entered
         .enter(stale)
         .expect_err("a receipt resolving a closing era must reject");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not linearize exactly once"),
-        "{}",
-        error.diagnostic()
-    );
-
-    // A receipt minted under a foreign ledger's contract identities cannot
-    // enter this ledger's era.
-    let mut foreign = foreign_ledger(4);
-    foreign_publish(&mut foreign, 10, 700);
-    let foreign_receipt =
-        ComponentEraEntryReceipt::from_runtime(500, &foreign, 10, "entry-plan:10".into(), true);
-    let mut ours = ledger(4);
-    publish(&mut ours, 10, 100);
-    let error = ours
-        .enter(foreign_receipt)
-        .expect_err("a foreign-ledger entry receipt must reject");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not linearize exactly once"),
-        "{}",
-        error.diagnostic()
-    );
+    assert_eq!(error.rejection(), EraEntryRejection::ExactLinearizationJoin);
 }
 
-/// Mint one honest entry and one substituted leave receipt against it, then
-/// replay. The era keeps its active entry on rejection.
-fn rejected_leave(
-    mutate_entry: impl FnOnce(&mut ActiveComponentEraEntry),
-    mutate_receipt: impl FnOnce(&mut ComponentEraLeaveReceipt),
-) -> (ComponentEraEntryLedger, String) {
+/// The leave join `leave` replays: the consumed entry handle plus the
+/// receipt claiming to complete it.
+#[derive(Debug)]
+struct LeaveJoin {
+    entry: ActiveComponentEraEntry,
+    receipt: ComponentEraLeaveReceipt,
+}
+
+/// The retained-custody view of a staged leave: the handle's fields plus the
+/// whole receipt.
+type LeaveCustody = (u64, String, u64, String, ComponentEraLeaveReceipt);
+
+fn leave_custody(join: &LeaveJoin) -> LeaveCustody {
+    (
+        join.entry.invocation_identity,
+        join.entry.binding_contract_identity.clone(),
+        join.entry.era_identity,
+        join.entry.entry_plan_identity.clone(),
+        join.receipt.clone(),
+    )
+}
+
+/// An honest entry-and-leave pair staged on era 10.
+fn honest_leave() -> LeaveJoin {
     let mut ledger = ledger(4);
     publish(&mut ledger, 10, 100);
-    let mut entry = ledger
+    let entry = ledger
         .enter(ComponentEraEntryReceipt::from_runtime(
             500,
             &ledger,
@@ -614,99 +742,142 @@ fn rejected_leave(
             "entry-plan:10".into(),
             true,
         ))
-        .expect("entry");
-    let mut receipt = ComponentEraLeaveReceipt::from_runtime(&entry, true);
-    mutate_receipt(&mut receipt);
-    mutate_entry(&mut entry);
-    let error = ledger
-        .leave(entry, receipt)
-        .expect_err("a substituted leave must not complete");
-    assert_eq!(
-        ledger.live_eras().collect::<Vec<_>>(),
-        vec![(10, ComponentEraEntryState::Open, 1)],
-        "rejection leaves the entry active"
-    );
-    (ledger, error.diagnostic().to_owned())
+        .expect("honest entry");
+    let receipt = ComponentEraLeaveReceipt::from_runtime(&entry, true);
+    LeaveJoin { entry, receipt }
+}
+
+/// An authentic entry-and-leave pair minted under `foreign_ledger`'s
+/// contracts.
+fn foreign_leave() -> LeaveJoin {
+    let mut foreign = foreign_ledger(4);
+    foreign_publish(&mut foreign, 10, 700);
+    let entry = foreign
+        .enter(ComponentEraEntryReceipt::from_runtime(
+            500,
+            &foreign,
+            10,
+            "entry-plan:10".into(),
+            true,
+        ))
+        .expect("foreign entry");
+    let receipt = ComponentEraLeaveReceipt::from_runtime(&entry, true);
+    LeaveJoin { entry, receipt }
+}
+
+/// `leave` consumes the handle, which is deliberately non-clonable: the
+/// replay rebuilds the substituted record field-for-field.
+fn replayed_entry(entry: &ActiveComponentEraEntry) -> ActiveComponentEraEntry {
+    ActiveComponentEraEntry {
+        invocation_identity: entry.invocation_identity,
+        binding_contract_identity: entry.binding_contract_identity.clone(),
+        era_identity: entry.era_identity,
+        entry_plan_identity: entry.entry_plan_identity.clone(),
+    }
+}
+
+/// The leave family's independent checker: replay `leave` on a ledger whose
+/// era 10 holds one active entry. Rejection leaves the entry active.
+fn replay_leave(join: &LeaveJoin) -> Result<LeaveCustody, EraLeaveRejection> {
+    let mut ledger = ledger(4);
+    publish(&mut ledger, 10, 100);
+    let _staged = ledger
+        .enter(ComponentEraEntryReceipt::from_runtime(
+            500,
+            &ledger,
+            10,
+            "entry-plan:10".into(),
+            true,
+        ))
+        .expect("staging entry");
+    match ledger.leave(replayed_entry(&join.entry), join.receipt.clone()) {
+        Ok(()) => Ok(leave_custody(join)),
+        Err(error) => {
+            assert_eq!(
+                ledger.live_eras().collect::<Vec<_>>(),
+                vec![(10, ComponentEraEntryState::Open, 1)],
+                "rejection leaves the entry active"
+            );
+            Err(error.rejection())
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of the leave join — the
+    /// [`ComponentEraLeaveReceipt`] and the consumed
+    /// [`ActiveComponentEraEntry`] handle it must complete — checked by
+    /// `leave`'s replay of the receipt against the exact active entry. The
+    /// settled-invocation replay and the foreign-membership leg need staged
+    /// ledger state and stay authored in the test.
+    pub enum LeaveJoinFieldForTest {
+        ReceiptInvocationIdentity,
+        ReceiptBindingContractIdentity,
+        ReceiptEraIdentity,
+        ReceiptEntryPlanIdentity,
+        // `leave_completed = false`: the completion clause.
+        ReceiptLeaveIncomplete,
+        EntryInvocationIdentity,
+        EntryBindingContractIdentity,
+        EntryEntryPlanIdentity,
+        // An era outside the live roster: the record lookup itself fails.
+        EntryEraIdentityForeign,
+    }
+}
+
+/// Substitute exactly one field of the leave join — receipt side or entry
+/// handle side.
+fn substitute_leave_for_test(
+    join: &mut LeaveJoin,
+    field: LeaveJoinFieldForTest,
+    _donor: &LeaveJoin,
+) {
+    use LeaveJoinFieldForTest as Field;
+    match field {
+        Field::ReceiptInvocationIdentity => join.receipt.invocation_identity = 501,
+        Field::ReceiptBindingContractIdentity => {
+            join.receipt.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::ReceiptEraIdentity => join.receipt.era_identity = 20,
+        Field::ReceiptEntryPlanIdentity => {
+            join.receipt.entry_plan_identity = "entry-plan:foreign".into()
+        }
+        Field::ReceiptLeaveIncomplete => join.receipt.leave_completed = false,
+        Field::EntryInvocationIdentity => join.entry.invocation_identity = 501,
+        Field::EntryBindingContractIdentity => {
+            join.entry.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::EntryEntryPlanIdentity => {
+            join.entry.entry_plan_identity = "entry-plan:foreign".into()
+        }
+        Field::EntryEraIdentityForeign => join.entry.era_identity = 99,
+    }
+}
+
+/// Only the out-of-roster era escapes the exact-entry join: it fails the
+/// record lookup instead.
+fn leave_outcome(field: LeaveJoinFieldForTest) -> MutationOutcome<EraLeaveRejection> {
+    MutationOutcome::ExactError(match field {
+        LeaveJoinFieldForTest::EntryEraIdentityForeign => EraLeaveRejection::EraNotLive,
+        _ => EraLeaveRejection::ExactActiveEntryJoin,
+    })
 }
 
 #[test]
 fn component_era_leave_receipt_rejects_every_one_field_substitution() {
     // Every receipt field is replayed against the exact active entry handle;
     // mutating either side of the join rejects.
-    let receipt_cases: Vec<(&'static str, Box<dyn Fn(&mut ComponentEraLeaveReceipt)>)> = vec![
-        (
-            "invocation_identity",
-            Box::new(|receipt| {
-                receipt.invocation_identity = 501;
-            }),
-        ),
-        (
-            "binding_contract_identity",
-            Box::new(|receipt| {
-                receipt.binding_contract_identity = "ForeignBinding/v1".into();
-            }),
-        ),
-        (
-            "era_identity",
-            Box::new(|receipt| {
-                receipt.era_identity = 20;
-            }),
-        ),
-        (
-            "entry_plan_identity",
-            Box::new(|receipt| {
-                receipt.entry_plan_identity = "entry-plan:foreign".into();
-            }),
-        ),
-        (
-            "leave_completed::false",
-            Box::new(|receipt| {
-                receipt.leave_completed = false;
-            }),
-        ),
-    ];
-    for (name, mutate) in receipt_cases {
-        let (_, diagnostic) = rejected_leave(|_| {}, mutate);
-        assert!(
-            diagnostic.contains("does not complete the exact active entry"),
-            "{name}: {diagnostic}"
-        );
-    }
-
-    // The consumed entry custody is bound by the same join: a substituted
-    // handle cannot pair with the honest receipt.
-    let entry_cases: Vec<(&'static str, Box<dyn Fn(&mut ActiveComponentEraEntry)>)> = vec![
-        (
-            "entry.invocation_identity",
-            Box::new(|entry| {
-                entry.invocation_identity = 501;
-            }),
-        ),
-        (
-            "entry.binding_contract_identity",
-            Box::new(|entry| {
-                entry.binding_contract_identity = "ForeignBinding/v1".into();
-            }),
-        ),
-        (
-            "entry.entry_plan_identity",
-            Box::new(|entry| {
-                entry.entry_plan_identity = "entry-plan:foreign".into();
-            }),
-        ),
-    ];
-    for (name, mutate) in entry_cases {
-        let (_, diagnostic) = rejected_leave(mutate, |_| {});
-        assert!(
-            diagnostic.contains("does not complete the exact active entry"),
-            "{name}: {diagnostic}"
-        );
-    }
-    let (_, diagnostic) = rejected_leave(|entry| entry.era_identity = 99, |_| {});
-    assert!(
-        diagnostic.contains("no longer live"),
-        "entry.era_identity: {diagnostic}"
-    );
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "component era leave join",
+        fields: LeaveJoinFieldForTest::INVENTORY,
+        honest: &honest_leave,
+        donor: foreign_leave(),
+        custody: &leave_custody,
+        substitute: &substitute_leave_for_test,
+        check: &replay_leave,
+        outcome: &leave_outcome,
+        joined_replay: None,
+    });
 
     // A receipt answering an invocation this ledger already settled cannot
     // leave again: mutating a second entry to the consumed identity mints a
@@ -738,20 +909,16 @@ fn component_era_leave_receipt_rejects_every_one_field_substitution() {
     let error = settled
         .leave(second, replayed)
         .expect_err("a replayed invocation must not leave");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not complete the exact active entry"),
-        "{}",
-        error.diagnostic()
-    );
+    assert_eq!(error.rejection(), EraLeaveRejection::ExactActiveEntryJoin);
     assert_eq!(
         settled.live_eras().collect::<Vec<_>>(),
         vec![(10, ComponentEraEntryState::Open, 1)]
     );
 
     // A foreign ledger's active entry and its honest leave receipt hold no
-    // membership in this ledger.
+    // membership in this ledger — the join binds entry to receipt and
+    // membership, so an authentic foreign pair only fails when this ledger
+    // never entered the invocation.
     let mut foreign = foreign_ledger(4);
     foreign_publish(&mut foreign, 10, 700);
     let foreign_entry = foreign
@@ -763,88 +930,119 @@ fn component_era_leave_receipt_rejects_every_one_field_substitution() {
             true,
         ))
         .expect("foreign entry");
-    let foreign_leave = ComponentEraLeaveReceipt::from_runtime(&foreign_entry, true);
+    let foreign_receipt = ComponentEraLeaveReceipt::from_runtime(&foreign_entry, true);
     let mut ours = ledger(4);
     publish(&mut ours, 10, 100);
     let error = ours
-        .leave(foreign_entry, foreign_leave)
+        .leave(foreign_entry, foreign_receipt)
         .expect_err("a foreign active entry must not leave here");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not complete the exact active entry"),
-        "{}",
-        error.diagnostic()
-    );
+    assert_eq!(error.rejection(), EraLeaveRejection::ExactActiveEntryJoin);
+}
+
+/// An honest quiescence receipt naming the Closing era.
+fn honest_quiescence_receipt() -> ComponentEraQuiescenceReceipt {
+    let mut ledger = ledger(4);
+    publish_then_supersede(&mut ledger, 10, 20);
+    ComponentEraQuiescenceReceipt::from_runtime(&ledger, 10, 0, true)
+}
+
+/// An authentic quiescence receipt minted under `foreign_ledger`'s
+/// contracts.
+fn foreign_quiescence_receipt() -> ComponentEraQuiescenceReceipt {
+    let mut foreign = foreign_ledger(4);
+    foreign_publish_then_supersede(&mut foreign, 10, 20);
+    ComponentEraQuiescenceReceipt::from_runtime(&foreign, 10, 0, true)
+}
+
+/// The quiescence family's independent checker: replay
+/// `establish_quiescence` on a ledger where era 10 is Closing under era 20.
+/// Rejection leaves the era closing, not quiescent.
+fn replay_quiescence(
+    receipt: &ComponentEraQuiescenceReceipt,
+) -> Result<ComponentEraQuiescenceReceipt, EraQuiescenceRejection> {
+    let mut ledger = ledger(4);
+    publish_then_supersede(&mut ledger, 10, 20);
+    match ledger.establish_quiescence(receipt.clone()) {
+        Ok(()) => Ok(receipt.clone()),
+        Err(error) => {
+            assert_eq!(
+                ledger.live_eras().collect::<Vec<_>>(),
+                vec![
+                    (10, ComponentEraEntryState::Closing, 0),
+                    (20, ComponentEraEntryState::Open, 0),
+                ],
+                "rejection leaves the era closing, not quiescent"
+            );
+            Err(error.rejection())
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of [`ComponentEraQuiescenceReceipt`]; checked
+    /// by `establish_quiescence`'s replay against the retained era record.
+    /// The open, occupied, and lease-held eras reject on retained state the
+    /// honest record cannot carry, and stay authored in the test.
+    pub enum QuiescenceReceiptFieldForTest {
+        // An era outside the live roster: the record lookup fails.
+        EraIdentityForeign,
+        // The live-but-current successor fails the Closing-state join.
+        EraIdentityCurrent,
+        BindingContractIdentity,
+        // `residual_lifetime_cohort_holds = 1`: the drained-cohort clause.
+        ResidualCohortHolds,
+        // `all_dispositions_complete = false`: the disposition clause.
+        DispositionsIncomplete,
+        // An authentic receipt minted under a foreign ledger's contracts.
+        ForeignReceipt,
+    }
+}
+
+/// Substitute exactly one quiescence receipt field.
+fn substitute_quiescence_receipt_for_test(
+    receipt: &mut ComponentEraQuiescenceReceipt,
+    field: QuiescenceReceiptFieldForTest,
+    donor: &ComponentEraQuiescenceReceipt,
+) {
+    use QuiescenceReceiptFieldForTest as Field;
+    match field {
+        Field::EraIdentityForeign => receipt.era_identity = 99,
+        Field::EraIdentityCurrent => receipt.era_identity = 20,
+        Field::BindingContractIdentity => {
+            receipt.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::ResidualCohortHolds => receipt.residual_lifetime_cohort_holds = 1,
+        Field::DispositionsIncomplete => receipt.all_dispositions_complete = false,
+        Field::ForeignReceipt => *receipt = donor.clone(),
+    }
+}
+
+/// Only the out-of-roster era escapes the quiescence join: it fails the
+/// record lookup instead.
+fn quiescence_receipt_outcome(
+    field: QuiescenceReceiptFieldForTest,
+) -> MutationOutcome<EraQuiescenceRejection> {
+    MutationOutcome::ExactError(match field {
+        QuiescenceReceiptFieldForTest::EraIdentityForeign => EraQuiescenceRejection::EraNotLive,
+        _ => EraQuiescenceRejection::ClosingCohortJoin,
+    })
 }
 
 #[test]
 fn component_era_quiescence_receipt_rejects_every_one_field_substitution() {
-    let reject = |mutate: Box<dyn FnOnce(&mut ComponentEraQuiescenceReceipt)>| {
-        let mut ledger = ledger(4);
-        publish_then_supersede(&mut ledger, 10, 20);
-        let mut receipt = ComponentEraQuiescenceReceipt::from_runtime(&ledger, 10, 0, true);
-        mutate(&mut receipt);
-        let error = ledger
-            .establish_quiescence(receipt)
-            .expect_err("a substituted quiescence receipt must reject");
-        (ledger, error.diagnostic().to_owned())
-    };
-
     // `era_identity` names the record the rest of the receipt replays
-    // against: a non-live era fails the lookup, and the live-but-current
-    // successor fails the Closing-state join.
-    let (_, diagnostic) = reject(Box::new(|receipt| receipt.era_identity = 99));
-    assert!(
-        diagnostic.contains("not live"),
-        "era_identity::foreign: {diagnostic}"
-    );
-    let cases: Vec<(
-        &'static str,
-        Box<dyn FnOnce(&mut ComponentEraQuiescenceReceipt)>,
-    )> = vec![
-        (
-            "era_identity::current",
-            Box::new(|receipt| {
-                receipt.era_identity = 20;
-            }),
-        ),
-        (
-            "binding_contract_identity",
-            Box::new(|receipt| {
-                receipt.binding_contract_identity = "ForeignBinding/v1".into();
-            }),
-        ),
-        (
-            "residual_lifetime_cohort_holds",
-            Box::new(|receipt| {
-                receipt.residual_lifetime_cohort_holds = 1;
-            }),
-        ),
-        (
-            "all_dispositions_complete::false",
-            Box::new(|receipt| {
-                receipt.all_dispositions_complete = false;
-            }),
-        ),
-    ];
-    for (name, mutate) in cases {
-        let (ledger, diagnostic) = reject(mutate);
-        assert!(
-            diagnostic.contains(
-                "requires closing, zero entries, zero program-local root authority holds, and complete cohort disposition"
-            ),
-            "{name}: {diagnostic}"
-        );
-        assert_eq!(
-            ledger.live_eras().collect::<Vec<_>>(),
-            vec![
-                (10, ComponentEraEntryState::Closing, 0),
-                (20, ComponentEraEntryState::Open, 0),
-            ],
-            "{name}: rejection leaves the era closing, not quiescent"
-        );
-    }
+    // against; every copied coordinate then joins the Closing-era record.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "component era quiescence receipt",
+        fields: QuiescenceReceiptFieldForTest::INVENTORY,
+        honest: &honest_quiescence_receipt,
+        donor: foreign_quiescence_receipt(),
+        custody: &Clone::clone,
+        substitute: &substitute_quiescence_receipt_for_test,
+        check: &replay_quiescence,
+        outcome: &quiescence_receipt_outcome,
+        joined_replay: None,
+    });
 
     // The retained-state legs: an open era, an era with an active entry, and
     // an era with a live epoch-lease hold each reject the honest receipt.
@@ -855,7 +1053,7 @@ fn component_era_quiescence_receipt_rejects_every_one_field_substitution() {
             &open, 10, 0, true,
         ))
         .expect_err("an open era cannot quiesce");
-    assert!(error.diagnostic().contains("requires closing"));
+    assert_eq!(error.rejection(), EraQuiescenceRejection::ClosingCohortJoin);
 
     let mut occupied = ledger(4);
     publish(&mut occupied, 10, 100);
@@ -874,7 +1072,7 @@ fn component_era_quiescence_receipt_rejects_every_one_field_substitution() {
             &occupied, 10, 0, true,
         ))
         .expect_err("an era with an active entry cannot quiesce");
-    assert!(error.diagnostic().contains("requires closing"));
+    assert_eq!(error.rejection(), EraQuiescenceRejection::ClosingCohortJoin);
 
     let mut held = ledger(4);
     publish(&mut held, 10, 100);
@@ -887,86 +1085,116 @@ fn component_era_quiescence_receipt_rejects_every_one_field_substitution() {
             &held, 10, 0, true,
         ))
         .expect_err("an era with a live authority hold cannot quiesce");
-    assert!(error.diagnostic().contains("requires closing"));
+    assert_eq!(error.rejection(), EraQuiescenceRejection::ClosingCohortJoin);
+}
 
-    // A receipt minted under a foreign ledger's contract identity cannot
-    // quiesce this ledger's era.
+/// An honest retirement receipt naming the quiescent era.
+fn honest_retirement_receipt() -> ComponentEraRetirementReceipt {
+    let mut ledger = ledger(4);
+    publish_supersede_quiesce(&mut ledger, 10, 20);
+    ComponentEraRetirementReceipt::from_runtime(700, &ledger, 10, true)
+}
+
+/// An authentic retirement receipt minted under `foreign_ledger`'s
+/// contracts.
+fn foreign_retirement_receipt() -> ComponentEraRetirementReceipt {
     let mut foreign = foreign_ledger(4);
-    foreign_publish_then_supersede(&mut foreign, 10, 20);
-    let foreign_receipt = ComponentEraQuiescenceReceipt::from_runtime(&foreign, 10, 0, true);
-    let mut ours = ledger(4);
-    publish_then_supersede(&mut ours, 10, 20);
-    let error = ours
-        .establish_quiescence(foreign_receipt)
-        .expect_err("a foreign-ledger quiescence receipt must reject");
-    assert!(error.diagnostic().contains("requires closing"));
+    foreign_publish_supersede_quiesce(&mut foreign, 10, 20);
+    ComponentEraRetirementReceipt::from_runtime(700, &foreign, 10, true)
+}
+
+/// The retirement family's independent checker: replay `retire` on a ledger
+/// where era 10 is quiescent under era 20. Rejection keeps the quiescent era
+/// live.
+fn replay_retirement(
+    receipt: &ComponentEraRetirementReceipt,
+) -> Result<ComponentEraRetirementReceipt, EraRetirementRejection> {
+    let mut ledger = ledger(4);
+    publish_supersede_quiesce(&mut ledger, 10, 20);
+    match ledger.retire(receipt.clone()) {
+        Ok(()) => Ok(receipt.clone()),
+        Err(error) => {
+            assert_eq!(
+                ledger.live_eras().collect::<Vec<_>>(),
+                vec![
+                    (10, ComponentEraEntryState::Quiescent, 0),
+                    (20, ComponentEraEntryState::Open, 0),
+                ],
+                "rejection keeps the quiescent era live"
+            );
+            Err(error.rejection())
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable field of [`ComponentEraRetirementReceipt`]; checked
+    /// by `retire`'s replay against the retained quiescent era record and
+    /// the consumed-identity set. The replayed-identity, still-closing, and
+    /// lease-held eras need staged ledger state and stay authored in the
+    /// test.
+    pub enum RetirementReceiptFieldForTest {
+        // An era outside the live roster: the record lookup fails.
+        EraIdentityForeign,
+        // The live-but-current successor fails the noncurrent-quiescent
+        // join.
+        EraIdentityCurrent,
+        // `retirement_identity = 0`: the fresh-nonce clause.
+        RetirementIdentity,
+        BindingContractIdentity,
+        // `lifetime_cohort_released = false`: the cohort-release clause.
+        CohortReleaseDropped,
+        // An authentic receipt minted under a foreign ledger's contracts.
+        ForeignReceipt,
+    }
+}
+
+/// Substitute exactly one retirement receipt field.
+fn substitute_retirement_receipt_for_test(
+    receipt: &mut ComponentEraRetirementReceipt,
+    field: RetirementReceiptFieldForTest,
+    donor: &ComponentEraRetirementReceipt,
+) {
+    use RetirementReceiptFieldForTest as Field;
+    match field {
+        Field::EraIdentityForeign => receipt.era_identity = 99,
+        Field::EraIdentityCurrent => receipt.era_identity = 20,
+        Field::RetirementIdentity => receipt.retirement_identity = 0,
+        Field::BindingContractIdentity => {
+            receipt.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::CohortReleaseDropped => receipt.lifetime_cohort_released = false,
+        Field::ForeignReceipt => *receipt = donor.clone(),
+    }
+}
+
+/// Only the out-of-roster era escapes the retirement join: it fails the
+/// record lookup instead.
+fn retirement_receipt_outcome(
+    field: RetirementReceiptFieldForTest,
+) -> MutationOutcome<EraRetirementRejection> {
+    MutationOutcome::ExactError(match field {
+        RetirementReceiptFieldForTest::EraIdentityForeign => EraRetirementRejection::EraNotLive,
+        _ => EraRetirementRejection::QuiescentReleaseJoin,
+    })
 }
 
 #[test]
 fn component_era_retirement_receipt_rejects_every_one_field_substitution() {
-    let reject = |mutate: Box<dyn FnOnce(&mut ComponentEraRetirementReceipt)>| {
-        let mut ledger = ledger(4);
-        publish_supersede_quiesce(&mut ledger, 10, 20);
-        let mut receipt = ComponentEraRetirementReceipt::from_runtime(700, &ledger, 10, true);
-        mutate(&mut receipt);
-        let error = ledger
-            .retire(receipt)
-            .expect_err("a substituted retirement receipt must reject");
-        (ledger, error.diagnostic().to_owned())
-    };
-
-    let (_, diagnostic) = reject(Box::new(|receipt| receipt.era_identity = 99));
-    assert!(
-        diagnostic.contains("not live"),
-        "era_identity::foreign: {diagnostic}"
-    );
-    let cases: Vec<(
-        &'static str,
-        Box<dyn FnOnce(&mut ComponentEraRetirementReceipt)>,
-    )> = vec![
-        // The current era and the closing-but-not-quiescent era both fail
-        // the noncurrent-quiescent join.
-        (
-            "era_identity::current",
-            Box::new(|receipt| {
-                receipt.era_identity = 20;
-            }),
-        ),
-        (
-            "retirement_identity::zero",
-            Box::new(|receipt| {
-                receipt.retirement_identity = 0;
-            }),
-        ),
-        (
-            "binding_contract_identity",
-            Box::new(|receipt| {
-                receipt.binding_contract_identity = "ForeignBinding/v1".into();
-            }),
-        ),
-        (
-            "lifetime_cohort_released::false",
-            Box::new(|receipt| {
-                receipt.lifetime_cohort_released = false;
-            }),
-        ),
-    ];
-    for (name, mutate) in cases {
-        let (ledger, diagnostic) = reject(mutate);
-        assert!(
-            diagnostic
-                .contains("requires a noncurrent quiescent released cohort and fresh receipt"),
-            "{name}: {diagnostic}"
-        );
-        assert_eq!(
-            ledger.live_eras().collect::<Vec<_>>(),
-            vec![
-                (10, ComponentEraEntryState::Quiescent, 0),
-                (20, ComponentEraEntryState::Open, 0),
-            ],
-            "{name}: rejection keeps the quiescent era live"
-        );
-    }
+    // The current era and the closing-but-not-quiescent era both fail the
+    // noncurrent-quiescent join; the nonce and contract coordinates join the
+    // consumed set and the ledger's identities.
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "component era retirement receipt",
+        fields: RetirementReceiptFieldForTest::INVENTORY,
+        honest: &honest_retirement_receipt,
+        donor: foreign_retirement_receipt(),
+        custody: &Clone::clone,
+        substitute: &substitute_retirement_receipt_for_test,
+        check: &replay_retirement,
+        outcome: &retirement_receipt_outcome,
+        joined_replay: None,
+    });
 
     // The minted `retirement_identity` is adopted verbatim — a fresh nonce
     // retires — but the consumed set moves honestly: a second retirement
@@ -989,10 +1217,9 @@ fn component_era_retirement_receipt_rejects_every_one_field_substitution() {
             700, &adopted, 20, true,
         ))
         .expect_err("a replayed retirement identity must reject");
-    assert!(
-        error.diagnostic().contains("fresh receipt"),
-        "{}",
-        error.diagnostic()
+    assert_eq!(
+        error.rejection(),
+        EraRetirementRejection::QuiescentReleaseJoin
     );
 
     // A Closing era that was never quiesced cannot retire; a live
@@ -1004,7 +1231,10 @@ fn component_era_retirement_receipt_rejects_every_one_field_substitution() {
             700, &open, 10, true,
         ))
         .expect_err("a non-quiescent era cannot retire");
-    assert!(error.diagnostic().contains("noncurrent quiescent"));
+    assert_eq!(
+        error.rejection(),
+        EraRetirementRejection::QuiescentReleaseJoin
+    );
 
     let mut held = ledger(4);
     publish(&mut held, 10, 100);
@@ -1017,135 +1247,202 @@ fn component_era_retirement_receipt_rejects_every_one_field_substitution() {
             700, &held, 10, true,
         ))
         .expect_err("a live authority hold blocks retirement");
-    assert!(
-        error.diagnostic().contains("epoch leases remain live"),
-        "{}",
-        error.diagnostic()
-    );
-
-    // A receipt minted under a foreign ledger's contract identity cannot
-    // retire this ledger's era.
-    let mut foreign = foreign_ledger(4);
-    foreign_publish_supersede_quiesce(&mut foreign, 10, 20);
-    let foreign_receipt = ComponentEraRetirementReceipt::from_runtime(700, &foreign, 10, true);
-    let mut ours = ledger(4);
-    publish_supersede_quiesce(&mut ours, 10, 20);
-    let error = ours
-        .retire(foreign_receipt)
-        .expect_err("a foreign-ledger retirement receipt must reject");
-    assert!(error.diagnostic().contains("noncurrent quiescent"));
+    assert_eq!(error.rejection(), EraRetirementRejection::EpochLeasesLive);
 }
 
-/// Acquire one honest lease, apply one substitution, and replay release.
-/// Rejection keeps the era's authority hold.
-fn rejected_lease_release(
-    mutate: impl FnOnce(&mut ProgramLocalRootEpochLease),
-) -> (ComponentEraEntryLedger, String) {
+/// The retained-custody view of an epoch lease: every binding the hold
+/// carries. The lease itself is deliberately non-clonable, so the matrix
+/// compares this projection.
+#[derive(Debug, Clone, PartialEq)]
+struct EpochLeaseCustody {
+    identity: ProgramLocalRootEpochLeaseId,
+    ledger: ComponentEraLedgerId,
+    binding_contract_identity: String,
+    entry_contract_identity: String,
+    era_identity: u64,
+    artifact_occurrence_digest: InstalledArtifactOccurrenceDigest,
+    artifact_instance_compatibility_report_identity: u64,
+    entry_plan_identity: String,
+    entry_plan_admission_receipt_identity: String,
+    candidate: ComponentEraCandidate,
+}
+
+impl EpochLeaseCustody {
+    fn of(lease: &ProgramLocalRootEpochLease) -> Self {
+        Self {
+            identity: lease.identity,
+            ledger: lease.ledger,
+            binding_contract_identity: lease.binding_contract_identity.clone(),
+            entry_contract_identity: lease.entry_contract_identity.clone(),
+            era_identity: lease.era_identity,
+            artifact_occurrence_digest: lease.artifact_occurrence_digest,
+            artifact_instance_compatibility_report_identity: lease
+                .artifact_instance_compatibility_report_identity,
+            entry_plan_identity: lease.entry_plan_identity.clone(),
+            entry_plan_admission_receipt_identity: lease
+                .entry_plan_admission_receipt_identity
+                .clone(),
+            candidate: lease.candidate.clone(),
+        }
+    }
+}
+
+/// `release` consumes the hold, which is deliberately non-clonable: the
+/// replay rebuilds the substituted record field-for-field.
+fn replayed_lease(lease: &ProgramLocalRootEpochLease) -> ProgramLocalRootEpochLease {
+    ProgramLocalRootEpochLease {
+        identity: lease.identity,
+        ledger: lease.ledger,
+        binding_contract_identity: lease.binding_contract_identity.clone(),
+        entry_contract_identity: lease.entry_contract_identity.clone(),
+        era_identity: lease.era_identity,
+        artifact_occurrence_digest: lease.artifact_occurrence_digest,
+        artifact_instance_compatibility_report_identity: lease
+            .artifact_instance_compatibility_report_identity,
+        entry_plan_identity: lease.entry_plan_identity.clone(),
+        entry_plan_admission_receipt_identity: lease.entry_plan_admission_receipt_identity.clone(),
+        candidate: lease.candidate.clone(),
+    }
+}
+
+/// An honest lease issued for the open era 10.
+fn honest_epoch_lease() -> ProgramLocalRootEpochLease {
     let mut ledger = ledger(4);
     publish(&mut ledger, 10, 100);
-    let mut lease = ledger
+    ledger
         .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
-        .expect("lease");
-    mutate(&mut lease);
-    let error = ledger
-        .release_program_local_root_epoch_lease(lease)
-        .expect_err("a substituted lease must not release");
-    let diagnostic = error.diagnostic().to_owned();
-    assert_eq!(
-        ledger.program_local_root_authority_holds(10),
-        Some(1),
-        "rejection keeps the era's authority hold"
-    );
-    (ledger, diagnostic)
+        .expect("honest lease")
+}
+
+/// An authentic lease issued under `foreign_ledger`'s contracts.
+fn foreign_epoch_lease() -> ProgramLocalRootEpochLease {
+    let mut foreign = foreign_ledger(4);
+    foreign_publish(&mut foreign, 10, 700);
+    foreign
+        .acquire_program_local_root_epoch_lease(lease_id(900), 10, "ForeignEntry/v1")
+        .expect("foreign lease")
+}
+
+/// The lease family's independent checker: replay `release` on a ledger
+/// whose era 10 issued hold 900. Rejection keeps the era's authority hold.
+fn replay_epoch_lease_release(
+    lease: &ProgramLocalRootEpochLease,
+) -> Result<EpochLeaseCustody, ProgramLocalRootEpochLeaseReleaseRejection> {
+    let mut ledger = ledger(4);
+    publish(&mut ledger, 10, 100);
+    let _issued = ledger
+        .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
+        .expect("staging hold");
+    match ledger.release_program_local_root_epoch_lease(replayed_lease(lease)) {
+        Ok(()) => Ok(EpochLeaseCustody::of(lease)),
+        Err(error) => {
+            assert_eq!(
+                ledger.program_local_root_authority_holds(10),
+                Some(1),
+                "rejection keeps the era's authority hold"
+            );
+            Err(error.rejection())
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable binding of [`ProgramLocalRootEpochLease`]; checked
+    /// by `release`'s replay of every carried coordinate against the
+    /// retained era record and the issued-hold sets. The rebound-to-a-live-
+    /// sibling era leg, the indistinguishable-release leg that honestly
+    /// settles another hold's identity, and the stricter `validate` replay
+    /// stay authored in the test.
+    pub enum EpochLeaseFieldForTest {
+        // An identity this ledger never issued.
+        IdentityUnissued,
+        // A different containing ledger.
+        LedgerIdentity,
+        BindingContractIdentity,
+        EntryContractIdentity,
+        ArtifactOccurrenceDigest,
+        CompatibilityReportIdentity,
+        EntryPlanIdentity,
+        EntryPlanReceiptIdentity,
+        // The retained candidate copy swapped wholesale.
+        CandidateWholesale,
+        // One inner axis of the retained candidate copy.
+        CandidateAcceptance,
+        // An era outside the live roster: the record lookup fails.
+        EraIdentityForeign,
+        // An authentic lease minted under a foreign ledger.
+        ForeignLease,
+    }
+}
+
+/// Substitute exactly one lease binding.
+fn substitute_epoch_lease_for_test(
+    lease: &mut ProgramLocalRootEpochLease,
+    field: EpochLeaseFieldForTest,
+    donor: &ProgramLocalRootEpochLease,
+) {
+    use EpochLeaseFieldForTest as Field;
+    match field {
+        Field::IdentityUnissued => lease.identity = lease_id(999),
+        Field::LedgerIdentity => {
+            lease.ledger =
+                ComponentEraLedgerId::from_normalized_identity(2).expect("ledger identity")
+        }
+        Field::BindingContractIdentity => {
+            lease.binding_contract_identity = "ForeignBinding/v1".into()
+        }
+        Field::EntryContractIdentity => lease.entry_contract_identity = "ForeignEntry/v1".into(),
+        Field::ArtifactOccurrenceDigest => {
+            lease.artifact_occurrence_digest =
+                InstalledArtifactOccurrenceDigest::from_sha256([0xEE; 32])
+        }
+        Field::CompatibilityReportIdentity => {
+            lease.artifact_instance_compatibility_report_identity = 4_444
+        }
+        Field::EntryPlanIdentity => lease.entry_plan_identity = "entry-plan:foreign".into(),
+        Field::EntryPlanReceiptIdentity => {
+            lease.entry_plan_admission_receipt_identity = "receipt:entry-plan:foreign".into()
+        }
+        Field::CandidateWholesale => lease.candidate = candidate(20),
+        Field::CandidateAcceptance => {
+            lease.candidate.executable_tcb_acceptance = acceptance("substituted-era", 999)
+        }
+        Field::EraIdentityForeign => lease.era_identity = 99,
+        Field::ForeignLease => *lease = replayed_lease(donor),
+    }
+}
+
+/// Only the out-of-roster era escapes the exact-release join: it fails the
+/// record lookup instead.
+fn epoch_lease_outcome(
+    field: EpochLeaseFieldForTest,
+) -> MutationOutcome<ProgramLocalRootEpochLeaseReleaseRejection> {
+    MutationOutcome::ExactError(match field {
+        EpochLeaseFieldForTest::EraIdentityForeign => {
+            ProgramLocalRootEpochLeaseReleaseRejection::ForeignEra
+        }
+        _ => ProgramLocalRootEpochLeaseReleaseRejection::ExactPublishedEraJoin,
+    })
 }
 
 #[test]
 fn program_local_root_epoch_lease_rejects_every_one_field_substitution() {
     // Every binding the lease carries replays against the retained era
     // record and the ledger's own identities at release.
-    let cases: Vec<(
-        &'static str,
-        Box<dyn FnOnce(&mut ProgramLocalRootEpochLease)>,
-    )> = vec![
-        (
-            "identity::unissued",
-            Box::new(|lease| {
-                lease.identity = lease_id(999);
-            }),
-        ),
-        (
-            "ledger",
-            Box::new(|lease| {
-                lease.ledger =
-                    ComponentEraLedgerId::from_normalized_identity(2).expect("ledger identity");
-            }),
-        ),
-        (
-            "binding_contract_identity",
-            Box::new(|lease| {
-                lease.binding_contract_identity = "ForeignBinding/v1".into();
-            }),
-        ),
-        (
-            "entry_contract_identity",
-            Box::new(|lease| {
-                lease.entry_contract_identity = "ForeignEntry/v1".into();
-            }),
-        ),
-        (
-            "artifact_occurrence_digest",
-            Box::new(|lease| {
-                lease.artifact_occurrence_digest =
-                    InstalledArtifactOccurrenceDigest::from_sha256([0xEE; 32]);
-            }),
-        ),
-        (
-            "artifact_instance_compatibility_report_identity",
-            Box::new(|lease| {
-                lease.artifact_instance_compatibility_report_identity = 4_444;
-            }),
-        ),
-        (
-            "entry_plan_identity",
-            Box::new(|lease| {
-                lease.entry_plan_identity = "entry-plan:foreign".into();
-            }),
-        ),
-        (
-            "entry_plan_admission_receipt_identity",
-            Box::new(|lease| {
-                lease.entry_plan_admission_receipt_identity = "receipt:entry-plan:foreign".into();
-            }),
-        ),
-        (
-            "candidate::wholesale",
-            Box::new(|lease| {
-                lease.candidate = candidate(20);
-            }),
-        ),
-        (
-            "candidate::inner",
-            Box::new(|lease| {
-                lease.candidate.executable_tcb_acceptance = acceptance("substituted-era", 999);
-            }),
-        ),
-    ];
-    for (name, mutate) in cases {
-        let (_, diagnostic) = rejected_lease_release(mutate);
-        assert!(
-            diagnostic.contains("does not belong to this exact published era"),
-            "{name}: {diagnostic}"
-        );
-    }
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "program-local root epoch lease",
+        fields: EpochLeaseFieldForTest::INVENTORY,
+        honest: &honest_epoch_lease,
+        donor: foreign_epoch_lease(),
+        custody: &EpochLeaseCustody::of,
+        substitute: &substitute_epoch_lease_for_test,
+        check: &replay_epoch_lease_release,
+        outcome: &epoch_lease_outcome,
+        joined_replay: None,
+    });
 
-    // An era identity outside the live roster fails the record lookup
-    // itself; a lease rebound to another live era binds the wrong retained
+    // A lease rebound to another live era binds the wrong retained
     // candidate.
-    let (_, diagnostic) = rejected_lease_release(|lease| lease.era_identity = 99);
-    assert!(
-        diagnostic.contains("outside this ledger"),
-        "era_identity::foreign: {diagnostic}"
-    );
     let mut two_eras = ledger(4);
     publish(&mut two_eras, 10, 100);
     publish(&mut two_eras, 20, 101);
@@ -1156,12 +1453,9 @@ fn program_local_root_epoch_lease_rejects_every_one_field_substitution() {
     let error = two_eras
         .release_program_local_root_epoch_lease(lease)
         .expect_err("a lease rebound to another era must not release");
-    assert!(
-        error
-            .diagnostic()
-            .contains("does not belong to this exact published era"),
-        "{}",
-        error.diagnostic()
+    assert_eq!(
+        error.rejection(),
+        ProgramLocalRootEpochLeaseReleaseRejection::ExactPublishedEraJoin
     );
 
     // The minted lease `identity` is a nonce the ledger adopts verbatim: a
@@ -1192,63 +1486,146 @@ fn program_local_root_epoch_lease_rejects_every_one_field_substitution() {
         .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
         .expect("lease");
     lease.artifact_instance_compatibility_report_identity = 4_444;
-    let diagnostic = validating
-        .validate_program_local_root_epoch_lease(&lease)
-        .expect_err("a substituted lease must not validate");
-    assert!(
-        diagnostic.contains("not live in the exact current open era"),
-        "{diagnostic}"
+    assert_eq!(
+        validating.validate_program_local_root_epoch_lease(&lease),
+        Err(ProgramLocalRootEpochLeaseValidationRejection::NotLiveInCurrentOpenEra),
+        "a substituted lease must not validate"
     );
     lease.artifact_instance_compatibility_report_identity = 1_010;
     publish(&mut validating, 20, 101);
-    let diagnostic = validating
-        .validate_program_local_root_epoch_lease(&lease)
-        .expect_err("a closing era cannot establish fresh authority");
-    assert!(
-        diagnostic.contains("not live in the exact current open era"),
-        "{diagnostic}"
+    assert_eq!(
+        validating.validate_program_local_root_epoch_lease(&lease),
+        Err(ProgramLocalRootEpochLeaseValidationRejection::NotLiveInCurrentOpenEra),
+        "a closing era cannot establish fresh authority"
     );
     validating
         .release_program_local_root_epoch_lease(lease)
         .expect("a closing era still releases its exact hold");
+}
 
+/// The request `acquire_program_local_root_epoch_lease` replays: the minted
+/// lease identity, the era it names, and the entry contract it claims.
+#[derive(Debug, Clone, PartialEq)]
+struct EpochLeaseAcquisition {
+    identity: ProgramLocalRootEpochLeaseId,
+    era_identity: u64,
+    entry_contract_identity: String,
+}
+
+/// An honest acquisition request against a ledger whose era 10 is superseded
+/// by era 20 — staging that also covers the replayed-identity and stale-era
+/// axes: hold 900 is consumed and the current era is 20.
+fn honest_epoch_lease_acquisition() -> EpochLeaseAcquisition {
+    EpochLeaseAcquisition {
+        identity: lease_id(901),
+        era_identity: 20,
+        entry_contract_identity: "CodecEntry/v1".into(),
+    }
+}
+
+/// An authentic request minted under `foreign_ledger`'s contracts.
+fn foreign_epoch_lease_acquisition() -> EpochLeaseAcquisition {
+    EpochLeaseAcquisition {
+        identity: lease_id(901),
+        era_identity: 20,
+        entry_contract_identity: "ForeignEntry/v1".into(),
+    }
+}
+
+/// The acquisition family's independent checker: replay `acquire` on the
+/// superseded-era staging. Rejection grants no hold on the current era.
+fn replay_epoch_lease_acquisition(
+    request: &EpochLeaseAcquisition,
+) -> Result<EpochLeaseAcquisition, ProgramLocalRootEpochLeaseAcquisitionRejection> {
+    let mut ledger = ledger(4);
+    publish(&mut ledger, 10, 100);
+    let _hold = ledger
+        .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
+        .expect("staging hold");
+    publish(&mut ledger, 20, 101);
+    match ledger.acquire_program_local_root_epoch_lease(
+        request.identity,
+        request.era_identity,
+        &request.entry_contract_identity,
+    ) {
+        Ok(_lease) => Ok(request.clone()),
+        Err(error) => {
+            assert_eq!(
+                ledger.program_local_root_authority_holds(20),
+                Some(0),
+                "rejection grants no hold on the current era"
+            );
+            Err(error.rejection())
+        }
+    }
+}
+
+optimization_core::custody_field_inventory! {
+    /// One substitutable axis of the epoch-lease acquisition request;
+    /// checked by `acquire`'s replay order — consumed identity, current-era
+    /// join, then the exact open contract.
+    pub enum EpochLeaseAcquisitionFieldForTest {
+        // An already-issued identity.
+        IdentityReplayed,
+        // An era this ledger never published.
+        EraIdentityUnpublished,
+        // A live-but-superseded era.
+        EraIdentitySuperseded,
+        EntryContractIdentityCleared,
+        EntryContractIdentityForeign,
+        // An authentic request minted under a foreign ledger's contracts.
+        ForeignRequest,
+    }
+}
+
+/// Substitute exactly one acquisition axis.
+fn substitute_epoch_lease_acquisition_for_test(
+    request: &mut EpochLeaseAcquisition,
+    field: EpochLeaseAcquisitionFieldForTest,
+    donor: &EpochLeaseAcquisition,
+) {
+    use EpochLeaseAcquisitionFieldForTest as Field;
+    match field {
+        Field::IdentityReplayed => request.identity = lease_id(900),
+        Field::EraIdentityUnpublished => request.era_identity = 99,
+        Field::EraIdentitySuperseded => request.era_identity = 10,
+        Field::EntryContractIdentityCleared => request.entry_contract_identity.clear(),
+        Field::EntryContractIdentityForeign => {
+            request.entry_contract_identity = "ForeignEntry/v1".into()
+        }
+        Field::ForeignRequest => *request = donor.clone(),
+    }
+}
+
+/// The request legs reject in replay order: the consumed identity first,
+/// then the current-era join, then the contract join.
+fn epoch_lease_acquisition_outcome(
+    field: EpochLeaseAcquisitionFieldForTest,
+) -> MutationOutcome<ProgramLocalRootEpochLeaseAcquisitionRejection> {
+    use EpochLeaseAcquisitionFieldForTest as Field;
+    MutationOutcome::ExactError(match field {
+        Field::IdentityReplayed => ProgramLocalRootEpochLeaseAcquisitionRejection::IdentityConsumed,
+        Field::EraIdentityUnpublished | Field::EraIdentitySuperseded => {
+            ProgramLocalRootEpochLeaseAcquisitionRejection::NotCurrentEra
+        }
+        _ => ProgramLocalRootEpochLeaseAcquisitionRejection::OpenContractJoin,
+    })
+}
+
+#[test]
+fn program_local_root_epoch_lease_acquisition_rejects_every_one_field_substitution() {
     // Acquisition replays its own axes: consumed identities, non-current or
     // unpublished eras, and contract identities that diverge from either the
     // ledger or the retained candidate.
-    let mut acquiring = ledger(4);
-    publish(&mut acquiring, 10, 100);
-    let _lease = acquiring
-        .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
-        .expect("lease");
-    let error = acquiring
-        .acquire_program_local_root_epoch_lease(lease_id(900), 10, "CodecEntry/v1")
-        .expect_err("a replayed lease identity must reject");
-    assert!(
-        error.diagnostic().contains("already issued or consumed"),
-        "{}",
-        error.diagnostic()
-    );
-    for (name, era, contract, fragment) in [
-        ("era::unpublished", 99, "CodecEntry/v1", "exact current"),
-        ("contract::empty", 10, "", "exact open"),
-        ("contract::foreign", 10, "ForeignEntry/v1", "exact open"),
-    ] {
-        let error = acquiring
-            .acquire_program_local_root_epoch_lease(lease_id(901), era, contract)
-            .expect_err("a substituted acquisition must reject");
-        assert!(
-            error.diagnostic().contains(fragment),
-            "{name}: {}",
-            error.diagnostic()
-        );
-    }
-    publish(&mut acquiring, 20, 101);
-    let error = acquiring
-        .acquire_program_local_root_epoch_lease(lease_id(902), 10, "CodecEntry/v1")
-        .expect_err("a superseded era cannot issue fresh authority");
-    assert!(
-        error.diagnostic().contains("exact current"),
-        "{}",
-        error.diagnostic()
-    );
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "program-local root epoch lease acquisition",
+        fields: EpochLeaseAcquisitionFieldForTest::INVENTORY,
+        honest: &honest_epoch_lease_acquisition,
+        donor: foreign_epoch_lease_acquisition(),
+        custody: &Clone::clone,
+        substitute: &substitute_epoch_lease_acquisition_for_test,
+        check: &replay_epoch_lease_acquisition,
+        outcome: &epoch_lease_acquisition_outcome,
+        joined_replay: None,
+    });
 }

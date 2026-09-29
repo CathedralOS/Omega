@@ -441,6 +441,7 @@ impl RunnableComponentEraLedger {
     ) -> Result<(), String> {
         self.lifecycle
             .validate_program_local_root_epoch_lease(lease)
+            .map_err(|rejection| rejection.diagnostic().to_owned())
     }
 
     pub fn release_program_local_root_epoch_lease(
