@@ -22,8 +22,8 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("Hello, Omega.");
+machine Main::main(context: &mut Main) reaches Console {
+    context.console.write_line("Hello, Omega.");
 }
 ```
 
@@ -47,9 +47,11 @@ The invocation selects an exact target; naming a binding does not select it.
 `Binding<Console>` is a compiler-known service carrier, not a Console provider
 object. Its binding must be established before use. Missing or incompatible
 build supply rejects compilation; no additional domain annotation is needed.
-The target's entry bridge provisions one receiver and the admitted storage and
-providers before calling the entry. There is no special discovery of a machine
-named `main`. A free machine may also be selected when no receiver is needed.
+The target's entry bridge provisions the declared context parameter and its
+admitted storage and providers before calling the entry. `Main::main` names a
+static declaration; its qualified name supplies no argument. There is no special
+discovery of a machine named `main`. An entry needing no context may omit that
+parameter when its selected entry shape permits it.
 Other values of `Main` remain ordinary values: the data type itself grants no
 entry authority. See [entry roots](../spec/build/entry_roots.md).
 
@@ -64,17 +66,18 @@ data Player {
     armor: i32;
 }
 
-machine Player::take_damage(&mut self, amount: i32)
+machine Player::take_damage(player: &mut Player, amount: i32)
 requires amount >= 0
-requires self.health >= amount
+requires player.health >= amount
 {
-    self.health = self.health - amount;
+    player.health = player.health - amount;
 }
 ```
 
-The receiver parameter supplies access; the machine does not implicitly own
-fields. `self.health` identifies stored state, while `amount` is an explicit
-input. The preconditions establish that the subtraction is in range.
+The ordinary `player` parameter supplies access; the machine does not implicitly
+own fields. `player.health` identifies stored state, while `amount` is another
+explicit input. Call it as `Player::take_damage(&mut player, amount)`. The
+preconditions establish that the subtraction is in range.
 
 ## Case Members (Sum Shapes)
 
@@ -208,13 +211,16 @@ Locals are temporary bindings, not stored fields:
 
 ```omega
 let amount: i32 = 4;
-let next_health: i32 = self.health - amount;
-self.health = next_health;
+let next_health: i32 = player.health - amount;
+player.health = next_health;
 ```
 
 The subtraction needs the same range proof as any other arithmetic. The local's
 scope and ownership determine how long it may be used; introducing it does not
 make it part of the data layout.
+Values needed by a later named state are passed as state arguments. A temporary
+buffer or calculation does not become a field merely because several operations
+use it; fields describe state whose lifetime belongs to the record.
 
 ## Constants
 

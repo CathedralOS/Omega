@@ -17,8 +17,8 @@ pub boundary trait Game {
         reaches Game;
 }
 
-pub trait ScriptCalls {
-    machine reward(player: u64)
+pub trait ScriptCalls<Context> {
+    machine reward(context: &mut Context, player: u64)
         reaches Game;
 }
 
@@ -26,18 +26,21 @@ data RewardScript {
     game: Binding<Game>;
 }
 
-machine RewardScript::reward(&mut self, player: u64)
-satisfies ScriptCalls::reward
+machine RewardScript::reward(context: &mut RewardScript, player: u64)
+satisfies ScriptCalls<RewardScript>::reward
 reaches Game
 {
-    self.game.set_health(player, 100);
+    context.game.set_health(player, 100);
 }
 ```
 
 The host and script depend on the same interface package. The build selects an
-exported entry for the script and establishes its receiver from supplied bindings;
+exported entry for the script and establishes its explicit context from supplied bindings;
 the example does not implicitly export `reward`. There is no special script
 `main` name. Missing or incompatible bindings reject before guest execution.
+`ScriptCalls` declares the context parameter rather than relying on an implicit
+receiver. The installed entry adapter supplies that parameter from the admitted
+instance; an ordinary in-language call supplies it explicitly.
 
 `Binding<T>` names an established implementation of a boundary requirement. It
 is a core type name, not a keyword or network-service facility. Native execution
