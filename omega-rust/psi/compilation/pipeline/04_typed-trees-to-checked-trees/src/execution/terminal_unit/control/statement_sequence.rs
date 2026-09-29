@@ -1150,6 +1150,7 @@ pub(in crate::execution::terminal_unit) fn build(
         )?;
     }
     trace.statement(None);
+    append_exit_reference_releases(facts, machine.symbol, state.symbol, &mut operations)?;
     completion::complete(completion::Completion {
         program,
         facts,
@@ -1379,6 +1380,44 @@ fn append_reference_releases(
         }
     }
     operations.extend(pending);
+    Some(())
+}
+
+// Loans released by the state's natural exit carry their weakening at a
+// boundary the per-statement loop never visits (the transition statement, or
+// one past the last ordinary statement). The completion still needs the
+// `ReleaseReference` op so the result-binding cleanup sees the disposal.
+fn append_exit_reference_releases(
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    operations: &mut Vec<CheckedUnitEffectOperationPlan>,
+) -> Option<()> {
+    let mut pending = Vec::new();
+    for operation in operations.iter() {
+        if let CheckedUnitEffectOperationPlan::StructuralCall {
+            result, custody, ..
+        } = operation
+            && custody.reference_loan.is_valid()
+        {
+            let loan = custody.reference_loan;
+            let boundary =
+                super::super::reference_results::release_statement(facts, machine, state, loan)?;
+            if !operations.iter().any(|operation| {
+                matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. } if *released == loan)
+            }) && !pending.iter().any(|operation: &(u32, CheckedUnitEffectOperationPlan)| {
+                matches!(operation, (_, CheckedUnitEffectOperationPlan::ReleaseReference { loan: released, .. }) if *released == loan)
+            }) {
+                pending.push((boundary, CheckedUnitEffectOperationPlan::ReleaseReference {
+                    statement_index: boundary,
+                    binding_ordinal: result.binding_ordinal,
+                    loan,
+                }));
+            }
+        }
+    }
+    pending.sort_by_key(|(boundary, _)| *boundary);
+    operations.extend(pending.into_iter().map(|(_, operation)| operation));
     Some(())
 }
 

@@ -71,6 +71,16 @@ pub(super) fn parameter_source(
     let ExpressionNode::Borrow(initializer) =
         checked.expression_table.expression(local.initial_value)
     else {
+        if let Some(source) = call_result_source(
+            checked,
+            machine,
+            state,
+            *declaration_index,
+            owner,
+            local,
+        )? {
+            return Ok(Some(source));
+        }
         return unsupported("receiver alias has no explicit borrow initializer");
     };
     if !checked
@@ -449,6 +459,77 @@ pub(super) fn parameter_source(
         return unsupported("receiver alias resource disagrees with its source lifetime");
     }
     Ok(Some(captured))
+}
+
+/// A `&mut`-view call-result local (`let cell: &mut Cell = self.bag
+/// .pick()`) binds its place through the call's minted result loan, not an
+/// authored `&mut place` initializer. The loan row names the same root and
+/// projection the borrow literal would have — custody and expiry are
+/// validated by the reference-results pass — so the receiver rejoins the
+/// loaned place directly. The same exclusivity invariants the borrow path
+/// audits hold here: one Mutable loan, formed at the declaration, rooted at
+/// caller storage.
+fn call_result_source(
+    checked: &CheckedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    declaration_index: usize,
+    owner: SymbolHandle,
+    local: &checked_trees::statement::TableLocalData,
+) -> Result<Option<super::ReceiverSource>, LoweringError> {
+    if !matches!(
+        checked.expression_table.expression(local.initial_value),
+        ExpressionNode::Call(_)
+    ) || validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        local.type_reference,
+    )
+    .is_none()
+    {
+        return Ok(None);
+    }
+    let borrow = &checked.facts.borrow;
+    let borrow_state = borrow
+        .states
+        .iter()
+        .map(|(_, borrow_state)| borrow_state)
+        .find(|borrow_state| {
+            borrow_state.machine_symbol == machine && borrow_state.state_symbol == state
+        })
+        .ok_or(LoweringError::Unsupported(
+            "receiver call alias has no borrow state",
+        ))?;
+    let mut loans = borrow
+        .loans
+        .iter()
+        .filter(|(handle, loan)| {
+            borrow.state_owns_loan(borrow_state, *handle)
+                && loan.owner_symbol == owner
+                && loan.statement_index == declaration_index
+                && loan.kind == BorrowAccessKind::Mutable
+                && borrow.loan_owner_path(loan).is_empty()
+        });
+    let Some((_, loan)) = loans.next() else {
+        return Ok(None);
+    };
+    if loans.next().is_some() {
+        return unsupported("receiver call alias has duplicate loans");
+    }
+    let _ = loan;
+    // The call result is the view itself: `cell.value` writes through the
+    // descriptor bound on the local, so the source roots at the binding and
+    // the structural-local roster resolves its loaned place downstream.
+    Ok(Some(super::ReceiverSource {
+        root: local.symbol,
+        path: Vec::new(),
+        stamp: owner,
+        owner,
+        captured_place: checked_trees::CapturedPlace {
+            root_symbol: local.symbol,
+            segments: Vec::new(),
+        },
+        erased_alias: false,
+    }))
 }
 
 fn receiver_root(

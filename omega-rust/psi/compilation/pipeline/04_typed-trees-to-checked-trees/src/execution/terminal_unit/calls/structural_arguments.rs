@@ -1167,7 +1167,9 @@ pub(crate) fn exact_structural_borrow_access(
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();
-    let first = kinds.first()?;
+    let Some(first) = kinds.first() else {
+        return None;
+    };
     if kinds.iter().any(|candidate| *candidate != *first) {
         return None;
     }
@@ -1186,7 +1188,7 @@ pub(crate) fn exact_structural_borrow_access(
     {
         return Some(CheckedStructuralAccess::MutableBorrow);
     }
-    Some(match first {
+    Some(match *first {
         checked_trees::BorrowAccessKind::Read => CheckedStructuralAccess::SharedBorrow,
         checked_trees::BorrowAccessKind::Mutable => CheckedStructuralAccess::MutableBorrow,
         checked_trees::BorrowAccessKind::WriteOnly => CheckedStructuralAccess::WriteOnlyBorrow,

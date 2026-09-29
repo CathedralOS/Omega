@@ -418,6 +418,10 @@ pub(super) fn plan(
     ) {
         return Some(LocalPlan::Planned);
     }
+    local_phase("statement sequence: local data: view loan binding");
+    if is_call_view_loan_binding(program, facts, machine, state, statement_index, local) {
+        return Some(LocalPlan::Planned);
+    }
     if let Some(primitive_type) = program.primitive_type_reference(local.type_reference) {
         if local.is_mutable {
             local_phase("statement sequence: local data: mutable primitive local: named type");
@@ -671,4 +675,73 @@ fn shared_place_loan_referent(
     )?;
     (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
         .then_some(())
+}
+
+
+/// A `let` binding an exclusive `&mut`-view result of a call that left no
+/// flow call row: `let slots: &mut [Cell] = self.cells.as_mut_slice()`.
+/// Collection-view openers mint the binding's loan directly into the borrow
+/// ledger — the name then denotes that loaned place for its whole scope,
+/// the same compile-time carrier as a `&mut place` borrow local, so the
+/// statement plans no operation. Calls that did leave a flow row are
+/// ordinary call results and still plan a `StructuralCall`.
+fn is_call_view_loan_binding(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    if local.is_mutable
+        || !matches!(
+            program.expression_table.expression(local.initial_value),
+            ExpressionNode::Call(_)
+        )
+        || super::super::super::reference_results::mutable_borrowed_parts(
+            program,
+            local.type_reference,
+        )
+        .is_none()
+    {
+        return false;
+    }
+    let index = usize::try_from(statement_index).ok();
+    let Some(index) = index else { return false };
+    let flow = crate::execution::terminal_unit::types::state_flow(
+        facts,
+        machine.symbol,
+        state.symbol,
+    );
+    let has_call_row = flow.is_some_and(|flow| {
+        facts
+            .flow
+            .control
+            .calls
+            .span_or_empty(flow.calls)
+            .iter()
+            .any(|call| call.statement_index == index && call.call_ordinal == 0)
+    });
+    if has_call_row {
+        return false;
+    }
+    let Some(borrow_state) = facts
+        .borrow
+        .states
+        .iter()
+        .map(|(_, candidate)| candidate)
+        .find(|candidate| {
+            candidate.machine_symbol == machine.symbol && candidate.state_symbol == state.symbol
+        })
+    else {
+        return false;
+    };
+    let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
+        facts.borrow.state_owns_loan(borrow_state, *handle)
+            && loan.owner_symbol == local.symbol
+            && loan.statement_index == index
+            && loan.kind == checked_trees::BorrowAccessKind::Mutable
+            && facts.borrow.loan_owner_path(loan).is_empty()
+    });
+    loans.next().is_some() && loans.next().is_none()
 }

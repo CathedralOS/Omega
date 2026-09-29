@@ -345,6 +345,17 @@ pub(super) fn validate(
     // A borrowed view's result binding carries the viewed `[T]` carrier
     // identity with the reference and constraint shells peeled, exactly as the
     // checked-side disposition roster spells it.
+    let mutable_borrowed = validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        local.type_reference,
+    );
+    // The `&mut` descriptor itself is copyable; the binding's exclusivity is
+    // what the checked result stamps Affine.
+    let expected_multiplicity = if mutable_borrowed.is_some() {
+        Multiplicity::Affine
+    } else {
+        checked.type_multiplicity(local.type_reference)
+    };
     let expected_identity = if is_borrowed_view_local(checked, local.type_reference) {
         validation::unwrapped_type_reference(&checked.typed, local.type_reference)
             .map(|unwrapped| checked.normalized_type_identity(unwrapped).into_string())
@@ -358,7 +369,7 @@ pub(super) fn validate(
             .normalized_type_identity(local.type_reference)
             .into_string()
     };
-    if checked.type_multiplicity(local.type_reference) != result.multiplicity
+    if expected_multiplicity != result.multiplicity
         || expected_identity != result.type_identity
     {
         return unsupported("Unit graph local disposition type drifted");
@@ -384,6 +395,16 @@ pub(super) fn validate(
             Ok(())
         } else {
             unsupported("Unit graph copy local acquired ownership debt")
+        };
+    }
+    // A `&mut` view local's exclusivity is the loan ledger's -- its establish,
+    // transfer and weakening are the reference custody ops, not ownership
+    // events, so the ownership roster is exactly empty.
+    if mutable_borrowed.is_some() {
+        return if events().next().is_none() {
+            Ok(())
+        } else {
+            unsupported("Unit graph view local acquired ownership debt")
         };
     }
     let role = selection_role(

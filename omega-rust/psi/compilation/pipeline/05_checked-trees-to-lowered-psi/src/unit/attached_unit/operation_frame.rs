@@ -54,6 +54,7 @@
 use super::argument_evaluation::Evaluation;
 use super::bodies::UnitPlans;
 use super::primitive_locals::{self, PrimitiveLocal};
+use super::{parameters, reference_results};
 use super::signatures::MachineSignature;
 use super::view_ranges::{ViewRangeSite, ViewRangeSource};
 use crate::emission::borrowed_window::{
@@ -467,6 +468,8 @@ impl OperationFrame<'_, '_> {
                 | CheckedUnitEffectOperationPlan::CallContinuationCleanup { .. }
                 | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
                 | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+                | CheckedUnitEffectOperationPlan::ReleaseReference { .. }
                 | CheckedUnitEffectOperationPlan::AtomicAccess(_)
         )
     }
@@ -533,9 +536,90 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. } => {
                 self.establish_structural_value(operation)
             }
+            CheckedUnitEffectOperationPlan::EstablishReference { result, source } => {
+                self.establish_reference(result, source)
+            }
+            CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {
+                self.release_reference(operation)
+            }
             CheckedUnitEffectOperationPlan::AtomicAccess(access) => self.atomic_access(access),
             _ => unsupported("operation frame received a call operation"),
         }
+    }
+
+    /// Establish a reference permission carrier for the composed route, the
+    /// same `reference_results::emit` the ordinary route drives; the binding
+    /// joins the machine-wide place catalog and the operation registry so
+    /// later arguments, the matching release and the state-graph result view
+    /// all rejoin it by ordinal.
+    fn establish_reference(
+        &mut self,
+        result: &checked_trees::CheckedUnitStructuralResultBindingPlan,
+        source: &CheckedUnitStructuralArgumentPlan,
+    ) -> Result<(), LoweringError> {
+        self.results
+            .require_next(result, "reference result binding is not dense")?;
+        let slice = std::slice::from_ref(source);
+        let earlier = self.results.earlier(slice, self.operations)?;
+        let arguments = parameters::lower_structural_arguments(
+            slice,
+            self.parameters,
+            self.caller.local_places,
+            &earlier,
+            &[],
+            self.primitive_locals,
+            None,
+            &mut std::iter::empty(),
+            None,
+        )?;
+        let [argument] = <[terminal_psi::StructuralArgument; 1]>::try_from(arguments)
+            .map_err(|_| LoweringError::Unsupported("reference source is not one argument"))?;
+        let declaration = reference_results::emit(
+            result,
+            argument,
+            self.type_ids,
+            self.next_place,
+            self.operations,
+        )?;
+        let Some(terminal_psi::OperationResult::Structural(produced)) = self
+            .operations
+            .operations
+            .last()
+            .map(|operation| operation.result.clone())
+        else {
+            return unsupported("reference establishment produced no structural result");
+        };
+        self.results.push(declaration, false);
+        self.evaluation.establish_structural_binding(
+            self.checked,
+            self.state,
+            result,
+            true,
+            produced.into(),
+            self.structural_types.declarations(),
+            self.operations,
+        )
+    }
+
+    /// End the established reference carrier: its place rejoins through the
+    /// same binding-ordinal view a call continuation uses.
+    fn release_reference(
+        &mut self,
+        operation: &CheckedUnitEffectOperationPlan,
+    ) -> Result<(), LoweringError> {
+        let CheckedUnitEffectOperationPlan::ReleaseReference {
+            binding_ordinal, ..
+        } = operation
+        else {
+            unreachable!("dispatched release_reference")
+        };
+        let source = self
+            .results
+            .continuation_place(*binding_ordinal, self.operations)?;
+        self.push_unit(OperationKind::ReleaseReference {
+            source: self.evaluation.current_structural_place(source),
+        });
+        Ok(())
     }
 
     /// Append one Unit-result operation at the next identity.
@@ -951,7 +1035,14 @@ impl OperationFrame<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "structural scalar store names an unknown structural local",
                     ))?;
-                if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                // An exclusive `&mut` view local names the same exclusive
+                // home an owned local does: its carrier place is the loaned
+                // referent, and the loan's own custody made it exclusive.
+                if !matches!(
+                    argument.access,
+                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                ) || !argument.path.is_empty()
+                {
                     return unsupported(
                         "structural scalar store local root is not a whole owned home",
                     );

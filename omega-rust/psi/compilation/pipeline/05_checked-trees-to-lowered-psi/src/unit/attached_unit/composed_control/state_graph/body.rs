@@ -33,7 +33,7 @@ pub(super) fn validate(
     let marker_count = super::cases::validate_markers(checked, machine, source, state, end)?;
     let returned_scalar = returned_scalar_binding(state);
     let tail_value = usize::from(matches!(state.terminator, CheckedComposedUnitControlTerminatorPlan::ReturnStructural { .. })
-        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))))
+        && state.operations.last().is_some_and(|operation| matches!(operation, CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. } | CheckedUnitEffectOperationPlan::StructuralCall { result, .. } | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. } | CheckedUnitEffectOperationPlan::EstablishReference { result, .. } if result.statement_index as usize == statements.len().saturating_sub(1))))
         // A scalar final expression's own producer occupies the tail statement.
         + usize::from(returned_scalar.is_some_and(|binding| {
             binding.statement_index as usize + 1 == statements.len()
@@ -72,6 +72,7 @@ pub(super) fn validate(
             is_record_pattern_marker(statement)
                 || (!closed_sum && is_arm_pattern_marker(statement))
                 || is_loan_marker(checked, statement)
+                || is_exclusive_loan_marker(checked, machine, source, statement, index)
         }) || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
             // A runtime-indexed dispatch's shared subject plans no operation:
             // each arm observes the borrowed element itself.
@@ -192,7 +193,12 @@ pub(super) fn validate(
         }
         let ordinal = if continuations[index] {
             // The continued statement is the one the cursor consumed last.
+            // A reference release names the upcoming statement instead (its
+            // expiry boundary), so it takes the last consumed index directly.
             match authored_statement(operation) {
+                Some(_) if matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { .. }) && cursor > 0 => {
+                    cursor - 1
+                }
                 Some(statement) if cursor > 0 && statement as usize == cursor - 1 => {
                     statement as usize
                 }
@@ -206,12 +212,10 @@ pub(super) fn validate(
             cursor += 1;
             ordinal
         };
-        match (
-            operation,
-            statements.get(ordinal).ok_or(LoweringError::Unsupported(
-                "Unit graph effect lost its authored statement",
-            ))?,
-        ) {
+        let authored = statements.get(ordinal).ok_or(LoweringError::Unsupported(
+            "Unit graph effect lost its authored statement",
+        ))?;
+        match (operation, authored) {
             (
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
                     result,
@@ -785,6 +789,35 @@ pub(super) fn validate(
                     elements,
                 )?;
             }
+            // A transition-tail `&mut` return mints its reference custody at
+            // the transition itself: the authored statement is the transition
+            // carrying the `&mut` borrow value.
+            (
+                CheckedUnitEffectOperationPlan::EstablishReference { result, .. },
+                StatementNode::Transition(transition),
+            ) if result.statement_index as usize == ordinal
+                && matches!(
+                    checked
+                        .typed
+                        .statement_table
+                        .transition_target(transition.target),
+                    typed_trees::statement::TransitionTargetNode::Value(expression)
+                        if matches!(
+                            checked.typed.expression_table.expression(*expression),
+                            typed_trees::expression::ExpressionNode::Borrow(borrow)
+                                if borrow.access == language_core::ReferenceAccess::Mutable
+                        )
+                ) => {}
+            // A reference release rejoins either the statement at its expiry
+            // boundary or, when the boundary's own operations have not yet
+            // been consumed, the statement the walk last attributed.
+            (
+                CheckedUnitEffectOperationPlan::ReleaseReference {
+                    statement_index, ..
+                },
+                _,
+            ) if *statement_index as usize == ordinal
+                || *statement_index as usize == ordinal + 1 => {}
             _ => return unsupported("Unit graph reordered a source effect"),
         }
     }
@@ -906,6 +939,85 @@ fn is_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
     }
 }
 
+///
+/// A call-shaped view opener (`let slots: &mut [T] = self.cells
+/// .as_mut_slice()`) binds the same compile-time carrier: the borrow
+/// analyzer minted its loan directly, so the binding plans nothing. An
+/// ordinary call result — the same `&mut` spelling with a flow call row —
+/// plans its `StructuralCall` and is not a marker.
+fn is_exclusive_loan_marker(
+    checked: &CheckedTrees,
+    machine: symbols::SymbolHandle,
+    source: &checked_trees::state::State,
+    statement: &StatementNode,
+    index: usize,
+) -> bool {
+    let StatementNode::LocalData(local) = statement else {
+        return false;
+    };
+    if local.is_mutable
+        || validation::reference_result_custody::mutable_borrowed_parts(
+            checked,
+            local.type_reference,
+        )
+        .is_none()
+    {
+        return false;
+    }
+    match checked.expression_table.expression(local.initial_value) {
+        checked_trees::expression::ExpressionNode::Borrow(borrow) => {
+            borrow.access == language_core::ReferenceAccess::Mutable
+        }
+        checked_trees::expression::ExpressionNode::Call(_) => {
+            let has_call_row = checked
+                .facts
+                .flow
+                .control
+                .states
+                .iter()
+                .map(|(_, state)| state)
+                .find(|state| {
+                    state.machine_symbol == machine && state.state_symbol == source.symbol
+                })
+                .is_some_and(|state| {
+                    checked
+                        .facts
+                        .flow
+                        .control
+                        .calls
+                        .span_or_empty(state.calls)
+                        .iter()
+                        .any(|call| call.statement_index == index && call.call_ordinal == 0)
+                });
+            if has_call_row {
+                return false;
+            }
+            let Some(borrow_state) = checked
+                .facts
+                .borrow
+                .states
+                .iter()
+                .map(|(_, candidate)| candidate)
+                .find(|candidate| {
+                    candidate.machine_symbol == machine
+                        && candidate.state_symbol == source.symbol
+                })
+            else {
+                return false;
+            };
+            let mut loans = checked.facts.borrow.loans.iter().filter(|(handle, loan)| {
+                checked.facts.borrow.state_owns_loan(borrow_state, *handle)
+                    && loan.owner_symbol == local.symbol
+                    && loan.statement_index == index
+                    && loan.kind == checked_trees::BorrowAccessKind::Mutable
+                    && checked.facts.borrow.loan_owner_path(loan).is_empty()
+            });
+            loans.next().is_some() && loans.next().is_none()
+        }
+        _ => false,
+    }
+}
+
 fn is_arm_pattern_marker(statement: &StatementNode) -> bool {
     matches!(statement, StatementNode::LocalData(local)
         if local.name.as_str().starts_with("__arm_destructure#"))
@@ -999,6 +1111,11 @@ fn continued_statement(operation: &CheckedUnitEffectOperationPlan) -> Option<u32
         CheckedUnitEffectOperationPlan::StoreStructuralField {
             statement_index, ..
         } => Some(*statement_index),
+        // A call-result loan's release rejoins the statement where the loan's
+        // last use already ran: the loan is custody, not a fresh statement.
+        CheckedUnitEffectOperationPlan::ReleaseReference {
+            statement_index, ..
+        } => Some(*statement_index),
         _ => None,
     }
 }
@@ -1027,6 +1144,16 @@ fn statement_continuations(
         .map(|operation| {
             let continued = continued_statement(operation);
             if continued.is_some() && continued == current {
+                return Ok(true);
+            }
+            // A reference release is emitted at the head of its expiry
+            // boundary's statement, ahead of that statement's own
+            // operations, so it rejoins the last statement consumed — marker
+            // statements in between leave a gap the stamped boundary keeps.
+            if matches!(operation, CheckedUnitEffectOperationPlan::ReleaseReference { .. })
+                && current.is_some_and(|consumed| continued.is_some_and(
+                    |boundary| boundary > consumed))
+            {
                 return Ok(true);
             }
             if began_with_argument

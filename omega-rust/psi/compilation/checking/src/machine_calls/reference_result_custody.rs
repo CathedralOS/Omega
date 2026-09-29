@@ -1215,7 +1215,10 @@ pub fn shared_borrowed_parts(
 /// Source reference use multiplicity does not encode the lifetime obligation
 /// of a materialized carrier. Mutable carrier custody must end exactly once.
 pub fn result_multiplicity(program: &TypedTrees, reference: TypeReferenceHandle) -> Multiplicity {
-    if parts(program, reference).is_some() || shared_borrowed_parts(program, reference).is_some() {
+    if parts(program, reference).is_some()
+        || shared_borrowed_parts(program, reference).is_some()
+        || mutable_borrowed_parts(program, reference).is_some()
+    {
         Multiplicity::Affine
     } else {
         program.type_multiplicity(reference)
@@ -1386,6 +1389,209 @@ pub fn source_leaf(
         .map(|source| (position, source.source))
 }
 
+/// The authored parameter position a `&mut` view return borrows from, read off
+/// the callee's tail expression: `transition { _ -> &mut slots[2] }` names a
+/// place whose root rejoins through member folds and `&mut` view loans until
+/// it reaches a parameter or `*self`. The walk mirrors the checked-side
+/// `mutable_view_result_operation` place walk exactly — same loan uniqueness
+/// and the same member-of-self fold — so the reconstructed custody names the
+/// same denoted root the emitted `EstablishReference` carries.
+fn mutable_view_source_parameter(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    state: &typed_trees::state::State,
+) -> Option<usize> {
+    if mutable_borrowed_parts(program, state.return_type).is_none() {
+        return None;
+    }
+    let Some(last) = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .last()
+    else {
+        return None;
+    };
+    let expression = match last {
+        StatementNode::Expression(expression) => *expression,
+        StatementNode::Transition(transition)
+            if matches!(
+                transition.guard,
+                typed_trees::statement::TransitionGuardNode::Always
+            ) && transition.exit == typed_trees::statement::TransitionExit::Ordinary
+                && !transition.continuation.is_valid() =>
+        {
+            match program.statement_table.transition_target(transition.target) {
+                typed_trees::statement::TransitionTargetNode::Value(expression) => *expression,
+                _ => {
+                    return None;
+                }
+            }
+        }
+        _ => {
+            return None;
+        }
+    };
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if borrow.access != language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .any(|candidate| candidate.symbol == state.symbol)
+        })
+    else {
+        return None;
+    };
+    let authored = program.state_parameters(state);
+    let mut cursor = borrow.target;
+    let mut symbol = loop {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Name(name) => break name.symbol,
+            ExpressionNode::Member(member) => cursor = member.receiver,
+            ExpressionNode::Indexed(indexed) => cursor = indexed.collection,
+            _ => {
+                return None;
+            }
+        }
+    };
+    for _ in 0..8 {
+        if authored.iter().any(|parameter| parameter.symbol == symbol)
+            || symbol == machine.symbol
+        {
+            break;
+        }
+        if view_self_member_symbol(program, state, machine.symbol, symbol).is_some() {
+            symbol = machine.symbol;
+            continue;
+        }
+        let Some(borrow_state) = facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, candidate)| candidate)
+            .find(|candidate| {
+                candidate.machine_symbol == machine.symbol
+                    && candidate.state_symbol == state.symbol
+            })
+        else {
+            return None;
+        };
+        let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
+            facts.borrow.state_owns_loan(borrow_state, *handle)
+                && loan.owner_symbol == symbol
+                && loan.kind == checked_trees::BorrowAccessKind::Mutable
+                && facts.borrow.loan_owner_path(loan).is_empty()
+        });
+        let Some((_, loan)) = loans.next() else {
+            return None;
+        };
+        if loans.next().is_some() {
+            return None;
+        }
+        symbol = loan.root_symbol;
+    }
+    if authored.iter().all(|parameter| parameter.symbol != symbol) && symbol != machine.symbol {
+        return None;
+    }
+    let position = if symbol == machine.symbol {
+        authored.iter().position(|parameter| parameter.is_self)?
+    } else {
+        authored.iter().position(|parameter| parameter.symbol == symbol)?
+    };
+    if !view_source_parameter_is_mutable(program, authored.get(position)?) {
+        return None;
+    }
+    Some(position)
+}
+
+/// The callee-side root a `&mut` view result denotes: a `&mut` parameter
+/// symbol, the machine `*self` authority, or a `self` member — the member only
+/// while `self` is mutably borrowed.
+fn view_source_parameter_is_mutable(
+    program: &TypedTrees,
+    parameter: &typed_trees::signature::StateParameter,
+) -> bool {
+    parameter.is_mutable
+        || mutable_borrowed_parts(program, parameter.type_reference).is_some()
+}
+
+/// The field symbol `root` names inside the `*self` receiver's attached data,
+/// when `self` is mutably borrowed — the root a minted view loan publishes
+/// for `self.<field>` storage.
+fn view_self_member_symbol(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    machine: SymbolHandle,
+    root: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let parameters = program.state_parameters(state);
+    let self_parameter = parameters.iter().find(|parameter| parameter.is_self)?;
+    if !view_source_parameter_is_mutable(program, self_parameter) {
+        return None;
+    }
+    let mut type_reference = self_parameter.type_reference;
+    let mut symbol = loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => type_reference = *referee,
+            TypeReferenceNode::Named { symbol, .. } => break *symbol,
+            _ => return None,
+        }
+    };
+    if symbol == machine {
+        symbol = program.machine_by_symbol(machine)?.attached_data_symbol;
+    }
+    let data = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.symbol == symbol)?;
+    program.data_members(data).iter().find_map(|member| match member {
+        typed_trees::data::DataMember::Field(field) if field.symbol == root => Some(field.symbol),
+        _ => None,
+    })
+}
+
+/// The data definition an argument root denotes: the machine's attached data
+/// for `*self`, otherwise the argument parameter's peeled declared data type.
+fn arg_root_data_symbol(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    machine: SymbolHandle,
+    root: SymbolHandle,
+) -> Option<SymbolHandle> {
+    let parameters = program.state_parameters(state);
+    let declared = parameters
+        .iter()
+        .find(|parameter| parameter.symbol == root)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            parameters
+                .iter()
+                .find(|parameter| parameter.is_self && root == machine)
+                .map(|parameter| parameter.type_reference)
+        })?;
+    let mut selected = declared;
+    let mut symbol = loop {
+        match program.type_reference_table.type_reference(selected) {
+            TypeReferenceNode::Constrained { base_type, .. } => selected = *base_type,
+            TypeReferenceNode::Reference { referee, .. } => selected = *referee,
+            TypeReferenceNode::Named { symbol, .. } => break *symbol,
+            _ => return None,
+        }
+    };
+    if symbol == machine {
+        symbol = program.machine_by_symbol(machine)?.attached_data_symbol;
+    }
+    Some(symbol)
+}
+
 /// Reconstruct actual call substitution, not only the return lifetime annotation.
 /// The callee's ordinary completion independently verifies this ingress source.
 pub fn result_loan(
@@ -1403,7 +1609,10 @@ pub fn result_loan(
     else {
         return None;
     };
-    parts(program, local.type_reference)?;
+    let mutable_view = mutable_borrowed_parts(program, local.type_reference).is_some();
+    if !mutable_view {
+        parts(program, local.type_reference)?;
+    }
     if local.is_mutable {
         return None;
     }
@@ -1426,18 +1635,56 @@ pub fn result_loan(
     // The returned carrier either forwards a whole `&mut` ingress argument or
     // selects one declared leaf out of an owned record argument. Both lanes
     // must end in the same single result loan below.
-    let leaf = source_parameter(program, callee)
-        .is_none()
-        .then(|| source_leaf(program, callee))
-        .flatten();
-    let position = leaf
-        .as_ref()
-        .map(|(position, _)| *position)
-        .or_else(|| source_parameter(program, callee))?;
-    let argument = *program
-        .expression_table
-        .expression_handles(expression.arguments)
-        .get(position)?;
+    // A `&mut` view return borrows a projection out of its callee's `&mut`
+    // storage, resolved by the tail-expression source walk; the `parts` and
+    // shared-borrow lanes keep the whole-ingress and leaf rosters.
+    let leaf = if mutable_view {
+        None
+    } else {
+        source_parameter(program, callee)
+            .is_none()
+            .then(|| source_leaf(program, callee))
+            .flatten()
+    };
+    let position = if mutable_view {
+        let analysis = mutable_view_source_parameter(program, facts, callee);
+        analysis?
+    } else {
+        leaf.as_ref()
+            .map(|(position, _)| *position)
+            .or_else(|| source_parameter(program, callee))?
+    };
+    let argument = if mutable_view {
+        // The callee's `self` ingress arrives through the call's receiver,
+        // not its argument span; authored non-self arguments follow it in
+        // order.
+        let callee_parameters = program.state_parameters(callee);
+        if callee_parameters
+            .get(position)
+            .is_some_and(|parameter| parameter.is_self)
+        {
+            expression.receiver
+        } else {
+            let offset = usize::from(callee_parameters.iter().any(|parameter| parameter.is_self));
+            let Some(&argument) = program
+                .expression_table
+                .expression_handles(expression.arguments)
+                .get(position.saturating_sub(offset))
+            else {
+                return None;
+            };
+            argument
+        }
+    } else {
+        let Some(&argument) = program
+            .expression_table
+            .expression_handles(expression.arguments)
+            .get(position)
+        else {
+            return None;
+        };
+        argument
+    };
     // A declared-field projection may select the argument carrier out of an
     // owned record local or out of a nested call's anonymous result:
     // `input.inner` and `forward_outer(outer).inner` both move the whole
@@ -1562,6 +1809,64 @@ pub fn result_loan(
             }
             _ => return None,
         }
+    } else if mutable_view {
+        // The `&mut` view's loan names the borrowed argument's denoted root:
+        // a bare parameter names its symbol; a member-rooted place such as
+        // `self.bag` names the outermost field below its root, exactly as the
+        // minted caller-side loan publishes member roots.
+        let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
+            return None;
+        };
+        if actual.head_symbol != actual.symbol
+            || program
+                .expression_table
+                .name_path_members(actual.members)
+                .len()
+                != 1
+        {
+            return None;
+        }
+        let authored_root_mutable = program.state_parameters(state).iter().any(|parameter| {
+            (parameter.symbol == actual.symbol
+                || (parameter.is_self && actual.symbol == machine))
+                && !parameter.is_const
+                && view_source_parameter_is_mutable(program, parameter)
+        });
+        if !authored_root_mutable {
+            return None;
+        }
+        if members.is_empty() {
+            actual.symbol
+        } else {
+            let member = members.last()?;
+            // The loan's denoted root is the field declaration's symbol, not
+            // the member expression's resolution identity.
+            let Some(data_symbol) = arg_root_data_symbol(
+                program,
+                state,
+                machine,
+                actual.symbol,
+            ) else {
+                return None;
+            };
+            let Some(data) = program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == data_symbol)
+            else {
+                return None;
+            };
+            let Some(field) = crate::value_custody::places::exact_data_member_field(
+                program,
+                data,
+                SymbolHandle::invalid(),
+                member.member.as_str(),
+                member.case_variant.as_ref().map(|case| case.as_str()),
+            ) else {
+                return None;
+            };
+            field.symbol
+        }
     } else {
         let ExpressionNode::Name(actual) = program.expression_table.expression(root) else {
             return None;
@@ -1594,14 +1899,18 @@ pub fn result_loan(
         .filter(|candidate| {
             candidate.machine_symbol == machine && candidate.state_symbol == state.symbol
         });
-    let borrowing = states.next()?;
+    let Some(borrowing) = states.next() else {
+        return None;
+    };
     if states.next().is_some() {
         return None;
     }
     let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
         facts.borrow.state_owns_loan(borrowing, *handle) && loan.owner_symbol == local.symbol
     });
-    let (handle, loan) = loans.next()?;
+    let Some((handle, loan)) = loans.next() else {
+        return None;
+    };
     if loans.next().is_some()
         || loan.statement_index != call.statement_index
         || loan.root_symbol != expected_root
@@ -1611,7 +1920,9 @@ pub fn result_loan(
     {
         return None;
     }
-    let flow = state_flow(facts, machine, state.symbol)?;
+    let Some(flow) = state_flow(facts, machine, state.symbol) else {
+        return None;
+    };
     let mut activations = facts
         .flow
         .borrow_lifetimes
@@ -1619,7 +1930,9 @@ pub fn result_loan(
         .span_or_empty(flow.borrow_activations)
         .iter()
         .filter(|activation| activation.loan == handle);
-    let activation = activations.next()?;
+    let Some(activation) = activations.next() else {
+        return None;
+    };
     if activations.next().is_some()
         || activation.source
             != (checked_trees::FlowInvalidationSource::Statement {
@@ -1652,7 +1965,11 @@ pub fn release_statement(
         return None;
     };
     if weakenings.next().is_some()
-        || weakening.reason != checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+        || !matches!(
+            weakening.reason,
+            checked_trees::FlowBorrowWeakeningReason::LastUseExpired
+                | checked_trees::FlowBorrowWeakeningReason::StateExit
+        )
         || statement_index
             != facts
                 .borrow

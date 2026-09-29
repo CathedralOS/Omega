@@ -50,6 +50,30 @@ pub(super) fn signature_matches(
             // A borrowed `&[T]` view result names the peeled slice carrier in
             // its identity — the contents live in the caller's frame, so the
             // owned-contents custody clause does not apply.
+            // A `&mut` view result keeps its reference shell exactly as a
+            // shared-borrowed named view does: the plan names the `ref-mut`
+            // identity and carries the affine view-loan multiplicity.
+            if validation::reference_result_custody::mutable_borrowed_parts(
+                &checked.typed,
+                source.return_type,
+            )
+            .is_some()
+            {
+                return checked
+                    .normalized_type_identity(source.return_type)
+                    .as_str()
+                    == result.type_identity
+                    && result.multiplicity == Multiplicity::Affine
+                    && view_result_qualifications(checked, source.return_type).as_ref()
+                        == Some(&result.qualifications)
+                    && validation::structural_result_projected_qualifications(
+                        &checked.typed,
+                        source.return_type,
+                    )
+                    .ok()
+                    .as_ref()
+                        == Some(&result.projected_qualifications);
+            }
             if let Some(slice) = borrowed_view_slice(checked, source.return_type) {
                 return checked.normalized_type_identity(slice).as_str() == result.type_identity
                     && checked.type_multiplicity(source.return_type) == result.multiplicity
@@ -425,7 +449,11 @@ pub(super) fn validate_structural(
                         result,
                         discard_result_on_return: false,
                         ..
-                    } if result.binding_ordinal == binding_ordinal => Some((operation, result)),
+                    }
+                    // A `&mut` view tail return's producer is the reference
+                    // establishment minted at the transition.
+                    | CheckedUnitEffectOperationPlan::EstablishReference { result, .. }
+                    if result.binding_ordinal == binding_ordinal => Some((operation, result)),
                     _ => None,
                 });
             let (operation, binding) = producers.next().ok_or(LoweringError::Unsupported(
@@ -467,6 +495,22 @@ pub(super) fn validate_structural(
                         state.state,
                         operation,
                     )?;
+                } else if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } =
+                    operation
+                {
+                    // A transition-tail `&mut` establishment names its exact
+                    // borrowed ingress and the projected path — the minted
+                    // plan itself is the loan custody.
+                    if source.access != checked_trees::CheckedStructuralAccess::MutableBorrow
+                        || !matches!(
+                            source.source,
+                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                        )
+                    {
+                        return unsupported(
+                            "structural return tail producer requires exact value custody",
+                        );
+                    }
                 } else {
                     return unsupported(
                         "structural return tail producer requires exact value custody",

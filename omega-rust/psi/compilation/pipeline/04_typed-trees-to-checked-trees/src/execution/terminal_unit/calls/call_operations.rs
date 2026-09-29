@@ -253,15 +253,19 @@ pub(in crate::execution) fn build_call_operation(
             {
                 // A `&mut R`/`&mut [T]` result is the exclusive loan the
                 // shared-view arm above names for shared borrows: affine
-                // custody against the callee's storage, and `add_type`
-                // mints the peeled referent identity on the bound side.
+                // custody against the callee's storage. Like the named
+                // views, the bound side keeps its `ref-mut` shell — the
+                // `Reference` shape is the custody it loans; the peeled
+                // referent spelling stays accepted for anonymous results.
                 let peeled = program
                     .type_identity(typed_trees::type_identity::TypeIdentityRequest::ordinary(
                         referee,
                     ))
                     .into_string();
+                let shelled = program.normalized_type_identity(target_state.return_type);
                 expected.multiplicity != Multiplicity::Affine
-                    || peeled.as_str() != expected.type_identity
+                    || (peeled.as_str() != expected.type_identity
+                        && shelled.as_str() != expected.type_identity)
             }
             Some(ExpectedCallValueResult::Structural(expected))
                 if crate::execution::terminal_unit::types::borrowed_slice_view(
