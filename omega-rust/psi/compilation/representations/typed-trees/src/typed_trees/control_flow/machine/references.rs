@@ -8,7 +8,7 @@ use arena::HandleSpan;
 use symbols::SymbolHandle;
 
 impl TypedTrees {
-    /// Retarget a machine's body and contract references to replacement states.
+    /// Retarget a machine's body, contract and `via` references to replacement states.
     /// The declaration's own symbols and other machines remain unchanged.
     /// Callers supply exact state identities, not name-based substitutions.
     pub fn retarget_machine_calls(
@@ -20,6 +20,16 @@ impl TypedTrees {
             return;
         }
         self.retarget_contract_calls(machine.contracts, replacements);
+        // Walk declarations, not the selected conformance roster: ownership
+        // of an expression does not depend on whether this body is realized.
+        let via_roots = self
+            .declared_machine_trait_conformances(machine)
+            .iter()
+            .map(|conformance| conformance.via_expression)
+            .collect::<Vec<_>>();
+        for root in via_roots {
+            self.expression_table.remap_symbols_in(root, replacements);
+        }
         for owned in self.machine_owned_data(machine).to_vec() {
             self.expression_table
                 .remap_symbols_in(owned.initial_value, replacements);
@@ -70,6 +80,44 @@ mod tests {
     use language_core::atomic::{
         AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
     };
+
+    #[test]
+    fn scoped_retargeting_visits_declared_via_roots_without_touching_other_roots() {
+        for target in [
+            None,
+            Some(crate::name::Identifier::generated("demo_target")),
+        ] {
+            let mut program = TypedTrees::default();
+            let original = SymbolHandle::from_arena_index(1);
+            let replacement = SymbolHandle::from_arena_index(2);
+            let reference = ExpressionNode::Name(TableNamePath {
+                members: HandleSpan::empty(),
+                member_symbols: HandleSpan::empty(),
+                head_symbol: original,
+                symbol: original,
+            });
+            let via = program.expression_table.insert(reference.clone());
+            let unrelated = program.expression_table.insert(reference);
+            let mut machine = Machine {
+                target,
+                ..Machine::default()
+            };
+            program.push_machine_trait_conformance(
+                &mut machine,
+                crate::machine::TraitConformance {
+                    via_expression: via,
+                    ..Default::default()
+                },
+            );
+            program.retarget_machine_calls(&machine, &[(original, replacement)]);
+            for (root, expected) in [(via, replacement), (unrelated, original)] {
+                let ExpressionNode::Name(path) = program.expression_table.expression(root) else {
+                    panic!("retargeting preserves the expression shape");
+                };
+                assert_eq!(path.symbol, expected);
+            }
+        }
+    }
 
     #[test]
     fn scoped_retargeting_visits_atomic_results_without_touching_other_roots() {
