@@ -115,6 +115,20 @@ pub(super) fn prove_relaxed_with_machine_parameters(
             machine_parameter_values,
         )
         .or_else(|| derived::prove(context, goal, assumptions, semantic_axioms))
+        .or_else(|| {
+            // The closure proves inclusive endpoints. A strict goal needs the
+            // same checked adjacency and endpoint-equality transport as the
+            // canonical selector, with the closure supplying its bound. Keep
+            // that extra search in this fallback and in the current premise
+            // scope; do not duplicate arithmetic or promote conditional facts.
+            dispatch::prove_discrete_endpoint(
+                context,
+                goal,
+                assumptions,
+                semantic_axioms,
+                |bound| derived::prove(context, bound, assumptions, semantic_axioms),
+            )
+        })
     };
     let proof = implications::prove(goal, assumptions, semantic_axioms, ordinary);
     definitions.cache_relaxed_proof(goal, machine_parameter_values, proof.clone());

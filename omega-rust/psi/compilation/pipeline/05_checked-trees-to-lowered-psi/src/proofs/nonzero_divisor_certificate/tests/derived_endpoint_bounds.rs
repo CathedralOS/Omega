@@ -23,6 +23,88 @@ fn math_value(id: u64, integer_type: IntegerType) -> IntegerMathTerm {
 }
 
 #[test]
+fn strict_bounds_reuse_the_derived_store_and_read_chain() {
+    use crate::proofs::nonzero_divisor_certificate::produce_relaxed_integer_proof;
+    use std::collections::BTreeSet;
+
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type = ScalarType::Integer(integer_type);
+    let root = PlaceId::new(1).unwrap();
+    let context = PropositionContext::from_value_types_and_places(
+        (1..=6).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
+        [(
+            root,
+            StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        )],
+    )
+    .unwrap();
+    let observed = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
+    let literal =
+        |number| ScalarTerm::integer(integer_type, IntegerValue::Unsigned(number)).unwrap();
+    let field = |identity| {
+        ScalarTerm::integer_field_path(
+            root,
+            vec![CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(identity).unwrap(),
+            )],
+            integer_type,
+        )
+    };
+    let mut axioms = vec![
+        Proposition::LessOrEqual(field(1), literal(4)),
+        Proposition::Equal(observed(1), field(1)),
+        Proposition::LessOrEqual(observed(1), literal(3)),
+        Proposition::Equal(observed(2), field(1)),
+        Proposition::Equal(observed(3), literal(1)),
+        Proposition::Equal(
+            observed(4),
+            ScalarTerm::exact_integer_add(integer_type, observed(2), observed(3)).unwrap(),
+        ),
+        Proposition::Equal(field(2), observed(4)),
+        Proposition::Equal(observed(5), field(2)),
+        Proposition::Equal(observed(6), literal(5)),
+    ];
+    let parameters = BTreeSet::new();
+    let nonstrict = Proposition::LessOrEqual(observed(5), literal(4));
+    produce_relaxed_integer_proof(&context, &nonstrict, &[], &axioms, &parameters)
+        .expect("the existing closure proves the inclusive endpoint");
+    let goals = [
+        Proposition::LessThan(observed(5), literal(5)),
+        Proposition::LessThan(observed(5), observed(6)),
+        Proposition::LessThan(literal(0), observed(5)),
+    ];
+    let proofs = goals
+        .iter()
+        .map(|goal| {
+            produce_relaxed_integer_proof(&context, goal, &[], &axioms, &parameters)
+                .expect("strict bounds retain the same field and definition evidence")
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        produce_relaxed_integer_proof(
+            &context,
+            &Proposition::LessThan(observed(5), literal(4)),
+            &[],
+            &axioms,
+            &parameters,
+        )
+        .is_none(),
+        "discreteness cannot strengthen the proved endpoint"
+    );
+    axioms[2] = Proposition::Truth;
+    for (goal, proof) in goals.iter().zip(&proofs).take(2) {
+        assert!(produce_relaxed_integer_proof(&context, goal, &[], &axioms, &parameters).is_none());
+        assert!(
+            proof_admission::accept_certificate(&context, goal, &[], &axioms, proof).is_err(),
+            "the weaker invariant alone cannot replace the removed guard"
+        );
+    }
+}
+
+#[test]
 fn bounded_runtime_product_supplies_the_next_multiplication_endpoints() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let context = PropositionContext::from_value_types((1..=3).map(|identity| {

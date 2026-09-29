@@ -34,7 +34,17 @@ pub(super) fn prove(
         // non-strict affine selection cannot cite.
         .or_else(|| wrapping::prove(context, goal, assumptions, semantic_axioms, definitions))
         .or_else(|| {
-            prove_discrete_endpoint(context, goal, assumptions, semantic_axioms, definitions)
+            prove_discrete_endpoint(context, goal, assumptions, semantic_axioms, |nonstrict| {
+                // Use bound selection directly: proposition dispatch itself
+                // falls back to strict order and would recurse here.
+                bound::prove(
+                    context,
+                    nonstrict,
+                    assumptions,
+                    semantic_axioms,
+                    definitions,
+                )
+            })
         })
         .or_else(|| transitive::prove(context, goal, assumptions, semantic_axioms, definitions))
         // Relational steps come last, so every goal an earlier leg already
@@ -44,15 +54,16 @@ pub(super) fn prove(
 }
 
 /// A literal endpoint, including a separately observed equal value, turns a
-/// strict goal into an adjacent non-strict bound. Let ordinary bound selection
-/// retain the operand's cast/definition evidence, then replay discreteness and
-/// the exact endpoint equality. No source-specific index facts are introduced.
-fn prove_discrete_endpoint(
+/// strict goal into an adjacent non-strict bound. The caller supplies its bound
+/// producer, retaining its own search scope and cast/definition evidence; this
+/// shared conversion replays discreteness and the exact endpoint equality.
+/// Canonical and relaxed selection must not diverge on adjacency or identity.
+pub(in super::super) fn prove_discrete_endpoint(
     context: &PropositionContext,
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    definitions: &mut DefinitionIndex,
+    mut prove_bound: impl FnMut(&Proposition) -> Option<ProofNode>,
 ) -> Option<ProofNode> {
     let Proposition::LessThan(left, right) = goal else {
         return None;
@@ -98,15 +109,7 @@ fn prove_discrete_endpoint(
                     Proposition::LessThan(left.clone(), literal.clone()),
                 )
             };
-            // Call the non-strict selector directly: the proposition dispatcher
-            // itself falls back to strict order and would recurse here.
-            let Some(relation) = bound::prove(
-                context,
-                &nonstrict,
-                assumptions,
-                semantic_axioms,
-                definitions,
-            ) else {
+            let Some(relation) = prove_bound(&nonstrict) else {
                 continue;
             };
             let discrete = ProofNode {

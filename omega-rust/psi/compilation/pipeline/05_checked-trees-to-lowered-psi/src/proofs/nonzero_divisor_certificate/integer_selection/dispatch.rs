@@ -14,6 +14,7 @@ use super::super::integer_evidence::cited_facts;
 use super::{bound, direct_add, multiply};
 
 mod strict;
+pub(super) use strict::prove_discrete_endpoint;
 #[cfg(test)]
 mod tests;
 
