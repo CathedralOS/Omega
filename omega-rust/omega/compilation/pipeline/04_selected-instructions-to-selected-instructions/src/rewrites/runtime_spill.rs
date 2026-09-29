@@ -142,15 +142,21 @@
 //! restores and compares the complete source by content, so separately allocated
 //! equivalent inputs work and corruption of an unrelated function rejects.
 //!
-//! A victim also shares an already-declared spill slot when the candidate's
-//! every access follows this rewrite's own idiom — a zero-offset `Store64`, or
-//! a zero-offset `FrameAddress` feeding only zero-offset `Load64`s — and a
-//! last-writer replay over the function proves the incumbent's windows and the
-//! new victim's cannot interleave: no incumbent load may observe a new store,
-//! and every new reload must be reached by new stores alone. Sharing appends
-//! no `local_storage_slots` entry, so the eight bytes stay charged to the frame
-//! exactly once; any other naming of the candidate, an escaped address, or an
-//! interleaved window falls back to a private slot.
+//! A victim's accesses resolve to storage windows before any slot is
+//! considered: definitions whose stores may serve one reload position share a
+//! window because that load can read only one slot, while a redefinition's
+//! new stores open a fresh window the earlier value's loads never join. Each
+//! window independently shares an already-declared spill slot when the
+//! candidate's every access follows this rewrite's own idiom — a zero-offset
+//! `Store64`, or a zero-offset `FrameAddress` feeding only zero-offset
+//! `Load64`s — and a last-writer replay over the function proves the
+//! incumbent's accesses and the window's cannot interleave: no incumbent load
+//! may observe one of the window's stores, and every window reload must be
+//! reached by its own stores alone. Sharing appends no `local_storage_slots`
+//! entry, so reused bytes stay charged to the frame exactly once; any other
+//! naming of the candidate, an escaped address, or an interleaved window
+//! falls back to the victim's private slot, appended once however many
+//! windows share it.
 
 mod admission;
 mod rewrite;

@@ -2,8 +2,8 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    SelectedBoundarySettlementPayload, SelectedCasePayloadTransport, SelectedFunction,
-    SelectedInstruction, SelectedLocalStorageSlot, SelectedStructuralTransport,
+    LocalStorageSlotId, SelectedBoundarySettlementPayload, SelectedCasePayloadTransport,
+    SelectedFunction, SelectedInstruction, SelectedLocalStorageSlot, SelectedStructuralTransport,
     SelectedValueTransport, VirtualRegisterId,
 };
 
@@ -23,6 +23,7 @@ use crate::ValidatedSelectedAnalysis;
 /// Returns the register the rewritten use must name.
 fn reload_for_use(
     admitted: &admission::Admission<'_>,
+    slot: LocalStorageSlotId,
     register: VirtualRegisterId,
     share: bool,
     open: &mut Option<VirtualRegisterId>,
@@ -34,7 +35,7 @@ fn reload_for_use(
     if share && let Some(existing) = *open {
         return Ok(existing);
     }
-    let reload = admission::reload(admitted, register, next_instruction, next_register)?;
+    let reload = admission::reload(admitted, slot, register, next_instruction, next_register)?;
     let reloaded = reload.reload_register.id;
     let (registers, sequence) = reload.into_streams();
     function.virtual_registers.extend(registers);
@@ -89,11 +90,12 @@ pub fn spill_selected_runtime_value_with_span_policy(
     )?;
     let mut transformed = source.selected_plan().clone();
     let function = &mut transformed.functions[function_index];
-    // A reused slot is already declared, so its bytes stay charged exactly
-    // once in the function's frame demand; only a private slot is appended.
-    if admitted.fresh_slot {
+    // Reused slots are already declared, so their bytes stay charged exactly
+    // once in the function's frame demand; the private slot is appended only
+    // when at least one storage window landed on it.
+    if admitted.assignment.declares_private {
         function.local_storage_slots.push(SelectedLocalStorageSlot {
-            id: admitted.slot,
+            id: admitted.assignment.private,
             byte_size: 8,
             alignment: 8,
         });
@@ -122,12 +124,19 @@ pub fn spill_selected_runtime_value_with_span_policy(
         // An entry parameter's store opens its block: the register is live-in,
         // so position zero is the earliest point the slot holds the value and
         // the only one every use — body, terminator, or edge — follows.
-        for definition in admitted.definitions.iter().filter(|definition| {
-            definition.block_index == block_index
-                && matches!(definition.position, super::StoragePosition::BlockStart)
-        }) {
+        for (definition_index, definition) in
+            admitted
+                .definitions
+                .iter()
+                .enumerate()
+                .filter(|(_, definition)| {
+                    definition.block_index == block_index
+                        && matches!(definition.position, super::StoragePosition::BlockStart)
+                })
+        {
             let store = admission::store(
                 &admitted,
+                admitted.assignment.store_slot(definition_index),
                 definition.register,
                 &mut next_instruction,
                 &mut next_register,
@@ -164,6 +173,9 @@ pub fn spill_selected_runtime_value_with_span_policy(
                     .contains(&(instruction_index, operand.operand));
                 let reloaded = reload_for_use(
                     &admitted,
+                    admitted
+                        .assignment
+                        .load_slot(block_index, instruction_index),
                     register,
                     shared && operand.fixed_view.is_none() && !dedicated,
                     &mut open_reload,
@@ -190,17 +202,23 @@ pub fn spill_selected_runtime_value_with_span_policy(
             if admitted.span_closes[block_index].contains(&instruction_index) {
                 open_reload = None;
             }
-            for definition in admitted.definitions.iter().filter(|definition| {
-                definition.block_index == block_index
-                    && match definition.position {
-                        super::StoragePosition::AfterInstruction(anchor)
-                        | super::StoragePosition::AfterUseDef {
-                            instruction: anchor,
-                            ..
-                        } => anchor == original.id,
-                        super::StoragePosition::BlockStart => false,
-                    }
-            }) {
+            for (definition_index, definition) in
+                admitted
+                    .definitions
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, definition)| {
+                        definition.block_index == block_index
+                            && match definition.position {
+                                super::StoragePosition::AfterInstruction(anchor)
+                                | super::StoragePosition::AfterUseDef {
+                                    instruction: anchor,
+                                    ..
+                                } => anchor == original.id,
+                                super::StoragePosition::BlockStart => false,
+                            }
+                    })
+            {
                 // A `UseDef` write left the new value in the register its
                 // operand was redirected to — the emitted instruction's
                 // operand names it; the victim register itself was never
@@ -219,8 +237,13 @@ pub fn spill_selected_runtime_value_with_span_policy(
                         .ok_or(RuntimeSpillError::SourceMismatch)?,
                     _ => definition.register,
                 };
-                let store =
-                    admission::store(&admitted, stored, &mut next_instruction, &mut next_register)?;
+                let store = admission::store(
+                    &admitted,
+                    admitted.assignment.store_slot(definition_index),
+                    stored,
+                    &mut next_instruction,
+                    &mut next_register,
+                )?;
                 let (registers, sequence) = store.into_streams();
                 function.virtual_registers.extend(registers);
                 instructions.extend(sequence);
@@ -237,6 +260,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
             }
             let reload = admission::reload(
                 &admitted,
+                admitted.assignment.end_of_block_slot(block_index),
                 register,
                 &mut next_instruction,
                 &mut next_register,
@@ -265,6 +289,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 }
                 let reload = admission::reload(
                     &admitted,
+                    admitted.assignment.end_of_block_slot(block_index),
                     register,
                     &mut next_instruction,
                     &mut next_register,
@@ -310,6 +335,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                 let reloaded = if pending.dedicated_reload {
                     let reload = admission::reload(
                         &admitted,
+                        admitted.assignment.end_of_block_slot(block_index),
                         register,
                         &mut next_instruction,
                         &mut next_register,
@@ -349,6 +375,7 @@ pub fn spill_selected_runtime_value_with_span_policy(
                     }
                     let reload = admission::reload(
                         &admitted,
+                        admitted.assignment.end_of_block_slot(block_index),
                         register,
                         &mut next_instruction,
                         &mut next_register,
