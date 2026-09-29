@@ -190,7 +190,7 @@ fn selector_is_integer(
 /// bare `Name` selector spelled against a state-local immutable binding with
 /// a constant initializer folds, and every other shape stays on the
 /// runtime-selector routes.
-fn constant_local_index(
+pub(crate) fn constant_local_index(
     checked: &CheckedTrees,
     authored: &checked_trees::state::State,
     symbol: SymbolHandle,

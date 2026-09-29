@@ -297,13 +297,20 @@ fn resolve_source(
                 .ok_or(LoweringError::Unsupported(
                     "projected receiver index has no declared collection",
                 ))?;
-                if !matches!(
-                    checked.type_reference_table.type_reference(reference),
+                // Same live-extent rule as the literal arm: a view-typed
+                // receiver's bound obligation replays against the view's
+                // own length witness, not a declared literal. A byte
+                // element keeps its `ByteSequence` carrier vocabulary.
+                if !match checked.type_reference_table.type_reference(reference) {
                     TypeReferenceNode::FixedArray {
                         length: checked_trees::types::FixedArrayLength::Literal(_),
                         ..
+                    } => true,
+                    TypeReferenceNode::Slice { element_type } => {
+                        checked.primitive_type_reference(*element_type).is_none()
                     }
-                ) {
+                    _ => false,
+                } {
                     return unsupported("projected receiver index has no literal array length");
                 }
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
@@ -321,6 +328,15 @@ fn resolve_source(
                 if !matches!(
                     checked.expression_table.expression(indexed.index),
                     ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+                ) && !matches!(
+                    checked.expression_table.expression(indexed.index),
+                    ExpressionNode::Name(name)
+                        if crate::expression_preparation::source_custody::structural_places::constant_local_index(
+                            checked,
+                            state,
+                            name.symbol,
+                        )
+                        .is_some()
                 ) =>
             {
                 let selector = crate::expression_preparation::source_custody::structural_places::field_selector(
@@ -349,13 +365,16 @@ fn resolve_source(
                 .ok_or(LoweringError::Unsupported(
                     "projected receiver index has no declared collection",
                 ))?;
-                if !matches!(
-                    checked.type_reference_table.type_reference(reference),
+                if !match checked.type_reference_table.type_reference(reference) {
                     TypeReferenceNode::FixedArray {
                         length: checked_trees::types::FixedArrayLength::Literal(_),
                         ..
+                    } => true,
+                    TypeReferenceNode::Slice { element_type } => {
+                        checked.primitive_type_reference(*element_type).is_none()
                     }
-                ) {
+                    _ => false,
+                } {
                     return unsupported("projected receiver index has no literal array length");
                 }
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
@@ -367,17 +386,25 @@ fn resolve_source(
                 cursor = indexed.collection;
             }
             ExpressionNode::Indexed(indexed) => {
-                let ExpressionNode::Integer(index) =
-                    checked.expression_table.expression(indexed.index)
-                else {
-                    return unsupported("projected receiver requires a literal fixed index");
-                };
-                let index = index
-                    .value_bignum()
-                    .and_then(|value| value.to_u64())
-                    .ok_or(LoweringError::Unsupported(
-                        "projected receiver index exceeds u64",
-                    ))?;
+                // An immutable local scalar bound to a constant folds the
+                // same way the checker folded it at admission; every other
+                // non-literal shape took a runtime-selector arm above.
+                let index = match checked.expression_table.expression(indexed.index) {
+                    ExpressionNode::Integer(index) => index
+                        .value_bignum()
+                        .and_then(|value| value.to_u64()),
+                    ExpressionNode::Name(name) => {
+                        crate::expression_preparation::source_custody::structural_places::constant_local_index(
+                            checked,
+                            state,
+                            name.symbol,
+                        )
+                    }
+                    _ => None,
+                }
+                .ok_or(LoweringError::Unsupported(
+                    "projected receiver requires a literal fixed index",
+                ))?;
                 if !validation::place_has_builtin_coordinates(
                     &checked.typed,
                     machine,

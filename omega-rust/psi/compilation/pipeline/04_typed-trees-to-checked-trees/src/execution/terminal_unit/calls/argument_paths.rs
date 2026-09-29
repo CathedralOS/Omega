@@ -309,9 +309,7 @@ fn projected_argument_path_impl(
                     statement_index,
                     &container,
                 )?;
-                if *index >= fixed_array_literal_length(program, container)? {
-                    return None;
-                }
+                fixed_index_within_extent(program, container, *index)?;
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(
                     u64::try_from(*index).ok()?,
                 ));
@@ -334,9 +332,7 @@ fn projected_argument_path_impl(
                         statement_index,
                         &container,
                     )?;
-                    if index >= fixed_array_literal_length(program, container)? {
-                        return None;
-                    }
+                    fixed_index_within_extent(program, container, index)?;
                     path.push(CheckedUnitStructuralPathSegment::FixedIndex(
                         u64::try_from(index).ok()?,
                     ));
@@ -368,6 +364,35 @@ fn projected_argument_path_impl(
     let projected =
         crate::flow::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     Some((projected, path))
+}
+
+/// The checked segment a borrow-carried `Index` selector resolves to. An
+/// erased loan alias injects its captured `Index` segment into a consumer's
+/// walk, but that selector was never an authored target coordinate — no
+/// `AssignmentIndex` exists for it — so it resolves here exactly the way
+/// the same selector resolves in an argument path: a constant local folds
+/// to `FixedIndex`, a bare parameter or field selector mints the runtime
+/// coordinate Terminal re-proves against the container's extent.
+pub(crate) fn borrowed_index_segment(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitStructuralPathSegment> {
+    if let Some(index) = constant_local_index(program, state, expression) {
+        return Some(CheckedUnitStructuralPathSegment::FixedIndex(
+            u64::try_from(index).ok()?,
+        ));
+    }
+    let runtime_index = runtime_index_parameter_position(program, state, expression)
+        .map(|position| checked_trees::CheckedRuntimeIndex::Parameter { position })
+        .or_else(|| {
+            runtime_index_field_selector(program, machine, state, statement_index, expression)
+        })?;
+    Some(CheckedUnitStructuralPathSegment::RuntimeIndex(
+        runtime_index,
+    ))
 }
 
 /// The literal index an immutable local scalar names: `let i: u64 = 2`
@@ -540,6 +565,41 @@ pub(crate) fn projected_argument_path_with_identity(
 /// The literal element count of a fixed array reached through any number of
 /// domain constraints and borrows. A length that is not an authored literal
 /// bounds no fixed index here.
+/// `index` selects inside the container: a literal fixed-array length
+/// bounds it directly here. A slice carries no declared extent — its
+/// length is a live observation — so the hop stays unproven exactly the
+/// way an emitted segment's Terminal obligation re-proves it against the
+/// view's own witness; every other container declines.
+fn fixed_index_within_extent(
+    program: &TypedTrees,
+    container: typed_trees::types::TypeReferenceHandle,
+    index: usize,
+) -> Option<()> {
+    match fixed_array_literal_length(program, container) {
+        Some(length) => (index < length).then_some(()),
+        None => slice_type_reference(program, container).then_some(()),
+    }
+}
+
+/// The container is a slice through any number of domain constraints and
+/// borrows.
+fn slice_type_reference(
+    program: &TypedTrees,
+    mut type_reference: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    while let TypeReferenceNode::Constrained { base_type, .. }
+    | TypeReferenceNode::Reference {
+        referee: base_type, ..
+    } = program.type_reference_table.type_reference(type_reference)
+    {
+        type_reference = *base_type;
+    }
+    matches!(
+        program.type_reference_table.type_reference(type_reference),
+        TypeReferenceNode::Slice { .. }
+    )
+}
+
 fn fixed_array_literal_length(
     program: &TypedTrees,
     mut type_reference: typed_trees::types::TypeReferenceHandle,

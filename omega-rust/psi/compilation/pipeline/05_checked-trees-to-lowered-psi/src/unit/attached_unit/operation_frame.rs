@@ -1041,6 +1041,7 @@ impl OperationFrame<'_, '_> {
                     matches!(
                         step,
                         crate::emission::runtime_elements::ProjectionStep::AssignmentIndex { .. }
+                            | crate::emission::runtime_elements::ProjectionStep::RuntimeIndexParameter { .. }
                     )
                 });
         if runtime_index_through_view {
