@@ -247,44 +247,8 @@ impl Builder<'_, '_> {
                     subject_expression,
                     &mut path,
                 )?;
-                let authored_position = usize::try_from(parameter_position).ok()?;
-                // Structural argument plans index the dense structural
-                // namespace. A borrowed `self` joins it only when the
-                // receiver-observation check retains it, a decision made after
-                // this emission — so a different subject root positioned after
-                // such a receiver can never settle its dense index here.
-                let subject_is_self = self
-                    .authored_parameters
-                    .get(authored_position)
-                    .is_some_and(|parameter| parameter.is_self);
-                if !subject_is_self
-                    && self
-                        .authored_parameters
-                        .iter()
-                        .take(authored_position)
-                        .any(|parameter| {
-                            parameter.is_self
-                                && crate::execution::terminal_unit::is_reference(
-                                    self.program,
-                                    parameter.type_reference,
-                                )
-                        })
-                {
-                    return None;
-                }
-                let parameter_index = u32::try_from(
-                    self.authored_parameters
-                        .iter()
-                        .take(authored_position)
-                        .filter(|parameter| {
-                            crate::execution::terminal_unit::structural_parameter_candidate(
-                                self.program,
-                                parameter,
-                            )
-                        })
-                        .count(),
-                )
-                .ok()?;
+                let parameter_index = self
+                    .dense_structural_parameter_index(usize::try_from(parameter_position).ok()?)?;
                 let path = path
                     .into_iter()
                     .map(|segment| match segment {

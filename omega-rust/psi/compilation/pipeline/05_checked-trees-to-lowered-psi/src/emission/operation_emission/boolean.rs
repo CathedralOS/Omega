@@ -3,6 +3,7 @@
 use super::buffer::OperationBuffer;
 use super::expressions::{LoweredDirectExpression, emit_direct_expression, emit_scalar_leaf};
 use super::integer::LoweredIntegerComparisonKind;
+use crate::terminal_identities::obligation_id;
 use crate::terminal_identities::value_id;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralFieldId, ValueId};
 use terminal_psi::{Operation, OperationKind, ValueDeclaration};
@@ -12,6 +13,20 @@ pub(crate) enum LoweredBooleanReturnExpression {
     StructuralCaseMembership {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
+        case: semantic_vocabulary::StructuralCaseId,
+    },
+    /// Observe the active case of a runtime-selected element
+    /// (`self.items[self.w] is Color::Red`): `path` reaches the fixed array,
+    /// `index` is the selector, evaluated first and spelled as the
+    /// observation's `RuntimeIndex` segment, and `element_path` walks the
+    /// selected element to the sum. The observation owns the selector's bound
+    /// obligation, which the verifier reconstructs against the array's
+    /// declared extent; it keys no case fact.
+    IndexedCaseMembership {
+        source: PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+        index: Box<LoweredDirectExpression>,
+        element_path: Vec<terminal_psi::StructuralPathSegment>,
         case: semantic_vocabulary::StructuralCaseId,
     },
     PrimitiveRead {
@@ -121,6 +136,34 @@ pub(crate) fn emit_boolean_expression(
                 OperationKind::StructuralCaseMembership {
                     source: *source,
                     path: path.clone(),
+                    case: *case,
+                },
+                ScalarType::Boolean,
+                next_value_identity,
+                operations,
+            )
+        }
+        LoweredBooleanReturnExpression::IndexedCaseMembership {
+            source,
+            path,
+            index,
+            element_path,
+            case,
+        } => {
+            let index = emit_direct_expression(index, parameters, next_value_identity, operations);
+            let obligation = obligation_id(
+                operations
+                    .next_identity
+                    .checked_add(1)
+                    .expect("membership obligation follows its operation identity"),
+            );
+            let mut path = path.clone();
+            path.push(terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation });
+            path.extend(element_path.iter().cloned());
+            emit_scalar_leaf(
+                OperationKind::StructuralCaseMembership {
+                    source: *source,
+                    path,
                     case: *case,
                 },
                 ScalarType::Boolean,

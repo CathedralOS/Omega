@@ -389,6 +389,16 @@ pub(super) fn plan(
         });
         return Some(LocalPlan::Planned);
     }
+    // A runtime-indexed dispatch subject is erased: each arm observes the
+    // borrowed element itself (`case_observation_alias`).
+    local_phase("statement sequence: local data: erased dispatch subject");
+    if crate::execution::terminal_unit::control::case_observation_alias::erased_subject(
+        program, state, index, local,
+    )
+    .is_some()
+    {
+        return Some(LocalPlan::Planned);
+    }
     local_phase("statement sequence: local data: exclusive place loan");
     if is_exclusive_place_loan(
         program,

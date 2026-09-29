@@ -1600,6 +1600,80 @@ mod tests {
         }
     }
 
+    /// A case observation of a runtime-selected element
+    /// (`items[i] is Color::Red`) spells its path with the existing field and
+    /// runtime index segments, so it takes no new tag: the round trip is
+    /// exact, a truncated encoding fails, and another selector, obligation or
+    /// case encodes differently.
+    #[test]
+    fn runtime_element_case_membership_roundtrips_its_path() {
+        let block = Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            operations: vec![Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id(1),
+                result: OperationResult::Scalar(ValueDeclaration {
+                    qualifications: Default::default(),
+                    id: id(4),
+                    scalar_type: ScalarType::Boolean,
+                }),
+                kind: OperationKind::StructuralCaseMembership {
+                    source: id(2),
+                    path: vec![
+                        terminal_psi::StructuralPathSegment::Field("items".into()),
+                        terminal_psi::StructuralPathSegment::RuntimeIndex {
+                            index: id(3),
+                            obligation: id(1),
+                        },
+                    ],
+                    case: id(1),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id(3),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).unwrap();
+        let bytes = writer.finish();
+        assert_eq!(decode_block(&mut Reader::new(&bytes)).unwrap(), block);
+        for prefix in 0..bytes.len() {
+            assert!(decode_block(&mut Reader::new(&bytes[..prefix])).is_err());
+        }
+        for change in 0..3 {
+            let mut changed = block.clone();
+            let OperationKind::StructuralCaseMembership { path, case, .. } =
+                &mut changed.operations[0].kind
+            else {
+                panic!("membership");
+            };
+            match change {
+                0 => {
+                    path[1] = terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: id(5),
+                        obligation: id(1),
+                    }
+                }
+                1 => {
+                    path[1] = terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        index: id(3),
+                        obligation: id(2),
+                    }
+                }
+                _ => *case = id(2),
+            }
+            let mut writer = Writer::default();
+            encode_block(&mut writer, &changed).unwrap();
+            assert_ne!(writer.finish(), bytes, "change {change}");
+        }
+    }
+
     #[test]
     fn byte_field_store_roundtrips_every_identity_and_rejects_truncation() {
         let block = Block {

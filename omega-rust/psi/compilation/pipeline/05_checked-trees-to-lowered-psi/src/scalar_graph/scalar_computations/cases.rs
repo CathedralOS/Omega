@@ -328,6 +328,30 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let subject = match subject {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
+            CheckedScalarComputationStructuralArgument::Place(argument)
+                if !argument.path.iter().all(|segment| {
+                    !matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+                    )
+                }) =>
+            {
+                // A runtime-selected element observes "some element": its
+                // selector is read before the tag and the observation owns
+                // the element's bound.
+                let identity = structural_case_identity(self.checked, observed_case)?;
+                let expression = site
+                    .bindings
+                    .parameter_element_case_observation(argument, &identity)?;
+                return Ok(self.binding(
+                    input_types,
+                    input_types.len(),
+                    target,
+                    LoweredScalarBinding::Expression(LoweredDirectExpression::Boolean {
+                        expression: Box::new(expression),
+                    }),
+                ));
+            }
             CheckedScalarComputationStructuralArgument::Place(argument) => {
                 let (place, path, case) = match argument.source {
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {

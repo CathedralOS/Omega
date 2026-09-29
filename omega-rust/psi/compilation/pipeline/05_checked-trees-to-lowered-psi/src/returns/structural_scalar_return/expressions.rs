@@ -60,6 +60,7 @@ pub(super) fn is_structural_boolean_return_expression(
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
@@ -174,6 +175,7 @@ pub(super) fn is_branch_free_structural_boolean_expression(
         }
         LoweredBooleanReturnExpression::StructuralField { .. } => true,
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. } => false,
         LoweredBooleanReturnExpression::Local { position } => {
             *position >= scalar_parameters
@@ -211,6 +213,7 @@ pub(super) fn boolean_local_reference_count(
         }
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
@@ -251,6 +254,7 @@ pub(super) fn inline_boolean_local(
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField {
             ..

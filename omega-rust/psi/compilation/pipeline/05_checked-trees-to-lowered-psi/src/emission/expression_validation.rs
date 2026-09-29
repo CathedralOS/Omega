@@ -36,6 +36,9 @@ pub(crate) fn validate_boolean_parameter_types(
             validate_direct_parameter_types(left, parameter_types)?;
             validate_direct_parameter_types(right, parameter_types)
         }
+        LoweredBooleanReturnExpression::IndexedCaseMembership { index, .. } => {
+            validate_direct_parameter_types(index, parameter_types)
+        }
     }
 }
 
@@ -99,6 +102,7 @@ pub(crate) fn contains_short_circuit(expression: &LoweredBooleanReturnExpression
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
@@ -131,6 +135,7 @@ pub(crate) fn validate_short_circuit_expression(
     match expression {
         LoweredBooleanReturnExpression::Constant { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }

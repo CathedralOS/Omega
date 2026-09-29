@@ -34,6 +34,40 @@ impl Builder<'_, '_> {
         ) {
             return None;
         }
+        // A transition arm (`Color::Red -> red()`) spells its case as a
+        // payload-free constructor; an authored test spells it as a name.
+        // Only a runtime-selected subject admits the constructor spelling
+        // here: static subjects keep their pure observation.
+        let observed =
+            crate::execution::terminal_unit::control::case_observation_alias::observed_place(
+                self.program,
+                state,
+                binary.left,
+            )
+            .unwrap_or((binary.left, self.statement_index));
+        if let Some(subject) = self.runtime_element_case_subject(observed.0, observed.1) {
+            let case = match self.program.expression_table.expression(binary.right) {
+                ExpressionNode::Name(selected) => selected.symbol,
+                ExpressionNode::StructLiteral(literal)
+                    if self
+                        .program
+                        .expression_table
+                        .struct_fields(literal.fields)
+                        .is_empty() =>
+                {
+                    literal.case_symbol?
+                }
+                _ => return None,
+            };
+            return Some(self.insert(
+                PrimitiveType::Bool,
+                CheckedScalarComputationKind::CaseMembership {
+                    source_expression: expression,
+                    subject: CheckedScalarComputationStructuralArgument::Place(subject),
+                    case,
+                },
+            ));
+        }
         let ExpressionNode::Name(selected) = self.program.expression_table.expression(binary.right)
         else {
             return None;
@@ -86,6 +120,111 @@ impl Builder<'_, '_> {
                 case,
             },
         ))
+    }
+
+    /// The subject of a membership that selects an array element at run time
+    /// (`self.items[self.w] is Color::Red`), directly or through the erased
+    /// dispatch subject symbol resolution hoists it into
+    /// (`control::case_observation_alias`). A static subject keeps the pure
+    /// `StructuralCaseMembership` observation its canonical path keys; only a
+    /// path through a runtime element takes this name-spelled place, the
+    /// route e19d9775393 gave `self.cells[self.i].hp`. Its `RuntimeIndex`
+    /// segment names the checked selector and carries no bound: Terminal
+    /// re-proves `index < extent` against the array. The observation reads
+    /// "some element", so it keys no case fact on a canonical place, while
+    /// the dispatch it guards still selects exactly one arm by the observed
+    /// tag.
+    fn runtime_element_case_subject(
+        &self,
+        subject: ExpressionHandle,
+        statement_index: usize,
+    ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
+        let place = crate::flow::canonical_place_from_expression_in_state(
+            self.program,
+            self.state,
+            statement_index,
+            subject,
+        )?;
+        if !place
+            .segments
+            .iter()
+            .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+        {
+            return None;
+        }
+        let facts::PlaceRoot::Symbol(root) =
+            crate::flow::normalized_event_place_root(self.program, place.root)
+        else {
+            return None;
+        };
+        let authored_position = self.authored_parameters.iter().position(|parameter| {
+            (parameter.is_self && root == self.machine)
+                || crate::flow::normalized_event_place_root(
+                    self.program,
+                    facts::PlaceRoot::Symbol(parameter.symbol),
+                ) == facts::PlaceRoot::Symbol(root)
+        })?;
+        let parameter_index = self.dense_structural_parameter_index(authored_position)?;
+        let (projected, path) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+            self.program,
+            self.machine,
+            self.state,
+            statement_index,
+            &place,
+        )?;
+        Some(checked_trees::CheckedUnitStructuralArgumentPlan {
+            source: checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index,
+            },
+            path,
+            type_identity: self
+                .program
+                .normalized_type_identity(projected)
+                .as_str()
+                .to_owned(),
+            access: checked_trees::CheckedStructuralAccess::SharedBorrow,
+        })
+    }
+
+    /// The dense structural-namespace index of the authored parameter at
+    /// `authored_position`, the coordinate structural argument plans use. A
+    /// borrowed `self` joins that namespace only when the receiver-observation
+    /// check retains it, a decision made after this emission, so a different
+    /// subject root positioned after such a receiver can never settle its
+    /// dense index here.
+    pub(super) fn dense_structural_parameter_index(&self, authored_position: usize) -> Option<u32> {
+        let subject_is_self = self
+            .authored_parameters
+            .get(authored_position)
+            .is_some_and(|parameter| parameter.is_self);
+        if !subject_is_self
+            && self
+                .authored_parameters
+                .iter()
+                .take(authored_position)
+                .any(|parameter| {
+                    parameter.is_self
+                        && crate::execution::terminal_unit::is_reference(
+                            self.program,
+                            parameter.type_reference,
+                        )
+                })
+        {
+            return None;
+        }
+        u32::try_from(
+            self.authored_parameters
+                .iter()
+                .take(authored_position)
+                .filter(|parameter| {
+                    crate::execution::terminal_unit::structural_parameter_candidate(
+                        self.program,
+                        parameter,
+                    )
+                })
+                .count(),
+        )
+        .ok()
     }
 
     /// Membership and stored values share the same authored field computations.

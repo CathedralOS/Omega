@@ -457,6 +457,7 @@ pub(crate) fn evaluate_compile_known_boolean_expression(
         }
         LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. } => None,
         LoweredBooleanReturnExpression::Not { operand } => Some(

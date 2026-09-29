@@ -72,6 +72,11 @@ pub(super) fn validate(
                 || (!closed_sum && is_arm_pattern_marker(statement))
                 || is_exclusive_loan_marker(checked, statement)
         }) || crate::emission::atomic_sources::result_placeholder(checked, statements, index)
+            // A runtime-indexed dispatch's shared subject plans no operation:
+            // each arm observes the borrowed element itself.
+            || crate::expression_preparation::source_custody::case_sources::is_erased_dispatch_subject(
+                checked, statements, index,
+            )
     };
     let record_pattern_markers = (prefix..end).filter(|index| is_marker_at(*index)).count();
     if prefix > end

@@ -109,6 +109,7 @@ pub(crate) fn resolve_shared_boolean_member_fields(
         | LoweredBooleanReturnExpression::Parameter { .. }
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. }) => expression,
@@ -167,6 +168,7 @@ pub(crate) fn normalize_shared_boolean_comparison_leaves(
         },
         LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
+        | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. } => return None,
     })
