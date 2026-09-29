@@ -732,6 +732,19 @@ pub(super) fn validate_operation(
             )?;
         }
         (
+            TargetUnitOperation::NearestIeeeFloatArithmetic { .. },
+            AbstractOperation::BoundaryCall { .. },
+        ) => {
+            super::super::ieee_float_arithmetic::validate(
+                target,
+                abstracted,
+                native.target,
+                plan,
+                unit,
+                sources,
+            )?;
+        }
+        (
             TargetUnitOperation::BoundarySettlement { .. },
             AbstractOperation::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(_),

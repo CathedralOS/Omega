@@ -83,7 +83,9 @@ pub use register_model::{
     AARCH64_HOSTED_WRITE_BYTE_I32, AARCH64_LOAD_PACKED, AARCH64_LOAD8_INDEXED, AARCH64_LOAD64,
     AARCH64_STORE, AARCH64_STORE_PACKED, AARCH64_STORE64,
 };
-pub use register_model::{AARCH64_RESTORE_FLOATING_CONTROL, AARCH64_SAVE_FLOATING_CONTROL};
+pub use register_model::{
+    AARCH64_IEEE_FLOAT_ARITHMETIC, AARCH64_RESTORE_FLOATING_CONTROL, AARCH64_SAVE_FLOATING_CONTROL,
+};
 pub use register_model::{
     aarch64_aapcs64_register_unit_call_keys, aarch64_darwin_register_unit_call_keys,
 };

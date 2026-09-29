@@ -24,6 +24,7 @@ mod borrowed_windows;
 mod byte_concatenation;
 mod byte_write;
 mod dominance;
+mod ieee_float_arithmetic;
 mod installed_calls;
 mod leaf_copy;
 mod observations;

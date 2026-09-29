@@ -19,6 +19,7 @@ pub(crate) mod crash;
 pub(crate) mod decoding;
 mod float_bits;
 pub(crate) mod floating_control;
+pub(crate) mod ieee_float_arithmetic;
 pub use floating_control::{
     encode_x86_64_selected_floating_control_form, validate_x86_64_selected_floating_control_form,
 };
@@ -149,6 +150,9 @@ pub fn encode_x86_64_selected_form(
     if float_bits::is_transfer(kind) {
         return float_bits::encode(physical, kind, alternative, operands);
     }
+    if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
+        return ieee_float_arithmetic::encode(physical, form, alternative, operands);
+    }
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_scalar_registers(physical, kind, operands)?;
     validate_return_home(kind, &registers)?;
@@ -169,6 +173,9 @@ pub fn validate_x86_64_selected_form_encoding(
     }
     if float_bits::is_transfer(kind) {
         return float_bits::validate(physical, kind, alternative, operands, bytes);
+    }
+    if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
+        return ieee_float_arithmetic::validate(physical, form, alternative, operands, bytes);
     }
     validate_request(physical, kind, alternative, operands)?;
     let registers = resolve_scalar_registers(physical, kind, operands)?;

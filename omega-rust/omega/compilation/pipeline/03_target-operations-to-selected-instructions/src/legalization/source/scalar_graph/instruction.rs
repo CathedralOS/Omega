@@ -199,6 +199,45 @@ pub(super) fn project(
         {
             call_instructions::project_normalized_foreign_call(node, optimized, native, operation)?
         }
+        // Inline float arithmetic carries only the replayed operation,
+        // format and SSA operands; its row was rejoined by input validation.
+        AbstractOperation::BoundaryCall {
+            boundary,
+            arguments,
+            ..
+        } if scalar_graph_input::ieee_float_arithmetic::row(
+            native,
+            optimized.machine,
+            operation,
+        )?
+        .is_some() =>
+        {
+            let Some(target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+                boundary: row_boundary,
+                realization,
+                ..
+            }) = scalar_graph_input::ieee_float_arithmetic::row(
+                native,
+                optimized.machine,
+                operation,
+            )?
+            else {
+                return Err(Error::custody());
+            };
+            let [left, right] = arguments.as_slice() else {
+                return Err(Error::custody());
+            };
+            if row_boundary != boundary {
+                return Err(Error::custody());
+            }
+            LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
+                boundary: *boundary,
+                operation: realization.operation,
+                format: realization.format,
+                left: *left,
+                right: *right,
+            }
+        }
         AbstractOperation::BoundaryCall {
             boundary,
             result: abstract_operations::AbstractBoundaryResult::Structural(result),

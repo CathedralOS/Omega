@@ -30,6 +30,7 @@ impl SelectedConstraintKeys {
             self.float64_to_bits,
             self.bits_to_float32,
             self.bits_to_float64,
+            self.ieee_float_arithmetic,
         ]
         .into_iter()
         .flatten()
@@ -89,6 +90,9 @@ impl SelectedConstraintKeys {
                     crate::AtomicOperation::CompareExchange => self.atomic_compare_exchange,
                     _ => self.atomic_update,
                 };
+            }
+            MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
+                return self.ieee_float_arithmetic;
             }
             MachineSemanticKind::CopyBytes => return self.copy_bytes,
             MachineSemanticKind::Float32ToBits => return self.float32_to_bits,

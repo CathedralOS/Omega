@@ -180,6 +180,7 @@ pub fn target_register_environment_identity(
         selected_keys.float64_to_bits,
         selected_keys.bits_to_float32,
         selected_keys.bits_to_float64,
+        selected_keys.ieee_float_arithmetic,
     ] {
         optional_constraint_key(&mut bytes, key);
     }

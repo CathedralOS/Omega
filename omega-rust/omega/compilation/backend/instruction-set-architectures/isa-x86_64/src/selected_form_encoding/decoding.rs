@@ -634,6 +634,7 @@ pub(crate) fn validate_decoded(
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
         SelectedInstructionKind::AtomicAccess { .. } => false,
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => false,
         SelectedInstructionKind::Crash => {
             registers.is_empty() && decoded == [DecodedInstruction::Crash]
         }
@@ -1688,7 +1689,18 @@ pub(crate) fn footprint(
     if let Some(form) = trapping_form(kind) {
         return trapping_footprint(form, operands);
     }
+    if let SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } = kind {
+        return X86_64SelectedFormFootprint {
+            register_reads: operands[..2].to_vec(),
+            register_writes: operands[2..3].to_vec(),
+            writes_rflags: false,
+            encoded: super::ieee_float_arithmetic::effects(),
+        };
+    }
     let (reads, writes, writes_rflags) = match kind {
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
+            unreachable!("float arithmetic footprint returned above")
+        }
         SelectedInstructionKind::AtomicAccess { form } => (
             operands[..usize::from(form.operation.input_count())].to_vec(),
             form.observed_operand()

@@ -180,6 +180,26 @@ const fn compiler_builtin_execution_tag(execution: CompilerBuiltinExecution) -> 
         CompilerBuiltinExecution::HostedExitProcessI32 => 1,
         CompilerBuiltinExecution::HostedReadByte => 2,
         CompilerBuiltinExecution::HostedWriteByteI32 => 3,
+        // Tags 4..=11: one per exact operation and format.
+        CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
+            4 + 2 * float_arithmetic_tag(operation) + float_format_tag(format)
+        }
+    }
+}
+
+const fn float_arithmetic_tag(operation: target_operations::IeeeFloatArithmeticOperation) -> u8 {
+    match operation {
+        target_operations::IeeeFloatArithmeticOperation::Add => 0,
+        target_operations::IeeeFloatArithmeticOperation::Subtract => 1,
+        target_operations::IeeeFloatArithmeticOperation::Multiply => 2,
+        target_operations::IeeeFloatArithmeticOperation::Divide => 3,
+    }
+}
+
+const fn float_format_tag(format: semantic_vocabulary::IeeeFloatFormat) -> u8 {
+    match format {
+        semantic_vocabulary::IeeeFloatFormat::Binary32 => 0,
+        semantic_vocabulary::IeeeFloatFormat::Binary64 => 1,
     }
 }
 
@@ -202,6 +222,11 @@ fn hash_boundary_realization(digest: &mut Sha256, realization: &BoundaryRealizat
         BoundaryRealization::HostedExitProcessI32(_) => digest.update([5]),
         BoundaryRealization::HostedReadByte(_) => digest.update([6]),
         BoundaryRealization::HostedWriteByteI32(_) => digest.update([7]),
+        BoundaryRealization::NearestIeeeFloatArithmetic(realization) => digest.update([
+            8,
+            float_arithmetic_tag(realization.operation),
+            float_format_tag(realization.format),
+        ]),
     }
 }
 

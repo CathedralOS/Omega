@@ -193,3 +193,85 @@ fn undemanded_plans_still_require_complete_aligned_provenance() {
         }
     }
 }
+
+#[test]
+fn float_arithmetic_rows_project_exact_executions_and_comparisons_do_not() {
+    use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
+    use numerics::literals::FloatFormat;
+    use semantic_vocabulary::IeeeFloatFormat;
+    use target_operations::{CompilerBuiltinExecution, IeeeFloatArithmeticOperation as Arithmetic};
+    let binary = |operation, format| CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+        operation,
+        format,
+    };
+    let (plan, retained) = selected_plan(
+        "floats",
+        &[
+            ("a_add32", Some(binary(Primitive::Add, FloatFormat::F32))),
+            (
+                "b_subtract64",
+                Some(binary(Primitive::Subtract, FloatFormat::F64)),
+            ),
+            (
+                "c_multiply32",
+                Some(binary(Primitive::Multiply, FloatFormat::F32)),
+            ),
+            (
+                "d_divide64",
+                Some(binary(Primitive::Divide, FloatFormat::F64)),
+            ),
+        ],
+    );
+    let proposals = derive_selected_intrinsic_settlement_proposals(
+        std::slice::from_ref(&plan),
+        provenance(std::slice::from_ref(&retained)),
+        &demands(&["a_add32", "b_subtract64", "c_multiply32", "d_divide64"]),
+    )
+    .expect("every arithmetic operation and format has a native realization");
+    let expected = [
+        (Arithmetic::Add, IeeeFloatFormat::Binary32),
+        (Arithmetic::Subtract, IeeeFloatFormat::Binary64),
+        (Arithmetic::Multiply, IeeeFloatFormat::Binary32),
+        (Arithmetic::Divide, IeeeFloatFormat::Binary64),
+    ];
+    assert_eq!(
+        proposals
+            .iter()
+            .map(|proposal| proposal.execution)
+            .collect::<Vec<_>>(),
+        expected.map(
+            |(operation, format)| CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                operation,
+                format
+            }
+        )
+    );
+
+    // A comparison selected for a called boundary has no call realization:
+    // IEEE comparisons settle their emitted Terminal operations instead.
+    // A duplicated arithmetic row cannot choose one of its copies.
+    let (plan, retained) = selected_plan(
+        "floats",
+        &[
+            ("equal", Some(binary(Primitive::Equal, FloatFormat::F64))),
+            ("twice", Some(binary(Primitive::Add, FloatFormat::F64))),
+            ("twice", Some(binary(Primitive::Add, FloatFormat::F64))),
+        ],
+    );
+    let diagnostics = derive_selected_intrinsic_settlement_proposals(
+        std::slice::from_ref(&plan),
+        provenance(std::slice::from_ref(&retained)),
+        &demands(&["equal", "twice"]),
+    )
+    .expect_err("comparison and duplicate rows reject");
+    assert_eq!(
+        diagnostics
+            .iter()
+            .map(|diagnostic| diagnostic.message.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "selected compiler intrinsic `floats` for Terminal boundary `equal` has no native boundary realization",
+            "Terminal boundary `twice` resolves to 2 selected compiler-intrinsic rows",
+        ]
+    );
+}

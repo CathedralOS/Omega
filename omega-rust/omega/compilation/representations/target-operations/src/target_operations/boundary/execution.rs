@@ -30,6 +30,23 @@ pub struct ProviderExecutionBinding {
     boundary_contract_report_fingerprint: u64,
 }
 
+/// One IEEE-754 binary arithmetic operation. Each denotes the exact
+/// operation of its format rounded to nearest, ties to even: Omega's
+/// canonical floating controls hold that rounding mode at every native
+/// boundary, so an ordinary scalar instruction realizes it without a mode
+/// change or a software fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IeeeFloatArithmeticOperation {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+}
+
+impl IeeeFloatArithmeticOperation {
+    pub const ALL: [Self; 4] = [Self::Add, Self::Subtract, Self::Multiply, Self::Divide];
+}
+
 /// One compiler-owned target mechanism accepted by the consuming lowerer's
 /// closed catalog. This is structural target custody, not an installed
 /// provider execution or a compact authority coordinate.
@@ -38,6 +55,12 @@ pub enum CompilerBuiltinExecution {
     HostedExitProcessI32,
     HostedReadByte,
     HostedWriteByteI32,
+    /// A selected primitive float arithmetic provider. It realizes inline as
+    /// one scalar IEEE operation in the caller rather than as a call.
+    NearestIeeeFloatArithmetic {
+        operation: IeeeFloatArithmeticOperation,
+        format: semantic_vocabulary::IeeeFloatFormat,
+    },
 }
 
 /// Closed execution roles for a realized Terminal boundary.

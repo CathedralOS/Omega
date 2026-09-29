@@ -128,6 +128,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         }
         SelectedInstructionKind::TrappingInteger { form } => trapping_family_tag(form),
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::Float32ToBits => 26,
         SelectedInstructionKind::Float64ToBits => 27,
         SelectedInstructionKind::BitsToFloat32 => 28,
@@ -327,6 +328,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::AtomicAccess { .. }
+        | SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64

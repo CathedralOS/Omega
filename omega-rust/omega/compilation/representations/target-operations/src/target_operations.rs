@@ -49,7 +49,8 @@ pub use boundary::{
     BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
     ClaimCompletionOnlyRealization, CompilerBuiltinExecution, DirectPortReadU8Realization,
     HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
-    LinuxWriteLineRealization, MetadataOnlyPortRealization, NormalizedForeignCallBinding,
+    IeeeFloatArithmeticOperation, LinuxWriteLineRealization, MetadataOnlyPortRealization,
+    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
     NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument, ProviderExecutionBinding,
     ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
 };

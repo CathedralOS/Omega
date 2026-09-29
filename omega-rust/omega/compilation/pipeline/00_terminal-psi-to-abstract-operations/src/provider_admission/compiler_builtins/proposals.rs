@@ -171,8 +171,34 @@ fn compiler_builtin_execution(
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
             Some(CompilerBuiltinExecution::HostedReadByte)
         }
+        CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
+            // Only arithmetic is call-demanded. Selected comparisons settle
+            // their emitted Terminal IEEE comparisons, never a boundary call.
+            use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
+            use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
+            let operation = match operation {
+                Primitive::Add => Arithmetic::Add,
+                Primitive::Subtract => Arithmetic::Subtract,
+                Primitive::Multiply => Arithmetic::Multiply,
+                Primitive::Divide => Arithmetic::Divide,
+                Primitive::Equal
+                | Primitive::NotEqual
+                | Primitive::Less
+                | Primitive::LessOrEqual
+                | Primitive::Greater
+                | Primitive::GreaterOrEqual => return None,
+            };
+            let format = match format {
+                numerics::literals::FloatFormat::F32 => {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32
+                }
+                numerics::literals::FloatFormat::F64 => {
+                    semantic_vocabulary::IeeeFloatFormat::Binary64
+                }
+            };
+            Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(_)
-        | CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { .. }
         | CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. }
         | CompilerIntrinsicExecutionIdentity::NamedFloatNegation(_)
         | CompilerIntrinsicExecutionIdentity::NamedFloatConversion { .. } => None,

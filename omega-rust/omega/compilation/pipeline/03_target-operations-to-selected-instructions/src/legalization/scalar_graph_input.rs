@@ -25,6 +25,7 @@ pub(super) mod borrowed_windows;
 pub(super) mod byte_views;
 mod header;
 mod hosted_scalar;
+pub(in crate::legalization) mod ieee_float_arithmetic;
 pub(in crate::legalization) mod normalized_foreign;
 mod place_declarations;
 pub(super) mod read_byte;

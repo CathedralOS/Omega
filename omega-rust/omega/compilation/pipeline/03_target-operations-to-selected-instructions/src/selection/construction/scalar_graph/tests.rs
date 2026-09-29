@@ -18,6 +18,7 @@ mod control;
 mod crash;
 mod derived_calls;
 mod exact_native_division;
+mod ieee_arithmetic;
 mod ieee_borrows;
 mod ieee_comparisons;
 mod immediate_compare;

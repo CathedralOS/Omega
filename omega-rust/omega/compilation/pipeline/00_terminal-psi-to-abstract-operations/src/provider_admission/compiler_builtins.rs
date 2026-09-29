@@ -2,6 +2,12 @@
 //! Terminal demand and the target catalog before producing settlements.
 //! Candidate projection lives in `proposals`; retained request construction
 //! and plan-index custody live in `retained`. Neither replaces admission.
+//!
+//! Hosted builtins settle as call-shaped rows. Selected primitive float
+//! arithmetic settles as `NearestIeeeFloatArithmetic`, which stage 02
+//! realizes inline as one IEEE operation: its admission additionally
+//! requires the boundary's exact `(format, format) -> format` signature, so
+//! a row selected for another format or shape cannot stand in.
 
 mod proposals;
 mod retained;
@@ -23,6 +29,7 @@ use effects::{CompilerIntrinsicExecutionIdentity, provider_plan::ProviderBinding
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
     HostedReadByteRealization, HostedWriteByteI32Realization,
+    NearestIeeeFloatArithmeticRealization,
 };
 
 pub(super) fn settle_compiler_builtins<'request>(
@@ -135,6 +142,19 @@ pub(super) fn settle_compiler_builtins<'request>(
                     request.target
                 ))]);
             }
+            CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
+                float_arithmetic_realization(
+                    NearestIeeeFloatArithmeticRealization { operation, format },
+                    request.target,
+                    boundary,
+                )
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "compiler float arithmetic for `{requirement}` {reason}"
+                    ))]
+                })?
+                .into()
+            }
         };
         admitted.push(AdmittedBoundarySettlement {
             boundary: boundary.id,
@@ -147,6 +167,31 @@ pub(super) fn settle_compiler_builtins<'request>(
         });
     }
     Ok((admitted, mechanisms))
+}
+
+/// Admit one selected float-arithmetic execution through the receiving
+/// target catalog. The realization must denote exactly the Terminal
+/// boundary's signature: two scalar operands and one scalar result of the
+/// execution's own format, with no structural lane. A row selected for
+/// another format or operand shape cannot stand in for this boundary.
+fn float_arithmetic_realization(
+    realization: NearestIeeeFloatArithmeticRealization,
+    target: target::NativeTarget,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> Result<NearestIeeeFloatArithmeticRealization, String> {
+    if !NearestIeeeFloatArithmeticRealization::supports_target(target) {
+        return Err(format!(
+            "has no local target catalog realization on {target:?}"
+        ));
+    }
+    let scalar = semantic_vocabulary::ScalarType::IeeeFloat(realization.format);
+    if boundary.scalar_parameters != [scalar, scalar]
+        || !boundary.structural_parameters.is_empty()
+        || boundary.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
+    {
+        return Err("does not match its Terminal boundary signature".to_owned());
+    }
+    Ok(realization)
 }
 
 const fn compiler_intrinsic_execution_identity(
@@ -162,5 +207,28 @@ const fn compiler_intrinsic_execution_identity(
         CompilerBuiltinExecution::HostedReadByte => {
             CompilerIntrinsicExecutionIdentity::HostedReadByte
         }
+        CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
+            use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
+            use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
+            CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+                operation: match operation {
+                    Arithmetic::Add => Primitive::Add,
+                    Arithmetic::Subtract => Primitive::Subtract,
+                    Arithmetic::Multiply => Primitive::Multiply,
+                    Arithmetic::Divide => Primitive::Divide,
+                },
+                format: match format {
+                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
+                        numerics::literals::FloatFormat::F32
+                    }
+                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
+                        numerics::literals::FloatFormat::F64
+                    }
+                },
+            }
+        }
     }
 }
+
+#[cfg(test)]
+mod tests;

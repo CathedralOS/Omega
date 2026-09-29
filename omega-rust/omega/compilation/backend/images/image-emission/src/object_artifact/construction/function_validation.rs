@@ -1604,6 +1604,8 @@ fn validate_boundary_settlements(
                     && function.unit_stack.is_some()
                     && function.scalar_stack.is_none()
             }
+            // Inline float arithmetic never forms a settlement row.
+            BoundaryRealization::NearestIeeeFloatArithmetic(_) => false,
         };
         if !valid_realization
             || !boundary_result_is_exact(

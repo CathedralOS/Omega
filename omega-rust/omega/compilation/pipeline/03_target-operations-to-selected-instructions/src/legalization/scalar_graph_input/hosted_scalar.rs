@@ -30,6 +30,12 @@ pub(super) fn validate_tails(
             if super::normalized_foreign::row(native, optimized.machine, psi_operation)?.is_some() {
                 continue;
             }
+            // Inline float arithmetic is an ordinary value definition.
+            if super::ieee_float_arithmetic::row(native, optimized.machine, psi_operation)?
+                .is_some()
+            {
+                continue;
+            }
             // Ending owned aggregate custody emits no instruction after exit.
             // Replay the ordinary cleanup contract, including exact owner shape.
             if matches!(

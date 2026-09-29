@@ -9,7 +9,7 @@ use super::{
 use crate::selection::construction::scalar_graph::tests::control;
 use semantic_vocabulary::{IeeeFloatComparisonOperation as Relation, IeeeFloatFormat};
 
-fn comparison_source(
+pub(super) fn comparison_source(
     target: target::NativeTarget,
     comparison: Relation,
     format: IeeeFloatFormat,
@@ -68,7 +68,7 @@ fn comparison_source(
     source
 }
 
-fn execute(selected: &SelectedFunction) -> u64 {
+pub(super) fn execute(selected: &SelectedFunction) -> u64 {
     let mut values = vec![0u64; selected.virtual_registers.len()];
     let mut condition = std::cmp::Ordering::Equal;
     let mut signed_condition = std::cmp::Ordering::Equal;
@@ -111,6 +111,10 @@ fn execute(selected: &SelectedFunction) -> u64 {
             }
             SelectedInstructionKind::ZeroExtendU8 => {
                 values[operands[1]] = values[operands[0]] & 0xff
+            }
+            SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
+                values[operands[2]] =
+                    super::ieee_arithmetic::host(form, values[operands[0]], values[operands[1]])
             }
             SelectedInstructionKind::ReturnScalar => return values[operands[0]],
             other => panic!("unexpected comparison instruction {other:?}"),

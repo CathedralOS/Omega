@@ -58,7 +58,7 @@ pub(crate) fn encode_boundary_settlements(
         push_u64(bytes, installed.machine.get());
         push_u64(bytes, settlement.psi_operation.get());
         push_u64(bytes, settlement.boundary.get());
-        encode_boundary_execution(bytes, settlement.execution);
+        encode_boundary_execution(bytes, settlement.execution)?;
         match settlement.realization {
             BoundaryRealization::MetadataOnlyPort(realization) => {
                 bytes.push(0);
@@ -108,6 +108,9 @@ pub(crate) fn encode_boundary_settlements(
                 push_u64(bytes, 0);
                 push_u16(bytes, 0);
                 bytes.push(0);
+            }
+            BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
+                return Err(InstallationError::InvalidBoundaryRealizationTag);
             }
         }
         bytes.push(0);
@@ -806,7 +809,10 @@ fn decode_packed_fields(
     Ok(fields)
 }
 
-fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRecord) {
+fn encode_boundary_execution(
+    bytes: &mut Vec<u8>,
+    execution: BoundaryExecutionRecord,
+) -> Result<(), InstallationError> {
     match execution {
         BoundaryExecutionRecord::AdmittedProvider(execution) => {
             bytes.push(0);
@@ -823,7 +829,13 @@ fn encode_boundary_execution(bytes: &mut Vec<u8>, execution: BoundaryExecutionRe
         BoundaryExecutionRecord::CompilerBuiltin(CompilerBuiltinExecution::HostedWriteByteI32) => {
             bytes.push(2);
         }
+        // Float arithmetic realizes inline in its caller and never forms a
+        // call-shaped settlement row, so no row encoding can carry it.
+        BoundaryExecutionRecord::CompilerBuiltin(
+            CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. },
+        ) => return Err(InstallationError::InvalidBoundaryExecutionTag),
     }
+    Ok(())
 }
 
 fn decode_boundary_execution(

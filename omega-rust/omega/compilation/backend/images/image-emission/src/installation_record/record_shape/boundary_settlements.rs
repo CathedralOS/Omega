@@ -333,6 +333,8 @@ pub(super) fn validate_boundary_settlements(
                     // separately checks its role, geometry, and physical home.
                     && (function.unit_stack.is_some() != function.scalar_stack.is_some())
             }
+            // Inline float arithmetic never forms a settlement row.
+            BoundaryRealization::NearestIeeeFloatArithmetic(_) => false,
         };
         if !valid_realization
             || !boundary_result_is_exact(
