@@ -157,3 +157,82 @@ element obligation so checking and Omega both replay it.
   (a predicate on the array, not per element). It records the intent but gives
   element reads no fact, so checking still cannot discharge `next[i] in 0..=1`
   without elementwise decomposition.
+
+### Q2 - Which declaration surface owns the ELF dynamic-linker path?
+
+Named decision: `elf-interpreter-declaration-surface`.
+
+**Context:** An import-bearing ELF object must emit through
+`emit_elf_dynamic_executable` under a `NormalizedElfInterpreterPlan` — the
+sealed absolute path of the target's dynamic linker (e.g.
+`/lib64/ld-linux-x86-64.so.2`). Every production request site instead
+hardcodes `ExecutableImageEmissionRequest::direct(...)`
+(`driver/src/native/native_product.rs:38` and
+`packages/package-manager/src/admission/terminal_authority.rs:273`), so any
+program whose object carries normalized imports rejects at emission with
+"import-bearing ELF image emission requires an exact normalized interpreter
+input" (`image-emission/src/image_output.rs:182`). The measured case is
+`tests/omega/pass/providers/external_boundary_requirement_via_exit`, whose
+unique covering satisfiers are external leaves: the object legitimately
+carries imports, and no produced interpreter input reaches the writer.
+
+The emission machinery itself is complete: `image-elf/src/dynamic_executable.rs`
+plans and validates the whole dynamic-link structure, and
+`backend/target/src/elf_loader` already owns interpreter-input validation
+(`normalize_elf_interpreter_plan` seals a target/deployment-selected
+absolute path, rejecting relative paths and NUL bytes for
+LinuxArm64/LinuxX64). What is missing is only the declaration surface that
+names the path: no `build.omg` vocabulary, no CLI flag, and no
+target-profile default produces an interpreter input today.
+
+**Problem:** The ELF dynamic-linker path is a deployment fact, not a source
+fact — the same program binds `ld-linux` on a glibc root and `ld-musl` on an
+alpine root. It cannot default from the target profile alone (a profile
+does not know the deployment's libc), and hard-coding it into the compiler
+would mint a runtime contract no declaration reviewed. Someone must
+therefore decide which surface names it — and the answer shapes how much
+new vocabulary, evidence, and review surface each alternative costs.
+
+**Proposed solution:** Put the interpreter path in the build declaration as
+a target-gated deployment input — e.g. a `builder.deployment` (or
+`builder.roots.*`) row spelling the loader path per target — so the emitted
+contract travels through the same package review and acceptance flow as
+every other emitted fact. `ExecutableImageEmissionRequest::dynamic_elf`
+then takes the normalized plan from the minted package evidence at both
+request sites; when the object carries normalized imports and no
+interpreter input is declared, the diagnostic names the missing
+declaration rather than the missing writer arm. Follow-on wiring this
+unblocks: (a) the declaration surface supplies
+`normalize_elf_interpreter_plan(path, target)`; (b) request sites select
+`DynamicElf { interpreter }` when the object has normalized imports
+(`RequestedNativeArtifact` needs a dynamic-artifact arm at the consumers,
+currently Direct-only at `terminal_authority.rs:291`); (c) emission,
+replay, and review replay the declared input — no new emission machinery
+needed.
+
+**Alternatives:**
+- A CLI flag / environment input on `omega run`/`update`. Cheapest wiring,
+  but the path then lives outside package evidence: acceptance, replay and
+  cross-invocation review cannot see it, and a caller can bind a loader the
+  package never declared.
+- A target-profile default (`TargetProfile::LinuxX64 ->
+  /lib64/ld-linux-x86-64.so.2`). No new vocabulary, but bakes a libc choice
+  into the profile — musl/alpine deployments silently get the wrong loader
+  with no declaration surface to override.
+- Auto-probe the host's loader. Host-derived, so it fails every cross
+  compile (the selected target's deployment is not the host's), and adds an
+  ambient-host trust input the proof-carrying contract deliberately
+  excludes.
+
+**Caveat:** `external_boundary_requirement_via_exit`'s `expected_native_exit.txt`
+(21) is only meetable on `windows_x86_64`: its satisfiers all route `via`
+the `PeByName msvcrt.dll` producer, which normalizes to an ELF `DT_NEEDED`
+row on linux — structurally valid emission that can never load. Unblocking
+the declaration surface gets the fixture to honest emission, not to a linux
+run; a linux-native external-binding vocabulary is a separate question.
+
+Evidence: attribution bisection on Omega main `d18d1a24dd2`
+(`image_output.rs:167-185` request-shape gate;
+`dynamic_executable.rs:208` normalized-plan requirement;
+`elf_loader/mod.rs:78` the sealed input that no caller constructs;
+`corpus_native_linux_x86_64.txt:727` the pinned rejection row).
