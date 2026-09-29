@@ -401,6 +401,25 @@ pub(crate) fn structural_call_arguments(
             output.push(plan);
             continue;
         }
+        arm("call operation: structural arguments: borrowed local");
+        // A `&local`/`&mut local` argument loans the caller's own structural
+        // local through the same nominal-borrow arm the scalar-computation
+        // lane plans. Parameter-rooted places keep the parameter arms below.
+        if source_parameters.iter().all(|parameter| {
+            parameter_root_symbol(caller_machine.symbol, parameter) != source_symbol
+                && parameter.symbol != source_symbol
+        }) && let Some(plan) = computation_arguments::borrowed_nominal_argument(
+            program,
+            &facts.borrow,
+            caller_machine.symbol,
+            caller_state,
+            call,
+            &place,
+            target,
+        ) {
+            output.push(plan);
+            continue;
+        }
         // An authored `self.field` argument roots at the `self` parameter's own
         // symbol, while an implicit receiver place roots at the machine the
         // parameter is attached to. Both spellings name one parameter.

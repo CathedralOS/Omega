@@ -1020,6 +1020,9 @@ pub(super) fn state_exit_result_locals(
             }
             transfer_count += 1;
         }
+        // Shared and exclusive loans record Transfer events too, but they
+        // lend access rather than move the owned home — only Owned transfers
+        // consume the local before its exit drop.
         let retained_transfers = permissions
             .permissions
             .iter()
@@ -1028,6 +1031,7 @@ pub(super) fn state_exit_result_locals(
                     && event.state_symbol == state.symbol
                     && event.root == drop.root
                     && event.kind == PermissionEventKind::Transfer
+                    && event.access == PermissionAccess::Owned
             })
             .count();
         // A normal Unit completion retires the same exact lexical remainder
@@ -1048,6 +1052,12 @@ pub(super) fn state_exit_result_locals(
             event.machine_symbol == machine.symbol
                 && event.state_symbol == state.symbol
                 && event.root == drop.root
+                // A loan (a Transfer event carrying Shared or Exclusive
+                // access) does not move the local's owned home: its custody
+                // evidence lives on the loan's own root, so it takes no part
+                // in this local's exit roster.
+                && !(event.kind == PermissionEventKind::Transfer
+                    && event.access != PermissionAccess::Owned)
                 && (!exact(event)
                     || (event.kind == PermissionEventKind::AffineDrop
                         && event.source != PermissionEventSource::StateExit)

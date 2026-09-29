@@ -72,11 +72,19 @@ pub(crate) fn unit_plan_omission_explanation(
                 name(current),
                 name(target)
             ),
-            CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => format!(
-                "`{}` calls scalar `{}`, which has neither a registered target nor an ordinary body",
-                name(current),
-                name(target)
-            ),
+            CheckedUnitPlanOmissionStage::UnavailableScalarTarget { target } => {
+                let step = format!(
+                    "`{}` calls scalar `{}`, which has neither a registered target nor an ordinary body",
+                    name(current),
+                    name(target)
+                );
+                steps.push(step);
+                if visited.contains(&target) {
+                    break;
+                }
+                current = target;
+                continue;
+            }
         };
         steps.push(step);
         break;
