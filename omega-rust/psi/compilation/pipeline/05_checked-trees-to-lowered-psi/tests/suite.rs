@@ -109,4 +109,5 @@ mod unit_state_graph;
 mod unit_tail_calls_source;
 mod value_dispatch;
 
+mod view_arrival_producers;
 mod view_locals;

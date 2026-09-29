@@ -3304,31 +3304,34 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   proof-checked conversion; `runtime_slice_indexed_read_exit` records exit 70.
 
   Remaining joins:
-  - Carry same-view bounds through state arrivals and guarded successors.
-    `runtime_slice_fixed_index_guard_exit` and
-    `runtime_slice_element_runtime_index_read_exit` record `OperationProofUnavailable`;
-    the latter must retain the predecessor's `i < s.len`, not substitute
-    `i <= 3` for a view-length proof.
-  - Complete whole-record copies under
+  - Carry same-view bounds through guarded successors and loops. A
+    block-parameter element view already measures the dominating establishment
+    or subslice every arrival transfers (`element_extent::arrival_producer`), so
+    `runtime_slice_fixed_index_guard_exit`, `runtime_slice_index_transition_exit`
+    and `runtime_subslice_dynamic_index_exit` exit 121/111/207 natively.
+    `runtime_slice_element_runtime_index_read_exit` exits 1 but proves its read
+    from `i <= 3` and the establishment's extent; it must retain the
+    predecessor's `i < s.len` through the nearest dominating same-view length
+    observation. `runtime_slice_iteration_exit` needs the loop-carried
+    `index < entries.len` as a relational block invariant: with a plain `i32`
+    field its header read stops at `OperationProofUnavailable` holding only
+    `entries.len == 4`.
+  - Copy bounded, erased and structural fields of `[copy]` view elements under
     [ownership](wiki/spec/language/ownership.md). Stage 04's
     `values/scalar/computations/structural_values.rs::view_element_copy` admits
-    plain scalar fields of `[copy]` records; stage 05's `view_locals` verifies
-    their per-field reads and `EstablishRecord`. Bounded, erased and structural
-    fields need their own evidence. Confirm rejection of affine moves from
-    shared views, then give the positive `runtime_slice_index_copy{,_dispatch}_exit`,
-    `runtime_subslice_range_pointer_exit`, `runtime_nested_subslice_fixed_index_exit`,
-    `runtime_slice_index_transition_exit` and `runtime_slice_iteration_exit`
-    fixtures the required `[copy]` declaration and execute them.
+    plain scalar fields, and the plain-field copy customers exit natively;
+    `runtime_slice_iteration_exit`'s `value: i32 in Wrapping` element copy
+    fails Terminal validation with `InvalidStructuralLeafCopy`. Confirm
+    rejection of affine moves from shared views.
   - Establish byte views over fixed byte fields for `runtime_subslice_len_exit`
     and `wire/runtime_wire_encode_byte_slice_exit`; `field_collection` currently
     admits only non-byte element views. Preserve the wire fixture's five exact
     bytes and count, not merely its descriptor shape.
-  - Preserve dynamic, bounded, end-only and nested subslices through ordinary
-    control sequencing. `runtime_subslice_dynamic_index_exit` calls its named
-    state as `choose(tail, 1);`: migrate that call to the explicit transition
-    required by [state contracts](wiki/spec/language/state_contracts.md), then
-    verify the view route. Its recorded dependency cycle does not justify
-    callable internal states.
+  - Preserve bounded and end-only subslices through ordinary control
+    sequencing. Stage 04 omits the callee's unit plan for
+    `runtime_bounded_fixed_array_subslice_arg_exit` at `conditional successors:
+    target state` and for `domained_runtime_end_subslice_exit` at `conditional
+    successors: guard expression`.
   - Verify consuming mutable-view forwarding on the Unit-graph route with exact
     reborrow places available at successors. Reuse `tests/unit_state_graph/bindings.rs`
     for byte-view controls.

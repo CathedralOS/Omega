@@ -257,7 +257,7 @@ fn block_length_equation(
     None
 }
 
-fn operation_position(
+pub(super) fn operation_position(
     machine: &TerminalMachine,
     operation: semantic_vocabulary::OperationId,
 ) -> Option<(usize, usize)> {
@@ -274,7 +274,13 @@ fn operation_position(
         })
 }
 
-fn descriptor_origins(
+/// Walk backward from `current` through every predecessor, following `source`
+/// through each edge's exact borrowed structural argument, until each path
+/// meets the operation at `producer`, which must name `measured` there.
+/// Returns every name the descriptor carried, or `None` when a path redefines
+/// the tracked name, meets `producer` under a different name, or transfers a
+/// projected or owned argument. Element-view producer tracing shares this walk.
+pub(super) fn descriptor_origins(
     machine: &TerminalMachine,
     current: (usize, usize),
     source: PlaceId,
