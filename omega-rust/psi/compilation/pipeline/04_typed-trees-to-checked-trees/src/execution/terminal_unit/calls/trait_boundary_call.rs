@@ -10,11 +10,13 @@
 use crate::execution::terminal_unit::calls::view_subslice;
 
 use crate::execution::terminal_unit::calls::argument_paths::{
-    byte_sequence_literal_argument, checked_call_scalar_arguments, projected_argument_path,
+    byte_sequence_literal_argument, checked_call_scalar_arguments,
 };
 use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_argument_presentation_is_admitted, boundary_value_result_matches,
-    fixed_byte_array_view_is_admitted, provider_attachment_receiver_matches,
+    boundary_value_result_matches, provider_attachment_receiver_matches,
+};
+use crate::execution::terminal_unit::calls::parameter_argument_paths::{
+    ParameterArgument, SourceParameter, boundary_parameter_path,
 };
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::structural_arguments::{
@@ -26,15 +28,15 @@ use crate::execution::terminal_unit::types::{
     base_type_identity_with_substitutions, substituted_formal_type,
 };
 use crate::execution::terminal_unit::types::{
-    byte_sequence_type_identity, is_unit, parameter_root_symbol,
-    signature_contracts_are_exact_parameter_qualifications, structural_access_for_type_reference,
+    byte_sequence_type_identity, is_unit, signature_contracts_are_exact_parameter_qualifications,
+    structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::{
-    CheckFacts, CheckedStructuralAccess, CheckedStructuralScalarParameterPlan,
-    CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan,
-    CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan, Multiplicity,
-    PermissionEventKind, SymbolHandle, TypedTrees, is_reference,
+    CheckFacts, CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
+    CheckedUnitEffectOperationPlan, CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralResultBindingPlan, PermissionEventKind, SymbolHandle, TypedTrees,
+    is_reference,
 };
 
 /// Authored requirement declarations share one call planner. This is a
@@ -334,75 +336,31 @@ pub(super) fn build(
         let facts::PlaceRoot::Symbol(source_symbol) = place.root else {
             return None;
         };
-        // An authored `self.field` argument roots at the `self` parameter's
-        // own symbol, while an implicit receiver place roots at the machine
-        // the parameter is attached to. Both spellings name one parameter.
-        let source_parameter = caller_source_parameters.iter().find(|candidate| {
-            parameter_root_symbol(machine.symbol, candidate) == source_symbol
-                || candidate.symbol == source_symbol
-        })?;
-        let source_position = caller_source_parameters
-            .iter()
-            .position(|candidate| candidate.symbol == source_parameter.symbol)?;
-        let source_parameter_index = caller_parameters.iter().position(|candidate| {
-            candidate.position == u32::try_from(source_position).unwrap_or(u32::MAX)
-        })?;
-        let caller_parameter = caller_parameters.get(source_parameter_index)?;
-        let path = if place.segments.is_empty() {
-            // A whole array and its field projection lend the same fixed
-            // range. Absence of a projection does not require a fake view
-            // type identity; access and source custody still replay below.
-            if caller_parameter.type_identity != target_identity
-                && !(caller_parameter.qualifications.is_empty()
-                    && fixed_byte_array_view_is_admitted(
-                        program,
-                        source_parameter.type_reference,
-                        formal,
-                    ))
-            {
-                return None;
-            }
-            Vec::new()
-        } else if matches!(
-            place.segments.last(),
-            Some(facts::PlaceSegment::FixedRange { .. })
-        ) {
-            if !matches!(
-                caller_parameter.access,
-                CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
-            ) || caller_parameter.multiplicity != Multiplicity::Unrestricted
-                || !caller_parameter.qualifications.is_empty()
-            {
-                return None;
-            }
-            super::argument_paths::fixed_byte_array_range_path(
-                program,
-                state.symbol,
-                call.statement_index,
-                &place,
-                formal,
-            )?
-        } else {
-            if !caller_parameter.qualifications.is_empty() {
-                return None;
-            }
-            let (projected_type, path) =
-                projected_argument_path(program, state.symbol, call.statement_index, &place)?;
-            if !boundary_argument_presentation_is_admitted(
-                program,
-                projected_type,
-                formal,
-                &target_identity,
-                substitutions.as_slice(),
-            ) && !fixed_byte_array_view_is_admitted(program, projected_type, formal)
-            {
-                return None;
-            }
-            path
+        let source = SourceParameter::resolve(
+            machine.symbol,
+            caller_source_parameters,
+            caller_parameters,
+            source_symbol,
+        )?;
+        let custody = source.custody(structural_access_for_type_reference(program, formal));
+        let argument = ParameterArgument {
+            program,
+            machine: machine.symbol,
+            state: state.symbol,
+            statement_index: call.statement_index,
+            place: &place,
+            target: formal,
+            target_identity: &target_identity,
         };
+        let path = boundary_parameter_path(argument, custody, substitutions.as_slice())?;
+        // A whole array and its field projection lend the same fixed range;
+        // access and source custody still replay below.
+        if path.is_empty() && !argument.whole_parameter_is_admitted(source, custody.unqualified) {
+            return None;
+        }
         structural_arguments.push(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(source_parameter_index).ok()?,
+                parameter_index: u32::try_from(source.index).ok()?,
             },
             path,
             type_identity: target_identity,
@@ -413,7 +371,7 @@ pub(super) fn build(
                 state.symbol,
                 call,
                 &place,
-                structural_access_for_type_reference(program, formal)?,
+                custody.target_access?,
             )?,
         });
     }

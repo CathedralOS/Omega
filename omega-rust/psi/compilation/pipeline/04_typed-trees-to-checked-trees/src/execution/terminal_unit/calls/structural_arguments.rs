@@ -2,21 +2,17 @@
 //! exact borrow access and the claim transfers a call performs.
 
 use crate::execution::terminal_unit::ScalarCalleePlans;
-use crate::execution::terminal_unit::calls::argument_paths::{
-    byte_sequence_literal_argument, projected_argument_path, projected_argument_path_with_identity,
-    projected_borrowed_path,
-};
-use crate::execution::terminal_unit::calls::boundary_admission::{
-    boundary_argument_presentation_is_admitted, fixed_array_slice_view_is_admitted,
-    fixed_byte_array_view_is_admitted,
-};
+use crate::execution::terminal_unit::calls::argument_paths::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::computation_arguments;
+use crate::execution::terminal_unit::calls::parameter_argument_paths::{
+    ParameterArgument, SourceParameter, ordinary_parameter_path, parameter_is_root,
+};
 use crate::execution::terminal_unit::calls::reference_forwarding;
 use crate::execution::terminal_unit::calls::result_arguments;
 use crate::execution::terminal_unit::calls::view_subslice;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, attached_data_identity, base_type_identity, byte_sequence_type_identity,
-    is_unit, parameter_root_symbol, structural_access_for_type_reference,
+    is_unit, structural_access_for_type_reference,
 };
 use crate::execution::terminal_unit::types::{
     borrowed_slice_view_element, borrowed_slice_view_type_identity, byte_sequence_carrier,
@@ -405,377 +401,82 @@ pub(crate) fn structural_call_arguments(
         // A `&local`/`&mut local` argument loans the caller's own structural
         // local through the same nominal-borrow arm the scalar-computation
         // lane plans. Parameter-rooted places keep the parameter arms below.
-        if source_parameters.iter().all(|parameter| {
-            parameter_root_symbol(caller_machine.symbol, parameter) != source_symbol
-                && parameter.symbol != source_symbol
-        }) && let Some(plan) = computation_arguments::borrowed_nominal_argument(
-            program,
-            &facts.borrow,
-            caller_machine.symbol,
-            caller_state,
-            call,
-            &place,
-            target,
-        ) {
+        if !source_parameters
+            .iter()
+            .any(|parameter| parameter_is_root(caller_machine.symbol, parameter, source_symbol))
+            && let Some(plan) = computation_arguments::borrowed_nominal_argument(
+                program,
+                &facts.borrow,
+                caller_machine.symbol,
+                caller_state,
+                call,
+                &place,
+                target,
+            )
+        {
             output.push(plan);
             continue;
         }
-        // An authored `self.field` argument roots at the `self` parameter's own
-        // symbol, while an implicit receiver place roots at the machine the
-        // parameter is attached to. Both spellings name one parameter.
         arm("call operation: structural arguments: parameter source");
-        let source_parameter = source_parameters.iter().find(|parameter| {
-            parameter_root_symbol(caller_machine.symbol, parameter) == source_symbol
-                || parameter.symbol == source_symbol
-        })?;
-        let source_index = caller_parameters.iter().position(|candidate| {
-            candidate.position
-                == u32::try_from(
-                    source_parameters
-                        .iter()
-                        .position(|parameter| parameter.symbol == source_parameter.symbol)
-                        .unwrap_or(usize::MAX),
-                )
-                .unwrap_or(u32::MAX)
-        })?;
-        if validation::is_closed_primitive_array_type(program, source_parameter.type_reference)
-            && (target_machine.supply_mode != MachineSupplyMode::CheckedBody
-                || !place.segments.is_empty()
-                || caller_parameters[source_index].access != CheckedStructuralAccess::Owned
-                || caller_parameters[source_index].multiplicity != Multiplicity::Unrestricted
-                || !caller_parameters[source_index].qualifications.is_empty()
-                || !validation::is_closed_primitive_array_type(program, target.type_reference)
-                || structural_access_for_type_reference(program, target.type_reference)?
-                    != CheckedStructuralAccess::Owned)
+        let source = SourceParameter::resolve(
+            caller_machine.symbol,
+            source_parameters,
+            caller_parameters,
+            source_symbol,
+        )?;
+        let target_access = structural_access_for_type_reference(program, target.type_reference);
+        let custody = source.custody(target_access);
+        // A closed primitive array parameter passes only whole, owned and
+        // unrestricted into an owned closed-array formal of a checked body.
+        if validation::is_closed_primitive_array_type(program, source.declaration.type_reference)
+            && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                && place.segments.is_empty()
+                && custody.access == CheckedStructuralAccess::Owned
+                && custody.multiplicity == Multiplicity::Unrestricted
+                && custody.unqualified
+                && validation::is_closed_primitive_array_type(program, target.type_reference)
+                && target_access == Some(CheckedStructuralAccess::Owned))
         {
             return None;
         }
         arm("call operation: structural arguments: parameter path");
-        let source_identity = caller_parameters.get(source_index)?.type_identity.clone();
-        let path = match place.segments.as_slice() {
-            [] => Vec::new(),
-            [.., facts::PlaceSegment::FixedRange { .. }]
-                if (target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    || target_machine.supply_mode.is_boundary_declaration())
-                    && matches!(
-                        caller_parameters[source_index].access,
-                        CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::SharedBorrow
-                    )
-                    && caller_parameters[source_index].multiplicity
-                        == Multiplicity::Unrestricted
-                    && caller_parameters[source_index].qualifications.is_empty() =>
-            {
-                super::argument_paths::fixed_byte_array_range_path(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    &place,
-                    target.type_reference,
-                )?
-            }
-            segments
-                if !segments.is_empty()
-                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && matches!(
-                        caller_parameters[source_index].access,
-                        CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::SharedBorrow
-                    )
-                    && caller_parameters[source_index].qualifications.is_empty()
-                    && matches!(
-                        structural_access_for_type_reference(program, target.type_reference)?,
-                        CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::SharedBorrow
-                    )
-                    && byte_sequence_carrier(program, target.type_reference, &[]).is_some_and(
-                        |carrier| {
-                            carrier.is_borrowed()
-                                || matches!(
-                                    carrier,
-                                    checked_trees::CheckedByteSequenceCarrier::BoundedOwned { .. }
-                                )
-                        },
-                    )
-                    && segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    }) =>
-            {
-                let (projected_type, path) =
-                    projected_argument_path(program, caller_state.symbol, statement_index, &place)?;
-                if !boundary_argument_presentation_is_admitted(
-                    program,
-                    projected_type,
-                    target.type_reference,
-                    &target_identity,
-                    &[],
-                ) && !(caller_parameters[source_index].multiplicity
-                    == Multiplicity::Unrestricted
-                    && segments
-                        .iter()
-                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. }))
-                    && fixed_byte_array_view_is_admitted(
-                        program,
-                        projected_type,
-                        target.type_reference,
-                    ))
-                {
-                    return None;
-                }
-                path
-            }
-            segments
-                if target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && caller_parameters[source_index].multiplicity
-                        == Multiplicity::Unrestricted
-                    && caller_parameters[source_index].qualifications.is_empty()
-                    && matches!(
-                        (
-                            caller_parameters[source_index].access,
-                            structural_access_for_type_reference(program, target.type_reference)?
-                        ),
-                        (
-                            CheckedStructuralAccess::MutableBorrow,
-                            CheckedStructuralAccess::SharedBorrow
-                                | CheckedStructuralAccess::MutableBorrow
-                                | CheckedStructuralAccess::WriteOnlyBorrow
-                        ) | (
-                            CheckedStructuralAccess::SharedBorrow,
-                            CheckedStructuralAccess::SharedBorrow
-                        ) | (
-                            CheckedStructuralAccess::WriteOnlyBorrow,
-                            CheckedStructuralAccess::WriteOnlyBorrow
-                        )
-                    )
-                    && segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    }) =>
-            {
-                // Static projection changes the selected referent, not loan
-                // authority. One exact path/type/bounds reconstruction serves
-                // fields and arrays at every depth; authored access and alias
-                // custody are still rejoined below. Byte-view presentation and
-                // owned partial transfers retain their separate contracts.
-                let (projected_type, path) =
-                    projected_argument_path(program, caller_state.symbol, statement_index, &place)?;
-                if base_type_identity(program, projected_type, &[])? != target_identity
-                    && !(borrowed_slice_view_element(program, target.type_reference, &[]).is_some()
-                        && fixed_array_slice_view_is_admitted(
-                            program,
-                            projected_type,
-                            target.type_reference,
-                        ))
-                {
-                    return None;
-                }
-                path
-            }
-            segments
-                if allow_field_path_projection
-                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && caller_parameters[source_index].multiplicity == Multiplicity::Affine
-                    && caller_parameters[source_index].access == CheckedStructuralAccess::Owned
-                    && caller_parameters[source_index].qualifications.is_empty()
-                    && structural_access_for_type_reference(program, target.type_reference)?
-                        == CheckedStructuralAccess::Owned
-                    && segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                        )
-                    }) =>
-            {
-                projected_argument_path_with_identity(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    &place,
-                    &target_identity,
-                )?
-            }
-            [facts::PlaceSegment::FixedIndex { index }]
-                if caller_parameters
-                    .get(source_index)?
-                    .qualifications
-                    .is_empty() =>
-            {
-                projected_argument_path_with_identity(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    &place,
-                    &target_identity,
-                )?
-            }
-            segments @ [facts::PlaceSegment::FixedIndex { .. }, ..]
-                if (matches!(segments.len(), 2 | 3)
-                    || (target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                        && caller_parameters.get(source_index)?.access
-                            == CheckedStructuralAccess::WriteOnlyBorrow
-                        && structural_access_for_type_reference(
-                            program,
-                            target.type_reference,
-                        )? == CheckedStructuralAccess::WriteOnlyBorrow))
-                    && segments.iter().all(|segment| {
-                        matches!(segment, facts::PlaceSegment::FixedIndex { .. })
-                    })
-                    && caller_parameters
-                        .get(source_index)?
-                        .qualifications
-                        .is_empty() =>
-            {
-                projected_argument_path_with_identity(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    &place,
-                    &target_identity,
-                )?
-            }
-            segments @ [facts::PlaceSegment::Field { .. }, ..]
-                if (allow_field_path_projection
-                    && segments
-                        .iter()
-                        .all(|segment| matches!(segment, facts::PlaceSegment::Field { .. })))
-                    && caller_parameters
-                        .get(source_index)?
-                        .qualifications
-                        .is_empty() =>
-            {
-                projected_argument_path_with_identity(
-                    program,
-                    caller_state.symbol,
-                    statement_index,
-                    &place,
-                    &target_identity,
-                )?
-            }
-            // A runtime index in a borrow path loans one element of a
-            // borrowed subtree without transferring ownership, the same
-            // subloan the receiver lane admits. `projected_borrowed_receiver_path`
-            // retains the selector only when the caller's published integer
-            // range proves it inside the enclosing fixed array's extent;
-            // terminal verification replays that bound. A mutable target
-            // requires mutable or owned caller custody — a shared source
-            // cannot lend mutation.
-            segments
-                if segments
-                    .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
-                    && segments.iter().all(|segment| {
-                        matches!(
-                            segment,
-                            facts::PlaceSegment::Field { .. }
-                                | facts::PlaceSegment::FixedIndex { .. }
-                                | facts::PlaceSegment::Index { .. }
-                        )
-                    })
-                    && target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                    && (match structural_access_for_type_reference(program, target.type_reference)?
-                    {
-                        CheckedStructuralAccess::SharedBorrow => {
-                            matches!(
-                                caller_parameters[source_index].access,
-                                CheckedStructuralAccess::SharedBorrow
-                                    | CheckedStructuralAccess::MutableBorrow
-                            ) || (caller_parameters[source_index].access
-                                == CheckedStructuralAccess::Owned
-                                && caller_parameters[source_index].multiplicity
-                                    == Multiplicity::Affine)
-                        }
-                        CheckedStructuralAccess::MutableBorrow => {
-                            caller_parameters[source_index].access
-                                == CheckedStructuralAccess::MutableBorrow
-                        }
-                        _ => false,
-                    })
-                    && caller_parameters
-                        .get(source_index)?
-                        .qualifications
-                        .is_empty() =>
-            {
-                // The open-ended spelling `x[..]`/`x[a..]` survives
-                // canonicalization as an `Index` carrying the range itself,
-                // since its end is not an authored constant. Against a fixed
-                // byte array it is the same fixed-range argument as the
-                // constant-ended spelling, with the backing's literal extent
-                // as its end; any other `Index` keeps the runtime-selector
-                // route.
-                if let Some(path) = (caller_parameters[source_index].multiplicity
-                    == Multiplicity::Unrestricted
-                    && matches!(
-                        caller_parameters[source_index].access,
-                        CheckedStructuralAccess::MutableBorrow
-                            | CheckedStructuralAccess::SharedBorrow
-                    ))
-                .then(|| {
-                    super::argument_paths::open_byte_range_path(
-                        program,
-                        caller_state.symbol,
-                        statement_index,
-                        &place,
-                        target.type_reference,
-                    )
-                })
-                .flatten()
-                {
-                    path
-                } else {
-                    let (projected_type, path) = projected_borrowed_path(
-                        program,
-                        caller_machine.symbol,
-                        caller_state.symbol,
-                        statement_index,
-                        &place,
-                    )?;
-                    if base_type_identity(program, projected_type, &[])? != target_identity {
-                        return None;
-                    }
-                    path
-                }
-            }
-            _ => return None,
+        let argument = ParameterArgument {
+            program,
+            machine: caller_machine.symbol,
+            state: caller_state.symbol,
+            statement_index,
+            place: &place,
+            target: target.type_reference,
+            target_identity: &target_identity,
         };
+        let path = ordinary_parameter_path(
+            argument,
+            custody,
+            target_machine.supply_mode,
+            allow_field_path_projection,
+        )?;
         arm("call operation: structural arguments: parameter identity");
         if path.is_empty()
-            && source_identity != target_identity
-            && !(target_machine.supply_mode == MachineSupplyMode::CheckedBody
-                && is_unit(program, target_state.return_type)
-                && matches!(
-                    caller_parameters[source_index].access,
-                    CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::SharedBorrow
-                )
-                && caller_parameters[source_index].multiplicity == Multiplicity::Unrestricted
-                && caller_parameters[source_index].qualifications.is_empty()
-                && fixed_byte_array_view_is_admitted(
-                    program,
-                    source_parameter.type_reference,
-                    target.type_reference,
-                ))
+            && !argument.whole_parameter_is_admitted(
+                source,
+                target_machine.supply_mode == MachineSupplyMode::CheckedBody
+                    && is_unit(program, target_state.return_type)
+                    && custody.lends_unrestricted_borrow(),
+            )
         {
             return None;
         }
         arm("call operation: structural arguments: parameter access");
+        let target_access = target_access?;
         output.push(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(source_index).ok()?,
+                parameter_index: u32::try_from(source.index).ok()?,
             },
             path,
             type_identity: target_identity,
             access: if restored_alias.is_some() {
-                structural_access_for_type_reference(program, target.type_reference)?
+                target_access
             } else {
-                let target_access =
-                    structural_access_for_type_reference(program, target.type_reference)?;
                 let authored_access = exact_structural_argument_access(
                     program,
                     facts,
