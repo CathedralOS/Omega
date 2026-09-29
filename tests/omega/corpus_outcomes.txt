@@ -728,6 +728,7 @@ pass/proofs/runtime_decreases_u64_measure_exit checked 980ms
 pass/proofs/runtime_nat_structural_recursion_exit checked 896ms
 pass/proofs/runtime_ranked_accumulator_early_exit checked 559ms
 pass/proofs/runtime_ranked_accumulator_guarantee_exit checked 1272ms
+pass/providers/bare_byte_array_boundary_argument checked 1134ms
 pass/providers/boundary_scalar_field_store checked 417ms
 pass/providers/checked_boundary_operator_const_application_alternate_exit checked 2177ms
 pass/providers/checked_boundary_operator_physical_custody rejected 837ms

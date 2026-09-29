@@ -1,0 +1,37 @@
+// A boundary parameter of BARE `[u8; 7]` — an owned closed primitive array
+// carrying no domain — plans and realizes as a boundary argument: the entry
+// binds a program-entry root so the provider machine's Unit plan is demanded
+// and the native leg exercises the full argument path end to end.
+//
+// The domain-carrying spelling (`take(name: [u8; 7] in CName)` under
+// `pub domain [u8; 7]::CName requires self[6] == 0`) remains the supported
+// contract surface — it engages the requires-contract check by name when the
+// caller has not discharged the domain obligation.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub boundary trait Sink { machine take(name: [u8; 7]) -> u64; }
+
+pub data SinkProvider { seen: u64; }
+
+pub macos_arm64 machine SinkProvider::provider_defaults(defaults: &mut SinkProvider) {
+    defaults.select_provider<Sink, SinkProvider>();
+}
+
+pub macos_arm64 machine SinkProvider::take(name: [u8; 7]) -> u64 satisfies Sink::take {
+    transition { _ -> ret() }
+    state ret() -> u64 { 7 }
+}
+
+data Main {
+    console: Binding<Console>;
+    sink: Binding<Sink>;
+    buf: [u8; 7];
+    out: u64;
+}
+
+machine Main::main(&mut self) reaches Console + Sink {
+    self.out = self.sink.take(self.buf);
+    self.console.exit_process(0);
+}
