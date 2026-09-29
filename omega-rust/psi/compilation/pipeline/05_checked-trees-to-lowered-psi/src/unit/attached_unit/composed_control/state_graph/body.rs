@@ -269,6 +269,22 @@ pub(super) fn validate(
                     operation,
                 )?;
             }
+            // A mutable primitive local's establishment consumes its authored
+            // `let` by the same ordinal and typing agreement; the storage
+            // roster validator re-joins its `StorageInitializer` binding and
+            // mutable custody separately.
+            (
+                CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal {
+                    statement_index,
+                    primitive_type,
+                    ..
+                },
+                StatementNode::LocalData(local),
+            ) if local.is_mutable
+                && *statement_index as usize == ordinal
+                && checked.primitive_type_reference(local.type_reference)
+                    == Some(*primitive_type) =>
+            {}
             (
                 CheckedUnitEffectOperationPlan::EstablishScalarLocal { result, value },
                 StatementNode::LocalData(local),
@@ -367,7 +383,7 @@ pub(super) fn validate(
                     discard_result_on_return,
                     ..
                 },
-                StatementNode::LocalData(_) | StatementNode::Expression(_),
+                StatementNode::LocalData(_) | StatementNode::Expression(_) | StatementNode::Call(_),
             ) if coordinate.statement_index as usize == ordinal
                 && coordinate.call_ordinal == 0
                 && !discard_result_on_return
@@ -826,6 +842,24 @@ pub(super) fn validate(
                                 if borrow.access == language_core::ReferenceAccess::Mutable
                         )
                 ) => {}
+            // The shared transition-tail sibling: `_ -> &self.f` mints the
+            // same reference custody at the transition itself.
+            (
+                CheckedUnitEffectOperationPlan::EstablishReference { result, .. },
+                StatementNode::Transition(transition),
+            ) if result.statement_index as usize == ordinal
+                && matches!(
+                    checked
+                        .typed
+                        .statement_table
+                        .transition_target(transition.target),
+                    typed_trees::statement::TransitionTargetNode::Value(expression)
+                        if matches!(
+                            checked.typed.expression_table.expression(*expression),
+                            typed_trees::expression::ExpressionNode::Borrow(borrow)
+                                if borrow.access == language_core::ReferenceAccess::Shared
+                        )
+                ) => {}
             // The shared sibling: a state's expression tail returning
             // `&self.f` mints the same reference custody at the expression
             // statement — the authored `&` borrow is the value it returns.
@@ -848,7 +882,9 @@ pub(super) fn validate(
                 _,
             ) if *statement_index as usize == ordinal
                 || *statement_index as usize == ordinal + 1 => {}
-            _ => return unsupported("Unit graph reordered a source effect"),
+            _ => {
+                return unsupported("Unit graph reordered a source effect");
+            }
         }
     }
     Ok(end)

@@ -61,6 +61,7 @@ pub(crate) fn lower_state_scalar_expression(
             name: local.name.as_str().to_owned(),
             primitive_type,
             arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
+            shared_loan_place: None,
         });
     }
     lower_return_expression(
@@ -105,6 +106,22 @@ pub(crate) fn lower_unit_scalar_argument(
             continue;
         };
         let Some(primitive_type) = program.primitive_type_reference(local.type_reference) else {
+            // Shared `&` locals carry their captured place: a scalar
+            // argument naming one re-evaluates that place at the call.
+            if let Some((place, primitive_type, arithmetic_domain)) =
+                crate::values::scalar::expression_plans::local_data::shared_loan_place(
+                    program, local,
+                )
+            {
+                locals.push(ScalarLocal {
+                    is_mutable: local.is_mutable,
+                    symbol: local.symbol,
+                    name: local.name.as_str().to_owned(),
+                    primitive_type,
+                    arithmetic_domain,
+                    shared_loan_place: Some(place),
+                });
+            }
             continue;
         };
         if !local.initial_value.is_valid()
@@ -118,6 +135,7 @@ pub(crate) fn lower_unit_scalar_argument(
             name: local.name.as_str().to_owned(),
             primitive_type,
             arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
+            shared_loan_place: None,
         });
     }
     lower_return_expression(
@@ -516,6 +534,20 @@ pub(crate) fn lower_scalar_expression(
             }
             let local_position = local_position(program, expression, path, locals)?;
             let local = &locals[local_position];
+            // A read through a shared `&` local is the captured place's own
+            // read at this program point: lower that place expression.
+            if let Some(shared_loan_place) = local.shared_loan_place {
+                return lower_scalar_expression(
+                    program,
+                    operators,
+                    shared_loan_place,
+                    parameters,
+                    authored_parameters,
+                    parameter_types,
+                    locals,
+                    exact_integer_casts,
+                );
+            }
             if local.is_mutable {
                 return Some((
                     CheckedScalarExpression::StorageRead {
@@ -528,7 +560,7 @@ pub(crate) fn lower_scalar_expression(
             let position = parameters.len().checked_add(
                 locals[..local_position]
                     .iter()
-                    .filter(|local| !local.is_mutable)
+                    .filter(|local| local.is_value_binding())
                     .count(),
             )?;
             Some((

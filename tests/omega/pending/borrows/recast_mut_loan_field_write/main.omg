@@ -1,0 +1,30 @@
+// PENDING pin — use-through admitted loans: `borrowed.tag = 9` writes a
+// member through a recast `as &mut T` loan; omits at 'structural field
+// store: target place' (state 0 stmt 1) under --check. Same structural
+// scalar-store resolver family — arch-self-mixed-stores CASE-FIELD-
+// TYPE-STORE-SHAPES, exp 17:58Z.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Desc {
+    tag: u32;
+}
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+}
+
+machine Main::main(&mut self) reaches Console {
+    let borrowed: &mut Desc = &mut self.buf[0] as &mut Desc;
+    borrowed.tag = 9;
+    transition self.buf[0] == 9 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

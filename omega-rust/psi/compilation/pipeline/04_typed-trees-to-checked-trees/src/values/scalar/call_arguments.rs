@@ -128,7 +128,7 @@ pub(crate) fn retain_nested_structural_call_arguments(
                                     parameters.iter().map(|parameter| parameter.symbol).chain(
                                         locals
                                             .iter()
-                                            .filter(|local| !local.is_mutable)
+                                            .filter(|local| local.is_value_binding())
                                             .map(|local| local.symbol),
                                     ),
                                 ),
@@ -182,17 +182,33 @@ pub(crate) fn retain_nested_structural_call_arguments(
                 // the enclosing initializer becomes available only afterward.
                 if let StatementNode::LocalData(local) = statement
                     && local.initial_value.is_valid()
-                    && let Some(primitive_type) =
-                        program.primitive_type_reference(local.type_reference)
                 {
-                    locals.push(ScalarLocal {
-                        is_mutable: local.is_mutable,
-                        symbol: local.symbol,
-                        name: local.name.as_str().to_owned(),
-                        primitive_type,
-                        arithmetic_domain: program
-                            .arithmetic_domain_for_type_reference(local.type_reference),
-                    });
+                    if let Some(primitive_type) =
+                        program.primitive_type_reference(local.type_reference)
+                    {
+                        locals.push(ScalarLocal {
+                            is_mutable: local.is_mutable,
+                            symbol: local.symbol,
+                            name: local.name.as_str().to_owned(),
+                            primitive_type,
+                            arithmetic_domain: program
+                                .arithmetic_domain_for_type_reference(local.type_reference),
+                            shared_loan_place: None,
+                        });
+                    } else if let Some((place, primitive_type, arithmetic_domain)) =
+                        crate::values::scalar::expression_plans::local_data::shared_loan_place(
+                            program, local,
+                        )
+                    {
+                        locals.push(ScalarLocal {
+                            is_mutable: local.is_mutable,
+                            symbol: local.symbol,
+                            name: local.name.as_str().to_owned(),
+                            primitive_type,
+                            arithmetic_domain,
+                            shared_loan_place: Some(place),
+                        });
+                    }
                 }
             }
         }

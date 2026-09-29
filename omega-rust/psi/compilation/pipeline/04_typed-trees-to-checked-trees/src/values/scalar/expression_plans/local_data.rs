@@ -4,9 +4,10 @@
 //! then joins the state's local roster, which later statements read.
 
 use super::{
-    CheckedLocatedScalarExpression, CheckedScalarExpression, CheckedScalarExpressionBindings,
-    CheckedScalarExpressionRole, ExpressionNode, LoweredCallArguments, PrimitiveType, ScalarLocal,
-    StatementPlanner, lower_call_arguments, lower_direct_call_binding_arguments,
+    ArithmeticDomain, CheckedLocatedScalarExpression, CheckedScalarExpression,
+    CheckedScalarExpressionBindings, CheckedScalarExpressionRole, ExpressionNode,
+    LoweredCallArguments, PrimitiveType, ScalarLocal, StatementPlanner, TypeReferenceNode,
+    TypedTrees, lower_call_arguments, lower_direct_call_binding_arguments,
     lower_machine_parameter_boolean_expression, lower_return_expression,
     lower_selected_operator_operands, retain_call_arguments, retain_subslice_endpoints,
     scalar_qualified_call_expression,
@@ -138,12 +139,26 @@ pub(super) fn plan(
                 binding_symbols,
             );
         }
+        // A shared `&` local binds no value of its own: reads through it
+        // re-evaluate the captured place at the use point, so the roster
+        // entry carries that place for operands to lower.
+        if let Some((place, primitive_type, arithmetic_domain)) = shared_loan_place(program, local)
+        {
+            locals.push(ScalarLocal {
+                is_mutable: local.is_mutable,
+                symbol: local.symbol,
+                name: local.name.as_str().to_owned(),
+                primitive_type,
+                arithmetic_domain,
+                shared_loan_place: Some(place),
+            });
+        }
         return;
     };
     let binding_ordinal = u32::try_from(
         locals
             .iter()
-            .filter(|local: &&ScalarLocal| !local.is_mutable)
+            .filter(|local: &&ScalarLocal| local.is_value_binding())
             .count(),
     )
     .ok();
@@ -226,7 +241,7 @@ pub(super) fn plan(
                         .chain(
                             locals
                                 .iter()
-                                .filter(|local| !local.is_mutable)
+                                .filter(|local| local.is_value_binding())
                                 .map(|local| local.symbol),
                         ),
                 ),
@@ -245,5 +260,55 @@ pub(super) fn plan(
         name: local.name.as_str().to_owned(),
         primitive_type,
         arithmetic_domain: program.arithmetic_domain_for_type_reference(local.type_reference),
+        shared_loan_place: None,
     });
+}
+
+/// A shared `&` local's captured place: the borrow target inside its
+/// `&place` initializer, possibly under a recast, with the referee's
+/// primitive carrier and domain for the operand reads that re-evaluate
+/// the place. Anything else — an exclusive loan, a view, a non-scalar
+/// or address-sized referee — keeps no scalar operand.
+pub(crate) fn shared_loan_place(
+    program: &TypedTrees,
+    local: &typed_trees::statement::TableLocalData,
+) -> Option<(
+    typed_trees::expression::ExpressionHandle,
+    PrimitiveType,
+    ArithmeticDomain,
+)> {
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = program
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return None;
+    };
+    if *access != language_semantics::ReferenceAccess::Shared {
+        return None;
+    }
+    let primitive_type = program.primitive_type_reference(*referee)?;
+    if matches!(primitive_type, PrimitiveType::Addr | PrimitiveType::Bool) {
+        return None;
+    }
+    let mut initializer = local.initial_value;
+    let target = loop {
+        match program.expression_table.expression(initializer) {
+            ExpressionNode::Borrow(borrow)
+                if borrow.access == language_semantics::ReferenceAccess::Shared =>
+            {
+                break borrow.target;
+            }
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                initializer = cast.value;
+            }
+            _ => return None,
+        }
+    };
+    Some((
+        target,
+        primitive_type,
+        program.arithmetic_domain_for_type_reference(*referee),
+    ))
 }

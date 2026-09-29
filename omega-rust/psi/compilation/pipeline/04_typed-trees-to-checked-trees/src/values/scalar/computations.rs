@@ -417,6 +417,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             primitive_type,
                             arithmetic_domain: program
                                 .arithmetic_domain_for_type_reference(local.type_reference),
+                            shared_loan_place: None,
                         });
                     }
                     continue;

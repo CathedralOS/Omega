@@ -53,12 +53,22 @@ pub(crate) fn validate_discarded_structural(
             .normalized_type_identity(target.return_type)
             .into_string()
             != result.type_identity
-        || checked.type_multiplicity(target.return_type) != result.multiplicity
+        || validation::reference_result_custody::result_multiplicity(
+            &checked.typed,
+            target.return_type,
+        ) != result.multiplicity
         || result.multiplicity == language_semantics::Multiplicity::Linear
+        // A discarded `&`/`&mut` result carries its custody in the call's
+        // published leaf-loan roster exactly like a bound one; plain owned
+        // contents have no arm for reference-bearing results.
         || !(validation::has_plain_owned_contents_with_numeric_constraints(
             &checked.typed,
             target.return_type,
-        ) || validation::is_closed_primitive_array_type(&checked.typed, target.return_type))
+        ) || validation::is_closed_primitive_array_type(&checked.typed, target.return_type)
+            || validation::reference_result_custody::is_reference_record(
+                &checked.typed,
+                target.return_type,
+            ))
     {
         return unsupported("discarded structural result disagrees with its authored signature");
     }

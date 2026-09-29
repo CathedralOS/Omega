@@ -155,7 +155,7 @@ pub(crate) fn lower_boolean_expression(
             let position = parameters.len().checked_add(
                 locals[..local_position]
                     .iter()
-                    .filter(|local| !local.is_mutable)
+                    .filter(|local| local.is_value_binding())
                     .count(),
             )?;
             (locals[local_position].primitive_type == PrimitiveType::Bool)

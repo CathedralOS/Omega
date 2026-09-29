@@ -1,7 +1,8 @@
 // Shared `&` borrow of a runtime-indexed element — the shared
 // counterpart of `runtime_index_bounded_borrow`. The bounded selector
 // discharges the index proof upstream; the loan arm retains the
-// `RuntimeIndex` segment for the terminal's bound re-proof.
+// `RuntimeIndex` segment for the terminal's bound re-proof. Reading
+// `borrowed` in the guard reads through the admitted loan.
 use omega_language_std::console;
 use omega::language::core::binding;
 
@@ -12,10 +13,16 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
+    self.buf[0] = 3;
+    self.off = 0;
     let borrowed: &u8 = &self.buf[self.off];
-    transition { _ -> done() }
+    transition borrowed == self.buf[self.off] { true -> done() _ -> bad() }
 
     state done(&mut self) {
         self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
     }
 }

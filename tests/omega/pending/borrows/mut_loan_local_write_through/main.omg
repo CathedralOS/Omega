@@ -1,0 +1,27 @@
+// PENDING pin — use-through admitted loans (measured 2026-10-01 on the
+// use-through leg): `borrowed = 9` through a `&mut` of a plain local omits
+// at 'structural field store: destination parameter' (state 0 stmt 2) under
+// --check. The loan binds; the write-through resolver declines the local-
+// rooted destination. Repair owner: structural_scalar_store destination
+// family — arch-self-mixed-stores CASE-FIELD-TYPE-STORE-SHAPES, exp 17:58Z.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let mut v: u32 = 7;
+    let borrowed: &mut u32 = &mut v;
+    borrowed = 9;
+    transition v == 9 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(9);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}
