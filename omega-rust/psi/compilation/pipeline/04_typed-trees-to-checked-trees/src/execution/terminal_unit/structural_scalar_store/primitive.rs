@@ -345,13 +345,20 @@ fn closed_array_extents(
         return None;
     }
     let mut extents = Vec::new();
-    while let TypeReferenceNode::FixedArray {
-        element_type,
-        length: typed_trees::types::FixedArrayLength::Literal(length),
-    } = program.type_reference_table.type_reference(reference)
-    {
-        extents.push(u64::try_from(*length).ok()?);
-        reference = *element_type;
+    loop {
+        match program
+            .type_reference_table
+            .type_reference(validation::peel_arithmetic_policy(program, reference))
+        {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length: typed_trees::types::FixedArrayLength::Literal(length),
+            } => {
+                extents.push(u64::try_from(*length).ok()?);
+                reference = *element_type;
+            }
+            _ => break,
+        }
     }
     (!extents.is_empty()).then_some(extents)
 }

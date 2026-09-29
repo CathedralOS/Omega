@@ -203,7 +203,7 @@ pub use value_custody::literals::select_anonymous_numeric_match_arm;
 pub use value_custody::literals::{
     ScalarArrayElements, closed_array_store_type, closed_constant_array_elements,
     closed_literal_array_elements, closed_record_scalar_projection, is_closed_primitive_array_type,
-    scalar_array_elements,
+    peel_arithmetic_policy, scalar_array_elements,
 };
 pub use value_custody::placed_views::{
     CheckedAtomicResidentAccess, CheckedAtomicResidentAccessRejection,
