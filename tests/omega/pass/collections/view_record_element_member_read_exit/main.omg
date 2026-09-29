@@ -1,0 +1,57 @@
+// A literal-indexed member read through a slice view keeps its scalar read
+// (exit 70).
+//
+// `sum_entries` walks `&[Entry]` as `sum_entries(s[1..], acc + s[0].value)`.
+// Stores may project `view[literal].field` to reach the referent, but a read
+// of `s[0].value` is not a fixed place of an owned root: the checker keeps
+// the view root without a projection path. Treating the read as a projected
+// place left source custody with an authored leaf the retained read never
+// carries, and native production refused the program. The sum over
+// [8, 12, 10, 5, 15, 10, 10] is 70; a wrong element read exits 71.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Entry {
+    value: i32 in Wrapping;
+}
+
+data Walker {}
+
+data Main {
+    console: Binding<Console>;
+    entries: [Entry; 7];
+    walker: Walker;
+}
+
+machine Walker::sum_entries(&mut self, s: &[Entry], acc: i32 in Wrapping) -> i32
+terminates by s -> Slice::Length;
+{
+    transition s.len > 0 {
+        true -> sum_entries(s[1..], acc + s[0].value)
+        false -> (acc as i32)
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.entries[0].value = 8;
+    self.entries[1].value = 12;
+    self.entries[2].value = 10;
+    self.entries[3].value = 5;
+    self.entries[4].value = 15;
+    self.entries[5].value = 10;
+    self.entries[6].value = 10;
+    let se: &[Entry] = self.entries.as_slice();
+    let total: i32 = self.walker.sum_entries(se, 0);
+    transition total == 70 {
+        true -> good()
+        _ -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

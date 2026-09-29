@@ -487,7 +487,14 @@ fn authored_indexed_primitive_read(
                 validation::unrestricted_builtin_primitive(&checked.typed, reference)
                     .or_else(|| checked.typed.primitive_type_reference(reference))
             })
-            .filter(|primitive| supported_mutable_parameter(*primitive))
+            // `collect_owned_field` reports an indexed or entry leaf for every
+            // primitive the retained `StructuralParameterField` carries,
+            // IEEE floats included (`self.nums[0]` over `[f64; 6]`), so the
+            // authored side must admit the same carriers or the two disagree.
+            .filter(|primitive| {
+                supported_mutable_parameter(*primitive)
+                    || matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
+            })
     else {
         return Ok(None);
     };
