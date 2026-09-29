@@ -4,10 +4,11 @@ use optimization_core::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity, CopyRemovalIdentity,
-    DeadCompareIdentity, EquivalentCompareIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
-    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
-    RedundantCompareIdentity, RedundantExtensionIdentity, SelectedInstructionPlanIdentity,
+    AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
+    CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,
+    FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity, LivenessIdentity,
+    PressureRematerializationIdentity, RedundantCompareIdentity, RedundantExtensionIdentity,
+    SelectedInstructionPlanIdentity,
 };
 use target::NativeTarget;
 
@@ -61,6 +62,10 @@ pub enum PostAllocationSelectedTransformation {
     DeadCompare(DeadCompareIdentity),
     RedundantCompare(RedundantCompareIdentity),
     EquivalentCompare(EquivalentCompareIdentity),
+    /// A retained `CopyI64` feeding a direct call's `Use` arguments: the
+    /// call's operands rebind to the copy's source while producer and
+    /// call contract both stay published.
+    CopiedCallOperand(CopiedCallOperandIdentity),
 }
 
 /// Structured report at the first independently validated physical-home

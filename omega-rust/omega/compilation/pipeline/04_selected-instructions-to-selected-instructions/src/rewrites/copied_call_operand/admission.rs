@@ -24,6 +24,7 @@ use super::CopiedCallOperandError;
 use super::pair::{copied_call_operand_for, declared_consumer};
 use crate::ValidatedSelectedAnalysis;
 use crate::analyses::machine_effects::machine_semantic_kind;
+use crate::rewrites::block_edges::block_instructions;
 
 /// One admitted copied-call-operand pair: everything `rewrite` needs to
 /// rebuild the consumer instruction and everything `replay` needs to
@@ -268,6 +269,35 @@ pub(super) fn admit<'source>(
             && operand.virtual_register == destination
             && operand.class != source_register.class
     }) {
+        return Err(CopiedCallOperandError::UnsupportedUse);
+    }
+    // Every rebound operand carries its ABI `fixed_view` onto the source
+    // register at that operand's point. The live-range surface the
+    // transformed plan must replay admits one fixed view per register at
+    // a point, and counts every pair of distinct views a register
+    // carries as an entry transition the completed step forbids: the
+    // views the source already carries — its entry view and each pinned
+    // operand site — and the views the reroute would newly pin must all
+    // be one view.
+    let mut source_views = std::collections::BTreeSet::new();
+    for operand in consumer.operands.iter().filter(|operand| {
+        operand.access == RegisterOperandAccess::Use && operand.virtual_register == destination
+    }) {
+        source_views.extend(operand.fixed_view);
+    }
+    source_views.extend(source_register.entry_fixed_view);
+    for block in &function.blocks {
+        for instruction in block_instructions(block) {
+            source_views.extend(
+                instruction
+                    .operands
+                    .iter()
+                    .filter(|operand| operand.virtual_register == copied_source)
+                    .filter_map(|operand| operand.fixed_view),
+            );
+        }
+    }
+    if source_views.len() > 1 {
         return Err(CopiedCallOperandError::UnsupportedUse);
     }
     // Between the copy and the call nothing may redefine the source: a

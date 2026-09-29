@@ -1,0 +1,30 @@
+// `SelectedCopiedCallOperandFoldV1` exercises the retained-call reroute on a
+// real program: `scale(14i64, 3i64)` stages both scalar arguments through the
+// `CopyI64` records the rule rebinds to their copy sources. A wrong reroute
+// corrupts the product, so the exit code is the authored result: 70 iff
+// `scale(14, 3)` returns 42.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine scale(value: i64, factor: i64) -> i64
+requires
+    0 <= value && value <= 1000 &&
+    0 <= factor && factor <= 1000;
+{
+    let product: i64 = value * factor;
+    product
+}
+
+machine Main::main(&mut self) reaches Console {
+    let decided: i64 = scale(14i64, 3i64);
+    transition decided == 42i64 {
+        true -> ok()
+        _ -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

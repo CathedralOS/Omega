@@ -3,9 +3,7 @@ use selected_instructions::{SelectedInstructionPlan, SelectedInstructionPlanIden
 use semantic_vocabulary::FuelScheduleIdentity;
 use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
-use crate::rewrites::unexecuted::peepholes::{
-    ValidatedCopiedCallOperand, ValidatedProjectedAccess,
-};
+use crate::rewrites::unexecuted::peepholes::ValidatedProjectedAccess;
 use crate::rewrites::unexecuted::{
     ValidatedArmRelocation, ValidatedBoundaryBoolean, ValidatedBoundaryBranch,
     ValidatedCommutingRelocation, ValidatedConfluenceRelocation, ValidatedDeadStoreElimination,
@@ -13,9 +11,10 @@ use crate::rewrites::unexecuted::{
     ValidatedScheduledRelocation, ValidatedStoreMutationMotion, ValidatedStoredLoadForwarding,
 };
 use crate::{
-    ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch, ValidatedCopyRemoval,
-    ValidatedDeadCompare, ValidatedEquivalentCompare, ValidatedFixedViewCopies,
-    ValidatedLiteralFold, ValidatedPreAllocationTransformation, ValidatedPressureRematerialization,
+    ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
+    ValidatedCopiedCallOperand, ValidatedCopyRemoval, ValidatedDeadCompare,
+    ValidatedEquivalentCompare, ValidatedFixedViewCopies, ValidatedLiteralFold,
+    ValidatedPreAllocationTransformation, ValidatedPressureRematerialization,
     ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedRuntimeRematerialization,
     ValidatedRuntimeSpill, ValidatedRuntimeSplit,
 };

@@ -662,6 +662,7 @@ pass/operators/slice_index_bounds_from_operator_contract checked 322ms
 pass/operators/slice_range_bounds_from_operator_contract checked 300ms
 pass/operators/unary_negation_exit checked 1630ms
 pass/optimizer/constant_branch_selection_compile checked 433ms
+pass/optimizer/copied_call_operand_selection_exit checked 1133ms @a02111f4530c+wt
 pass/optimizer/dead_compare_selection_compile checked 439ms
 pass/optimizer/equivalent_compare_selection_compile checked 462ms
 pass/optimizer/redundant_compare_selection_compile checked 515ms

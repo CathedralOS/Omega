@@ -10,8 +10,9 @@ use optimization_core::{
 };
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::{
-    CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity, LiveRangeIdentity,
-    LivenessIdentity, PressureRematerializationIdentity, SelectedInstructionPlanIdentity,
+    CopiedCallOperandIdentity, CopyRemovalIdentity, FixedViewCopyIdentity, LiteralFoldIdentity,
+    LiveRangeIdentity, LivenessIdentity, PressureRematerializationIdentity,
+    SelectedInstructionPlanIdentity,
 };
 use target::NativeTarget;
 
@@ -208,6 +209,9 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
         PostAllocationSelectedTransformation::PressureRematerialization(
             PressureRematerializationIdentity::from_bytes([14; 32]),
         ),
+        PostAllocationSelectedTransformation::CopiedCallOperand(
+            CopiedCallOperandIdentity::from_bytes([16; 32]),
+        ),
     ];
     transformed.identity = transformed.recomputed_identity();
     assert_eq!(
@@ -265,9 +269,9 @@ fn canonical_codec_round_trips_both_routes_and_rejects_corruption() {
     one_transformation.identity = one_transformation.recomputed_identity();
     let mut unknown_transformation = one_transformation.encode();
     let transformation_tag_offset = content_offset + 1 + 32 + 18 + 32 + 1 + 1 + 8;
-    unknown_transformation[transformation_tag_offset] = 15;
+    unknown_transformation[transformation_tag_offset] = 16;
     assert_eq!(
         PostAllocationOptimizationManifest::decode(&unknown_transformation),
-        Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(15))
+        Err(PostAllocationOptimizationManifestDecodeError::UnknownTransformationTag(16))
     );
 }

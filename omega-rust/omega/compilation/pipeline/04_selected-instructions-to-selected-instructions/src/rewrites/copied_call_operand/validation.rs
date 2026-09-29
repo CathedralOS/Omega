@@ -29,6 +29,32 @@ use target_operations_to_selected_instructions::selected_instruction_plan_identi
 
 use super::{CopiedCallOperandError, CopiedCallOperandReceipt, ValidatedCopiedCallOperand};
 use crate::ValidatedSelectedAnalysis;
+use crate::rewrites::block_edges::block_instructions;
+
+/// The bounded-work charge of one copied-call-operand audit — the
+/// whole-function consumer scan, the forward producer scan, the backward
+/// last-definition walk, and the interval audit — shared by admission,
+/// replay, and the executor's per-candidate budget accounting.
+pub fn copied_call_operand_measured_steps(
+    plan: &SelectedInstructionPlan,
+    block: &selected_instructions::SelectedBlock,
+) -> Result<u64, CopiedCallOperandError> {
+    let steps = plan
+        .functions
+        .iter()
+        .try_fold(0usize, |total, function| {
+            function.blocks.iter().try_fold(total, |total, block| {
+                total.checked_add(block.instructions.len())?.checked_add(1)
+            })
+        })
+        .and_then(|total| {
+            total
+                .checked_add(block.instructions.len())?
+                .checked_add(block.instructions.len())
+        })
+        .ok_or(CopiedCallOperandError::IdentityOverflow)?;
+    u64::try_from(steps).map_err(|_| CopiedCallOperandError::IdentityOverflow)
+}
 
 /// Independently consume the proposed program: the replay re-derives the
 /// copied-call-operand reroute and its reconstructed call record from the
@@ -263,6 +289,33 @@ pub fn validate_copied_call_operand_fold(
             return Err(CopiedCallOperandError::UnsupportedUse);
         }
     }
+    // The fixed views the reroute would plant on the source register —
+    // each rebound operand's ABI pin — and the views the source already
+    // carries — its entry view and each pinned operand site — must all
+    // be one view: the live-range surface admits one fixed view per
+    // register at a point and counts every pair of distinct views as an
+    // entry transition the completed step forbids.
+    let mut source_views = std::collections::BTreeSet::new();
+    for operand in consumer.operands.iter().filter(|operand| {
+        operand.access == RegisterOperandAccess::Use && operand.virtual_register == destination
+    }) {
+        source_views.extend(operand.fixed_view);
+    }
+    source_views.extend(source_register.entry_fixed_view);
+    for block in &function.blocks {
+        for instruction in block_instructions(block) {
+            source_views.extend(
+                instruction
+                    .operands
+                    .iter()
+                    .filter(|operand| operand.virtual_register == copied_source)
+                    .filter_map(|operand| operand.fixed_view),
+            );
+        }
+    }
+    if source_views.len() > 1 {
+        return Err(CopiedCallOperandError::UnsupportedUse);
+    }
     // The effect surface is restated on the bound catalog: the retained
     // producer is the isolated copy and the call row carries its complete
     // activation contract — operand and implicit-unit rosters, barrier,
@@ -308,29 +361,17 @@ pub fn validate_copied_call_operand_fold(
     // admission already paid it: a proposal validated on a starved budget
     // must not pass where admission would refuse.
     let block = &function.blocks[block_index];
-    let steps = plan
-        .functions
-        .iter()
-        .try_fold(0usize, |total, function| {
-            function.blocks.iter().try_fold(total, |total, block| {
-                total.checked_add(block.instructions.len())?.checked_add(1)
-            })
-        })
-        .and_then(|total| {
-            total
-                .checked_add(block.instructions.len())?
-                .checked_add(block.instructions.len())
-        })
-        .ok_or(CopiedCallOperandError::IdentityOverflow)?;
-    if u64::try_from(steps).map_err(|_| CopiedCallOperandError::IdentityOverflow)?
-        > budget.validation_steps()
-    {
+    let steps = copied_call_operand_measured_steps(plan, block)?;
+    if steps > budget.validation_steps() {
         return Err(CopiedCallOperandError::WorkBudgetExceeded);
     }
     Ok(ValidatedCopiedCallOperand {
         receipt: CopiedCallOperandReceipt {
             source_selected: source.selected_identity(),
             transformed_selected: selected_instruction_plan_identity(&proposed),
+            function_index,
+            producer,
+            call,
             optimization_unit: source.optimization_unit_identity(),
             fuel_schedule: source.fuel_schedule_identity(),
         },

@@ -91,6 +91,9 @@ impl PostAllocationOptimizationManifest {
                 PostAllocationSelectedTransformation::RuntimeSplit(identity) => {
                     ("runtime-split", identity.bytes())
                 }
+                PostAllocationSelectedTransformation::CopiedCallOperand(identity) => {
+                    ("copied-call-operand", identity.bytes())
+                }
             };
             writeln!(
                 output,
