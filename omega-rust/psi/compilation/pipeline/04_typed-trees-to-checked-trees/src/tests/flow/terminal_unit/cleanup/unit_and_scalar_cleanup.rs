@@ -198,6 +198,38 @@ fn scalar_return_retains_finite_all_nominal_cleanups_in_reverse_parameter_order(
 }
 
 #[test]
+fn nominal_cleanup_static_helper_does_not_inherit_namespace_fields() {
+    let checked = checked(
+        r#"
+        data Resource { value: u64; }
+        data Helpers { unrelated: u64; }
+        machine Helpers::touch() {}
+        machine Resource::drop(&mut self) { Helpers::touch(); }
+        data Root {}
+        machine Root::measure(resource: Resource) -> u64 { 7u64 }
+    "#,
+    );
+    let helper = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine_named(&checked, "touch"))
+        .expect("static helper has an executable plan");
+    assert!(helper.attachment_type_identity.is_none());
+    assert!(helper.structural_parameters.is_empty());
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_scalar_returns
+        .for_machine(machine_named(&checked, "measure"))
+        .expect("namespace fields do not become cleanup helper inputs");
+    assert!(matches!(
+        plan.cleanup_actions.as_slice(),
+        [checked_trees::CheckedStructuralScalarReturnCleanupAction::InvokeNominal(_)]
+    ));
+}
+
+#[test]
 fn contextual_scalar_cleanup_keeps_all_trivial_roots_fenced() {
     let all_trivial = checked(
         r#"

@@ -27,10 +27,10 @@ use crate::execution::terminal_unit::{
     CheckedStructuralScalarReturnCleanupAction, CheckedStructuralScalarReturnMachinePlan,
     CheckedTraitOperatorScalarReturnMachinePlan, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, CheckedUnitEffectPlans, CheckedUnitNominalAffineCleanupPlan,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralTypeShape, Diagnostic, ExpressionNode,
-    MachineSupplyMode, Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource,
-    PrimitiveType, StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees,
-    checked_shared_boolean_convergence, is_reference, shared_convergence,
+    CheckedUnitStructuralParameterPlan, Diagnostic, ExpressionNode, MachineSupplyMode,
+    Multiplicity, PermissionAccess, PermissionEventKind, PermissionEventSource, PrimitiveType,
+    StatementNode, SymbolHandle, TypeReferenceNode, TypedTrees, checked_shared_boolean_convergence,
+    is_reference, shared_convergence,
 };
 
 pub(crate) fn build_trait_operator_scalar_return_machine(
@@ -791,16 +791,12 @@ pub(crate) fn is_bounded_scalar_nominal_cleanup_target(
             let Some(helper) = unit_effects.for_machine(helper_machine) else {
                 return false;
             };
-            let helper_shape = unit_effects.structural_types.iter().find(|shape| {
-                helper.attachment_type_identity.as_deref() == Some(shape.identity.as_str())
-            });
+            // A qualified static name supplies no receiver. A no-argument
+            // helper needs no enclosing record, empty or otherwise.
             helper.machine != cleanup_machine
                 && helper.state == helper_state
                 && helper.contract_report_fingerprint == helper_fingerprint
-                && matches!(
-                    helper_shape.map(|shape| &shape.shape),
-                    Some(CheckedUnitStructuralTypeShape::Record { fields }) if fields.is_empty()
-                )
+                && helper.attachment_type_identity.is_none()
                 && helper.structural_parameters.is_empty()
                 && helper.trivial_affine_locals.is_empty()
                 && helper.entry_claims.is_empty()
