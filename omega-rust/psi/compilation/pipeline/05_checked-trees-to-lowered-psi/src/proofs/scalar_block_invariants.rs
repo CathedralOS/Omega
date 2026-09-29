@@ -40,6 +40,29 @@ mod joins;
 mod lockstep;
 use super::retained_evidence;
 
+/// One reconstructed question as the discovery producers read it. A roster
+/// round re-reconstructs the module, and a site can come back under its old
+/// obligation identity with a different question: a strengthened invariant
+/// keeps its arrival obligations while its goal grows, and a newly retained
+/// invariant adds axioms to the operation sites it dominates. Producer output
+/// is a function of all of it, so the queried roster keys the whole question;
+/// an unchanged site is still transported at most once across rounds.
+type QueriedSite = (
+    ObligationId,
+    Proposition,
+    Vec<Proposition>,
+    Vec<Proposition>,
+);
+
+fn queried_site(site: &terminal_verifier::ReconstructedTerminalObligation) -> QueriedSite {
+    (
+        site.obligation.id,
+        site.obligation.proposition.clone(),
+        site.requirements.clone(),
+        site.semantic_axioms.clone(),
+    )
+}
+
 #[cfg(test)]
 mod authored_row_tests;
 #[cfg(test)]
@@ -155,12 +178,13 @@ fn retain_provable_roster_bounded(
     let mandatory = source_roster.as_slice();
     let module = &mut lowered.semantic_module;
     let mut remaining = MAX_CANDIDATE_WORK;
-    // A reconstructed obligation yields the same producer output every round;
-    // each round's fresh questions repeat every prior site plus the newly
-    // minted invariant arrivals. Share the queried roster with the producers
-    // so a site is transported at most once across the whole discovery loop:
-    // rounds then cost only the genuinely new questions, and a rejected
-    // candidate cannot re-mint itself and keep discovery from settling.
+    // A reconstructed question yields the same producer output every round;
+    // each round's fresh questions repeat every unchanged prior site plus the
+    // newly minted or changed ones (see `QueriedSite`). Share the queried
+    // roster with the producers so an unchanged site is transported at most
+    // once across the whole discovery loop: rounds then cost only the
+    // genuinely new questions, and a rejected candidate cannot re-mint itself
+    // and keep discovery from settling.
     let mut join_queried = BTreeSet::new();
     let mut arrival_queried = BTreeSet::new();
     let mut candidates = entry_ranges::candidates(module);

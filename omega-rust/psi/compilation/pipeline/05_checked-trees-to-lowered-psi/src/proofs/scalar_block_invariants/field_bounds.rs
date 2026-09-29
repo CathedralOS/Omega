@@ -65,8 +65,7 @@ pub(super) fn candidates(
         let mut join_headers: BTreeMap<BlockId, Vec<BlockId>> = BTreeMap::new();
         // A header's live-value scope depends only on the machine and header;
         // the same header answers many sites and predicates.
-        let mut header_scopes: BTreeMap<BlockId, Option<PropositionContext>> =
-            BTreeMap::new();
+        let mut header_scopes: BTreeMap<BlockId, Option<PropositionContext>> = BTreeMap::new();
         // The owning block of a demanded operation never changes within the
         // machine; index it once rather than scanning the block roster per site.
         let operation_blocks = machine
@@ -177,8 +176,7 @@ pub(super) fn candidates(
                 let scope = match header_scopes.entry(header) {
                     std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
                     std::collections::btree_map::Entry::Vacant(entry) => entry.insert(
-                        terminal_verifier::scalar_block_invariant_scope(machine, header_block)
-                            .ok(),
+                        terminal_verifier::scalar_block_invariant_scope(machine, header_block).ok(),
                     ),
                 };
                 let Some(scope) = scope.as_ref() else {
@@ -264,11 +262,12 @@ pub(super) fn arrival_bounds(
     remaining: &mut usize,
     declines: &mut crate::proofs::ProofSearchDeclines,
     // A site's seeded bounds are a pure function of its reconstructed
-    // obligation and the roster it names; the discovery loop re-queries the
-    // module every round while only newly minted invariant questions can add
-    // candidates. The caller shares this set so each obligation is queried
-    // at most once across every round.
-    queried: &mut BTreeSet<semantic_vocabulary::ObligationId>,
+    // question, whose goal is the roster row it names; the discovery loop
+    // re-queries the module every round while only new or changed questions
+    // can add candidates. The caller shares this set so each unchanged
+    // question is queried at most once across every round
+    // (`super::QueriedSite`).
+    queried: &mut BTreeSet<super::QueriedSite>,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let mut proposed = BTreeSet::new();
@@ -281,7 +280,7 @@ pub(super) fn arrival_bounds(
         else {
             continue;
         };
-        if !queried.insert(site.obligation.id) {
+        if !queried.insert(super::queried_site(site)) {
             continue;
         }
         let Some(machine) = module.machines.iter().find(|machine| machine.id == owner) else {

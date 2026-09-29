@@ -55,11 +55,11 @@ pub(super) fn candidates(
     remaining: &mut usize,
     declines: &mut crate::proofs::ProofSearchDeclines,
     // A site's transport output is a pure function of its reconstructed
-    // obligation; the roster discovery loop re-queries the module every round
-    // while only newly minted invariant questions can add candidates. The
-    // caller shares this set so each obligation is queried at most once
-    // across every round.
-    queried: &mut BTreeSet<semantic_vocabulary::ObligationId>,
+    // question; the roster discovery loop re-queries the module every round
+    // while only new or changed questions can add candidates. The caller
+    // shares this set so each unchanged question is queried at most once
+    // across every round (`super::QueriedSite`).
+    queried: &mut BTreeSet<super::QueriedSite>,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let Ok(validated) = terminal_verifier::validate_module(module) else {
@@ -137,11 +137,12 @@ pub(super) fn candidates(
                 | ReconstructedTerminalObligationOwner::Operation { machine: owner, .. }
                 | ReconstructedTerminalObligationOwner::CallRequires { machine: owner, .. }
                 | ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-                    machine: owner, ..
+                    machine: owner,
+                    ..
                 } => owner == machine.id,
                 _ => false,
             };
-            if demanded && queried.insert(site.obligation.id) {
+            if demanded && queried.insert(super::queried_site(site)) {
                 site_equations.push((
                     site,
                     ArrivalEquations::new(&site.semantic_axioms, remaining),
