@@ -414,17 +414,16 @@ fn arrival_extent_rejects_a_producer_that_does_not_dominate_the_read() {
 }
 
 #[test]
-fn arrival_extent_rejects_a_mutable_view_whose_length_a_writer_may_replace() {
-    // Element-view length observations are immutable. A mutable arrival would
-    // let a writer replace the extent the producer's equation describes, so its
-    // length read is refused before any equation could be reconstructed. The
-    // arrival rule's own freshness check guards any later mutable admission.
+fn arrival_rejects_escalating_a_shared_producer_to_mutable_access() {
+    // Mutable element views may observe their length, but this producer only
+    // borrowed its backing shared. Changing the arrival's access cannot mint
+    // exclusive authority; reject the transfer before reconstructing facts.
     let module = arrival(StructuralAccess::MutableBorrow);
     assert_eq!(
         validate_module_for_interpretation(&module).map(|_| ()),
-        Err(ModuleError::InvalidElementViewLengthSource {
-            operation: id(3, OperationId::new),
-            source: id(ARRIVED, PlaceId::new),
+        Err(ModuleError::InvalidStructuralSuccessorArgument {
+            edge: id(10, EdgeId::new),
+            place: id(PRODUCED, PlaceId::new),
         })
     );
 }
