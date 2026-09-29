@@ -130,14 +130,7 @@ fn derive_optimized_scope(
             // Dynamic calls are real surviving occurrences too: the emitted
             // dispatch row joins them by operation and ordinal even though no
             // static callee or D29 coverage reference exists.
-            if matches!(
-                operation,
-                AbstractOperation::CallDynamicScalar { .. }
-                    | AbstractOperation::CallStoredDynamicScalar { .. }
-                    | AbstractOperation::CallDynamicParameterScalar { .. }
-                    | AbstractOperation::CallDynamicUnit { .. }
-                    | AbstractOperation::CallDynamicParameterUnit { .. }
-            ) {
+            if matches!(operation, AbstractOperation::CallDynamic { .. }) {
                 let identity = optimized_operator_occurrence_identity(
                     authority,
                     function.machine,

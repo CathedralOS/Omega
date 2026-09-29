@@ -1,4 +1,7 @@
-use abstract_operations::{AbstractOperation, AbstractResult, CompletionClaimSource};
+use abstract_operations::{
+    AbstractDynamicCallResult, AbstractDynamicDispatch, AbstractOperation, AbstractResult,
+    CompletionClaimSource,
+};
 use terminal_psi::{
     ClosedConformanceApplication, Operation, OperationKind, TerminalDynamicDispatchCatalog,
     TerminalMachine,
@@ -123,40 +126,36 @@ pub(super) fn lower(
                 value: result.id,
                 scalar_type: result.scalar_type,
             };
-            if dynamic_dispatch
-                .stored_dispatches
-                .iter()
-                .any(|dispatch| dispatch.owner == machine.id && dispatch.operation == operation.id)
-            {
-                AbstractOperation::CallStoredDynamicScalar {
-                    psi_operation: operation.id,
-                    result,
-                    dynamic_dispatch: lower_stored_dynamic_dispatch(
+            // A published stored dispatch reloads the descriptor from its
+            // aggregate field; every other scalar descriptor call is rebound.
+            let dispatch =
+                if dynamic_dispatch.stored_dispatches.iter().any(|dispatch| {
+                    dispatch.owner == machine.id && dispatch.operation == operation.id
+                }) {
+                    AbstractDynamicDispatch::Stored(lower_stored_dynamic_dispatch(
                         machine,
                         operation,
                         descriptor_ordinal,
                         Some(result.scalar_type),
                         dynamic_dispatch,
                         closed_conformance_applications,
-                    )?,
-                    requirement_obligations,
-                    crash_continuations,
-                }
-            } else {
-                AbstractOperation::CallDynamicScalar {
-                    psi_operation: operation.id,
-                    result,
-                    dynamic_dispatch: lower_rebound_dynamic_dispatch(
+                    )?)
+                } else {
+                    AbstractDynamicDispatch::Rebound(lower_rebound_dynamic_dispatch(
                         machine,
                         operation,
                         descriptor_ordinal,
                         Some(result.scalar_type),
                         dynamic_dispatch,
                         closed_conformance_applications,
-                    )?,
-                    requirement_obligations,
-                    crash_continuations,
-                }
+                    )?)
+                };
+            AbstractOperation::CallDynamic {
+                psi_operation: operation.id,
+                dispatch,
+                result: AbstractDynamicCallResult::Scalar(result),
+                requirement_obligations,
+                crash_continuations,
             }
         }
         OperationKind::CallDynamicParameterScalar {
@@ -166,38 +165,41 @@ pub(super) fn lower(
             crash_continuations,
         } => {
             let result = operation.result.expect_scalar();
-            AbstractOperation::CallDynamicParameterScalar {
+            AbstractOperation::CallDynamic {
                 psi_operation: operation.id,
-                result: AbstractResult {
-                    value: result.id,
-                    scalar_type: result.scalar_type,
-                },
-                dynamic_dispatch: lower_parameter_dynamic_dispatch(
+                dispatch: AbstractDynamicDispatch::Parameter(lower_parameter_dynamic_dispatch(
                     machine,
                     operation,
                     parameter_ordinal,
                     requirement_slot,
                     Some(result.scalar_type),
                     dynamic_dispatch,
-                )?,
+                )?),
+                result: AbstractDynamicCallResult::Scalar(AbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                }),
                 requirement_obligations,
                 crash_continuations,
             }
         }
+        // A Unit descriptor call is always rebound: stored custody is admitted
+        // only with a scalar result.
         OperationKind::CallDynamicUnit {
             descriptor_ordinal,
             requirement_obligations,
             crash_continuations,
-        } => AbstractOperation::CallDynamicUnit {
+        } => AbstractOperation::CallDynamic {
             psi_operation: operation.id,
-            dynamic_dispatch: lower_rebound_dynamic_dispatch(
+            dispatch: AbstractDynamicDispatch::Rebound(lower_rebound_dynamic_dispatch(
                 machine,
                 operation,
                 descriptor_ordinal,
                 None,
                 dynamic_dispatch,
                 closed_conformance_applications,
-            )?,
+            )?),
+            result: AbstractDynamicCallResult::Unit,
             requirement_obligations,
             crash_continuations,
         },
@@ -206,16 +208,17 @@ pub(super) fn lower(
             requirement_slot,
             requirement_obligations,
             crash_continuations,
-        } => AbstractOperation::CallDynamicParameterUnit {
+        } => AbstractOperation::CallDynamic {
             psi_operation: operation.id,
-            dynamic_dispatch: lower_parameter_dynamic_dispatch(
+            dispatch: AbstractDynamicDispatch::Parameter(lower_parameter_dynamic_dispatch(
                 machine,
                 operation,
                 parameter_ordinal,
                 requirement_slot,
                 None,
                 dynamic_dispatch,
-            )?,
+            )?),
+            result: AbstractDynamicCallResult::Unit,
             requirement_obligations,
             crash_continuations,
         },

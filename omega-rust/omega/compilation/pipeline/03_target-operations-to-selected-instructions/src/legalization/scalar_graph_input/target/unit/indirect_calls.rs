@@ -38,10 +38,10 @@ pub(super) fn validate(
                 requirement_obligations,
                 crash_continuations,
             },
-            AbstractOperation::CallDynamicParameterScalar {
+            AbstractOperation::CallDynamic {
                 psi_operation: actual,
-                result: defined,
-                dynamic_dispatch: dispatch,
+                dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(defined),
                 requirement_obligations: obligations,
                 crash_continuations: crashes,
             },
@@ -73,9 +73,10 @@ pub(super) fn validate(
                 requirement_obligations,
                 crash_continuations,
             },
-            AbstractOperation::CallDynamicParameterUnit {
+            AbstractOperation::CallDynamic {
                 psi_operation: actual,
-                dynamic_dispatch: dispatch,
+                dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Unit,
                 requirement_obligations: obligations,
                 crash_continuations: crashes,
             },
@@ -112,8 +113,14 @@ pub(super) fn validate(
     {
         return Err(LegalizationError::custody());
     }
-    if let (Some(home), AbstractOperation::CallDynamicParameterScalar { result, .. }) =
-        (result_home, abstracted)
+    if let (
+        Some(home),
+        AbstractOperation::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
+            ..
+        },
+    ) = (result_home, abstracted)
     {
         let expected = TargetUnitScalarHomeRequirement {
             defining_operation: psi_operation,

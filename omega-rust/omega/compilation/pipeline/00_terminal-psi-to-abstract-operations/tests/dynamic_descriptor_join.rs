@@ -153,10 +153,7 @@ fn checked_descriptor_join_retains_both_predecessors_through_optimization_seed()
         .expect("joined descriptor helper");
     assert!(helper.operations.iter().any(|operation| matches!(
         operation,
-        AbstractOperation::CallDynamicParameterScalar {
-            dynamic_dispatch,
-            ..
-        } if dynamic_dispatch.parameter == first_argument.target
+        AbstractOperation::CallDynamic { dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch), result: abstract_operations::AbstractDynamicCallResult::Scalar(_), .. } if dynamic_dispatch.parameter == first_argument.target
     )));
 
     let optimization = reconstruct_psi_optimization_unit_seed(

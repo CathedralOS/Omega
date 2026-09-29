@@ -74,19 +74,12 @@ pub(crate) fn operation_service_contract_matches(
                         abstract_operations::AbstractDynamicDescriptorSource::Parameter(_) => true,
                     })
         }
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => functions
-            .get(&dynamic_dispatch.dispatch.realization)
-            .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
-        O::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => functions
-            .get(&dynamic_dispatch.dispatch.realization)
-            .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
+        O::CallDynamic { dispatch, .. } => match dispatch.realization() {
+            Some(realization) => functions
+                .get(&realization)
+                .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
+            None => true,
+        },
         O::BoundaryCall { boundary, .. } => boundaries
             .get(boundary)
             .is_some_and(|boundary| reached_is_published(&boundary.published_service_ceiling)),
@@ -202,47 +195,43 @@ pub(crate) fn operation_structural_call_contract_matches(
                 claim_transfers,
             )
         }),
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => functions
-            .get(&dynamic_dispatch.dispatch.realization)
-            .is_some_and(|callee| {
-                structural_arguments_match(
-                    caller,
-                    std::slice::from_ref(&dynamic_dispatch.initial.source),
-                    &callee.structural_parameters,
-                    types,
-                    domains,
-                    StructuralProjectionPolicy::Projected,
-                    false,
-                ) && structural_arguments_match(
-                    caller,
-                    std::slice::from_ref(&dynamic_dispatch.rebound.source),
-                    &callee.structural_parameters,
-                    types,
-                    domains,
-                    StructuralProjectionPolicy::Projected,
-                    false,
-                )
-            }),
-        O::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => functions
-            .get(&dynamic_dispatch.dispatch.realization)
-            .is_some_and(|callee| {
-                structural_arguments_match(
-                    caller,
-                    std::slice::from_ref(&dynamic_dispatch.stored.selection.source),
-                    &callee.structural_parameters,
-                    types,
-                    domains,
-                    StructuralProjectionPolicy::Projected,
-                    false,
-                )
-            }),
+        O::CallDynamic { dispatch, .. } => match dispatch {
+            abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch) => functions
+                .get(&dynamic_dispatch.dispatch.realization)
+                .is_some_and(|callee| {
+                    structural_arguments_match(
+                        caller,
+                        std::slice::from_ref(&dynamic_dispatch.initial.source),
+                        &callee.structural_parameters,
+                        types,
+                        domains,
+                        StructuralProjectionPolicy::Projected,
+                        false,
+                    ) && structural_arguments_match(
+                        caller,
+                        std::slice::from_ref(&dynamic_dispatch.rebound.source),
+                        &callee.structural_parameters,
+                        types,
+                        domains,
+                        StructuralProjectionPolicy::Projected,
+                        false,
+                    )
+                }),
+            abstract_operations::AbstractDynamicDispatch::Stored(dynamic_dispatch) => functions
+                .get(&dynamic_dispatch.dispatch.realization)
+                .is_some_and(|callee| {
+                    structural_arguments_match(
+                        caller,
+                        std::slice::from_ref(&dynamic_dispatch.stored.selection.source),
+                        &callee.structural_parameters,
+                        types,
+                        domains,
+                        StructuralProjectionPolicy::Projected,
+                        false,
+                    )
+                }),
+            abstract_operations::AbstractDynamicDispatch::Parameter(_) => true,
+        },
         O::CallStructural {
             result,
             callee,

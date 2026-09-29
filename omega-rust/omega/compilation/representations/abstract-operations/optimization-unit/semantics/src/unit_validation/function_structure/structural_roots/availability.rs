@@ -169,11 +169,11 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             }
             places
         }
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
+        // Only a rebound descriptor's two selection sources join here; a
+        // stored descriptor's source is not required at the call.
+        O::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+            ..
         } => vec![
             dynamic_dispatch.initial.source.place,
             dynamic_dispatch.rebound.source.place,

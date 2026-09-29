@@ -128,9 +128,11 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
             .operations
             .iter()
             .find_map(|operation| match operation {
-                AbstractOperation::CallDynamicParameterUnit {
+                AbstractOperation::CallDynamic {
                     psi_operation,
-                    dynamic_dispatch,
+                    dispatch:
+                        abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
+                    result: abstract_operations::AbstractDynamicCallResult::Unit,
                     ..
                 } => Some((*psi_operation, dynamic_dispatch)),
                 _ => None,
@@ -162,9 +164,15 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
             .filter(|node| {
                 matches!(
                     node.operation,
-                    AbstractOperation::CallDynamicUnit { .. }
-                        | AbstractOperation::CallDynamicParameterUnit { .. }
-                        | AbstractOperation::CallUnitWithDynamicArguments { .. }
+                    AbstractOperation::CallDynamic {
+                        dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(_),
+                        result: abstract_operations::AbstractDynamicCallResult::Unit,
+                        ..
+                    } | AbstractOperation::CallDynamic {
+                        dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+                        result: abstract_operations::AbstractDynamicCallResult::Unit,
+                        ..
+                    } | AbstractOperation::CallUnitWithDynamicArguments { .. }
                 )
             })
         {
@@ -222,9 +230,10 @@ fn verified_changed_conformance_unit_retains_both_applications() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::CallDynamicUnit {
+            AbstractOperation::CallDynamic {
                 psi_operation,
-                dynamic_dispatch,
+                dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Unit,
                 ..
             } => Some((*psi_operation, dynamic_dispatch)),
             _ => None,
@@ -255,8 +264,10 @@ fn verified_changed_conformance_unit_retains_both_applications() {
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallDynamicUnit {
-                dynamic_dispatch, ..
+            AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Unit,
+                ..
             } => Some(dynamic_dispatch),
             _ => None,
         })

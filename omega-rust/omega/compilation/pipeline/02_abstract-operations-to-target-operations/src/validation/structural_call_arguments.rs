@@ -12,10 +12,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{
-    AbstractBoundaryResult, AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractParameter,
-    AbstractParameterDynamicDispatch, AbstractReboundDynamicDispatch, AbstractResult,
-    AbstractStoredDynamicDescriptor, AbstractStoredDynamicDispatch, CompletionClaimSource,
+    AbstractBoundaryResult, AbstractDynamicCallResult, AbstractDynamicDescriptorArgument,
+    AbstractDynamicDescriptorSource, AbstractDynamicDispatch, AbstractFunction,
+    AbstractFunctionResult, AbstractOperation, AbstractParameter, AbstractParameterDynamicDispatch,
+    AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
+    AbstractStoredDynamicDispatch, CompletionClaimSource,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, NativePlace, ValueClass, ValueLocation,
@@ -538,11 +539,7 @@ pub(super) fn validate(
                     psi_operation,
                     ..
                 }
-                | AbstractOperation::CallStoredDynamicScalar { psi_operation, .. }
-                | AbstractOperation::CallDynamicScalar { psi_operation, .. }
-                | AbstractOperation::CallDynamicUnit { psi_operation, .. }
-                | AbstractOperation::CallDynamicParameterScalar { psi_operation, .. }
-                | AbstractOperation::CallDynamicParameterUnit { psi_operation, .. }
+                | AbstractOperation::CallDynamic { psi_operation, .. }
                 | AbstractOperation::StoreDynamicDescriptor { psi_operation, .. } => psi_operation,
                 _ => return None,
             })
@@ -736,74 +733,48 @@ pub(super) fn validate(
                 crash_continuations,
                 target_calls.get(psi_operation),
             )?,
-            AbstractOperation::CallStoredDynamicScalar {
+            AbstractOperation::CallDynamic {
                 psi_operation,
+                dispatch,
                 result,
-                dynamic_dispatch,
                 requirement_obligations,
                 crash_continuations,
-            } => replay.stored_dynamic_call(
-                *psi_operation,
-                result,
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
-            AbstractOperation::CallDynamicScalar {
-                psi_operation,
-                result,
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-            } => replay.rebound_dynamic_call(
-                *psi_operation,
-                Some(result),
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
-            AbstractOperation::CallDynamicUnit {
-                psi_operation,
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-            } => replay.rebound_dynamic_call(
-                *psi_operation,
-                None,
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
-            AbstractOperation::CallDynamicParameterScalar {
-                psi_operation,
-                result,
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-            } => replay.parameter_dynamic_call(
-                *psi_operation,
-                Some(result),
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
-            AbstractOperation::CallDynamicParameterUnit {
-                psi_operation,
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-            } => replay.parameter_dynamic_call(
-                *psi_operation,
-                None,
-                dynamic_dispatch,
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
+            } => {
+                let scalar = match result {
+                    AbstractDynamicCallResult::Scalar(result) => Some(result),
+                    AbstractDynamicCallResult::Unit => None,
+                };
+                match dispatch {
+                    AbstractDynamicDispatch::Rebound(dynamic_dispatch) => replay
+                        .rebound_dynamic_call(
+                            *psi_operation,
+                            scalar,
+                            dynamic_dispatch,
+                            requirement_obligations,
+                            crash_continuations,
+                            target_calls.get(psi_operation),
+                        )?,
+                    // Stored custody is admitted only with a scalar result.
+                    AbstractDynamicDispatch::Stored(dynamic_dispatch) => replay
+                        .stored_dynamic_call(
+                            *psi_operation,
+                            scalar.ok_or(*psi_operation)?,
+                            dynamic_dispatch,
+                            requirement_obligations,
+                            crash_continuations,
+                            target_calls.get(psi_operation),
+                        )?,
+                    AbstractDynamicDispatch::Parameter(dynamic_dispatch) => replay
+                        .parameter_dynamic_call(
+                            *psi_operation,
+                            scalar,
+                            dynamic_dispatch,
+                            requirement_obligations,
+                            crash_continuations,
+                            target_calls.get(psi_operation),
+                        )?,
+                }
+            }
             AbstractOperation::StoreDynamicDescriptor {
                 psi_operation,
                 stored,
@@ -2593,10 +2564,10 @@ impl Replay<'_> {
             .operations
             .iter()
             .filter_map(|candidate| match candidate {
-                AbstractOperation::CallStoredDynamicScalar {
+                AbstractOperation::CallDynamic {
                     psi_operation,
-                    dynamic_dispatch,
-                    result,
+                    dispatch: AbstractDynamicDispatch::Stored(dynamic_dispatch),
+                    result: AbstractDynamicCallResult::Scalar(result),
                     ..
                 } if &dynamic_dispatch.stored == stored => {
                     Some((*psi_operation, dynamic_dispatch, result))
@@ -3672,19 +3643,9 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             result,
             ..
         }
-        | AbstractOperation::CallStoredDynamicScalar {
+        | AbstractOperation::CallDynamic {
             psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::CallDynamicScalar {
-            psi_operation,
-            result,
-            ..
-        }
-        | AbstractOperation::CallDynamicParameterScalar {
-            psi_operation,
-            result,
+            result: AbstractDynamicCallResult::Scalar(result),
             ..
         } => (*psi_operation, *result),
         AbstractOperation::Call {

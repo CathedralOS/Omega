@@ -3,7 +3,7 @@ use super::LiveDefinitions;
 use super::observations;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractDynamicDispatch, AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
@@ -96,11 +96,9 @@ pub(super) fn lower_operation(
             structural_arguments,
             ..
         } => structural_arguments.as_slice(),
-        AbstractOperation::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | AbstractOperation::CallDynamicUnit {
-            dynamic_dispatch, ..
+        AbstractOperation::CallDynamic {
+            dispatch: AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+            ..
         } => std::slice::from_ref(&dynamic_dispatch.rebound.source),
         _ => &[],
     };
@@ -146,60 +144,62 @@ pub(super) fn lower_operation(
             }
             Ok(())
         }
-        AbstractOperation::CallDynamicScalar { .. }
-        | AbstractOperation::CallStoredDynamicScalar { .. } => {
-            let home = if let AbstractOperation::CallStoredDynamicScalar {
-                dynamic_dispatch, ..
-            } = operation
-            {
-                crate::lowering::unit::dynamic::lower_stored_dynamic_scalar_call(
-                    operation,
-                    function,
-                    target,
-                    functions,
-                    structural_types,
-                    parameters_by_place,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                    &mut live.integers,
-                    live.stored_descriptors
-                        .contains(&dynamic_dispatch.stored.descriptor.establishment_operation),
-                    operations,
-                    provenance,
-                )?
-            } else {
-                crate::lowering::unit::dynamic::lower_dynamic_scalar_call(
-                    operation,
-                    function,
-                    target,
-                    functions,
-                    structural_types,
-                    parameters_by_place,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                    &mut live.integers,
-                    operations,
-                    provenance,
-                )?
+        AbstractOperation::CallDynamic { dispatch, .. } => {
+            let home = match dispatch {
+                AbstractDynamicDispatch::Rebound(_) => {
+                    crate::lowering::unit::dynamic::lower_rebound_dynamic_call(
+                        operation,
+                        function,
+                        target,
+                        functions,
+                        structural_types,
+                        parameters_by_place,
+                        &mut BTreeMap::new(),
+                        &mut BTreeSet::new(),
+                        &mut live.integers,
+                        operations,
+                        provenance,
+                    )?
+                }
+                AbstractDynamicDispatch::Stored(dynamic_dispatch) => {
+                    let store_available = live
+                        .stored_descriptors
+                        .contains(&dynamic_dispatch.stored.descriptor.establishment_operation);
+                    Some(
+                        crate::lowering::unit::dynamic::lower_stored_dynamic_scalar_call(
+                            operation,
+                            function,
+                            target,
+                            functions,
+                            structural_types,
+                            parameters_by_place,
+                            &mut BTreeMap::new(),
+                            &mut BTreeSet::new(),
+                            &mut live.integers,
+                            store_available,
+                            operations,
+                            provenance,
+                        )?,
+                    )
+                }
+                AbstractDynamicDispatch::Parameter(_) => {
+                    crate::lowering::unit::parameter_dynamic::lower_parameter_dynamic_call(
+                        operation,
+                        function,
+                        target,
+                        &prepared.dynamic_parameters,
+                        &mut live.integers,
+                        operations,
+                        provenance,
+                    )?
+                }
             };
-            if home.scalar_type == ScalarType::Boolean {
+            if let Some(home) = home
+                && home.scalar_type == ScalarType::Boolean
+            {
                 live.scalar_homes.insert(home.source_value, home);
             }
             Ok(())
-        }
-        AbstractOperation::CallDynamicUnit { .. } => {
-            crate::lowering::unit::dynamic::lower_dynamic_unit_call(
-                operation,
-                function,
-                target,
-                functions,
-                structural_types,
-                parameters_by_place,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-                operations,
-                provenance,
-            )
         }
         AbstractOperation::CallStructuralScalarWithDynamicArguments { .. } => {
             let home = crate::lowering::unit::lower_dynamic_argument_scalar_call(
@@ -251,32 +251,6 @@ pub(super) fn lower_operation(
                 });
             }
             Ok(())
-        }
-        AbstractOperation::CallDynamicParameterScalar { .. } => {
-            let home =
-                crate::lowering::unit::parameter_dynamic::lower_parameter_dynamic_scalar_call(
-                    operation,
-                    function,
-                    target,
-                    &prepared.dynamic_parameters,
-                    &mut live.integers,
-                    operations,
-                    provenance,
-                )?;
-            if home.scalar_type == ScalarType::Boolean {
-                live.scalar_homes.insert(home.source_value, home);
-            }
-            Ok(())
-        }
-        AbstractOperation::CallDynamicParameterUnit { .. } => {
-            crate::lowering::unit::parameter_dynamic::lower_parameter_dynamic_unit_call(
-                operation,
-                function,
-                target,
-                &prepared.dynamic_parameters,
-                operations,
-                provenance,
-            )
         }
         AbstractOperation::IeeeFloatCompare {
             psi_operation,

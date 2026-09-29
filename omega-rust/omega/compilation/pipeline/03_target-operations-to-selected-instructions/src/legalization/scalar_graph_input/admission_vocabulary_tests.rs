@@ -151,8 +151,10 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::ByteSequenceSubslice { .. }
         | AbstractOperation::ByteSequenceWrite { .. }
         | AbstractOperation::Call { .. }
-        | AbstractOperation::CallDynamicParameterScalar { .. }
-        | AbstractOperation::CallDynamicParameterUnit { .. }
+        | AbstractOperation::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
+            ..
+        }
         | AbstractOperation::CallStructural { .. }
         | AbstractOperation::CallStructuralScalar { .. }
         | AbstractOperation::CallUnit { .. }
@@ -231,9 +233,12 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
                 AdmissionRoute::NamedRejection
             }
         }
-        AbstractOperation::CallDynamicScalar { .. }
-        | AbstractOperation::CallDynamicUnit { .. }
-        | AbstractOperation::CallStoredDynamicScalar { .. }
+        AbstractOperation::CallDynamic {
+            dispatch:
+                abstract_operations::AbstractDynamicDispatch::Rebound(_)
+                | abstract_operations::AbstractDynamicDispatch::Stored(_),
+            ..
+        }
         | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
         | AbstractOperation::CallUnitWithDynamicArguments { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }

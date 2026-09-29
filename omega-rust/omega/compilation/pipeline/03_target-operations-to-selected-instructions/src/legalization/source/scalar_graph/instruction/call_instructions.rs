@@ -310,10 +310,10 @@ pub(super) fn project_dynamic_parameter_call(
         requirement_obligations,
         crash_continuations,
     ) = match &node.operation {
-        AbstractOperation::CallDynamicParameterScalar {
+        AbstractOperation::CallDynamic {
             psi_operation,
-            result,
-            dynamic_dispatch,
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
             requirement_obligations,
             crash_continuations,
         } => {
@@ -333,9 +333,10 @@ pub(super) fn project_dynamic_parameter_call(
                 crash_continuations,
             )
         }
-        AbstractOperation::CallDynamicParameterUnit {
+        AbstractOperation::CallDynamic {
             psi_operation,
-            dynamic_dispatch,
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
+            result: abstract_operations::AbstractDynamicCallResult::Unit,
             requirement_obligations,
             crash_continuations,
         } => (

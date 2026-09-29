@@ -2096,9 +2096,12 @@ fn stored_descriptor_calls_replay_unique_custody_plan_and_result() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::CallStoredDynamicScalar { psi_operation, .. } => {
-                Some(*psi_operation)
-            }
+            AbstractOperation::CallDynamic {
+                psi_operation,
+                dispatch: abstract_operations::AbstractDynamicDispatch::Stored(_),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                ..
+            } => Some(*psi_operation),
             _ => None,
         })
         .expect("stored dynamic call operation");
@@ -2330,7 +2333,12 @@ fn rebound_dynamic_calls_replay_both_instance_projections() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::CallDynamicScalar { psi_operation, .. } => Some(*psi_operation),
+            AbstractOperation::CallDynamic {
+                psi_operation,
+                dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(_),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                ..
+            } => Some(*psi_operation),
             _ => None,
         })
         .expect("rebound dynamic call operation");

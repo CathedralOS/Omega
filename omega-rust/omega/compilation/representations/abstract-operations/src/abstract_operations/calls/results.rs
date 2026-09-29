@@ -35,3 +35,26 @@ impl AbstractBoundaryResult {
         }
     }
 }
+
+/// Closed result role of one descriptor-dispatched call.
+///
+/// The selected callable row fixes the role; descriptor custody does not.
+/// Unit is an authored role rather than an absent scalar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AbstractDynamicCallResult {
+    Unit,
+    Scalar(AbstractResult),
+}
+
+impl AbstractDynamicCallResult {
+    pub const fn is_unit(&self) -> bool {
+        matches!(self, Self::Unit)
+    }
+
+    pub const fn scalar(&self) -> Option<AbstractResult> {
+        match self {
+            Self::Scalar(result) => Some(*result),
+            Self::Unit => None,
+        }
+    }
+}

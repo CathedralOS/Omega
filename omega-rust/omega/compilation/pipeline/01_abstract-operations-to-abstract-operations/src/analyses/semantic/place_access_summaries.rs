@@ -24,8 +24,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::{
-    AbstractAtomicEvent, AbstractDynamicDescriptorSource, AbstractOperation as O,
-    AbstractStructuralBinding, StructuralCopyPath,
+    AbstractAtomicEvent, AbstractDynamicDescriptorSource, AbstractDynamicDispatch,
+    AbstractOperation as O, AbstractStructuralBinding, StructuralCopyPath,
 };
 use optimization_core::OptimizationUnitIdentity;
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance};
@@ -1133,36 +1133,30 @@ fn scan_operation(
             // The forwarded descriptor lane itself is not summarized.
             pending.unsummarized = true;
         }
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => {
-            let (reads, writes) = declared_access(dynamic_dispatch.initial.source.access);
-            pending.attribute_argument(context, &dynamic_dispatch.initial.source, reads, writes);
-            let (reads, writes) = declared_access(dynamic_dispatch.rebound.source.access);
-            pending.attribute_argument(context, &dynamic_dispatch.rebound.source, reads, writes);
-            pending.push_application(machines, &dynamic_dispatch.initial_application);
-            pending.push_application(machines, &dynamic_dispatch.application);
-            pending.push_reach(machines, dynamic_dispatch.dispatch.realization);
-            pending.unsummarized = true;
-        }
-        O::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => {
-            let (reads, writes) = declared_access(dynamic_dispatch.stored.selection.source.access);
-            pending.attribute_argument(
-                context,
-                &dynamic_dispatch.stored.selection.source,
-                reads,
-                writes,
-            );
-            pending.push_application(machines, &dynamic_dispatch.stored.application);
-            pending.push_reach(machines, dynamic_dispatch.dispatch.realization);
-            pending.unsummarized = true;
-        }
-        O::CallDynamicParameterScalar { .. } | O::CallDynamicParameterUnit { .. } => {
+        O::CallDynamic { dispatch, .. } => {
+            match dispatch {
+                AbstractDynamicDispatch::Rebound(dispatch) => {
+                    let (reads, writes) = declared_access(dispatch.initial.source.access);
+                    pending.attribute_argument(context, &dispatch.initial.source, reads, writes);
+                    let (reads, writes) = declared_access(dispatch.rebound.source.access);
+                    pending.attribute_argument(context, &dispatch.rebound.source, reads, writes);
+                    pending.push_application(machines, &dispatch.initial_application);
+                    pending.push_application(machines, &dispatch.application);
+                    pending.push_reach(machines, dispatch.dispatch.realization);
+                }
+                AbstractDynamicDispatch::Stored(dispatch) => {
+                    let (reads, writes) = declared_access(dispatch.stored.selection.source.access);
+                    pending.attribute_argument(
+                        context,
+                        &dispatch.stored.selection.source,
+                        reads,
+                        writes,
+                    );
+                    pending.push_application(machines, &dispatch.stored.application);
+                    pending.push_reach(machines, dispatch.dispatch.realization);
+                }
+                AbstractDynamicDispatch::Parameter(_) => {}
+            }
             pending.unsummarized = true;
         }
         O::BoundaryCall {

@@ -142,11 +142,7 @@ pub(crate) fn rewrite_scalar_value_uses(operation: &mut O, from: ValueId, to: Va
         | O::EstablishZeroedStructural { .. }
         | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalarWithDynamicArguments { .. }
-        | O::CallDynamicScalar { .. }
-        | O::CallStoredDynamicScalar { .. }
-        | O::CallDynamicParameterScalar { .. }
-        | O::CallDynamicUnit { .. }
-        | O::CallDynamicParameterUnit { .. }
+        | O::CallDynamic { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }
         | O::IeeeFloatConstant { .. }

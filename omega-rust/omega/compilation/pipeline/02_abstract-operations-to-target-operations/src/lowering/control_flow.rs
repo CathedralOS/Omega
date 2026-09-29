@@ -201,9 +201,10 @@ pub(super) fn lower(
             | AbstractOperation::StructuralByteSequenceFieldRead { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. }
             | AbstractOperation::CallStructuralScalar { result, .. }
-            | AbstractOperation::CallDynamicScalar { result, .. }
-            | AbstractOperation::CallStoredDynamicScalar { result, .. }
-            | AbstractOperation::CallDynamicParameterScalar { result, .. }
+            | AbstractOperation::CallDynamic {
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
+                ..
+            }
             | AbstractOperation::CallStructuralScalarWithDynamicArguments { result, .. } => {
                 Some(result.value)
             }

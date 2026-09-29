@@ -259,20 +259,16 @@ pub(crate) fn validate_operation_places(
         O::StoreDynamicDescriptor { stored, .. } => {
             require(stored.selection.source.place, known)?;
         }
-        O::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => {
-            require(dynamic_dispatch.stored.selection.source.place, known)?;
-        }
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => {
-            require(dynamic_dispatch.initial.source.place, known)?;
-            require(dynamic_dispatch.rebound.source.place, known)?;
-        }
+        O::CallDynamic { dispatch, .. } => match dispatch {
+            abstract_operations::AbstractDynamicDispatch::Stored(dispatch) => {
+                require(dispatch.stored.selection.source.place, known)?;
+            }
+            abstract_operations::AbstractDynamicDispatch::Rebound(dispatch) => {
+                require(dispatch.initial.source.place, known)?;
+                require(dispatch.rebound.source.place, known)?;
+            }
+            abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
+        },
         O::Return {
             cleanup_actions, ..
         }

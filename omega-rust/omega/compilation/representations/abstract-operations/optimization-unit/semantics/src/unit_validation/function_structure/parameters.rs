@@ -119,8 +119,9 @@ pub(super) fn validate_dynamic_descriptor_parameters(
         );
     }
     for node in function.blocks.iter().flat_map(|block| &block.nodes) {
-        if let abstract_operations::AbstractOperation::CallDynamicParameterScalar {
-            dynamic_dispatch,
+        if let abstract_operations::AbstractOperation::CallDynamic {
+            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch),
+            result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
             ..
         } = &node.operation
         {

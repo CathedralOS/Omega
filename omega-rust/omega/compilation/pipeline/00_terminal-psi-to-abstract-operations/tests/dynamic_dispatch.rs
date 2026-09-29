@@ -78,9 +78,10 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::CallStoredDynamicScalar {
+            AbstractOperation::CallDynamic {
                 psi_operation,
-                dynamic_dispatch,
+                dispatch: abstract_operations::AbstractDynamicDispatch::Stored(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
                 ..
             } => Some((*psi_operation, dynamic_dispatch)),
             _ => None,
@@ -116,8 +117,10 @@ fn verified_stored_dynamic_descriptor_retains_aggregate_custody_through_optimiza
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallStoredDynamicScalar {
-                dynamic_dispatch, ..
+            AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Stored(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                ..
             } => Some(dynamic_dispatch),
             _ => None,
         })
@@ -194,9 +197,9 @@ fn verified_rebound_dynamic_call_retains_versions_and_indirect_row() {
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            AbstractOperation::CallDynamicScalar {
-                result,
-                dynamic_dispatch,
+            AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
                 ..
             } => Some((result, dynamic_dispatch)),
             _ => None,
@@ -336,8 +339,10 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
         .operations
         .iter()
         .find_map(|operation| match operation {
-            AbstractOperation::CallDynamicScalar {
-                dynamic_dispatch, ..
+            AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                ..
             } => Some(dynamic_dispatch),
             _ => None,
         })
@@ -381,8 +386,10 @@ fn verified_changed_conformance_rebound_retains_both_applications() {
         .iter_mut()
         .flat_map(|block| &mut block.nodes)
         .find_map(|node| match &mut node.operation {
-            AbstractOperation::CallDynamicScalar {
-                dynamic_dispatch, ..
+            AbstractOperation::CallDynamic {
+                dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(dynamic_dispatch),
+                result: abstract_operations::AbstractDynamicCallResult::Scalar(_),
+                ..
             } => Some(dynamic_dispatch),
             _ => None,
         })
@@ -484,11 +491,7 @@ fn verified_direct_scalar_forwarding_retains_selection_and_result_custody() {
         .expect("forward helper retained");
     assert!(helper.operations.iter().any(|operation| matches!(
         operation,
-        AbstractOperation::CallDynamicParameterScalar {
-            result: helper_result,
-            dynamic_dispatch,
-            ..
-        } if helper_result.scalar_type == result.scalar_type
+        AbstractOperation::CallDynamic { dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dynamic_dispatch), result: abstract_operations::AbstractDynamicCallResult::Scalar(helper_result), .. } if helper_result.scalar_type == result.scalar_type
             && dynamic_dispatch.parameter == argument.target
     )));
 

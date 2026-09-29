@@ -16,7 +16,7 @@ use super::place_observations::{
     invariant_member_place_parameters, member_root_producer_count, place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
-use abstract_operations::AbstractOperation as O;
+use abstract_operations::{AbstractDynamicDispatch, AbstractOperation as O};
 use optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
@@ -1220,15 +1220,7 @@ fn member_call_target(operation: &O) -> Option<MachineId> {
         | O::CallUnit { callee, .. }
         | O::CallStructuralScalar { callee, .. }
         | O::CallStructural { callee, .. } => Some(*callee),
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => Some(dynamic_dispatch.dispatch.realization),
-        O::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => Some(dynamic_dispatch.dispatch.realization),
+        O::CallDynamic { dispatch, .. } => dispatch.realization(),
         _ => None,
     }
 }
@@ -1265,8 +1257,10 @@ fn component_members_unobservable(
                         node.operation,
                         O::CallUnitWithDynamicArguments { .. }
                             | O::CallStructuralScalarWithDynamicArguments { .. }
-                            | O::CallDynamicParameterScalar { .. }
-                            | O::CallDynamicParameterUnit { .. }
+                            | O::CallDynamic {
+                                dispatch: AbstractDynamicDispatch::Parameter(_),
+                                ..
+                            }
                     ) {
                         return false;
                     }

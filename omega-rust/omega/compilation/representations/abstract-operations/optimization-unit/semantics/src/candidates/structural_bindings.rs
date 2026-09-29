@@ -152,18 +152,16 @@ fn structural_argument_operands(operation: &O) -> impl Iterator<Item = &Structur
             structural_arguments,
             ..
         } => operands.extend(structural_arguments.iter()),
-        O::CallDynamicScalar {
-            dynamic_dispatch, ..
-        }
-        | O::CallDynamicUnit {
-            dynamic_dispatch, ..
-        } => {
-            operands.push(&dynamic_dispatch.initial.source);
-            operands.push(&dynamic_dispatch.rebound.source);
-        }
-        O::CallStoredDynamicScalar {
-            dynamic_dispatch, ..
-        } => operands.push(&dynamic_dispatch.stored.selection.source),
+        O::CallDynamic { dispatch, .. } => match dispatch {
+            abstract_operations::AbstractDynamicDispatch::Rebound(dispatch) => {
+                operands.push(&dispatch.initial.source);
+                operands.push(&dispatch.rebound.source);
+            }
+            abstract_operations::AbstractDynamicDispatch::Stored(dispatch) => {
+                operands.push(&dispatch.stored.selection.source);
+            }
+            abstract_operations::AbstractDynamicDispatch::Parameter(_) => {}
+        },
         _ => {}
     }
     operands.into_iter()
