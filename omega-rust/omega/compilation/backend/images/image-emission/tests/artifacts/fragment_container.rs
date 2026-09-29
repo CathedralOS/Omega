@@ -25,6 +25,7 @@ pub(super) struct CompiledFragmentEntry {
     pub container: Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>,
     pub artifact: image_emission::ObjectArtifact,
     pub signature: program_entry_plan::SelectedProgramEntrySourceSignature,
+    pub checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
 }
 
 /// The source-to-checked ladder: one source-free resolution, typed lowering,
@@ -77,7 +78,15 @@ fn entry_signature(
         .state_parameters(state)
         .iter()
         .enumerate()
-        .find(|(_, parameter)| parameter.is_self)
+        .find(|(_, parameter)| {
+            parameter.is_self
+                || matches!(
+                    checked
+                        .type_reference_table
+                        .type_reference(parameter.type_reference),
+                    checked_trees::types::TypeReferenceNode::Reference { .. }
+                )
+        })
         .map_or(
             program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
             |(source_position, parameter)| {
@@ -118,12 +127,31 @@ fn fragment_container(
     checked: &checked_trees::CheckedTrees,
     machine_name: &str,
     target: target::NativeTarget,
-) -> Arc<object_file::StagedOptimizedRelocationFreeObjectContainer> {
+    signature: &program_entry_plan::SelectedProgramEntrySourceSignature,
+) -> (
+    Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>,
+    terminal_psi::CheckedProgramEntryTerminalReceipt,
+) {
     let lowered = checked_trees_to_lowered_psi::lower_machine(
         checked,
         TerminalMachineSelection::Name(machine_name),
     )
     .expect("entry machine must reach Terminal");
+    let selection = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|machine| machine.name == machine_name)
+        .expect("source-selected entry");
+    let checked_entry = lowered_psi_to_terminal_psi::prepare_program_entry_receipt(
+        checked,
+        selection,
+        signature.identity().bytes(),
+        &lowered,
+    )
+    .expect("checked entry receipt");
     let semantic = terminal_codec::encode_module(&lowered.semantic_module).expect("semantic bytes");
     let proof =
         terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
@@ -165,10 +193,11 @@ fn fragment_container(
         .expect("frame application");
     let placed = machine_emission::stage_optimized_fixed_frame_text_section(framed)
         .expect("placed text section");
-    Arc::new(
+    let container = Arc::new(
         object_file::stage_optimized_relocation_free_object_container(placed)
             .expect("relocation-free object container"),
-    )
+    );
+    (container, checked_entry)
 }
 
 /// The canonical Terminal structural declarations of `machine_name`'s module,
@@ -196,7 +225,8 @@ pub(super) fn compile_attached_entry(
 ) -> CompiledFragmentEntry {
     let checked = checked_source(source);
     let signature = entry_signature(&checked, machine_name, profile);
-    let container = fragment_container(&checked, machine_name, profile.native_target());
+    let (container, checked_entry) =
+        fragment_container(&checked, machine_name, profile.native_target(), &signature);
     let artifact = image_emission::build_function_fragment_object_artifact(Arc::clone(&container))
         .expect("fragment object artifact");
     image_emission::validate_function_fragment_object_artifact(&container, &artifact)
@@ -205,5 +235,6 @@ pub(super) fn compile_attached_entry(
         container,
         artifact,
         signature,
+        checked_entry,
     }
 }

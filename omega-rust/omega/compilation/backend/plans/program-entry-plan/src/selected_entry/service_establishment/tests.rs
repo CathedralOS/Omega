@@ -146,9 +146,15 @@ fn fixture(
 fn terminal_replay_accepts_direct_and_nested_receiver_routes() {
     for nested in [false, true] {
         let (module, source, row, plan) = fixture(nested);
-        validate_terminal_fused_service_establishments(&module, &source, &[row], &[plan])
-            .expect("receiver route and exact selected provider replay");
-        validate_terminal_fused_service_establishments(&module, &source, &[], &[])
+        validate_terminal_fused_service_establishments(
+            &module,
+            &source,
+            Some(&fixture_eligibility()),
+            &[row],
+            &[plan],
+        )
+        .expect("receiver route and exact selected provider replay");
+        validate_terminal_fused_service_establishments(&module, &source, None, &[], &[])
             .expect("no establishments require no receiver-field replay");
     }
 }
@@ -170,6 +176,7 @@ fn terminal_replay_rejects_substitution_and_ambiguous_routes() {
             validate_terminal_fused_service_establishments(
                 &module,
                 &source,
+                Some(&fixture_eligibility()),
                 &[changed],
                 std::slice::from_ref(&plan),
             )
@@ -181,6 +188,7 @@ fn terminal_replay_rejects_substitution_and_ambiguous_routes() {
         validate_terminal_fused_service_establishments(
             &module,
             &source,
+            Some(&fixture_eligibility()),
             &[row.clone(), row.clone()],
             std::slice::from_ref(&plan),
         )
@@ -191,6 +199,7 @@ fn terminal_replay_rejects_substitution_and_ambiguous_routes() {
         validate_terminal_fused_service_establishments(
             &module,
             &source,
+            Some(&fixture_eligibility()),
             std::slice::from_ref(&row),
             &[plan.clone(), plan.clone()],
         )
@@ -203,6 +212,7 @@ fn terminal_replay_rejects_substitution_and_ambiguous_routes() {
         validate_terminal_fused_service_establishments(
             &module,
             &source,
+            Some(&fixture_eligibility()),
             std::slice::from_ref(&row),
             &[changed_plan],
         )
@@ -214,8 +224,94 @@ fn terminal_replay_rejects_substitution_and_ambiguous_routes() {
         fields.push(fields[0].clone());
     }
     assert!(
-        validate_terminal_fused_service_establishments(&changed_module, &source, &[row], &[plan],)
-            .is_err(),
+        validate_terminal_fused_service_establishments(
+            &changed_module,
+            &source,
+            Some(&fixture_eligibility()),
+            &[row],
+            &[plan],
+        )
+        .is_err(),
         "ambiguous nested field"
+    );
+}
+
+fn fixture_eligibility() -> terminal_psi::CheckedProgramEntryReceiverEligibility {
+    terminal_psi::CheckedProgramEntryReceiverEligibility::new(
+        "Main".into(),
+        "Main".into(),
+        terminal_psi::CheckedProgramEntryReceiverProjection::Erased { source_position: 0 },
+        StructuralTypeId::new(1).unwrap(),
+        Vec::new(),
+        terminal_psi::CheckedProgramEntryReceiverCleanup::None,
+    )
+}
+
+#[test]
+fn terminal_replay_uses_retained_context_place_without_attachment() {
+    let (mut module, source, row, plan) = fixture(false);
+    let place = semantic_vocabulary::PlaceId::new(7).unwrap();
+    let context_type = StructuralTypeId::new(1).unwrap();
+    module.machines[0].attachment = None;
+    module.machines[0]
+        .structural_parameters
+        .push(terminal_psi::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type: context_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        });
+    let eligibility = terminal_psi::CheckedProgramEntryReceiverEligibility::new(
+        "Main".into(),
+        "Main".into(),
+        terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
+            terminal_self: place,
+            source_position: 0,
+        },
+        context_type,
+        Vec::new(),
+        terminal_psi::CheckedProgramEntryReceiverCleanup::None,
+    );
+    validate_terminal_fused_service_establishments(
+        &module,
+        &source,
+        Some(&eligibility),
+        std::slice::from_ref(&row),
+        std::slice::from_ref(&plan),
+    )
+    .unwrap();
+    for mutation in 0..4 {
+        let mut changed = module.clone();
+        match mutation {
+            0 => {
+                changed.machines[0].structural_parameters[0].place =
+                    semantic_vocabulary::PlaceId::new(8).unwrap()
+            }
+            1 => {
+                changed.machines[0].structural_parameters[0].access =
+                    terminal_psi::StructuralAccess::SharedBorrow
+            }
+            2 => changed.machines[0].attachment = Some(context_type),
+            _ => changed.machines[0].structural_parameters.clear(),
+        }
+        assert!(
+            validate_terminal_fused_service_establishments(
+                &changed,
+                &source,
+                Some(&eligibility),
+                std::slice::from_ref(&row),
+                std::slice::from_ref(&plan)
+            )
+            .is_err(),
+            "mutation {mutation}"
+        );
+    }
+    assert!(
+        validate_terminal_fused_service_establishments(&module, &source, None, &[row], &[plan])
+            .is_err()
     );
 }

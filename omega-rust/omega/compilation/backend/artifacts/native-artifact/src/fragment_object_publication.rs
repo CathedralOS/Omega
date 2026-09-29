@@ -179,6 +179,7 @@ pub fn publish_fragment_object(
             image_emission::bind_hosted_receiver(
                 &mut object,
                 entry.source(),
+                entry.checked_entry(),
                 contract,
                 entry.fused_service_establishments(),
                 determined_evidence,

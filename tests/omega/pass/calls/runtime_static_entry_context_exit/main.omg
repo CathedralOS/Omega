@@ -1,0 +1,16 @@
+data Context { value: u64; }
+
+machine write(context: &mut Context) { context.value = 43; }
+machine read(context: &Context) -> u64 { context.value }
+
+machine main(context: &mut Context) crashes Trap {
+    let initial: u64 = context.value;
+    write(context);
+    let result: u64 = read(context);
+    transition initial == 0 && result == 43 {
+        true -> done()
+        _ -> bad()
+    }
+    state done() {}
+    state bad() { crash Trap; }
+}

@@ -21,6 +21,7 @@ use program_entry_plan::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostedReceiverBinding {
     source: SelectedProgramEntrySourceSignature,
+    checked_entry: terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical: ProgramEntryPhysicalContractPlan,
     services: Vec<ProgramEntryFusedServiceEstablishment>,
     determined_evidence: Vec<terminal_psi::CheckedProgramEntryDeterminedEvidenceField>,
@@ -675,6 +676,7 @@ fn prepare_windows_x86_64(
 pub fn bind_hosted_receiver(
     artifact: &mut crate::ObjectArtifact,
     source: &SelectedProgramEntrySourceSignature,
+    checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     physical: &ProgramEntryPhysicalContractPlan,
     services: &[ProgramEntryFusedServiceEstablishment],
     determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
@@ -685,10 +687,16 @@ pub fn bind_hosted_receiver(
         return Err(invalid(artifact.target));
     }
     crate::function_fragments::replay::validate(artifact)?;
-    let (receiver_byte_count, receiver_alignment) =
-        receiver_layout(artifact, source, services, determined_evidence)?;
+    let (receiver_byte_count, receiver_alignment) = receiver_layout(
+        artifact,
+        source,
+        checked_entry,
+        services,
+        determined_evidence,
+    )?;
     let binding = HostedReceiverBinding {
         source: source.clone(),
+        checked_entry: checked_entry.clone(),
         physical: physical.clone(),
         services: services.to_vec(),
         determined_evidence: determined_evidence.to_vec(),
@@ -707,7 +715,15 @@ pub(crate) fn validate_binding(
     binding: &HostedReceiverBinding,
 ) -> Result<(), Diagnostic> {
     let invalid = || invalid(artifact.target);
+    let eligibility = binding
+        .checked_entry
+        .receiver_eligibility()
+        .ok_or_else(invalid)?;
     if !physical_contract_matches(&binding.physical, artifact.target)
+        || eligibility.determined_evidence_fields() != binding.determined_evidence
+        || binding.cleanup_occupancy
+            != (eligibility.cleanup()
+                == terminal_psi::CheckedProgramEntryReceiverCleanup::OccupiesHostedExtent)
         || binding.physical.target_slot() != binding.source.target_slot()
         || binding.physical.target_slot().owner.native_target() != artifact.target
         || crate::derive_stack_demand(artifact, artifact.entry).map_err(|_| invalid())?
@@ -715,6 +731,7 @@ pub(crate) fn validate_binding(
         || receiver_layout(
             artifact,
             &binding.source,
+            &binding.checked_entry,
             &binding.services,
             &binding.determined_evidence,
         )? != (binding.receiver_byte_count, binding.receiver_alignment)
@@ -861,6 +878,7 @@ fn windows_x86_64_physical_contract_matches(physical: &ProgramEntryPhysicalContr
 fn receiver_layout(
     artifact: &crate::ObjectArtifact,
     source: &SelectedProgramEntrySourceSignature,
+    checked_entry: &terminal_psi::CheckedProgramEntryTerminalReceipt,
     services: &[ProgramEntryFusedServiceEstablishment],
     determined_evidence: &[terminal_psi::CheckedProgramEntryDeterminedEvidenceField],
 ) -> Result<(u64, u64), Diagnostic> {
@@ -893,9 +911,45 @@ fn receiver_layout(
         _ => return Err(invalid()),
     };
     let (function, target) = crate::function_fragments::replay::entry_source(artifact)?;
+    let replay = artifact.fragment_replay.as_ref().ok_or_else(invalid)?;
+    let terminal = replay.terminal_module();
+    let eligibility = checked_entry.receiver_eligibility().ok_or_else(invalid)?;
+    let terminal_psi::CheckedProgramEntryReceiverProjection::Retained {
+        terminal_self,
+        source_position,
+    } = eligibility.projection()
+    else {
+        return Err(invalid());
+    };
+    if checked_entry.source_signature_identity() != source.identity().bytes()
+        || checked_entry.source_machine_symbol() != source.machine_symbol()
+        || checked_entry.source_machine_name() != source.machine_name()
+        || checked_entry.terminal_entry() != terminal.entry
+        || checked_entry.terminal_entry() != function.machine
+        || checked_entry.terminal_psi_identity()
+            != terminal_codec::terminal_psi_identity(terminal).map_err(|_| invalid())?
+        || source.receiver().source_position() != Some(source_position)
+        || source.receiver().normalized_type_identity()
+            != Some(eligibility.source_receiver_type_identity())
+    {
+        return Err(invalid());
+    }
     let [parameter] = function.structural_parameters.as_slice() else {
         return Err(invalid());
     };
+    let terminal_parameter = terminal
+        .machines
+        .iter()
+        .find(|machine| machine.id == terminal.entry)
+        .and_then(|machine| {
+            machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == terminal_self)
+        });
+    if terminal_parameter != Some(parameter) {
+        return Err(invalid());
+    }
     let [native] = target.graph.parameters.as_slice() else {
         return Err(invalid());
     };
@@ -909,13 +963,15 @@ fn receiver_layout(
     ) || !function.parameters.is_empty()
         || !function.entry_claims.is_empty()
         || !source.visible_parameters().is_empty()
-        || !parameter.is_self
+        || parameter.place != terminal_self
+        || parameter.structural_type != eligibility.terminal_receiver_type()
         || parameter.position != 0
         || parameter.access != StructuralAccess::MutableBorrow
         || parameter.multiplicity == StructuralMultiplicity::Linear
         || !parameter.qualifications.is_empty()
         || !parameter.projected_qualifications.is_empty()
-        || function.attachment != Some(parameter.structural_type)
+        || (parameter.is_self && function.attachment != Some(parameter.structural_type))
+        || (!parameter.is_self && function.attachment.is_some())
         || target.graph.call_plan.policy != expected_policy
         || target.graph.call_plan.parameters.as_slice() != [native.placement.clone()]
         || target.graph.call_plan.result.is_some()
@@ -932,7 +988,9 @@ fn receiver_layout(
         .iter()
         .filter(|declaration| declaration.id == parameter.structural_type);
     let declaration = declarations.next().ok_or_else(invalid)?;
-    if declarations.next().is_some() {
+    if declarations.next().is_some()
+        || declaration.identity != eligibility.owned_receiver_type_identity()
+    {
         return Err(invalid());
     }
     let StructuralTypeShape::Record { fields } = &declaration.shape else {
