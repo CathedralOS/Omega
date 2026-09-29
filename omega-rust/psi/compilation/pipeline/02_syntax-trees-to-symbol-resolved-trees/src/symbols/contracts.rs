@@ -569,15 +569,29 @@ fn assign_contract_call_symbols(
                 &target_type,
             );
         }
-        ExpressionNode::Name(path) => assign_name_symbol(
-            symbols,
-            machine,
-            parameters,
-            state_symbol,
-            expression_table,
-            &path,
-            expression,
-        ),
+        ExpressionNode::Name(path) => {
+            // A bare `result` is the contract owner's reserved result binder
+            // unless an entry parameter named `result` shadows it. It stays
+            // unresolved: another declaration spelled `result` in scope, such
+            // as a machine, never takes the binder's place.
+            if matches!(expression_table.name_path_members(path.members), [name]
+                if language_core::is_reserved_result(name.as_str()))
+                && language_core::signature_reserves_result(
+                    parameters.iter().map(|parameter| parameter.name.as_str()),
+                )
+            {
+                return;
+            }
+            assign_name_symbol(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                &path,
+                expression,
+            )
+        }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
         | ExpressionNode::Integer(_)

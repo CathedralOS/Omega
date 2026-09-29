@@ -713,9 +713,12 @@ fn assign_proof_expression_symbols(
             // a TYPE. Resolve single-segment leftovers against top-level type
             // symbols so seeded-instance replay compares exact identities
             // rather than spellings.
+            // A leftover bare `result` is a contract's reserved result binder,
+            // never a top-level declaration spelled the same way.
             if !path.head_symbol.is_valid()
                 && !path.symbol.is_valid()
                 && let [member] = expression_table.name_path_members(path.members)
+                && !language_core::is_reserved_result(member.as_str())
             {
                 let symbol = super::lookup::top_level_type_symbol_for_source(symbols, member);
                 if symbol.is_valid()
