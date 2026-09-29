@@ -1669,25 +1669,15 @@ fn binding_without_write_authority(
             ))
         .then(|| parameter.name.as_str().to_owned());
     }
-    program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            if local.symbol != path.head_symbol || local.is_mutable {
-                return None;
-            }
-            (!matches!(
-                program
-                    .type_reference_table
-                    .type_reference(local.type_reference),
-                TypeReferenceNode::Reference { .. }
-            ))
-            .then(|| local.name.as_str().to_owned())
-        })
+    let (_, local) = program.state_local_declaration(state, path.head_symbol)?;
+    (!local.is_mutable
+        && !matches!(
+            program
+                .type_reference_table
+                .type_reference(local.type_reference),
+            TypeReferenceNode::Reference { .. }
+        ))
+    .then(|| local.name.as_str().to_owned())
 }
 
 fn direct_write_only_root<'a>(

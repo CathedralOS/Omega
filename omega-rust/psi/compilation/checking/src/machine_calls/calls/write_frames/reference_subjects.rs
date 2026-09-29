@@ -106,15 +106,10 @@ pub(super) fn local_origin(
         caller_aliases::CallerWriteSite::Statement(before),
     )?;
     let statements = program.statement_table.statements(state.statement_nodes);
-    let mut declarations = statements[..index]
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == local_symbol => Some(local),
-            _ => None,
-        });
-    let local = declarations.next()?;
-    if declarations.next().is_some()
-        || !type_reference_is_reference(program, local.type_reference)
+    let (_, local) = program
+        .state_local_declaration(state, local_symbol)
+        .filter(|&(ordinal, _)| ordinal < index)?;
+    if !type_reference_is_reference(program, local.type_reference)
         || program.symbols.get(local_symbol).parent != state.symbol
         || program.symbols.get(local_symbol).kind != symbols::SymbolKind::Local
         || program.symbols.name(local_symbol) != local.name.as_str()
@@ -444,14 +439,10 @@ fn source_root_type(
     {
         return None;
     }
-    let mut locals = program.statement_table.statements(state.statement_nodes)[..index]
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == root => Some(local),
-            _ => None,
-        });
-    let local = locals.next()?;
-    locals.next().is_none().then_some(local.type_reference)
+    program
+        .state_local_declaration(state, root)
+        .filter(|&(ordinal, _)| ordinal < index)
+        .map(|(_, local)| local.type_reference)
 }
 
 pub(super) fn validate_owned_projection(

@@ -33,18 +33,10 @@ pub(in crate::execution::terminal_unit) fn primitive_local_before<'program>(
     statement_index: usize,
     symbol: SymbolHandle,
 ) -> Option<&'program typed_trees::statement::TableLocalData> {
-    let mut locals = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(..statement_index)?
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-            _ => None,
-        });
-    let local = locals.next()?;
-    if locals.next().is_some()
-        || !local.is_mutable
+    let (_, local) = program
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
+    if !local.is_mutable
         || (!program
             .expression_table
             .expression_is_valid(local.initial_value)
@@ -74,18 +66,10 @@ fn structural_local_before<'program>(
     statement_index: usize,
     symbol: SymbolHandle,
 ) -> Option<&'program typed_trees::statement::TableLocalData> {
-    let mut locals = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(..statement_index)?
-        .iter()
-        .filter_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
-            _ => None,
-        });
-    let local = locals.next()?;
-    if locals.next().is_some()
-        || !local.is_mutable
+    let (_, local) = program
+        .state_local_declaration(state, symbol)
+        .filter(|&(ordinal, _)| ordinal < statement_index)?;
+    if !local.is_mutable
         || program
             .primitive_type_reference(local.type_reference)
             .is_some()

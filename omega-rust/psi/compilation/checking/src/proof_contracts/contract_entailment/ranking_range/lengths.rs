@@ -343,18 +343,7 @@ pub(super) fn produced_length(
             // state: zero means the name is a formal or unknown, two means the
             // statement list is ambiguous, and a mutable or written local's
             // incoming extent is not the value the call site observes.
-            let locals = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .filter_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == path.symbol => Some(local),
-                    _ => None,
-                })
-                .collect::<Vec<_>>();
-            let [local] = locals.as_slice() else {
-                return None;
-            };
+            let (_, local) = program.state_local_declaration(state, path.symbol)?;
             if local.is_mutable
                 || !local.initial_value.is_valid()
                 || binding_is_exclusively_exposed(program, state, path.symbol)

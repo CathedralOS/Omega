@@ -475,6 +475,36 @@ impl TypedTrees {
         self.signature_contracts.span_or_empty(state.contracts)
     }
 
+    /// The top-level statement of `state` that declares local `symbol`: its
+    /// ordinal in `state.statement_nodes` and its `LocalData` node. Nested
+    /// blocks and state parameters are not searched.
+    ///
+    /// Resolution gives every top-level `LocalData` its own child symbol, so
+    /// a local symbol is declared once. Two declarations of one symbol are
+    /// malformed statements; the query answers None for them rather than
+    /// choose one, because callers build proof facts on the declaration it
+    /// returns. A caller that asks "declared before statement N" compares the
+    /// returned ordinal with N.
+    pub fn state_local_declaration(
+        &self,
+        state: &crate::state::State,
+        symbol: symbols::SymbolHandle,
+    ) -> Option<(usize, &crate::statement::TableLocalData)> {
+        let mut declarations = self
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .enumerate()
+            .filter_map(|(ordinal, statement)| match statement {
+                crate::statement::StatementNode::LocalData(local) if local.symbol == symbol => {
+                    Some((ordinal, local))
+                }
+                _ => None,
+            });
+        let declaration = declarations.next()?;
+        declarations.next().is_none().then_some(declaration)
+    }
+
     pub fn push_state_signature_parameter(
         &mut self,
         signature: &mut signature::StateSignature,

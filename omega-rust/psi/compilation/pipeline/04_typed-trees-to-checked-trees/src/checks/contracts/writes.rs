@@ -2127,15 +2127,8 @@ fn state_place_is_established(
         return true;
     }
     program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .any(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => {
-                local.initial_value.is_valid()
-            }
-            _ => false,
-        })
+        .state_local_declaration(state, symbol)
+        .is_some_and(|(_, local)| local.initial_value.is_valid())
 }
 
 /// The root symbol of a state place expression, peeling borrow shells and

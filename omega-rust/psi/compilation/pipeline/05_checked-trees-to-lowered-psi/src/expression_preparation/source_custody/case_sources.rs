@@ -270,13 +270,7 @@ pub(crate) fn erased_dispatch_subject(
         return None;
     };
     let statements = checked.statement_table.statements(state.statement_nodes);
-    let index = statements.iter().position(|statement| {
-        matches!(statement, checked_trees::statement::StatementNode::LocalData(local)
-            if local.symbol == name.symbol)
-    })?;
-    let checked_trees::statement::StatementNode::LocalData(local) = &statements[index] else {
-        return None;
-    };
+    let (index, local) = checked.state_local_declaration(state, name.symbol)?;
     if !is_erased_dispatch_subject(checked, statements, index) {
         return None;
     }

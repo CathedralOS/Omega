@@ -227,17 +227,7 @@ fn local_plain_record(
     {
         return None;
     }
-    let mut locals =
-        statements
-            .iter()
-            .enumerate()
-            .filter_map(|(ordinal, statement)| match statement {
-                StatementNode::LocalData(local) if local.symbol == receiver.symbol => {
-                    Some((ordinal, local))
-                }
-                _ => None,
-            });
-    let (ordinal, local) = locals.next()?;
+    let (ordinal, local) = program.state_local_declaration(state, receiver.symbol)?;
     // A declared-but-uninitialized mutable record carries no initializer to
     // observe; its storage is the zeroed establishment minted at declaration,
     // which the ledger and the ordered Unit effect independently proved.
@@ -250,8 +240,7 @@ fn local_plain_record(
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. }
         )
         && crate::zeroed_structural_parts(program, local.type_reference);
-    if locals.next().is_some()
-        || ordinal >= statement_ordinal as usize
+    if ordinal >= statement_ordinal as usize
         || !(program
             .expression_table
             .expression_is_valid(local.initial_value)

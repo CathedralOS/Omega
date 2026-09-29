@@ -710,19 +710,9 @@ fn checked_source_argument(
         return None;
     }
 
-    let local_declarations = statements
-        .iter()
-        .take(selection.statement_index.saturating_add(1))
-        .filter_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (local.symbol == selection.binding).then_some(local)
-        })
-        .collect::<Vec<_>>();
-    let [local] = local_declarations.as_slice() else {
-        return None;
-    };
+    let (_, local) = program
+        .state_local_declaration(state, selection.binding)
+        .filter(|&(ordinal, _)| ordinal <= selection.statement_index)?;
     let local_access = structural_access_for_type_reference(program, local.type_reference)?;
     if !matches!(
         local_access,

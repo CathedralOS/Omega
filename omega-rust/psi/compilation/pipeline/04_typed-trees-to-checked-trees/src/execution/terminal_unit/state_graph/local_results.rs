@@ -53,14 +53,9 @@ fn validate(
         || !program
             .expression_table
             .expression_is_valid(local.initial_value)
-        || statements
-            .iter()
-            .filter(|statement| {
-                matches!(statement,
-            StatementNode::LocalData(candidate) if candidate.symbol == local.symbol)
-            })
-            .count()
-            != 1
+        || program
+            .state_local_declaration(state, local.symbol)
+            .is_none()
         || program
             .state_parameters(state)
             .iter()

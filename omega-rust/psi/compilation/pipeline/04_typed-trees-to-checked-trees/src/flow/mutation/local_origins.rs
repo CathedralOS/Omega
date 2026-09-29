@@ -216,15 +216,9 @@ fn place_requires_local_write_origin(
     let Some(state) = find_state(program, state_symbol) else {
         return false;
     };
-    let Some(local) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == root => Some(local),
-            _ => None,
-        })
+    let Some((_, local)) = program
+        .state_local_declaration(state, root)
+        .filter(|&(ordinal, _)| ordinal < statement_index)
     else {
         return false;
     };

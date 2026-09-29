@@ -277,18 +277,9 @@ impl ContractExpressionEvaluator<'_, '_> {
                         BooleanExpressionOwner::Contract => None,
                         BooleanExpressionOwner::Caller => self
                             .program
-                            .statement_table
-                            .statements(self.caller_state.statement_nodes)
-                            .iter()
-                            .take(self.statement_index)
-                            .find_map(|statement| {
-                                let typed_trees::statement::StatementNode::LocalData(local) =
-                                    statement
-                                else {
-                                    return None;
-                                };
-                                (local.symbol == path.symbol).then_some(local.type_reference)
-                            }),
+                            .state_local_declaration(self.caller_state, path.symbol)
+                            .filter(|&(ordinal, _)| ordinal < self.statement_index)
+                            .map(|(_, local)| local.type_reference),
                     })?
             }
             ExpressionNode::Boolean(_) | ExpressionNode::Unary(_) | ExpressionNode::Binary(_) => {

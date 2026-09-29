@@ -1,4 +1,3 @@
-use checked_trees::statement::StatementNode;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;
 
@@ -25,16 +24,9 @@ pub(super) fn binding_reference_access(
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .take(statement_index)
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == root_symbol => {
-                        Some(local.type_reference)
-                    }
-                    _ => None,
-                })
+                .state_local_declaration(state, root_symbol)
+                .filter(|&(ordinal, _)| ordinal < statement_index)
+                .map(|(_, local)| local.type_reference)
         })?;
     crate::borrow::reference_borrow_access_kind(program, type_reference)
 }

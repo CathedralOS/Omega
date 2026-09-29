@@ -1531,19 +1531,9 @@ fn successor_bindings(
                         Some(result)
                     };
                     let local_subject = || {
-                        program
-                            .statement_table
-                            .statements(source.statement_nodes)
-                            .iter()
-                            .enumerate()
-                            .find_map(|(index, statement)| match statement {
-                                StatementNode::LocalData(local)
-                                    if local.symbol == root_symbol =>
-                                {
-                                    Some((local, result_subject(index)?))
-                                }
-                                _ => None,
-                            })
+                        let (index, local) =
+                            program.state_local_declaration(source, root_symbol)?;
+                        Some((local, result_subject(index)?))
                     };
                     let mutable_loan_permitted = match expected_access {
                         CheckedStructuralAccess::MutableBorrow => {

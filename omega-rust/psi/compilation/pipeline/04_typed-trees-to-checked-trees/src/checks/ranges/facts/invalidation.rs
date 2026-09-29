@@ -255,15 +255,8 @@ impl RangeFacts<'_> {
                     .map(|parameter| parameter.type_reference)
                     .or_else(|| {
                         program
-                            .statement_table
-                            .statements(state.statement_nodes)
-                            .iter()
-                            .find_map(|statement| match statement {
-                                StatementNode::LocalData(local) if local.symbol == *symbol => {
-                                    Some(local.type_reference)
-                                }
-                                _ => None,
-                            })
+                            .state_local_declaration(state, *symbol)
+                            .map(|(_, local)| local.type_reference)
                     });
                 reference.is_some_and(|reference| {
                     super::super::arrays::fixed_array_type_length(program, reference).is_some()

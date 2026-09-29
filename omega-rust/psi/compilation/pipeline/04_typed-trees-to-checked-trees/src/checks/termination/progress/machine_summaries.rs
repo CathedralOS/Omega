@@ -485,19 +485,9 @@ fn dynamic_selector_subjects(
         return None;
     };
     let typed_state = crate::semantic::calls::find_state(program, state_flow.state_symbol)?;
-    let statements = program
-        .statement_table
-        .statements(typed_state.statement_nodes);
-    let local =
-        statements
-            .get(..call.statement_index)?
-            .iter()
-            .find_map(|statement| match statement {
-                typed_trees::statement::StatementNode::LocalData(local) if local.symbol == root => {
-                    Some(local)
-                }
-                _ => None,
-            })?;
+    let (_, local) = program
+        .state_local_declaration(typed_state, root)
+        .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
     let typed_trees::expression::ExpressionNode::ArrayLiteral(elements) =
         program.expression_table.expression(local.initial_value)
     else {

@@ -10,7 +10,7 @@ use typed_trees::data::{DataDefinition, DataField, DataMember};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableCall};
+use typed_trees::statement::TableCall;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(super) fn validate_expression(
@@ -442,15 +442,7 @@ fn receiver_root_type(
     {
         return Some(parameter.type_reference);
     }
-    if let Some(local) = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == root => Some(local),
-            _ => None,
-        })
-    {
+    if let Some((_, local)) = program.state_local_declaration(state, root) {
         return Some(local.type_reference);
     }
     field_by_symbol(program, root).map(|field| field.type_reference)

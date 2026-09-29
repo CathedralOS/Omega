@@ -82,12 +82,9 @@ pub(super) fn caller_name_root_type(
                 .type_reference
         }
         symbols::SymbolKind::Local => {
-            let local = program.statement_table.statements(state.statement_nodes)[..index]
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == root => Some(local),
-                    _ => None,
-                })?;
+            let (_, local) = program
+                .state_local_declaration(state, root)
+                .filter(|&(ordinal, _)| ordinal < index)?;
             local.type_reference
         }
         _ => return None,

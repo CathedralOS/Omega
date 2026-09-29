@@ -254,15 +254,9 @@ pub(super) fn record_statement(
                 Handle::invalid(),
             )
         } else {
-            let (source_ordinal, source_local) = statements[..statement_index]
-                .iter()
-                .enumerate()
-                .find_map(|(ordinal, statement)| match statement {
-                    StatementNode::LocalData(source) if source.symbol == symbol => {
-                        Some((ordinal, source))
-                    }
-                    _ => None,
-                })
+            let (source_ordinal, source_local) = program
+                .state_local_declaration(state, symbol)
+                .filter(|&(ordinal, _)| ordinal < statement_index)
                 .ok_or_else(unsupported)?;
             if source_local.is_mutable || !source_local.initial_value.is_valid() {
                 return Err(Diagnostic::error(

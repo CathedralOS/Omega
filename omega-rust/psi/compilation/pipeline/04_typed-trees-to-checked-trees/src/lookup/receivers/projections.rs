@@ -8,7 +8,6 @@ use typed_trees::{
     expression::{ExpressionHandle, ExpressionNode},
     name::Identifier,
     state::State,
-    statement::StatementNode,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
@@ -41,16 +40,10 @@ pub(super) fn root(
         })
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
-            program.statement_table.statements(state.statement_nodes)[..before]
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local)
-                        if local.symbol == symbol && local.name == *name =>
-                    {
-                        Some(local.type_reference)
-                    }
-                    _ => None,
-                })
+            program
+                .state_local_declaration(state, symbol)
+                .filter(|&(ordinal, local)| ordinal < before && local.name == *name)
+                .map(|(_, local)| local.type_reference)
         })
         .or_else(|| {
             if !program

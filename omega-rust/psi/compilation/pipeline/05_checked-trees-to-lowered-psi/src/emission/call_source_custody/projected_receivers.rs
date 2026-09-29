@@ -557,18 +557,8 @@ fn statement_alias_source(
     alias: ReceiverSource,
 ) -> Result<ReceiverSource, LoweringError> {
     let members = checked.statement_table.name_path_members(call.receiver);
-    let local = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .find_map(|statement| match statement {
-            checked_trees::statement::StatementNode::LocalData(local)
-                if local.symbol == call.receiver_root_symbol =>
-            {
-                Some(local)
-            }
-            _ => None,
-        })
+    let (_, local) = checked
+        .state_local_declaration(state, call.receiver_root_symbol)
         .ok_or(LoweringError::Unsupported(
             "receiver alias statement lost its declaration",
         ))?;

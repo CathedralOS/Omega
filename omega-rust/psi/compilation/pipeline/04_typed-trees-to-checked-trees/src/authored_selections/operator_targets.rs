@@ -929,20 +929,8 @@ pub(crate) fn type_reference_for_symbol(
             {
                 return Some(type_reference);
             }
-            if let Some(type_reference) = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| match statement {
-                    typed_trees::statement::StatementNode::LocalData(local)
-                        if local.symbol == symbol =>
-                    {
-                        Some(local.type_reference)
-                    }
-                    _ => None,
-                })
-            {
-                return Some(type_reference);
+            if let Some((_, local)) = program.state_local_declaration(state, symbol) {
+                return Some(local.type_reference);
             }
         }
     }

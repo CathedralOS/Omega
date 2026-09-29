@@ -14,7 +14,6 @@ use crate::proof_contracts::arithmetic_domains::integer_ranges::{
 use crate::proof_contracts::arithmetic_domains::place_paths::place_paths_overlap;
 use crate::value_custody::places::{collection_length_receiver, declared_member_path_type};
 use symbols::SymbolHandle;
-use typed_trees::statement::StatementNode;
 
 mod requirements;
 pub use requirements::validate_ordered_requirement_call_totality;
@@ -312,9 +311,9 @@ fn build_operand(
                 return None;
             }
             let parameters = program.state_parameters(state);
-            let local = program.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                matches!(statement, StatementNode::LocalData(local) if local.symbol == path.symbol)
-            });
+            let local = program
+                .state_local_declaration(state, path.symbol)
+                .is_some();
             let parameter = parameters
                 .iter()
                 .any(|parameter| parameter.symbol == path.symbol);

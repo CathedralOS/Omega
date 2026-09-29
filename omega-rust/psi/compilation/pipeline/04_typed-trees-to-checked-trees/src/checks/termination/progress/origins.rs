@@ -105,17 +105,9 @@ fn disagreeing_call_result_subjects(
         return None;
     };
     let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
-    let statements = program
-        .statement_table
-        .statements(typed_state.statement_nodes);
-    let (statement_index, local) = statements
-        .get(..call.statement_index)?
-        .iter()
-        .enumerate()
-        .find_map(|(index, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == root => Some((index, local)),
-            _ => None,
-        })?;
+    let (statement_index, local) = program
+        .state_local_declaration(typed_state, root)
+        .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
     let ExpressionNode::Call(initializer) =
         program.expression_table.expression(local.initial_value)
     else {
@@ -717,10 +709,10 @@ fn callee_value_place_leaf(
         }
         _ => return None,
     };
-    let Some(local) = body.prefix.iter().find_map(|statement| match statement {
-        StatementNode::LocalData(local) if local.symbol == root => Some(local),
-        _ => None,
-    }) else {
+    let Some((_, local)) = program
+        .state_local_declaration(body.state, root)
+        .filter(|&(ordinal, _)| ordinal < body.prefix.len())
+    else {
         let mut place = place;
         place.segments.extend_from_slice(relative);
         return Some(place);
@@ -999,15 +991,9 @@ where
         let PlaceRoot::Symbol(root) = demanded.root else {
             return Some(demanded);
         };
-        let Some((decl_index, local)) =
-            statements
-                .get(..cursor)?
-                .iter()
-                .enumerate()
-                .find_map(|(index, statement)| match statement {
-                    StatementNode::LocalData(local) if local.symbol == root => Some((index, local)),
-                    _ => None,
-                })
+        let Some((decl_index, local)) = program
+            .state_local_declaration(typed_state, root)
+            .filter(|&(ordinal, _)| ordinal < cursor)
         else {
             // A parameter or member root keeps its access path.
             return Some(demanded);
@@ -1394,14 +1380,9 @@ fn statements_local_type(
 ) -> Option<TypeReferenceHandle> {
     let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
     program
-        .statement_table
-        .statements(typed_state.statement_nodes)
-        .get(..bound)?
-        .iter()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == root => Some(local.type_reference),
-            _ => None,
-        })
+        .state_local_declaration(typed_state, root)
+        .filter(|&(ordinal, _)| ordinal < bound)
+        .map(|(_, local)| local.type_reference)
 }
 
 /// What one resolved store did to the leaf slot under the scan.
@@ -1452,13 +1433,9 @@ where
     };
     // Only an owned local's declaration supplies the boundary's frame type; a
     // parameter or member root keeps its access path unchanged.
-    let local = statements
-        .get(..bound)?
-        .iter()
-        .find_map(|statement| match statement {
-            StatementNode::LocalData(local) if local.symbol == root => Some(local),
-            _ => None,
-        })?;
+    let (_, local) = program
+        .state_local_declaration(typed_state, root)
+        .filter(|&(ordinal, _)| ordinal < bound)?;
     let leaf_len = shared_reference_boundary(program, local.type_reference, &place.segments)?;
     let mut slot = CanonicalPlace {
         root: place.root,
@@ -1701,20 +1678,13 @@ fn leaf_candidate_arrival(
     mut candidate: CanonicalPlace,
 ) -> Option<LeafArrival> {
     let typed_state = crate::semantic::calls::find_state(program, state.state_symbol)?;
-    let statements = program
-        .statement_table
-        .statements(typed_state.statement_nodes);
     for _ in 0..REFERENCE_BOUNDARY_HOPS {
         let PlaceRoot::Symbol(root) = candidate.root else {
             return None;
         };
-        let Some(local) = statements
-            .get(..index)?
-            .iter()
-            .find_map(|statement| match statement {
-                StatementNode::LocalData(local) if local.symbol == root => Some(local),
-                _ => None,
-            })
+        let Some((_, local)) = program
+            .state_local_declaration(typed_state, root)
+            .filter(|&(ordinal, _)| ordinal < index)
         else {
             return Some(LeafArrival::Resolved(candidate));
         };

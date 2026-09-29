@@ -792,46 +792,41 @@ fn entry_operand_name_at(
     }
     let (machine, state) =
         crate::lookup::symbols::machine_state_by_symbol(program, machine_symbol, state_symbol)?;
-    let preceding = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .get(..before_statement)?;
-    for (ordinal, statement) in preceding.iter().enumerate() {
-        if let typed_trees::statement::StatementNode::LocalData(local) = statement
-            && local.symbol == path.symbol
+    if let Some((ordinal, local)) = program
+        .state_local_declaration(state, path.symbol)
+        .filter(|&(ordinal, _)| ordinal < before_statement)
+    {
+        if !has_stable_observable_contents(program, local.type_reference)
+            || (local.is_mutable
+                && !storage_holds_bound_value(
+                    program,
+                    machine_symbol,
+                    state,
+                    ordinal + 1,
+                    before_statement.saturating_add(1),
+                    local.symbol,
+                    field_path,
+                ))
         {
-            if !has_stable_observable_contents(program, local.type_reference)
-                || (local.is_mutable
-                    && !storage_holds_bound_value(
-                        program,
-                        machine_symbol,
-                        state,
-                        ordinal + 1,
-                        before_statement.saturating_add(1),
-                        local.symbol,
-                        field_path,
-                    ))
-            {
-                return None;
-            }
-            // This transports the bound value, not a current read of its
-            // storage. A mutable local is admitted only while no statement
-            // between its initializer and this read could have overwritten
-            // the read projection or lent it exclusive access; the containing
-            // statement itself stays in the window because its earlier
-            // operands may already have run a call that writes through an
-            // exclusive borrow. Every initializer dependency must
-            // independently be entry-relative. Decreasing the prefix also
-            // prevents recursive aliases.
-            return entry_operand_at(
-                program,
-                machine_symbol,
-                state_symbol,
-                ordinal,
-                local.initial_value,
-                depth + 1,
-            );
+            return None;
         }
+        // This transports the bound value, not a current read of its
+        // storage. A mutable local is admitted only while no statement
+        // between its initializer and this read could have overwritten
+        // the read projection or lent it exclusive access; the containing
+        // statement itself stays in the window because its earlier
+        // operands may already have run a call that writes through an
+        // exclusive borrow. Every initializer dependency must
+        // independently be entry-relative. Decreasing the prefix also
+        // prevents recursive aliases.
+        return entry_operand_at(
+            program,
+            machine_symbol,
+            state_symbol,
+            ordinal,
+            local.initial_value,
+            depth + 1,
+        );
     }
     state_parameter_entry_operand(
         program,

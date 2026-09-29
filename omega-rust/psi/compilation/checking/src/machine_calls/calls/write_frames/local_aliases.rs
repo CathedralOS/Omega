@@ -305,14 +305,9 @@ pub(super) fn validate_divergent_projections(
                 machine,
                 super::caller_aliases::CallerWriteSite::Expression(expression),
             )?;
-            let local = program.statement_table.statements(state.statement_nodes)[..index]
-                .iter()
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local) if local.symbol == place.source.root => {
-                        Some(local)
-                    }
-                    _ => None,
-                })?;
+            let (_, local) = program
+                .state_local_declaration(state, place.source.root)
+                .filter(|&(ordinal, _)| ordinal < index)?;
             let mut carrier = local.type_reference;
             while let typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } =
                 program.type_reference_table.type_reference(carrier)

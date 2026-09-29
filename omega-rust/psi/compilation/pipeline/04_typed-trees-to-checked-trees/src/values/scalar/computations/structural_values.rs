@@ -1572,19 +1572,11 @@ impl Builder<'_, '_> {
                 parameter.type_reference,
             )
         } else {
-            let local = self
+            let (_, local) = self
                 .program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .take(self.statement_index)
-                .find_map(|statement| match statement {
-                    StatementNode::LocalData(local)
-                        if local.symbol == name.symbol && local.initial_value.is_valid() =>
-                    {
-                        Some(local)
-                    }
-                    _ => None,
+                .state_local_declaration(state, name.symbol)
+                .filter(|&(ordinal, local)| {
+                    ordinal < self.statement_index && local.initial_value.is_valid()
                 })?;
             (
                 checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {

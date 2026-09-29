@@ -341,7 +341,6 @@ fn immutable_value_origin(
     mut before: usize,
     mut expression: ExpressionHandle,
 ) -> Option<ExpressionHandle> {
-    let statements = program.statement_table.statements(state.statement_nodes);
     loop {
         let ExpressionNode::Name(name) = program.expression_table.expression(expression) else {
             return Some(expression);
@@ -349,17 +348,9 @@ fn immutable_value_origin(
         if !name.symbol.is_valid() {
             return None;
         }
-        let (position, local) = statements
-            .get(..before)?
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(position, statement)| {
-                let StatementNode::LocalData(local) = statement else {
-                    return None;
-                };
-                (local.symbol == name.symbol && !local.is_mutable).then_some((position, local))
-            })?;
+        let (position, local) = program
+            .state_local_declaration(state, name.symbol)
+            .filter(|&(position, local)| position < before && !local.is_mutable)?;
         before = position;
         expression = local.initial_value;
     }

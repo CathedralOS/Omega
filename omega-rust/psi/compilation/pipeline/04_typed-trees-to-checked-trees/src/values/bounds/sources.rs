@@ -8,8 +8,7 @@ use crate::values::bounds::primitive_range;
 use crate::values::exclusive_reference;
 use facts::{FactContextHandle, FactPlan};
 use typed_trees::{
-    TypedTrees, expression::ExpressionNode, signature::StateParameter, statement::StatementNode,
-    types::TypeReferenceHandle,
+    TypedTrees, expression::ExpressionNode, signature::StateParameter, types::TypeReferenceHandle,
 };
 
 pub(crate) struct PlaceIntegerBounds<'a> {
@@ -93,26 +92,10 @@ impl PlaceIntegerBounds<'_> {
             .then_some(parameter.type_reference);
         }
         let state = crate::semantic::calls::find_state(self.program, self.state)?;
-        program_statements(self.program, state)
-            .iter()
-            .find_map(|statement| match statement {
-                StatementNode::LocalData(local)
-                    if local.symbol == symbol
-                        && !local.is_mutable
-                        && !exclusive_reference(self.program, local.type_reference) =>
-                {
-                    Some(local.type_reference)
-                }
-                _ => None,
-            })
+        let (_, local) = self.program.state_local_declaration(state, symbol)?;
+        (!local.is_mutable && !exclusive_reference(self.program, local.type_reference))
+            .then_some(local.type_reference)
     }
-}
-
-fn program_statements<'a>(
-    program: &'a TypedTrees,
-    state: &'a typed_trees::state::State,
-) -> &'a [StatementNode] {
-    program.statement_table.statements(state.statement_nodes)
 }
 
 impl IntegerBoundsSource for PlaceIntegerBounds<'_> {

@@ -38,7 +38,9 @@ pub fn record_local_disposition(
     };
     if !local.symbol.is_valid()
         || program.state_parameters(source).iter().any(|parameter| parameter.symbol == local.symbol)
-        || statements.iter().filter(|statement| matches!(statement, StatementNode::LocalData(candidate) if candidate.symbol == local.symbol)).count() != 1
+        || program
+            .state_local_declaration(source, local.symbol)
+            .is_none()
         || !crate::has_plain_owned_contents_with_numeric_constraints(program, local.type_reference)
     {
         return None;

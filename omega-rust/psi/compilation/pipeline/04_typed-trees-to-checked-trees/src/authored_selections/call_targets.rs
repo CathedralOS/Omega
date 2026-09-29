@@ -365,17 +365,13 @@ fn authored_contextual_root(
             .map_or(selected, |parameter| parameter.symbol);
     }
 
-    let statements = program.statement_table.statements(state.statement_nodes);
     let template_statements = program
         .statement_table
         .statements(template_state.statement_nodes);
-    for (ordinal, statement) in statements.iter().take(statement_index).enumerate() {
-        let typed_trees::statement::StatementNode::LocalData(local) = statement else {
-            continue;
-        };
-        if local.symbol != selected {
-            continue;
-        }
+    if let Some((ordinal, _)) = program
+        .state_local_declaration(state, selected)
+        .filter(|&(ordinal, _)| ordinal < statement_index)
+    {
         return template_statements
             .get(ordinal)
             .and_then(|statement| match statement {

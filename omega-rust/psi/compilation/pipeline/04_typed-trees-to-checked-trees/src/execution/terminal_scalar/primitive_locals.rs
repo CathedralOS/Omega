@@ -215,19 +215,9 @@ fn local_plan(
     if !symbol.is_valid() {
         return None;
     }
-    let mut declarations = program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(ordinal, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
-            _ => None,
-        });
-    let (ordinal, local) = declarations.next()?;
+    let (ordinal, local) = program.state_local_declaration(state, symbol)?;
     let statement_ordinal = u32::try_from(ordinal).ok()?;
-    if declarations.next().is_some()
-        || statement_ordinal >= use_statement_ordinal
+    if statement_ordinal >= use_statement_ordinal
         || !local.is_mutable
         || (!program
             .expression_table

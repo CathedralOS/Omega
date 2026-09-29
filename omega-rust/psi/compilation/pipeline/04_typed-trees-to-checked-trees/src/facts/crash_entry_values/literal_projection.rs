@@ -18,7 +18,6 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
 
 pub(super) fn entry_value(
     program: &TypedTrees,
@@ -152,20 +151,9 @@ fn projected_entry_value(
                     .len()
                     == 1 =>
         {
-            let preceding = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .get(..before_statement)?;
-            let (ordinal, local) =
-                preceding
-                    .iter()
-                    .enumerate()
-                    .find_map(|(ordinal, statement)| match statement {
-                        StatementNode::LocalData(local) if local.symbol == path.symbol => {
-                            Some((ordinal, local))
-                        }
-                        _ => None,
-                    })?;
+            let (ordinal, local) = program
+                .state_local_declaration(state, path.symbol)
+                .filter(|&(ordinal, _)| ordinal < before_statement)?;
             // A mutable local transports the bound value only where the read
             // projection is still pristine between its initializer and this
             // read — a disjoint element or sibling write keeps the selected

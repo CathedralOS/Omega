@@ -603,15 +603,8 @@ fn type_reference_for_symbol(
         .map(|parameter| parameter.type_reference)
         .or_else(|| {
             program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| {
-                    let typed_trees::statement::StatementNode::LocalData(local) = statement else {
-                        return None;
-                    };
-                    (local.symbol == symbol).then_some(local.type_reference)
-                })
+                .state_local_declaration(state, symbol)
+                .map(|(_, local)| local.type_reference)
         })
         .or_else(|| {
             program

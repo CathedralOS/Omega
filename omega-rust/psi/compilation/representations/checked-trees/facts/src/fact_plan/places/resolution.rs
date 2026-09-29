@@ -234,19 +234,9 @@ fn symbol_type_reference(
                     .map(|parameter| parameter.type_reference)
             } else {
                 program
-                    .statement_table
-                    .statements(state.statement_nodes)
-                    .iter()
-                    .find_map(|statement| {
-                        if let typed_trees::statement::StatementNode::LocalData(local) = statement
-                            && local.symbol == symbol
-                            && program.symbols.name(symbol) == local.name.as_str()
-                        {
-                            Some(local.type_reference)
-                        } else {
-                            None
-                        }
-                    })
+                    .state_local_declaration(state, symbol)
+                    .filter(|(_, local)| program.symbols.name(symbol) == local.name.as_str())
+                    .map(|(_, local)| local.type_reference)
             }
         }
         symbols::SymbolKind::Field => match program.symbols.get(declaration.parent).kind {

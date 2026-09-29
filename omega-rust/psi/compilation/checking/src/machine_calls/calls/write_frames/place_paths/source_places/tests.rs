@@ -1,6 +1,6 @@
 use super::{
     ExpressionHandle, FactPlan, FrameSourcePlace, Machine, PlaceRoot, PlaceSegment, State,
-    StatementNode, SymbolHandle, TypedTrees,
+    SymbolHandle, TypedTrees,
 };
 use arena::HandleSpan;
 use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
@@ -8,6 +8,7 @@ use typed_trees::expression::{
     ExpressionNode, TableIndexedExpression, TableMemberExpression, TableNamePath,
 };
 use typed_trees::name::Identifier;
+use typed_trees::statement::StatementNode;
 
 fn name(program: &mut TypedTrees, spelling: &str, symbol: SymbolHandle) -> ExpressionHandle {
     let mut members = HandleSpan::empty();

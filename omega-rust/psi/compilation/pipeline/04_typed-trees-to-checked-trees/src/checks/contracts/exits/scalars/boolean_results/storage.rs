@@ -35,15 +35,11 @@ impl ExitScalars<'_, '_> {
             .statements(state.statement_nodes);
         let before = usize::try_from(before_statement).ok()?;
         *remaining = remaining.checked_sub(statements.len())?;
-        let mut declarations = statements.get(..before)?.iter().filter_map(|statement| {
-            let StatementNode::LocalData(local) = statement else {
-                return None;
-            };
-            (local.symbol == symbol).then_some(local)
-        });
-        let local = declarations.next()?;
-        if declarations.next().is_some()
-            || !local.is_mutable
+        let (_, local) = self
+            .program
+            .state_local_declaration(state, symbol)
+            .filter(|&(ordinal, _)| ordinal < before)?;
+        if !local.is_mutable
             || self.program.primitive_type_reference(local.type_reference)
                 != Some(PrimitiveType::Bool)
             || self.program.symbols.name(symbol) != local.name.as_str()

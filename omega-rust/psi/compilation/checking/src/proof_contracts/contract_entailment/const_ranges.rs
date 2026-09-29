@@ -413,12 +413,8 @@ fn scoped_value_bound(
         .iter()
         .any(|parameter| parameter.symbol == path.symbol)
         || program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| {
-                matches!(statement, typed_trees::statement::StatementNode::LocalData(local) if local.symbol == path.symbol)
-            })
+            .state_local_declaration(state, path.symbol)
+            .is_some()
 }
 
 fn has_const_range(

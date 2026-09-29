@@ -875,18 +875,16 @@ fn checked_statement_bindings(
                         if !name.symbol.is_valid() || name.head_symbol != name.symbol {
                             return None;
                         }
-                        let destination = statements[..statement_index]
-                            .iter()
-                            .find_map(|statement| match statement {
-                                StatementNode::LocalData(local)
-                                    if local.symbol == name.symbol && local.is_mutable =>
-                                {
-                                    Some((
-                                        local.symbol,
-                                        program.primitive_type_reference(local.type_reference)?,
-                                    ))
-                                }
-                                _ => None,
+                        let destination = program
+                            .state_local_declaration(state, name.symbol)
+                            .filter(|&(ordinal, local)| {
+                                ordinal < statement_index && local.is_mutable
+                            })
+                            .and_then(|(_, local)| {
+                                Some((
+                                    local.symbol,
+                                    program.primitive_type_reference(local.type_reference)?,
+                                ))
                             })
                             .or_else(|| {
                                 parameters.iter().find_map(|parameter| {

@@ -795,13 +795,11 @@ fn restores_structural_local(
         return false;
     }
     program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .any(|statement| {
-            matches!(statement, StatementNode::LocalData(local)
-                if local.symbol == path.symbol
-                    && program.primitive_type_reference(local.type_reference).is_none())
+        .state_local_declaration(state, path.symbol)
+        .is_some_and(|(_, local)| {
+            program
+                .primitive_type_reference(local.type_reference)
+                .is_none()
         })
 }
 
