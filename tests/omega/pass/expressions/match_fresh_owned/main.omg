@@ -24,6 +24,6 @@ machine consume_result(code: u64) {
 
 data Holder { category: Category; }
 
-machine Holder::replace(&mut self, code: u64) {
-    self.category = match code { 2 -> Category::Missing, _ -> Category::Other };
+machine Holder::replace(holder: &mut Holder, code: u64) {
+    holder.category = match code { 2 -> Category::Missing, _ -> Category::Other };
 }

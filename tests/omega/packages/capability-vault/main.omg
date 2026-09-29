@@ -17,9 +17,9 @@ pub data Vault {
     host: Binding<SecretHost>;
 }
 
-pub machine Vault::open_secret(&mut self, name: &[u8]) -> SecretLease
+pub machine Vault::open_secret(vault: &mut Vault, name: &[u8]) -> SecretLease
 reaches SecretHost
 invokes SecretHost;
 {
-    self.host.open(name)
+    vault.host.open(name)
 }
