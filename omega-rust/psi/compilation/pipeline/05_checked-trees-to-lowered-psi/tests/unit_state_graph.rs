@@ -28,6 +28,9 @@ mod provider_attachments;
 #[path = "unit_state_graph/discarded_results.rs"]
 mod discarded_results;
 
+#[path = "unit_state_graph/scalar_array_locals.rs"]
+mod scalar_array_locals;
+
 const SOURCE: &str = r#"
     boundary trait Output { machine write(bytes: &[u8], marker: u8) reaches Output; }
     machine relay(bytes: &[u8], selected: bool, marker: u8) reaches Output {
