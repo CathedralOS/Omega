@@ -179,6 +179,79 @@ fn cyclic_zero_initialization_does_not_erase_affine_disposal() {
 }
 
 #[test]
+fn cyclic_boundary_call_reborrows_a_produced_home_without_transferring_it() {
+    let mut module = zeroed_record_array_cycle();
+    module.structural_types[0].shape = StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+        IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+    ));
+    let boundary = id(1, semantic_vocabulary::BoundaryMachineId::new);
+    module
+        .boundary_machines
+        .push(terminal_psi::BoundaryMachineDeclaration {
+            id: boundary,
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
+            identity: "test::Pairs::update".into(),
+            attachment: None,
+            parameter_order: vec![terminal_psi::BoundaryParameterKind::Structural],
+            scalar_parameters: Vec::new(),
+            crash_routes: Vec::new(),
+            structural_parameters: vec![terminal_psi::StructuralParameterDeclaration {
+                place: id(100, PlaceId::new),
+                position: 0,
+                is_self: false,
+                structural_type: id(2, StructuralTypeId::new),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                access: StructuralAccess::MutableBorrow,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+            }],
+            result: terminal_psi::BoundaryMachineResult::Unit,
+            requires: Vec::new(),
+            scalar_requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            fixed_service_reach: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        });
+    module.machines[0].blocks[0].operations.push(Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: id(21, OperationId::new),
+        result: OperationResult::Unit,
+        kind: OperationKind::BoundaryCall {
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: vec![StructuralArgument {
+                place: id(5, PlaceId::new),
+                path: Vec::new(),
+                access: StructuralAccess::MutableBorrow,
+            }],
+            completion_receipts: Vec::new(),
+            requirement_obligations: Vec::new(),
+        },
+    });
+    validate_module(&module).expect("boundary and internal calls share call-scoped result loans");
+    let mut unavailable = module.clone();
+    unavailable.machines[0].blocks[0].operations.swap(0, 1);
+    assert!(
+        validate_module(&unavailable).is_err(),
+        "the local must exist before lending it"
+    );
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[1].kind
+    else {
+        unreachable!();
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    assert!(
+        validate_module(&module).is_err(),
+        "a shared loan cannot satisfy mutable access"
+    );
+}
+
+#[test]
 fn cyclic_scalar_record_establishment_is_valid_under_every_authority() {
     let module = scalar_record_cycle();
     validate_module(&module).expect("an unrestricted record may re-establish each iteration");

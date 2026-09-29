@@ -954,7 +954,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/control_flow/unranked_cycles.rs",
-        sha256: Some("885380709500cb64aef020b349f4e1035888ff57b7dfc0fbe991c58e1b77972c"),
+        sha256: Some("c34dbc8d2bee249d7997094322d02bb58c4d0fad3f9557a97ff1150eb82fecf0"),
         inventory_machinery: false,
     },
     ImplementationSite {
