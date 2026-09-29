@@ -27,6 +27,7 @@ mod byte_sequence_forwarding;
 mod byte_sequence_length;
 mod byte_sequence_read;
 mod byte_sequence_subslice;
+mod byte_write_parameter_roots;
 mod call_operand_source_custody;
 mod call_premise_terminal_boundary;
 mod callable_multistate_unit;
