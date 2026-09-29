@@ -229,6 +229,7 @@ impl ScalarBindings {
         machine: &checked_trees::machine::Machine,
         parameters: &[checked_trees::signature::StateParameter],
     ) -> Result<StructuralArgument, LoweringError> {
+        // Not `terminal_access`: only a shared or mutable loan binds here.
         let access = match argument.access {
             checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
             checked_trees::CheckedStructuralAccess::MutableBorrow => {

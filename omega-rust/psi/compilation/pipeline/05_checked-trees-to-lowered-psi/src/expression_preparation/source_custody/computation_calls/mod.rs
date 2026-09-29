@@ -634,6 +634,84 @@ fn select_case_arm(
     Ok(())
 }
 
+/// The state parameter a `Parameter { parameter_index }` source names. The
+/// index is dense over structural parameters only: an `[erased]` binding or a
+/// primitive-typed one occupies no position. `missing` is the lane's
+/// diagnostic for an index past the last structural parameter.
+fn structural_parameter_at<'a>(
+    checked: &CheckedTrees,
+    parameters: &'a [checked_trees::signature::StateParameter],
+    parameter_index: u32,
+    missing: &'static str,
+) -> Result<&'a checked_trees::signature::StateParameter, LoweringError> {
+    parameters
+        .iter()
+        .filter(|parameter| {
+            !parameter.relevance.is_erased()
+                && checked
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
+        })
+        .nth(parameter_index as usize)
+        .ok_or(LoweringError::Unsupported(missing))
+}
+
+/// Whether `symbol` binds exactly one parameter of `state` and no authored
+/// local of `state` rebinds it, so an authored name of `symbol` can only mean
+/// that parameter.
+fn parameter_binding_is_unique(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    checked
+        .state_parameters(state)
+        .iter()
+        .filter(|parameter| parameter.symbol == symbol)
+        .count()
+        == 1
+        && !checked
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(statement, StatementNode::LocalData(local) if local.symbol == symbol)
+            })
+}
+
+/// The one authored local of `state` that binds `symbol`, declared before
+/// statement `before` with a valid initializer. `missing` is the lane's
+/// diagnostic when no local binds `symbol`; `unestablished` covers a second
+/// binding, a declaration at or after `before`, and a stale initializer.
+fn preceding_local<'a>(
+    checked: &'a CheckedTrees,
+    state: &checked_trees::state::State,
+    symbol: symbols::SymbolHandle,
+    before: usize,
+    missing: &'static str,
+    unestablished: &'static str,
+) -> Result<&'a checked_trees::statement::TableLocalData, LoweringError> {
+    let mut locals = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .enumerate()
+        .filter_map(|(ordinal, statement)| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
+            _ => None,
+        });
+    let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(missing))?;
+    if locals.next().is_some()
+        || ordinal >= before
+        || !checked
+            .expression_table
+            .expression_is_valid(local.initial_value)
+    {
+        return unsupported(unestablished);
+    }
+    Ok(local)
+}
+
 // A retained computation cannot make a not-yet-established source local
 // available. This checks declaration order, not pure-expression semantics.
 // Earlier mutable locals remain available to the storage-read evaluator.

@@ -559,6 +559,8 @@ impl StateGraphEmission<'_, '_> {
                 structural_arguments.push(StructuralArgument {
                     place,
                     path: argument_path,
+                    // Not `terminal_access`: a write-only target parameter
+                    // receives a shared argument on this edge.
                     access: match target_parameter.access {
                         checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                         checked_trees::CheckedStructuralAccess::MutableBorrow => {
