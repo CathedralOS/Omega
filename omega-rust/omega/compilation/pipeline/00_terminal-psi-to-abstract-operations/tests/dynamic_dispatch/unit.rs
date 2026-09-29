@@ -1,6 +1,8 @@
 //! Unit-result dynamic dispatch and forwarded descriptor custody.
 
-use abstract_operations::{AbstractDynamicDescriptorSource, AbstractOperation};
+use abstract_operations::{
+    AbstractDynamicDescriptorSource, AbstractOperation, AbstractStructuralCallResult,
+};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     recompute_psi_optimization_unit_identity, reconstruct_psi_optimization_unit_seed,
@@ -90,9 +92,10 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
             .operations
             .iter()
             .find_map(|operation| match operation {
-                AbstractOperation::CallUnit {
+                AbstractOperation::CallStructural {
                     callee,
                     dynamic_arguments,
+                    result: AbstractStructuralCallResult::Unit,
                     ..
                 } if !dynamic_arguments.is_empty() => Some((*callee, dynamic_arguments)),
                 _ => None,
@@ -175,7 +178,11 @@ fn verified_forwarded_dynamic_unit_retains_argument_and_parameter_custody() {
                     }
                 ) || matches!(
                     &node.operation,
-                    AbstractOperation::CallUnit { dynamic_arguments, .. }
+                    AbstractOperation::CallStructural {
+                        dynamic_arguments,
+                        result: AbstractStructuralCallResult::Unit,
+                        ..
+                    }
                         if !dynamic_arguments.is_empty()
                 )
             })

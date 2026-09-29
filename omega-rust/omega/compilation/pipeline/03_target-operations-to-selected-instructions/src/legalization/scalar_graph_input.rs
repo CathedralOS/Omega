@@ -2,6 +2,7 @@
 use super::LegalizationError;
 use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    AbstractStructuralCallResult,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape,
@@ -462,18 +463,12 @@ pub(super) fn match_input(
                 return Err(LegalizationError::custody());
             }
         }
-        if let AbstractOperation::CallStructuralScalar {
+        if let AbstractOperation::CallStructural {
             psi_operation,
             callee,
             arguments,
             structural_arguments,
-            ..
-        }
-        | AbstractOperation::CallUnit {
-            psi_operation,
-            callee,
-            arguments,
-            structural_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } = &node.operation
         {
@@ -486,7 +481,10 @@ pub(super) fn match_input(
             if call.result.is_some()
                 != matches!(
                     node.operation,
-                    AbstractOperation::CallStructuralScalar { .. }
+                    AbstractOperation::CallStructural {
+                        result: AbstractStructuralCallResult::Scalar(_),
+                        ..
+                    }
                 )
                 || call.parameters.len() != arguments.len() + structural_arguments.len()
                 || called.parameters.len() != arguments.len()

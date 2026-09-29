@@ -324,6 +324,7 @@ fn derive_source_predicates(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use abstract_operations::AbstractStructuralCallResult;
     use semantic_vocabulary::{ObligationId, OperationId, StructuralTypeId, ValueId};
     use terminal_psi::control_flow::ByteSequenceOperand;
 
@@ -536,7 +537,7 @@ mod tests {
         ] {
             let mut called = function.clone();
             let mut call = called.blocks[block].nodes[store].clone();
-            call.operation = Operation::CallUnit {
+            call.operation = Operation::CallStructural {
                 psi_operation: OperationId::new(991).unwrap(),
                 callee: function.machine,
                 arguments: Vec::new(),
@@ -549,6 +550,7 @@ mod tests {
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
+                result: AbstractStructuralCallResult::Unit,
             };
             called.blocks[block].nodes.insert(store, call);
             assert_eq!(

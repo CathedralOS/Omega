@@ -1,6 +1,7 @@
 use crate::current_ownership::CurrentOwnership;
 use crate::current_ownership::residuals::partial_affine_residuals;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::BTreeMap;
@@ -112,7 +113,7 @@ pub(super) fn partial_affine_root_type(
         .find_map(|node| match &node.operation {
             O::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
             }
             | O::BoundaryCall {

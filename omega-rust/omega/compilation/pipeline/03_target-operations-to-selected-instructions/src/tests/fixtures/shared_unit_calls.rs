@@ -1,5 +1,5 @@
 //! A repeated and nested Unit closure with a Boolean, runtime index and borrowed view.
-use abstract_operations::{AbstractOperation, AbstractParameter};
+use abstract_operations::{AbstractOperation, AbstractParameter, AbstractStructuralCallResult};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, MachineId, OperationId,
     PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -68,7 +68,7 @@ pub(in crate::tests) fn fixture(
             _ => 0,
         };
         for call_number in 0..count {
-            function.operations.push(AbstractOperation::CallUnit {
+            function.operations.push(AbstractOperation::CallStructural {
                 psi_operation: OperationId::new(machine_number * 10 + call_number).unwrap(),
                 callee: MachineId::new(machine_number + 1).unwrap(),
                 arguments: vec![index, condition],
@@ -81,6 +81,7 @@ pub(in crate::tests) fn fixture(
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
+                result: AbstractStructuralCallResult::Unit,
             });
         }
         function.operations.push(AbstractOperation::ReturnUnit {
@@ -204,7 +205,7 @@ fn mixed_fixture(
         }];
         function.operations.clear();
         if machine_number == 1 {
-            function.operations.push(AbstractOperation::CallUnit {
+            function.operations.push(AbstractOperation::CallStructural {
                 psi_operation: OperationId::new(10).unwrap(),
                 callee: MachineId::new(2).unwrap(),
                 arguments: vec![index, condition],
@@ -217,6 +218,7 @@ fn mixed_fixture(
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
+                result: AbstractStructuralCallResult::Unit,
             });
         }
         function.operations.push(AbstractOperation::ReturnUnit {

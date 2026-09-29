@@ -12,6 +12,7 @@ use super::{
     AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
 };
 use crate::LegalizationError;
+use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -631,10 +632,10 @@ fn commit_argument_moves(
     }
 }
 
-/// Establish the declared result reference roster of a `CallStructural` whose
-/// result carries reference custody, resolved against the already-committed
-/// `moved` argument leaves. Returns the ordered resolved leaf roster the
-/// target row must carry.
+/// Establish the declared result reference roster of a structural-result
+/// `CallStructural` whose result carries reference custody, resolved against
+/// the already-committed `moved` argument leaves. Returns the ordered resolved
+/// leaf roster the target row must carry.
 fn call_results(
     function: &PsiOptimizationFunction,
     callee_function: &PsiOptimizationFunction,
@@ -904,7 +905,7 @@ pub(in crate::legalization) fn apply(
         }
         AbstractOperation::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             callee,
             structural_arguments,
             ..
@@ -927,12 +928,9 @@ pub(in crate::legalization) fn apply(
                 &moved,
             )?;
         }
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             structural_arguments,
-            ..
-        }
-        | AbstractOperation::CallStructuralScalar {
-            structural_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } => {
             let moved = call_arguments(function, types, custody, structural_arguments)?;
@@ -1367,10 +1365,10 @@ pub(in crate::legalization) fn referent_argument(
     })
 }
 
-/// Recompute the ordered reference-result roster a `CallStructural` row must
-/// carry: each callee-declared leaf resolved to its caller-visible referent
-/// root place through the pre-call custody state. Read-only — `apply` owns
-/// the corresponding mutation.
+/// Recompute the ordered reference-result roster a structural-result
+/// `CallStructural` row must carry: each callee-declared leaf resolved to its
+/// caller-visible referent root place through the pre-call custody state.
+/// Read-only — `apply` owns the corresponding mutation.
 pub(in crate::legalization) fn reference_results(
     caller: &PsiOptimizationFunction,
     callee: &PsiOptimizationFunction,

@@ -8,9 +8,7 @@ pub(super) fn producer(
     source: PlaceId,
 ) -> Option<(OperationId, semantic_vocabulary::StructuralTypeId)> {
     function.blocks.iter().flat_map(|block| &block.nodes).find(|node| {
-        matches!(&node.operation, AbstractOperation::CallStructuralScalar { psi_operation, structural_arguments, .. }
-            | AbstractOperation::CallUnit { psi_operation, structural_arguments, .. }
-            | AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
+        matches!(&node.operation, AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
             | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == source))
     })?;

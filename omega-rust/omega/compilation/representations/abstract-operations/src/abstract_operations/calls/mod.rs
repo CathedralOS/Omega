@@ -6,7 +6,9 @@
 mod placed_inputs;
 pub use placed_inputs::AbstractOperationPlanWithPlacedViewInputs;
 mod results;
-pub use results::{AbstractBoundaryResult, AbstractDynamicCallResult};
+pub use results::{
+    AbstractBoundaryResult, AbstractDynamicCallResult, AbstractStructuralCallResult,
+};
 mod dynamic;
 pub use dynamic::{
     AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource, AbstractDynamicDispatch,

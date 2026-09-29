@@ -11,6 +11,7 @@ use super::member_blocks::{
     member_scalar_operand_substitution, shared_entry_source, value_definition_sites,
 };
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
     PsiOptimizationFunction, PsiProvenance, ValueDefinitionSite,
@@ -242,20 +243,13 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         | O::EstablishRecord { .. }
         | O::Call { .. } => true,
         // A call that forwards descriptors is never on the whitelist.
-        O::CallUnit {
-            dynamic_arguments, ..
-        }
-        | O::CallStructuralScalar {
+        O::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => false,
-        O::CallUnit {
+        O::CallStructural {
             structural_arguments,
             claim_transfers,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            claim_transfers,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } => {
             claim_transfers.is_empty()
@@ -270,7 +264,11 @@ fn node_preserves_place_observations(operation: &O) -> bool {
         O::CallStructural {
             structural_arguments,
             claim_transfers,
-            returned_claim_transfers,
+            result:
+                AbstractStructuralCallResult::Structural {
+                    returned_claim_transfers,
+                    ..
+                },
             ..
         } => {
             claim_transfers.is_empty()
@@ -284,46 +282,37 @@ fn node_preserves_place_observations(operation: &O) -> bool {
 }
 
 /// The second-tier member tolerance [`component_preserves_place_observations`]
-/// applies to a call node the strict whitelist refuses: a `CallUnit`,
-/// `CallStructuralScalar`, or `CallStructural` that moves no claims, whose
-/// borrow arguments —
+/// applies to a call node the strict whitelist refuses: a Unit-result
+/// `CallStructural`, scalar-result `CallStructural`, or structural-result
+/// `CallStructural` that moves no claims, whose borrow arguments —
 /// `SharedBorrow`, `MutableBorrow`, or `WriteOnlyBorrow` — are confined as
 /// below, and whose `Owned` arguments each name a whole root whose declared
 /// custody is copyable ([`copyable_owned_argument_root`]): an `Unrestricted`
-/// owned parameter or an unrestricted claim-free record, case,
-/// scalar-array, or structural-call result. An
-/// owned whole-root argument over an unrestricted payload copies the
-/// elements into the callee — the caller's place keeps its contents, so the
-/// argument is an observation, not custody movement — while an `Owned`
-/// argument over an affine or linear root moves the caller's place into the
-/// callee outright and refuses, as does any produced kind the cyclic
-/// owned-argument fence does not recognize. Mutating borrows each name a
-/// root no other member can observe. The callee's caller-visible write
-/// authority is exactly its
-/// mutable and write-only parameter roots — verified call bindings cannot
-/// hand it another place — so confining those roots to the one call leaves
-/// the bound's guarantee intact: no member observation of any place another
-/// member wrote changes across traversals, and no custody moves.
+/// owned parameter or an unrestricted claim-free record, case, scalar-array, or
+/// structural-call result. An owned whole-root argument over an unrestricted
+/// payload copies the elements into the callee — the caller's place keeps its
+/// contents, so the argument is an observation, not custody movement — while an
+/// `Owned` argument over an affine or linear root moves the caller's place into
+/// the callee outright and refuses, as does any produced kind the cyclic
+/// owned-argument fence does not recognize. Mutating borrows each name a root
+/// no other member can observe. The callee's caller-visible write authority is
+/// exactly its mutable and write-only parameter roots — verified call bindings
+/// cannot hand it another place — so confining those roots to the one call
+/// leaves the bound's guarantee intact: no member observation of any place
+/// another member wrote changes across traversals, and no custody moves.
 fn exclusive_borrow_call_preserves_place_observations(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
     node: &OptimizationNode,
 ) -> bool {
     let (structural_arguments, claim_transfers) = match &node.operation {
-        O::CallUnit {
-            dynamic_arguments, ..
-        }
-        | O::CallStructuralScalar {
+        O::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => return false,
-        O::CallUnit {
+        O::CallStructural {
             structural_arguments,
             claim_transfers,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            claim_transfers,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } => (structural_arguments, claim_transfers),
         // A structural-result call must also move no claims back: a
@@ -333,7 +322,11 @@ fn exclusive_borrow_call_preserves_place_observations(
         O::CallStructural {
             structural_arguments,
             claim_transfers,
-            returned_claim_transfers,
+            result:
+                AbstractStructuralCallResult::Structural {
+                    returned_claim_transfers,
+                    ..
+                },
             ..
         } if returned_claim_transfers.is_empty() => (structural_arguments, claim_transfers),
         _ => return false,
@@ -522,27 +515,16 @@ pub(super) fn member_place_references(operation: &O, references: &mut BTreeSet<P
         O::StructuralScalarFieldStore { destination, .. } => {
             references.insert(destination.place());
         }
-        // The three structural-signature call variants whose complete place
-        // surface is `structural_arguments`. A call's forwarded descriptor
+        // A structural-signature call, whatever its result kind, whose
+        // complete place surface is `structural_arguments`. A call's forwarded descriptor
         // arguments carry a place surface this scan does not model and fail
         // closed here; a boundary call's completion claim sources and a
         // `ReturnStructural`'s returned place plus owned declaration and
         // discard rosters fail closed below.
-        O::CallUnit {
-            dynamic_arguments, ..
-        }
-        | O::CallStructuralScalar {
+        O::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => return false,
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         } => {
@@ -694,7 +676,10 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
         | O::EstablishScalarArray { result, .. }
         | O::EstablishCase { result, .. }
         | O::EstablishRecord { result, .. }
-        | O::CallStructural { result, .. } => Some(result.place),
+        | O::CallStructural {
+            result: AbstractStructuralCallResult::Structural { result, .. },
+            ..
+        } => Some(result.place),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
@@ -719,15 +704,7 @@ pub(crate) fn produced_place_root(operation: &O) -> Option<PlaceId> {
 /// borrower keeps writing deterministic contents no member observes.
 pub(crate) fn mutable_borrow_roots(operation: &O) -> BTreeSet<PlaceId> {
     let structural_arguments = match operation {
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         }
@@ -777,24 +754,23 @@ pub(super) fn member_root_producer_count(
 /// whole-root unrestricted claim-free scalar-array result — plus the rest
 /// of the copyable produced-root family the fence reaches only through an
 /// owned parameter's binding: a whole-root `EstablishRecord`,
-/// `EstablishCase`, or `CallStructural` result that is unrestricted,
-/// claim-free, and qualification-free, produced by any block in the
-/// function. Source can never spell those produced places as a call
-/// argument itself — the cyclic fence admits produced roots as direct
-/// `Owned` spellings only for the scalar-array shape — but a plain
-/// `Owned` member parameter binds one across an edge, so the resolved
-/// representative lands on the produced root and the moved call copies
-/// the one persistent payload every source traversal freshly established.
-/// The `EstablishCase` arm answers the family's unrestricted shape ahead
-/// of reachability — the cyclic fence confines scalar-case results to
-/// dispatch and return positions and the relocation admission only covers
-/// all-scalar case fields, so no source spelling lands a case result on
-/// an owned parameter today. Every other produced kind — and any root
-/// with restricted custody — keeps the refusal: their `Owned` spellings
-/// genuinely transfer custody or carry alias structure this boundary has
-/// not spelled out. For every call family sharing this rule the freeze
-/// replay independently re-derives the admission answer on hand-moved
-/// units, where no source grammar prunes the spellings first.
+/// `EstablishCase`, or structural-result `CallStructural` result that is
+/// unrestricted, claim-free, and qualification-free, produced by any block in
+/// the function. Source can never spell those produced places as a call
+/// argument itself — the cyclic fence admits produced roots as direct `Owned`
+/// spellings only for the scalar-array shape — but a plain `Owned` member
+/// parameter binds one across an edge, so the resolved representative lands on
+/// the produced root and the moved call copies the one persistent payload every
+/// source traversal freshly established. The `EstablishCase` arm answers the
+/// family's unrestricted shape ahead of reachability — the cyclic fence
+/// confines scalar-case results to dispatch and return positions and the
+/// relocation admission only covers all-scalar case fields, so no source
+/// spelling lands a case result on an owned parameter today. Every other
+/// produced kind — and any root with restricted custody — keeps the refusal:
+/// their `Owned` spellings genuinely transfer custody or carry alias structure
+/// this boundary has not spelled out. For every call family sharing this rule
+/// the freeze replay independently re-derives the admission answer on
+/// hand-moved units, where no source grammar prunes the spellings first.
 pub(super) fn copyable_owned_argument_root(
     function: &PsiOptimizationFunction,
     root: PlaceId,
@@ -825,7 +801,10 @@ pub(super) fn copyable_owned_argument_root(
                     O::EstablishRecord { result, .. }
                     | O::EstablishCase { result, .. }
                     | O::EstablishScalarArray { result, .. }
-                    | O::CallStructural { result, .. } => result,
+                    | O::CallStructural {
+                        result: AbstractStructuralCallResult::Structural { result, .. },
+                        ..
+                    } => result,
                     _ => return false,
                 };
                 result.place == root

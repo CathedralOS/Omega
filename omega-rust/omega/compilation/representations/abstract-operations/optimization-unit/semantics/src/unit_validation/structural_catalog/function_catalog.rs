@@ -5,6 +5,7 @@ use crate::unit_validation::structural_catalog::paths::{
     structural_qualifications_match,
 };
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, ClaimId, OperationId, StructuralDomainId, StructuralPlaceKind,
@@ -185,7 +186,11 @@ pub(crate) fn validate_function_structural_catalog(
                                     result,
                                     ..
                                 }
-                                | O::CallStructural { psi_operation, result, .. }
+                                | O::CallStructural {
+                                    psi_operation,
+                                    result: AbstractStructuralCallResult::Structural { result, .. },
+                                    ..
+                                }
                                 | O::BoundaryCall {
                                     psi_operation,
                                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -256,7 +261,10 @@ pub(crate) fn validate_function_structural_catalog(
             | O::EstablishZeroedStructural { result, .. }
             | O::MoveStructuralField { result, .. }
             | O::StructuralLeafCopy { result, .. }
-            | O::CallStructural { result, .. }
+            | O::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            }
             | O::BoundaryCall {
                 result: abstract_operations::AbstractBoundaryResult::Structural(result),
                 ..
@@ -335,7 +343,7 @@ pub(crate) fn validate_function_structural_catalog(
             }
             | O::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
             }
             | O::BoundaryCall {

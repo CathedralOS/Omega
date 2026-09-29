@@ -4,7 +4,7 @@
 //! Every variant may additionally carry crash-route custody: the roster is
 //! re-derived from the callee's verifier-owned contract at the source and
 //! substituted actuals rather than trusted byte-exact — for the
-//! structural-signature variants only when every published crash predicate
+//! structural-signature calls only when every published crash predicate
 //! is scalar-only, since the optimizer-side reconstruction does not replay
 //! the terminal verifier's canonical structural-path substitution.
 //! `unit_effect_summaries` is the effect product both the proposal and the
@@ -16,7 +16,9 @@ use super::place_observations::{
     invariant_member_place_parameters, member_root_producer_count, place_observation_root_visible,
 };
 use super::relocation_rewrites::scalar_case_result_contained;
-use abstract_operations::{AbstractDynamicDispatch, AbstractOperation as O};
+use abstract_operations::{
+    AbstractDynamicDispatch, AbstractOperation as O, AbstractStructuralCallResult,
+};
 use optimization_unit::{
     OptimizationBlock, OptimizationNode, OptimizerCycleComponent, OwnershipEvent,
     PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
@@ -103,29 +105,31 @@ pub(crate) fn admissible_invariant_crash_continuation_call(
     (!crash_continuations.is_empty()).then_some(callee)
 }
 
-/// The source-owned node shape every `CallUnit` lane shares: an exact
-/// `CallUnit` provenance whose node keeps its own operation identity as the
-/// first provenance row, defines no scalar (`CallUnit` produces no result —
-/// the relocated node preserves the invocation itself), uses exactly its
-/// scalar `arguments` in operand order, carries no successors, keeps
-/// `claim_transfers` empty, and carries exactly one vacuous `ClaimTransfer`
-/// ownership row — the custody mirror of the empty roster — which relocates
-/// byte-exact inside the moved operation. `requirement_obligations` move
-/// byte-exact exactly like a scalar call's: they were discharged against the
-/// argument values and operand substitution only rebinds a member parameter
-/// to the representative every reaching edge proves equal. Returns the
-/// callee, the scalar argument operands, and the carried crash-continuation
-/// roster; each lane then decides which continuations it can re-express.
+/// The source-owned node shape every Unit-result `CallStructural` lane shares:
+/// an exact Unit-result `CallStructural` provenance whose node keeps its own
+/// operation identity as the first provenance row, defines no scalar
+/// (Unit-result `CallStructural` produces no result — the relocated node
+/// preserves the invocation itself), uses exactly its scalar `arguments` in
+/// operand order, carries no successors, keeps `claim_transfers` empty, and
+/// carries exactly one vacuous `ClaimTransfer` ownership row — the custody
+/// mirror of the empty roster — which relocates byte-exact inside the moved
+/// operation. `requirement_obligations` move byte-exact exactly like a scalar
+/// call's: they were discharged against the argument values and operand
+/// substitution only rebinds a member parameter to the representative every
+/// reaching edge proves equal. Returns the callee, the scalar argument
+/// operands, and the carried crash-continuation roster; each lane then decides
+/// which continuations it can re-express.
 fn unit_call_shape(
     node: &OptimizationNode,
 ) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
-    let O::CallUnit {
+    let O::CallStructural {
         psi_operation,
         callee,
         arguments,
         dynamic_arguments,
         claim_transfers,
         crash_continuations,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &node.operation
     else {
@@ -151,7 +155,7 @@ fn unit_call_shape(
     ))
 }
 
-/// Unit-result machine calls — `CallUnit` — are the structural-signature
+/// Unit-result machine calls — `CallStructural` — are the structural-signature
 /// member of the call family admitted for loop-invariant motion: an exact
 /// internal callee invocation whose scalar arguments ride the shared
 /// substitution and whose structural arguments are borrows, spelled through
@@ -178,21 +182,21 @@ pub(crate) fn admissible_invariant_unit_call(node: &OptimizationNode) -> Option<
     crash_continuations.is_empty().then_some(callee)
 }
 
-/// Unit-result machine calls carrying crash-route custody — a `CallUnit`
+/// Unit-result machine calls carrying crash-route custody — a `CallStructural`
 /// whose `crash_continuations` roster is non-empty — are the structural
-/// family's crash-evidence lane: the same source-owned `CallUnit` shape
-/// ([`unit_call_shape`]) with a roster to re-express. The roster is
-/// evidence the relocation re-derives rather than moves:
-/// [`invariant_crash_continuation_unit_call_admission`] requires the
-/// callee's transitive effect summary to stay pure — so the published
-/// routes are a contract ceiling the callee's body never actually
-/// exercises — proves the carried roster is exactly what the callee's
-/// verifier-owned contract derives at these arguments, and the realization
-/// recomputes the moved call's continuations under the substituted
-/// arguments. Because the optimizer-side reconstruction does not reproduce
-/// the terminal verifier's canonical structural-path substitution, the lane
-/// admits only rosters whose predicates are scalar-only — a roster reading
-/// a callee structural parameter stays inside.
+/// family's crash-evidence lane: the same source-owned Unit-result
+/// `CallStructural` shape ([`unit_call_shape`]) with a roster to re-express.
+/// The roster is evidence the relocation re-derives rather than moves:
+/// [`invariant_crash_continuation_unit_call_admission`] requires the callee's
+/// transitive effect summary to stay pure — so the published routes are a
+/// contract ceiling the callee's body never actually exercises — proves the
+/// carried roster is exactly what the callee's verifier-owned contract derives
+/// at these arguments, and the realization recomputes the moved call's
+/// continuations under the substituted arguments. Because the optimizer-side
+/// reconstruction does not reproduce the terminal verifier's canonical
+/// structural-path substitution, the lane admits only rosters whose predicates
+/// are scalar-only — a roster reading a callee structural parameter stays
+/// inside.
 pub(crate) fn admissible_invariant_crash_continuation_unit_call(
     node: &OptimizationNode,
 ) -> Option<MachineId> {
@@ -200,24 +204,24 @@ pub(crate) fn admissible_invariant_crash_continuation_unit_call(
     (!crash_continuations.is_empty()).then_some(callee)
 }
 
-/// The source-owned node shape every `CallStructuralScalar` lane shares: an
-/// exact `CallStructuralScalar` provenance whose node keeps its own
-/// operation identity as the first provenance row, defines exactly its
+/// The source-owned node shape every scalar-result `CallStructural` lane
+/// shares: an exact scalar-result `CallStructural` provenance whose node keeps
+/// its own operation identity as the first provenance row, defines exactly its
 /// spelled `result`, uses exactly its scalar `arguments` in operand order,
 /// carries no successors, keeps `claim_transfers` empty, and carries exactly
-/// one vacuous `ClaimTransfer` ownership row that relocates byte-exact
-/// inside the moved operation. `requirement_obligations` move byte-exact
-/// exactly like the other call variants': they were discharged against the
-/// argument values and operand substitution only rebinds a member parameter
-/// to the representative every reaching edge proves equal. Returns the
-/// callee, the scalar argument operands, and the carried crash-continuation
-/// roster; each lane then decides which continuations it can re-express.
+/// one vacuous `ClaimTransfer` ownership row that relocates byte-exact inside
+/// the moved operation. `requirement_obligations` move byte-exact exactly like
+/// the other call variants': they were discharged against the argument values
+/// and operand substitution only rebinds a member parameter to the
+/// representative every reaching edge proves equal. Returns the callee, the
+/// scalar argument operands, and the carried crash-continuation roster; each
+/// lane then decides which continuations it can re-express.
 fn structural_scalar_call_shape(
     node: &OptimizationNode,
 ) -> Option<(MachineId, &[ValueId], &[terminal_psi::CrashRouteBucket])> {
-    let O::CallStructuralScalar {
+    let O::CallStructural {
         psi_operation,
-        result,
+        result: AbstractStructuralCallResult::Scalar(result),
         callee,
         arguments,
         dynamic_arguments,
@@ -250,10 +254,10 @@ fn structural_scalar_call_shape(
     ))
 }
 
-/// Scalar-result structural-signature machine calls — `CallStructuralScalar`
+/// Scalar-result structural-signature machine calls — `CallStructural`
 /// — are the call family's third admitted member: an exact internal callee
 /// invocation carrying both the scalar `arguments` a `Call` spells and the
-/// shared-borrow `structural_arguments` a `CallUnit` spells, and defining
+/// shared-borrow `structural_arguments` a Unit-result call spells, and defining
 /// exactly one scalar result, spelled through the shared
 /// [`structural_scalar_call_shape`] with no crash-route custody. The
 /// structural side obeys the unit call's
@@ -277,22 +281,22 @@ pub(crate) fn admissible_invariant_structural_scalar_call(
 }
 
 /// Scalar-result structural calls carrying crash-route custody — a
-/// `CallStructuralScalar` whose `crash_continuations` roster is non-empty —
-/// are the family's crash-evidence lane: the same source-owned
-/// `CallStructuralScalar` shape ([`structural_scalar_call_shape`]) with a
-/// roster to re-express.
+/// scalar-result `CallStructural` whose `crash_continuations` roster is
+/// non-empty — are the family's crash-evidence lane: the same source-owned
+/// scalar-result `CallStructural` shape ([`structural_scalar_call_shape`]) with
+/// a roster to re-express.
 /// [`invariant_crash_continuation_structural_scalar_call_admission`] replays
-/// the whole structural-scalar evidence surface — the pure transitive
-/// callee (so the published routes stay a contract ceiling the body never
-/// exercises), the unobservable member roster, the whole-component
-/// place-custody bound, and each argument root's landing — then adds the
-/// crash halves: the carried roster must equal the callee's verifier-owned
-/// contract derivation at the source actuals, the recomputed roster under
-/// the substituted actuals must stay inside the caller's published crash
-/// ceiling, and — because the optimizer-side reconstruction does not
-/// reproduce the terminal verifier's canonical structural-path substitution
-/// — every crash predicate must be scalar-only, so the moved call's
-/// structural-argument rebind leaves the roster derivation untouched.
+/// the whole structural-scalar evidence surface — the pure transitive callee
+/// (so the published routes stay a contract ceiling the body never exercises),
+/// the unobservable member roster, the whole-component place-custody bound, and
+/// each argument root's landing — then adds the crash halves: the carried
+/// roster must equal the callee's verifier-owned contract derivation at the
+/// source actuals, the recomputed roster under the substituted actuals must
+/// stay inside the caller's published crash ceiling, and — because the
+/// optimizer-side reconstruction does not reproduce the terminal verifier's
+/// canonical structural-path substitution — every crash predicate must be
+/// scalar-only, so the moved call's structural-argument rebind leaves the
+/// roster derivation untouched.
 pub(crate) fn admissible_invariant_crash_continuation_structural_scalar_call(
     node: &OptimizationNode,
 ) -> Option<MachineId> {
@@ -300,27 +304,26 @@ pub(crate) fn admissible_invariant_crash_continuation_structural_scalar_call(
     (!crash_continuations.is_empty()).then_some(callee)
 }
 
-/// The source-owned node shape every `CallStructural` lane shares: an exact
-/// `CallStructural` provenance whose node keeps its own operation identity
-/// as the first provenance row, defines no scalar, uses exactly its scalar
-/// `arguments` in operand order, carries no successors, and returns a
-/// claim-free result whose multiplicity is `Affine` or `Unrestricted` — the
-/// multiplicities the cyclic eligibility fence already confines. Both
-/// `claim_transfers` and `returned_claim_transfers` must be empty, so the
-/// node carries exactly one vacuous `ClaimTransfer` ownership row, which
-/// relocates byte-exact inside the moved operation.
+/// The source-owned node shape every structural-result `CallStructural` lane
+/// shares: an exact structural-result `CallStructural` provenance whose node
+/// keeps its own operation identity as the first provenance row, defines no
+/// scalar, uses exactly its scalar `arguments` in operand order, carries no
+/// successors, and returns a claim-free result whose multiplicity is `Affine`
+/// or `Unrestricted` — the multiplicities the cyclic eligibility fence already
+/// confines. Both `claim_transfers` and `returned_claim_transfers` must be
+/// empty, so the node carries exactly one vacuous `ClaimTransfer` ownership
+/// row, which relocates byte-exact inside the moved operation.
 /// `requirement_obligations` move byte-exact inside the moved operation,
 /// exactly like every other call variant's: they were discharged against the
 /// argument values and structural actuals, and substitution only rebinds a
-/// member parameter to the representative every reaching edge proves equal —
-/// a shared-borrow root's rebound representative is the same place the
-/// member parameter resolved to on every traversal. `selected_evidence`
-/// instead must be empty in every lane: the admitted contract carries none
-/// of it, and a call that does stay inside rather than re-expressing
-/// evidence this family has not reconstructed stays refused. Returns the
-/// callee, the result declaration, the scalar argument operands, and the
-/// carried crash-continuation roster; each lane then decides which
-/// continuations it can re-express.
+/// member parameter to the representative every reaching edge proves equal — a
+/// shared-borrow root's rebound representative is the same place the member
+/// parameter resolved to on every traversal. `selected_evidence` instead must
+/// be empty in every lane: the admitted contract carries none of it, and a call
+/// that does stay inside rather than re-expressing evidence this family has not
+/// reconstructed stays refused. Returns the callee, the result declaration, the
+/// scalar argument operands, and the carried crash-continuation roster; each
+/// lane then decides which continuations it can re-express.
 fn structural_call_shape(
     node: &OptimizationNode,
 ) -> Option<(
@@ -330,19 +333,25 @@ fn structural_call_shape(
 )> {
     let O::CallStructural {
         psi_operation,
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                selected_evidence,
+            },
         callee,
         arguments,
+        dynamic_arguments,
         claim_transfers,
-        returned_claim_transfers,
         crash_continuations,
-        selected_evidence,
         ..
     } = &node.operation
     else {
         return None;
     };
-    (node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
+    // A structural result never forwards descriptors; refuse one that does.
+    (dynamic_arguments.is_empty()
+        && node.provenance.first() == Some(&PsiProvenance::Operation(*psi_operation))
         && node.definitions.is_empty()
         && node.uses.len() == arguments.len()
         && node
@@ -408,22 +417,22 @@ pub(crate) fn admissible_invariant_structural_call(
 }
 
 /// Structural-result machine calls carrying crash-route custody — a
-/// `CallStructural` whose `crash_continuations` roster is non-empty — are
-/// the family's crash-evidence lane: the same source-owned `CallStructural`
-/// shape ([`structural_call_shape`]) with a roster to re-express.
-/// [`invariant_crash_continuation_structural_call_admission`] replays the
-/// whole structural-call evidence surface — the pure transitive callee, the
+/// structural-result `CallStructural` whose `crash_continuations` roster is
+/// non-empty — are the family's crash-evidence lane: the same source-owned
+/// structural-result `CallStructural` shape ([`structural_call_shape`]) with a
+/// roster to re-express.
+/// [`invariant_crash_continuation_structural_call_admission`] replays the whole
+/// structural-call evidence surface — the pure transitive callee, the
 /// unobservable member roster, the place-custody bound run with the run's
-/// relocating roots plus the call's own affine result tolerated, each
-/// argument root's landing, and the affine result's containment bound — then
-/// adds the crash halves the scalar-custody lane established: the carried
-/// roster must equal the callee's verifier-owned contract derivation at the
-/// source actuals, the recomputed roster under the substituted actuals must
-/// stay inside the caller's published crash ceiling, and every crash
-/// predicate must be scalar-only, since the optimizer-side reconstruction
-/// does not reproduce the terminal verifier's canonical structural-path
-/// substitution — a roster reading a callee structural parameter stays
-/// inside.
+/// relocating roots plus the call's own affine result tolerated, each argument
+/// root's landing, and the affine result's containment bound — then adds the
+/// crash halves the scalar-custody lane established: the carried roster must
+/// equal the callee's verifier-owned contract derivation at the source actuals,
+/// the recomputed roster under the substituted actuals must stay inside the
+/// caller's published crash ceiling, and every crash predicate must be
+/// scalar-only, since the optimizer-side reconstruction does not reproduce the
+/// terminal verifier's canonical structural-path substitution — a roster
+/// reading a callee structural parameter stays inside.
 pub(crate) fn admissible_invariant_crash_continuation_structural_call(
     node: &OptimizationNode,
 ) -> Option<(MachineId, terminal_psi::StructuralOperationResult)> {
@@ -490,8 +499,9 @@ pub(crate) fn invariant_unit_call_admission(
     effects: &crate::EffectSummaryAnalysis,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     let callee = admissible_invariant_unit_call(node)?;
-    let O::CallUnit {
+    let O::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &node.operation
     else {
@@ -534,8 +544,9 @@ pub(crate) fn invariant_structural_scalar_call_admission(
     effects: &crate::EffectSummaryAnalysis,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     let callee = admissible_invariant_structural_scalar_call(node)?;
-    let O::CallStructuralScalar {
+    let O::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Scalar(_),
         ..
     } = &node.operation
     else {
@@ -598,6 +609,7 @@ pub(crate) fn invariant_structural_call_admission(
         structural_call_result_tolerated(function, component, &result, relocating_roots)?;
     let O::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Structural { .. },
         ..
     } = &node.operation
     else {
@@ -616,16 +628,15 @@ pub(crate) fn invariant_structural_call_admission(
     )
 }
 
-/// The member-discard tolerances an admitted `CallStructural` result
-/// contributes to the place-custody bound, shared by both of the call's
+/// The member-discard tolerances an admitted structural-result `CallStructural`
+/// result contributes to the place-custody bound, shared by both of the call's
 /// roster lanes: the run's relocating roots are always tolerated — their
 /// producers' declared places move byte-exact — and an affine result must
-/// additionally prove the containment bound
-/// ([`scalar_case_result_contained`]) before its place joins the set,
-/// since the relocation keeps that one persistent result live across member
-/// edges where the source discarded a fresh place every traversal. An
-/// unrestricted result adds nothing: a custody-free copy payload enters no
-/// discard roster.
+/// additionally prove the containment bound ([`scalar_case_result_contained`])
+/// before its place joins the set, since the relocation keeps that one
+/// persistent result live across member edges where the source discarded a
+/// fresh place every traversal. An unrestricted result adds nothing: a
+/// custody-free copy payload enters no discard roster.
 fn structural_call_result_tolerated(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -644,7 +655,7 @@ fn structural_call_result_tolerated(
 
 /// The complete crash-custody unit-call admission shared by the proposal
 /// and the relocation freeze replay: `node` must carry the source-owned
-/// crash-continuation `CallUnit` shape
+/// crash-continuation Unit-result `CallStructural` shape
 /// ([`admissible_invariant_crash_continuation_unit_call`]) — which yields
 /// the exact internal callee — and then passes
 /// [`crash_continuation_borrow_call_admission`]'s shared surface: the
@@ -664,10 +675,11 @@ pub(crate) fn invariant_crash_continuation_unit_call_admission(
     effects: &crate::EffectSummaryAnalysis,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     let callee = admissible_invariant_crash_continuation_unit_call(node)?;
-    let O::CallUnit {
+    let O::CallStructural {
         arguments,
         structural_arguments,
         crash_continuations,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &node.operation
     else {
@@ -691,7 +703,7 @@ pub(crate) fn invariant_crash_continuation_unit_call_admission(
 
 /// The complete crash-custody structural-scalar call admission shared by
 /// the proposal and the relocation freeze replay: `node` must carry the
-/// source-owned crash-continuation `CallStructuralScalar` shape
+/// source-owned crash-continuation scalar-result `CallStructural` shape
 /// ([`admissible_invariant_crash_continuation_structural_scalar_call`]) —
 /// which yields the exact internal callee — and then passes
 /// [`crash_continuation_borrow_call_admission`]'s shared surface unchanged:
@@ -711,10 +723,11 @@ pub(crate) fn invariant_crash_continuation_structural_scalar_call_admission(
     effects: &crate::EffectSummaryAnalysis,
 ) -> Option<(BTreeMap<ValueId, ValueId>, Vec<(PlaceId, PlaceId)>)> {
     let callee = admissible_invariant_crash_continuation_structural_scalar_call(node)?;
-    let O::CallStructuralScalar {
+    let O::CallStructural {
         arguments,
         structural_arguments,
         crash_continuations,
+        result: AbstractStructuralCallResult::Scalar(_),
         ..
     } = &node.operation
     else {
@@ -738,7 +751,7 @@ pub(crate) fn invariant_crash_continuation_structural_scalar_call_admission(
 
 /// The complete crash-custody structural-result call admission shared by
 /// the proposal and the relocation freeze replay: `node` must carry the
-/// source-owned crash-continuation `CallStructural` shape
+/// source-owned crash-continuation structural-result `CallStructural` shape
 /// ([`admissible_invariant_crash_continuation_structural_call`]) — which
 /// yields the exact internal callee and its claim-free result — then adds
 /// the result's containment half
@@ -766,6 +779,7 @@ pub(crate) fn invariant_crash_continuation_structural_call_admission(
         arguments,
         structural_arguments,
         crash_continuations,
+        result: AbstractStructuralCallResult::Structural { .. },
         ..
     } = &node.operation
     else {
@@ -1222,16 +1236,10 @@ fn scalar_call_callee_pure(effects: &crate::EffectSummaryAnalysis, callee: Machi
 /// static callee here and stay unresolvable.
 fn member_call_target(operation: &O) -> Option<MachineId> {
     match operation {
-        O::CallUnit {
-            dynamic_arguments, ..
-        }
-        | O::CallStructuralScalar {
+        O::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => None,
-        O::Call { callee, .. }
-        | O::CallUnit { callee, .. }
-        | O::CallStructuralScalar { callee, .. }
-        | O::CallStructural { callee, .. } => Some(*callee),
+        O::Call { callee, .. } | O::CallStructural { callee, .. } => Some(*callee),
         O::CallDynamic { dispatch, .. } => dispatch.realization(),
         _ => None,
     }
@@ -1267,8 +1275,10 @@ fn component_members_unobservable(
                 None => {
                     let forwards_descriptors = matches!(
                         &node.operation,
-                        O::CallUnit { dynamic_arguments, .. }
-                            | O::CallStructuralScalar { dynamic_arguments, .. }
+                        O::CallStructural {
+                            dynamic_arguments,
+                            ..
+                        }
                             if !dynamic_arguments.is_empty()
                     );
                     if forwards_descriptors

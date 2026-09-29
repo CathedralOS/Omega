@@ -8,7 +8,9 @@ use super::super::structural_layout::{
 use super::super::structural_signature::StructuralCallSignature;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
+};
 use calling_conventions::{ValuePlacement, ValueShape};
 use semantic_vocabulary::{
     IeeeFloatFormat, MachineId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
@@ -50,7 +52,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         psi_operation,
         callee,
         arguments: scalar_arguments,
@@ -59,6 +61,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
         claim_transfers,
         requirement_obligations,
         crash_continuations,
+        result: AbstractStructuralCallResult::Unit,
     } = operation
     else {
         unreachable!("structural Unit-call lowering receives only Unit calls")

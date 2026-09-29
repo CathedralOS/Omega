@@ -17,7 +17,7 @@ mod structural_establishments;
 pub(crate) use computations::MULTI_SOURCE_ENTRY_SOURCE;
 
 use crate::VerifiedPsiOptimizationSession;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use optimization_unit::{
     PsiOptimizationUnit, PsiProvenance, recompute_psi_optimization_unit_identity,
@@ -308,8 +308,9 @@ pub(super) fn member_call<'function>(
 /// the `sink` call's argument: the `EstablishByteSequenceLiteral` declares a
 /// fresh borrowed-view root over constant bytes every traversal — no scalar
 /// uses, no observed root, no custody events — so the whole operation
-/// relocates into the preheader byte-exact while the consuming `CallUnit`
-/// stays inside the loop still spelling the same place identity.
+/// relocates into the preheader byte-exact while the consuming Unit-result
+/// `CallStructural` stays inside the loop still spelling the same place
+/// identity.
 pub(super) const INVARIANT_LITERAL_SOURCE: &str = r#"
     data Root {}
     machine sink(v: &[u8]) {}
@@ -400,10 +401,10 @@ pub(super) fn member_primitive_local<'function>(
     panic!("the primitive-local establishment lives in a member block")
 }
 
-/// The `CallStructuralScalar` node inside a member block and its block —
-/// the shared-borrow counterpart of [`member_call`]. With more than one
-/// structural call in the roster, [`member_structural_scalar_calls`] lists
-/// them all.
+/// The scalar-result `CallStructural` node inside a member block and its block
+/// — the shared-borrow counterpart of [`member_call`]. With more than one
+/// structural call in the roster, [`member_structural_scalar_calls`] lists them
+/// all.
 pub(super) fn member_structural_scalar_call<'function>(
     function: &'function optimization_unit::PsiOptimizationFunction,
     component: &optimization_unit::OptimizerCycleComponent,
@@ -433,7 +434,11 @@ pub(super) fn member_structural_scalar_calls<'function>(
             .find(|block| block.id == *member)
             .expect("member block exists");
         for node in &block.nodes {
-            if let AbstractOperation::CallStructuralScalar { .. } = &node.operation {
+            if let AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Scalar(_),
+                ..
+            } = &node.operation
+            {
                 calls.push((block, node));
             }
         }

@@ -3,7 +3,9 @@
 //! including the original referent or owned input's current local home. No second
 //! field-offset calculator or legacy expression-tree realization belongs here.
 
-use abstract_operations::{AbstractFunction, AbstractOperation, AbstractResult};
+use abstract_operations::{
+    AbstractFunction, AbstractOperation, AbstractResult, AbstractStructuralCallResult,
+};
 use semantic_vocabulary::ScalarType;
 use target_operations::{TargetFunction, TargetUnitOperation};
 use terminal_psi::StructuralArgument;
@@ -821,7 +823,7 @@ fn read_access(
             }
             | AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
             } if result.place == place => (*psi_operation, result),
             _ => continue,

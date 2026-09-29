@@ -16,7 +16,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
+};
 use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 use target_operations::TargetReferenceResult;
 use terminal_psi::{
@@ -872,18 +874,14 @@ fn apply(
             }
         }
         // A call that forwards descriptors moves no argument custody here.
-        AbstractOperation::CallUnit {
-            dynamic_arguments, ..
-        }
-        | AbstractOperation::CallStructuralScalar {
-            dynamic_arguments, ..
-        } if !dynamic_arguments.is_empty() => {}
-        AbstractOperation::CallUnit {
-            structural_arguments,
+        AbstractOperation::CallStructural {
+            dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
-        }
-        | AbstractOperation::CallStructuralScalar {
+        } if !dynamic_arguments.is_empty() => {}
+        AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } => {
             let moved = argument_moves(function, declarations, custody, structural_arguments)?;
@@ -891,7 +889,7 @@ fn apply(
         }
         AbstractOperation::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             callee,
             structural_arguments,
             ..
@@ -1078,10 +1076,10 @@ fn schedule(
 }
 
 /// Replay the caller's custody in dominator order and collect the reference
-/// leaf roster each `CallStructural` — authored or installed-provider —
-/// establishes. A source whose custody stream cannot be replayed yields no
-/// expected rows, and a retained structural-result `Call` row without an
-/// expected entry rejects.
+/// leaf roster each structural-result `CallStructural` — authored or
+/// installed-provider — establishes. A source whose custody stream cannot be
+/// replayed yields no expected rows, and a retained structural-result `Call`
+/// row without an expected entry rejects.
 pub(super) fn expected(
     function: &AbstractFunction,
     source_functions: &[AbstractFunction],

@@ -4,6 +4,7 @@ use crate::current_ownership::CurrentOwnership;
 use crate::current_ownership::residuals::partial_affine_residuals;
 use crate::current_ownership::structural::partial_affine_root_type;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{OptimizationBlock, PsiOptimizationFunction};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,9 +27,10 @@ pub(super) fn validate_partial_continuation_roster(
     let mut root = None;
     let mut moved = BTreeSet::new();
     for node in &block.nodes {
-        let O::CallUnit {
+        let O::CallStructural {
             structural_arguments,
             dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } = &node.operation
         else {

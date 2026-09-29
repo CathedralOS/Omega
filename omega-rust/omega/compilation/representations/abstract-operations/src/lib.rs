@@ -13,11 +13,12 @@ pub use abstract_operations::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
     AbstractOperationPlanWithPlacedViewInputs, AbstractParameter, AbstractParameterDynamicDispatch,
     AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
-    AbstractStoredDynamicDispatch, AbstractStructuralBinding, AbstractStructuralCasePayloadBinding,
-    AbstractStructuralCaseSuccessor, AbstractSuccessor, AtomicCoherenceViolation,
-    AtomicModificationAfter, AtomicModificationAfterViolation, AtomicReadsFrom,
-    AtomicReadsFromViolation, CompletionClaimSource, StructuralTypeCatalog, ValueBinding, atomic,
-    calls, control_flow, happens_before_atomic_coherence_violation, operations, ownership, values,
+    AbstractStoredDynamicDispatch, AbstractStructuralBinding, AbstractStructuralCallResult,
+    AbstractStructuralCasePayloadBinding, AbstractStructuralCaseSuccessor, AbstractSuccessor,
+    AtomicCoherenceViolation, AtomicModificationAfter, AtomicModificationAfterViolation,
+    AtomicReadsFrom, AtomicReadsFromViolation, CompletionClaimSource, StructuralTypeCatalog,
+    ValueBinding, atomic, calls, control_flow, happens_before_atomic_coherence_violation,
+    operations, ownership, values,
 };
 pub use abstract_operations::{
     StructuralCopyPath, StructuralScalarStoreDestination, StructuralWindowRoot,

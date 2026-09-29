@@ -3,6 +3,7 @@ use super::validate;
 use crate::tests::indexed_byte_fields::indexed_field_unit;
 use crate::tests::support::id;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{OptimizationBlock, OptimizationEdge};
 use semantic_vocabulary::{BlockId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -150,7 +151,7 @@ fn indexed_byte_field_freshness_preserves_only_length_preserving_effects() {
     ] {
         let mut changed = function.clone();
         let mut call = indexed.clone();
-        call.operation = O::CallUnit {
+        call.operation = O::CallStructural {
             psi_operation: id(991, OperationId::new),
             callee: function.machine,
             arguments: Vec::new(),
@@ -163,6 +164,7 @@ fn indexed_byte_field_freshness_preserves_only_length_preserving_effects() {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         };
         changed.blocks[block].nodes.insert(store, call);
         assert_eq!(

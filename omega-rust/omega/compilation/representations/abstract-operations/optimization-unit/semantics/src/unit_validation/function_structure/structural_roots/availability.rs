@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{BlockId, PlaceId};
 
@@ -35,7 +36,10 @@ pub(crate) fn validate_structural_place_availability(
                 // The copy produces the leaf's fresh owned storage at its own
                 // node; a consumer of it must sit downstream.
                 | O::StructuralLeafCopy { result, .. }
-                | O::CallStructural { result, .. }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                }
                 | O::BoundaryCall {
                     result: abstract_operations::AbstractBoundaryResult::Structural(result),
                     ..
@@ -117,23 +121,14 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         O::PrimitiveLocalStore { destination, .. } => vec![*destination],
         O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place],
         O::StructuralScalarFieldStore { destination, .. } => vec![destination.place()],
-        O::CallStructural {
-            structural_arguments,
-            ..
-        }
-        | O::BoundaryCall {
+        O::BoundaryCall {
             structural_arguments,
             ..
         } => structural_arguments
             .iter()
             .map(|argument| argument.place)
             .collect(),
-        O::CallStructuralScalar {
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        }
-        | O::CallUnit {
+        O::CallStructural {
             structural_arguments,
             dynamic_arguments,
             ..

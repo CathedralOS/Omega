@@ -461,10 +461,8 @@ fn operation_observations(
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }
         | O::IntegerStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
-        O::CallUnit { .. }
-        | O::CallStructuralScalar { .. }
+        O::CallStructural { .. }
         | O::CallDynamic { .. }
-        | O::CallStructural { .. }
         | O::Call { .. } => (vec![event(C::InternalCall)], May, May),
         O::BoundaryCall { .. } => (vec![event(C::BoundaryCall)], May, May),
         O::PortWrite { .. } => (vec![event(C::Service)], No, No),

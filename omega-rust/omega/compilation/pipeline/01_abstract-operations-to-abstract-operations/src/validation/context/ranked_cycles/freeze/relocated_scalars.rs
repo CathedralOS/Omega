@@ -16,7 +16,7 @@
 //! primitive-local establishment (whose declared place, structural type, and
 //! claim-free result custody relocate byte-exact while its scalar
 //! initializer obeys the re-derived substitution — and whose declared root
-//! is what a `CallStructuralScalar`'s borrow argument keeps
+//! is what a scalar-result `CallStructural`'s borrow argument keeps
 //! spelling), an admissible
 //! record establishment (whose declared place, structural type, result
 //! custody, declaration order, and range obligations relocate byte-exact
@@ -112,6 +112,7 @@
 //! refreshed coordinates.
 
 use super::super::super::super::BTreeSet;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
     OptimizationBlock, OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit,
     PsiProvenance,
@@ -241,7 +242,10 @@ pub(super) fn validate(
         let result = match &relocation.expected.operation {
             abstract_operations::AbstractOperation::EstablishCase { result, .. }
             | abstract_operations::AbstractOperation::EstablishRecord { result, .. }
-            | abstract_operations::AbstractOperation::CallStructural { result, .. } => result,
+            | abstract_operations::AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => result,
             abstract_operations::AbstractOperation::EstablishTrivialAffineLocal {
                 place, ..
             } => {
@@ -1004,34 +1008,21 @@ fn same_relocated_node(
     // the callee's verifier-owned published routes instantiated at the
     // substituted actuals — the same reconstruction the realization
     // performs — so a forged or stale roster in the transformed spelling
-    // rejects byte-exact in the comparison below. The structural-signature
-    // variants route through the scalar-only-gated helper: admission
+    // rejects byte-exact in the comparison below. A structural-signature
+    // call routes through the scalar-only-gated helper: admission
     // already refused any roster whose predicates read structural evidence
     // the optimizer-side reconstruction cannot replay, so the scalar
     // derivation is the exact reconstruction here too.
     let structural_call = matches!(
         operation,
-        abstract_operations::AbstractOperation::CallUnit { .. }
-            | abstract_operations::AbstractOperation::CallStructuralScalar { .. }
-            | abstract_operations::AbstractOperation::CallStructural { .. }
+        abstract_operations::AbstractOperation::CallStructural { .. }
     );
     let carries_routes = match &operation {
         // No admission lane moves a call that forwards descriptors.
-        abstract_operations::AbstractOperation::CallUnit {
-            dynamic_arguments, ..
-        }
-        | abstract_operations::AbstractOperation::CallStructuralScalar {
+        abstract_operations::AbstractOperation::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => false,
         abstract_operations::AbstractOperation::Call {
-            crash_continuations,
-            ..
-        }
-        | abstract_operations::AbstractOperation::CallUnit {
-            crash_continuations,
-            ..
-        }
-        | abstract_operations::AbstractOperation::CallStructuralScalar {
             crash_continuations,
             ..
         }
@@ -1044,8 +1035,6 @@ fn same_relocated_node(
     if carries_routes {
         let callee = match &operation {
             abstract_operations::AbstractOperation::Call { callee, .. }
-            | abstract_operations::AbstractOperation::CallUnit { callee, .. }
-            | abstract_operations::AbstractOperation::CallStructuralScalar { callee, .. }
             | abstract_operations::AbstractOperation::CallStructural { callee, .. } => *callee,
             _ => return false,
         };
@@ -1055,16 +1044,6 @@ fn same_relocated_node(
         };
         let (arguments, crash_continuations) = match &mut operation {
             abstract_operations::AbstractOperation::Call {
-                arguments,
-                crash_continuations,
-                ..
-            }
-            | abstract_operations::AbstractOperation::CallUnit {
-                arguments,
-                crash_continuations,
-                ..
-            }
-            | abstract_operations::AbstractOperation::CallStructuralScalar {
                 arguments,
                 crash_continuations,
                 ..

@@ -295,25 +295,24 @@ pub(crate) fn admissible_invariant_byte_literal(node: &OptimizationNode) -> bool
 }
 
 /// An `EstablishPrimitiveLocal` is the second structural establishment
-/// admitted for loop-invariant motion — and the one a `CallStructuralScalar`
-/// borrows: the cyclic eligibility fence only lets a shared-borrow
-/// structural-scalar argument name a `let mut` primitive local's place, so
-/// the call can leave its member block only when the establishment that
-/// produced the borrowed root leaves in the same run. The node declares a
-/// fresh claim-free mutable storage cell initialized to one scalar `value`:
-/// it reads exactly that scalar operand, mutates no existing place, and its
+/// admitted for loop-invariant motion — and the one a scalar-result
+/// `CallStructural` borrows: the cyclic eligibility fence only lets a
+/// shared-borrow structural-scalar argument name a `let mut` primitive local's
+/// place, so the call can leave its member block only when the establishment
+/// that produced the borrowed root leaves in the same run. The node declares a
+/// fresh claim-free mutable storage cell initialized to one scalar `value`: it
+/// reads exactly that scalar operand, mutates no existing place, and its
 /// declared root can anchor another parameter's invariant representative only
 /// when the relocation run covers this node —
 /// [`invariant_member_place_parameters`] treats an uncovered member-produced
-/// root as loop-carried. The node must name its own operation as
-/// the first provenance row, define no scalar value (its result is the
-/// declared place), use exactly its `value` operand, carry no successors or
-/// ownership events, and keep the result claim-free the way
-/// `primitive_storage::local_result` requires — vacuous qualifications,
-/// unrestricted multiplicity, and no claims — so the moved declaration still
-/// validates as primitive-local storage. Whether `value` is actually
-/// loop-invariant and whether the component preserves the local's stored
-/// contents are decided separately by
+/// root as loop-carried. The node must name its own operation as the first
+/// provenance row, define no scalar value (its result is the declared place),
+/// use exactly its `value` operand, carry no successors or ownership events,
+/// and keep the result claim-free the way `primitive_storage::local_result`
+/// requires — vacuous qualifications, unrestricted multiplicity, and no claims
+/// — so the moved declaration still validates as primitive-local storage.
+/// Whether `value` is actually loop-invariant and whether the component
+/// preserves the local's stored contents are decided separately by
 /// [`invariant_primitive_local_admission`].
 pub(crate) fn admissible_invariant_primitive_local(
     node: &OptimizationNode,

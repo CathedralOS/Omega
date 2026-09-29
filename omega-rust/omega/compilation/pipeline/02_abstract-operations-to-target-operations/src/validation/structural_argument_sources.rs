@@ -12,7 +12,9 @@
 
 use std::collections::BTreeMap;
 
-use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractFunction, AbstractOperation, AbstractStructuralCallResult,
+};
 use calling_conventions::ValuePlacement;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId};
 use target_operations::{
@@ -121,17 +123,7 @@ pub(super) fn validate(
 
     for operation in &source.operations {
         let (psi_operation, structural_arguments) = match operation {
-            AbstractOperation::CallUnit {
-                psi_operation,
-                structural_arguments,
-                ..
-            }
-            | AbstractOperation::CallStructuralScalar {
-                psi_operation,
-                structural_arguments,
-                ..
-            }
-            | AbstractOperation::CallStructural {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 structural_arguments,
                 ..
@@ -221,7 +213,7 @@ fn expected_sources(source: &AbstractFunction) -> BTreeMap<PlaceId, ExpectedSour
             } => (result.place, ExpectedSource::ElementView(*psi_operation)),
             AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
             } => (
                 result.place,

@@ -1,7 +1,7 @@
 use crate::tests::support::id;
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
+    AbstractOperationPlan, AbstractStructuralCallResult,
 };
 use optimization_unit::{PsiOptimizationUnit, reconstruct_psi_optimization_unit_seed};
 use semantic_vocabulary::{
@@ -82,17 +82,26 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                 operations: vec![
                     AbstractOperation::CallStructural {
                         psi_operation: id(357, OperationId::new),
-                        result: terminal_psi::StructuralOperationResult {
-                            qualification_establishments: Vec::new(),
-                            place: call_result,
-                            structural_type,
-                            multiplicity: terminal_psi::StructuralMultiplicity::Linear,
-                            qualifications: Vec::new(),
-                            projected_qualifications: Vec::new(),
-                            claims: vec![terminal_psi::StructuralResultClaimBinding {
-                                claim,
-                                path: Vec::new(),
-                            }],
+                        result: AbstractStructuralCallResult::Structural {
+                            result: terminal_psi::StructuralOperationResult {
+                                qualification_establishments: Vec::new(),
+                                place: call_result,
+                                structural_type,
+                                multiplicity: terminal_psi::StructuralMultiplicity::Linear,
+                                qualifications: Vec::new(),
+                                projected_qualifications: Vec::new(),
+                                claims: vec![terminal_psi::StructuralResultClaimBinding {
+                                    claim,
+                                    path: Vec::new(),
+                                }],
+                            },
+                            returned_claim_transfers: vec![
+                                terminal_psi::StructuralResultClaimTransfer {
+                                    callee_claim: claim,
+                                    caller_claim: claim,
+                                },
+                            ],
+                            selected_evidence: Vec::new(),
                         },
                         callee,
                         arguments: Vec::new(),
@@ -101,19 +110,13 @@ pub(crate) fn structural_result_call_unit() -> PsiOptimizationUnit {
                             path: Vec::new(),
                             access: terminal_psi::StructuralAccess::Owned,
                         }],
+                        dynamic_arguments: Vec::new(),
                         claim_transfers: vec![terminal_psi::ClaimTransfer {
                             claim,
                             argument_index: 0,
                         }],
-                        returned_claim_transfers: vec![
-                            terminal_psi::StructuralResultClaimTransfer {
-                                callee_claim: claim,
-                                caller_claim: claim,
-                            },
-                        ],
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
-                        selected_evidence: Vec::new(),
                     },
                     AbstractOperation::ReturnStructural {
                         psi_edge: id(358, EdgeId::new),

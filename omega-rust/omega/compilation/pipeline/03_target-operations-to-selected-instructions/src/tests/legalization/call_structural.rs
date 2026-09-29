@@ -7,6 +7,7 @@ use crate::{
     legalize_target_operations, select_instructions, selection_constraints,
     validate_legalized_operations, validate_selected_instructions,
 };
+use abstract_operations::AbstractStructuralCallResult;
 use target_operations::TargetUnitOperation;
 
 #[test]
@@ -64,7 +65,7 @@ fn owned_record_payload_arguments_replay_root_relative_offsets() {
             root_result.place = PlaceId::new(13).unwrap();
             root_result.structural_type = root_type;
             root_result.multiplicity = terminal_psi::StructuralMultiplicity::Affine;
-            operations[2] = AbstractOperation::CallUnit {
+            operations[2] = AbstractOperation::CallStructural {
                 psi_operation: OperationId::new(12).unwrap(),
                 callee: semantic_vocabulary::MachineId::new(2).unwrap(),
                 arguments: Vec::new(),
@@ -77,6 +78,7 @@ fn owned_record_payload_arguments_replay_root_relative_offsets() {
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
+                result: AbstractStructuralCallResult::Unit,
             };
             operations[3] = AbstractOperation::Jump {
                 psi_edge: semantic_vocabulary::EdgeId::new(1).unwrap(),
@@ -113,7 +115,11 @@ fn owned_record_payload_arguments_replay_root_relative_offsets() {
                 3,
                 AbstractOperation::CallStructural {
                     psi_operation: OperationId::new(14).unwrap(),
-                    result: root_result,
+                    result: AbstractStructuralCallResult::Structural {
+                        result: root_result,
+                        returned_claim_transfers: Vec::new(),
+                        selected_evidence: Vec::new(),
+                    },
                     callee: semantic_vocabulary::MachineId::new(3).unwrap(),
                     arguments: Vec::new(),
                     structural_arguments: vec![StructuralArgument {
@@ -121,11 +127,10 @@ fn owned_record_payload_arguments_replay_root_relative_offsets() {
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
                     }],
+                    dynamic_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
-                    returned_claim_transfers: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
-                    selected_evidence: Vec::new(),
                 },
             );
             let operation_offset = operations.len();

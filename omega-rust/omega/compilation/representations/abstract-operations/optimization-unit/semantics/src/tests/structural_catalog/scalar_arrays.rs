@@ -4,6 +4,7 @@ use crate::tests::fixtures::structural_catalog::structural_result_call_unit;
 use crate::tests::support::{id, refresh_identity};
 use crate::validate_psi_optimization_unit;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     OperationId, PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId, ValueId,
@@ -53,9 +54,13 @@ fn array_unit(length: u64) -> PsiOptimizationUnit {
         {
             match &mut node.operation {
                 O::CallStructural {
-                    result,
+                    result:
+                        AbstractStructuralCallResult::Structural {
+                            result,
+                            returned_claim_transfers,
+                            ..
+                        },
                     claim_transfers,
-                    returned_claim_transfers,
                     ..
                 } => {
                     result.multiplicity = StructuralMultiplicity::Unrestricted;
@@ -105,6 +110,7 @@ fn array_unit(length: u64) -> PsiOptimizationUnit {
     };
     let O::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Structural { .. },
         ..
     } = &mut function.blocks[0].nodes[0].operation
     else {

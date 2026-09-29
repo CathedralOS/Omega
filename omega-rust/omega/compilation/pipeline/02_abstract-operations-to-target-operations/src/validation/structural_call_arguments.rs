@@ -16,7 +16,7 @@ use abstract_operations::{
     AbstractDynamicDescriptorSource, AbstractDynamicDispatch, AbstractFunction,
     AbstractFunctionResult, AbstractOperation, AbstractParameter, AbstractParameterDynamicDispatch,
     AbstractReboundDynamicDispatch, AbstractResult, AbstractStoredDynamicDescriptor,
-    AbstractStoredDynamicDispatch, CompletionClaimSource,
+    AbstractStoredDynamicDispatch, AbstractStructuralCallResult, CompletionClaimSource,
 };
 use calling_conventions::{
     CallPlan, CallSignature, CallingPolicy, EntryControl, NativePlace, ValueClass, ValueLocation,
@@ -529,9 +529,7 @@ pub(super) fn validate(
         .iter()
         .filter_map(|operation| {
             Some(*match operation {
-                AbstractOperation::CallUnit { psi_operation, .. }
-                | AbstractOperation::CallStructuralScalar { psi_operation, .. }
-                | AbstractOperation::CallStructural { psi_operation, .. }
+                AbstractOperation::CallStructural { psi_operation, .. }
                 | AbstractOperation::BoundaryCall { psi_operation, .. }
                 | AbstractOperation::Call { psi_operation, .. }
                 | AbstractOperation::CallDynamic { psi_operation, .. }
@@ -585,7 +583,7 @@ pub(super) fn validate(
         match operation {
             // A call that forwards descriptors replays through
             // `dynamic_arguments_call` below.
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 callee,
                 arguments,
@@ -594,6 +592,7 @@ pub(super) fn validate(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
+                result: AbstractStructuralCallResult::Unit,
             } if dynamic_arguments.is_empty() => replay.structural_call(
                 *psi_operation,
                 *callee,
@@ -606,9 +605,9 @@ pub(super) fn validate(
                 crash_continuations,
                 target_calls.get(psi_operation),
             )?,
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee,
                 arguments,
                 structural_arguments,
@@ -630,17 +629,23 @@ pub(super) fn validate(
             )?,
             AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result:
+                    AbstractStructuralCallResult::Structural {
+                        result,
+                        returned_claim_transfers,
+                        selected_evidence,
+                    },
                 callee,
                 arguments,
                 structural_arguments,
+                dynamic_arguments,
                 claim_transfers,
-                returned_claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-                selected_evidence,
             } => {
-                if !selected_evidence.is_empty() {
+                // A structural result forwards no descriptors; the lowering
+                // refuses one that does and so does this replay.
+                if !selected_evidence.is_empty() || !dynamic_arguments.is_empty() {
                     return Err(*psi_operation);
                 }
                 replay.structural_call(
@@ -695,17 +700,13 @@ pub(super) fn validate(
             )?,
             // A call forwarding descriptors carries no scalar arguments; the
             // lowering refuses that mix and so does this replay.
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 arguments,
-                ..
-            }
-            | AbstractOperation::CallStructuralScalar {
-                psi_operation,
-                arguments,
+                result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
                 ..
             } if !arguments.is_empty() => return Err(*psi_operation),
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 callee,
                 arguments: _,
@@ -714,6 +715,7 @@ pub(super) fn validate(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
+                result: AbstractStructuralCallResult::Unit,
             } => replay.dynamic_arguments_call(
                 *psi_operation,
                 *callee,
@@ -725,9 +727,9 @@ pub(super) fn validate(
                 crash_continuations,
                 target_calls.get(psi_operation),
             )?,
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee,
                 arguments: _,
                 structural_arguments,
@@ -3646,9 +3648,9 @@ fn integer_home_result(operation: &AbstractOperation) -> Option<(OperationId, Ab
             result,
             ..
         }
-        | AbstractOperation::CallStructuralScalar {
+        | AbstractOperation::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Scalar(result),
             ..
         }
         | AbstractOperation::CallDynamic {
@@ -3916,9 +3918,10 @@ fn canonical_roots(source: &AbstractFunction) -> BTreeMap<PlaceId, RootDeclarati
             | AbstractOperation::EstablishScalarArray { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::ByteSequenceSubslice { result, .. }
-            | AbstractOperation::CallStructural { result, .. } => {
-                (result.place, result.structural_type)
-            }
+            | AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } => (result.place, result.structural_type),
             AbstractOperation::EstablishByteSequenceLiteral {
                 place,
                 structural_type,

@@ -9,6 +9,7 @@
 //! replay separately pins every such root while the joined view can observe it.
 use crate::OptimizationUnitValidationError;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -212,7 +213,10 @@ fn source_contract(
                 _ => None,
             },
             O::EstablishByteSequenceConcatenation { result, .. }
-            | O::CallStructural { result, .. }
+            | O::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            }
             | O::EstablishCase { result, .. }
             | O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }

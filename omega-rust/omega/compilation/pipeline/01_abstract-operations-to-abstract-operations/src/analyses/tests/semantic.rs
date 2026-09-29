@@ -7,7 +7,7 @@ use crate::analyses::{
     PlaceAliasRelation, PlaceView, ResultSourceResolution, ScalarConstantSupport, declared_access,
 };
 use crate::{AnalysisProduct, EffectKnowledge, compute_analysis};
-use abstract_operations::{AbstractOperation as O, AbstractResult};
+use abstract_operations::{AbstractOperation as O, AbstractResult, AbstractStructuralCallResult};
 use optimization_core::*;
 use optimization_unit::*;
 use semantic_vocabulary::*;
@@ -42,7 +42,7 @@ fn argument_view(
 }
 
 fn call_unit(callee: u64, structural_arguments: Vec<terminal_psi::StructuralArgument>) -> O {
-    O::CallUnit {
+    O::CallStructural {
         psi_operation: id(700, OperationId::new),
         callee: id(callee, MachineId::new),
         arguments: Vec::new(),
@@ -51,6 +51,7 @@ fn call_unit(callee: u64, structural_arguments: Vec<terminal_psi::StructuralArgu
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     }
 }
 
@@ -133,7 +134,7 @@ fn function_effects_propagate_services_and_crashes_through_calls() {
     let mut caller = function(100, 1, vec![(1, Terminator::Return)]);
     let mut callee = function(200, 2, vec![(2, Terminator::Crash)]);
     let call_support = id(510, OperationId::new);
-    let mut call = node(O::CallUnit {
+    let mut call = node(O::CallStructural {
         psi_operation: call_support,
         callee: callee.machine,
         arguments: Vec::new(),
@@ -142,6 +143,7 @@ fn function_effects_propagate_services_and_crashes_through_calls() {
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     });
     call.provenance = vec![PsiProvenance::Operation(call_support)];
     caller.blocks[0].nodes.insert(0, call);

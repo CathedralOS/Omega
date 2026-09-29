@@ -6,13 +6,7 @@ pub(crate) fn expected_ownership(
 ) -> Vec<OwnershipEvent> {
     use abstract_operations::AbstractOperation as O;
     match operation {
-        O::CallUnit {
-            claim_transfers, ..
-        }
-        | O::CallStructuralScalar {
-            claim_transfers, ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             claim_transfers, ..
         } => vec![OwnershipEvent::ClaimTransfer(
             claim_transfers

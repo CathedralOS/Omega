@@ -1,6 +1,8 @@
 //! Structural calls whose ABI arguments are dynamic descriptor pairs.
 
-use abstract_operations::{AbstractDynamicDescriptorSource, AbstractFunctionResult};
+use abstract_operations::{
+    AbstractDynamicDescriptorSource, AbstractFunctionResult, AbstractStructuralCallResult,
+};
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, evaluate_call_plan};
 use semantic_vocabulary::MachineId;
 use std::collections::{BTreeMap, BTreeSet};
@@ -37,9 +39,9 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
-    let AbstractOperation::CallStructuralScalar {
+    let AbstractOperation::CallStructural {
         psi_operation,
-        result,
+        result: AbstractStructuralCallResult::Scalar(result),
         callee,
         arguments,
         structural_arguments,
@@ -190,7 +192,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         psi_operation,
         callee,
         arguments,
@@ -199,6 +201,7 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
         claim_transfers,
         requirement_obligations,
         crash_continuations,
+        result: AbstractStructuralCallResult::Unit,
     } = operation
     else {
         unreachable!("dynamic-argument Unit lowering receives only its exact role")

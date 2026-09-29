@@ -3,7 +3,9 @@ use crate::tests::fixtures::dominance::refresh_function_derivatives;
 use crate::tests::fixtures::primitive_locals::primitive_local_call_plan;
 use crate::tests::support::id;
 use crate::validate_psi_optimization_unit;
-use abstract_operations::{AbstractOperation as O, AbstractOperationPlan};
+use abstract_operations::{
+    AbstractOperation as O, AbstractOperationPlan, AbstractStructuralCallResult,
+};
 use optimization_unit::reconstruct_psi_optimization_unit_seed;
 use semantic_vocabulary::EdgeId;
 use terminal_psi::StructuralAccess;
@@ -34,8 +36,9 @@ fn local_borrow_call_preserves_read_observations_and_rejects_owned_escape() {
         Err(crate::OptimizationUnitValidationError::StructuralPlaceNotAvailable { .. })
     ));
 
-    let O::CallUnit {
+    let O::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut plan.functions[0].operations[4]
     else {

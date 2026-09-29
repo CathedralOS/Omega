@@ -1,5 +1,7 @@
 //! Exact IEEE source identity survives field writes and ordinary Unit-call transport.
-use abstract_operations::{AbstractOperation, AbstractParameter, AbstractResult};
+use abstract_operations::{
+    AbstractOperation, AbstractParameter, AbstractResult, AbstractStructuralCallResult,
+};
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IeeeFloatValue, IntegerValue, MachineId, OperationId,
     PlaceId, ScalarType, StructuralFieldId, StructuralTypeId, ValueId,
@@ -82,7 +84,7 @@ fn fixture(
                 field,
                 value: AbstractResult { value, scalar_type },
             },
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation: OperationId::new(3).unwrap(),
                 callee: callee.machine,
                 arguments: vec![value],
@@ -91,6 +93,7 @@ fn fixture(
                 claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
+                result: AbstractStructuralCallResult::Unit,
             },
         ],
     );

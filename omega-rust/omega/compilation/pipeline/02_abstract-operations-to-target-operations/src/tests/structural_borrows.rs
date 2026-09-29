@@ -7,6 +7,7 @@ use super::{
     StructuralFieldDeclaration, StructuralFieldId, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape, ValueId,
 };
+use abstract_operations::AbstractStructuralCallResult;
 use calling_conventions::{ValueClass, ValueLocation};
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::AdmissionProfile;
@@ -222,14 +223,16 @@ fn borrowed_call_requirement_custody(scalar_result: bool) {
         .iter()
         .flat_map(|function| &function.operations)
         .find_map(|operation| match operation {
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 requirement_obligations,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } if !scalar_result => Some((*psi_operation, requirement_obligations)),
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 requirement_obligations,
+                result: AbstractStructuralCallResult::Scalar(_),
                 ..
             } if scalar_result => Some((*psi_operation, requirement_obligations)),
             _ => None,
@@ -327,14 +330,11 @@ fn structural_calls_preserve_verified_crash_continuations() {
     for function in &source.functions {
         for operation in &function.operations {
             let (psi_operation, crash_continuations) = match operation {
-                AbstractOperation::CallUnit {
+                AbstractOperation::CallStructural {
                     psi_operation,
                     crash_continuations,
-                    ..
-                }
-                | AbstractOperation::CallStructuralScalar {
-                    psi_operation,
-                    crash_continuations,
+                    result:
+                        AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
                     ..
                 } => (*psi_operation, crash_continuations),
                 _ => continue,
@@ -561,7 +561,7 @@ fn projected_field_borrow_plan() -> abstract_operations::AbstractOperationPlan {
     let callee = function(2, tally);
     caller.operations.insert(
         0,
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: OperationId::new(1).unwrap(),
             callee: callee.machine,
             arguments: Vec::new(),
@@ -574,6 +574,7 @@ fn projected_field_borrow_plan() -> abstract_operations::AbstractOperationPlan {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
     );
     AbstractOperationPlan {
@@ -627,7 +628,12 @@ fn projected_field_borrow_scalar_argument_plan() -> abstract_operations::Abstrac
         scalar_type: unsigned,
     });
     for operation in &mut plan.functions[0].operations {
-        if let AbstractOperation::CallUnit { arguments, .. } = operation {
+        if let AbstractOperation::CallStructural {
+            arguments,
+            result: AbstractStructuralCallResult::Unit,
+            ..
+        } = operation
+        {
             arguments.push(caller_value);
         }
     }
@@ -694,7 +700,7 @@ fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan 
                 }),
             }],
         },
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: OperationId::new(13).unwrap(),
             callee,
             arguments: Vec::new(),
@@ -707,6 +713,7 @@ fn established_home_borrow_plan() -> abstract_operations::AbstractOperationPlan 
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
         AbstractOperation::ReturnUnit {
             psi_edge: EdgeId::new(1).unwrap(),
@@ -767,7 +774,7 @@ fn indexed_element_borrow_plan() -> abstract_operations::AbstractOperationPlan {
     );
     caller.operations.insert(
         0,
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation: OperationId::new(1).unwrap(),
             callee: callee.machine,
             arguments: Vec::new(),
@@ -780,6 +787,7 @@ fn indexed_element_borrow_plan() -> abstract_operations::AbstractOperationPlan {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
     );
     AbstractOperationPlan {
@@ -840,7 +848,11 @@ fn structural_result_call_plan() -> abstract_operations::AbstractOperationPlan {
     };
     let call = |identity, source| AbstractOperation::CallStructural {
         psi_operation: OperationId::new(identity).unwrap(),
-        result: result(identity),
+        result: AbstractStructuralCallResult::Structural {
+            result: result(identity),
+            returned_claim_transfers: Vec::new(),
+            selected_evidence: Vec::new(),
+        },
         callee: callee_machine,
         arguments: Vec::new(),
         structural_arguments: vec![StructuralArgument {
@@ -848,11 +860,10 @@ fn structural_result_call_plan() -> abstract_operations::AbstractOperationPlan {
             path: Vec::new(),
             access: StructuralAccess::Owned,
         }],
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
-        returned_claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
-        selected_evidence: Vec::new(),
     };
     let block = |raw| AbstractBlockEntry {
         structural_parameters: Vec::new(),
@@ -1063,7 +1074,11 @@ fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
                 operations: vec![
                     AbstractOperation::CallStructural {
                         psi_operation: OperationId::new(12).unwrap(),
-                        result: result(result_place),
+                        result: AbstractStructuralCallResult::Structural {
+                            result: result(result_place),
+                            returned_claim_transfers: Vec::new(),
+                            selected_evidence: Vec::new(),
+                        },
                         callee: callee_machine,
                         arguments: Vec::new(),
                         structural_arguments: vec![StructuralArgument {
@@ -1071,11 +1086,10 @@ fn reference_result_call_plan() -> abstract_operations::AbstractOperationPlan {
                             path: Vec::new(),
                             access: StructuralAccess::Owned,
                         }],
+                        dynamic_arguments: Vec::new(),
                         claim_transfers: Vec::new(),
-                        returned_claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
-                        selected_evidence: Vec::new(),
                     },
                     return_structural(1, result_place),
                 ],

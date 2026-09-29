@@ -57,10 +57,8 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishTrivialAffineLocal { .. }
         | O::EstablishZeroedStructural { .. }
         | O::EstablishRecord { .. }
-        | O::CallUnit { .. }
-        | O::CallStructuralScalar { .. }
-        | O::CallDynamic { .. }
         | O::CallStructural { .. }
+        | O::CallDynamic { .. }
         | O::BoundaryCall { .. }
         | O::PortWrite { .. }
         | O::Call { .. }

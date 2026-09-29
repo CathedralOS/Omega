@@ -4,6 +4,7 @@ use super::{
     PsiProvenance,
 };
 use crate::LegalizationError;
+use abstract_operations::AbstractStructuralCallResult;
 use semantic_vocabulary::{OperationId, PlaceId};
 use terminal_psi::StructuralOperationResult;
 
@@ -73,7 +74,7 @@ pub(in crate::legalization) fn source_result(
             }
             | AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Structural { result, .. },
                 ..
             } if result.place == source => Some((*psi_operation, result)),
             AbstractOperation::BoundaryCall {

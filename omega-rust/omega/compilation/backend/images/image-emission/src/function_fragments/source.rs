@@ -3,6 +3,7 @@
 use super::Error;
 use abstract_operations::{
     AbstractAtomicEvent, AbstractFunction, AbstractFunctionResult, AbstractOperation,
+    AbstractStructuralCallResult,
 };
 use machine_code::{FunctionFragmentEmissionPlan, FunctionTargetFrameLayout};
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
@@ -23,14 +24,10 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
         {
             return true;
         }
-        if let AbstractOperation::CallStructuralScalar {
+        if let AbstractOperation::CallStructural {
             structural_arguments,
             dynamic_arguments,
-            ..
-        }
-        | AbstractOperation::CallUnit {
-            structural_arguments,
-            dynamic_arguments,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         } = operation
             && dynamic_arguments.is_empty()
@@ -51,7 +48,10 @@ pub(super) fn requires_graph_storage_replay(operations: &[AbstractOperation]) ->
                 | AbstractOperation::EstablishRecord { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
-                | AbstractOperation::CallStructural { .. }
+                | AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { .. },
+                    ..
+                }
                 | AbstractOperation::ReturnStructural { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
@@ -272,6 +272,10 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::BooleanStructuralField { .. } => {
                     structural_fields::retained(abstracted, operation, targeted)
                 }
+                // A call that forwards descriptors has no shared-image lane,
+                // whatever its result kind.
+                AbstractOperation::CallStructural { dynamic_arguments, .. }
+                    if !dynamic_arguments.is_empty() => false,
                 AbstractOperation::StructuralCaseMembership { .. }
                 | AbstractOperation::EstablishCase { .. }
                 | AbstractOperation::EstablishRecord { .. }
@@ -283,18 +287,22 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 | AbstractOperation::ReleaseReference { .. }
                 | AbstractOperation::EstablishScalarArray { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
-                | AbstractOperation::CallStructural { .. }
+                | AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { .. },
+                    ..
+                }
                 | AbstractOperation::ReturnStructural { .. } => aggregate_results::operation(operation, targeted, selected),
                 AbstractOperation::EstablishPrimitiveLocal { .. }
                 | AbstractOperation::PrimitiveLocalStore { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. } => {
                     super::structural::primitive_operation_retained(abstracted, selected, operation)
                 }
-                // A call that forwards descriptors has no shared-image lane.
-                AbstractOperation::CallStructuralScalar { dynamic_arguments, .. }
-                | AbstractOperation::CallUnit { dynamic_arguments, .. }
-                    if !dynamic_arguments.is_empty() => false,
-                AbstractOperation::CallStructuralScalar { psi_operation, callee, result, .. } => {
+                AbstractOperation::CallStructural {
+                    psi_operation,
+                    callee,
+                    result: AbstractStructuralCallResult::Scalar(result),
+                    ..
+                } => {
                     let (body, target) = function(source, *callee)?;
                     // Structural-call semantics can retain a scalar-only callee
                     // whose body builds arrays. Parameter ABI, not body shape,
@@ -383,7 +391,12 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                         && !matches!(body.result, AbstractFunctionResult::Unit)
                         && arguments.len() == body.parameters.len()
                 }
-                AbstractOperation::CallUnit { psi_operation, crash_continuations, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
+                AbstractOperation::CallStructural {
+                    psi_operation,
+                    crash_continuations,
+                    result: AbstractStructuralCallResult::Unit,
+                    ..
+                } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)
                     || ieee_float_arithmetic_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))

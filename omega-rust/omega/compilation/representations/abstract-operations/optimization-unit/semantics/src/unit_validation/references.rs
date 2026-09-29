@@ -4,6 +4,7 @@
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::operation_contracts::{constructible, structural_source_contract};
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -486,7 +487,10 @@ fn operation_structural_result(operation: &O) -> Option<&terminal_psi::Structura
         // joins the reference-bearing result contract like every other
         // producer's.
         | O::MoveStructuralField { result, .. }
-        | O::CallStructural { result, .. } => Some(result),
+        | O::CallStructural {
+            result: AbstractStructuralCallResult::Structural { result, .. },
+            ..
+        } => Some(result),
         O::BoundaryCall {
             result: abstract_operations::AbstractBoundaryResult::Structural(result),
             ..
@@ -522,7 +526,11 @@ pub(crate) fn validate_function_references(
             && !is_reference(result.structural_type)
             && (!matches!(
                 node.operation,
-                O::EstablishRecord { .. } | O::CallStructural { .. }
+                O::EstablishRecord { .. }
+                    | O::CallStructural {
+                        result: AbstractStructuralCallResult::Structural { .. },
+                        ..
+                    }
             ) || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
                 || !result.qualifications.is_empty()
                 || !result.projected_qualifications.is_empty()
@@ -533,7 +541,11 @@ pub(crate) fn validate_function_references(
         if is_reference(result.structural_type)
             && !matches!(
                 node.operation,
-                O::EstablishReference { .. } | O::CallStructural { .. }
+                O::EstablishReference { .. }
+                    | O::CallStructural {
+                        result: AbstractStructuralCallResult::Structural { .. },
+                        ..
+                    }
             )
         {
             return Err(invalid());

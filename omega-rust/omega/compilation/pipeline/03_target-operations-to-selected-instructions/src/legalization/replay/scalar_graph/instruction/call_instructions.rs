@@ -4,7 +4,7 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use legalized_operations::{
     LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, NativeCallOrigin,
@@ -25,22 +25,14 @@ pub(super) fn validate_call(
 ) -> Result<(), LegalizationError> {
     let (
         LegalizedScalarInstructionKind::Call(call),
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             callee,
             arguments: scalar_arguments,
             structural_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
-            ..
-        }
-        | AbstractOperation::CallStructuralScalar {
-            callee,
-            arguments: scalar_arguments,
-            structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
             ..
         },
     ) = (&actual.kind, &node.operation)

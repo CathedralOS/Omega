@@ -1,6 +1,7 @@
 use crate::unit_validation::operation_contracts::claim_transfers::proposition_structural_roots;
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -12,12 +13,15 @@ pub(crate) fn plain_scalar_sum_call(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let O::CallStructural {
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                selected_evidence,
+            },
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
-        selected_evidence,
         ..
     } = operation
     else {
@@ -140,14 +144,12 @@ pub(crate) fn exact_payloadless_case_return_exits(
                 matches!(
                     node.operation,
                     O::Call { .. }
-                        | O::CallUnit { .. }
-                        | O::CallStructuralScalar { .. }
+                        | O::CallStructural { .. }
                         | O::CallDynamic {
                             dispatch: abstract_operations::AbstractDynamicDispatch::Rebound(_)
                                 | abstract_operations::AbstractDynamicDispatch::Parameter(_),
                             ..
                         }
-                        | O::CallStructural { .. }
                         | O::BoundaryCall { .. }
                 )
             })
@@ -219,10 +221,14 @@ pub(crate) fn exact_payloadless_structural_call(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let O::CallStructural {
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                ..
+            },
         structural_arguments,
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
         ..
@@ -270,7 +276,11 @@ pub(crate) fn payloadless_selected_evidence_surface_matches(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let O::CallStructural {
-        selected_evidence, ..
+        result:
+            AbstractStructuralCallResult::Structural {
+                selected_evidence, ..
+            },
+        ..
     } = operation
     else {
         return true;

@@ -7,7 +7,7 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::{PsiOptimizationUnit, recompute_psi_optimization_unit_identity};
 use optimization_unit_semantics::OptimizationUnitValidationError;
 
@@ -863,7 +863,8 @@ const CARRIED_BORROWER_SCALAR_CASE_SOURCE: &str = r#"
     }
 "#;
 
-/// The member `CallUnit` lending `picked` and its structural argument access.
+/// The member Unit-result `CallStructural` lending `picked` and its structural
+/// argument access.
 fn member_borrowing_unit_call(
     function: &optimization_unit::PsiOptimizationFunction,
     component: &optimization_unit::OptimizerCycleComponent,
@@ -883,9 +884,10 @@ fn member_borrowing_unit_call(
                 .flat_map(|block| block.nodes.iter())
         })
         .filter_map(|node| match &node.operation {
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 structural_arguments,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } => structural_arguments
                 .iter()
@@ -1067,13 +1069,18 @@ fn writing_or_moving_loans_leave_the_containment_bound() {
             .find(|node| {
                 matches!(
                     &node.operation,
-                    AbstractOperation::CallUnit { psi_operation, .. }
+                    AbstractOperation::CallStructural {
+                        psi_operation,
+                        result: AbstractStructuralCallResult::Unit,
+                        ..
+                    }
                         if *psi_operation == call_operation
                 )
             })
             .expect("the borrowing call exists");
-        let AbstractOperation::CallUnit {
+        let AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } = &mut node.operation
         else {

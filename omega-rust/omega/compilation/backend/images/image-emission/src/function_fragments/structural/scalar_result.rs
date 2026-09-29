@@ -1,5 +1,6 @@
 //! Rejoin the scalar call result to its current source and exact selected definition.
 use crate::function_fragments::{Error, source};
+use abstract_operations::AbstractStructuralCallResult;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 use selected_instructions::SelectedFunction;
 
@@ -26,9 +27,9 @@ pub(super) fn result(
         .operations
         .iter()
         .filter_map(|operation| match operation {
-            abstract_operations::AbstractOperation::CallStructuralScalar {
+            abstract_operations::AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee,
                 dynamic_arguments,
                 ..

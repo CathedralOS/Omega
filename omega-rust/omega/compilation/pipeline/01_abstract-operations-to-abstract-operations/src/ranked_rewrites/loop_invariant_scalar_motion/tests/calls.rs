@@ -9,7 +9,7 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::{
     ProvenanceDisposition, PsiRealizationSite, recompute_psi_optimization_unit_identity,
 };
@@ -350,7 +350,7 @@ fn carried_argument_call_moved_by_hand_is_rejected_by_the_freeze_fence() {
     ));
 }
 
-/// The `CallUnit` inside a member block and its block — the
+/// The Unit-result `CallStructural` inside a member block and its block — the
 /// structural-signature counterpart of [`member_call`].
 fn member_unit_call<'function>(
     function: &'function optimization_unit::PsiOptimizationFunction,
@@ -366,7 +366,11 @@ fn member_unit_call<'function>(
             .find(|block| block.id == *member)
             .expect("member block exists");
         for node in &block.nodes {
-            if let AbstractOperation::CallUnit { .. } = &node.operation {
+            if let AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Unit,
+                ..
+            } = &node.operation
+            {
                 return (block, node);
             }
         }
@@ -528,7 +532,7 @@ const WRITE_ONLY_BORROW_STRUCTURAL_CALL_SOURCE: &str = r#"
     }
 "#;
 
-/// A `CallUnit` counterpart of the mutable-borrow shape: the unit-result
+/// A `CallStructural` counterpart of the mutable-borrow shape: the unit-result
 /// call mutates the member-produced cell through `&mut`, and producer and
 /// borrower relocate together.
 const MUTABLE_BORROW_UNIT_CALL_SOURCE: &str = r#"
@@ -698,8 +702,9 @@ fn write_only_borrow_call_relocates_with_its_primitive_local() {
     let local_operation = operation_of(local);
     let call_operation = operation_of(call);
     match &call.operation {
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Scalar(_),
             ..
         } => assert_eq!(
             structural_arguments[0].access,
@@ -748,8 +753,9 @@ fn write_only_borrow_call_relocates_with_its_primitive_local() {
     let moved_call =
         &destination.nodes[usize::try_from(call_relocation.destination().node).unwrap()];
     match &moved_call.operation {
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Scalar(_),
             ..
         } => assert_eq!(
             structural_arguments[0].access,
@@ -785,8 +791,9 @@ fn mutable_borrow_unit_call_relocates_with_its_primitive_local() {
     let local_operation = operation_of(local);
     let call_operation = operation_of(call);
     match &call.operation {
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => assert_eq!(
             structural_arguments[0].access,
@@ -840,8 +847,9 @@ fn mutable_borrow_unit_call_relocates_with_its_primitive_local() {
     assert!(
         matches!(
             &moved_call.operation,
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 structural_arguments,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } if structural_arguments[0].access
                 == terminal_psi::StructuralAccess::MutableBorrow
@@ -1043,9 +1051,10 @@ fn forged_structural_scalar_call_argument_root_is_rejected_by_the_freeze_fence()
     let mut call_roots = calls
         .iter()
         .map(|(_, node)| match &node.operation {
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 structural_arguments,
+                result: AbstractStructuralCallResult::Scalar(_),
                 ..
             } => (*psi_operation, structural_arguments[0].place),
             operation => panic!("member node is a structural scalar call: {operation:?}"),
@@ -1075,8 +1084,9 @@ fn forged_structural_scalar_call_argument_root_is_rejected_by_the_freeze_fence()
     // run preserves its producer's declared place identity — so the
     // seed-derived operation comparison rejects the moved node.
     let forged = find_operation_mut(&mut unit, *forged_operation);
-    if let AbstractOperation::CallStructuralScalar {
+    if let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Scalar(_),
         ..
     } = &mut forged.operation
     {
@@ -1095,12 +1105,12 @@ fn forged_structural_scalar_call_argument_root_is_rejected_by_the_freeze_fence()
     ));
 }
 
-/// A `CallStructuralScalar` spelling an `Owned` whole-root argument over the
-/// machine's own unrestricted record parameter: `first(row)` inside `scan`
-/// copies the parameter's payload into the callee — an observation, not
-/// custody movement — and `row`'s member spelling resolves transitively to
-/// the machine parameter's preheader-visible root, so the relocated call
-/// rebinds its argument to that root. The member-produced counterpart is
+/// A scalar-result `CallStructural` spelling an `Owned` whole-root argument
+/// over the machine's own unrestricted record parameter: `first(row)` inside
+/// `scan` copies the parameter's payload into the callee — an observation, not
+/// custody movement — and `row`'s member spelling resolves transitively to the
+/// machine parameter's preheader-visible root, so the relocated call rebinds
+/// its argument to that root. The member-produced counterpart is
 /// [`MEMBER_SCALAR_ARRAY_SOURCE`]'s relocated consumer.
 const OWNED_PARAMETER_SCALAR_CALL_SOURCE: &str = r#"
     data Pair [copy] { a: u64; b: u64; }
@@ -1179,9 +1189,9 @@ fn invariant_owned_parameter_scalar_call_relocates_rebinding_its_root() {
                 .flat_map(|block| block.nodes.iter())
         })
         .find_map(|node| match &node.operation {
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 structural_arguments,
                 ..
             } => {
@@ -1252,8 +1262,9 @@ fn invariant_owned_parameter_scalar_call_relocates_rebinding_its_root() {
         .find(|block| block.id == relocation.destination().block)
         .expect("destination block exists");
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
-    let AbstractOperation::CallStructuralScalar {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Scalar(_),
         ..
     } = &moved.operation
     else {
@@ -1282,7 +1293,10 @@ fn invariant_owned_parameter_scalar_call_relocates_rebinding_its_root() {
             .flat_map(|block| &block.nodes)
             .all(|node| !matches!(
                 node.operation,
-                AbstractOperation::CallStructuralScalar { .. }
+                AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Scalar(_),
+                    ..
+                }
             )),
         "the member roster keeps no copy of the relocated call"
     );
@@ -1325,9 +1339,11 @@ fn owned_argument_call_moved_without_its_producer_is_rejected_by_the_freeze_fenc
                 .flat_map(|block| block.nodes.iter().map(move |node| (block.id, node)))
         })
         .find_map(|(block, node)| match &node.operation {
-            AbstractOperation::CallStructuralScalar { psi_operation, .. } => {
-                Some((block, *psi_operation))
-            }
+            AbstractOperation::CallStructural {
+                psi_operation,
+                result: AbstractStructuralCallResult::Scalar(_),
+                ..
+            } => Some((block, *psi_operation)),
             _ => None,
         })
         .expect("the member block holds the owned-argument scalar call");
@@ -1391,8 +1407,8 @@ const MUTATED_MEMBER_STRUCTURAL_CALL_SOURCE: &str = r#"
     }
 "#;
 
-/// Every `CallStructural` node inside `component`'s member blocks — the
-/// call counterpart of [`member_scalar_case_establishments`].
+/// Every structural-result `CallStructural` node inside `component`'s member
+/// blocks — the call counterpart of [`member_scalar_case_establishments`].
 fn member_structural_calls<'function>(
     function: &'function optimization_unit::PsiOptimizationFunction,
     component: &optimization_unit::OptimizerCycleComponent,
@@ -1408,7 +1424,11 @@ fn member_structural_calls<'function>(
             .find(|block| block.id == *member)
             .expect("member block exists");
         for node in &block.nodes {
-            if let AbstractOperation::CallStructural { .. } = &node.operation {
+            if let AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { .. },
+                ..
+            } = &node.operation
+            {
                 calls.push((block, node));
             }
         }
@@ -1455,12 +1475,12 @@ fn member_mutation_keeps_borrow_structural_call_inside() {
     );
 }
 
-/// A `CallStructural` whose unrestricted claim-free record result is a copy
-/// payload: `pick(s)` inside `step` returns the unrestricted `picked` that
-/// `v` reads once in the same member. The cyclic eligibility fence admits
-/// the producer in its plain-source form — the copy payload never enters
-/// `owned_places`, so no disposal roster exists — so the relocation needs
-/// neither the scalar-case containment bound nor the member-edge custody
+/// A structural-result `CallStructural` whose unrestricted claim-free record
+/// result is a copy payload: `pick(s)` inside `step` returns the unrestricted
+/// `picked` that `v` reads once in the same member. The cyclic eligibility
+/// fence admits the producer in its plain-source form — the copy payload never
+/// enters `owned_places`, so no disposal roster exists — so the relocation
+/// needs neither the scalar-case containment bound nor the member-edge custody
 /// rewrite: it rebinds `s` to `scale`'s anchor and leaves the persistent
 /// result's declared place for the member read to keep spelling byte-exact.
 const UNRESTRICTED_STRUCTURAL_CALL_SOURCE: &str = r#"
@@ -1526,7 +1546,11 @@ fn forged_unrestricted_result_multiplicity_is_rejected_by_the_freeze_fence() {
     // retains every source-owned field, so the drifted spelling rejects
     // byte-exact.
     let forged = find_operation_mut(&mut unit, call_operation);
-    if let AbstractOperation::CallStructural { result, .. } = &mut forged.operation {
+    if let AbstractOperation::CallStructural {
+        result: AbstractStructuralCallResult::Structural { result, .. },
+        ..
+    } = &mut forged.operation
+    {
         result.multiplicity = terminal_psi::StructuralMultiplicity::Linear;
     }
     unit.identity = recompute_psi_optimization_unit_identity(&unit);
@@ -2031,15 +2055,15 @@ fn drifted_crash_roster_stays_inside() {
     );
 }
 
-/// A `CallUnit` carrying crash-route custody: `sink(b, s)` inside `step`
-/// borrows `b` — the member structural parameter every reaching edge
-/// resolves to the machine's `buf` root — and reads `s`, the member scalar
+/// A Unit-result `CallStructural` carrying crash-route custody: `sink(b, s)`
+/// inside `step` borrows `b` — the member structural parameter every reaching
+/// edge resolves to the machine's `buf` root — and reads `s`, the member scalar
 /// parameter resolving to `scale`'s preheader anchor, while `sink`'s
 /// verifier-owned contract publishes a conditional `Abort` route over its
-/// scalar formal alone. The relocated call rebinds the borrowed root,
-/// rebinds `s` to the anchor, and re-derives its `crash_continuations` from
-/// the callee's published routes at the substituted arguments rather than
-/// carrying the member-spelled roster byte-exact.
+/// scalar formal alone. The relocated call rebinds the borrowed root, rebinds
+/// `s` to the anchor, and re-derives its `crash_continuations` from the
+/// callee's published routes at the substituted arguments rather than carrying
+/// the member-spelled roster byte-exact.
 const CRASH_CONTINUATION_UNIT_CALL_SOURCE: &str = r#"
     data Root {}
     machine sink(v: &[u8], bound: u32) crashes Abort bound == 0 {}
@@ -2058,18 +2082,18 @@ const CRASH_CONTINUATION_UNIT_CALL_SOURCE: &str = r#"
     }
 "#;
 
-/// A `CallStructuralScalar` carrying crash-route custody: `measure(&scratch,
-/// scale)` inside the cyclic member borrows the member-produced primitive
-/// local `scratch` — whose `7` initializer relocates ahead of it in the same
-/// run — and reads `scale`, the member scalar parameter resolving to its
-/// preheader anchor, while `measure`'s verifier-owned contract publishes a
-/// conditional `Abort` route over its scalar formal alone. The relocated
-/// call keeps the borrowed place byte-exact behind its moved producer,
-/// rebinds `scale` to the anchor, re-derives its `crash_continuations` at
-/// the substituted actual, and preserves its scalar result so `combined`
-/// relocates behind it. The cyclic machine keeps the tail shape — named
-/// `state` bodies cannot establish primitive storage — while carrying its
-/// own `crashes Abort` roster.
+/// A scalar-result `CallStructural` carrying crash-route custody:
+/// `measure(&scratch, scale)` inside the cyclic member borrows the
+/// member-produced primitive local `scratch` — whose `7` initializer relocates
+/// ahead of it in the same run — and reads `scale`, the member scalar parameter
+/// resolving to its preheader anchor, while `measure`'s verifier-owned contract
+/// publishes a conditional `Abort` route over its scalar formal alone. The
+/// relocated call keeps the borrowed place byte-exact behind its moved
+/// producer, rebinds `scale` to the anchor, re-derives its
+/// `crash_continuations` at the substituted actual, and preserves its scalar
+/// result so `combined` relocates behind it. The cyclic machine keeps the tail
+/// shape — named `state` bodies cannot establish primitive storage — while
+/// carrying its own `crashes Abort` roster.
 const CRASH_CONTINUATION_STRUCTURAL_SCALAR_CALL_SOURCE: &str = r#"
     machine measure(value: &u64, bias: u64) -> u64 crashes Abort bias == 0 { bias }
 
@@ -2087,16 +2111,16 @@ const CRASH_CONTINUATION_STRUCTURAL_SCALAR_CALL_SOURCE: &str = r#"
     }
 "#;
 
-/// A `CallStructural` carrying crash-route custody: `pick(b, s)` inside
-/// `step` borrows `b` — resolving to `buf` — and reads `s` — resolving to
-/// `scale`'s anchor — while `pick`'s verifier-owned contract publishes an
-/// unconditional `Abort` route. The roster reads no formal at all, so its
-/// substituted spelling coincides with the contract's own — the only roster
-/// shape the optimization-unit contract replay admits on a
-/// structural-result call — and the relocated call still re-derives it
-/// through the crash lane rather than carrying the member-spelled payload
-/// byte-exact, keeping the affine result's dispatch custody under the same
-/// member-edge rewrite the plain structural call performs.
+/// A structural-result `CallStructural` carrying crash-route custody: `pick(b,
+/// s)` inside `step` borrows `b` — resolving to `buf` — and reads `s` —
+/// resolving to `scale`'s anchor — while `pick`'s verifier-owned contract
+/// publishes an unconditional `Abort` route. The roster reads no formal at all,
+/// so its substituted spelling coincides with the contract's own — the only
+/// roster shape the optimization-unit contract replay admits on a
+/// structural-result call — and the relocated call still re-derives it through
+/// the crash lane rather than carrying the member-spelled payload byte-exact,
+/// keeping the affine result's dispatch custody under the same member-edge
+/// rewrite the plain structural call performs.
 const CRASH_CONTINUATION_STRUCTURAL_CALL_SOURCE: &str = r#"
     data Root {}
     data Step { case More(rest: u64); case Halt(tag: u64); }
@@ -2146,13 +2170,13 @@ const CARRIED_CRASH_UNIT_CALL_SOURCE: &str = r#"
     }
 "#;
 
-/// A `CallUnit` whose callee publishes a crash predicate over its owned
-/// record parameter's field — `bound == packet.capacity` — so the roster
-/// carries a rooted structural term the optimizer-side reconstruction cannot
-/// replay: the scalar-only gate refuses, and the call stays inside even
-/// though callee purity, member observability, and every argument landing
-/// hold. `packet` is `[copy]`, so the `Owned` argument the member spells is
-/// the block parameter the `owned_argument` eligibility arm admits.
+/// A Unit-result `CallStructural` whose callee publishes a crash predicate over
+/// its owned record parameter's field — `bound == packet.capacity` — so the
+/// roster carries a rooted structural term the optimizer-side reconstruction
+/// cannot replay: the scalar-only gate refuses, and the call stays inside even
+/// though callee purity, member observability, and every argument landing hold.
+/// `packet` is `[copy]`, so the `Owned` argument the member spells is the block
+/// parameter the `owned_argument` eligibility arm admits.
 const STRUCTURAL_PREDICATE_CRASH_UNIT_CALL_SOURCE: &str = r#"
     data Root {}
     data Packet [copy] { capacity: u64; }
@@ -2221,12 +2245,13 @@ fn crash_continuation_unit_call_relocates_rederiving_its_roster() {
     let member = call_block.id;
     let (call_operation, argument, callee, argument_place, seed_continuations) =
         match &call.operation {
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 psi_operation,
                 callee,
                 arguments,
                 structural_arguments,
                 crash_continuations,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } => {
                 assert!(
@@ -2339,11 +2364,12 @@ fn crash_continuation_unit_call_relocates_rederiving_its_roster() {
         .expect("destination block exists");
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
     let moved_continuations = match &moved.operation {
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             callee: moved_callee,
             arguments,
             structural_arguments,
             crash_continuations,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => {
             assert_eq!(arguments.as_slice(), &[anchor]);
@@ -2391,10 +2417,13 @@ fn crash_continuation_unit_call_relocates_rederiving_its_roster() {
         .find(|block| block.id == member)
         .expect("member block exists");
     assert!(
-        member_block
-            .nodes
-            .iter()
-            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+        member_block.nodes.iter().all(|node| !matches!(
+            node.operation,
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Unit,
+                ..
+            }
+        )),
         "the unit call exists once, at the destination"
     );
     assert!(
@@ -2437,9 +2466,9 @@ fn crash_continuation_structural_scalar_call_relocates_rederiving_its_roster() {
     let member = call_block.id;
     let (call_operation, argument, callee, borrowed_place, result, seed_continuations) =
         match &call.operation {
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Scalar(result),
                 callee,
                 arguments,
                 structural_arguments,
@@ -2601,11 +2630,12 @@ fn crash_continuation_structural_scalar_call_relocates_rederiving_its_roster() {
         .expect("destination block exists");
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
     let moved_continuations = match &moved.operation {
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             callee: moved_callee,
             arguments,
             structural_arguments,
             crash_continuations,
+            result: AbstractStructuralCallResult::Scalar(_),
             ..
         } => {
             assert_eq!(arguments.as_slice(), &[anchor]);
@@ -2655,7 +2685,10 @@ fn crash_continuation_structural_scalar_call_relocates_rederiving_its_roster() {
     assert!(
         member_block.nodes.iter().all(|node| !matches!(
             node.operation,
-            AbstractOperation::CallStructuralScalar { .. }
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Scalar(_),
+                ..
+            }
         )),
         "the structural-scalar call exists once, at the destination"
     );
@@ -2696,7 +2729,7 @@ fn crash_continuation_structural_call_relocates_rederiving_its_roster() {
         match &call.operation {
             AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Structural { result, .. },
                 callee,
                 arguments,
                 structural_arguments,
@@ -2813,7 +2846,7 @@ fn crash_continuation_structural_call_relocates_rederiving_its_roster() {
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
     let moved_continuations = match &moved.operation {
         AbstractOperation::CallStructural {
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             callee: moved_callee,
             arguments,
             structural_arguments,
@@ -2919,9 +2952,10 @@ fn carried_argument_crash_unit_call_stays_inside() {
         .expect("component machine exists");
     let (_, call) = member_unit_call(function, component);
     let (call_operation, argument) = match &call.operation {
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation,
             arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => (*psi_operation, arguments[0]),
         operation => panic!("the member node is a unit call: {operation:?}"),
@@ -2977,8 +3011,9 @@ fn drifted_structural_crash_roster_stays_inside() {
     // the crash-custody lane refuses — the moved node never inherits a
     // roster the contract did not produce.
     let mut drifted = call.clone();
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         crash_continuations,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut drifted.operation
     else {
@@ -3028,8 +3063,9 @@ fn structural_predicate_crash_roster_stays_inside() {
     // The seed roster spells a rooted structural term — the callee's
     // `packet.capacity` field — so the scalar-only gate refuses even though
     // every other admission half is intact.
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         crash_continuations,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &call.operation
     else {
@@ -3119,15 +3155,14 @@ fn bypassed_crash_unit_call_is_speculation_and_stays_inside() {
     );
 }
 
-/// A `CallStructural` carrying a discharged requirement obligation:
-/// `pick(s)` inside `step` invokes a callee whose contract requires
-/// `seed <= 5`, so the member call spells one `requirement_obligations`
-/// row the checker discharged against `s`. `s` is carried through the
-/// member as a parameter bound to `scale` on every edge, so the
-/// substitution rebinds it to that representative while the unrestricted
-/// `picked` copy-payload result and the obligation roster itself stay
-/// byte-exact inside the moved operation — the same obligation treatment
-/// every other call variant already receives.
+/// A structural-result `CallStructural` carrying a discharged requirement
+/// obligation: `pick(s)` inside `step` invokes a callee whose contract requires
+/// `seed <= 5`, so the member call spells one `requirement_obligations` row the
+/// checker discharged against `s`. `s` is carried through the member as a
+/// parameter bound to `scale` on every edge, so the substitution rebinds it to
+/// that representative while the unrestricted `picked` copy-payload result and
+/// the obligation roster itself stay byte-exact inside the moved operation —
+/// the same obligation treatment every other call variant already receives.
 const OBLIGATED_STRUCTURAL_CALL_SOURCE: &str = r#"
     data Root {}
     data Pair [copy] { a: u64; b: u64; }
@@ -3208,7 +3243,7 @@ fn obligated_structural_call_relocates_carrying_its_discharged_obligation() {
     let (call_operation, picked, argument, obligations) = match &call.operation {
         AbstractOperation::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             arguments,
             requirement_obligations,
             structural_arguments,
@@ -3295,7 +3330,7 @@ fn obligated_structural_call_relocates_carrying_its_discharged_obligation() {
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
     match &moved.operation {
         AbstractOperation::CallStructural {
-            result,
+            result: AbstractStructuralCallResult::Structural { result, .. },
             arguments,
             requirement_obligations,
             ..
@@ -3360,6 +3395,7 @@ fn forged_obligation_roster_is_rejected_by_the_freeze_fence() {
     let forged = find_operation_mut(&mut unit, call_operation);
     if let AbstractOperation::CallStructural {
         requirement_obligations,
+        result: AbstractStructuralCallResult::Structural { .. },
         ..
     } = &mut forged.operation
     {
@@ -3402,6 +3438,7 @@ fn carried_argument_obligated_structural_call_stays_inside() {
             psi_operation,
             arguments,
             requirement_obligations,
+            result: AbstractStructuralCallResult::Structural { .. },
             ..
         } => {
             assert_eq!(
@@ -3442,14 +3479,13 @@ fn carried_argument_obligated_structural_call_stays_inside() {
     );
 }
 
-/// A `CallUnit` whose whole-root `Owned` argument resolves to a
-/// member-produced unrestricted record result: `pair` is established inside
-/// `step` over the invariant `s` and lands on `check`'s `Owned` parameter
-/// `q`, which `consume` reads. The establishment is custody-free — a fresh
+/// A Unit-result `CallStructural` whose whole-root `Owned` argument resolves to
+/// a member-produced unrestricted record result: `pair` is established inside
+/// `step` over the invariant `s` and lands on `check`'s `Owned` parameter `q`,
+/// which `consume` reads. The establishment is custody-free — a fresh
 /// unrestricted root — so it relocates into the preheader, and the call
 /// relocates behind it once `q`'s parameter-to-root resolution lands on a
-/// copyable produced root rather than refusing at the produced-root
-/// whitelist.
+/// copyable produced root rather than refusing at the produced-root whitelist.
 const MEMBER_PRODUCED_RECORD_ARGUMENT_CALL_SOURCE: &str = r#"
     data Root {}
     data Pair [copy] { a: u32 in Wrapping; b: u32 in Wrapping; }
@@ -3496,9 +3532,10 @@ fn member_produced_record_owned_argument_relocates() {
         .expect("component machine exists");
     let (_, call) = member_unit_call(function, component);
     let (call_operation, q) = match &call.operation {
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation,
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => {
             let [argument] = structural_arguments.as_slice() else {
@@ -3586,8 +3623,9 @@ fn member_produced_record_owned_argument_relocates() {
         .find(|block| block.id == relocation.destination().block)
         .expect("destination block exists");
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &moved.operation
     else {
@@ -3614,7 +3652,13 @@ fn member_produced_record_owned_argument_relocates() {
             .flat_map(|function| &function.blocks)
             .filter(|block| member_targets.contains(&block.id))
             .flat_map(|block| &block.nodes)
-            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+            .all(|node| !matches!(
+                node.operation,
+                AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Unit,
+                    ..
+                }
+            )),
         "the member roster keeps no copy of the relocated call"
     );
     assert!(
@@ -3624,9 +3668,9 @@ fn member_produced_record_owned_argument_relocates() {
     );
 }
 
-/// The `CallStructural` counterpart: `made` is `pick`'s member-produced
-/// unrestricted structural result bound onto `check`'s `Owned` parameter —
-/// the produced-root whitelist covers a relocated structural call's
+/// The structural-result `CallStructural` counterpart: `made` is `pick`'s
+/// member-produced unrestricted structural result bound onto `check`'s `Owned`
+/// parameter — the produced-root whitelist covers a relocated structural call's
 /// persistent result exactly like the establishments.
 const MEMBER_PRODUCED_CALL_RESULT_ARGUMENT_CALL_SOURCE: &str = r#"
     data Root {}
@@ -3672,9 +3716,10 @@ fn member_produced_call_result_owned_argument_relocates() {
         .expect("component machine exists");
     let (_, call) = member_unit_call(function, component);
     let (call_operation, q) = match &call.operation {
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation,
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => {
             let [argument] = structural_arguments.as_slice() else {
@@ -3691,7 +3736,10 @@ fn member_produced_call_result_owned_argument_relocates() {
     };
     let producer_operation = operation_of(producer);
     let representative = match &producer.operation {
-        AbstractOperation::CallStructural { result, .. } => {
+        AbstractOperation::CallStructural {
+            result: AbstractStructuralCallResult::Structural { result, .. },
+            ..
+        } => {
             assert_eq!(
                 result.multiplicity,
                 terminal_psi::StructuralMultiplicity::Unrestricted
@@ -3749,8 +3797,9 @@ fn member_produced_call_result_owned_argument_relocates() {
         .find(|block| block.id == relocation.destination().block)
         .expect("destination block exists");
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &moved.operation
     else {
@@ -3769,7 +3818,13 @@ fn member_produced_call_result_owned_argument_relocates() {
             .flat_map(|function| &function.blocks)
             .filter(|block| member_targets.contains(&block.id))
             .flat_map(|block| &block.nodes)
-            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+            .all(|node| !matches!(
+                node.operation,
+                AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Unit,
+                    ..
+                }
+            )),
         "the member roster keeps no copy of the relocated call"
     );
     assert!(
@@ -3919,9 +3974,10 @@ fn dropped_owned_argument_rebind_is_rejected_by_the_freeze_fence() {
         .expect("component machine exists");
     let (_, call) = member_unit_call(function, component);
     let (call_operation, q) = match &call.operation {
-        AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             psi_operation,
             structural_arguments,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => {
             let [argument] = structural_arguments.as_slice() else {
@@ -3950,8 +4006,9 @@ fn dropped_owned_argument_rebind_is_rejected_by_the_freeze_fence() {
     // planned `q` → record-root rebind: the replayed admission derives that
     // exact rewrite, so the drifted spelling refuses byte-exact.
     let forged = find_operation_mut(&mut unit, call_operation);
-    if let AbstractOperation::CallUnit {
+    if let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut forged.operation
     {
@@ -3970,7 +4027,7 @@ fn dropped_owned_argument_rebind_is_rejected_by_the_freeze_fence() {
     ));
 }
 
-/// The `CallStructuralScalar` counterpart of the member-produced record
+/// The scalar-result `CallStructural` counterpart of the member-produced record
 /// shape: `first(q)` copies `check`'s `Owned` parameter — bound to `pair`'s
 /// member-produced record root — into the scalar-result callee.
 const MEMBER_PRODUCED_RECORD_SCALAR_CALL_SOURCE: &str = r#"
@@ -4015,9 +4072,10 @@ fn member_produced_record_owned_argument_scalar_call_relocates() {
         .expect("component machine exists");
     let (_, call) = member_structural_scalar_call(function, component);
     let (call_operation, q) = match &call.operation {
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             psi_operation,
             structural_arguments,
+            result: AbstractStructuralCallResult::Scalar(_),
             ..
         } => {
             let [argument] = structural_arguments.as_slice() else {
@@ -4068,8 +4126,9 @@ fn member_produced_record_owned_argument_scalar_call_relocates() {
         .find(|block| block.id == relocation.destination().block)
         .expect("destination block exists");
     let moved = &destination.nodes[usize::try_from(relocation.destination().node).unwrap()];
-    let AbstractOperation::CallStructuralScalar {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Scalar(_),
         ..
     } = &moved.operation
     else {

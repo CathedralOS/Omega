@@ -669,7 +669,7 @@ mod tests {
         AtomicModificationAfterViolation, AtomicReadsFrom, AtomicReadsFromViolation,
         happens_before_atomic_coherence_violation,
     };
-    use crate::{AbstractOperation, AbstractResult};
+    use crate::{AbstractOperation, AbstractResult, AbstractStructuralCallResult};
     use language_core::atomic::{
         AtomicCompareExchangeOnceResultCustody, AtomicOrderingPlan, MemoryOrdering as O,
     };
@@ -1145,7 +1145,7 @@ mod tests {
     #[test]
     fn a_witness_cannot_name_a_non_atomic_operation() {
         let location = place(1);
-        let call = AbstractOperation::CallUnit {
+        let call = AbstractOperation::CallStructural {
             psi_operation: operation(10),
             callee: MachineId::new(20).expect("test machine identities are nonzero"),
             arguments: Vec::new(),
@@ -1154,6 +1154,7 @@ mod tests {
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         };
         let observed = atomic(
             12,

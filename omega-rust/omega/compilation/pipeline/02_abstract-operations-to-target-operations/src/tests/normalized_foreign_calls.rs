@@ -10,7 +10,9 @@ use super::{
     StructuralTypeShape, ValueId, identity,
 };
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
-use abstract_operations::{AbstractBoundaryResult, AbstractFunctionResult, AbstractResult};
+use abstract_operations::{
+    AbstractBoundaryResult, AbstractFunctionResult, AbstractResult, AbstractStructuralCallResult,
+};
 use calling_conventions::ValueShape;
 use target_operations::{
     BoundarySettlementRealization, NormalizedForeignCallBinding, TargetOperationPlan,
@@ -1747,23 +1749,26 @@ fn home_fixture() -> (AbstractOperationPlan, Execution) {
         0,
         AbstractOperation::CallStructural {
             psi_operation: OperationId::new(6).unwrap(),
-            result: terminal_psi::StructuralOperationResult {
-                place: produced,
-                structural_type: pair_type,
-                multiplicity: StructuralMultiplicity::Affine,
-                qualifications: Vec::new(),
-                projected_qualifications: Vec::new(),
-                qualification_establishments: Vec::new(),
-                claims: Vec::new(),
+            result: AbstractStructuralCallResult::Structural {
+                result: terminal_psi::StructuralOperationResult {
+                    place: produced,
+                    structural_type: pair_type,
+                    multiplicity: StructuralMultiplicity::Affine,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    qualification_establishments: Vec::new(),
+                    claims: Vec::new(),
+                },
+                returned_claim_transfers: Vec::new(),
+                selected_evidence: Vec::new(),
             },
             callee: MachineId::new(902).unwrap(),
             arguments: Vec::new(),
             structural_arguments: Vec::new(),
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
-            returned_claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
-            selected_evidence: Vec::new(),
         },
     );
     source.functions[0].operations.insert(

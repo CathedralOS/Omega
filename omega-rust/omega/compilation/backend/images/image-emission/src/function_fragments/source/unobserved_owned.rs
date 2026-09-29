@@ -1,5 +1,5 @@
 //! Admission over already replayed current source; this never proves an erasure.
-use abstract_operations::{AbstractFunction, AbstractOperation};
+use abstract_operations::{AbstractFunction, AbstractOperation, AbstractStructuralCallResult};
 use selected_instructions::{SelectedFunction, SelectedStructuralTransport, SelectedTerminator};
 use target_operations::TargetFunction;
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, TerminalAffineCleanupAction};
@@ -109,14 +109,14 @@ pub(in crate::function_fragments) fn arrivals(
         }
         // Mirrors target lowering: a call that forwards descriptors needs
         // its own realization.
-        AbstractOperation::CallStructuralScalar {
-            dynamic_arguments, ..
-        }
-        | AbstractOperation::CallUnit {
+        AbstractOperation::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => false,
-        AbstractOperation::CallStructuralScalar { psi_operation, .. }
-        | AbstractOperation::CallUnit { psi_operation, .. } => {
+        AbstractOperation::CallStructural {
+            psi_operation,
+            result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
+            ..
+        } => {
             selected
                 .calls
                 .iter()

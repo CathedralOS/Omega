@@ -790,10 +790,10 @@ pub(super) fn relocate_record_leaves(
     }
 }
 
-/// Establish the declared result reference roster of a `CallStructural` whose
-/// result carries reference custody, resolved against the already-committed
-/// `moved` argument leaves. Returns the ordered resolved leaf roster retained
-/// on the target row.
+/// Establish the declared result reference roster of a structural-result
+/// `CallStructural` whose result carries reference custody, resolved against
+/// the already-committed `moved` argument leaves. Returns the ordered resolved
+/// leaf roster retained on the target row.
 pub(super) fn call_results(
     function: &AbstractFunction,
     callee_function: &AbstractFunction,

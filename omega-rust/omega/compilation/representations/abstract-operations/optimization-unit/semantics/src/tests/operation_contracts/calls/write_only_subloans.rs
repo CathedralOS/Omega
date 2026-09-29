@@ -3,7 +3,7 @@
 use crate::tests::fixtures::scalar_units::structural_call_unit;
 use crate::tests::support::{id, refresh_node_derivatives};
 use crate::{OptimizationUnitValidationError, validate_psi_optimization_unit};
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{
     IntegerSign, IntegerType, ScalarType, StructuralFieldId, StructuralTypeId,
@@ -19,8 +19,9 @@ fn field() -> StructuralPathSegment {
 }
 
 fn arguments(unit: &mut PsiOptimizationUnit) -> &mut Vec<StructuralArgument> {
-    let AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         structural_arguments,
+        result: AbstractStructuralCallResult::Unit,
         ..
     } = &mut unit.functions[0].blocks[0].nodes[0].operation
     else {

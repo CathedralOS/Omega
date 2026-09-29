@@ -6,7 +6,7 @@
 use super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use legalized_operations::{
     LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarInstruction,
     LegalizedScalarInstructionKind, LegalizedValueDefinition, NativeCallOrigin,
@@ -395,7 +395,10 @@ pub(super) fn validate(
         ) if source == expected => {}
         (
             _,
-            AbstractOperation::CallStructural { .. }
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { .. },
+                ..
+            }
             | AbstractOperation::EstablishRecord { .. }
             | AbstractOperation::EstablishScalarArray { .. }
             | AbstractOperation::EstablishCase { .. }
@@ -666,7 +669,10 @@ pub(super) fn validate(
         ) if source == expected => {}
         (
             LegalizedScalarInstructionKind::Call(_),
-            AbstractOperation::CallUnit { .. } | AbstractOperation::CallStructuralScalar { .. },
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
+                ..
+            },
         ) => call_instructions::validate_call(
             actual,
             node,

@@ -2,6 +2,7 @@
 //! Shape reconstruction uses the Terminal type contract, including empty inner
 //! dimensions; current value availability and ownership are checked separately.
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{StructuralPlaceKind, StructuralTypeId};
 use std::collections::BTreeMap;
@@ -58,12 +59,15 @@ pub(crate) fn plain_scalar_array_call(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let O::CallStructural {
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                selected_evidence,
+            },
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
-        selected_evidence,
         ..
     } = operation
     else {

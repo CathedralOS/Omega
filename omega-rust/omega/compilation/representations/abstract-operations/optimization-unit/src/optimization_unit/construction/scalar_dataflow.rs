@@ -1,4 +1,5 @@
 use super::super::{AbstractOperation, ScalarType, ValueId};
+use abstract_operations::AbstractStructuralCallResult;
 
 pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarType)> {
     use AbstractOperation as O;
@@ -19,7 +20,10 @@ pub(super) fn operation_definition(operation: &AbstractOperation) -> Option<(Val
         O::NearestIeeeFloatFusedMultiplyAdd { result, format, .. } => {
             Some((*result, ScalarType::IeeeFloat(*format)))
         }
-        O::CallStructuralScalar { result, .. }
+        O::CallStructural {
+            result: AbstractStructuralCallResult::Scalar(result),
+            ..
+        }
         | O::CallDynamic {
             result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
             ..
@@ -241,8 +245,6 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         } => vec![*start, *end, *length],
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
-        | O::CallStructuralScalar { arguments, .. }
-        | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::EstablishPrimitiveLocal { value, .. }
         | O::PrimitiveLocalStore { value, .. }

@@ -12,6 +12,7 @@ use crate::legalization::scalar_graph_input::value_type;
 use crate::legalization::scalar_graph_input::{
     saturating_carrier, supports_wrapping_division, trapping_form, trapping_operands_rejoin,
 };
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::OptimizationBlock;
 use semantic_vocabulary::OperationId;
 /// Why a node has no legal instruction row. Only the first kind is a custody
@@ -51,8 +52,9 @@ pub(in crate::legalization) fn admit(
         }
         return Ok((*psi_operation, result.map(|result| result.value)));
     }
-    // A Unit call that forwards descriptors has no scalar-graph lane.
-    if let AbstractOperation::CallUnit {
+    // A call that forwards descriptors has no scalar-graph lane, whatever
+    // its result kind.
+    if let AbstractOperation::CallStructural {
         dynamic_arguments, ..
     } = &node.operation
         && !dynamic_arguments.is_empty()
@@ -68,11 +70,14 @@ pub(in crate::legalization) fn admit(
     | AbstractOperation::ReleaseReference { psi_operation, .. }
     | AbstractOperation::EstablishScalarArray { psi_operation, .. }
     | AbstractOperation::EstablishCase { psi_operation, .. }
-    | AbstractOperation::CallStructural { psi_operation, .. }
+    | AbstractOperation::CallStructural {
+        psi_operation,
+        result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Structural { .. },
+        ..
+    }
     | AbstractOperation::EstablishPrimitiveLocal { psi_operation, .. }
     | AbstractOperation::PrimitiveLocalStore { psi_operation, .. }
     | AbstractOperation::EstablishByteSequenceLiteral { psi_operation, .. }
-    | AbstractOperation::CallUnit { psi_operation, .. }
     | AbstractOperation::CallDynamic {
         psi_operation,
         dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
@@ -144,9 +149,9 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             ..
         } => Ok((*psi_operation, *result)),
         // A scalar call that forwards descriptors has no scalar-graph lane.
-        AbstractOperation::CallStructuralScalar {
+        AbstractOperation::CallStructural {
             psi_operation,
-            result,
+            result: AbstractStructuralCallResult::Scalar(result),
             dynamic_arguments,
             claim_transfers,
             ..
@@ -798,7 +803,10 @@ pub(super) fn validate(
                 | AbstractOperation::StoreStructuralField { .. }
                 | AbstractOperation::EstablishTrivialAffineLocal { .. }
                 | AbstractOperation::EstablishZeroedStructural { .. }
-                | AbstractOperation::CallStructural { .. }
+                | AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { .. },
+                    ..
+                }
         ) {
             if result.is_some() || !node.definitions.is_empty() {
                 return Err(LegalizationError::custody());
@@ -808,8 +816,10 @@ pub(super) fn validate(
         // Requirement obligations and crash continuations are discharged
         // proof and correspondence metadata carried on the call, matching the
         // admitted scalar `Call` lane; claim transfers still reject here.
-        if let AbstractOperation::CallUnit {
-            claim_transfers, ..
+        if let AbstractOperation::CallStructural {
+            claim_transfers,
+            result: AbstractStructuralCallResult::Unit,
+            ..
         } = &node.operation
         {
             if result.is_some() || !node.definitions.is_empty() || !claim_transfers.is_empty() {
@@ -894,7 +904,10 @@ pub(super) fn validate(
             }
             AbstractOperation::BooleanConstant { .. }
             | AbstractOperation::BooleanStructuralField { .. } => ScalarType::Boolean,
-            AbstractOperation::CallStructuralScalar { result, .. }
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Scalar(result),
+                ..
+            }
             | AbstractOperation::CallDynamic {
                 dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
                 result: abstract_operations::AbstractDynamicCallResult::Scalar(result),

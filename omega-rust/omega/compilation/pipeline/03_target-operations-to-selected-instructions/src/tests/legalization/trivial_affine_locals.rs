@@ -7,7 +7,7 @@ use crate::{
 };
 use abstract_operations::{
     AbstractBlockEntry, AbstractFunction, AbstractFunctionResult, AbstractOperation,
-    AbstractOperationPlan,
+    AbstractOperationPlan, AbstractStructuralCallResult,
 };
 use abstract_operations_to_target_operations::TargetLoweringRequest;
 use legalized_operations::LegalizedScalarInstructionKind;
@@ -100,7 +100,7 @@ fn source() -> AbstractOperationPlan {
                         place: local(),
                         structural_type: empty(),
                     },
-                    AbstractOperation::CallUnit {
+                    AbstractOperation::CallStructural {
                         psi_operation: OperationId::new(2).unwrap(),
                         callee: MachineId::new(2).unwrap(),
                         arguments: Vec::new(),
@@ -113,6 +113,7 @@ fn source() -> AbstractOperationPlan {
                         claim_transfers: Vec::new(),
                         requirement_obligations: Vec::new(),
                         crash_continuations: Vec::new(),
+                        result: AbstractStructuralCallResult::Unit,
                     },
                     AbstractOperation::ReturnUnit {
                         psi_edge: EdgeId::new(1).unwrap(),

@@ -2,6 +2,7 @@
 use crate::OptimizationUnitValidationError;
 use crate::unit_validation::structural_catalog::structural_root_key;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -314,7 +315,11 @@ pub(crate) fn validate_structural_root_operations(
                                         | O::EstablishCase { psi_operation, result, .. }
                                         | O::StructuralLeafCopy { psi_operation, result, .. }
                                         | O::MoveStructuralField { psi_operation, result, .. }
-                                        | O::CallStructural { psi_operation, result, .. }
+                                        | O::CallStructural {
+                                            psi_operation,
+                                            result: AbstractStructuralCallResult::Structural { result, .. },
+                                            ..
+                                        }
                                         | O::BoundaryCall { psi_operation, result: abstract_operations::AbstractBoundaryResult::Structural(result), .. } => (psi_operation, result),
                                         _ => return false,
                                     };
@@ -687,7 +692,8 @@ pub(crate) fn validate_structural_root_operations(
                                     }
                                     | O::CallStructural {
                                         psi_operation,
-                                        result,
+                                        result:
+                                            AbstractStructuralCallResult::Structural { result, .. },
                                         ..
                                     }
                                     | O::BoundaryCall {
@@ -854,7 +860,10 @@ fn readable_field_type(
                     | O::EstablishCase { result, .. }
                     | O::EstablishReference { result, .. }
                     | O::MoveStructuralField { result, .. }
-                    | O::CallStructural { result, .. }
+                    | O::CallStructural {
+                        result: AbstractStructuralCallResult::Structural { result, .. },
+                        ..
+                    }
                     | O::BoundaryCall {
                         result: abstract_operations::AbstractBoundaryResult::Structural(result),
                         ..
@@ -923,7 +932,10 @@ fn borrowed_window_root(
                             node.operation,
                             O::EstablishRecord { .. }
                                 | O::EstablishZeroedStructural { .. }
-                                | O::CallStructural { .. }
+                                | O::CallStructural {
+                                    result: AbstractStructuralCallResult::Structural { .. },
+                                    ..
+                                }
                                 | O::StructuralLeafCopy { .. }
                         ) && node.operation.psi_operation() == Some(*producer)
                     });

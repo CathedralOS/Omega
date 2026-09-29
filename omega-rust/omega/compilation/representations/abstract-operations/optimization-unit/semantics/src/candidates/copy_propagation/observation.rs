@@ -135,8 +135,6 @@ pub(crate) fn normalize_redundant_parameter_observation_operation(
         | O::StructuralScalarFieldStore { value, .. } => replace(&mut value.value),
         O::Call { arguments, .. }
         | O::CallStructural { arguments, .. }
-        | O::CallStructuralScalar { arguments, .. }
-        | O::CallUnit { arguments, .. }
         | O::BoundaryCall { arguments, .. } => {
             for argument in arguments {
                 replace(argument);

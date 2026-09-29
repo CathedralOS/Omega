@@ -4,7 +4,8 @@ use crate::{
     validate_selected_instructions,
 };
 use abstract_operations::{
-    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractSuccessor,
+    AbstractBlockEntry, AbstractOperation, AbstractParameter, AbstractStructuralCallResult,
+    AbstractSuccessor,
 };
 use semantic_vocabulary::{
     BlockId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -41,7 +42,7 @@ fn successor(identity: u64, target: u64) -> AbstractSuccessor {
     }
 }
 fn call(identity: u64, argument: u64) -> AbstractOperation {
-    AbstractOperation::CallUnit {
+    AbstractOperation::CallStructural {
         psi_operation: OperationId::new(identity).unwrap(),
         callee: MachineId::new(2).unwrap(),
         arguments: vec![value(argument)],
@@ -50,6 +51,7 @@ fn call(identity: u64, argument: u64) -> AbstractOperation {
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
+        result: AbstractStructuralCallResult::Unit,
     }
 }
 fn jump(identity: u64) -> AbstractOperation {

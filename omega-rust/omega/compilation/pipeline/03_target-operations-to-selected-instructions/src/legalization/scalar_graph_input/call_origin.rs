@@ -7,6 +7,7 @@ use super::{
     PsiOptimizationFunction, TargetOperationPlan,
 };
 use crate::LegalizationError;
+use abstract_operations::AbstractStructuralCallResult;
 use target_operations::{NativeCallOrigin, TargetUnitOperation};
 
 /// Return ordinary call mechanics only after checking the retained boundary cut.
@@ -196,9 +197,9 @@ pub(in crate::legalization) fn installed_operation(
             && result.scalar_type == *boundary_scalar
             && candidate_result.scalar_type == *boundary_scalar =>
         {
-            AbstractOperation::CallStructuralScalar {
+            AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
-                result: *result,
+                result: AbstractStructuralCallResult::Scalar(*result),
                 callee,
                 arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
@@ -216,7 +217,7 @@ pub(in crate::legalization) fn installed_operation(
                 result: target_operations::TargetCallResult::Unit,
                 ..
             },
-        ) => AbstractOperation::CallUnit {
+        ) => AbstractOperation::CallStructural {
             psi_operation: *psi_operation,
             callee,
             arguments: arguments.clone(),
@@ -225,6 +226,7 @@ pub(in crate::legalization) fn installed_operation(
             claim_transfers: transfers,
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),
+            result: AbstractStructuralCallResult::Unit,
         },
         (
             abstract_operations::AbstractBoundaryResult::Structural(result),
@@ -261,15 +263,18 @@ pub(in crate::legalization) fn installed_operation(
         {
             AbstractOperation::CallStructural {
                 psi_operation: *psi_operation,
-                result: result.clone(),
+                result: AbstractStructuralCallResult::Structural {
+                    result: result.clone(),
+                    returned_claim_transfers: Vec::new(),
+                    selected_evidence: Vec::new(),
+                },
                 callee,
                 arguments: arguments.clone(),
                 structural_arguments: structural_arguments.clone(),
+                dynamic_arguments: Vec::new(),
                 claim_transfers: transfers,
-                returned_claim_transfers: Vec::new(),
                 requirement_obligations: Vec::new(),
                 crash_continuations: Vec::new(),
-                selected_evidence: Vec::new(),
             }
         }
         _ => return Err(LegalizationError::custody()),

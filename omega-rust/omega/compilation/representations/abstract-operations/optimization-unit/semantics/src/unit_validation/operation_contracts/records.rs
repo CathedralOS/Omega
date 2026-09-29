@@ -10,6 +10,7 @@ use crate::unit_validation::operation_contracts::structural_access::{
 };
 use crate::unit_validation::structural_catalog::resolve_structural_path;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
@@ -27,12 +28,15 @@ pub(crate) fn plain_record_call(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
 ) -> bool {
     let O::CallStructural {
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                selected_evidence,
+            },
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
-        selected_evidence,
         ..
     } = operation
     else {
@@ -239,7 +243,10 @@ fn source_has_claims(function: &PsiOptimizationFunction, place: PlaceId) -> bool
                     | O::EstablishZeroedStructural { result, .. }
                     | O::EstablishReference { result, .. }
                     | O::MoveStructuralField { result, .. }
-                    | O::CallStructural { result, .. }
+                    | O::CallStructural {
+                        result: AbstractStructuralCallResult::Structural { result, .. },
+                        ..
+                    }
                     | O::BoundaryCall {
                         result: abstract_operations::AbstractBoundaryResult::Structural(result),
                         ..
@@ -415,11 +422,10 @@ pub(crate) fn completed_record_source<'a>(
         .filter_map(|node| match &node.operation {
             O::EstablishRecord { result, .. }
             | O::EstablishZeroedStructural { result, .. }
-            | O::CallStructural { result, .. }
-                if result.place == place =>
-            {
-                Some(result)
-            }
+            | O::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            } if result.place == place => Some(result),
             _ => None,
         });
     let result = matches.next()?;

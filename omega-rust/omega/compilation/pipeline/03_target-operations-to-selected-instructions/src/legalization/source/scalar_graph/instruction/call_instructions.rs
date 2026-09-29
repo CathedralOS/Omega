@@ -4,7 +4,7 @@
 use super::super::{AbstractOperationPlan, Error, PsiOptimizationUnit, TargetOperationPlan};
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use legalized_operations::LegalizedDynamicParameterCall;
 use legalized_operations::{
     LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind, NativeCallOrigin,
@@ -22,7 +22,7 @@ pub(super) fn project_call_structural(
     custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::CallStructural {
-        result,
+        result: AbstractStructuralCallResult::Structural { result, .. },
         callee,
         arguments,
         structural_arguments,
@@ -179,24 +179,16 @@ pub(super) fn project_call_unit(
     operation: OperationId,
     custody: &scalar_graph_input::reference_custody::Custody,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
-    let (AbstractOperation::CallUnit {
+    let AbstractOperation::CallStructural {
         callee,
         arguments: scalar_arguments,
         structural_arguments,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
+        result: AbstractStructuralCallResult::Unit | AbstractStructuralCallResult::Scalar(_),
         ..
-    }
-    | AbstractOperation::CallStructuralScalar {
-        callee,
-        arguments: scalar_arguments,
-        structural_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        ..
-    }) = &node.operation
+    } = &node.operation
     else {
         unreachable!("dispatched project_call_unit")
     };

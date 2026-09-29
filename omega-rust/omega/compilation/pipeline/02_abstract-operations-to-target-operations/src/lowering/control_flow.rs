@@ -2,7 +2,9 @@
 use super::unit::scalar_call::KnownUnitInteger;
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::{AbstractFunction, AbstractFunctionResult, AbstractOperation};
+use abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
+};
 use installation_evidence::InstalledProviderCallEvidence;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, OperationId, PlaceId, StructuralTypeId, ValueId,
@@ -201,7 +203,10 @@ pub(super) fn lower(
             | AbstractOperation::StructuralByteSequenceFieldLength { result, .. }
             | AbstractOperation::StructuralByteSequenceFieldRead { result, .. }
             | AbstractOperation::StructuralCaseMembership { result, .. }
-            | AbstractOperation::CallStructuralScalar { result, .. }
+            | AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Scalar(result),
+                ..
+            }
             | AbstractOperation::CallDynamic {
                 result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
                 ..
@@ -249,7 +254,10 @@ pub(super) fn lower(
             | AbstractOperation::EstablishZeroedStructural { result, .. }
             | AbstractOperation::EstablishCase { result, .. }
             | AbstractOperation::EstablishReference { result, .. }
-            | AbstractOperation::CallStructural { result, .. }
+            | AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            }
             | AbstractOperation::ByteSequenceSubslice { result, .. }
             | AbstractOperation::ElementViewSubslice { result, .. }
             | AbstractOperation::BoundaryCall {

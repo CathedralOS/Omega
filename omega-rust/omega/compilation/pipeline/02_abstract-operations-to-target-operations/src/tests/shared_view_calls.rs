@@ -7,6 +7,7 @@ use super::{
     StructuralArgument, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, StructuralTypeId, StructuralTypeShape, ValueId, identity,
 };
+use abstract_operations::AbstractStructuralCallResult;
 mod established_views;
 
 fn fixture() -> AbstractOperationPlan {
@@ -48,26 +49,24 @@ fn fixture() -> AbstractOperationPlan {
     let mut caller = function(1);
     let mut callee = function(2);
     for raw in [3, 4] {
-        caller
-            .operations
-            .push(AbstractOperation::CallStructuralScalar {
-                psi_operation: OperationId::new(raw).unwrap(),
-                result: AbstractResult {
-                    value: ValueId::new(raw).unwrap(),
-                    scalar_type: integer,
-                },
-                callee: callee.machine,
-                arguments: vec![caller.parameters[0].value],
-                structural_arguments: vec![StructuralArgument {
-                    place: caller.structural_parameters[0].place,
-                    access: StructuralAccess::SharedBorrow,
-                    path: Vec::new(),
-                }],
-                dynamic_arguments: Vec::new(),
-                claim_transfers: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            });
+        caller.operations.push(AbstractOperation::CallStructural {
+            psi_operation: OperationId::new(raw).unwrap(),
+            result: AbstractStructuralCallResult::Scalar(AbstractResult {
+                value: ValueId::new(raw).unwrap(),
+                scalar_type: integer,
+            }),
+            callee: callee.machine,
+            arguments: vec![caller.parameters[0].value],
+            structural_arguments: vec![StructuralArgument {
+                place: caller.structural_parameters[0].place,
+                access: StructuralAccess::SharedBorrow,
+                path: Vec::new(),
+            }],
+            dynamic_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            requirement_obligations: Vec::new(),
+            crash_continuations: Vec::new(),
+        });
     }
     caller.operations.push(AbstractOperation::Return {
         psi_edge: EdgeId::new(1).unwrap(),

@@ -5,6 +5,7 @@
 
 use super::place_observations::member_place_references;
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::{
     OptimizationNode, OptimizerCycleComponent, OwnershipEvent, PsiOptimizationFunction,
 };
@@ -17,25 +18,25 @@ use std::collections::{BTreeMap, BTreeSet};
 /// member roster spelled only through positions the relocation's custody
 /// rewrite covers: the producing establishment or call itself, a `StructuralCase`
 /// dispatch or read-only inspection of the sum, a claim-free member
-/// `CallUnit` that only shared-borrows it, a structural return's source
-/// or exit-disposal roster, and the member-internal or exit edges whose
-/// discard rosters the rewrite adjusts. The cyclic eligibility fence already
-/// proved `picked` is produced and dispatched (or returned) in one member
-/// block and discarded on every dispatch edge; once the establishment lands
-/// in the preheader the result lives through every member, so any other
-/// spelling — a store destination, a writing or moving call argument, a reference
-/// carrier, an edge structural binding — would move or observe custody the
-/// rewrite cannot re-express and refuses. An unmodeled member operation
-/// fails closed for the same reason. `picked` on a residual discard, or on
-/// an edge departing a non-member block, is impossible in a verified seed —
-/// the result is dead outside the roster — and refuses anyway so the replay
-/// never trusts it. A member `ReturnUnit` whose cleanup already invokes a
-/// nominal receiver has no `DiscardRoot` slot the rewrite can spell, so that
-/// one terminator shape refuses; every other member terminator is
+/// Unit-result `CallStructural` that only shared-borrows it, a structural
+/// return's source or exit-disposal roster, and the member-internal or exit
+/// edges whose discard rosters the rewrite adjusts. The cyclic eligibility
+/// fence already proved `picked` is produced and dispatched (or returned) in
+/// one member block and discarded on every dispatch edge; once the
+/// establishment lands in the preheader the result lives through every member,
+/// so any other spelling — a store destination, a writing or moving call
+/// argument, a reference carrier, an edge structural binding — would move or
+/// observe custody the rewrite cannot re-express and refuses. An unmodeled
+/// member operation fails closed for the same reason. `picked` on a residual
+/// discard, or on an edge departing a non-member block, is impossible in a
+/// verified seed — the result is dead outside the roster — and refuses anyway
+/// so the replay never trusts it. A member `ReturnUnit` whose cleanup already
+/// invokes a nominal receiver has no `DiscardRoot` slot the rewrite can spell,
+/// so that one terminator shape refuses; every other member terminator is
 /// expressible: member `Return`/`ReturnUnit` blocks insert
-/// `DiscardRoot(picked)` in schedule order, a member `ReturnStructural`
-/// either returns `picked` outright or lists it in `trivial_affine_discards`,
-/// and a `Crash` carries only claims.
+/// `DiscardRoot(picked)` in schedule order, a member `ReturnStructural` either
+/// returns `picked` outright or lists it in `trivial_affine_discards`, and a
+/// `Crash` carries only claims.
 pub(crate) fn scalar_case_result_contained(
     function: &PsiOptimizationFunction,
     component: &OptimizerCycleComponent,
@@ -48,22 +49,21 @@ pub(crate) fn scalar_case_result_contained(
             let confined = match &node.operation {
                 // The producer spells its own result — a declaration, not a
                 // use of an existing place — and only a member node can
-                // produce it inside this component. A `CallStructural`
-                // producer is the same declaration position: the admitted
-                // relocation carries an affine claim-free result the cyclic
-                // eligibility fence already confined to the producing
-                // member block's dispatch or return. An `EstablishRecord`
-                // producer is likewise the empty declaration's own place —
-                // the admissibility gate confines an affine result to the
-                // field-free shape, so no structural field argument can
-                // spell `picked` here.
+                // produce it inside this component. A structural-result
+                // `CallStructural` producer is the same declaration position:
+                // the admitted relocation carries an affine claim-free result
+                // the cyclic eligibility fence already confined to the
+                // producing member block's dispatch or return. An
+                // `EstablishRecord` producer is likewise the empty
+                // declaration's own place — the admissibility gate confines an
+                // affine result to the field-free shape, so no structural field
+                // argument can spell `picked` here.
                 O::EstablishCase { result, .. }
                 | O::EstablishRecord { result, .. }
-                | O::CallStructural { result, .. }
-                    if result.place == picked =>
-                {
-                    member
-                }
+                | O::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } if result.place == picked => member,
                 // A trivial affine local producer is the same declaration
                 // position: the establishment spells its own declared place,
                 // and only a member node can produce it inside this
@@ -104,16 +104,17 @@ pub(crate) fn scalar_case_result_contained(
                 // borrow of an operation result inside a cycle at all. A
                 // mutable, write-only or owned argument naming `picked`
                 // would write or move the place and still refuses.
-                // `CallStructuralScalar` and `CallStructural` stay on the
+                // Scalar-result and structural-result calls stay on the
                 // fail-closed arm: the verifier's cyclic fence admits a
                 // scalar-result call's whole-root shared borrow only over a
                 // primitive local, a view, or a parameter, and no verified
                 // cyclic seed has yet shown a structural-result call lending
                 // a relocatable case, so neither shape has a witness here.
-                O::CallUnit {
+                O::CallStructural {
                     structural_arguments,
                     dynamic_arguments,
                     claim_transfers,
+                    result: AbstractStructuralCallResult::Unit,
                     ..
                 } if dynamic_arguments.is_empty()
                     && structural_arguments
@@ -518,10 +519,7 @@ pub(crate) fn substitute_invariant_scalar_operands(
         // substituted in place either: an admitted crash-custody call
         // re-derives them from the callee's published routes through
         // [`call_crash_continuations`].
-        O::Call { arguments, .. }
-        | O::CallUnit { arguments, .. }
-        | O::CallStructuralScalar { arguments, .. }
-        | O::CallStructural { arguments, .. } => {
+        O::Call { arguments, .. } | O::CallStructural { arguments, .. } => {
             for argument in arguments {
                 substitute(argument, substitution);
             }
@@ -598,21 +596,20 @@ pub(crate) fn substitute_invariant_place_root(
 /// relocated call now
 /// names. Every static-call variant carries the same `structural_arguments`
 /// field shape, so the substitution walks whichever one the operation is —
-/// `CallUnit`, `CallStructuralScalar`, and `CallStructural` are the admitted
-/// structural-signature families, and a relocation never reaches here for
-/// an operation the admission refused. A shared-borrow argument whose root a
-/// node earlier in the same run produced — an `EstablishPrimitiveLocal` or a
-/// byte-literal declaration — needs no rewrite at all: the run keeps the
-/// producer's declared place identity byte-exact. A relocated
-/// `EstablishRecord` instead rebinds the `place` of each structural field
-/// initializer whose copied root is an invariant member structural
-/// parameter — a field naming a run-produced root keeps spelling it
-/// byte-exact.
-/// Returns `true` only when every requested rewrite found at least one
-/// argument to rebind: a planned rewrite that fires on no argument means the
-/// plan drifted from the operation, which the relocation callers treat as a
-/// candidate mismatch. Multiple arguments may share a root — one rewrite
-/// rebinds them all.
+/// Unit-result `CallStructural`, scalar-result `CallStructural`, and
+/// structural-result `CallStructural` are the admitted structural-signature
+/// families, and a relocation never reaches here for an operation the admission
+/// refused. A shared-borrow argument whose root a node earlier in the same run
+/// produced — an `EstablishPrimitiveLocal` or a byte-literal declaration —
+/// needs no rewrite at all: the run keeps the producer's declared place
+/// identity byte-exact. A relocated `EstablishRecord` instead rebinds the
+/// `place` of each structural field initializer whose copied root is an
+/// invariant member structural parameter — a field naming a run-produced root
+/// keeps spelling it byte-exact. Returns `true` only when every requested
+/// rewrite found at least one argument to rebind: a planned rewrite that fires
+/// on no argument means the plan drifted from the operation, which the
+/// relocation callers treat as a candidate mismatch. Multiple arguments may
+/// share a root — one rewrite rebinds them all.
 pub(crate) fn substitute_invariant_call_roots(
     operation: &mut O,
     rewrites: &BTreeMap<PlaceId, PlaceId>,
@@ -620,21 +617,10 @@ pub(crate) fn substitute_invariant_call_roots(
     let mut applied = BTreeSet::new();
     match operation {
         // No admission lane moves a call that forwards descriptors.
-        O::CallUnit {
-            dynamic_arguments, ..
-        }
-        | O::CallStructuralScalar {
+        O::CallStructural {
             dynamic_arguments, ..
         } if !dynamic_arguments.is_empty() => {}
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         } => {
@@ -700,28 +686,27 @@ pub(crate) fn call_crash_continuations(
     ))
 }
 
-/// The crash continuations a `CallUnit`, `CallStructuralScalar`, or
-/// `CallStructural` to `callee` carries once its actual scalar arguments are
-/// `arguments`: the same verifier-owned route derivation
-/// [`call_crash_continuations`] performs, admitted only when the published
-/// routes are purely scalar — every predicate proposition reads value
-/// identities and literals alone
+/// The crash continuations a Unit-result `CallStructural`, scalar-result
+/// `CallStructural`, or structural-result `CallStructural` to `callee` carries
+/// once its actual scalar arguments are `arguments`: the same verifier-owned
+/// route derivation [`call_crash_continuations`] performs, admitted only when
+/// the published routes are purely scalar — every predicate proposition reads
+/// value identities and literals alone
 /// ([`semantic_vocabulary::Proposition::visit_value_ids`] completing over the
-/// whole proposition is exactly the refusal of every rooted term the
-/// structural substitution rewrites — field, view-extent, and case-subject
-/// roots, IEEE and byte-sequence field leaves, and content-projection
-/// subjects — plus the opaque `Atom`, which neither substitution touches but
-/// this gate conservatively refuses anyway). The terminal verifier
-/// substitutes each callee structural parameter's place by the argument's
-/// place and canonical prefix before the scalar substitution; a scalar-only
-/// roster contains no rooted term for that substitution to touch, so it is
-/// vacuous under this gate and the scalar derivation is the exact
-/// reconstruction at any actuals — including a moved call whose structural
-/// argument roots were rebound through their member-parameter
-/// representatives. A roster whose predicates read a callee structural
-/// parameter would need that canonical-prefix reconstruction, which this
-/// boundary does not carry, so the moved call stays inside instead of
-/// trusting a place spelling it cannot re-derive.
+/// whole proposition is exactly the refusal of every rooted term the structural
+/// substitution rewrites — field, view-extent, and case-subject roots, IEEE and
+/// byte-sequence field leaves, and content-projection subjects — plus the
+/// opaque `Atom`, which neither substitution touches but this gate
+/// conservatively refuses anyway). The terminal verifier substitutes each
+/// callee structural parameter's place by the argument's place and canonical
+/// prefix before the scalar substitution; a scalar-only roster contains no
+/// rooted term for that substitution to touch, so it is vacuous under this gate
+/// and the scalar derivation is the exact reconstruction at any actuals —
+/// including a moved call whose structural argument roots were rebound through
+/// their member-parameter representatives. A roster whose predicates read a
+/// callee structural parameter would need that canonical-prefix reconstruction,
+/// which this boundary does not carry, so the moved call stays inside instead
+/// of trusting a place spelling it cannot re-derive.
 pub(crate) fn structural_call_crash_continuations(
     callee: &PsiOptimizationFunction,
     arguments: &[ValueId],

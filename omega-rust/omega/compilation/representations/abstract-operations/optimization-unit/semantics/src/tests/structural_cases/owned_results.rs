@@ -2,7 +2,7 @@ use super::id;
 use crate::tests::structural_cases::source_machine_unit;
 use crate::tests::support::{refresh_identity, refresh_node_derivatives};
 use crate::validate_psi_optimization_unit;
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::PsiOptimizationUnit;
 use semantic_vocabulary::{OperationId, PlaceId};
 
@@ -67,15 +67,23 @@ fn owned_result_transfer_rejects_current_custody_corruption() {
                     .nodes
                     .iter()
                     .position(|node| {
-                        matches!(node.operation, AbstractOperation::CallStructural { .. })
+                        matches!(
+                            node.operation,
+                            AbstractOperation::CallStructural {
+                                result: AbstractStructuralCallResult::Structural { .. },
+                                ..
+                            }
+                        )
                     })
                     .map(|node_index| (block_index, node_index))
             })
             .unwrap();
         match mutation {
             "result origin" | "result multiplicity" => {
-                let AbstractOperation::CallStructural { result, .. } =
-                    &mut function.blocks[block_index].nodes[node_index].operation
+                let AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } = &mut function.blocks[block_index].nodes[node_index].operation
                 else {
                     unreachable!()
                 };
@@ -99,8 +107,10 @@ fn owned_result_transfer_rejects_current_custody_corruption() {
                 }
             }
             "producer identity" => {
-                let AbstractOperation::CallStructural { result, .. } =
-                    &function.blocks[block_index].nodes[node_index].operation
+                let AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } = &function.blocks[block_index].nodes[node_index].operation
                 else {
                     unreachable!()
                 };

@@ -7,6 +7,7 @@ use super::{
 };
 use crate::LegalizationError;
 use crate::legalization::scalar_graph_input;
+use abstract_operations::AbstractStructuralCallResult;
 
 pub(super) fn validate(
     actual: &LegalizedScalarInstruction,
@@ -112,7 +113,7 @@ pub(super) fn validate(
             LegalizedScalarInstructionKind::Call(call),
             AbstractOperation::CallStructural {
                 psi_operation,
-                result,
+                result: AbstractStructuralCallResult::Structural { result, .. },
                 callee,
                 arguments,
                 structural_arguments,

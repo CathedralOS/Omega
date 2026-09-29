@@ -4,6 +4,7 @@ use super::{
     AbstractOperation, AbstractOperationPlan, block, edge, fixture, lower, operation, transfers,
     value,
 };
+use abstract_operations::AbstractStructuralCallResult;
 fn cyclic() -> AbstractOperationPlan {
     let mut plan = transfers::transferred();
     let caller = &mut plan.functions[1];
@@ -42,7 +43,12 @@ fn cyclic_unit_graph_rejects_future_and_sibling_definitions() {
         panic!("jump");
     };
     *target = block(2);
-    let AbstractOperation::CallUnit { arguments, .. } = &mut plan.functions[1].operations[5] else {
+    let AbstractOperation::CallStructural {
+        arguments,
+        result: AbstractStructuralCallResult::Unit,
+        ..
+    } = &mut plan.functions[1].operations[5]
+    else {
         panic!("call");
     };
     arguments[0] = value(10);

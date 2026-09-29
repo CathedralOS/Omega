@@ -18,6 +18,7 @@ use crate::unit_validation::operation_contracts::structural_access::{
     StructuralProjectionPolicy, structural_arguments_match,
 };
 use abstract_operations::AbstractOperation as O;
+use abstract_operations::AbstractStructuralCallResult;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{
     BoundaryMachineId, MachineId, ServiceId, StructuralDomainId, StructuralTypeId,
@@ -37,15 +38,10 @@ pub(crate) fn operation_service_contract_matches(
             .all(|service| caller.published_service_ceiling.contains(service))
     };
     match operation {
-        O::Call { callee, .. } | O::CallStructural { callee, .. } => functions
+        O::Call { callee, .. } => functions
             .get(callee)
             .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
-        O::CallStructuralScalar {
-            callee,
-            dynamic_arguments,
-            ..
-        }
-        | O::CallUnit {
+        O::CallStructural {
             callee,
             dynamic_arguments,
             ..
@@ -110,11 +106,12 @@ pub(crate) fn operation_structural_call_contract_matches(
         }
         // A byte-literal structural argument is admitted only on a call
         // that forwards no descriptors.
-        O::CallUnit {
+        O::CallStructural {
             callee,
             structural_arguments,
             dynamic_arguments,
             claim_transfers,
+            result: AbstractStructuralCallResult::Unit,
             ..
         } => functions.get(callee).is_some_and(|callee| {
             structural_arguments_match(
@@ -132,11 +129,12 @@ pub(crate) fn operation_structural_call_contract_matches(
                 claim_transfers,
             )
         }),
-        O::CallStructuralScalar {
+        O::CallStructural {
             callee,
             structural_arguments,
             dynamic_arguments,
             claim_transfers,
+            result: AbstractStructuralCallResult::Scalar(_),
             ..
         } => functions.get(callee).is_some_and(|callee| {
             structural_arguments_match(
@@ -191,12 +189,23 @@ pub(crate) fn operation_structural_call_contract_matches(
                 }),
             abstract_operations::AbstractDynamicDispatch::Parameter(_) => true,
         },
+        // A structural result forwards no descriptors: stage 00 never
+        // produces that shape and no lowering admits it.
         O::CallStructural {
-            result,
+            dynamic_arguments,
+            result: AbstractStructuralCallResult::Structural { .. },
+            ..
+        } if !dynamic_arguments.is_empty() => false,
+        O::CallStructural {
+            result:
+                AbstractStructuralCallResult::Structural {
+                    result,
+                    returned_claim_transfers,
+                    ..
+                },
             callee,
             structural_arguments,
             claim_transfers,
-            returned_claim_transfers,
             ..
         } => functions.get(callee).is_some_and(|callee| {
             // A call returning reference custody has its own complete rule:
@@ -281,6 +290,7 @@ fn structural_call_contract_surface_matches(
     let O::CallStructural {
         requirement_obligations,
         crash_continuations,
+        result: AbstractStructuralCallResult::Structural { .. },
         ..
     } = operation
     else {
@@ -309,11 +319,15 @@ fn reference_call_matches(
 ) -> bool {
     let O::CallStructural {
         psi_operation,
-        result,
+        result:
+            AbstractStructuralCallResult::Structural {
+                result,
+                returned_claim_transfers,
+                ..
+            },
         arguments,
         structural_arguments,
         claim_transfers,
-        returned_claim_transfers,
         requirement_obligations,
         crash_continuations,
         ..

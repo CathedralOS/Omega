@@ -1,6 +1,6 @@
 //! Optimizer module role: executable entrance. Fail-closed target-lowering admission for projected qualification custody.
 
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
+use abstract_operations::{AbstractOperation, AbstractOperationPlan, AbstractStructuralCallResult};
 
 use crate::LoweringError;
 
@@ -33,9 +33,10 @@ fn has_any_projected_qualifications(plan: &AbstractOperationPlan) -> bool {
                 | AbstractOperation::EstablishScalarArray { result, .. }
                 | AbstractOperation::EstablishByteSequenceConcatenation { result, .. }
                 | AbstractOperation::EstablishCase { result, .. }
-                | AbstractOperation::CallStructural { result, .. } => {
-                    !result.projected_qualifications.is_empty()
-                }
+                | AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Structural { result, .. },
+                    ..
+                } => !result.projected_qualifications.is_empty(),
                 _ => false,
             })
     }) || external_signatures_have_projected_qualifications(plan)

@@ -7,7 +7,7 @@ use crate::{
     apply_loop_invariant_scalar_motion, propose_loop_invariant_scalar_motion,
     validate_loop_invariant_scalar_motion,
 };
-use abstract_operations::AbstractOperation;
+use abstract_operations::{AbstractOperation, AbstractStructuralCallResult};
 use optimization_unit::{self, recompute_psi_optimization_unit_identity};
 use optimization_unit_semantics::OptimizationUnitValidationError;
 
@@ -836,15 +836,23 @@ fn invariant_byte_literal_relocates_preserving_its_declared_place() {
         "the relocation preserves the literal's declared place identity"
     );
 
-    // The consuming `CallUnit` relocates in the same run, right behind the
-    // literal whose declared root it borrows: the root is produced by the run
-    // itself, so the call moves byte-exact — no argument rewrite — and still
-    // spells the same place identity.
+    // The consuming Unit-result `CallStructural` relocates in the same run,
+    // right behind the literal whose declared root it borrows: the root is
+    // produced by the run itself, so the call moves byte-exact — no argument
+    // rewrite — and still spells the same place identity.
     let call = function
         .blocks
         .iter()
         .flat_map(|block| &block.nodes)
-        .find(|node| matches!(node.operation, AbstractOperation::CallUnit { .. }))
+        .find(|node| {
+            matches!(
+                node.operation,
+                AbstractOperation::CallStructural {
+                    result: AbstractStructuralCallResult::Unit,
+                    ..
+                }
+            )
+        })
         .expect("the member unit call exists");
     let call_operation = operation_of(call);
     let call_relocation = candidate
@@ -905,8 +913,9 @@ fn invariant_byte_literal_relocates_preserving_its_declared_place() {
     assert!(
         matches!(
             &moved_call.operation,
-            AbstractOperation::CallUnit {
+            AbstractOperation::CallStructural {
                 structural_arguments,
+                result: AbstractStructuralCallResult::Unit,
                 ..
             } if structural_arguments
                 .iter()
@@ -927,10 +936,13 @@ fn invariant_byte_literal_relocates_preserving_its_declared_place() {
         "the literal exists once, at the destination"
     );
     assert!(
-        member_block
-            .nodes
-            .iter()
-            .all(|node| !matches!(node.operation, AbstractOperation::CallUnit { .. })),
+        member_block.nodes.iter().all(|node| !matches!(
+            node.operation,
+            AbstractOperation::CallStructural {
+                result: AbstractStructuralCallResult::Unit,
+                ..
+            }
+        )),
         "the call exists once, at the destination behind its producer"
     );
     assert!(

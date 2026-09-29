@@ -1,6 +1,8 @@
 //! Ordinary-machine control-flow and terminal-edge projection.
 use super::{LoweredAffineLocal, LoweringError};
-use abstract_operations::{AbstractOperation, AbstractSuccessor, ValueBinding};
+use abstract_operations::{
+    AbstractOperation, AbstractStructuralCallResult, AbstractSuccessor, ValueBinding,
+};
 use semantic_vocabulary::{BlockId, OperationId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{TerminalAffineCleanupAction, TerminalMachine, Terminator};
@@ -218,9 +220,10 @@ pub(super) fn lower_terminator(
                 .flat_map(|operation| match operation {
                     // Only a Unit call that forwards no descriptors consumes
                     // a trivial affine local here.
-                    AbstractOperation::CallUnit {
+                    AbstractOperation::CallStructural {
                         structural_arguments,
                         dynamic_arguments,
+                        result: AbstractStructuralCallResult::Unit,
                         ..
                     } if dynamic_arguments.is_empty() => structural_arguments
                         .iter()

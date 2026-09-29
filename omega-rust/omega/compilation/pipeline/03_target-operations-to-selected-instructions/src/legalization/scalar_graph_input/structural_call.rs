@@ -400,9 +400,7 @@ fn established_view(
         return Some((producer.0, producer.1, false));
     }
     if !caller.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
-        matches!(&node.operation, AbstractOperation::CallStructuralScalar { psi_operation, structural_arguments, .. }
-            | AbstractOperation::CallUnit { psi_operation, structural_arguments, .. }
-            | AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
+        matches!(&node.operation, AbstractOperation::CallStructural { psi_operation, structural_arguments, .. }
             | AbstractOperation::BoundaryCall { psi_operation, structural_arguments, .. }
             if *psi_operation == call && structural_arguments.iter().any(|argument| argument.place == place))
     }) {
