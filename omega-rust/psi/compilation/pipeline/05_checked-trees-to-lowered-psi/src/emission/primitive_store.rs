@@ -694,6 +694,39 @@ pub(crate) fn lower_indexed_path(
     ))
 }
 
+/// The static prefix of a read that selects at run time once over `path`'s
+/// fixed array and then `inner_depth` more times inside nested fixed-array
+/// elements (`self.a[i][k]` has depth one). Each level must be a declared
+/// fixed array and the last element a primitive scalar; the reader places one
+/// `RuntimeIndex` segment per selector after the prefix, and the verifier
+/// bounds each against the array its own prefix resolves to.
+pub(crate) fn lower_nested_indexed_path(
+    structural_type: StructuralTypeId,
+    path: &[CheckedUnitStructuralPathSegment],
+    inner_depth: usize,
+    types: &[StructuralTypeDeclaration],
+) -> Result<(Vec<terminal_psi::StructuralPathSegment>, ScalarType), LoweringError> {
+    let (steps, walked) = walk_path(structural_type, path, types)?;
+    let Walked::Declared(mut selected) = walked else {
+        return unsupported("nested indexed projection does not end at a fixed array");
+    };
+    for _ in 0..=inner_depth {
+        let StructuralTypeShape::FixedArray { element, .. } = unique_type(types, selected)?.shape
+        else {
+            return unsupported("nested indexed projection selects inside a non-array element");
+        };
+        selected = element;
+    }
+    let StructuralTypeShape::PrimitiveScalar(scalar_type) = unique_type(types, selected)?.shape
+    else {
+        return unsupported("nested indexed projection's leaf is not a primitive scalar");
+    };
+    Ok((
+        super::runtime_elements::static_segments(steps)?,
+        scalar_type,
+    ))
+}
+
 /// How a resolved runtime-indexed element field read reaches its leaf: the
 /// flat `RuntimeIndex`-inserted path for leaves the runtime read admits, or
 /// an element hoist whose `StructuralLeafCopy` materializes the selected

@@ -494,8 +494,15 @@ fn collect_self_field_paths(
                 paths.push(path.clone());
             }
         }
-        Expression::StructuralParameterIndexedRead { index, .. } => {
+        Expression::StructuralParameterIndexedRead {
+            index,
+            inner_indexes,
+            ..
+        } => {
             collect_self_field_paths(index, self_position, paths);
+            for inner in inner_indexes {
+                collect_self_field_paths(inner, self_position, paths);
+            }
         }
         Expression::IntegerBinary { left, right, .. } => {
             collect_self_field_paths(left, self_position, paths);

@@ -1177,6 +1177,38 @@ fn collect_authored_storage_reads(
                 unmatched_member_paths,
             )?;
             path.pop();
+            // A runtime selector beneath another (`self.a[i][k]`) is one
+            // nested read retaining every selector. Each enclosing runtime
+            // selector replays one level deeper -- `[1, 0]`, `[1, 1, 0]` --
+            // exactly where the retained read places it, so every selector's
+            // identity rejoins, not only the top one.
+            let mut descended = 0;
+            let mut collection = indexed.collection;
+            while let ExpressionNode::Indexed(enclosing) =
+                checked.expression_table.expression(collection)
+                && !matches!(
+                    checked.expression_table.expression(enclosing.index),
+                    ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+                )
+            {
+                path.push(1);
+                descended += 1;
+                path.push(0);
+                collect_authored_storage_reads(
+                    checked,
+                    state,
+                    scope,
+                    enclosing.index,
+                    path,
+                    active,
+                    reads,
+                    member_paths,
+                    unmatched_member_paths,
+                )?;
+                path.pop();
+                collection = enclosing.collection;
+            }
+            path.truncate(path.len() - descended);
         }
         // These source forms are owned by literal, structural, or computation
         // custody. Their roots are not primitive scalar content reads.
@@ -1244,9 +1276,35 @@ fn collect_scalar_storage_reads(
             root,
             path: read_path,
             index,
+            inner_indexes,
             element_path,
             primitive_type,
         } => {
+            // A nested read (`self.a[i][k]`) places its selectors where the
+            // authored walk visits them: the top indexing's selector -- the
+            // last one applied -- at `[0]`, each enclosing one a level deeper
+            // at `[1, 0]`, `[1, 1, 0]`. The value replay then rejoins the
+            // chain's shape.
+            if !inner_indexes.is_empty() {
+                *needs_value_replay = true;
+                let selectors = std::iter::once(index.as_ref())
+                    .chain(inner_indexes.iter())
+                    .rev()
+                    .enumerate();
+                for (depth, selector) in selectors {
+                    path.extend(std::iter::repeat_n(1, depth));
+                    path.push(0);
+                    collect_scalar_storage_reads(
+                        selector,
+                        namespace,
+                        path,
+                        reads,
+                        needs_value_replay,
+                    );
+                    path.truncate(path.len() - depth - 1);
+                }
+                return;
+            }
             // An owned local's literal element read retains the same
             // `IndexedPrimitive` leaf the authored `local[literal]` rejoin
             // produces; a dynamic index retains only its selector read.

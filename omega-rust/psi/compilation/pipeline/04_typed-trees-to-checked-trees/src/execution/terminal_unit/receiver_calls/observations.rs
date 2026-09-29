@@ -175,8 +175,17 @@ fn scalar_reads(expression: &CheckedScalarExpression, receiver: u32) -> bool {
         CheckedScalarExpression::StructuralParameterField {
             parameter_position, ..
         } => *parameter_position == receiver,
-        CheckedScalarExpression::StructuralParameterIndexedRead { root, index, .. } => {
-            root.parameter() == Some(receiver) || scalar_reads(index, receiver)
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            root,
+            index,
+            inner_indexes,
+            ..
+        } => {
+            root.parameter() == Some(receiver)
+                || scalar_reads(index, receiver)
+                || inner_indexes
+                    .iter()
+                    .any(|inner| scalar_reads(inner, receiver))
         }
         CheckedScalarExpression::IntegerBinary { left, right, .. } => {
             scalar_reads(left, receiver) || scalar_reads(right, receiver)

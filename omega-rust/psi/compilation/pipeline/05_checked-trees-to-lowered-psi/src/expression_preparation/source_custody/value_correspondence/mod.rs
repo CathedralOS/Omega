@@ -586,8 +586,47 @@ impl Context<'_> {
                 node,
                 ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
             ),
-            Scalar::StructuralParameterIndexedRead { index, .. } => matches!(node,
-                ExpressionNode::Indexed(indexed) if self.scalar(indexed.index, index, operands, depth + 1)),
+            // Authored indexing nests outermost-last: `self.a[i][k]` is
+            // `Indexed(k)` over `Indexed(i)`, so the retained selectors, in
+            // application order `i, k`, rejoin the authored chain from its
+            // top node down. Every selector must match its own authored
+            // position; none may be dropped, reordered or substituted.
+            Scalar::StructuralParameterIndexedRead {
+                index,
+                inner_indexes,
+                ..
+            } => {
+                let mut authored = source;
+                for selector in inner_indexes
+                    .iter()
+                    .rev()
+                    .chain(std::iter::once(index.as_ref()))
+                {
+                    let ExpressionNode::Indexed(indexed) =
+                        self.checked.expression_table.expression(authored)
+                    else {
+                        return false;
+                    };
+                    if !self.scalar(indexed.index, selector, operands, depth + 1) {
+                        return false;
+                    }
+                    authored = indexed.collection;
+                }
+                // The selection directly over the static place is the
+                // outermost retained selector. Below it only the static path
+                // remains -- fields and literal indexes (`self.a[0][i][k]`);
+                // one more runtime indexing would be a selector the read
+                // dropped.
+                inner_indexes.is_empty()
+                    || !matches!(
+                        self.checked.expression_table.expression(authored),
+                        ExpressionNode::Indexed(indexed)
+                            if !matches!(
+                                self.checked.expression_table.expression(indexed.index),
+                                ExpressionNode::Integer(_)
+                            )
+                    )
+            }
             // Erased formals have no authored runtime expression to match.
             Scalar::ErasedParameter { .. } => false,
         }
@@ -915,9 +954,11 @@ impl Context<'_> {
                                 root: checked_trees::CheckedStorageRoot::Parameter { index: parameter_position },
                                 path: retained,
                                 index: retained_index,
+                                inner_indexes,
                                 element_path,
                                 primitive_type,
                             } if *parameter_position == position
+                                && inner_indexes.is_empty()
                                 && element_path.is_empty()
                                 && paths_match(retained, &path)
                                 && *primitive_type == PrimitiveType::U8

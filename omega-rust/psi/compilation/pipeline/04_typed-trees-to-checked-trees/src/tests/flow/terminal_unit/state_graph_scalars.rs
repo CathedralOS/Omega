@@ -374,3 +374,136 @@ fn conditional_guard_retains_a_call_computation_with_byte_view_actuals() {
     }
     assert_eq!(calls, 1, "one call computation feeds the guard");
 }
+
+const NESTED_READS: &str = r#"
+    data Grid { a: [[i32 in Wrapping; 3]; 3]; out: i32 in Wrapping; }
+    machine Grid::walk(&mut self) {
+        transition { _ -> dot(1, 0, 0) }
+        state dot(&mut self, i: u64, k: u64, acc: i32 in Wrapping)
+        requires i <= 2
+        requires k <= 2 {
+            let next_k: u64 = k + 1;
+            transition next_k <= 2 {
+                true -> dot(i, next_k, acc + self.a[i][k])
+                false -> done(acc + self.a[i][k])
+            }
+        }
+        state done(&mut self, acc: i32 in Wrapping) { self.out = acc; }
+    }
+"#;
+
+/// `self.a[i][k]` is one read with two runtime selectors in application
+/// order, and the Wrapping policy on the element survives into the
+/// successor argument's arithmetic.
+#[test]
+fn nested_runtime_selectors_read_in_order_under_the_element_policy() {
+    use checked_trees::{CheckedIntegerBinaryKind, CheckedScalarExpression, CheckedStorageRoot};
+    let checked = checked(NESTED_READS);
+    let machine = machine_named(&checked, "walk");
+    let graph = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .expect("nested successor reads keep the state graph");
+    let dot = graph.states[1].state;
+    let arguments = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expressions
+        .iter()
+        .filter(|expression| {
+            // Ordinals count the receiver: `dot(i, next_k, acc + ..)` passes
+            // the accumulator at 3, `done(acc + ..)` at 1.
+            expression.state == dot
+                && matches!(
+                    expression.role,
+                    CheckedScalarExpressionRole::TransitionArgument {
+                        argument_ordinal: 1 | 3,
+                    }
+                )
+                && matches!(
+                    expression.expression,
+                    CheckedScalarExpression::IntegerBinary { .. }
+                )
+        })
+        .map(|expression| &expression.expression)
+        .collect::<Vec<_>>();
+    assert_eq!(arguments.len(), 2, "one accumulator argument per arm");
+    for argument in arguments {
+        let CheckedScalarExpression::IntegerBinary {
+            kind: CheckedIntegerBinaryKind::WrappingAdd,
+            right,
+            ..
+        } = argument
+        else {
+            panic!("the element policy selects wrapping addition: {argument:?}");
+        };
+        let CheckedScalarExpression::StructuralParameterIndexedRead {
+            root: CheckedStorageRoot::Parameter { index: 0 },
+            path,
+            index,
+            inner_indexes,
+            element_path,
+            primitive_type: typed_trees::types::PrimitiveType::I32,
+        } = right.as_ref()
+        else {
+            panic!("a nested read of the self field: {right:?}");
+        };
+        assert_eq!(
+            path,
+            &[checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                "a".to_owned()
+            )]
+        );
+        assert!(element_path.is_empty());
+        assert!(matches!(
+            index.as_ref(),
+            CheckedScalarExpression::Parameter { position: 0, .. }
+        ));
+        assert!(matches!(
+            inner_indexes.as_slice(),
+            [CheckedScalarExpression::Parameter { position: 1, .. }]
+        ));
+    }
+}
+
+/// A member between the two runtime selectors (`self.rows[i].data[k]`) is a
+/// shape checking admits but the nested read does not spell: its inner
+/// array is reached through a field of the selected element, not directly.
+/// It keeps declining, while the directly nested array read is admitted.
+#[test]
+fn a_member_between_runtime_selectors_keeps_declining() {
+    for (read, admitted) in [("self.a[i][k]", true), ("self.rows[i].data[k]", false)] {
+        let source = format!(
+            r#"
+            data Row {{ data: [i32 in Wrapping; 2]; }}
+            data Grid {{
+                a: [[i32 in Wrapping; 2]; 2];
+                rows: [Row; 2];
+                out: i32 in Wrapping;
+            }}
+            machine Grid::walk(&mut self) {{
+                transition {{ _ -> pick(1, 0) }}
+                state pick(&mut self, i: u64, k: u64) requires i <= 1 requires k <= 1 {{
+                    transition {{ _ -> done({read}) }}
+                }}
+                state done(&mut self, value: i32 in Wrapping) {{ self.out = value; }}
+            }}
+            "#
+        );
+        let checked = checked(&source);
+        let machine = machine_named(&checked, "walk");
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .terminal_unit_effects
+                .composed_for_machine(machine)
+                .is_some(),
+            admitted,
+            "{read}"
+        );
+    }
+}

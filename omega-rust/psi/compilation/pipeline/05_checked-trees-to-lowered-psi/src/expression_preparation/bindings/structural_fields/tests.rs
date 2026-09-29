@@ -44,6 +44,7 @@ fn whole_owned_array_read_uses_its_declared_carrier_not_a_borrowed_view() {
     let expression = CheckedScalarExpression::StructuralParameterIndexedRead {
         root: checked_trees::CheckedStorageRoot::Parameter { index: 3 },
         path: Vec::new(),
+        inner_indexes: Vec::new(),
         element_path: Vec::new(),
         primitive_type: PrimitiveType::I32,
         index: Box::new(CheckedScalarExpression::Parameter {

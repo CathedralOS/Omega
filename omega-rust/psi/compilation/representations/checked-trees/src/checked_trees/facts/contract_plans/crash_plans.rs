@@ -123,8 +123,13 @@ impl CrashPlan {
         fn scalar_uses_proof_gated_arithmetic(expression: &crate::CheckedScalarExpression) -> bool {
             match expression {
                 crate::CheckedScalarExpression::StructuralParameterIndexedRead {
-                    index, ..
-                } => scalar_uses_proof_gated_arithmetic(index),
+                    index,
+                    inner_indexes,
+                    ..
+                } => {
+                    scalar_uses_proof_gated_arithmetic(index)
+                        || inner_indexes.iter().any(scalar_uses_proof_gated_arithmetic)
+                }
                 crate::CheckedScalarExpression::IntegerBinary {
                     kind, left, right, ..
                 } => {
