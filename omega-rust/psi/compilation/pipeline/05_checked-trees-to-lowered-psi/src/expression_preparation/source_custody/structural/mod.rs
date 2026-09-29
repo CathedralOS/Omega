@@ -830,17 +830,44 @@ fn authored_destination(
                             match checked.statement_table.transition_target(target) {
                                 checked_trees::statement::TransitionTargetNode::Value(
                                     expression,
-                                ) if *expression == retained_expression => Some(*expression),
+                                ) if *expression == retained_expression => {
+                                    Some((*expression, source.return_type))
+                                }
+                                checked_trees::statement::TransitionTargetNode::Named {
+                                    path,
+                                    arguments,
+                                    ..
+                                } => {
+                                    let argument_position = checked
+                                        .statement_table
+                                        .expression_handles(*arguments)
+                                        .iter()
+                                        .position(|expression| {
+                                            *expression == retained_expression
+                                        })?;
+                                    let target_state = checked
+                                        .typed
+                                        .machine_states(owner)
+                                        .iter()
+                                        .find(|state| state.symbol == path.symbol)?;
+                                    let parameter = checked
+                                        .typed
+                                        .state_parameters(target_state)
+                                        .iter()
+                                        .filter(|parameter| !parameter.is_self)
+                                        .nth(argument_position)?;
+                                    Some((retained_expression, parameter.type_reference))
+                                }
                                 _ => None,
                             }
                         });
-                    let expression = selected.next().ok_or(LoweringError::Unsupported(
+                    let destination = selected.next().ok_or(LoweringError::Unsupported(
                         "structural return exchanged its authored destination",
                     ))?;
                     if selected.next().is_some() {
                         return unsupported("structural return has ambiguous source destinations");
                     }
-                    (expression, source.return_type)
+                    destination
                 }
                 _ => return unsupported("structural construction lost its authored destination"),
             }
@@ -1113,12 +1140,18 @@ pub(crate) fn operand_source(
             [transition.target, transition.continuation]
                 .into_iter()
                 .filter(|target| target.is_valid())
-                .filter_map(
+                .flat_map(
                     |target| match checked.statement_table.transition_target(target) {
                         checked_trees::statement::TransitionTargetNode::Value(expression) => {
-                            Some(*expression)
+                            vec![*expression]
                         }
-                        _ => None,
+                        checked_trees::statement::TransitionTargetNode::Named {
+                            arguments, ..
+                        } => checked
+                            .statement_table
+                            .expression_handles(*arguments)
+                            .to_vec(),
+                        _ => Vec::new(),
                     },
                 )
                 .collect()

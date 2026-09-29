@@ -1012,6 +1012,7 @@ enum SuccessorGuard {
     SubsliceTransfer,
     ResultTransfer,
     CasePayloadTransfer,
+    EstablishedArgument,
     ParameterTransfer,
     ScalarArguments,
     ErasedArguments,
@@ -1046,6 +1047,9 @@ impl SuccessorEdge {
                     SuccessorGuard::ResultTransfer => guard_phase!($edge, "result-local transfer"),
                     SuccessorGuard::CasePayloadTransfer => {
                         guard_phase!($edge, "case-payload transfer")
+                    }
+                    SuccessorGuard::EstablishedArgument => {
+                        guard_phase!($edge, "established argument")
                     }
                     SuccessorGuard::ParameterTransfer => guard_phase!($edge, "parameter transfer"),
                     SuccessorGuard::ScalarArguments => guard_phase!($edge, "scalar arguments"),
@@ -1364,6 +1368,27 @@ fn successor_bindings(
                         target_parameter_index: u32::try_from(target_index).ok()?,
                     });
                 }
+            }
+            mark(SuccessorGuard::EstablishedArgument);
+            // An inline composite argument — a record, case, or fixed-array
+            // literal — has no custody root to name; the edge establishes the
+            // registered fresh construction into the parameter's storage.
+            if target.access == CheckedStructuralAccess::Owned
+                && let Some(root) = facts.values.structural_values.root_for_expression(
+                    source.symbol,
+                    ordinal,
+                    expression,
+                )
+                && program.normalized_type_identity(root.type_reference).into_string()
+                    == target.type_identity
+            {
+                return Some(CheckedStructuralControlTransferPlan {
+                    source: checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                        value: root.root,
+                        calls: Vec::new(),
+                    },
+                    target_parameter_index: u32::try_from(target_index).ok()?,
+                });
             }
             mark(SuccessorGuard::ParameterTransfer);
             let source_position = source_position(target.position)?;

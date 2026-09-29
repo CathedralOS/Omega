@@ -797,6 +797,48 @@ pub(crate) fn build_checked_value_computation_plans(
                         let Some(expected_type) =
                             program.primitive_type_reference(parameter.type_reference)
                         else {
+                            // A composite argument with no named custody root —
+                            // an inline record, case, or fixed-array literal —
+                            // is a fresh construction the edge itself
+                            // establishes into the parameter. Retain its
+                            // structural value so the successor plan can name
+                            // it as an established source.
+                            if !continuation
+                                && transition.exit
+                                    == typed_trees::statement::TransitionExit::Ordinary
+                                && (structural_values::is_record_value(
+                                    program,
+                                    *argument,
+                                    parameter.type_reference,
+                                ) || structural_values::is_structural_case_value(
+                                    program,
+                                    *argument,
+                                    parameter.type_reference,
+                                ) || matches!(
+                                    program.expression_table.expression(*argument),
+                                    ExpressionNode::ArrayLiteral(_)
+                                ))
+                                && structural_values
+                                    .root_for_expression(state.symbol, statement_ordinal, *argument)
+                                    .is_none()
+                                && let Some(root) = builder.structural_value(
+                                    *argument,
+                                    parameter.type_reference,
+                                    &mut structural_values,
+                                    pure,
+                                )
+                            {
+                                structural_values.roots.append(
+                                    checked_trees::CheckedStructuralValueRoot {
+                                        machine: machine.symbol,
+                                        state: state.symbol,
+                                        statement_ordinal,
+                                        expression: *argument,
+                                        type_reference: parameter.type_reference,
+                                        root,
+                                    },
+                                );
+                            }
                             continue;
                         };
                         builder.record_root(

@@ -245,6 +245,7 @@ pass/control_flow/case_arm_payload_receiver_call rejected 1536ms
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1282ms
 pass/control_flow/case_pattern_rename_waive_exit rejected 775ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
+pass/control_flow/composite_state_parameter checked 1151ms
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 287ms
 pass/control_flow/explicit_state_value_frontier checked 299ms
 pass/control_flow/field_subject_named_arm_chain checked 946ms

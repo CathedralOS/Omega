@@ -310,4 +310,14 @@ pub enum CheckedStructuralControlTransferSourcePlan {
         root: crate::CheckedStorageRoot,
         expression: typed_trees::expression::ExpressionHandle,
     },
+    /// A fresh composite argument with no prior custody root: an inline
+    /// record, case, or fixed-array literal supplied directly to the
+    /// successor. `value` is the checked structural construction the edge
+    /// establishes into the target parameter's storage; `calls` records any
+    /// call products the construction embeds, exactly as a `let` binding's
+    /// establishment carries them.
+    EstablishedValue {
+        value: crate::CheckedStructuralValueHandle,
+        calls: Vec<crate::CheckedStructuralValueCall>,
+    },
 }

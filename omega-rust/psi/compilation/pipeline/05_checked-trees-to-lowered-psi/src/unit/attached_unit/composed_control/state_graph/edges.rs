@@ -330,6 +330,58 @@ pub(super) fn validate_bindings(
             }
             continue;
         }
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+            value,
+            calls,
+        } = &transfer.source
+        {
+            // The authored operand is the inline construction itself: it is
+            // the one value the statement registers as rooted at that
+            // expression, its declared carrier is the target's, and its kind
+            // is a construction — no custody-bearing shape (place, call,
+            // projection) may masquerade as fresh custody.
+            let argument_position = explicit_argument_position(target.position);
+            let expression = arguments
+                .get(argument_position)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph established argument missing",
+                ))?;
+            let Some(root) = checked.facts.values.structural_values.root_for_expression(
+                source.symbol,
+                edge.statement_ordinal,
+                *expression,
+            ) else {
+                return unsupported("Unit graph established argument lost its registration");
+            };
+            if root.root != *value
+                || !calls.is_empty()
+                || transfer.target_parameter_index as usize != position
+                || target.is_self
+                || target.access != checked_trees::CheckedStructuralAccess::Owned
+                || checked
+                    .normalized_type_identity(root.type_reference)
+                    .into_string()
+                    != target.type_identity
+                || !matches!(
+                    checked
+                        .facts
+                        .values
+                        .structural_values
+                        .nodes
+                        .get(*value)
+                        .kind,
+                    checked_trees::CheckedStructuralValueKind::Record { .. }
+                        | checked_trees::CheckedStructuralValueKind::StructuralCase { .. }
+                        | checked_trees::CheckedStructuralValueKind::FixedArray { .. }
+                        | checked_trees::CheckedStructuralValueKind::ZeroedScalarArray { .. }
+                        | checked_trees::CheckedStructuralValueKind::ZeroedStructural { .. }
+                        | checked_trees::CheckedStructuralValueKind::Case { .. }
+                )
+            {
+                return unsupported("Unit graph established argument custody drifted");
+            }
+            continue;
+        }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject,
             case_identity,
@@ -620,6 +672,13 @@ pub(super) fn validate_bindings(
             | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 ..
             } => return unsupported("Unit graph subslice was not independently rejoined"),
+            checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                ..
+            } => {
+                return unsupported(
+                    "Unit graph established argument was not independently rejoined",
+                );
+            }
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
             }
@@ -656,6 +715,13 @@ pub(super) fn validate_bindings(
             | checked_trees::CheckedStructuralControlTransferSourcePlan::ElementViewSubslice {
                 ..
             } => return unsupported("Unit graph subslice was not independently rejoined"),
+            checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue {
+                ..
+            } => {
+                return unsupported(
+                    "Unit graph established argument was not independently rejoined",
+                );
+            }
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
             }
