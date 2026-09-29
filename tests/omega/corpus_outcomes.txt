@@ -91,6 +91,7 @@ pass/build/uefi_os_handoff_invocation rejected 2579ms
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::firmware_return),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(u64\\)\\)\\)),result-dispatch())` has no closed native catalog identity
 	selected compiler intrinsic `<selected target>::UefiOsHandoffNativeProvider::satisfies::UefiOsHandoffTermination` for Terminal boundary `named-callable(path(UefiOsHandoffTermination::transfer),parameters(),result-dispatch())` has no closed native catalog identity
 pass/calls/by_value_case_param_self_write_exit checked 1683ms
+pass/calls/caller_result_binding_mutable_loan_exit checked 560ms @0e894def985b+wt
 pass/calls/callback_private_materialization rejected 1645ms
 	native artifact terminal-authority closure review failed: reachable requirement `named-callable(path(WindowRegistrar::register),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,ref\\(named\\(name\\(Spread<ForeignRecord>\\)\\)\\)\\)),result-dispatch())` resolves to 0 selected provider rows
 pass/calls/cyclic_projected_borrow_call_exit rejected 560ms
@@ -118,8 +119,8 @@ pass/calls/nested_indexed_scalar_arguments_exit checked 640ms @ec06d9821c1c+wt
 pass/calls/nested_machine_continuation checked 1719ms
 pass/calls/nested_value_call_arg_compile checked 1385ms
 pass/calls/ordered_field_selector_calls_exit checked 925ms @e3012d6c0627+wt
-pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 736ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
+pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 331ms @0e894def985b+wt
+	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Store::find`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 0, statement 2)
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1245ms
 pass/calls/runtime_case_record_return_exit checked 1058ms
 pass/calls/runtime_constructor_computed_field_exit checked 909ms

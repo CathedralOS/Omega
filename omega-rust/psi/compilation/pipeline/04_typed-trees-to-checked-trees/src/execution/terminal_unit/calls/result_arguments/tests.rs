@@ -1,9 +1,99 @@
-//! Shared call loans retain the original local's storage and ownership.
+//! Call loans retain the original local's storage and ownership.
 
 use crate::tests::front_end::{checked_program, checked_program_result};
 use checked_trees::{
     CheckedStructuralAccess, CheckedUnitCallResult, CheckedUnitEffectOperationPlan,
 };
+
+#[test]
+fn exclusive_whole_local_loans_use_captured_access_not_binding_mutability() {
+    // Write-only formation separately requires a mutable-authority root.
+    // A mutable loan of owned local storage does not require rebinding it.
+    for (access, binding) in [("mut", ""), ("write", "mut ")] {
+        let checked = checked_program(&format!(
+            r#"
+            data Record {{ value: i32; }}
+            machine fill(output: &{access} Record) {{ output.value = 7; }}
+            machine run() {{
+                let {binding}record: Record;
+                fill(&{access} record);
+            }}
+            "#
+        ));
+        let machine = machine_named(&checked, "run");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .unwrap_or_else(|| {
+                panic!(
+                    "&{access} whole local: {:?}",
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(machine)
+                )
+            });
+        let argument = plan
+            .operations
+            .iter()
+            .find_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::Call(call) => call.structural_arguments.first(),
+                _ => None,
+            })
+            .expect("whole-local call argument");
+        assert!(argument.path.is_empty());
+        assert!(
+            argument
+                .source_structural_result_binding_ordinal()
+                .is_some()
+        );
+        assert_eq!(
+            argument.access,
+            if access == "mut" {
+                CheckedStructuralAccess::MutableBorrow
+            } else {
+                CheckedStructuralAccess::WriteOnlyBorrow
+            }
+        );
+
+        let state = checked
+            .facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+            .expect("caller borrow state");
+        let call = checked
+            .facts
+            .borrow
+            .calls
+            .span_or_empty(state.calls)
+            .first()
+            .expect("captured ordinary call");
+        let mut facts = checked.facts.clone();
+        facts
+            .borrow
+            .argument_accesses
+            .get_mut(call.accesses.start())
+            .root_symbol = symbols::SymbolHandle::invalid();
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &checked.typed,
+            &facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &facts.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            rebuilt.for_machine(machine).is_none(),
+            "&{access} accepted a changed loan root"
+        );
+    }
+}
 
 #[test]
 fn boundary_call_borrows_whole_local_buffer() {

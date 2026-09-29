@@ -530,15 +530,12 @@ pub(super) fn argument(
                 else {
                     return None;
                 };
-                // A whole owned move retains the immutable-binding fence. An
-                // exclusive subloan does not repeat it: borrow formation
-                // already judged the place against the state's writable
-                // roots, which admit every local binding regardless of `mut`
-                // — the marker gates reassignment of the binding itself, not
-                // loans of the storage it owns.
-                if (access != CheckedStructuralAccess::SharedBorrow
-                    && !projected_borrow
-                    && local.is_mutable != exclusive_borrow)
+                // A whole owned move retains the immutable-binding fence.
+                // Loans, whole or projected, use the exact captured access
+                // checked above. Borrow formation owns writability and access
+                // rules (including write-only authority); a binding's `mut`
+                // marker is not a substitute for that evidence.
+                if (access == CheckedStructuralAccess::Owned && local.is_mutable)
                     || local.symbol != symbol
                     || (!unrestricted
                         && !linear
