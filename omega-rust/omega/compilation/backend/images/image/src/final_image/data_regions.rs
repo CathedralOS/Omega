@@ -489,11 +489,15 @@ fn data_inventory_report_fingerprint(
 mod tests {
     use super::super::executable_regions::{byte_report_fingerprint, digest_bytes};
     use super::{
-        FinalDataRegion, FinalDataRegionOrigin, FinalImage, FinalImageLayout,
-        FinalInitializedDataDigest, PlacedDataGap, PlacedDataGapBytesDigest, PlacedDataRegion,
-        PlacedDataRegionBytesDigest, PlacedDataRegionInventory, PlacedDataRegionInventoryDigest,
-        data_inventory_digest, data_inventory_report_fingerprint, place_data_extent,
-        place_data_regions, validate_placed_data_region_inventory,
+        FinalDataRegion, FinalDataRegionOrigin, FinalImage, FinalImageLayout, PlacedDataGap,
+        PlacedDataGapBytesDigest, PlacedDataRegion, PlacedDataRegionBytesDigest,
+        PlacedDataRegionInventory, PlacedDataRegionInventoryDigest, data_inventory_digest,
+        data_inventory_report_fingerprint, place_data_extent, place_data_regions,
+        validate_placed_data_region_inventory,
+    };
+    use diagnostics::Diagnostic;
+    use optimization_core::{
+        MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
     };
     use target::NativeTarget;
 
@@ -676,21 +680,42 @@ mod tests {
         );
     }
 
-    /// Every retained field of [`PlacedDataRegionInventory`] substitutes
-    /// independently and rejects at independent replay against the committed
-    /// final data bytes: the six inventory scalars (data address, byte count,
-    /// digest, report fingerprint, and both inventory seal axes), each placed
+    /// An authentic foreign inventory — different data, different base,
+    /// different retained custody — that supplies donor digests for the
+    /// "foreign" legs and proves the donor carries real evidence of its own.
+    fn foreign_placed_data_inventory() -> PlacedDataRegionInventory {
+        place_data_extent(
+            &[0x5a; 8],
+            vec![FinalDataRegion {
+                origin: FinalDataRegionOrigin::CompilerData,
+                section_offset: 0,
+                byte_count: 4,
+                symbol: "foreign_table".into(),
+            }],
+            0x8000,
+            "foreign-data",
+        )
+        .expect("the foreign inventory places")
+    }
+
+    /// Every byte-derivable field of [`PlacedDataRegionInventory`]
+    /// substitutes independently and rejects at independent replay against
+    /// the committed final data bytes: the four inventory scalars (data
+    /// address, byte count, digest, and report fingerprint), each placed
     /// region row's `section_offset`, `address`, `byte_count`, `byte_digest`,
     /// and `byte_report_fingerprint`, each gap row's five fields, and the
     /// region and gap rosters under drop, duplication, reorder, and foreign
-    /// insertion. A region `origin` or `symbol` substitution under the stale
-    /// seal rejects at the seal comparison; their honestly resealed
-    /// substitutions stay bound by the published identity alone — see
-    /// `placed_data_region_origin_and_symbol_stay_identity_bound`. The record
-    /// has no wire codec in this crate — non-canonical shapes (zero width,
-    /// overlaps, overruns, foreign digests, stale seals) reject at the replay
-    /// admission itself, and the other side of the join — the final data
-    /// bytes — rejects substituted, truncated, or extended extents.
+    /// insertion — the declared `PlacedDataInventoryFieldForTest` inventory
+    /// run through `run_one_field_substitution_matrix`, which pins each
+    /// leg's exact replay refusal. A region `origin` or `symbol`
+    /// substitution under the stale seal rejects at the seal comparison;
+    /// their honestly resealed substitutions stay bound by the published
+    /// identity alone — see
+    /// `placed_data_region_origin_and_symbol_stay_identity_bound`. The
+    /// record has no wire codec in this crate — the row codec lives in the
+    /// native publication's `NativePlacedImageEvidence` — so the two stale
+    /// retained seals and the replayed side of the byte join stay authored
+    /// explicitly below rather than as one-field legs.
     #[test]
     fn placed_data_region_inventory_rejects_every_one_field_substitution() {
         let (image, authentic) = placed_data_inventory();
@@ -700,6 +725,23 @@ mod tests {
         assert_eq!(authentic.regions.len(), 3);
         assert_eq!(authentic.unclassified_gaps.len(), 2);
 
+        run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+            family: "placed data region inventory",
+            fields: PlacedDataInventoryFieldForTest::INVENTORY,
+            honest: &|| placed_data_inventory().1,
+            donor: foreign_placed_data_inventory(),
+            custody: &Clone::clone,
+            substitute: &|inventory, field, donor| {
+                substitute_placed_data_inventory(inventory, field, donor, &final_data_bytes);
+            },
+            check: &|inventory| {
+                validate_placed_data_region_inventory(inventory, &final_data_bytes)
+                    .map(|()| inventory.clone())
+            },
+            outcome: &placed_data_inventory_outcome,
+            joined_replay: None,
+        });
+
         let rejects_at_replay = |name: &'static str, mutated: &PlacedDataRegionInventory| {
             assert_ne!(mutated, &authentic, "{name} must change the record");
             assert!(
@@ -707,39 +749,6 @@ mod tests {
                 "{name} must reject at independent replay"
             );
         };
-
-        // --- inventory scalar fields ---
-        // The placed base is re-derived per row: every retained region
-        // address must equal `data_address + section_offset`.
-        let mut mutated = authentic.clone();
-        mutated.data_address += 0x1000;
-        reidentify(&mut mutated);
-        rejects_at_replay("a substituted data base address", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.data_address = u64::MAX;
-        reidentify(&mut mutated);
-        rejects_at_replay("an overflowing data base address", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.data_byte_count += 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("an extended data byte count", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.data_byte_count -= 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a truncated data byte count", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.data_digest = FinalInitializedDataDigest::from_digest([0xee; 32]);
-        reidentify(&mut mutated);
-        rejects_at_replay("a foreign data digest", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.data_report_fingerprint ^= 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a substituted data report fingerprint", &mutated);
 
         // --- the retained inventory seal itself: a stale seal is the
         // substitution ---
@@ -750,160 +759,6 @@ mod tests {
         let mut mutated = authentic.clone();
         mutated.inventory_report_fingerprint ^= 1;
         rejects_at_replay("a stale inventory report fingerprint", &mutated);
-
-        // --- each retained region row's replay-bound fields ---
-        let mut mutated = authentic.clone();
-        mutated.regions[0].section_offset = 4;
-        reidentify(&mut mutated);
-        rejects_at_replay("a shifted region section offset", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[1].section_offset = 100;
-        reidentify(&mut mutated);
-        rejects_at_replay("a region section offset beyond final data", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[0].address += 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a substituted region address", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[0].byte_count = 0;
-        reidentify(&mut mutated);
-        rejects_at_replay("a zero-width region", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[0].byte_count -= 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a truncated region byte count", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[2].byte_count += 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a region extended past final data", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[0].byte_digest = PlacedDataRegionBytesDigest::from_digest([0xee; 32]);
-        reidentify(&mut mutated);
-        rejects_at_replay("a foreign region byte digest", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[0].byte_report_fingerprint ^= 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a substituted region byte fingerprint", &mutated);
-
-        // --- each retained gap row's fields: the expected partition is
-        // re-derived from the region rows and final bytes and compared by
-        // exact equality ---
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps[0].section_offset += 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a shifted gap section offset", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps[0].address += 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a substituted gap address", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps[0].byte_count -= 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a truncated gap byte count", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps[1].byte_count += 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("an extended gap byte count", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps[0].byte_digest =
-            PlacedDataGapBytesDigest::from_digest([0xee; 32]);
-        reidentify(&mut mutated);
-        rejects_at_replay("a foreign gap byte digest", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps[0].byte_report_fingerprint ^= 1;
-        reidentify(&mut mutated);
-        rejects_at_replay("a substituted gap byte fingerprint", &mutated);
-
-        // --- roster mutations: the retained rosters must reproduce the
-        // partition the region rows imply ---
-        let mut mutated = authentic.clone();
-        mutated.regions.remove(0);
-        reidentify(&mut mutated);
-        rejects_at_replay("a dropped compiler-data row", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions.remove(1);
-        reidentify(&mut mutated);
-        rejects_at_replay("a dropped import-binding row", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps.remove(0);
-        reidentify(&mut mutated);
-        rejects_at_replay("a dropped gap row", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions.push(mutated.regions[1].clone());
-        reidentify(&mut mutated);
-        rejects_at_replay("a duplicated region row", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps.push(mutated.unclassified_gaps[0]);
-        reidentify(&mut mutated);
-        rejects_at_replay("a duplicated gap row", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions.swap(0, 1);
-        reidentify(&mut mutated);
-        rejects_at_replay("a reordered region roster", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps.swap(0, 1);
-        reidentify(&mut mutated);
-        rejects_at_replay("a reordered gap roster", &mutated);
-
-        // An extra row honestly claiming the first gap's span still rejects:
-        // the claimed bytes no longer match the retained gap partition.
-        let mut mutated = authentic.clone();
-        let foreign_bytes = &final_data_bytes[8..12];
-        mutated.regions.insert(
-            1,
-            PlacedDataRegion {
-                origin: FinalDataRegionOrigin::CompilerData,
-                section_offset: 8,
-                address: 0x4008,
-                byte_count: 4,
-                byte_digest: PlacedDataRegionBytesDigest::from_digest(digest_bytes(
-                    b"omega.placed-data-region-bytes.sha256.v1\0",
-                    foreign_bytes,
-                )),
-                byte_report_fingerprint: byte_report_fingerprint(foreign_bytes),
-                symbol: "forged".into(),
-            },
-        );
-        reidentify(&mut mutated);
-        rejects_at_replay("a foreign region claiming the gap", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.unclassified_gaps.push(PlacedDataGap {
-            section_offset: 0,
-            address: 0x4000,
-            byte_count: 1,
-            byte_digest: PlacedDataGapBytesDigest::from_digest(digest_bytes(
-                b"omega.placed-data-gap-bytes.sha256.v1\0",
-                &final_data_bytes[0..1],
-            )),
-            byte_report_fingerprint: byte_report_fingerprint(&final_data_bytes[0..1]),
-        });
-        reidentify(&mut mutated);
-        rejects_at_replay("a foreign gap row", &mutated);
-
-        // --- non-canonical row shapes reject before the seal comparison ---
-        let mut mutated = authentic.clone();
-        mutated.regions[1].section_offset = 4;
-        reidentify(&mut mutated);
-        rejects_at_replay("an overlapping region row", &mutated);
 
         // --- the replayed side of the join is equally bound: substituted,
         // truncated, or extended final data extents reject ---
@@ -933,78 +788,306 @@ mod tests {
     /// `inventory_report_fingerprint`: the recomputed identity diverges from
     /// the identity downstream custody retains — the installation record's
     /// `data_inventory_digest` join — so the substitution is rejected
-    /// wherever the published identity is replayed. For `ImportBindingSlot`
-    /// rows the Mach-O thunk↔slot pairing replay in `image-macho`
-    /// additionally re-derives both fields.
+    /// wherever the published identity is replayed. The checker replays the
+    /// substituted record against the committed final data (the byte join
+    /// still passes) and answers with the authentic retained identity;
+    /// `RebuiltCustodyDiffers` then requires the substituted record's
+    /// published identity to diverge from it, and `joined_replay` pins that
+    /// both identity axes move. For `ImportBindingSlot` rows the Mach-O
+    /// thunk↔slot pairing replay in `image-macho` additionally re-derives
+    /// both fields.
     #[test]
     fn placed_data_region_origin_and_symbol_stay_identity_bound() {
         let (image, authentic) = placed_data_inventory();
         let final_data_bytes = image.memory.data.clone();
         validate_placed_data_region_inventory(&authentic, &final_data_bytes)
             .expect("the authentic inventory replays");
+        let authentic_identity = (
+            authentic.inventory_digest,
+            authentic.inventory_report_fingerprint,
+        );
 
-        let stays_identity_bound = |name: &'static str, mutated: &PlacedDataRegionInventory| {
-            assert_ne!(mutated, &authentic, "{name} must change the record");
-            validate_placed_data_region_inventory(mutated, &final_data_bytes).unwrap_or_else(
-                |diagnostic| {
-                    panic!(
-                        "{name} stays canonical at the byte join: {}",
-                        diagnostic.message
-                    )
-                },
-            );
-            assert_ne!(
-                mutated.inventory_digest, authentic.inventory_digest,
-                "{name} must change the published inventory identity"
-            );
-            assert_ne!(
-                mutated.inventory_report_fingerprint, authentic.inventory_report_fingerprint,
-                "{name} must change the published report fingerprint"
-            );
+        run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+            family: "placed data region classification",
+            fields: PlacedDataIdentityBoundFieldForTest::INVENTORY,
+            honest: &|| placed_data_inventory().1,
+            donor: foreign_placed_data_inventory(),
+            custody: &|inventory: &PlacedDataRegionInventory| {
+                (
+                    inventory.inventory_digest,
+                    inventory.inventory_report_fingerprint,
+                )
+            },
+            substitute: &|inventory, field, _donor| {
+                substitute_placed_data_identity_bound(inventory, field);
+            },
+            check: &|inventory| {
+                validate_placed_data_region_inventory(inventory, &final_data_bytes)
+                    .map(|()| authentic_identity)
+            },
+            outcome: &|_| MutationOutcome::RebuiltCustodyDiffers,
+            joined_replay: Some(&|inventory: &PlacedDataRegionInventory, field| {
+                assert_ne!(
+                    inventory.inventory_digest, authentic_identity.0,
+                    "substituting {field:?} must change the published inventory identity"
+                );
+                assert_ne!(
+                    inventory.inventory_report_fingerprint, authentic_identity.1,
+                    "substituting {field:?} must change the published report fingerprint"
+                );
+            }),
+        });
+    }
+
+    optimization_core::custody_field_inventory! {
+        /// One substitutable byte-derivable field or roster axis of
+        /// [`PlacedDataRegionInventory`], checked by
+        /// `validate_placed_data_region_inventory` replaying the mutated
+        /// record against the committed final data bytes. The two retained
+        /// seal fields are absent: a stale seal is itself the substitution
+        /// and stays authored explicitly in the test.
+        pub enum PlacedDataInventoryFieldForTest {
+            SubstitutedDataBaseAddress,
+            OverflowingDataBaseAddress,
+            ExtendedDataByteCount,
+            TruncatedDataByteCount,
+            ForeignDataDigest,
+            SubstitutedDataReportFingerprint,
+            ShiftedRegionSectionOffset,
+            RegionSectionOffsetBeyondFinalData,
+            SubstitutedRegionAddress,
+            ZeroWidthRegion,
+            TruncatedRegionByteCount,
+            RegionExtendedPastFinalData,
+            ForeignRegionByteDigest,
+            SubstitutedRegionByteFingerprint,
+            ShiftedGapSectionOffset,
+            SubstitutedGapAddress,
+            TruncatedGapByteCount,
+            ExtendedGapByteCount,
+            ForeignGapByteDigest,
+            SubstitutedGapByteFingerprint,
+            DroppedCompilerDataRow,
+            DroppedImportBindingSlotRow,
+            DroppedGapRow,
+            DuplicatedRegionRow,
+            DuplicatedGapRow,
+            ReorderedRegionRoster,
+            ReorderedGapRoster,
+            ForeignRegionClaimingGap,
+            ForeignGapRow,
+            OverlappingRegionRow,
+        }
+    }
+
+    /// Substitute exactly one byte-derivable field or roster axis — drawing
+    /// foreign digests from the authentic `donor` inventory — and honestly
+    /// reseal the containing inventory identity, so only the independent
+    /// replay can expose the leg.
+    fn substitute_placed_data_inventory(
+        inventory: &mut PlacedDataRegionInventory,
+        field: PlacedDataInventoryFieldForTest,
+        donor: &PlacedDataRegionInventory,
+        final_data_bytes: &[u8],
+    ) {
+        use PlacedDataInventoryFieldForTest as Field;
+        match field {
+            // The placed base is re-derived per row: every retained region
+            // address must equal `data_address + section_offset`.
+            Field::SubstitutedDataBaseAddress => inventory.data_address += 0x1000,
+            Field::OverflowingDataBaseAddress => inventory.data_address = u64::MAX,
+            Field::ExtendedDataByteCount => inventory.data_byte_count += 1,
+            Field::TruncatedDataByteCount => inventory.data_byte_count -= 1,
+            Field::ForeignDataDigest => inventory.data_digest = donor.data_digest,
+            Field::SubstitutedDataReportFingerprint => inventory.data_report_fingerprint ^= 1,
+            Field::ShiftedRegionSectionOffset => inventory.regions[0].section_offset = 4,
+            Field::RegionSectionOffsetBeyondFinalData => {
+                inventory.regions[1].section_offset = 100;
+            }
+            Field::SubstitutedRegionAddress => inventory.regions[0].address += 1,
+            Field::ZeroWidthRegion => inventory.regions[0].byte_count = 0,
+            Field::TruncatedRegionByteCount => inventory.regions[0].byte_count -= 1,
+            Field::RegionExtendedPastFinalData => inventory.regions[2].byte_count += 1,
+            Field::ForeignRegionByteDigest => {
+                inventory.regions[0].byte_digest = donor.regions[0].byte_digest;
+            }
+            Field::SubstitutedRegionByteFingerprint => {
+                inventory.regions[0].byte_report_fingerprint ^= 1;
+            }
+            Field::ShiftedGapSectionOffset => inventory.unclassified_gaps[0].section_offset += 1,
+            Field::SubstitutedGapAddress => inventory.unclassified_gaps[0].address += 1,
+            Field::TruncatedGapByteCount => inventory.unclassified_gaps[0].byte_count -= 1,
+            Field::ExtendedGapByteCount => inventory.unclassified_gaps[1].byte_count += 1,
+            Field::ForeignGapByteDigest => {
+                inventory.unclassified_gaps[0].byte_digest = donor.unclassified_gaps[0].byte_digest;
+            }
+            Field::SubstitutedGapByteFingerprint => {
+                inventory.unclassified_gaps[0].byte_report_fingerprint ^= 1;
+            }
+            // The retained rosters must reproduce the partition the region
+            // rows imply.
+            Field::DroppedCompilerDataRow => {
+                inventory.regions.remove(0);
+            }
+            Field::DroppedImportBindingSlotRow => {
+                inventory.regions.remove(1);
+            }
+            Field::DroppedGapRow => {
+                inventory.unclassified_gaps.remove(0);
+            }
+            Field::DuplicatedRegionRow => {
+                let row = inventory.regions[1].clone();
+                inventory.regions.push(row);
+            }
+            Field::DuplicatedGapRow => {
+                let gap = inventory.unclassified_gaps[0];
+                inventory.unclassified_gaps.push(gap);
+            }
+            Field::ReorderedRegionRoster => inventory.regions.swap(0, 1),
+            Field::ReorderedGapRoster => inventory.unclassified_gaps.swap(0, 1),
+            // An extra row honestly claiming the first gap's span still
+            // rejects: the claimed bytes no longer match the retained gap
+            // partition.
+            Field::ForeignRegionClaimingGap => {
+                let foreign_bytes = &final_data_bytes[8..12];
+                inventory.regions.insert(
+                    1,
+                    PlacedDataRegion {
+                        origin: FinalDataRegionOrigin::CompilerData,
+                        section_offset: 8,
+                        address: 0x4008,
+                        byte_count: 4,
+                        byte_digest: PlacedDataRegionBytesDigest::from_digest(digest_bytes(
+                            b"omega.placed-data-region-bytes.sha256.v1\0",
+                            foreign_bytes,
+                        )),
+                        byte_report_fingerprint: byte_report_fingerprint(foreign_bytes),
+                        symbol: "forged".into(),
+                    },
+                );
+            }
+            Field::ForeignGapRow => {
+                inventory.unclassified_gaps.push(PlacedDataGap {
+                    section_offset: 0,
+                    address: 0x4000,
+                    byte_count: 1,
+                    byte_digest: PlacedDataGapBytesDigest::from_digest(digest_bytes(
+                        b"omega.placed-data-gap-bytes.sha256.v1\0",
+                        &final_data_bytes[0..1],
+                    )),
+                    byte_report_fingerprint: byte_report_fingerprint(&final_data_bytes[0..1]),
+                });
+            }
+            Field::OverlappingRegionRow => inventory.regions[1].section_offset = 4,
+        }
+        reidentify(inventory);
+    }
+
+    /// The exact replay refusal each declared byte-derivable field pins at
+    /// `validate_placed_data_region_inventory`.
+    fn placed_data_inventory_outcome(
+        field: PlacedDataInventoryFieldForTest,
+    ) -> MutationOutcome<Diagnostic> {
+        use PlacedDataInventoryFieldForTest as Field;
+        let region = |symbol: &str, claim: &str| {
+            Diagnostic::error(format!("placed initialized-data region `{symbol}` {claim}"))
         };
+        MutationOutcome::ExactError(match field {
+            Field::SubstitutedDataBaseAddress
+            | Field::OverflowingDataBaseAddress
+            | Field::ShiftedRegionSectionOffset
+            | Field::SubstitutedRegionAddress => {
+                region("table", "address does not match its final data offset")
+            }
+            Field::ExtendedDataByteCount => Diagnostic::error(
+                "final initialized-data inventory records 29 data byte(s), but final data contains 28",
+            ),
+            Field::TruncatedDataByteCount => Diagnostic::error(
+                "final initialized-data inventory records 27 data byte(s), but final data contains 28",
+            ),
+            Field::ForeignDataDigest => Diagnostic::error(
+                "final initialized-data inventory digest does not match final data",
+            ),
+            Field::SubstitutedDataReportFingerprint => Diagnostic::error(
+                "final initialized-data inventory fingerprint does not match final data",
+            ),
+            Field::RegionSectionOffsetBeyondFinalData => region("_getpid", "exceeds final data"),
+            Field::ZeroWidthRegion => region("table", "has zero width"),
+            Field::TruncatedRegionByteCount | Field::ForeignRegionByteDigest => {
+                region("table", "byte digest does not match final data")
+            }
+            Field::RegionExtendedPastFinalData => region("", "exceeds final data"),
+            Field::SubstitutedRegionByteFingerprint => {
+                region("table", "byte fingerprint does not match final data")
+            }
+            Field::ShiftedGapSectionOffset
+            | Field::SubstitutedGapAddress
+            | Field::TruncatedGapByteCount
+            | Field::ExtendedGapByteCount
+            | Field::ForeignGapByteDigest
+            | Field::SubstitutedGapByteFingerprint
+            | Field::DroppedCompilerDataRow
+            | Field::DroppedImportBindingSlotRow
+            | Field::DroppedGapRow
+            | Field::DuplicatedGapRow
+            | Field::ReorderedGapRoster
+            | Field::ForeignRegionClaimingGap
+            | Field::ForeignGapRow => Diagnostic::error(
+                "final initialized-data inventory gap partition does not match final data regions",
+            ),
+            Field::DuplicatedRegionRow | Field::OverlappingRegionRow => {
+                region("_getpid", "is out of order or overlaps a preceding region")
+            }
+            Field::ReorderedRegionRoster => {
+                region("table", "is out of order or overlaps a preceding region")
+            }
+        })
+    }
 
-        let mut mutated = authentic.clone();
-        mutated.regions[0].origin = FinalDataRegionOrigin::ImportBindingSlot;
-        reidentify(&mut mutated);
-        stays_identity_bound(
-            "a compiler-data row remarking itself a binding slot",
-            &mutated,
-        );
+    optimization_core::custody_field_inventory! {
+        /// A `origin`/`symbol` substitution the byte-level replay cannot
+        /// re-derive: the honestly resealed record stays canonical at the
+        /// byte join, and the substitution is exposed only by the diverging
+        /// published inventory identity.
+        pub enum PlacedDataIdentityBoundFieldForTest {
+            CompilerDataRemarkedAsBindingSlot,
+            CompilerDataRemarkedAsPadding,
+            BindingSlotRemarkedAsCompilerData,
+            SubstitutedRegionSymbol,
+            SubstitutedBindingSlotSymbol,
+            ErasedRegionSymbol,
+            NamedAnonymousPaddingRow,
+        }
+    }
 
-        let mut mutated = authentic.clone();
-        mutated.regions[0].origin = FinalDataRegionOrigin::AlignmentPadding;
-        reidentify(&mut mutated);
-        stays_identity_bound("a compiler-data row remarking itself padding", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[1].origin = FinalDataRegionOrigin::CompilerData;
-        reidentify(&mut mutated);
-        stays_identity_bound(
-            "a binding-slot row remarking itself compiler data",
-            &mutated,
-        );
-
-        let mut mutated = authentic.clone();
-        mutated.regions[0].symbol = "forged".into();
-        reidentify(&mut mutated);
-        stays_identity_bound("a substituted region symbol", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[1].symbol = "_exit".into();
-        reidentify(&mut mutated);
-        stays_identity_bound("a substituted binding-slot symbol", &mutated);
-
-        // Erasing a symbol is equally representable — anonymous rows carry an
-        // empty symbol — and equally identity-bound.
-        let mut mutated = authentic.clone();
-        mutated.regions[0].symbol.clear();
-        reidentify(&mut mutated);
-        stays_identity_bound("an erased region symbol", &mutated);
-
-        let mut mutated = authentic.clone();
-        mutated.regions[2].symbol = "pad".into();
-        reidentify(&mut mutated);
-        stays_identity_bound("a named anonymous-padding row", &mutated);
+    /// Substitute one classification field and honestly reseal the
+    /// containing inventory identity: the byte-level replay stays canonical,
+    /// so only the diverging published identity exposes the substitution.
+    fn substitute_placed_data_identity_bound(
+        inventory: &mut PlacedDataRegionInventory,
+        field: PlacedDataIdentityBoundFieldForTest,
+    ) {
+        use PlacedDataIdentityBoundFieldForTest as Field;
+        match field {
+            Field::CompilerDataRemarkedAsBindingSlot => {
+                inventory.regions[0].origin = FinalDataRegionOrigin::ImportBindingSlot;
+            }
+            Field::CompilerDataRemarkedAsPadding => {
+                inventory.regions[0].origin = FinalDataRegionOrigin::AlignmentPadding;
+            }
+            Field::BindingSlotRemarkedAsCompilerData => {
+                inventory.regions[1].origin = FinalDataRegionOrigin::CompilerData;
+            }
+            Field::SubstitutedRegionSymbol => inventory.regions[0].symbol = "forged".into(),
+            Field::SubstitutedBindingSlotSymbol => inventory.regions[1].symbol = "_exit".into(),
+            // Erasing a symbol is equally representable — anonymous rows
+            // carry an empty symbol — and equally identity-bound.
+            Field::ErasedRegionSymbol => inventory.regions[0].symbol.clear(),
+            // Even naming an anonymous padding row is bound into the
+            // inventory identity.
+            Field::NamedAnonymousPaddingRow => inventory.regions[2].symbol = "pad".into(),
+        }
+        reidentify(inventory);
     }
 
     /// `place_data_extent` runs the same custody placement over a writer-owned

@@ -1,8 +1,8 @@
 //! Executable region tests.
 
 use super::{
-    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalExecutableTextDigest, FinalImage,
-    FinalImageLayout, PlacedExecutableGap, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
+    FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageLayout,
+    PlacedExecutableGap, PlacedExecutableGapBytesDigest, PlacedExecutableRegion,
     PlacedExecutableRegionBytesDigest, PlacedExecutableRegionInventory,
     PlacedExecutableRegionInventoryDigest, bind_compiler_entry_footprint, byte_report_fingerprint,
     digest_bytes, executable_inventory_digest, executable_inventory_report_fingerprint,
@@ -11,7 +11,11 @@ use super::{
 use calling_conventions::{
     MachineRegister, MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence,
 };
+use diagnostics::Diagnostic;
 use function_identity::{MachineFunctionIdentity, StateKey};
+use optimization_core::{
+    MutationOutcome, OneFieldSubstitutionMatrix, run_one_field_substitution_matrix,
+};
 use target::NativeTarget;
 
 #[test]
@@ -211,6 +215,38 @@ fn placed_executable_inventory() -> (FinalImage, PlacedExecutableRegionInventory
     (image, inventory)
 }
 
+/// An authentic foreign inventory — different text, different base, different
+/// retained custody — that supplies donor digests for the "foreign" legs and
+/// proves the donor carries real evidence of its own.
+fn foreign_placed_executable_inventory() -> PlacedExecutableRegionInventory {
+    let mut image = FinalImage::with_capacity(
+        NativeTarget::host(),
+        crate::FinalImageMemory {
+            text: vec![0x5a; 8],
+            ..crate::FinalImageMemory::default()
+        },
+        Default::default(),
+        0,
+        0,
+        0,
+    );
+    image.executable_regions.push(FinalExecutableRegion {
+        origin: FinalExecutableRegionOrigin::CompilerFunction,
+        section_offset: 0,
+        byte_count: 4,
+        symbol: "foreign_entry".into(),
+        footprint: None,
+    });
+    place_executable_regions(
+        &image,
+        FinalImageLayout {
+            text_address: 0x2000,
+            ..FinalImageLayout::default()
+        },
+    )
+    .expect("the foreign inventory places")
+}
+
 /// Honestly reseal an inventory after a record-level substitution, so a
 /// replay rejection pins the mutated field rather than a stale
 /// `inventory_digest` or `inventory_report_fingerprint`.
@@ -233,22 +269,21 @@ fn reidentify(inventory: &mut PlacedExecutableRegionInventory) {
 
 /// Every byte-derivable field of [`PlacedExecutableRegionInventory`]
 /// substitutes independently and rejects at independent replay against the
-/// committed final text bytes: the six inventory scalars (text address, byte
-/// count, digest, report fingerprint, and both inventory seal axes), each
-/// placed region row's `section_offset`, `address`, `byte_count`,
-/// `byte_digest`, and `byte_report_fingerprint`, each gap row's five fields,
-/// and the region and gap rosters under drop, duplication, reorder, and
-/// foreign insertion. A region `origin`, `symbol`, or `footprint`
-/// substitution under the stale seal rejects at the seal comparison; their
-/// honestly resealed substitutions stay bound by the published identity
-/// alone — see
+/// committed final text bytes: the four inventory scalars (text address, byte
+/// count, digest, and report fingerprint), each placed region row's
+/// `section_offset`, `address`, `byte_count`, `byte_digest`, and
+/// `byte_report_fingerprint`, each gap row's five fields, and the region and
+/// gap rosters under drop, duplication, reorder, and foreign insertion — the
+/// declared `PlacedExecutableInventoryFieldForTest` inventory run through
+/// `run_one_field_substitution_matrix`, which pins each leg's exact replay
+/// refusal. A region `origin`, `symbol`, or `footprint` substitution under
+/// the stale seal rejects at the seal comparison; their honestly resealed
+/// substitutions stay bound by the published identity alone — see
 /// `placed_executable_region_classification_and_footprint_stay_identity_bound`.
 /// The record has no wire codec in this crate — the canonical section codec
-/// lives in `native-artifact`'s `NativePlacedImageEvidence` — so
-/// non-canonical shapes (zero width, overlaps, overruns, foreign digests,
-/// stale seals) reject at the replay admission itself, and the other side of
-/// the join — the final text bytes — rejects substituted, truncated, or
-/// extended extents.
+/// lives in `native-artifact`'s `NativePlacedImageEvidence` — so the two
+/// stale retained seals and the replayed side of the byte join stay authored
+/// explicitly below rather than as one-field legs.
 #[test]
 fn placed_executable_region_inventory_rejects_every_one_field_substitution() {
     let (image, authentic) = placed_executable_inventory();
@@ -258,6 +293,23 @@ fn placed_executable_region_inventory_rejects_every_one_field_substitution() {
     assert_eq!(authentic.regions.len(), 3);
     assert_eq!(authentic.unclassified_gaps.len(), 2);
 
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "placed executable region inventory",
+        fields: PlacedExecutableInventoryFieldForTest::INVENTORY,
+        honest: &|| placed_executable_inventory().1,
+        donor: foreign_placed_executable_inventory(),
+        custody: &Clone::clone,
+        substitute: &|inventory, field, donor| {
+            substitute_placed_executable_inventory(inventory, field, donor, &final_text_bytes);
+        },
+        check: &|inventory| {
+            validate_placed_executable_region_inventory(inventory, &final_text_bytes)
+                .map(|()| inventory.clone())
+        },
+        outcome: &placed_executable_inventory_outcome,
+        joined_replay: None,
+    });
+
     let rejects_at_replay = |name: &'static str, mutated: &PlacedExecutableRegionInventory| {
         assert_ne!(mutated, &authentic, "{name} must change the record");
         assert!(
@@ -265,39 +317,6 @@ fn placed_executable_region_inventory_rejects_every_one_field_substitution() {
             "{name} must reject at independent replay"
         );
     };
-
-    // --- inventory scalar fields ---
-    // The placed base is re-derived per row: every retained region
-    // address must equal `text_address + section_offset`.
-    let mut mutated = authentic.clone();
-    mutated.text_address += 0x1000;
-    reidentify(&mut mutated);
-    rejects_at_replay("a substituted text base address", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.text_address = u64::MAX;
-    reidentify(&mut mutated);
-    rejects_at_replay("an overflowing text base address", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.text_byte_count += 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("an extended text byte count", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.text_byte_count -= 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a truncated text byte count", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.text_digest = FinalExecutableTextDigest::from_digest([0xee; 32]);
-    reidentify(&mut mutated);
-    rejects_at_replay("a foreign text digest", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.text_report_fingerprint ^= 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a substituted text report fingerprint", &mutated);
 
     // --- the retained inventory seal itself: a stale seal is the
     // substitution ---
@@ -308,161 +327,6 @@ fn placed_executable_region_inventory_rejects_every_one_field_substitution() {
     let mut mutated = authentic.clone();
     mutated.inventory_report_fingerprint ^= 1;
     rejects_at_replay("a stale inventory report fingerprint", &mutated);
-
-    // --- each retained region row's replay-bound fields ---
-    let mut mutated = authentic.clone();
-    mutated.regions[0].section_offset = 4;
-    reidentify(&mut mutated);
-    rejects_at_replay("a shifted region section offset", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[1].section_offset = 100;
-    reidentify(&mut mutated);
-    rejects_at_replay("a region section offset beyond final text", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].address += 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a substituted region address", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].byte_count = 0;
-    reidentify(&mut mutated);
-    rejects_at_replay("a zero-width region", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].byte_count -= 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a truncated region byte count", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[2].byte_count += 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a region extended past final text", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].byte_digest = PlacedExecutableRegionBytesDigest::from_digest([0xee; 32]);
-    reidentify(&mut mutated);
-    rejects_at_replay("a foreign region byte digest", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].byte_report_fingerprint ^= 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a substituted region byte fingerprint", &mutated);
-
-    // --- each retained gap row's fields: the expected partition is
-    // re-derived from the region rows and final bytes and compared by
-    // exact equality ---
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps[0].section_offset += 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a shifted gap section offset", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps[0].address += 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a substituted gap address", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps[0].byte_count -= 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a truncated gap byte count", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps[1].byte_count += 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("an extended gap byte count", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps[0].byte_digest =
-        PlacedExecutableGapBytesDigest::from_digest([0xee; 32]);
-    reidentify(&mut mutated);
-    rejects_at_replay("a foreign gap byte digest", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps[0].byte_report_fingerprint ^= 1;
-    reidentify(&mut mutated);
-    rejects_at_replay("a substituted gap byte fingerprint", &mutated);
-
-    // --- roster mutations: the retained rosters must reproduce the
-    // partition the region rows imply ---
-    let mut mutated = authentic.clone();
-    mutated.regions.remove(0);
-    reidentify(&mut mutated);
-    rejects_at_replay("a dropped compiler-function row", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions.remove(1);
-    reidentify(&mut mutated);
-    rejects_at_replay("a dropped import-thunk row", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps.remove(0);
-    reidentify(&mut mutated);
-    rejects_at_replay("a dropped gap row", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions.push(mutated.regions[1].clone());
-    reidentify(&mut mutated);
-    rejects_at_replay("a duplicated region row", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps.push(mutated.unclassified_gaps[0]);
-    reidentify(&mut mutated);
-    rejects_at_replay("a duplicated gap row", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions.swap(0, 1);
-    reidentify(&mut mutated);
-    rejects_at_replay("a reordered region roster", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps.swap(0, 1);
-    reidentify(&mut mutated);
-    rejects_at_replay("a reordered gap roster", &mutated);
-
-    // An extra row honestly claiming the first gap's span still rejects:
-    // the claimed bytes no longer match the retained gap partition.
-    let mut mutated = authentic.clone();
-    let foreign_bytes = &final_text_bytes[4..8];
-    mutated.regions.insert(
-        1,
-        PlacedExecutableRegion {
-            origin: FinalExecutableRegionOrigin::ImportThunk,
-            section_offset: 4,
-            address: 0x1004,
-            byte_count: 4,
-            byte_digest: PlacedExecutableRegionBytesDigest::from_digest(digest_bytes(
-                b"omega.placed-executable-region-bytes.sha256.v1\0",
-                foreign_bytes,
-            )),
-            byte_report_fingerprint: byte_report_fingerprint(foreign_bytes),
-            symbol: "forged".into(),
-            footprint: None,
-        },
-    );
-    reidentify(&mut mutated);
-    rejects_at_replay("a foreign region claiming the gap", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.unclassified_gaps.push(PlacedExecutableGap {
-        section_offset: 0,
-        address: 0x1000,
-        byte_count: 1,
-        byte_digest: PlacedExecutableGapBytesDigest::from_digest(digest_bytes(
-            b"omega.placed-executable-gap-bytes.sha256.v1\0",
-            &final_text_bytes[0..1],
-        )),
-        byte_report_fingerprint: byte_report_fingerprint(&final_text_bytes[0..1]),
-    });
-    reidentify(&mut mutated);
-    rejects_at_replay("a foreign gap row", &mutated);
-
-    // --- non-canonical row shapes reject before the seal comparison ---
-    let mut mutated = authentic.clone();
-    mutated.regions[1].section_offset = 2;
-    reidentify(&mut mutated);
-    rejects_at_replay("an overlapping region row", &mutated);
 
     // --- the replayed side of the join is equally bound: substituted,
     // truncated, or extended final text extents reject ---
@@ -494,114 +358,336 @@ fn placed_executable_region_inventory_rejects_every_one_field_substitution() {
 /// `executable_inventory_digest` header field, the native publication's
 /// `inventory_digest`, and the entry-footprint binding's
 /// `resulting_inventory_digest` — so the substitution is rejected wherever
-/// the published identity is replayed. Production replays also re-derive
-/// them outright for the rows they own: image-emission's terminal-image
-/// validation binds every `CompilerFunction` row's origin, symbol, and span
-/// to the exact object plan, and the PE and Mach-O emitters'
-/// `validate_import_thunk_footprints` re-derives each `ImportThunk` row's
-/// origin, symbol, and opcode bytes before prescribing its exact footprint.
+/// the published identity is replayed. The checker replays the substituted
+/// record against the committed final text (the byte join still passes) and
+/// answers with the authentic retained identity; `RebuiltCustodyDiffers`
+/// then requires the substituted record's published identity to diverge
+/// from it, and `joined_replay` pins that both identity axes move.
+/// Production replays also re-derive them outright for the rows they own:
+/// image-emission's terminal-image validation binds every `CompilerFunction`
+/// row's origin, symbol, and span to the exact object plan, and the PE and
+/// Mach-O emitters' `validate_import_thunk_footprints` re-derives each
+/// `ImportThunk` row's origin, symbol, and opcode bytes before prescribing
+/// its exact footprint.
 #[test]
 fn placed_executable_region_classification_and_footprint_stay_identity_bound() {
     let (image, authentic) = placed_executable_inventory();
     let final_text_bytes = image.memory.text.clone();
     validate_placed_executable_region_inventory(&authentic, &final_text_bytes)
         .expect("the authentic inventory replays");
-
-    let stays_identity_bound = |name: &'static str, mutated: &PlacedExecutableRegionInventory| {
-        assert_ne!(mutated, &authentic, "{name} must change the record");
-        validate_placed_executable_region_inventory(mutated, &final_text_bytes).unwrap_or_else(
-            |diagnostic| {
-                panic!(
-                    "{name} stays canonical at the byte join: {}",
-                    diagnostic.message
-                )
-            },
-        );
-        assert_ne!(
-            mutated.inventory_digest, authentic.inventory_digest,
-            "{name} must change the published inventory identity"
-        );
-        assert_ne!(
-            mutated.inventory_report_fingerprint, authentic.inventory_report_fingerprint,
-            "{name} must change the published report fingerprint"
-        );
-    };
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].origin = FinalExecutableRegionOrigin::ImportThunk;
-    reidentify(&mut mutated);
-    stays_identity_bound("a compiler-function row remarking itself a thunk", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[1].origin = FinalExecutableRegionOrigin::CompilerFunction;
-    reidentify(&mut mutated);
-    stays_identity_bound(
-        "an import-thunk row remarking itself a compiler function",
-        &mutated,
+    let authentic_identity = (
+        authentic.inventory_digest,
+        authentic.inventory_report_fingerprint,
     );
 
-    let mut mutated = authentic.clone();
-    mutated.regions[0].symbol = "forged".into();
-    reidentify(&mut mutated);
-    stays_identity_bound("a substituted region symbol", &mutated);
+    run_one_field_substitution_matrix(&OneFieldSubstitutionMatrix {
+        family: "placed executable region classification",
+        fields: PlacedExecutableIdentityBoundFieldForTest::INVENTORY,
+        honest: &|| placed_executable_inventory().1,
+        donor: foreign_placed_executable_inventory(),
+        custody: &|inventory: &PlacedExecutableRegionInventory| {
+            (
+                inventory.inventory_digest,
+                inventory.inventory_report_fingerprint,
+            )
+        },
+        substitute: &|inventory, field, _donor| {
+            substitute_placed_executable_identity_bound(inventory, field);
+        },
+        check: &|inventory| {
+            validate_placed_executable_region_inventory(inventory, &final_text_bytes)
+                .map(|()| authentic_identity)
+        },
+        outcome: &|_| MutationOutcome::RebuiltCustodyDiffers,
+        joined_replay: Some(&|inventory: &PlacedExecutableRegionInventory, field| {
+            assert_ne!(
+                inventory.inventory_digest, authentic_identity.0,
+                "substituting {field:?} must change the published inventory identity"
+            );
+            assert_ne!(
+                inventory.inventory_report_fingerprint, authentic_identity.1,
+                "substituting {field:?} must change the published report fingerprint"
+            );
+        }),
+    });
+}
 
-    let mut mutated = authentic.clone();
-    mutated.regions[1].symbol = "_exit".into();
-    reidentify(&mut mutated);
-    stays_identity_bound("a substituted thunk symbol", &mutated);
+optimization_core::custody_field_inventory! {
+    /// One substitutable byte-derivable field or roster axis of
+    /// [`PlacedExecutableRegionInventory`], checked by
+    /// `validate_placed_executable_region_inventory` replaying the mutated
+    /// record against the committed final text bytes. The two retained seal
+    /// fields are absent: a stale seal is itself the substitution and stays
+    /// authored explicitly in the test.
+    pub enum PlacedExecutableInventoryFieldForTest {
+        SubstitutedTextBaseAddress,
+        OverflowingTextBaseAddress,
+        ExtendedTextByteCount,
+        TruncatedTextByteCount,
+        ForeignTextDigest,
+        SubstitutedTextReportFingerprint,
+        ShiftedRegionSectionOffset,
+        RegionSectionOffsetBeyondFinalText,
+        SubstitutedRegionAddress,
+        ZeroWidthRegion,
+        TruncatedRegionByteCount,
+        RegionExtendedPastFinalText,
+        ForeignRegionByteDigest,
+        SubstitutedRegionByteFingerprint,
+        ShiftedGapSectionOffset,
+        SubstitutedGapAddress,
+        TruncatedGapByteCount,
+        ExtendedGapByteCount,
+        ForeignGapByteDigest,
+        SubstitutedGapByteFingerprint,
+        DroppedCompilerFunctionRow,
+        DroppedImportThunkRow,
+        DroppedGapRow,
+        DuplicatedRegionRow,
+        DuplicatedGapRow,
+        ReorderedRegionRoster,
+        ReorderedGapRoster,
+        ForeignRegionClaimingGap,
+        ForeignGapRow,
+        OverlappingRegionRow,
+    }
+}
 
-    // Erasing a symbol is equally representable and equally identity-bound.
-    let mut mutated = authentic.clone();
-    mutated.regions[0].symbol.clear();
-    reidentify(&mut mutated);
-    stays_identity_bound("an erased region symbol", &mutated);
+/// Substitute exactly one byte-derivable field or roster axis — drawing
+/// foreign digests from the authentic `donor` inventory — and honestly reseal
+/// the containing inventory identity, so only the independent replay can
+/// expose the leg.
+fn substitute_placed_executable_inventory(
+    inventory: &mut PlacedExecutableRegionInventory,
+    field: PlacedExecutableInventoryFieldForTest,
+    donor: &PlacedExecutableRegionInventory,
+    final_text_bytes: &[u8],
+) {
+    use PlacedExecutableInventoryFieldForTest as Field;
+    match field {
+        // The placed base is re-derived per row: every retained region
+        // address must equal `text_address + section_offset`.
+        Field::SubstitutedTextBaseAddress => inventory.text_address += 0x1000,
+        Field::OverflowingTextBaseAddress => inventory.text_address = u64::MAX,
+        Field::ExtendedTextByteCount => inventory.text_byte_count += 1,
+        Field::TruncatedTextByteCount => inventory.text_byte_count -= 1,
+        Field::ForeignTextDigest => inventory.text_digest = donor.text_digest,
+        Field::SubstitutedTextReportFingerprint => inventory.text_report_fingerprint ^= 1,
+        Field::ShiftedRegionSectionOffset => inventory.regions[0].section_offset = 4,
+        Field::RegionSectionOffsetBeyondFinalText => inventory.regions[1].section_offset = 100,
+        Field::SubstitutedRegionAddress => inventory.regions[0].address += 1,
+        Field::ZeroWidthRegion => inventory.regions[0].byte_count = 0,
+        Field::TruncatedRegionByteCount => inventory.regions[0].byte_count -= 1,
+        Field::RegionExtendedPastFinalText => inventory.regions[2].byte_count += 1,
+        Field::ForeignRegionByteDigest => {
+            inventory.regions[0].byte_digest = donor.regions[0].byte_digest;
+        }
+        Field::SubstitutedRegionByteFingerprint => {
+            inventory.regions[0].byte_report_fingerprint ^= 1;
+        }
+        Field::ShiftedGapSectionOffset => inventory.unclassified_gaps[0].section_offset += 1,
+        Field::SubstitutedGapAddress => inventory.unclassified_gaps[0].address += 1,
+        Field::TruncatedGapByteCount => inventory.unclassified_gaps[0].byte_count -= 1,
+        Field::ExtendedGapByteCount => inventory.unclassified_gaps[1].byte_count += 1,
+        Field::ForeignGapByteDigest => {
+            inventory.unclassified_gaps[0].byte_digest = donor.unclassified_gaps[0].byte_digest;
+        }
+        Field::SubstitutedGapByteFingerprint => {
+            inventory.unclassified_gaps[0].byte_report_fingerprint ^= 1;
+        }
+        // The retained rosters must reproduce the partition the region rows
+        // imply.
+        Field::DroppedCompilerFunctionRow => {
+            inventory.regions.remove(0);
+        }
+        Field::DroppedImportThunkRow => {
+            inventory.regions.remove(1);
+        }
+        Field::DroppedGapRow => {
+            inventory.unclassified_gaps.remove(0);
+        }
+        Field::DuplicatedRegionRow => {
+            let row = inventory.regions[1].clone();
+            inventory.regions.push(row);
+        }
+        Field::DuplicatedGapRow => {
+            let gap = inventory.unclassified_gaps[0];
+            inventory.unclassified_gaps.push(gap);
+        }
+        Field::ReorderedRegionRoster => inventory.regions.swap(0, 1),
+        Field::ReorderedGapRoster => inventory.unclassified_gaps.swap(0, 1),
+        // An extra row honestly claiming the first gap's span still rejects:
+        // the claimed bytes no longer match the retained gap partition.
+        Field::ForeignRegionClaimingGap => {
+            let foreign_bytes = &final_text_bytes[4..8];
+            inventory.regions.insert(
+                1,
+                PlacedExecutableRegion {
+                    origin: FinalExecutableRegionOrigin::ImportThunk,
+                    section_offset: 4,
+                    address: 0x1004,
+                    byte_count: 4,
+                    byte_digest: PlacedExecutableRegionBytesDigest::from_digest(digest_bytes(
+                        b"omega.placed-executable-region-bytes.sha256.v1\0",
+                        foreign_bytes,
+                    )),
+                    byte_report_fingerprint: byte_report_fingerprint(foreign_bytes),
+                    symbol: "forged".into(),
+                    footprint: None,
+                },
+            );
+        }
+        Field::ForeignGapRow => {
+            inventory.unclassified_gaps.push(PlacedExecutableGap {
+                section_offset: 0,
+                address: 0x1000,
+                byte_count: 1,
+                byte_digest: PlacedExecutableGapBytesDigest::from_digest(digest_bytes(
+                    b"omega.placed-executable-gap-bytes.sha256.v1\0",
+                    &final_text_bytes[0..1],
+                )),
+                byte_report_fingerprint: byte_report_fingerprint(&final_text_bytes[0..1]),
+            });
+        }
+        Field::OverlappingRegionRow => inventory.regions[1].section_offset = 2,
+    }
+    reidentify(inventory);
+}
 
-    // The footprint axis: dropping, adding, or substituting retained
-    // register and machine-state evidence is representable and
-    // identity-bound the same way.
-    let mut mutated = authentic.clone();
-    mutated.regions[0].footprint = None;
-    reidentify(&mut mutated);
-    stays_identity_bound("a dropped region footprint", &mutated);
+/// The exact replay refusal each declared byte-derivable field pins at
+/// `validate_placed_executable_region_inventory`.
+fn placed_executable_inventory_outcome(
+    field: PlacedExecutableInventoryFieldForTest,
+) -> MutationOutcome<Diagnostic> {
+    use PlacedExecutableInventoryFieldForTest as Field;
+    let region = |symbol: &str, claim: &str| {
+        Diagnostic::error(format!("placed executable region `{symbol}` {claim}"))
+    };
+    MutationOutcome::ExactError(match field {
+        Field::SubstitutedTextBaseAddress
+        | Field::OverflowingTextBaseAddress
+        | Field::ShiftedRegionSectionOffset
+        | Field::SubstitutedRegionAddress => {
+            region("entry", "address does not match its final text offset")
+        }
+        Field::ExtendedTextByteCount => Diagnostic::error(
+            "final executable inventory records 21 text byte(s), but final text contains 20",
+        ),
+        Field::TruncatedTextByteCount => Diagnostic::error(
+            "final executable inventory records 19 text byte(s), but final text contains 20",
+        ),
+        Field::ForeignTextDigest => {
+            Diagnostic::error("final executable inventory text digest does not match final text")
+        }
+        Field::SubstitutedTextReportFingerprint => Diagnostic::error(
+            "final executable inventory text fingerprint does not match final text",
+        ),
+        Field::RegionSectionOffsetBeyondFinalText => region("host_call", "exceeds final text"),
+        Field::ZeroWidthRegion => region("entry", "has zero width"),
+        Field::TruncatedRegionByteCount | Field::ForeignRegionByteDigest => {
+            region("entry", "byte digest does not match final text")
+        }
+        Field::RegionExtendedPastFinalText => region("tail", "exceeds final text"),
+        Field::SubstitutedRegionByteFingerprint => {
+            region("entry", "byte fingerprint does not match final text")
+        }
+        Field::ShiftedGapSectionOffset
+        | Field::SubstitutedGapAddress
+        | Field::TruncatedGapByteCount
+        | Field::ExtendedGapByteCount
+        | Field::ForeignGapByteDigest
+        | Field::SubstitutedGapByteFingerprint
+        | Field::DroppedCompilerFunctionRow
+        | Field::DroppedImportThunkRow
+        | Field::DroppedGapRow
+        | Field::DuplicatedGapRow
+        | Field::ReorderedGapRoster
+        | Field::ForeignRegionClaimingGap
+        | Field::ForeignGapRow => Diagnostic::error(
+            "final executable inventory gap partition does not match final text regions",
+        ),
+        Field::DuplicatedRegionRow | Field::OverlappingRegionRow => region(
+            "host_call",
+            "is out of order or overlaps a preceding region",
+        ),
+        Field::ReorderedRegionRoster => {
+            region("entry", "is out of order or overlaps a preceding region")
+        }
+    })
+}
 
-    let mut mutated = authentic.clone();
-    mutated.regions[2].footprint = None;
-    reidentify(&mut mutated);
-    stays_identity_bound("a dropped register-implied footprint", &mutated);
+optimization_core::custody_field_inventory! {
+    /// A `origin`/`symbol`/`footprint` substitution the byte-level replay
+    /// cannot re-derive: the honestly resealed record stays canonical at the
+    /// byte join, and the substitution is exposed only by the diverging
+    /// published inventory identity.
+    pub enum PlacedExecutableIdentityBoundFieldForTest {
+        CompilerFunctionRowRemarkedAsThunk,
+        ImportThunkRowRemarkedAsCompilerFunction,
+        SubstitutedRegionSymbol,
+        SubstitutedThunkSymbol,
+        ErasedRegionSymbol,
+        DroppedRegionFootprint,
+        DroppedRegisterImpliedFootprint,
+        AddedRegionFootprint,
+        SubstitutedFootprintRegisterSet,
+        SubstitutedFootprintMachineStateSet,
+        EmptiedRegionFootprint,
+    }
+}
 
-    let mut mutated = authentic.clone();
-    mutated.regions[1].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rcx]),
-        MachineStateSet::new([MachineState::SegmentState]),
-    ));
-    reidentify(&mut mutated);
-    stays_identity_bound("an added region footprint", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([
-            MachineRegister::X86Rax,
-            MachineRegister::X86Rdi,
-            MachineRegister::X86Rbx,
-        ]),
-        MachineStateSet::new([MachineState::Flags]),
-    ));
-    reidentify(&mut mutated);
-    stays_identity_bound("a substituted footprint register set", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rdi]),
-        MachineStateSet::new([MachineState::Flags, MachineState::DebugState]),
-    ));
-    reidentify(&mut mutated);
-    stays_identity_bound("a substituted footprint machine-state set", &mutated);
-
-    let mut mutated = authentic.clone();
-    mutated.regions[0].footprint = Some(StateFootprintEvidence::new(
-        RegisterSet::new([]),
-        MachineStateSet::empty(),
-    ));
-    reidentify(&mut mutated);
-    stays_identity_bound("an emptied region footprint", &mutated);
+/// Substitute one classification or footprint field and honestly reseal the
+/// containing inventory identity: the byte-level replay stays canonical, so
+/// only the diverging published identity exposes the substitution.
+fn substitute_placed_executable_identity_bound(
+    inventory: &mut PlacedExecutableRegionInventory,
+    field: PlacedExecutableIdentityBoundFieldForTest,
+) {
+    use PlacedExecutableIdentityBoundFieldForTest as Field;
+    match field {
+        Field::CompilerFunctionRowRemarkedAsThunk => {
+            inventory.regions[0].origin = FinalExecutableRegionOrigin::ImportThunk;
+        }
+        Field::ImportThunkRowRemarkedAsCompilerFunction => {
+            inventory.regions[1].origin = FinalExecutableRegionOrigin::CompilerFunction;
+        }
+        Field::SubstitutedRegionSymbol => inventory.regions[0].symbol = "forged".into(),
+        Field::SubstitutedThunkSymbol => inventory.regions[1].symbol = "_exit".into(),
+        // Erasing a symbol is equally representable and equally identity-bound.
+        Field::ErasedRegionSymbol => inventory.regions[0].symbol.clear(),
+        // The footprint axis: dropping, adding, or substituting retained
+        // register and machine-state evidence is representable and
+        // identity-bound the same way.
+        Field::DroppedRegionFootprint => inventory.regions[0].footprint = None,
+        Field::DroppedRegisterImpliedFootprint => inventory.regions[2].footprint = None,
+        Field::AddedRegionFootprint => {
+            inventory.regions[1].footprint = Some(StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Rcx]),
+                MachineStateSet::new([MachineState::SegmentState]),
+            ));
+        }
+        Field::SubstitutedFootprintRegisterSet => {
+            inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
+                RegisterSet::new([
+                    MachineRegister::X86Rax,
+                    MachineRegister::X86Rdi,
+                    MachineRegister::X86Rbx,
+                ]),
+                MachineStateSet::new([MachineState::Flags]),
+            ));
+        }
+        Field::SubstitutedFootprintMachineStateSet => {
+            inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
+                RegisterSet::new([MachineRegister::X86Rax, MachineRegister::X86Rdi]),
+                MachineStateSet::new([MachineState::Flags, MachineState::DebugState]),
+            ));
+        }
+        Field::EmptiedRegionFootprint => {
+            inventory.regions[0].footprint = Some(StateFootprintEvidence::new(
+                RegisterSet::new([]),
+                MachineStateSet::empty(),
+            ));
+        }
+    }
+    reidentify(inventory);
 }
