@@ -132,6 +132,23 @@ pub(super) fn validate_operands(
 }
 
 /// The fact a normal return establishes: the result is the primitive's exact
+/// mathematical value, available only after a Trapping operation returns.
+///
+/// Producers may use this equation to propose result guarantees, but must still
+/// prove them against independently reconstructed return-site facts. This query
+/// validates operand/result carriers; it neither proves trap freedom nor grants
+/// a crash ceiling. Non-Trapping operations have no equation under this rule.
+pub fn reconstruct_trapping_integer_normal_return_equation(
+    operation: &Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+) -> Result<Option<Proposition>, ModuleError> {
+    if !matches!(operation.kind, OperationKind::TrappingInteger { .. }) {
+        return Ok(None);
+    }
+    normal_return_equation(operation, value_types).map(Some)
+}
+
+/// The fact a normal return establishes: the result is the primitive's exact
 /// mathematical value. It is sound only on the continuation, which a trap
 /// never reaches, so it joins the path axioms after the operation exactly as
 /// an Exact operation's result equation joins after its obligation.
