@@ -60,3 +60,30 @@ customer, so a second red sample adds no coverage and costs a working program.
 The order that keeps programs running: land the structural-argument transport,
 then migrate the 119 in bulk. Until then the migration advances on canaries
 and on samples whose state is entirely scalar.
+
+## Three distinct blockers, not one
+
+Measured 2026-09-29 while migrating canaries. Each has its own signature, and
+conflating them would send a repair at the wrong layer.
+
+| # | trigger | signature | evidence |
+| --- | --- | --- | --- |
+| 1 | a structural value handed to a machine from anywhere but a data field | `InvalidUnitMachinePlan`, stopping at `call operation: structural arguments: caller structural result` | the carrier probe above; `generic_counters`; `nested_diagnostics` |
+| 2 | a static entry that applies a boundary operator | `BoundaryRealizationMismatch(BoundaryMachineId(1))` | `pass/providers/external_boundary_requirement_via_exit` checks with a receiver, rejects as a free machine |
+| 3 | a checked canary whose data held only the Console binding | native `Lowering(Unsupported("composed Unit control has unsupported graph custody"))` | `pass/arithmetic/runtime_integer_casts_exit` |
+
+Blocker 3 is worth stating carefully, because the obvious reading is wrong.
+The migration is not a checking failure: after it, `--check` passes on
+`macos_arm64`, `linux_x86_64` **and** `windows_x86_64`. With the receiver the
+fixture reports `native exit 70 / interp exit: 70`; migrated, native
+compilation fails outright. Thirteen of eighteen fixtures in that class
+regressed the same way and none was landed.
+
+Nor is it "static entries cannot call Console": `samples/cli/collections/slice_maximum`
+already uses `machine main()` with `Console::write_line` and
+`Console::exit_process` and realizes natively today. Something narrower about
+this shape is unsupported, and it was not isolated further here.
+
+Nor is it the entry shape. `entry_roots.md`'s `NoneOrProvisionedZii` "admits
+an entry without a context or with one ordinary `context: &mut Context`
+parameter", so a parameterless `machine main()` is admitted by contract.
