@@ -25,6 +25,27 @@ pub(crate) struct LoweredStructuralScalarStore {
 }
 
 impl LoweredStructuralScalarStore {
+    /// The store into `field` at the end of `steps`, once the caller has
+    /// established the root's custody. The field must hold `scalar_type`.
+    fn at_field(
+        scalar_type: ScalarType,
+        steps: Vec<ProjectionStep>,
+        field: &terminal_psi::StructuralFieldDeclaration,
+    ) -> Result<Self, LoweringError> {
+        if field.field_type.scalar_type() != Some(scalar_type) {
+            return unsupported("structural scalar store field has a different type");
+        }
+        Ok(Self {
+            steps,
+            field: field.id,
+            scalar_type,
+            requires_range_obligation: matches!(
+                field.field_type,
+                StructuralFieldType::BoundedInteger(_)
+            ),
+        })
+    }
+
     /// The static carrier path, for routes that evaluate no selector.
     pub(crate) fn static_path(&self) -> Result<Vec<StructuralPathSegment>, LoweringError> {
         crate::emission::runtime_elements::static_segments(self.steps.clone())
@@ -117,18 +138,7 @@ pub(crate) fn lower_structural_scalar_store_place(
         structural_types,
         access_policy,
     )?;
-    if field.field_type.scalar_type() != Some(scalar_type) {
-        return unsupported("structural scalar store field has a different type");
-    }
-    Ok(LoweredStructuralScalarStore {
-        steps,
-        field: field.id,
-        scalar_type,
-        requires_range_obligation: matches!(
-            field.field_type,
-            StructuralFieldType::BoundedInteger(_)
-        ),
-    })
+    LoweredStructuralScalarStore::at_field(scalar_type, steps, field)
 }
 
 /// The owned-local counterpart of `lower_structural_scalar_store_place`: the
@@ -147,18 +157,7 @@ pub(crate) fn lower_structural_scalar_store_local(
         &store.field_identity,
         structural_types,
     )?;
-    if field.field_type.scalar_type() != Some(scalar_type) {
-        return unsupported("structural scalar store field has a different type");
-    }
-    Ok(LoweredStructuralScalarStore {
-        steps,
-        field: field.id,
-        scalar_type,
-        requires_range_obligation: matches!(
-            field.field_type,
-            StructuralFieldType::BoundedInteger(_)
-        ),
-    })
+    LoweredStructuralScalarStore::at_field(scalar_type, steps, field)
 }
 
 /// Reconstruct the exact carrier and relevant field independently of payload

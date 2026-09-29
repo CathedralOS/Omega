@@ -859,6 +859,46 @@ impl OperationFrame<'_, '_> {
         Ok(())
     }
 
+    /// Resolve a structural-local store destination to the local's live
+    /// home place and the structural type its producing operation gave that
+    /// place, under the store's own root policy.
+    fn local_store_root(
+        &self,
+        symbol: symbols::SymbolHandle,
+        policy: &LocalStoreRoot,
+    ) -> Result<(PlaceId, StructuralTypeId), LoweringError> {
+        let (_, argument) = self
+            .evaluation
+            .structural_locals
+            .iter()
+            .find(|(candidate, _)| *candidate == symbol)
+            .ok_or(LoweringError::Unsupported(policy.unknown_local))?;
+        let admitted = argument.access == StructuralAccess::Owned
+            || (policy.admits_mutable_borrow && argument.access == StructuralAccess::MutableBorrow);
+        if !admitted || !argument.path.is_empty() {
+            return unsupported(policy.not_whole_home);
+        }
+        let produced = self
+            .operations
+            .operations
+            .iter()
+            .filter_map(|operation| operation.result.structural())
+            .find(|result| result.place == argument.place)
+            .ok_or(LoweringError::Unsupported(policy.unproduced))?;
+        if let Some(lost_custody) = policy.lost_custody
+            && (!matches!(
+                produced.multiplicity,
+                terminal_psi::StructuralMultiplicity::Unrestricted
+                    | terminal_psi::StructuralMultiplicity::Affine
+            ) || !produced.qualifications.is_empty()
+                || !produced.projected_qualifications.is_empty()
+                || !produced.claims.is_empty())
+        {
+            return unsupported(lost_custody);
+        }
+        Ok((argument.place, produced.structural_type))
+    }
+
     fn element_view_write(
         &mut self,
         write: &checked_trees::CheckedElementViewWritePlan,
@@ -888,41 +928,7 @@ impl OperationFrame<'_, '_> {
                 (destination.place, destination.structural_type)
             }
             checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
-                let (_, argument) = self
-                    .evaluation
-                    .structural_locals
-                    .iter()
-                    .find(|(candidate, _)| *candidate == symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "element-view write names an unknown structural local",
-                    ))?;
-                if !matches!(
-                    argument.access,
-                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
-                ) || !argument.path.is_empty()
-                {
-                    return unsupported("element-view write local root is not a whole owned home");
-                }
-                let produced = self
-                    .operations
-                    .operations
-                    .iter()
-                    .filter_map(|operation| operation.result.structural())
-                    .find(|result| result.place == argument.place)
-                    .ok_or(LoweringError::Unsupported(
-                        "element-view write local root has no produced place",
-                    ))?;
-                if !matches!(
-                    produced.multiplicity,
-                    terminal_psi::StructuralMultiplicity::Unrestricted
-                        | terminal_psi::StructuralMultiplicity::Affine
-                ) || !produced.qualifications.is_empty()
-                    || !produced.projected_qualifications.is_empty()
-                    || !produced.claims.is_empty()
-                {
-                    return unsupported("element-view write local root lost exclusive custody");
-                }
-                (argument.place, produced.structural_type)
+                self.local_store_root(symbol, &LocalStoreRoot::ELEMENT_VIEW_WRITE)?
             }
         };
         self.indexed_write(IndexedWriteTarget::ElementView {
@@ -963,54 +969,15 @@ impl OperationFrame<'_, '_> {
                 (destination.place, lowered)
             }
             checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
-                let (_, argument) = self
-                    .evaluation
-                    .structural_locals
-                    .iter()
-                    .find(|(candidate, _)| *candidate == symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural scalar store names an unknown structural local",
-                    ))?;
-                // An exclusive `&mut` view local names the same exclusive
-                // home an owned local does: its carrier place is the loaned
-                // referent, and the loan's own custody made it exclusive.
-                if !matches!(
-                    argument.access,
-                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
-                ) || !argument.path.is_empty()
-                {
-                    return unsupported(
-                        "structural scalar store local root is not a whole owned home",
-                    );
-                }
-                let produced = self
-                    .operations
-                    .operations
-                    .iter()
-                    .filter_map(|operation| operation.result.structural())
-                    .find(|result| result.place == argument.place)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural scalar store local root has no produced place",
-                    ))?;
-                if !matches!(
-                    produced.multiplicity,
-                    terminal_psi::StructuralMultiplicity::Unrestricted
-                        | terminal_psi::StructuralMultiplicity::Affine
-                ) || !produced.qualifications.is_empty()
-                    || !produced.projected_qualifications.is_empty()
-                    || !produced.claims.is_empty()
-                {
-                    return unsupported(
-                        "structural scalar store local root lost exclusive custody",
-                    );
-                }
+                let (place, root_type) =
+                    self.local_store_root(symbol, &LocalStoreRoot::SCALAR_FIELD_STORE)?;
                 let lowered =
                     crate::emission::structural_scalar_store::lower_structural_scalar_store_local(
                         store,
-                        produced.structural_type,
+                        root_type,
                         self.structural_types.declarations(),
                     )?;
-                (argument.place, lowered)
+                (place, lowered)
             }
         };
         // The carrier's runtime elements are evaluated before the value.
@@ -1087,30 +1054,10 @@ impl OperationFrame<'_, '_> {
                 )
             }
             checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
-                let (_, argument) = self
-                    .evaluation
-                    .structural_locals
-                    .iter()
-                    .find(|(candidate, _)| *candidate == symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural case field store names an unknown structural local",
-                    ))?;
-                if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
-                    return unsupported(
-                        "structural case field store local root is not a whole owned home",
-                    );
-                }
-                let produced = self
-                    .operations
-                    .operations
-                    .iter()
-                    .filter_map(|operation| operation.result.structural())
-                    .find(|result| result.place == argument.place)
-                    .ok_or(LoweringError::Unsupported(
-                        "structural case field store local root has no produced place",
-                    ))?;
+                let (_, root_type) =
+                    self.local_store_root(symbol, &LocalStoreRoot::CASE_FIELD_STORE)?;
                 (
-                    produced.structural_type,
+                    root_type,
                     checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {
                         symbol,
                     },
@@ -1972,4 +1919,45 @@ fn require_parameter_window_root(
         return unsupported("borrowed-window root was transported to a join parameter");
     }
     Ok(())
+}
+
+/// How one store kind admits a structural local as its destination root,
+/// with that store's own diagnostics. An element-view write and a scalar
+/// field store also admit an exclusive `&mut` view local, which names the
+/// same exclusive home an owned local does: its carrier place is the loaned
+/// referent, and the loan's own custody made it exclusive. Both re-check the
+/// produced result's exclusive custody. A case field store admits only an
+/// owned home and does not check the produced result's multiplicity,
+/// qualifications or claims.
+struct LocalStoreRoot {
+    admits_mutable_borrow: bool,
+    unknown_local: &'static str,
+    not_whole_home: &'static str,
+    unproduced: &'static str,
+    /// `None` leaves the produced result's custody unchecked.
+    lost_custody: Option<&'static str>,
+}
+
+impl LocalStoreRoot {
+    const ELEMENT_VIEW_WRITE: Self = Self {
+        admits_mutable_borrow: true,
+        unknown_local: "element-view write names an unknown structural local",
+        not_whole_home: "element-view write local root is not a whole owned home",
+        unproduced: "element-view write local root has no produced place",
+        lost_custody: Some("element-view write local root lost exclusive custody"),
+    };
+    const SCALAR_FIELD_STORE: Self = Self {
+        admits_mutable_borrow: true,
+        unknown_local: "structural scalar store names an unknown structural local",
+        not_whole_home: "structural scalar store local root is not a whole owned home",
+        unproduced: "structural scalar store local root has no produced place",
+        lost_custody: Some("structural scalar store local root lost exclusive custody"),
+    };
+    const CASE_FIELD_STORE: Self = Self {
+        admits_mutable_borrow: false,
+        unknown_local: "structural case field store names an unknown structural local",
+        not_whole_home: "structural case field store local root is not a whole owned home",
+        unproduced: "structural case field store local root has no produced place",
+        lost_custody: None,
+    };
 }
