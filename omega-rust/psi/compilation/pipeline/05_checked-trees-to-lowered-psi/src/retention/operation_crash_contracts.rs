@@ -775,10 +775,12 @@ mod tests {
             "a second install must not silently rewrite contracts: {error:?}"
         );
     }
-    /// A guarded float operator route now carries a structured scalar
-    /// proposition: `!(left == right)` over `f64` formals lowers to the atomic
-    /// scalar IEEE comparison, and `left != right` lowers without the negation.
-    /// Both use the operator's formal telescope (operand `k` is formal `k + 1`)
+    /// A guarded float operator route carries a structured scalar proposition
+    /// when the guard's relation has builtin IEEE meaning, which here means a
+    /// spelling the boundary does not itself declare. `!(left < right)` lowers
+    /// to the unordered complement, `left > right` to `<` over swapped
+    /// operands, and `left <= right` and `left != right` directly. Every form
+    /// reads the operator's formal telescope (operand `k` is formal `k + 1`)
     /// and the verifier accepts the installed row.
     #[test]
     fn crash_contract_installs_a_scalar_ieee_float_guard() {
@@ -789,10 +791,11 @@ mod tests {
 
         let float = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
         let formal = |raw: u64| ScalarTerm::value(ValueId::new(raw).expect("formal"), float);
-        for (guard, kind) in [
-            ("!(left == right)", IeeeFloatComparisonKind::NotEqual),
-            ("left != right", IeeeFloatComparisonKind::NotEqual),
-            ("left == right", IeeeFloatComparisonKind::Equal),
+        for (guard, kind, [left, right]) in [
+            ("!(left < right)", IeeeFloatComparisonKind::NotLessThan, [1, 2]),
+            ("left > right", IeeeFloatComparisonKind::LessThan, [2, 1]),
+            ("left <= right", IeeeFloatComparisonKind::LessOrEqual, [1, 2]),
+            ("left != right", IeeeFloatComparisonKind::NotEqual, [1, 2]),
         ] {
             let checked = checked(&format!(
                 "boundary operator == Float::equal(left: f64, right: f64) -> bool\n\
@@ -822,8 +825,8 @@ mod tests {
                 &Proposition::ScalarIeeeFloatComparison {
                     kind,
                     format: IeeeFloatFormat::Binary64,
-                    left: formal(1),
-                    right: formal(2),
+                    left: formal(left),
+                    right: formal(right),
                 },
                 "{guard}: scalar IEEE comparison over the formal telescope"
             );
@@ -832,17 +835,19 @@ mod tests {
         }
     }
 
-    /// IEEE ordering guards keep failing closed: `>=` on float formals has no
-    /// structured scalar form even though `==`/`!=` now lower.
+    /// A guard that spells the boundary's own declared relation fails closed.
+    /// A bodyless declaration does not grant IEEE meaning; only a builtin
+    /// spelling or the sealed Float contract does, so `==` here, which
+    /// resolves to this look-alike `Float::equal`, has no structured form.
     #[test]
-    fn crash_contract_still_rejects_float_ordering_guards() {
+    fn crash_contract_rejects_a_guard_spelled_through_a_declared_float_relation() {
         let checked = checked(
             "boundary operator == Float::equal(left: f64, right: f64) -> bool\n\
-             crashes Trap !(right >= 0.0);\n\
+             crashes Trap !(left == right);\n\
              machine compare(left: f64, right: f64) -> bool crashes Trap { left == right }",
         );
         let error = crate::lower_machine(&checked, TerminalMachineSelection::Name("compare"))
-            .expect_err("an ordering guard has no structured scalar form");
+            .expect_err("a declared look-alike relation has no builtin IEEE meaning");
         assert!(
             format!("{error:?}")
                 .contains("guarded crash route is outside structured scalar predicate lowering"),
