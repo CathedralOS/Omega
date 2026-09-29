@@ -1,7 +1,7 @@
 //! Per-boundary fixed-site copy construction for the leaf-local and
 //! immediate-site policies: one copy in the site's block immediately before
 //! the fixed use, sourcing any admitted origin.
-use super::apply::{apply_copy, is_u64};
+use super::apply::{apply_copy, is_i64};
 use super::preflight::{find_leaf_block, find_site_block};
 use super::{
     BTreeSet, FixedViewCopy, FixedViewCopyDestination, FixedViewCopyError,
@@ -60,7 +60,7 @@ pub(super) fn admitted_source<'a>(
             });
         }
     };
-    if !is_u64(source_register.scalar_type) {
+    if !is_i64(source_register.scalar_type) {
         return Err(FixedViewCopyError::UnsupportedSourceRegister {
             function: function_index,
             register: boundary.virtual_register.0,

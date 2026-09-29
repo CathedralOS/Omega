@@ -3,7 +3,7 @@
 //! alone — the shared dominating point from connector evidence, member site
 //! blocks from the source function, and the admission gate from the policy.
 use super::apply::replay_apply;
-use super::leaf_destination::{replay_is_u64, replay_site_block};
+use super::leaf_destination::{replay_is_i64, replay_site_block};
 use std::collections::BTreeSet;
 
 use register_model::{RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess};
@@ -68,7 +68,7 @@ pub(super) fn replay_source_exit_copies(
         };
         if source.class != first.class
             || (declared && source.entry_fixed_view != Some(first.from_view))
-            || !replay_is_u64(source.scalar_type)
+            || !replay_is_i64(source.scalar_type)
             || row.operands[0].class != source.class
             || row.operands[1].class != source.class
         {
