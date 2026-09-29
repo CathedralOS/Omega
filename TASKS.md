@@ -1675,10 +1675,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
     scans applications to overwrite checked-plan omissions: `UninstalledOperator`
     and both diagnostic-only adapter/intrinsic scanners are retired. Missing
     plans retain the checked producer's phase and dependency. The unchanged
-    `named_provider_negate_is_nan_exit` customer now exposes
-    `scalar field store sequence: write frame agreement` in state 0; trace
-    that producer before extending native builtin installation. Exact plan
-    and authored-use drift controls run at the live realization consumers.
+    `named_provider_negate_is_nan_exit` customer passes named-call write-frame
+    and result-type planning at `d854042ec3d` plus this change on macOS ARM64.
+    The four-fixture native command above still executes all three integer
+    controls with exit **70**; the float customer now stops at
+    `statement sequence: local data: scalar local: pure initializer`
+    (state 0, statement 11, the later `zero64` local).
+    `statement_sequence.rs::scalar_computation_local_at` uses an execution
+    result-slot ordinal to look up a source-local initializer; preceding
+    call-result field stores advance only the former. Separate source
+    occurrence custody from executable value positions through the Psi 04/05
+    consumers, then rerun the unchanged customer before extending native
+    builtin installation. Exact plan and authored-use drift controls run at
+    the live realization consumers.
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
     through selected-plan settlement and physical-child replay. Reuse stage

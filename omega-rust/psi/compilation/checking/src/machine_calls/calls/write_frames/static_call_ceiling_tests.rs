@@ -134,3 +134,57 @@ fn static_ceiling_queries_share_the_frozen_program_call_plans() {
     let unrelated_plans = super::operand_call_plans(&unrelated, None);
     assert!(!std::sync::Arc::ptr_eq(&resolver_plans, &unrelated_plans));
 }
+
+#[test]
+fn named_operator_frame_uses_formals_not_namespace_storage() {
+    for primitive in ["f32", "f64"] {
+        let frame = inspection_frame(&format!(
+            "data Arithmetic {{}}
+             boundary operator Arithmetic::negate(value: {primitive}) -> {primitive};
+             data Counter {{ value: {primitive}; }}
+             machine Counter::inspect(&mut self) {{
+                 self.value = Arithmetic::negate(self.value);
+             }}"
+        ));
+        assert_eq!(
+            frame.complete_paths(),
+            Some(["self.value".to_owned()].as_slice()),
+            "{primitive}: the namespace and copied scalar input are not write authority"
+        );
+    }
+}
+
+#[test]
+fn named_operator_frame_keeps_mutable_inputs_and_operand_effects() {
+    for (declaration, argument) in [
+        ("value: &mut u64", "&mut self.count"),
+        ("value: u64", "bump(&mut self.count)"),
+    ] {
+        let frame = inspection_frame(&format!(
+            "data Arithmetic {{}}
+             boundary operator Arithmetic::evaluate({declaration}) -> u64;
+             machine bump(value: &mut u64) -> u64 {{ value = 2; 0 }}
+             data Counter {{ count: u64; }}
+             machine Counter::inspect(&mut self) {{
+                 let result: u64 = Arithmetic::evaluate({argument});
+             }}"
+        ));
+        assert_eq!(
+            frame.complete_paths(),
+            Some(["self.count".to_owned()].as_slice()),
+            "{argument}: caller storage writes survive signature framing"
+        );
+    }
+}
+
+#[test]
+fn named_operator_frame_does_not_erase_carried_reference_writes() {
+    let frame = inspection_frame(
+        "data Arithmetic {} data Carrier { slot: &mut u64; }
+         boundary operator Arithmetic::evaluate(carrier: Carrier) -> u64;
+         machine inspect(carrier: Carrier) {
+             let result: u64 = Arithmetic::evaluate(carrier);
+         }",
+    );
+    assert!(!frame.is_complete());
+}

@@ -199,6 +199,33 @@ fn known_call_written_paths_for_parts_with_origins(
     {
         return None;
     }
+    if let Some(operator) = program
+        .operators()
+        .iter()
+        .find(|operator| operator.symbol == target_symbol)
+    {
+        // The resolved requirement, not its namespace spelling or selected
+        // provider, owns the caller-storage ceiling. Use the same ownership
+        // projection as signature-only machines.
+        if !operator.is_boundary
+            || !operator.lifetime_parameters.is_empty()
+            || !program.operator_type_parameters(operator).is_empty()
+        {
+            return None;
+        }
+        return boundary_calls::signature_parameters_written_paths(
+            program,
+            current_machine,
+            machine_symbols,
+            symbols,
+            program.operator_parameters(operator),
+            false,
+            receiver_members,
+            receiver_origins,
+            arguments,
+            inference,
+        );
+    }
     let exact_callee = machine_state_by_symbol(program, target_symbol);
     if receiver_origins
         .iter()
