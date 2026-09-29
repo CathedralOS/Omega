@@ -103,6 +103,23 @@ pub(super) fn validate(
             ))?
     };
     let target = graph_state(&target_graph.states, successor.target)?;
+    // A tail into another machine that retains a borrowed receiver keeps the
+    // fused graph's one machine-scope receiver. Only the source's own lexical
+    // `self` (or no receiver) lends that place; a projected receiver would
+    // lend a different one through the same declaration.
+    if target_machine.symbol != machine.symbol
+        && target
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+        && !match checked.statement_table.name_path_members(path.members) {
+            [_] => true,
+            [receiver, _] => receiver.as_str() == "self",
+            _ => false,
+        }
+    {
+        return unsupported("scalar successor lends a projected receiver across a fused tail");
+    }
     // Reuse the signature's independent typed-source checks, including the
     // numeric-constraint plain-owned classifier and nominal/catalog custody.
     // Matching two retained signatures cannot establish these facts.

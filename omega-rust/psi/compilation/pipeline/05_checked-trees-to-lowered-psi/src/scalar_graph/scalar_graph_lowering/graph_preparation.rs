@@ -159,8 +159,22 @@ fn prepare_scalar_graph_machine_with_contract_mode(
     // a multi-state machine or tail-fused bodies, carries scalar formals
     // only; a multi-state machine whose non-entry states would bind formals
     // from their incoming edges belongs to the Unit state graph.
+    //
+    // The one exception binds nothing on an edge: a tail fusion of
+    // single-state machines whose every member retains the entry's exact
+    // borrowed receiver. The receiver is one machine-scope place, and
+    // successor replay admits only tails that lend the source's lexical
+    // `self`, so every member reads it through the entry namespace.
+    let shared_receiver = states.len() > 1
+        && states.iter().all(|state| {
+            matches!(state.structural_parameters.as_slice(), [receiver] if receiver.is_self)
+                && state.structural_parameters == entry_state.structural_parameters
+                && source_custody::authored_state(checked, state.state)
+                    .is_ok_and(|(owner, _)| checked.machine_states(owner).len() == 1)
+        });
     if entry_state.structural_parameters.len() != structural_parameters.len()
         || (states.len() != 1
+            && !shared_receiver
             && states
                 .iter()
                 .any(|state| !state.structural_parameters.is_empty()))
@@ -235,11 +249,12 @@ fn prepare_scalar_graph_machine_with_contract_mode(
             .with_fields(&fields);
 
     for (state_index, state) in states.iter().enumerate() {
-        let state_namespace: &[(u32, StructuralParameterDeclaration)] = if state_index == 0 {
-            &entry_namespace
-        } else {
-            &[]
-        };
+        let state_namespace: &[(u32, StructuralParameterDeclaration)] =
+            if state_index == 0 || shared_receiver {
+                &entry_namespace
+            } else {
+                &[]
+            };
         computations.refresh_proof_scope(&state.erased_proof_parameters);
         let (parameter_types, state_result_type) =
             qualifications.scalar_state_types(checked, state.state)?;
