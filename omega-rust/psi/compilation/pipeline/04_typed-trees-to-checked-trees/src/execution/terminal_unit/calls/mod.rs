@@ -30,8 +30,8 @@ pub(crate) use affine_locals::{
     build_affine_array_construction_prefix, build_unit_trivial_affine_locals,
 };
 pub(crate) use argument_paths::{
-    byte_sequence_literal_argument, projected_argument_path, projected_borrowed_path,
-    projected_observed_path,
+    borrowed_index_segment, byte_sequence_literal_argument, projected_argument_path,
+    projected_borrowed_path, projected_observed_path,
 };
 pub(crate) use boundary_admission::{
     provider_attachment_receiver_field, provider_attachment_receiver_matches,
@@ -47,10 +47,10 @@ pub(crate) use signatures::{
     fused_service_scalar_signature, partial_affine_structural_signature,
     structural_scalar_signature, structural_scalar_signature_traced, structural_signature,
 };
+pub(crate) use structural_arguments::call_claim_transfers;
 pub(crate) use structural_result_call::{
     view_self_member_symbol, view_source_parameter_is_mutable,
 };
-pub(crate) use structural_arguments::call_claim_transfers;
 /// Rejoin a bodyless external leaf (a compiler intrinsic or an evaluated
 /// foreign binding) to the exact boundary-trait requirement whose call it
 /// realizes. Provider selection may resolve a call to the target satisfier

@@ -1,0 +1,75 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.fill_literal(&mut self.bag);
+    self.fill_local(&mut self.bag);
+    self.fill_param(&mut self.bag, 3);
+    transition
+        self.bag.cells[2].value == 7
+            && self.bag.cells[1].value == 5
+            && self.bag.cells[3].value == 9
+    {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(90);
+    }
+}
+
+machine Main::fill_literal(&mut self, bag: &mut Bag) {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let cell: &mut Cell = &mut cells[2];
+    cell.value = 7;
+    transition {
+        _ -> done()
+    }
+
+    state done() {
+    }
+}
+
+machine Main::fill_local(&mut self, bag: &mut Bag) {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let pick: i32 = 1;
+    let other: &mut Cell = &mut cells[pick];
+    other.value = 5;
+    transition {
+        _ -> done()
+    }
+
+    state done() {
+    }
+}
+
+machine Main::fill_param(&mut self, bag: &mut Bag, at: u64) requires at < 4 {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    let target: &mut Cell = &mut cells[at];
+    target.value = 9;
+    transition {
+        _ -> done()
+    }
+
+    state done() {
+    }
+}
