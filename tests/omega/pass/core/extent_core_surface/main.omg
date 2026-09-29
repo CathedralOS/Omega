@@ -7,8 +7,5 @@ data Holder {
     slot: ExtentSlot;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

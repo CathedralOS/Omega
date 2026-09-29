@@ -1,8 +1,5 @@
 // `crash Trap;` is an explicit unrecoverable, unwind-free terminal outcome.
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     crash Trap;
 }

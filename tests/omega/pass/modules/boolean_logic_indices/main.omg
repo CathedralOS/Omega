@@ -5,5 +5,4 @@ machine keep(value: Flag<(ENABLED && true)>) -> Flag<true> {
     let local: Flag<(false || ENABLED)> = value;
     local
 }
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

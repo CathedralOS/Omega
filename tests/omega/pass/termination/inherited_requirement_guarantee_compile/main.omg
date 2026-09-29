@@ -4,9 +4,7 @@ trait Countdown {
     machine countdown(remaining: u64) -> u64 terminates;
 }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     let value: u64 = countdown(3);
 }
 

@@ -34,8 +34,5 @@ machine accepts_concrete(value: Stream<sample>) -> Stream<sample> {
     forward_schema<identity_schema, sample>(value)
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

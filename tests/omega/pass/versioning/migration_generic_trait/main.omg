@@ -36,8 +36,5 @@ machine network_counter_v1_to_current(
     out.timestamp = 1;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

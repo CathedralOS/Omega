@@ -50,8 +50,5 @@ ensures (a as EquivalenceClass) == (b as EquivalenceClass)
 {
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

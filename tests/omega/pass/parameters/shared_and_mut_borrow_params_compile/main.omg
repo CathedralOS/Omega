@@ -11,6 +11,4 @@ machine Combat::strike(attacker: &Player, defender: &mut Player, damage: i32 in 
 }
 
 data Combat {}
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

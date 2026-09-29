@@ -34,9 +34,7 @@ machine crowned_less(left: Card, right: Card) -> bool {
     left < right
 }
 
-data Main {}
-
-machine Main::main(&mut self)
+machine main()
 terminates;
 {
 }

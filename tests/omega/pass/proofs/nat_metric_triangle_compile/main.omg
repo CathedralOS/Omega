@@ -35,8 +35,5 @@ ensures
     mul_le_cancel_right(a, b, factor);
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

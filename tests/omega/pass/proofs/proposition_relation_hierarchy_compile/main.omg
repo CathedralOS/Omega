@@ -121,8 +121,5 @@ ensures stream_related<Left, Right>(left, right)
 {
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

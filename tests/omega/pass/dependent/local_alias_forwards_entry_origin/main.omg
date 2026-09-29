@@ -23,8 +23,5 @@ ensures result == input
     }
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

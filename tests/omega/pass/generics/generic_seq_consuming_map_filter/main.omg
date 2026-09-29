@@ -55,6 +55,4 @@ machine filtered(items: Seq<i32>) -> Seq<i32> {
     filter<positive>(items)
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

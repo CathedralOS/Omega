@@ -21,8 +21,5 @@ machine caller(value: i32) -> i32 {
     register<chosen>(value)
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

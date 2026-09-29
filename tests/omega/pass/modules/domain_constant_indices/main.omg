@@ -10,5 +10,4 @@ data Root {
     next: u64 in Indexed<SIZE + 1>;
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

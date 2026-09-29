@@ -17,8 +17,5 @@ boundary machine [..] Table::window<T>(items: &Table<T>, start: u64, end: u64) -
 requires
     start <= end && end <= 8;
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

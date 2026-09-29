@@ -51,6 +51,4 @@ ensures
     writer.complete(pending)
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

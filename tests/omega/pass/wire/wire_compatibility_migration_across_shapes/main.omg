@@ -29,8 +29,5 @@ machine Counter::from_v1(
     out.timestamp = 0;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

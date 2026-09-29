@@ -4,9 +4,7 @@ trait Value {
     machine value() -> u64 terminates;
 }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     let result: u64 = value();
 }
 

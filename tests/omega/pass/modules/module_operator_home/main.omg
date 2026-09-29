@@ -8,9 +8,7 @@
 
 use units;
 
-data Main {}
-
 machine measure(a: u64 in units::u64::Distance, b: u64 in units::u64::Distance) -> bool { true }
 
-machine Main::main(&mut self) {
+machine main() {
 }

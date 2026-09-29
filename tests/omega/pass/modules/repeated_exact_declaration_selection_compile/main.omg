@@ -12,8 +12,6 @@ use combat::Damage;
 
 machine score(d: Damage) -> u32 { damage() }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     let r: u32 = score(combat::Damage { amount: 3 });
 }
