@@ -141,6 +141,7 @@ pub(crate) fn lower_unit_plan_machine(
         CheckedUnitPlan::ComposedControl(plan) => LoweredSelectedMachine::source_mapped(
             lower_composed_unit_control_machine(checked, plan)?,
             LoweringCompletion {
+                operands: OperandProofCompletion::Finalize,
                 debug: DebugPublication::Omit,
                 ..Default::default()
             },
