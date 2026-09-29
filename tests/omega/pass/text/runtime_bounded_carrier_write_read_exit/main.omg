@@ -3,8 +3,9 @@
 // (len word + content bytes, the carrier OWNS its bytes -- not a `{ptr, len}`
 // descriptor aliasing rodata), and the `==` guard reads it back with carrier
 // addressing (length at offset 0, content at offset pointer_size) and content-
-// compares against the literal. `self.label == "Gate"` matches (length 4 == 4,
-// every byte equal) so it exits 70. The interpreter agrees (differential).
+// compares against the literal. Then two guarded arrivals join at an indexed
+// byte store: both must establish the field's ASCII bound independently.
+// Exercise each arrival and a rejected non-ASCII input; all checks exit 70.
 domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
@@ -14,14 +15,45 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     label: [u8; 8] in Utf8;
+    byte: u8;
+}
+
+machine Main::replace(&mut self, choice: u8, byte: u8) {
+    self.label = "Gate";
+    transition choice == 0 { true -> supplied(byte) _ -> space() }
+    state supplied(&mut self, byte: u8) {
+        self.byte = byte;
+        transition self.byte < 128 { true -> write() _ -> done() }
+    }
+    state space(&mut self) {
+        self.byte = 32;
+        transition self.byte < 128 { true -> write() _ -> done() }
+    }
+    state write(&mut self) { self.label[1] = self.byte; }
+    state done(&mut self) { }
 }
 
 machine Main::main(&mut self) reaches Console {
     self.label = "Gate";
 
     transition self.label == "Gate" {
-        true -> good()
+        true -> supplied()
         false -> bad()
+    }
+
+    state supplied(&mut self) {
+        self.replace(0, 111);
+        transition self.label == "Gote" { true -> space() _ -> bad() }
+    }
+
+    state space(&mut self) {
+        self.replace(1, 200);
+        transition self.label == "G te" { true -> non_ascii() _ -> bad() }
+    }
+
+    state non_ascii(&mut self) {
+        self.replace(0, 200);
+        transition self.label == "Gate" { true -> good() _ -> bad() }
     }
 
     state good(&mut self) {
