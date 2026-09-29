@@ -6,6 +6,10 @@
 //! Retaining that graph as a closure root preserves those dependencies and its
 //! source replay. The affine identity family keeps its existing separate emitter;
 //! competing body plans must reject rather than choose whichever path succeeds.
+//! The shared lowering entrance then closes installation entries with
+//! `realize_receiver_adapters`, before any consumer verifies the whole module.
+//! The selected nominal overload remains the same; its derived entry and the
+//! ordinary body it invokes are both bound by the artifact's sealed identity.
 
 use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;

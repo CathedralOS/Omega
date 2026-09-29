@@ -113,6 +113,59 @@ fn checked_array_provider_preserves_receiver_and_mixed_arguments() {
         terminal_verifier::validate_module(&redirected).is_err(),
         "the ordinary receiver cannot be omitted by redirecting installation"
     );
+
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        TerminalMachineSelection::Name("Root::run"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("receiver adapter publishes a sealed artifact")
+    .into_artifact();
+    let mut published = decode_module(artifact.semantic_bytes()).unwrap();
+    let candidate = &published.provider_candidates[0];
+    let selection = [ProviderInstallationSelection {
+        boundary: candidate.boundary,
+        provider_identity: candidate.provider_identity.clone(),
+        candidate: candidate.candidate,
+    }];
+    admit_provider_installation_from_artifact(
+        artifact.semantic_bytes(),
+        artifact.proof_bytes(),
+        &proof_admission::AdmissionProfile::default(),
+        &selection,
+    )
+    .expect("source-free adapter installation");
+    let adapter_id = candidate.candidate;
+    let adapter = published
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == adapter_id)
+        .unwrap();
+    let arguments = adapter
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            OperationKind::CallStructuralScalar { arguments, .. } => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    arguments.swap(0, 1);
+    terminal_verifier::validate_module(&published)
+        .expect("same-typed scalar substitution is structurally valid");
+    let changed = encode_module(&published).unwrap();
+    assert!(
+        admit_provider_installation_from_artifact(
+            &changed,
+            artifact.proof_bytes(),
+            &proof_admission::AdmissionProfile::default(),
+            &selection
+        )
+        .is_err(),
+        "unchanged nominal selection and proof cannot admit a different adapter body"
+    );
 }
 
 #[test]
