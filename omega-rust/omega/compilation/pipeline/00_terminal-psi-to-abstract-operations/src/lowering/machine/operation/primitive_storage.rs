@@ -48,10 +48,29 @@ pub(super) fn local(
     machine: &TerminalMachine,
     place: PlaceId,
 ) -> Option<&StructuralOperationResult> {
-    let declaration = machine
+    let (operation, result) = owned_result(machine, place)?;
+    matches!(
+        operation.kind,
+        OperationKind::EstablishPrimitiveLocal { .. }
+    )
+    .then_some(result)
+}
+
+/// A projected read observes the producer's existing owned storage. Rejoin
+/// the declared operation result, not an ABI parameter or a fresh copy. The
+/// Terminal verifier separately checks availability and outstanding loans.
+fn owned_result(
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<(&Operation, &StructuralOperationResult)> {
+    let mut declarations = machine
         .structural_places
         .iter()
-        .find(|entry| entry.id == place)?;
+        .filter(|entry| entry.id == place);
+    let declaration = declarations.next()?;
+    if declarations.next().is_some() {
+        return None;
+    }
     let StructuralPlaceKind::OperationResult {
         producer,
         structural_type,
@@ -59,16 +78,17 @@ pub(super) fn local(
     else {
         return None;
     };
-    let operation = machine
+    let mut operations = machine
         .blocks
         .iter()
         .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == producer)?;
+        .filter(|operation| operation.id == producer);
+    let operation = operations.next()?;
+    if operations.next().is_some() {
+        return None;
+    }
     let result = operation.result.structural()?;
-    (matches!(
-        operation.kind,
-        OperationKind::EstablishPrimitiveLocal { .. }
-    ) && result.place == place
+    (result.place == place
         && result.structural_type == structural_type
         && result.multiplicity == StructuralMultiplicity::Unrestricted
         && result.qualifications.is_empty()
@@ -82,7 +102,7 @@ pub(super) fn local(
             .content_entry_claims
             .iter()
             .all(|claim| claim.input.root != place))
-    .then_some(result)
+    .then_some((operation, result))
 }
 
 pub(super) fn scalar_type(
@@ -165,6 +185,12 @@ pub(super) fn lower(
             let result = operation.result.scalar().ok_or_else(invalid)?;
             let identity = local(machine, source)
                 .map(|local| local.structural_type)
+                .or_else(|| {
+                    (!path.is_empty())
+                        .then(|| owned_result(machine, source))
+                        .flatten()
+                        .map(|(_, result)| result.structural_type)
+                })
                 .or_else(|| {
                     parameter(machine, types, source)
                         .filter(|parameter| {

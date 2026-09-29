@@ -67,6 +67,19 @@ pub(super) fn readable(
     if let Some((_, _, actual, _)) = local(source, place) {
         return path.is_empty() && actual == scalar;
     }
+    if let Some((_, result)) = super::aggregate_result_input::home(source, place) {
+        return !path.is_empty()
+            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && source.structural.as_ref().is_some_and(|signature| {
+                crate::structural_inputs::structural_reference_input::primitive_read_geometry(
+                    result.structural_type,
+                    path,
+                    scalar,
+                    &signature.structural_types,
+                )
+                .is_some()
+            });
+    }
     source.structural.as_ref().is_some_and(|signature| {
         signature.entry_claims.is_empty()
             && borrowed_parameter(source, place).is_some_and(|parameter| {
@@ -129,10 +142,14 @@ pub(super) fn read_geometry(
                 return indices.is_empty().then_some((*place, 0));
             }
             let signature = source.structural.as_ref()?;
-            let parameter = borrowed_parameter(source, *place)?;
+            let structural_type = super::aggregate_result_input::home(source, *place)
+                .map(|(_, result)| result.structural_type)
+                .or_else(|| {
+                    borrowed_parameter(source, *place).map(|parameter| parameter.structural_type)
+                })?;
             let (offset, _, elements) =
                 crate::structural_inputs::structural_reference_input::primitive_read_geometry(
-                    parameter.structural_type,
+                    structural_type,
                     path,
                     scalar,
                     &signature.structural_types,

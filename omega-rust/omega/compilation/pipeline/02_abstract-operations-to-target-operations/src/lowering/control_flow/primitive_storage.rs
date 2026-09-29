@@ -490,9 +490,10 @@ pub(super) fn lower(
             path,
         } => {
             let identity = if let Some(home) = live.structural_homes.get(source) {
-                if !path.is_empty() {
-                    return Err(LoweringError::unsupported_control_flow(function.machine));
-                }
+                // The same established home supplies whole primitive reads
+                // and projected aggregate reads. The path below determines
+                // the leaf and offset; borrowing this home for an earlier
+                // call must not make later reads observe an argument copy.
                 home.structural_type()
             } else if live.address_joins.contains(source) {
                 function

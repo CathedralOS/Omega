@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
-use semantic_vocabulary::{BlockId, StructuralPlaceKind, StructuralTypeId};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralOperationResult};
 
 use crate::OptimizationUnitValidationError;
@@ -77,6 +77,15 @@ pub(super) fn validate(
                 ..
             } => (path.is_empty()
                 && local(*source).is_some_and(|local| local_matches(local, result.scalar_type)))
+                || (!path.is_empty()
+                    && claim_free(*source)
+                    && projected_local(function, *source).is_some_and(|local| {
+                        terminal_semantics::primitive_read_projection_type(
+                            types.values().copied(),
+                            local.structural_type,
+                            path,
+                        ) == Some(result.scalar_type)
+                    }))
                 || function
                     .structural_parameters
                     .iter()
@@ -125,4 +134,52 @@ pub(super) fn validate(
             node,
         })
     }
+}
+
+/// Reconstruct the current producer, rather than trusting a copied source
+/// declaration or treating a local home as an incoming parameter. Availability
+/// and loan checking remain with the common structural ownership walk.
+fn projected_local(
+    function: &PsiOptimizationFunction,
+    source: PlaceId,
+) -> Option<&StructuralOperationResult> {
+    let declaration = function
+        .structural_places
+        .iter()
+        .find(|place| place.id == source)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    function.blocks.iter().flat_map(|block| &block.nodes).find_map(|node| {
+        let (operation, result) = match &node.operation {
+            O::EstablishRecord { psi_operation, result, .. }
+            | O::EstablishZeroedStructural { psi_operation, result }
+            | O::EstablishScalarArray { psi_operation, result, .. }
+            | O::EstablishCase { psi_operation, result, .. }
+            | O::StructuralLeafCopy { psi_operation, result, .. }
+            | O::MoveStructuralField { psi_operation, result, .. }
+            | O::CallStructural {
+                psi_operation,
+                result: abstract_operations::AbstractStructuralCallResult::Structural { result, .. },
+                ..
+            }
+            | O::BoundaryCall {
+                psi_operation,
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            } => (*psi_operation, result),
+            _ => return None,
+        };
+        (operation == producer
+            && result.place == source
+            && result.structural_type == structural_type
+            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()).then_some(result)
+    })
 }
