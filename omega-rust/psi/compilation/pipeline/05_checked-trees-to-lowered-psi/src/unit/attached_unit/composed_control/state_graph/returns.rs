@@ -73,8 +73,7 @@ pub(super) fn signature_matches(
                         .normalized_type_identity(source.return_type)
                         .into_string()
                 });
-                return identity.as_str()
-                    == result.type_identity
+                return identity.as_str() == result.type_identity
                     && result.multiplicity == Multiplicity::Affine
                     && view_result_qualifications(checked, source.return_type).as_ref()
                         == Some(&result.qualifications)
@@ -89,6 +88,31 @@ pub(super) fn signature_matches(
             if let Some(slice) = borrowed_view_slice(checked, source.return_type) {
                 return checked.normalized_type_identity(slice).as_str() == result.type_identity
                     && checked.type_multiplicity(source.return_type) == result.multiplicity
+                    && view_result_qualifications(checked, source.return_type).as_ref()
+                        == Some(&result.qualifications)
+                    && validation::structural_result_projected_qualifications(
+                        &checked.typed,
+                        source.return_type,
+                    )
+                    .ok()
+                    .as_ref()
+                        == Some(&result.projected_qualifications);
+            }
+            // A `&'a V` shared-borrow result keeps its `Reference` shell:
+            // `add_named_view_type` registers under the reference's own
+            // identity (the shell is the custody the plan carries) with the
+            // affine view-loan multiplicity the checking side mints.
+            if validation::reference_result_custody::shared_borrowed_parts(
+                &checked.typed,
+                source.return_type,
+            )
+            .is_some()
+            {
+                return checked
+                    .normalized_type_identity(source.return_type)
+                    .as_str()
+                    == result.type_identity
+                    && result.multiplicity == Multiplicity::Affine
                     && view_result_qualifications(checked, source.return_type).as_ref()
                         == Some(&result.qualifications)
                     && validation::structural_result_projected_qualifications(
@@ -507,18 +531,21 @@ pub(super) fn validate_structural(
                         state.state,
                         operation,
                     )?;
-                } else if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } =
-                    operation
+                } else if let CheckedUnitEffectOperationPlan::EstablishReference {
+                    source, ..
+                } = operation
                 {
-                    // A transition-tail `&mut` establishment names its exact
+                    // A tail `&mut`/`&` establishment names its exact
                     // borrowed ingress and the projected path — the minted
                     // plan itself is the loan custody.
-                    if source.access != checked_trees::CheckedStructuralAccess::MutableBorrow
-                        || !matches!(
-                            source.source,
-                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-                        )
-                    {
+                    if !matches!(
+                        source.access,
+                        checked_trees::CheckedStructuralAccess::MutableBorrow
+                            | checked_trees::CheckedStructuralAccess::SharedBorrow
+                    ) || !matches!(
+                        source.source,
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+                    ) {
                         return unsupported(
                             "structural return tail producer requires exact value custody",
                         );
