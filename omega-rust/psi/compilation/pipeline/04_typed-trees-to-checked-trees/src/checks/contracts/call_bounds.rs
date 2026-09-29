@@ -1,4 +1,4 @@
-//! Call requirements over arithmetic values bounded independently of snapshots.
+//! Call requirements over standing integer bounds and live immutable captures.
 
 use checked_trees::{CheckFacts, CheckedOperatorResolutionStatus, FlowCallFact, FlowStateFact};
 use language_core::OperatorSpelling;
@@ -18,6 +18,7 @@ pub(super) fn proves(
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
+    contexts: &[facts::FactContextHandle],
     expression: ExpressionHandle,
     guard: Option<ExpressionHandle>,
 ) -> bool {
@@ -28,7 +29,7 @@ pub(super) fn proves(
     }) {
         return false;
     }
-    prove(program, facts, caller, call, expression, guard).unwrap_or(false)
+    prove(program, facts, caller, call, contexts, expression, guard).unwrap_or(false)
 }
 
 fn prove(
@@ -36,6 +37,7 @@ fn prove(
     facts: &CheckFacts,
     caller: &FlowStateFact,
     call: &FlowCallFact,
+    contexts: &[facts::FactContextHandle],
     expression: ExpressionHandle,
     guard: Option<ExpressionHandle>,
 ) -> Option<bool> {
@@ -50,14 +52,14 @@ fn prove(
     }
     if binary.operator == BinaryOperator::And {
         return Some(
-            proves(program, facts, caller, call, binary.left, guard)
-                && proves(program, facts, caller, call, binary.right, guard),
+            proves(program, facts, caller, call, contexts, binary.left, guard)
+                && proves(program, facts, caller, call, contexts, binary.right, guard),
         );
     }
     if binary.operator == BinaryOperator::Or {
         return Some(
-            proves(program, facts, caller, call, binary.left, guard)
-                || proves(program, facts, caller, call, binary.right, guard),
+            proves(program, facts, caller, call, contexts, binary.left, guard)
+                || proves(program, facts, caller, call, contexts, binary.right, guard),
         );
     }
     let spelling = match binary.operator {
@@ -174,7 +176,12 @@ fn prove(
                 return None;
             }
             let (mut low, mut high) =
-                validation::immutable_integer_expression_bounds(program, machine, state, argument)
+                immutable_capture_bounds(program, &facts.semantic, contexts, state, argument)
+                    .or_else(|| {
+                        validation::immutable_integer_expression_bounds(
+                            program, machine, state, argument,
+                        )
+                    })
                     .map(|(low, high)| (Some(low), Some(high)))
                     .or_else(|| {
                         validation::stored_integer_bounds(program, machine, state, argument)
@@ -236,6 +243,49 @@ fn prove(
         BinaryOperator::GreaterOrEqual => left_low? >= right_high?,
         _ => return None,
     })
+}
+
+/// Read the value captured when an immutable scalar local was established.
+/// Looking through its initializer here would incorrectly use the *current*
+/// values of operands that may since have changed. Mutable locals need an
+/// argument-evaluation snapshot, not this call-entry storage query.
+fn immutable_capture_bounds(
+    program: &TypedTrees,
+    semantic: &facts::FactPlan,
+    contexts: &[facts::FactContextHandle],
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if path.head_symbol != path.symbol
+        || program
+            .expression_table
+            .name_path_members(path.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let (_, local) = program.state_local_declaration(state, path.symbol)?;
+    if local.is_mutable
+        || program
+            .primitive_type_reference(local.type_reference)
+            .is_none()
+    {
+        return None;
+    }
+    let place = crate::flow::canonical_place_from_symbol(path.symbol)?;
+    let bounds = crate::values::integer_bounds_at_place(
+        program,
+        semantic,
+        contexts
+            .iter()
+            .map(|context| semantic.contexts.get(*context)),
+        &place,
+    )?;
+    Some((bounds.minimum.to_i64()?, bounds.maximum.to_i64()?))
 }
 
 /// Whether one conjunct is vacuous under the substituted operand's carrier:

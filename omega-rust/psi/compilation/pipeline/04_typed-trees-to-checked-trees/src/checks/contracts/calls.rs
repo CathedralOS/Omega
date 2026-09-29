@@ -1391,6 +1391,7 @@ fn transition_guard_proves_boolean_requirement(
             facts,
             state_flow,
             call_flow,
+            &[],
             expression,
             Some(guard),
         ))
