@@ -7,6 +7,7 @@
 //! without queueing it.
 
 use super::{evaluate, evaluate_fully};
+use language_core::constant_value::EvaluatedConstant;
 use language_semantics::const_value::CanonicalConstValue;
 use numerics::literals::{FloatFormat, FloatLiteral};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
@@ -16,8 +17,10 @@ fn declared_encoding(syntax: &syntax_trees::SyntaxTrees, name: &str) -> String {
         .normalization
         .as_ref()
         .expect("evaluated declaration")
-        .canonical_result_encoding
-        .clone()
+        .result_value
+        .encoding()
+        .expect("determined declaration")
+        .to_owned()
 }
 
 fn typed_encoding(typed: &typed_trees::TypedTrees, name: &str) -> Option<String> {
@@ -25,7 +28,13 @@ fn typed_encoding(typed: &typed_trees::TypedTrees, name: &str) -> Option<String>
         .const_declarations()
         .iter()
         .find(|declaration| typed.symbols.name(declaration.symbol) == name)
-        .and_then(|declaration| declaration.canonical_value_encoding.clone())
+        .and_then(|declaration| {
+            declaration
+                .evaluated_value
+                .as_ref()?
+                .encoding()
+                .map(str::to_owned)
+        })
 }
 
 fn float_leaf(program: &typed_trees::TypedTrees, root: ExpressionHandle) -> ExpressionHandle {
@@ -61,8 +70,9 @@ fn repro_named_float_boundary_call() {
     let typed = evaluate_fully(&[("main.omg", text)], &[]);
     assert_eq!(
         typed.const_declarations()[0]
-            .canonical_value_encoding
-            .as_deref(),
+            .evaluated_value
+            .as_ref()
+            .and_then(|value| value.encoding()),
         Some("float:f32:40000000")
     );
 }
@@ -203,18 +213,266 @@ fn ambiguous_named_float_family_rejects_instead_of_manufacturing_identity() {
     assert!(!errors.is_empty());
 }
 
-/// An evaluator NaN result has no authored raw-NaN realization custody, so it
-/// must never be published into constant bytes — determined payloads only.
+/// Naming a value does not request runtime bytes. The semantic result is kept
+/// distinctly from determined representation, including on an unused declaration.
 #[test]
-fn evaluator_nan_payload_cannot_enter_published_constant_bytes() {
+fn evaluator_nan_declaration_retains_meaning_without_publishing_bits() {
     let text = "pub data F32 { }
         pub boundary operator F32::divide_toward_zero(left: f32, right: f32) -> f32;
         const QUOTIENT: f32 = F32::divide_toward_zero(0.0f32, 0.0f32);";
-    let errors = evaluate(text).expect_err("NaN without exact raw-NaN realization must reject");
-    assert!(
-        errors.iter().any(|error| error.message.contains("NaN")),
-        "unexpected diagnostics: {errors:?}"
+    let typed = evaluate_fully(&[("main.omg", text)], &[]);
+    let declaration = typed
+        .const_declarations()
+        .iter()
+        .find(|declaration| typed.symbols.name(declaration.symbol) == "QUOTIENT")
+        .expect("named semantic constant");
+    assert_eq!(
+        declaration.evaluated_value,
+        Some(language_core::constant_value::EvaluatedConstant::UndeterminedNaN(FloatFormat::F32))
     );
+    assert!(matches!(
+        typed
+            .expression_table
+            .expression(declaration.materialized_initializer),
+        ExpressionNode::UndeterminedNaN(FloatFormat::F32)
+    ));
+}
+
+#[test]
+fn named_nan_aliases_and_transitive_dependencies_keep_semantic_values() {
+    for (carrier, family, format) in [
+        ("f32", "F32", FloatFormat::F32),
+        ("f64", "F64", FloatFormat::F64),
+    ] {
+        let text = format!(
+            "pub data {family} {{}}
+             pub boundary operator {family}::square_root(value: {carrier}) -> {carrier};
+             pub boundary operator {family}::is_nan(value: {carrier}) -> bool;
+             machine classify(value: {carrier}) -> bool {{ {family}::is_nan(value) }}
+             const SOURCE: {carrier} = {family}::square_root(-1.0{carrier});
+             pub const ALIAS: {carrier} = SOURCE;
+             const TRANSITIVE: {carrier} = ALIAS;
+             pub const PROPAGATED: {carrier} = TRANSITIVE + 1.0{carrier};
+             pub const CLASSIFIED: bool = classify(PROPAGATED);"
+        );
+        let evaluated = evaluate(&text).expect("named semantic NaNs evaluate without bit demand");
+        let source = super::constant(&evaluated, "SOURCE");
+        let alias = super::constant(&evaluated, "ALIAS");
+        let transitive = super::constant(&evaluated, "TRANSITIVE");
+        for (name, definition) in [
+            ("SOURCE", source),
+            ("ALIAS", alias),
+            ("TRANSITIVE", transitive),
+        ] {
+            let receipt = definition.normalization.as_ref().expect("semantic receipt");
+            assert_eq!(
+                receipt.result_value,
+                EvaluatedConstant::UndeterminedNaN(format),
+                "{name}"
+            );
+            assert_eq!(receipt.result_value.encoding(), None, "{name}");
+        }
+        let selections = &transitive.normalization.as_ref().unwrap().selections;
+        for dependency in [source, alias] {
+            assert!(
+                selections
+                    .iter()
+                    .any(|origin| origin.declaration == dependency.name.source_span()
+                        && origin.evaluated_value == EvaluatedConstant::UndeterminedNaN(format)),
+                "transitive NaN use retains its exact dependency and semantic format"
+            );
+        }
+        let typed = evaluate_fully(&[("main.omg", &text)], &[]);
+        for name in ["SOURCE", "ALIAS", "TRANSITIVE", "PROPAGATED"] {
+            let declaration = typed
+                .const_declarations()
+                .iter()
+                .find(|declaration| typed.symbols.name(declaration.symbol) == name)
+                .unwrap();
+            assert_eq!(
+                declaration.evaluated_value,
+                Some(EvaluatedConstant::UndeterminedNaN(format)),
+                "{name}"
+            );
+            assert_eq!(
+                typed
+                    .expression_table
+                    .expression(declaration.materialized_initializer),
+                &ExpressionNode::UndeterminedNaN(format),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            typed_encoding(&typed, "CLASSIFIED"),
+            Some(CanonicalConstValue::boolean(true).encoding)
+        );
+        let classified = typed
+            .const_declarations()
+            .iter()
+            .find(|declaration| typed.symbols.name(declaration.symbol) == "CLASSIFIED")
+            .unwrap();
+        let mut forged = typed.clone();
+        *forged
+            .expression_table
+            .expression_mut(classified.materialized_initializer) = ExpressionNode::Boolean(false);
+        assert!(
+            super::super::replay::validate(&forged, None).is_err(),
+            "named semantic dependencies cannot authorize a forged Boolean observation"
+        );
+    }
+}
+
+#[test]
+fn named_nan_replay_rejects_forged_semantic_receipts_and_formats() {
+    for (carrier, family, format, other_format) in [
+        ("f32", "F32", FloatFormat::F32, FloatFormat::F64),
+        ("f64", "F64", FloatFormat::F64, FloatFormat::F32),
+    ] {
+        let text = format!(
+            "pub data {family} {{}}
+             pub boundary operator {family}::square_root(value: {carrier}) -> {carrier};
+             pub const VALUE: {carrier} = {family}::square_root(-1.0{carrier});"
+        );
+        let typed = evaluate_fully(&[("main.omg", &text)], &[]);
+        let declaration = typed.const_declarations()[0].clone();
+        for mutation in [
+            "receipt-format",
+            "expression-format",
+            "both-formats",
+            "invented-bits",
+            "missing-receipt",
+        ] {
+            let mut forged = typed.clone();
+            let span = forged.roots.const_declarations;
+            if matches!(mutation, "receipt-format" | "both-formats") {
+                forged.tables.const_declarations.span_mut_or_empty(span)[0].evaluated_value =
+                    Some(EvaluatedConstant::UndeterminedNaN(other_format));
+            }
+            if matches!(mutation, "expression-format" | "both-formats") {
+                *forged
+                    .expression_table
+                    .expression_mut(declaration.materialized_initializer) =
+                    ExpressionNode::UndeterminedNaN(other_format);
+            }
+            if mutation == "invented-bits" {
+                let encoding = match format {
+                    FloatFormat::F32 => "float:f32:7fc00000",
+                    FloatFormat::F64 => "float:f64:7ff8000000000000",
+                };
+                forged.tables.const_declarations.span_mut_or_empty(span)[0].evaluated_value =
+                    Some(EvaluatedConstant::Encoded(encoding.to_owned()));
+                *forged
+                    .expression_table
+                    .expression_mut(declaration.materialized_initializer) =
+                    ExpressionNode::Float(FloatLiteral::parse("NaN").unwrap().with_landing(format));
+            }
+            if mutation == "missing-receipt" {
+                forged.tables.const_declarations.span_mut_or_empty(span)[0].evaluated_value = None;
+            }
+            assert!(
+                super::super::replay::validate(&forged, None).is_err(),
+                "{carrier}: {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
+fn named_nan_dependency_receipt_cannot_change_its_semantic_format() {
+    let text = "pub data F32 {}
+        pub boundary operator F32::square_root(value: f32) -> f32;
+        const SOURCE: f32 = F32::square_root(-1.0f32);
+        pub const ALIAS: f32 = SOURCE;";
+    let (syntax, sources) = super::parse(text);
+    let evaluated = super::super::evaluate(syntax, Some(sources.clone()), &[], None).unwrap();
+    for mutate_dependency in [false, true] {
+        let mut forged = evaluated.clone();
+        let item = *forged.root_item_handles().iter().find(|item|
+            matches!(forged.root_item(**item), syntax_trees::item::Item::Const(definition) if definition.name.as_str() == "ALIAS")
+        ).unwrap();
+        let syntax_trees::item::Item::Const(mut definition) = forged.root_item(item).clone() else {
+            panic!("named alias");
+        };
+        let receipt = definition.normalization.as_mut().unwrap();
+        if mutate_dependency {
+            let origin = receipt
+                .selections
+                .iter_mut()
+                .find(|origin| {
+                    origin.declaration == super::constant(&evaluated, "SOURCE").name.source_span()
+                })
+                .expect("selected source");
+            origin.evaluated_value = EvaluatedConstant::UndeterminedNaN(FloatFormat::F64);
+        } else {
+            receipt.result_value = EvaluatedConstant::UndeterminedNaN(FloatFormat::F64);
+        }
+        forged
+            .items
+            .replace_item(item, syntax_trees::item::Item::Const(definition));
+        assert!(
+            crate::syntax_probes::resolve(&forged, Some(sources.clone()), &[]).is_err(),
+            "an alias cannot substitute a semantic receipt or dependency format"
+        );
+    }
+}
+
+#[test]
+fn semantic_nan_cannot_bypass_replay_by_retagging_the_declared_carrier() {
+    let typed = evaluate_fully(
+        &[(
+            "main.omg",
+            "const VALUE: f32 = 0.0f32 / 0.0f32; const MARKER: bool = true;",
+        )],
+        &[],
+    );
+    let boolean = typed
+        .const_declarations()
+        .iter()
+        .find(|declaration| typed.symbols.name(declaration.symbol) == "MARKER")
+        .expect("Boolean carrier")
+        .declared_type;
+    let value = typed
+        .const_declarations()
+        .iter()
+        .position(|declaration| typed.symbols.name(declaration.symbol) == "VALUE")
+        .expect("semantic value");
+    let mut forged = typed.clone();
+    let declarations = forged.roots.const_declarations;
+    forged
+        .tables
+        .const_declarations
+        .span_mut_or_empty(declarations)[value]
+        .declared_type = boolean;
+    assert!(
+        super::super::replay::validate(&forged, None).is_err(),
+        "absence of authored calls does not waive a semantic float's own carrier"
+    );
+}
+
+#[test]
+fn named_nan_raw_bit_requests_reject_through_aliases() {
+    for (carrier, family, integer) in [("f32", "F32", "u32"), ("f64", "F64", "u64")] {
+        let text = format!(
+            "pub data {family} {{}}
+             pub boundary operator {family}::square_root(value: {carrier}) -> {carrier};
+             machine bits(value: {carrier}) -> {integer} {{
+                 let view: &{integer} = &value as &{integer};
+                 let result: {integer} = view;
+                 result
+             }}
+             const SOURCE: {carrier} = {family}::square_root(-1.0{carrier});
+             pub const ALIAS: {carrier} = SOURCE;
+             pub const BITS: {integer} = bits(ALIAS);"
+        );
+        let diagnostics =
+            evaluate(&text).expect_err("naming or copying NaN does not determine its raw bits");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("NaN")),
+            "{carrier}: {diagnostics:?}"
+        );
+    }
 }
 
 #[test]

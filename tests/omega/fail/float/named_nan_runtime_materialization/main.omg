@@ -1,0 +1,11 @@
+use omega::language::core::float_operations;
+
+const NAN: f32 = F32::square_root(-1.0f32);
+
+// Reading the representation requests bytes, unlike compile-time classification.
+machine bits(value: f32) -> u32 {
+    let view: &u32 = &value as &u32;
+    let result: u32 = view;
+    result
+}
+const BITS: u32 = bits(NAN);

@@ -21,6 +21,7 @@ pub(super) fn value_shape_is_array(
         ExpressionNode::ArrayLiteral(_) => Some(true),
         ExpressionNode::Integer(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_) => Some(false),

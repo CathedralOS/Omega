@@ -52,6 +52,7 @@ pub(super) fn expression_is_float_typed(
     operand: ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(operand) {
+        ExpressionNode::UndeterminedNaN(_) => true,
         ExpressionNode::Float(literal) => literal.landing().is_some(),
         ExpressionNode::Borrow(inner) => {
             expression_is_float_typed(program, machine, state, inner.target)

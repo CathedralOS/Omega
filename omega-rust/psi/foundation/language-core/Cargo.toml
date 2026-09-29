@@ -7,3 +7,6 @@ version.workspace = true
 [lib]
 name = "language_core"
 path = "src/lib.rs"
+
+[dependencies]
+numerics = { path = "../numerics" }

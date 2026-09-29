@@ -937,6 +937,7 @@ fn push_expected_call(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Indexed(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Member(_)

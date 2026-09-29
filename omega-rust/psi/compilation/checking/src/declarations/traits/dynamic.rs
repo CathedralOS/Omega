@@ -685,6 +685,7 @@ fn validate_dynamic_call_arguments_in_expression(
         ExpressionNode::Unary(unary) => visit!(unary.operand),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
@@ -1162,6 +1163,7 @@ fn collect_dynamic_expression_call_updates(
         ExpressionNode::Unary(unary) => visit!(unary.operand),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

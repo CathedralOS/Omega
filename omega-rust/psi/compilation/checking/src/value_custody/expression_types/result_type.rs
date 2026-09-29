@@ -27,6 +27,49 @@ mod tests;
 mod domain_carrier_subjects {}
 
 #[cfg(test)]
+mod semantic_nan_types {
+    use super::{ExpressionNode, PrimitiveType, expression_result_type_reference};
+    use numerics::literals::FloatFormat;
+
+    #[test]
+    fn semantic_nan_retains_its_own_format_in_results_and_arguments() {
+        let mut program =
+            crate::front_end::typed_program("machine run(left: f32, right: f64) -> f32 { left }");
+        let binary32 = program
+            .expression_table
+            .insert(ExpressionNode::UndeterminedNaN(FloatFormat::F32));
+        let binary64 = program
+            .expression_table
+            .insert(ExpressionNode::UndeterminedNaN(FloatFormat::F64));
+        let machine = &program.machines()[0];
+        let state = &program.machine_states(machine)[0];
+        let reference32 = expression_result_type_reference(&program, machine, state, binary32)
+            .expect("f32 semantic carrier");
+        let reference64 = expression_result_type_reference(&program, machine, state, binary64)
+            .expect("f64 semantic carrier");
+        assert_eq!(
+            program.primitive_type_reference(reference32),
+            Some(PrimitiveType::F32)
+        );
+        assert_eq!(
+            program.primitive_type_reference(reference64),
+            Some(PrimitiveType::F64)
+        );
+        for (value, own, other) in [
+            (binary32, reference32, reference64),
+            (binary64, reference64, reference32),
+        ] {
+            assert!(super::super::argument_matches_type_reference_handle(
+                &program, value, own
+            ));
+            assert!(!super::super::argument_matches_type_reference_handle(
+                &program, value, other
+            ));
+        }
+    }
+}
+
+#[cfg(test)]
 mod named_call_result_fabrication {
     use super::{ExpressionHandle, TypedTrees, expression_result_type_reference};
 
@@ -282,6 +325,13 @@ fn result_type(
             )
         }
         ExpressionNode::Boolean(_) => builtin_reference(program, BuiltinTypeAtom::Bool),
+        ExpressionNode::UndeterminedNaN(format) => builtin_reference(
+            program,
+            match format {
+                numerics::literals::FloatFormat::F32 => BuiltinTypeAtom::F32,
+                numerics::literals::FloatFormat::F64 => BuiltinTypeAtom::F64,
+            },
+        ),
         ExpressionNode::Float(literal) => literal.landing().and_then(|format| {
             builtin_reference(
                 program,

@@ -308,6 +308,7 @@ fn collect_root_mentions(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
@@ -330,7 +331,7 @@ fn expression_contains(
     match program.expression_table.expression(expression) {
         ExpressionNode::Name(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::Float(_)
+        | ExpressionNode::Float(_) | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => false,

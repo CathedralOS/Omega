@@ -9,8 +9,16 @@
 //! the complete materialized value. A probe may
 //! stub other pending declarations to type the surrounding forest, but no
 //! selected dependency may use such a stub: every returned origin must rejoin a
-//! completed value and the original selection. Only evaluated literals and
+//! completed value and the original selection. Only evaluated leaves and
 //! declaration-owned receipts leave this module.
+//!
+//! A scalar declaration is not a request for runtime bytes. Payloadless NaNs
+//! therefore retain their format and meaning as an internal expression, so
+//! aliases and later evaluation can classify them. Encoding remains a separate
+//! demand and cannot choose a payload. Typed replay reconstructs the value from
+//! the authored initializer and rejoins dependency and operator custody before
+//! trusting that semantic expression. Aggregate encoding remains a materializing
+//! boundary; this scalar route does not relax its recursive bit requirements.
 //!
 //! Ordinary calls extend that same scalar evaluation sequence. Their selected
 //! helper closure contributes dependencies before readiness is decided; helper
@@ -28,6 +36,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use diagnostics::Diagnostic;
+use language_core::constant_value::EvaluatedConstant;
 use language_semantics::const_value::DecodedCanonicalConstValue;
 use source::{SourceMap, SourceSpan};
 use symbols::SourceScopedTopLevelBinding;
@@ -60,7 +69,7 @@ struct PendingLeaf {
 struct Declaration {
     item: ItemHandle,
     definition: ConstDefinition,
-    encoding: Option<String>,
+    evaluated_value: Option<EvaluatedConstant>,
     leaves: Vec<PendingLeaf>,
 }
 
@@ -138,7 +147,7 @@ pub(crate) fn evaluate(
         declarations.push(Declaration {
             item: *item,
             definition: definition.clone(),
-            encoding: retained.canonical_value_encoding.clone(),
+            evaluated_value: retained.evaluated_value.clone(),
             leaves,
         });
     }
@@ -360,7 +369,7 @@ pub(crate) fn evaluate(
             let mut selections = Vec::new();
             let mut builtin_operators = Vec::new();
             let mut call_selections = Vec::new();
-            let mut scalar_encoding = None;
+            let mut scalar_value = None;
             for leaf in &declarations[ordinal].leaves {
                 let reference = syntax.expressions.source_span(leaf.expression);
                 let mut expected = Vec::new();
@@ -370,7 +379,7 @@ pub(crate) fn evaluate(
                         reference: *reference,
                         declaration: dependency.definition.name.source_span(),
                         initializer: syntax.expressions.source_span(dependency.definition.value),
-                        canonical_value_encoding: dependency.encoding.clone().ok_or_else(|| {
+                        evaluated_value: dependency.evaluated_value.clone().ok_or_else(|| {
                             failure(
                                 *reference,
                                 "initializer selected a dependency without an evaluated value",
@@ -477,20 +486,10 @@ pub(crate) fn evaluate(
                         builtin_operators.push(operator);
                     }
                 }
-                scalar_encoding = Some(
-                    result
-                        .value
-                        .encoding()
-                        .map_err(|reason| failure(reference, reason))?,
-                );
+                scalar_value = Some(result.value.declaration_value());
                 use crate::const_evaluation::const_generic_expressions::value::ScalarValue;
                 let literal = match result.value {
-                    ScalarValue::UndeterminedNaN(_) => {
-                        return Err(failure(
-                            reference,
-                            "constant result is NaN without an exact raw-NaN realization",
-                        ));
-                    }
+                    ScalarValue::UndeterminedNaN(format) => ExpressionNode::UndeterminedNaN(format),
                     ScalarValue::Float { format, bits } => {
                         let spelling = match format {
                             numerics::literals::FloatFormat::F32 => {
@@ -542,14 +541,19 @@ pub(crate) fn evaluate(
                 materialize_value(&mut syntax, authored_expression, &replacements)?
             };
             let mut definition = declarations[ordinal].definition.clone();
-            // A single scalar leaf's canonical result is its probe encoding; a
-            // structured or multi-leaf value encodes from the complete
+            // A scalar leaf retains its evaluated meaning without demanding bits; a
+            // structured or multi-leaf value currently encodes from the complete
             // materialized literal instead.
-            let canonical_result_encoding = if declarations[ordinal].leaves.len() == 1
+            let result_value = if declarations[ordinal].leaves.len() == 1
                 && authored_expression == declarations[ordinal].leaves[0].expression
                 && !declarations[ordinal].leaves[0].structured
             {
-                scalar_encoding.expect("scalar initializer encoding")
+                scalar_value.ok_or_else(|| {
+                    failure(
+                        syntax.expressions.source_span(authored_expression),
+                        "scalar initializer lost its evaluated value",
+                    )
+                })?
             } else {
                 let mut materialized_definition = definition.clone();
                 materialized_definition.value = value;
@@ -559,10 +563,11 @@ pub(crate) fn evaluate(
                         failure(syntax.expressions.source_span(authored_expression), reason)
                     })?
                     .encoding
+                    .into()
             };
             definition.normalization = Some(ConstInitializerNormalization {
                 authored_expression,
-                canonical_result_encoding,
+                result_value,
                 selections,
                 builtin_operators,
                 call_selections,
@@ -572,13 +577,13 @@ pub(crate) fn evaluate(
                 .items
                 .replace_item(declarations[ordinal].item, Item::Const(definition.clone()));
             declarations[ordinal].definition = definition;
-            declarations[ordinal].encoding = Some(
+            declarations[ordinal].evaluated_value = Some(
                 declarations[ordinal]
                     .definition
                     .normalization
                     .as_ref()
                     .unwrap()
-                    .canonical_result_encoding
+                    .result_value
                     .clone(),
             );
             declarations[ordinal].leaves.clear();

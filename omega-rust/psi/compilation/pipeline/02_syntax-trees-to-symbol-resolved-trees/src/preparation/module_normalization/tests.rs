@@ -17,6 +17,88 @@ fn parse(sources: &[&str]) -> SyntaxTrees {
 }
 
 #[test]
+fn module_semantic_nan_uses_exact_scalar_admission_without_requesting_bits() {
+    use numerics::literals::FloatFormat;
+    use syntax_trees::expression::ExpressionNode;
+
+    for (carrier, format) in [("f32", FloatFormat::F32), ("f64", FloatFormat::F64)] {
+        let mut syntax = parse(&[&format!(
+            "module settings; pub const VALUE: {carrier} = 0.0{carrier};"
+        )]);
+        let initializer = syntax
+            .root_items()
+            .find_map(|item| match item {
+                Item::Const(constant) => Some(constant.value),
+                _ => None,
+            })
+            .expect("one module constant");
+        syntax
+            .expressions
+            .replace_expression(initializer, ExpressionNode::UndeterminedNaN(format));
+        super::validate_module_normalization(&syntax)
+            .expect("semantic NaN is a scalar value without a nominal bit encoding");
+
+        let other_format = if format == FloatFormat::F32 {
+            FloatFormat::F64
+        } else {
+            FloatFormat::F32
+        };
+        syntax
+            .expressions
+            .replace_expression(initializer, ExpressionNode::UndeterminedNaN(other_format));
+        let diagnostics = super::validate_module_normalization(&syntax)
+            .expect_err("module scalar admission retains the exact format check");
+        assert!(diagnostics[0].message.contains("module scalar constant"));
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("initializer conflicts with declared floating carrier")
+        );
+    }
+}
+
+#[test]
+fn module_semantic_nan_array_still_requires_an_admitted_aggregate_value() {
+    use syntax_trees::expression::ExpressionNode;
+
+    let mut syntax = parse(&["module settings; const VALUE: [f32; 1] = [0.0f32];"]);
+    let element = syntax
+        .root_items()
+        .find_map(|item| {
+            let Item::Const(constant) = item else {
+                return None;
+            };
+            let ExpressionNode::ArrayLiteral(elements) =
+                syntax.expressions.expression(constant.value)
+            else {
+                return None;
+            };
+            syntax
+                .expressions
+                .expression_handles(*elements)
+                .first()
+                .copied()
+        })
+        .expect("one array element");
+    syntax.expressions.replace_expression(
+        element,
+        ExpressionNode::UndeterminedNaN(numerics::literals::FloatFormat::F32),
+    );
+    let diagnostics = super::validate_module_normalization(&syntax)
+        .expect_err("scalar semantic admission does not fabricate an aggregate encoding");
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("module-owned nominal constant")
+    );
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("initializer conflicts with declared floating carrier")
+    );
+}
+
+#[test]
 fn module_array_declarations_are_validated_even_without_uses() {
     for visibility in ["", "pub "] {
         for (carrier, value) in [
@@ -223,7 +305,7 @@ fn module_generic_carrier_arrays_share_the_deferral() {
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::BS")
         .expect("the module constant resolved");
     assert!(
-        declaration.canonical_value_encoding.is_some(),
+        declaration.evaluated_value.is_some(),
         "an array of generic carriers publishes the closed instance identity too"
     );
     let symbol_resolved_trees::types::TypeReference::FixedArray(array) = &declaration.declared_type
@@ -287,7 +369,7 @@ fn module_constrained_consts_discharge_domain_facts_at_declaration_site() {
         .find(|declaration| program.symbols.display_path(declaration.symbol, "::") == "mine::X")
         .expect("the module constant resolved");
     assert!(
-        declaration.canonical_value_encoding.is_some(),
+        declaration.evaluated_value.is_some(),
         "a discharged constrained const publishes canonical identity"
     );
 }

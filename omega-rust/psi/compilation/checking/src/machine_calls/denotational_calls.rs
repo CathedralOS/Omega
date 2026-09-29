@@ -170,6 +170,7 @@ fn expression_is_fact_observation_free(program: &TypedTrees, expression: Express
             .all(|value| expression_is_fact_observation_free(program, *value)),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

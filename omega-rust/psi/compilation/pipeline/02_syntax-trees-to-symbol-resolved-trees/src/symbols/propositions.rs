@@ -273,6 +273,7 @@ pub(super) fn assign_expression_symbols(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => {}
     }

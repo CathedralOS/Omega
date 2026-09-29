@@ -89,7 +89,10 @@ fn integer_encoding(syntax: &SyntaxTrees, name: &str, value: i128) {
         .as_ref()
         .expect("evaluated declaration");
     assert_eq!(
-        receipt.canonical_result_encoding,
+        receipt
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
         CanonicalConstIdentity::integer("u64", value).encoding
     );
     assert!(matches!(

@@ -578,6 +578,7 @@ fn abstract_trait_self_member_in_expression(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
@@ -649,6 +650,7 @@ fn argument_matches_selected_proposition_type(
         return match program.expression_table.expression(argument) {
             ExpressionNode::Boolean(_) => primitive == typed_trees::types::PrimitiveType::Bool,
             ExpressionNode::Float(_) => primitive.accepts_float_literal(),
+            ExpressionNode::UndeterminedNaN(format) => primitive.name() == format.name(),
             ExpressionNode::Integer(_) => primitive.accepts_integer_literal(),
             ExpressionNode::Borrow(inner) => {
                 argument_matches_selected_proposition_type(program, inner.target, selected, owner)
@@ -862,6 +864,7 @@ fn is_boolean_fact_expression(program: &TypedTrees, expression: ExpressionHandle
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)

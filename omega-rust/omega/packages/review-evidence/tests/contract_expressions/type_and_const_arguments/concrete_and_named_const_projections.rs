@@ -292,7 +292,9 @@ ensures result == selected<ENABLED>();
         .tables
         .const_declarations
         .get_mut(enabled)
-        .canonical_value_encoding = Some("boolean4:true-tail".to_owned());
+        .evaluated_value = Some(language_core::constant_value::EvaluatedConstant::Encoded(
+        "boolean4:true-tail".to_owned(),
+    ));
     let diagnostics = project_checked_package_review(&malformed)
         .expect_err("malformed post-check Boolean encoding must reject");
     assert!(
@@ -440,20 +442,45 @@ ensures result == selected<SELECTED, ACTIVE>();
             (field_spoof.symbols.name(declaration.symbol) == "SELECTED").then_some(handle)
         })
         .expect("SELECTED declaration");
+    for format in [
+        numerics::literals::FloatFormat::F32,
+        numerics::literals::FloatFormat::F64,
+    ] {
+        let mut semantic_value_spoof = checked.clone();
+        semantic_value_spoof
+            .typed
+            .tables
+            .const_declarations
+            .get_mut(selected)
+            .evaluated_value =
+            Some(language_core::constant_value::EvaluatedConstant::UndeterminedNaN(format));
+        let diagnostics = project_checked_package_review(&semantic_value_spoof)
+            .expect_err("semantic NaN has no structural static-argument encoding");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("without an admitted canonical public value")),
+            "unexpected diagnostics: {diagnostics:#?}"
+        );
+    }
     let encoding = field_spoof
         .typed
         .tables
         .const_declarations
         .get(selected)
-        .canonical_value_encoding
-        .clone()
+        .evaluated_value
+        .as_ref()
+        .and_then(|value| value.encoding())
         .expect("canonical structured value");
+    let changed_encoding = encoding.replacen("left", "rift", 1);
     field_spoof
         .typed
         .tables
         .const_declarations
         .get_mut(selected)
-        .canonical_value_encoding = Some(encoding.replacen("left", "rift", 1));
+        .evaluated_value = Some(language_core::constant_value::EvaluatedConstant::Encoded(
+        changed_encoding,
+    ));
     let diagnostics = project_checked_package_review(&field_spoof)
         .expect_err("a framed field-name spoof must fail exact carrier replay");
     assert!(

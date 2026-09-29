@@ -506,6 +506,7 @@ fn expression_children(
         ExpressionNode::Unary(unary) => children.push(unary.operand),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

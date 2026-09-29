@@ -20,7 +20,7 @@ pub struct ConstDeclaration {
     pub authored_initializer: crate::expression::ExpressionHandle,
     /// Declaration-side source occurrence, independent of each use-site copy.
     pub initializer_source_span: source::SourceSpan,
-    /// Canonical structural value encoding for public compatibility. Private
-    /// const-v0 declarations retain no review value requirement.
-    pub canonical_value_encoding: Option<String>,
+    /// Completed semantic value. An encoding is available only when its bits
+    /// are determined; generic-index eligibility remains a separate judgment.
+    pub evaluated_value: Option<language_core::constant_value::EvaluatedConstant>,
 }

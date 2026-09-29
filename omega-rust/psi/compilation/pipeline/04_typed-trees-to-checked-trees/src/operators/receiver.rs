@@ -213,6 +213,7 @@ fn expression_type_reference_in_state(
                 contextual_type_reference_in_state(program, state_symbol, statement_index)
             })
         }
+        ExpressionNode::UndeterminedNaN(format) => float_type_reference(program, *format),
         ExpressionNode::Float(literal) => literal
             .landing()
             .and_then(|format| float_type_reference(program, format))

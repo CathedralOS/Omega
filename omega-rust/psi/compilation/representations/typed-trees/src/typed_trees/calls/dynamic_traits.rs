@@ -306,6 +306,7 @@ impl TypedTrees {
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_) => {}
         }

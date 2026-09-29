@@ -52,12 +52,12 @@ pub struct ConstDefinition {
 }
 
 /// Authored syntax and exact source custody retained when a constant initializer
-/// becomes a canonical literal. Source coordinates remain unchanged on copying;
+/// becomes an evaluated value. Source coordinates remain unchanged on copying;
 /// the authored expression is remapped into the destination syntax arena.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConstInitializerNormalization {
     pub authored_expression: crate::expression::ExpressionHandle,
-    pub canonical_result_encoding: String,
+    pub result_value: language_core::constant_value::EvaluatedConstant,
     pub selections: Vec<crate::types::ConstArgumentOrigin>,
     pub builtin_operators: Vec<source::SourceSpan>,
     /// Original call occurrence and exact selected declaration source. These

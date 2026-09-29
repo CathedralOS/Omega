@@ -329,6 +329,13 @@ pub fn argument_matches_type_reference_handle(
                 {
                     return true;
                 }
+                if let ExpressionNode::UndeterminedNaN(format) = argument_node {
+                    return primitive_type
+                        == match format {
+                            numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+                            numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+                        };
+                }
                 return matches!(argument_node, ExpressionNode::Boolean(_))
                     && primitive_type == PrimitiveType::Bool
                     || matches!(argument_node, ExpressionNode::Float(_))
@@ -662,6 +669,7 @@ pub(crate) fn expression_type_name_handle(
         ExpressionNode::Call(_) => "call expression",
         ExpressionNode::Cast(_) => "cast expression",
         ExpressionNode::Float(_) => "float literal",
+        ExpressionNode::UndeterminedNaN(format) => format.name(),
         ExpressionNode::Indexed(_) => "indexed value",
         ExpressionNode::Integer(_) => "integer literal",
         ExpressionNode::Member(_) => "member access",

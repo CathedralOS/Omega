@@ -40,21 +40,19 @@ pub(super) fn declaration_is_supported(
         && name_span.source_id == declaration.initializer_source_span.source_id
         && !declaration.is_public
         && carrier_is_supported(source, &declaration.declared_type)
-        && declaration
-            .canonical_value_encoding
-            .as_ref()
-            .is_none_or(|encoding| {
-                CanonicalConstValue::new("", encoding.clone(), "")
-                    .decode_encoding()
-                    .is_some_and(|value| {
-                        decoded_value_matches(
-                            source,
-                            &declaration.declared_type,
-                            &value,
-                            &mut Vec::new(),
-                        )
-                    })
-            })
+        && declaration.evaluated_value.as_ref().is_none_or(|encoding| {
+            encoding
+                .encoding()
+                .and_then(|encoding| CanonicalConstValue::new("", encoding, "").decode_encoding())
+                .is_some_and(|value| {
+                    decoded_value_matches(
+                        source,
+                        &declaration.declared_type,
+                        &value,
+                        &mut Vec::new(),
+                    )
+                })
+        })
 }
 
 pub(super) fn closed_argument_is_supported(

@@ -113,6 +113,9 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
+            ExpressionNode::UndeterminedNaN(format) => {
+                self.insert(ExpressionNode::UndeterminedNaN(*format))
+            }
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.copy_from(source, indexed.collection);
                 let index = self.copy_from(source, indexed.index);
@@ -512,6 +515,9 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
+            ExpressionNode::UndeterminedNaN(format) => {
+                self.insert(ExpressionNode::UndeterminedNaN(format))
+            }
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.copy_from_self(indexed.collection);
                 let index = self.copy_from_self(indexed.index);

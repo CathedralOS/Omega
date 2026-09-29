@@ -348,6 +348,7 @@ fn assign_data_fact_local_symbols(
         }
         symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
         | symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | symbol_resolved_trees::expression::ExpressionNode::String(_)
         | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}
@@ -732,6 +733,7 @@ fn assign_proof_expression_symbols(
         }
         symbol_resolved_trees::expression::ExpressionNode::Boolean(_)
         | symbol_resolved_trees::expression::ExpressionNode::Float(_)
+        | symbol_resolved_trees::expression::ExpressionNode::UndeterminedNaN(_)
         | symbol_resolved_trees::expression::ExpressionNode::Integer(_)
         | symbol_resolved_trees::expression::ExpressionNode::String(_)
         | symbol_resolved_trees::expression::ExpressionNode::ZeroValue(_) => {}

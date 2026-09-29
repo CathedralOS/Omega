@@ -19,8 +19,9 @@ fn floating_calls_preserve_landings_control_and_concrete_admission() {
         let typed = super::evaluate_fully(&[("main.omg", &text)], &[]);
         assert_eq!(
             typed.const_declarations()[0]
-                .canonical_value_encoding
-                .as_deref(),
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding()),
             Some(encoding)
         );
     }
@@ -43,8 +44,9 @@ fn floating_calls_in_guarded_named_transitions_preserve_selection() {
         let typed = super::evaluate_fully(&[("main.omg", &text)], &[]);
         assert_eq!(
             typed.const_declarations()[0]
-                .canonical_value_encoding
-                .as_deref(),
+                .evaluated_value
+                .as_ref()
+                .and_then(|value| value.encoding()),
             Some(expected)
         );
     }

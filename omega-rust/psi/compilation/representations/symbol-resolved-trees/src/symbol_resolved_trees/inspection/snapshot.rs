@@ -17,10 +17,10 @@ mod type_snapshots;
 pub use declaration_snapshots::{
     ConstDeclarationSnapshot, DataDefinitionSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
     DomainAliasConstituentSnapshot, DomainDefinitionSnapshot, DomainEstablishmentRouteSnapshot,
-    DomainSemanticRolesSnapshot, MathematicalBinderSnapshot, MathematicalBodySnapshot,
-    MathematicalDefinitionSnapshot, MathematicalParameterSnapshot, MathematicalTypeSnapshot,
-    MeasureDefinitionSnapshot, OperatorDefinitionSnapshot, ProofFactSnapshot,
-    PropositionBinderSnapshot, PropositionBodySnapshot, PropositionSnapshot,
+    DomainSemanticRolesSnapshot, EvaluatedConstantSnapshot, MathematicalBinderSnapshot,
+    MathematicalBodySnapshot, MathematicalDefinitionSnapshot, MathematicalParameterSnapshot,
+    MathematicalTypeSnapshot, MeasureDefinitionSnapshot, OperatorDefinitionSnapshot,
+    ProofFactSnapshot, PropositionBinderSnapshot, PropositionBodySnapshot, PropositionSnapshot,
     QuotientDefinitionSnapshot, QuotientEquivalenceSelectionSnapshot,
 };
 pub use machine_snapshots::{
@@ -89,7 +89,7 @@ impl SymbolResolvedTreesSnapshot {
                             symbol_resolved_trees,
                             &declaration.declared_type,
                         ),
-                        canonical_value_encoding: declaration.canonical_value_encoding.clone(),
+                        evaluated_value: declaration.evaluated_value.as_ref().map(Into::into),
                     })
                     .collect(),
                 conformances: symbol_resolved_trees

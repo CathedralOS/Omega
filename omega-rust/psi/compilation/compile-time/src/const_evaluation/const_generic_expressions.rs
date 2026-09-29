@@ -547,8 +547,8 @@ pub(super) fn expression_custody(
                 reference: selection.source_span(),
                 declaration: declaration_source,
                 initializer: declaration.initializer_source_span,
-                canonical_value_encoding: declaration
-                    .canonical_value_encoding
+                evaluated_value: declaration
+                    .evaluated_value
                     .clone()
                     .ok_or("selected constant has no canonical value")?,
             };
@@ -618,7 +618,7 @@ fn inherits_normalized_constant_call(
                 return false;
             };
             declarations.next().is_none()
-                && declaration.canonical_value_encoding.is_some()
+                && declaration.evaluated_value.is_some()
                 && program
                     .expression_table
                     .expression_is_valid(declaration.authored_initializer)

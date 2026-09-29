@@ -97,6 +97,7 @@ pub(super) fn expression_reborrows_transparent_alias_binding(
         ExpressionNode::Range(range) => visit(range.start) || visit(range.end),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)

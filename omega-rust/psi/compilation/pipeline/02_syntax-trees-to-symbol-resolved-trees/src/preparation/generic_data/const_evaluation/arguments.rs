@@ -164,7 +164,7 @@ pub(in crate::preparation::generic_data) fn consider_generic_spelling(
                                 reference: name.source_span(),
                                 declaration: definition.name.source_span(),
                                 initializer: syntax.expressions.source_span(definition.value),
-                                canonical_value_encoding: value.encoding,
+                                evaluated_value: value.encoding.into(),
                             }],
                             [],
                         );

@@ -262,13 +262,13 @@ fn lower_item_with_exposure(
             }
             let initializer =
                 crate::constant::retain_const_initializer(lowerer, syntax_trees, definition)?;
-            let canonical_value_encoding = if pending {
+            let evaluated_value = if pending {
                 // Preparation retains a real unevaluated expression, never a
                 // placeholder value or manufactured public declaration identity.
                 None
             } else if definition.is_public {
                 Some(
-                    crate::constant::public_declaration_value_encoding(
+                    crate::constant::evaluated_declaration_value(
                         syntax_trees,
                         definition,
                         lowerer.constant_selection.as_ref(),
@@ -282,7 +282,7 @@ fn lower_item_with_exposure(
                     })?,
                 )
             } else {
-                crate::constant::public_declaration_value_encoding(
+                crate::constant::evaluated_declaration_value(
                     syntax_trees,
                     definition,
                     lowerer.constant_selection.as_ref(),
@@ -309,7 +309,7 @@ fn lower_item_with_exposure(
                         // as a declaration which never needed evaluation.
                         .map_or(initializer, |record| record.authored),
                     initializer_source_span: syntax_trees.expressions.source_span(definition.value),
-                    canonical_value_encoding,
+                    evaluated_value,
                 },
             );
             lowerer.pending_const_declarations.push(

@@ -18,7 +18,11 @@ pub(super) fn project_named_const_static_argument(
             "reviewed {subject_kind} `{subject_name}` uses a named const static argument {reason}",
         ))]
     };
-    let Some(encoding) = declaration.canonical_value_encoding.as_deref() else {
+    let Some(encoding) = declaration
+        .evaluated_value
+        .as_ref()
+        .and_then(|value| value.encoding())
+    else {
         return Err(rejected("without an admitted canonical public value"));
     };
     let Some(decoded) = decode_canonical_const_value(encoding) else {

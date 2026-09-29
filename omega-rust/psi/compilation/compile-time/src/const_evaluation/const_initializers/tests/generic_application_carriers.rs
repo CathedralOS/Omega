@@ -42,8 +42,14 @@ fn copied_nested_generic_table_retains_transitive_origins() {
         .as_ref()
         .unwrap();
     assert_eq!(
-        copied.canonical_result_encoding,
-        second.canonical_result_encoding
+        copied
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
+        second
+            .result_value
+            .encoding()
+            .expect("determined initializer")
     );
     assert!(
         copied
@@ -69,7 +75,9 @@ fn generic_dest_variant_and_payloadless_case() {
             .normalization
             .as_ref()
             .expect("evaluated declaration")
-            .canonical_result_encoding,
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
         literal_encoding(
             &format!("{declarations} const O: Opt<u64> = Opt::Some {{ v: 6 }};"),
             "O"
@@ -100,7 +108,9 @@ fn generic_dest_const_length_array_member() {
             .normalization
             .as_ref()
             .expect("evaluated declaration")
-            .canonical_result_encoding,
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
         literal_encoding(
             &format!("{declarations} const A: Arr<3> = Arr {{ cells: [1, 2, 3] }};"),
             "A"

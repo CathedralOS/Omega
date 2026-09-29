@@ -110,7 +110,16 @@ fn normalized_constant_argument_rejects_missing_and_drifted_declaration_custody(
         match corruption {
             "missing" => origin.declaration = SourceSpan::new(SourceId(9), Span::new(10, 14)),
             "initializer" => origin.initializer.span.start += 1,
-            "encoding" => origin.canonical_value_encoding.push('x'),
+            "encoding" => {
+                origin.evaluated_value = format!(
+                    "{}x",
+                    origin
+                        .evaluated_value
+                        .encoding()
+                        .expect("encoded dependency")
+                )
+                .into()
+            }
             "duplicate" => {
                 let declaration = program
                     .const_declarations

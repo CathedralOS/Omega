@@ -45,7 +45,9 @@ fn anonymous_decimal_leaves_retain_exact_integer_and_boolean_meaning() {
         flag.normalization
             .as_ref()
             .expect("decimal comparison receipt")
-            .canonical_result_encoding,
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
         CanonicalConstValue::boolean(true).encoding
     );
 }
@@ -69,7 +71,14 @@ fn landed_float_leaves_compose_at_their_own_format() {
             .normalization
             .as_ref()
             .expect("evaluated declaration");
-        assert_eq!(receipt.canonical_result_encoding, encoding, "{name}");
+        assert_eq!(
+            receipt
+                .result_value
+                .encoding()
+                .expect("determined initializer"),
+            encoding,
+            "{name}"
+        );
     }
     let flag = constant(&evaluated, "FLAG");
     assert_eq!(
@@ -79,7 +88,7 @@ fn landed_float_leaves_compose_at_their_own_format() {
 }
 
 #[test]
-fn landed_float_leaves_keep_their_carrier_and_finite_identity() {
+fn landed_float_leaves_keep_their_carrier() {
     for text in [
         // A float result is not an integer and does not land at one.
         "const COUNT: u64 = 1.5f32 * 2;",
@@ -87,11 +96,8 @@ fn landed_float_leaves_keep_their_carrier_and_finite_identity() {
         "const COUNT: f64 = 1.5f32 + 0.25f32;",
         // A landed integer cannot mix into a float operation unconverted.
         "const MIXED: f32 = 1u64 + 0.5f32;",
-        // A computed NaN has no authored payload bits to carry as identity.
-        "const NAN: f32 = 0.0f32 / 0.0f32;",
     ] {
-        let errors =
-            evaluate(text).expect_err("landed float values keep carrier and determined bits");
+        let errors = evaluate(text).expect_err("landed float values keep their carrier");
         assert!(!errors.is_empty(), "{text}");
     }
 }
@@ -117,7 +123,10 @@ fn aggregate_constant_names_materialize_the_selected_value() {
             .as_ref()
             .expect("evaluated receipt");
         assert_eq!(
-            receipt.canonical_result_encoding,
+            receipt
+                .result_value
+                .encoding()
+                .expect("determined initializer"),
             literal_encoding(
                 &format!("{declarations} const {name}: {carrier} = {literal};"),
                 name,
@@ -189,7 +198,9 @@ fn aggregate_producers_compose_inside_literal_fields_and_match_arms() {
             .normalization
             .as_ref()
             .unwrap()
-            .canonical_result_encoding,
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
         literal_encoding(
             &format!("{declarations} const H: Holder = Holder {{ values: [5, 6], tag: 3 }};"),
             "H",
@@ -200,7 +211,9 @@ fn aggregate_producers_compose_inside_literal_fields_and_match_arms() {
             .normalization
             .as_ref()
             .unwrap()
-            .canonical_result_encoding,
+            .result_value
+            .encoding()
+            .expect("determined initializer"),
         literal_encoding(
             &format!("{declarations} const M: Pair = Pair {{ first: 1, second: 2 }};"),
             "M",
@@ -234,7 +247,14 @@ fn aggregate_receipts_reject_changed_results_and_dropped_call_custody() {
         };
         let receipt = definition.normalization.as_mut().unwrap();
         match mutation {
-            "result" => receipt.canonical_result_encoding.push('0'),
+            "result" => {
+                let language_core::constant_value::EvaluatedConstant::Encoded(encoding) =
+                    &mut receipt.result_value
+                else {
+                    panic!("aggregate receipt must retain its encoding");
+                };
+                encoding.push('0');
+            }
             "calls" => receipt.call_selections.clear(),
             _ => unreachable!(),
         }

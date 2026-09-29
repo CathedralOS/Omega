@@ -801,6 +801,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
             }
             ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => {}

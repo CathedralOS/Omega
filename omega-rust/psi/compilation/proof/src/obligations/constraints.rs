@@ -86,6 +86,8 @@ pub(crate) fn expression_constraints(
             expression_constraints(program, machine, state, unary.operand)
         }
         ExpressionNode::Float(value) => float_literal_constraints(value),
+        // Knowing NaN's class supplies neither finiteness nor an ordered range.
+        ExpressionNode::UndeterminedNaN(_) => ConstraintBuffer::new(),
         ExpressionNode::Integer(value) => integer_literal_constraints(value),
         ExpressionNode::Name(path)
             if program

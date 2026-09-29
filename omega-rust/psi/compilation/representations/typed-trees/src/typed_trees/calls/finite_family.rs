@@ -266,7 +266,7 @@ impl TypedTrees {
                 })?;
                 let value = language_semantics::const_value::CanonicalConstValue::new(
                     self.display_type_reference(declaration.declared_type),
-                    declaration.canonical_value_encoding.as_ref()?.clone(),
+                    declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
                     member.as_str(),
                 );
                 match value.decode_encoding()? {

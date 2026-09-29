@@ -165,6 +165,9 @@ pub enum ExpressionSnapshot {
         acknowledges_suspend: bool,
         acknowledges_block: bool,
     },
+    UndeterminedNaN {
+        format: String,
+    },
     Float {
         text: String,
     },
@@ -426,6 +429,9 @@ pub(crate) fn snapshot_expression_handle(
                 .collect(),
         },
         ExpressionNode::Call(call) => snapshot_call_expression(syntax_trees, call),
+        ExpressionNode::UndeterminedNaN(format) => ExpressionSnapshot::UndeterminedNaN {
+            format: format.name().to_owned(),
+        },
         ExpressionNode::Float(value) => ExpressionSnapshot::Float {
             text: value.as_str().to_owned(),
         },

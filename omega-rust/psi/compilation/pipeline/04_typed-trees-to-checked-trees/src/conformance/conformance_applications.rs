@@ -464,7 +464,11 @@ fn close_const_argument(
             declarations.len(),
         )));
     };
-    let Some(encoding) = declaration.canonical_value_encoding.as_deref() else {
+    let Some(encoding) = declaration
+        .evaluated_value
+        .as_ref()
+        .and_then(|value| value.encoding())
+    else {
         return Err(Diagnostic::error(format!(
             "conformance `{conformance}` parameter `{parameter}` names const `{}` without a canonical checked value",
             argument.display_name(),

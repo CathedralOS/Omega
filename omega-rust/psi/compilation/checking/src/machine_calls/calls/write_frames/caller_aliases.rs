@@ -917,6 +917,7 @@ pub(super) fn expression_any(
             ExpressionNode::Range(range) => pending.extend([range.start, range.end]),
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::String(_)

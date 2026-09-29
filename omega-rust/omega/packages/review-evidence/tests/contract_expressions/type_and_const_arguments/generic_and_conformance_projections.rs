@@ -256,7 +256,7 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
         .const_declarations()
         .iter()
         .find(|declaration| changed_checked.symbols.name(declaration.symbol) == "RANK")
-        .and_then(|declaration| declaration.canonical_value_encoding.clone())
+        .and_then(|declaration| declaration.evaluated_value.clone())
         .expect("changed RANK canonical value");
     let mut tampered = checked;
     let rank = tampered
@@ -268,12 +268,42 @@ ensures result == tag<Card, FieldOrder<Card, RANK, MARKER>>();
             (tampered.symbols.name(declaration.symbol) == "RANK").then_some(handle)
         })
         .expect("RANK declaration");
+    for format in [
+        numerics::literals::FloatFormat::F32,
+        numerics::literals::FloatFormat::F64,
+    ] {
+        let mut semantic_value_spoof = tampered.clone();
+        semantic_value_spoof
+            .typed
+            .tables
+            .const_declarations
+            .get_mut(rank)
+            .evaluated_value =
+            Some(language_core::constant_value::EvaluatedConstant::UndeterminedNaN(format));
+        let application = &semantic_value_spoof
+            .facts
+            .proof
+            .contract_expression_static_conformance_applications[0]
+            .application;
+        let diagnostics = package_evidence::project_checked_conformance_policy(
+            &semantic_value_spoof,
+            application,
+            &[],
+        )
+        .expect_err("semantic NaN cannot supply an encoded conformance const argument");
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic
+                .message
+                .contains("without a canonical checked value")),
+            "unexpected diagnostics: {diagnostics:#?}"
+        );
+    }
     tampered
         .typed
         .tables
         .const_declarations
         .get_mut(rank)
-        .canonical_value_encoding = Some(changed_rank_encoding);
+        .evaluated_value = Some(changed_rank_encoding);
     let diagnostics = project_checked_package_review(&tampered)
         .expect_err("post-check named const value drift must reject");
     assert!(diagnostics.iter().any(|diagnostic| {

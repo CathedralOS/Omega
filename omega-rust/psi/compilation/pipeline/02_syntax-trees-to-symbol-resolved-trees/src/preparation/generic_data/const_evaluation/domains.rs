@@ -404,7 +404,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_closed_domain_applicati
                             reference: name.source_span(),
                             declaration: definition.name.source_span(),
                             initializer,
-                            canonical_value_encoding: value.encoding,
+                            evaluated_value: value.encoding.into(),
                         }],
                         [],
                     );

@@ -45,7 +45,7 @@ pub(super) fn spelling(program: &TypedTrees, argument: &StaticMachineArgument) -
             .find(|declaration| declaration.symbol == argument.symbol)?;
         let value = CanonicalConstValue::new(
             program.display_type_reference(declaration.declared_type),
-            declaration.canonical_value_encoding.as_ref()?.clone(),
+            declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
             argument.display_name(),
         );
         // Integer inference already uses decimal leaves. Declaration-aware

@@ -53,6 +53,10 @@ fn source_primitive(
     value: ExpressionHandle,
 ) -> Option<PrimitiveType> {
     match program.expression_table.expression(value) {
+        ExpressionNode::UndeterminedNaN(format) => Some(match format {
+            numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+            numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+        }),
         ExpressionNode::Float(literal) => literal.landing().map(|format| match format {
             numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
             numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
@@ -98,4 +102,40 @@ fn source_primitive(
 fn primitive(program: &TypedTrees, reference: TypeReferenceHandle) -> Option<PrimitiveType> {
     let reference = crate::value_custody::places::unwrapped_type_reference(program, reference)?;
     program.primitive_type_reference(reference)
+}
+
+#[cfg(test)]
+mod semantic_nan_delivery {
+    use super::{ExpressionNode, PrimitiveType, report_mismatch};
+    use numerics::literals::FloatFormat;
+
+    #[test]
+    fn semantic_nan_delivery_rejects_implicit_format_and_integer_changes() {
+        let mut program = crate::front_end::typed_program("machine run() -> u8 { 0 }");
+        for (format, own, other) in [
+            (FloatFormat::F32, PrimitiveType::F32, PrimitiveType::F64),
+            (FloatFormat::F64, PrimitiveType::F64, PrimitiveType::F32),
+        ] {
+            let value = program
+                .expression_table
+                .insert(ExpressionNode::UndeterminedNaN(format));
+            for target in [own, other, PrimitiveType::U32] {
+                let mut diagnostics = Vec::new();
+                assert_eq!(
+                    report_mismatch(
+                        &program,
+                        None,
+                        None,
+                        value,
+                        target,
+                        "test",
+                        "slot",
+                        &mut diagnostics
+                    ),
+                    target != own
+                );
+                assert_eq!(diagnostics.is_empty(), target == own);
+            }
+        }
+    }
 }

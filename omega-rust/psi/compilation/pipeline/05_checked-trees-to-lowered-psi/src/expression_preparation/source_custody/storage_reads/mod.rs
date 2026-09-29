@@ -1313,6 +1313,7 @@ fn collect_authored_storage_reads(
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Call(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::Borrow(_)
         | ExpressionNode::Range(_)

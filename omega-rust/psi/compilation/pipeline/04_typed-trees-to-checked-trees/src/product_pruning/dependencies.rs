@@ -626,6 +626,7 @@ fn retain_expression_machines(
         }
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => {}
         ExpressionNode::Cast(cast) => {

@@ -119,6 +119,7 @@ pub fn validate_ordered_requirement_call_totality(
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::Name(_)
             | ExpressionNode::String(_)

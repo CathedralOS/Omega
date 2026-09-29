@@ -148,6 +148,7 @@ fn mutable_argument_root_name(
         | ExpressionNode::Call(_)
         | ExpressionNode::Cast(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_)

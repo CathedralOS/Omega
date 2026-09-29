@@ -350,6 +350,7 @@ fn expression_mentions_any(
         ExpressionNode::Borrow(inner) => expression_mentions_any(program, inner.target, symbols),
         ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::Integer(_)
         | ExpressionNode::String(_) => false,
         // These shapes are not admitted in proof-static type arguments. Keep
@@ -1045,6 +1046,7 @@ fn render_expression(
             }
         }
         ExpressionNode::Float(value) => value.to_string(),
+        ExpressionNode::UndeterminedNaN(format) => format!("<undetermined NaN {}>", format.name()),
         ExpressionNode::Indexed(indexed) => {
             format!("{}[{}]", render(indexed.collection), render(indexed.index))
         }

@@ -566,6 +566,7 @@ fn expression_symbol_trace(
             |landing| integer_trace(value.text(), landing),
         ),
         ExpressionNode::Float(value) => float_trace(value.text(), value.landing()),
+        ExpressionNode::UndeterminedNaN(format) => format!("undetermined-nan:{}", format.name()),
         ExpressionNode::String(value) => byte_string_trace(value),
     }
 }

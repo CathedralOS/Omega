@@ -42,8 +42,8 @@
 //!
 //! Floating intermediates need meaning, not necessarily representation bits.
 //! Calls and arithmetic retain a payloadless NaN until a comparison or other
-//! semantic consumer produces its result. Encoding a declaration is a separate
-//! materialization boundary: it rejects that NaN rather than publishing the
+//! semantic consumer produces its result. Declaration receipts carry that meaning;
+//! a separate representation demand rejects NaN rather than publishing the
 //! evaluator's arbitrary payload. Format, operator selection and argument
 //! admission remain attached to every operation throughout evaluation.
 
@@ -150,6 +150,23 @@ pub(crate) enum ScalarValue {
 }
 
 impl ScalarValue {
+    /// Declaration receipts retain meaning even when no runtime representation exists.
+    pub(crate) fn declaration_value(&self) -> language_core::constant_value::EvaluatedConstant {
+        use language_core::constant_value::EvaluatedConstant;
+        match self {
+            Self::UndeterminedNaN(format) => EvaluatedConstant::UndeterminedNaN(*format),
+            Self::Index(value) => EvaluatedConstant::Encoded(value.encoding.clone()),
+            Self::Float {
+                format: FloatFormat::F32,
+                bits,
+            } => EvaluatedConstant::Encoded(format!("float:f32:{bits:08x}")),
+            Self::Float {
+                format: FloatFormat::F64,
+                bits,
+            } => EvaluatedConstant::Encoded(format!("float:f64:{bits:016x}")),
+        }
+    }
+
     pub(crate) fn type_name(&self) -> &str {
         match self {
             Self::Index(value) => &value.type_name,
@@ -428,6 +445,9 @@ fn evaluate_expression(
                         pending.push(Step::Enter(dispatch.subject));
                     }
                     ExpressionNode::Boolean(value) => values.push(Value::Boolean(*value)),
+                    ExpressionNode::UndeterminedNaN(format) => {
+                        values.push(Value::UndeterminedNaN(*format))
+                    }
                     ExpressionNode::Integer(literal) if literal.landing().is_some() => {
                         values.push(landed_literal(literal)?);
                     }
@@ -849,6 +869,7 @@ fn validate_shapes(
                     pending.push((dispatch.subject, false));
                 }
                 ExpressionNode::Boolean(_) => shapes.push(Shape::Boolean),
+                ExpressionNode::UndeterminedNaN(format) => shapes.push(Shape::Float(*format)),
                 ExpressionNode::Integer(literal) if literal.landing().is_some() => {
                     let Value::Landed(carrier, _, policy) = landed_literal(literal)? else {
                         unreachable!()

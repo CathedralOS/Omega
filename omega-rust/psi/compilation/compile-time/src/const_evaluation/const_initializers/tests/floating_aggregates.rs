@@ -133,10 +133,11 @@ fn floating_aggregate_replay_reconstructs_exact_copied_bits() {
                     .iter_mut()
                     .find(|candidate| candidate.symbol == declaration.symbol)
                     .unwrap();
-                let encoding = changed_declaration
-                    .canonical_value_encoding
-                    .as_mut()
-                    .unwrap();
+                let language_core::constant_value::EvaluatedConstant::Encoded(encoding) =
+                    changed_declaration.evaluated_value.as_mut().unwrap()
+                else {
+                    panic!("aggregate receipt must retain its encoding");
+                };
                 *encoding = encoding.replace(
                     if carrier == "f32" {
                         "float:f32:80000000"

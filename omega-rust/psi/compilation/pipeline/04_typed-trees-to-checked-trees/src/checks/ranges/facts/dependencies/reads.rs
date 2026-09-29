@@ -36,6 +36,7 @@ pub(super) fn collect_reads<'a, 'b>(
         ExpressionNode::Integer(_)
         | ExpressionNode::Boolean(_)
         | ExpressionNode::Float(_)
+        | ExpressionNode::UndeterminedNaN(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => true,
         ExpressionNode::Binary(binary) => {

@@ -568,6 +568,7 @@ impl SyntaxTrees {
                 operational_acknowledgement: call.operational_acknowledgement,
             }),
             ExpressionNode::Float(value) => ExpressionNode::Float(value.clone()),
+            ExpressionNode::UndeterminedNaN(format) => ExpressionNode::UndeterminedNaN(*format),
             ExpressionNode::Indexed(indexed) => ExpressionNode::Indexed(TableIndexedExpression {
                 collection: self.copy_expression_handle(other, indexed.collection),
                 index: self.copy_expression_handle(other, indexed.index),

@@ -43,6 +43,8 @@ pub enum Expression {
     Cast(Box<CastExpression>),
     Call(Box<CallExpression>),
     Float(FloatLiteral),
+    /// Internal semantic value; no runtime representation or source spelling is implied.
+    UndeterminedNaN(numerics::literals::FloatFormat),
     Indexed(Box<IndexedExpression>),
     Integer(IntegerLiteral),
     Member(Box<MemberExpression>),
@@ -556,6 +558,9 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
+            ExpressionNode::UndeterminedNaN(format) => {
+                self.insert(ExpressionNode::UndeterminedNaN(*format))
+            }
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.copy_from_filtering_struct_literal_fields(
                     source,
@@ -766,6 +771,7 @@ impl ExpressionTable {
             }
             ExpressionNode::Boolean(_)
             | ExpressionNode::Float(_)
+            | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
             | ExpressionNode::String(_)
             | ExpressionNode::ZeroValue(_) => {}
@@ -1248,6 +1254,9 @@ impl ExpressionTable {
             (ExpressionNode::Boolean(x), ExpressionNode::Boolean(y)) => x == y,
             (ExpressionNode::String(x), ExpressionNode::String(y)) => x == y,
             (ExpressionNode::Float(x), ExpressionNode::Float(y)) => x == y,
+            (ExpressionNode::UndeterminedNaN(left), ExpressionNode::UndeterminedNaN(right)) => {
+                left == right
+            }
             (ExpressionNode::Name(x), ExpressionNode::Name(y)) => {
                 x.head_symbol == y.head_symbol
                     && x.symbol == y.symbol
@@ -1601,6 +1610,9 @@ impl ExpressionTable {
                 }))
             }
             ExpressionNode::Float(value) => self.insert(ExpressionNode::Float(value)),
+            ExpressionNode::UndeterminedNaN(format) => {
+                self.insert(ExpressionNode::UndeterminedNaN(format))
+            }
             ExpressionNode::Indexed(indexed) => {
                 let collection = self.insert_copy(indexed.collection);
                 let index = self.insert_copy(indexed.index);
@@ -1851,6 +1863,9 @@ impl ExpressionTable {
                 }))
             }
             Expression::Float(value) => self.insert(ExpressionNode::Float(value.clone())),
+            Expression::UndeterminedNaN(format) => {
+                self.insert(ExpressionNode::UndeterminedNaN(*format))
+            }
             Expression::Indexed(indexed) => {
                 let collection = self.insert_tree(&indexed.collection);
                 let index = self.insert_tree(&indexed.index);
@@ -1992,6 +2007,7 @@ impl ExpressionTable {
                 operational_acknowledgement: call.operational_acknowledgement,
             })),
             ExpressionNode::Float(value) => Expression::Float(value.clone()),
+            ExpressionNode::UndeterminedNaN(format) => Expression::UndeterminedNaN(*format),
             ExpressionNode::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
                 collection: self.to_tree(indexed.collection),
                 index: self.to_tree(indexed.index),
@@ -2214,6 +2230,8 @@ pub enum ExpressionNode {
     Cast(TableCastExpression),
     Call(TableCallExpression),
     Float(FloatLiteral),
+    /// Internal semantic value; no runtime representation or source spelling is implied.
+    UndeterminedNaN(numerics::literals::FloatFormat),
     Indexed(TableIndexedExpression),
     Integer(IntegerLiteral),
     Member(TableMemberExpression),
@@ -2809,4 +2827,26 @@ pub struct MatchArm {
 pub enum OwnedMatchPattern {
     Value(Expression),
     Wildcard,
+}
+
+#[cfg(test)]
+mod semantic_nan_tests {
+    use super::{Expression, ExpressionNode, ExpressionTable};
+    use numerics::literals::FloatFormat;
+
+    #[test]
+    fn semantic_nan_copy_and_tree_round_trip_preserve_format() {
+        let mut source = ExpressionTable::default();
+        let binary32 = source.insert(ExpressionNode::UndeterminedNaN(FloatFormat::F32));
+        let binary64 = source.insert(ExpressionNode::UndeterminedNaN(FloatFormat::F64));
+        assert!(!source.expressions_structurally_equal(binary32, binary64));
+        for (handle, format) in [(binary32, FloatFormat::F32), (binary64, FloatFormat::F64)] {
+            let tree = source.to_tree(handle);
+            assert_eq!(tree, Expression::UndeterminedNaN(format));
+            let inserted = source.insert_tree(&tree);
+            assert!(source.expressions_structurally_equal(handle, inserted));
+            let copied = source.insert_copy(handle);
+            assert!(source.expressions_structurally_equal(handle, copied));
+        }
+    }
 }
