@@ -33,6 +33,19 @@ pub(crate) fn encode_scalar_term(
         return Err(CodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ScalarTerm::IeeeFloatLiteral(value) => {
+            writer.u8(37);
+            match value {
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                    writer.u8(1);
+                    writer.u32(*bits);
+                }
+                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                    writer.u8(2);
+                    writer.u64(*bits);
+                }
+            }
+        }
         ScalarTerm::Value { id, scalar_type } => {
             writer.u8(1);
             writer.id(*id);
@@ -706,6 +719,11 @@ pub(crate) fn decode_scalar_term(
             }
             ScalarTerm::view_extent(root, path, decode_integer_type(reader)?)
         }
+        37 => ScalarTerm::IeeeFloatLiteral(match reader.u8()? {
+            1 => semantic_vocabulary::IeeeFloatValue::Binary32(reader.u32()?),
+            2 => semantic_vocabulary::IeeeFloatValue::Binary64(reader.u64()?),
+            tag => return Err(CodecError::InvalidTag("IeeeFloatValue", tag)),
+        }),
         tag => return Err(CodecError::InvalidTag("ScalarTerm", tag)),
     })
 }

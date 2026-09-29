@@ -82,7 +82,10 @@ fn proposition_observation_sites(proposition: &Proposition) -> Vec<ObservationSi
                 collect_term(value, sites);
                 collect_term(count, sites);
             }
-            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
     }
 

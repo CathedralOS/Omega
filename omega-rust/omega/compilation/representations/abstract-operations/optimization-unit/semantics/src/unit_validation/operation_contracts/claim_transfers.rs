@@ -183,7 +183,10 @@ pub(crate) fn proposition_structural_roots(proposition: &Proposition) -> BTreeSe
                 scalar_term_roots(value, roots);
                 scalar_term_roots(count, roots);
             }
-            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
     }
 

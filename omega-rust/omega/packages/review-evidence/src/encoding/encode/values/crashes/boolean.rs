@@ -84,6 +84,16 @@ fn encode_boolean_node(
                 match kind {
                     PackageReviewIeeeFloatComparisonKind::Equal => encoder.tag("equal", 0),
                     PackageReviewIeeeFloatComparisonKind::NotEqual => encoder.tag("not_equal", 1),
+                    PackageReviewIeeeFloatComparisonKind::LessThan => encoder.tag("less_than", 2),
+                    PackageReviewIeeeFloatComparisonKind::LessOrEqual => {
+                        encoder.tag("less_or_equal", 3)
+                    }
+                    PackageReviewIeeeFloatComparisonKind::NotLessThan => {
+                        encoder.tag("not_less_than", 4)
+                    }
+                    PackageReviewIeeeFloatComparisonKind::NotLessOrEqual => {
+                        encoder.tag("not_less_or_equal", 5)
+                    }
                 }
                 Ok(())
             })?;
@@ -125,6 +135,16 @@ fn encode_boolean_node(
                 match kind {
                     PackageReviewIeeeFloatComparisonKind::Equal => encoder.tag("equal", 0),
                     PackageReviewIeeeFloatComparisonKind::NotEqual => encoder.tag("not_equal", 1),
+                    PackageReviewIeeeFloatComparisonKind::LessThan => encoder.tag("less_than", 2),
+                    PackageReviewIeeeFloatComparisonKind::LessOrEqual => {
+                        encoder.tag("less_or_equal", 3)
+                    }
+                    PackageReviewIeeeFloatComparisonKind::NotLessThan => {
+                        encoder.tag("not_less_than", 4)
+                    }
+                    PackageReviewIeeeFloatComparisonKind::NotLessOrEqual => {
+                        encoder.tag("not_less_or_equal", 5)
+                    }
                 }
                 Ok(())
             })?;

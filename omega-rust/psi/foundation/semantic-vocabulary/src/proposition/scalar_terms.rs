@@ -57,6 +57,29 @@ impl IeeeFloatValue {
 pub enum IeeeFloatComparisonKind {
     Equal,
     NotEqual,
+    LessThan,
+    LessOrEqual,
+    /// Logical complement of ordered `<`, including unordered NaN operands.
+    NotLessThan,
+    /// Logical complement of ordered `<=`, including unordered NaN operands.
+    NotLessOrEqual,
+}
+
+impl IeeeFloatComparisonKind {
+    pub const fn negated(self) -> Self {
+        match self {
+            Self::Equal => Self::NotEqual,
+            Self::NotEqual => Self::Equal,
+            Self::LessThan => Self::NotLessThan,
+            Self::LessOrEqual => Self::NotLessOrEqual,
+            Self::NotLessThan => Self::LessThan,
+            Self::NotLessOrEqual => Self::LessOrEqual,
+        }
+    }
+
+    pub const fn is_symmetric(self) -> bool {
+        matches!(self, Self::Equal | Self::NotEqual)
+    }
 }
 
 /// One nonempty canonical path to a relevant IEEE floating-point field below
@@ -161,6 +184,9 @@ impl ByteSequenceStructuralField {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ScalarTerm {
+    /// Exact IEEE interchange bits, distinct from mathematical equality and
+    /// from an integer encoding of those bits.
+    IeeeFloatLiteral(IeeeFloatValue),
     Value {
         id: ValueId,
         scalar_type: ScalarType,
@@ -933,6 +959,7 @@ impl ScalarTerm {
 
     pub fn scalar_type(&self) -> ScalarType {
         match self {
+            Self::IeeeFloatLiteral(value) => ScalarType::IeeeFloat(value.format()),
             Self::Value { scalar_type, .. } => *scalar_type,
             Self::IntegerField { scalar_type, .. } | Self::ViewExtent { scalar_type, .. } => {
                 ScalarType::Integer(*scalar_type)
@@ -1392,7 +1419,8 @@ impl ScalarTerm {
                 | Self::IntegerField { .. }
                 | Self::ViewExtent { .. }
                 | Self::Boolean(_)
-                | Self::Integer { .. } => {}
+                | Self::Integer { .. }
+                | Self::IeeeFloatLiteral(_) => {}
             }
         }
         true
@@ -1463,7 +1491,8 @@ impl ScalarTerm {
                     | Self::IntegerField { .. }
                     | Self::ViewExtent { .. }
                     | Self::Boolean(_)
-                    | Self::Integer { .. } => pending.push(Step::Finalize(term)),
+                    | Self::Integer { .. }
+                    | Self::IeeeFloatLiteral(_) => pending.push(Step::Finalize(term)),
                 },
                 Step::Finalize(term) => term.validate_after_operands()?,
             }
@@ -1480,7 +1509,8 @@ impl ScalarTerm {
             | Self::BooleanField { .. }
             | Self::IntegerField { .. }
             | Self::ViewExtent { .. }
-            | Self::Boolean(_) => Ok(()),
+            | Self::Boolean(_)
+            | Self::IeeeFloatLiteral(_) => Ok(()),
             Self::BooleanNot { operand } => {
                 if operand.scalar_type() != ScalarType::Boolean {
                     return Err(PropositionError::BooleanNotTypeMismatch(

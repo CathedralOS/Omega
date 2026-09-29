@@ -33,6 +33,10 @@ pub(crate) fn encode_ieee_float_comparison_kind(
     writer.u8(match kind {
         IeeeFloatComparisonKind::Equal => 1,
         IeeeFloatComparisonKind::NotEqual => 2,
+        IeeeFloatComparisonKind::LessThan => 3,
+        IeeeFloatComparisonKind::LessOrEqual => 4,
+        IeeeFloatComparisonKind::NotLessThan => 5,
+        IeeeFloatComparisonKind::NotLessOrEqual => 6,
     });
 }
 
@@ -42,6 +46,10 @@ pub(crate) fn decode_ieee_float_comparison_kind(
     match reader.u8()? {
         1 => Ok(IeeeFloatComparisonKind::Equal),
         2 => Ok(IeeeFloatComparisonKind::NotEqual),
+        3 => Ok(IeeeFloatComparisonKind::LessThan),
+        4 => Ok(IeeeFloatComparisonKind::LessOrEqual),
+        5 => Ok(IeeeFloatComparisonKind::NotLessThan),
+        6 => Ok(IeeeFloatComparisonKind::NotLessOrEqual),
         tag => Err(CodecError::InvalidTag("IeeeFloatComparisonKind", tag)),
     }
 }

@@ -591,18 +591,11 @@ impl RouteTerms<'_> {
                 lower_ieee_float_field(left, format, self.parameters, self.structural_types)?;
             let mut right =
                 lower_ieee_float_field(right, format, self.parameters, self.structural_types)?;
-            if left > right {
+            if kind.is_symmetric() && left > right {
                 std::mem::swap(&mut left, &mut right);
             }
             return Ok(Proposition::IeeeFloatComparison {
-                kind: match kind {
-                    checked_trees::CheckedIeeeFloatComparisonKind::Equal => {
-                        semantic_vocabulary::IeeeFloatComparisonKind::Equal
-                    }
-                    checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
-                        semantic_vocabulary::IeeeFloatComparisonKind::NotEqual
-                    }
-                },
+                kind: *kind,
                 format,
                 left,
                 right,

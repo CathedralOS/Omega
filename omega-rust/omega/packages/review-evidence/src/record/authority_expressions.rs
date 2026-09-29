@@ -52,6 +52,10 @@ pub enum PackageReviewIntegerComparisonKind {
 pub enum PackageReviewIeeeFloatComparisonKind {
     Equal,
     NotEqual,
+    LessThan,
+    LessOrEqual,
+    NotLessThan,
+    NotLessOrEqual,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -173,6 +177,9 @@ pub enum PackageReviewScalarExpression {
         range: PackageReviewIntegerRange,
     },
     Boolean(Box<PackageReviewBooleanExpression>),
+    /// IEEE interchange bits, retaining format, signed zero and NaN payload.
+    Float32Literal(u32),
+    Float64Literal(u64),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

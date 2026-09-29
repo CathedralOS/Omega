@@ -99,6 +99,9 @@ fn scalar(term: &ScalarTerm, machine: &TerminalMachine) -> bool {
         | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
             scalar(value, machine) && scalar(count, machine)
         }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => true,
+        ScalarTerm::Value { .. }
+        | ScalarTerm::Boolean(_)
+        | ScalarTerm::Integer { .. }
+        | ScalarTerm::IeeeFloatLiteral(_) => true,
     }
 }

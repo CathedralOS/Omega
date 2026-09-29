@@ -29,6 +29,10 @@ pub(crate) fn encode_ieee_float_comparison_kind(
     writer.u8(match kind {
         IeeeFloatComparisonKind::Equal => 1,
         IeeeFloatComparisonKind::NotEqual => 2,
+        IeeeFloatComparisonKind::LessThan => 3,
+        IeeeFloatComparisonKind::LessOrEqual => 4,
+        IeeeFloatComparisonKind::NotLessThan => 5,
+        IeeeFloatComparisonKind::NotLessOrEqual => 6,
     });
 }
 
@@ -38,6 +42,10 @@ pub(crate) fn decode_ieee_float_comparison_kind(
     match reader.u8()? {
         1 => Ok(IeeeFloatComparisonKind::Equal),
         2 => Ok(IeeeFloatComparisonKind::NotEqual),
+        3 => Ok(IeeeFloatComparisonKind::LessThan),
+        4 => Ok(IeeeFloatComparisonKind::LessOrEqual),
+        5 => Ok(IeeeFloatComparisonKind::NotLessThan),
+        6 => Ok(IeeeFloatComparisonKind::NotLessOrEqual),
         tag => Err(ProofCodecError::InvalidTag("IeeeFloatComparisonKind", tag)),
     }
 }
@@ -80,6 +88,19 @@ pub(crate) fn encode_scalar_term(
         return Err(ProofCodecError::ScalarTermNestingTooDeep);
     }
     match term {
+        ScalarTerm::IeeeFloatLiteral(value) => {
+            writer.u8(37);
+            match value {
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                    writer.u8(1);
+                    writer.u32(*bits);
+                }
+                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                    writer.u8(2);
+                    writer.u64(*bits);
+                }
+            }
+        }
         ScalarTerm::Value { id, scalar_type } => {
             writer.u8(1);
             writer.id(*id);
@@ -874,6 +895,11 @@ pub(crate) fn decode_scalar_term(
             }
             ScalarTerm::view_extent(root, path, decode_integer_type(reader)?)
         }
+        37 => ScalarTerm::IeeeFloatLiteral(match reader.u8()? {
+            1 => semantic_vocabulary::IeeeFloatValue::Binary32(reader.u32()?),
+            2 => semantic_vocabulary::IeeeFloatValue::Binary64(reader.u64()?),
+            tag => return Err(ProofCodecError::InvalidTag("IeeeFloatValue", tag)),
+        }),
         tag => return Err(ProofCodecError::InvalidTag("ScalarTerm", tag)),
     })
 }

@@ -805,11 +805,7 @@ impl CheckedBooleanExpression {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CheckedIeeeFloatComparisonKind {
-    Equal,
-    NotEqual,
-}
+pub use semantic_vocabulary::IeeeFloatComparisonKind as CheckedIeeeFloatComparisonKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CheckedStructuralParameterField {

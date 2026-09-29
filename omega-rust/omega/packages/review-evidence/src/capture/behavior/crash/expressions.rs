@@ -64,6 +64,18 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
                 checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
                     PackageReviewIeeeFloatComparisonKind::NotEqual
                 }
+                checked_trees::CheckedIeeeFloatComparisonKind::LessThan => {
+                    PackageReviewIeeeFloatComparisonKind::LessThan
+                }
+                checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual => {
+                    PackageReviewIeeeFloatComparisonKind::LessOrEqual
+                }
+                checked_trees::CheckedIeeeFloatComparisonKind::NotLessThan => {
+                    PackageReviewIeeeFloatComparisonKind::NotLessThan
+                }
+                checked_trees::CheckedIeeeFloatComparisonKind::NotLessOrEqual => {
+                    PackageReviewIeeeFloatComparisonKind::NotLessOrEqual
+                }
             },
             primitive_type: project_primitive_type(*primitive_type),
             left: project_structural_field(left),
@@ -77,6 +89,18 @@ pub(in crate::capture::behavior) fn project_boolean_expression(
                     }
                     checked_trees::CheckedIeeeFloatComparisonKind::NotEqual => {
                         PackageReviewIeeeFloatComparisonKind::NotEqual
+                    }
+                    checked_trees::CheckedIeeeFloatComparisonKind::LessThan => {
+                        PackageReviewIeeeFloatComparisonKind::LessThan
+                    }
+                    checked_trees::CheckedIeeeFloatComparisonKind::LessOrEqual => {
+                        PackageReviewIeeeFloatComparisonKind::LessOrEqual
+                    }
+                    checked_trees::CheckedIeeeFloatComparisonKind::NotLessThan => {
+                        PackageReviewIeeeFloatComparisonKind::NotLessThan
+                    }
+                    checked_trees::CheckedIeeeFloatComparisonKind::NotLessOrEqual => {
+                        PackageReviewIeeeFloatComparisonKind::NotLessOrEqual
                     }
                 },
                 left: Box::new(project_scalar_expression(left)?),
@@ -163,9 +187,14 @@ fn project_scalar_expression(
                     }),
             })
         }
-        CheckedScalarExpression::IeeeFloatLiteral { .. } => {
-            unreachable!("checked crash integer expression cannot contain an IEEE float literal")
-        }
+        CheckedScalarExpression::IeeeFloatLiteral { value } => match value {
+            semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                PackageReviewScalarExpression::Float32Literal(*bits)
+            }
+            semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                PackageReviewScalarExpression::Float64Literal(*bits)
+            }
+        },
         CheckedScalarExpression::IntegerBinary {
             kind,
             primitive_type,

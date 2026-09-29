@@ -103,12 +103,20 @@ struct RuntimeRequirementTerms<'parameters> {
 }
 
 impl PredicateTerms for RuntimeRequirementTerms<'_> {
-    fn integer(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
+    fn scalar(&self, expression: &CheckedScalarExpression) -> Result<ScalarTerm, LoweringError> {
         match expression {
             CheckedScalarExpression::Parameter { primitive_type, .. }
             | CheckedScalarExpression::ErasedParameter { primitive_type, .. } => {
-                integer_scalar_type(*primitive_type)?;
+                if !matches!(
+                    primitive_type,
+                    typed_trees::types::PrimitiveType::F32 | typed_trees::types::PrimitiveType::F64
+                ) {
+                    integer_scalar_type(*primitive_type)?;
+                }
                 checked_scalar_term(expression, self.scalar_parameters, self.erased)
+            }
+            CheckedScalarExpression::IeeeFloatLiteral { value } => {
+                Ok(ScalarTerm::IeeeFloatLiteral(*value))
             }
             CheckedScalarExpression::StructuralParameterField {
                 parameter_position,
@@ -224,7 +232,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             .map_err(LoweringError::InvalidCrashPredicate),
             ScalarTerm::Value { id, scalar_type } => {
                 match scalar_type {
-                    ScalarType::Boolean => {}
+                    ScalarType::Boolean | ScalarType::IeeeFloat(_) => {}
                     ScalarType::Integer(integer_type) if !integer_type.is_address() => {}
                     _ => {
                         return unsupported("runtime requirement value has an unsupported carrier");
@@ -242,6 +250,7 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             }
             ScalarTerm::Boolean(_)
             | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_)
             | ScalarTerm::BooleanField { .. }
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::ViewExtent { .. } => Ok(term.clone()),
@@ -260,6 +269,16 @@ pub(crate) fn substitute_runtime_requirement_scalar_values(
             let rebound_right = substitute_term(right, substitutions)?;
             *left = rebound_left;
             *right = rebound_right;
+            Ok(())
+        }
+        Proposition::ScalarIeeeFloatComparison {
+            kind, left, right, ..
+        } => {
+            *proposition = crate::proofs::contract_predicates::ieee_float_proposition(
+                *kind,
+                substitute_term(left, substitutions)?,
+                substitute_term(right, substitutions)?,
+            )?;
             Ok(())
         }
         Proposition::Conjunction(children) | Proposition::Disjunction(children) => {

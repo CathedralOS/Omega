@@ -69,6 +69,8 @@ pub(in crate::encoding::recovery) fn scalar_expression(
                 },
             },
             8 => Expression::Boolean(reader.boxed(boolean_expression)?),
+            9 => Expression::Float32Literal(reader.u32()?),
+            10 => Expression::Float64Literal(reader.u64()?),
             _ => return Err(Error::InvalidTag),
         })
     })

@@ -420,7 +420,8 @@ fn validate_scalar_term_depth(term: &ScalarTerm) -> Result<(), ProofCodecError> 
             | ScalarTerm::IntegerField { .. }
             | ScalarTerm::ViewExtent { .. }
             | ScalarTerm::Boolean(_)
-            | ScalarTerm::Integer { .. } => {}
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
     }
     Ok(())

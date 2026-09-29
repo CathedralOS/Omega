@@ -430,9 +430,7 @@ pub(crate) fn lowered_direct_scalar_term(
                 operand: Box::new(operand),
             }
         }
-        LoweredDirectExpression::IeeeFloatLiteral { .. } => {
-            return unsupported("generic scalar crash terms do not carry IEEE float literals");
-        }
+        LoweredDirectExpression::IeeeFloatLiteral { value } => ScalarTerm::IeeeFloatLiteral(*value),
         LoweredDirectExpression::Boolean { expression } => {
             return checked_boolean_scalar_term_from_lowered(expression, values, erased);
         }

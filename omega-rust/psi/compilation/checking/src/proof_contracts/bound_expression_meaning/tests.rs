@@ -109,6 +109,19 @@ fn float_call_guards_require_the_exact_sealed_declaration() {
             accepted,
             "{origin:?} {relative}"
         );
+        let operand_types = [comparison.left, comparison.right]
+            .map(|operand| super::operand_type(&program, machine, Some(state), operand));
+        assert_eq!(
+            super::has_builtin_or_sealed_float_comparison_meaning(
+                &program,
+                machine.symbol,
+                expression,
+                comparison.operator,
+                &operand_types,
+            ),
+            accepted,
+            "the parameter-owner query retains {origin:?} {relative} custody"
+        );
         if accepted {
             let machine = machine.clone();
             let state = state.clone();
@@ -121,8 +134,56 @@ fn float_call_guards_require_the_exact_sealed_declaration() {
                 super::guard_comparison(&program, &machine, Some(&state), expression).is_none(),
                 "the same operands and token cannot authorize another entry"
             );
+            assert!(!super::has_builtin_or_sealed_float_comparison_meaning(
+                &program,
+                machine.symbol,
+                expression,
+                comparison.operator,
+                &operand_types,
+            ));
         }
     }
+}
+
+#[test]
+fn parameter_float_comparison_meaning_preserves_builtin_fallback() {
+    let program = crate::front_end::typed_program(
+        "boundary trait Conversion { machine narrow(input: f64) -> i8 requires input < 128.0f64; }",
+    );
+    let signature = &program.trait_machine_signatures(&program.traits()[0])[0];
+    let (expression, comparison) = program
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| match node {
+            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Less => {
+                Some((expression, *binary))
+            }
+            _ => None,
+        })
+        .expect("boundary requirement");
+    let parameters = program.state_signature_parameters(signature);
+    let operand_types = [comparison.left, comparison.right].map(|operand| {
+        crate::parameter_expression_result_type_reference(
+            &program,
+            signature.symbol,
+            parameters,
+            operand,
+        )
+    });
+    assert!(super::has_builtin_or_sealed_float_comparison_meaning(
+        &program,
+        signature.symbol,
+        expression,
+        comparison.operator,
+        &operand_types,
+    ));
+    assert!(!super::has_builtin_or_sealed_float_comparison_meaning(
+        &program,
+        signature.symbol,
+        expression,
+        BinaryOperator::Greater,
+        &operand_types,
+    ));
 }
 
 fn result_bound_comparison(program: &TypedTrees, machine_index: usize) -> ExpressionHandle {

@@ -217,6 +217,13 @@ fn normalize(
     depth: usize,
 ) -> Result<Proposition, PredicateDenotationError> {
     budget.step(depth)?;
+    if let Some(holds) = closed_ieee_float_relation(proposition) {
+        return Ok(if holds {
+            Proposition::Truth
+        } else {
+            Proposition::Falsehood
+        });
+    }
     if let Some(denotation) = closed_integer_relation(proposition) {
         return Ok(denotation);
     }
@@ -279,6 +286,44 @@ fn closed_integer_relation(proposition: &Proposition) -> Option<Proposition> {
         Proposition::Truth
     } else {
         Proposition::Falsehood
+    })
+}
+
+/// Decide only exact, same-format literals. Open IEEE relations remain atoms;
+/// in particular `x == x` is not reflexive in the presence of NaN. Decoding
+/// interchange bits is not a host arithmetic operation: the shared semantic
+/// catalog compares their exact finite rationals and explicit special values.
+fn closed_ieee_float_relation(proposition: &Proposition) -> Option<bool> {
+    use numerics::float_semantics::{FloatMeaning, FloatSemantics};
+    use semantic_vocabulary::{IeeeFloatComparisonKind as Kind, IeeeFloatValue};
+    let Proposition::ScalarIeeeFloatComparison {
+        kind,
+        format,
+        left,
+        right,
+    } = proposition
+    else {
+        return None;
+    };
+    let (ScalarTerm::IeeeFloatLiteral(left), ScalarTerm::IeeeFloatLiteral(right)) = (left, right)
+    else {
+        return None;
+    };
+    if left.format() != *format || right.format() != *format {
+        return None;
+    }
+    let meaning = |value| match value {
+        IeeeFloatValue::Binary32(bits) => FloatMeaning::from_f32(f32::from_bits(bits)),
+        IeeeFloatValue::Binary64(bits) => FloatMeaning::from_f64(f64::from_bits(bits)),
+    };
+    let (left, right) = (meaning(*left), meaning(*right));
+    Some(match kind {
+        Kind::Equal => FloatSemantics::equal(&left, &right),
+        Kind::NotEqual => FloatSemantics::not_equal(&left, &right),
+        Kind::LessThan => FloatSemantics::less(&left, &right),
+        Kind::LessOrEqual => FloatSemantics::less_or_equal(&left, &right),
+        Kind::NotLessThan => !FloatSemantics::less(&left, &right),
+        Kind::NotLessOrEqual => !FloatSemantics::less_or_equal(&left, &right),
     })
 }
 

@@ -158,6 +158,19 @@ pub(super) fn encode_content_term(bytes: &mut CanonicalBytes, term: &ContentTerm
 pub(super) fn encode_scalar_term(bytes: &mut CanonicalBytes, term: &ScalarTerm) {
     use ScalarTerm as S;
     match term {
+        S::IeeeFloatLiteral(value) => {
+            bytes.u8(37);
+            match value {
+                semantic_vocabulary::IeeeFloatValue::Binary32(bits) => {
+                    bytes.u8(1);
+                    bytes.u32(*bits);
+                }
+                semantic_vocabulary::IeeeFloatValue::Binary64(bits) => {
+                    bytes.u8(2);
+                    bytes.u64(*bits);
+                }
+            }
+        }
         S::Value { id, scalar_type } => {
             bytes.u8(1);
             bytes.id(*id);
@@ -430,6 +443,10 @@ pub(super) fn encode_float_comparison(bytes: &mut CanonicalBytes, value: IeeeFlo
     bytes.u8(match value {
         IeeeFloatComparisonKind::Equal => 1,
         IeeeFloatComparisonKind::NotEqual => 2,
+        IeeeFloatComparisonKind::LessThan => 3,
+        IeeeFloatComparisonKind::LessOrEqual => 4,
+        IeeeFloatComparisonKind::NotLessThan => 5,
+        IeeeFloatComparisonKind::NotLessOrEqual => 6,
     });
 }
 pub(super) fn encode_float_field(bytes: &mut CanonicalBytes, value: &IeeeFloatStructuralField) {

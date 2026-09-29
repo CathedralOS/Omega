@@ -288,24 +288,86 @@ pub(crate) fn sealed_float_comparison(
     expression: ExpressionHandle,
     comparison: &typed_trees::expression::TableBinaryExpression,
 ) -> bool {
-    let spelling = match comparison.operator {
+    let operand_types = [
+        operand_type(program, machine, state, comparison.left),
+        operand_type(program, machine, state, comparison.right),
+    ];
+    sealed_float_comparison_for_operands(
+        program,
+        machine.symbol,
+        expression,
+        comparison.operator,
+        &operand_types,
+    )
+}
+
+/// Establish one comparison's builtin or sealed IEEE meaning in an exact
+/// callable namespace. Callers supply checked operand types and remain
+/// responsible for float formats, formal identities and literal landing.
+/// A boundary declaration alone never grants primitive comparison meaning.
+pub fn has_builtin_or_sealed_float_comparison_meaning(
+    program: &TypedTrees,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    comparison: BinaryOperator,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    if operand_types.len() != 2 || !program.expression_table.expression_is_valid(expression) {
+        return false;
+    }
+    let Some(spelling) = float_comparison_spelling(comparison) else {
+        return false;
+    };
+    let builtin = match program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) if binary.operator == comparison => {
+            typed_trees::operator::has_builtin_spelled_expression_meaning(
+                program,
+                owner,
+                expression,
+                spelling,
+                operand_types,
+            )
+        }
+        ExpressionNode::Call(_) => false,
+        _ => return false,
+    };
+    builtin
+        || sealed_float_comparison_for_operands(
+            program,
+            owner,
+            expression,
+            comparison,
+            operand_types,
+        )
+}
+
+fn float_comparison_spelling(comparison: BinaryOperator) -> Option<OperatorSpelling> {
+    Some(match comparison {
         BinaryOperator::Equal => OperatorSpelling::Equal,
         BinaryOperator::NotEqual => OperatorSpelling::NotEqual,
         BinaryOperator::Less => OperatorSpelling::Less,
         BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
         BinaryOperator::Greater => OperatorSpelling::Greater,
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-        _ => return false,
+        _ => return None,
+    })
+}
+
+fn sealed_float_comparison_for_operands(
+    program: &TypedTrees,
+    owner: symbols::SymbolHandle,
+    expression: ExpressionHandle,
+    comparison: BinaryOperator,
+    operand_types: &[Option<TypeReferenceHandle>],
+) -> bool {
+    let Some(spelling) = float_comparison_spelling(comparison) else {
+        return false;
     };
-    let operand_types = [
-        operand_type(program, machine, state, comparison.left),
-        operand_type(program, machine, state, comparison.right),
-    ];
     if !typed_trees::operator::selected_trait_operator_meanings(
         program,
-        machine.symbol,
+        owner,
         spelling,
-        &operand_types,
+        operand_types,
     )
     .is_empty()
     {
@@ -314,7 +376,7 @@ pub(crate) fn sealed_float_comparison(
     let candidates = typed_trees::operator::resolve_spelling_for_operands(
         program,
         spelling,
-        &operand_types,
+        operand_types,
         program.expression_table.source_span(expression),
     );
     let [candidate] = candidates.as_slice() else {
@@ -329,7 +391,7 @@ pub(crate) fn sealed_float_comparison(
     if !operator.is_boundary
         || !matches!(
             typed_trees::operator::primitive_float_binary_semantics(program, operator),
-            Some((operation, _)) if operation == comparison.operator
+            Some((operation, _)) if operation == comparison
         )
     {
         return false;
@@ -551,10 +613,7 @@ pub fn exact_case_reference_owner(
     let selected = table.name_path_member_symbols(case.member_symbols);
     // A resolved bare `T::Case` keeps only the case symbol -- the qualifier is
     // spent in resolution and the owning union remains as the case's parent.
-    if members.len() == 1
-        && selected.len() == 1
-        && selected.first() == Some(&case.symbol)
-    {
+    if members.len() == 1 && selected.len() == 1 && selected.first() == Some(&case.symbol) {
         let parent = program.symbols.get(case.symbol).parent;
         return program.data_definitions().iter().find(|owner| {
             owner.symbol == parent

@@ -4,7 +4,7 @@
 use crate::proofs::crash_routes::scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
 use crate::proofs::{
     CheckedBooleanExpression, CheckedScalarExpression, LoweringError, Proposition, ScalarTerm,
-    ScalarType, ValueDeclaration, unsupported,
+    ValueDeclaration, unsupported,
 };
 use checked_trees::CheckedIeeeFloatComparisonKind;
 
@@ -313,10 +313,7 @@ fn checked_boolean_atom_polarity(
 fn negated_float_comparison_kind(
     kind: CheckedIeeeFloatComparisonKind,
 ) -> CheckedIeeeFloatComparisonKind {
-    match kind {
-        CheckedIeeeFloatComparisonKind::Equal => CheckedIeeeFloatComparisonKind::NotEqual,
-        CheckedIeeeFloatComparisonKind::NotEqual => CheckedIeeeFloatComparisonKind::Equal,
-    }
+    kind.negated()
 }
 
 fn scalar_ieee_float_comparison_proposition(
@@ -325,31 +322,9 @@ fn scalar_ieee_float_comparison_proposition(
     right: &CheckedScalarExpression,
     values: &[ValueDeclaration],
 ) -> Result<Proposition, LoweringError> {
-    let mut left = checked_scalar_term(left, values, &[])?;
-    let mut right = checked_scalar_term(right, values, &[])?;
-    let ScalarType::IeeeFloat(format) = left.scalar_type() else {
-        return unsupported("IEEE crash comparison operand is not a float");
-    };
-    let ScalarType::IeeeFloat(right_format) = right.scalar_type() else {
-        return unsupported("IEEE crash comparison operand is not a float");
-    };
-    if right_format != format {
-        return unsupported("IEEE crash comparison operands have different float formats");
-    }
-    if left > right {
-        std::mem::swap(&mut left, &mut right);
-    }
-    Ok(Proposition::ScalarIeeeFloatComparison {
-        kind: match kind {
-            CheckedIeeeFloatComparisonKind::Equal => {
-                semantic_vocabulary::IeeeFloatComparisonKind::Equal
-            }
-            CheckedIeeeFloatComparisonKind::NotEqual => {
-                semantic_vocabulary::IeeeFloatComparisonKind::NotEqual
-            }
-        },
-        format,
-        left,
-        right,
-    })
+    crate::proofs::contract_predicates::ieee_float_proposition(
+        kind,
+        checked_scalar_term(left, values, &[])?,
+        checked_scalar_term(right, values, &[])?,
+    )
 }

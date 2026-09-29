@@ -337,7 +337,9 @@ fn constant_or_original(term: ScalarTerm, axioms: &[Proposition]) -> ScalarTerm 
         current = definition;
     }
     match current {
-        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => current.clone(),
+        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } | ScalarTerm::IeeeFloatLiteral(_) => {
+            current.clone()
+        }
         _ => term,
     }
 }

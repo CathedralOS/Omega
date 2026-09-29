@@ -439,6 +439,21 @@ pub(crate) fn named_value_type_reference(
         return Some(type_reference);
     }
 
+    // Bodyless operators and trait signatures have formals but no executable
+    // state to visit below. Their formals share the parameter arena with state
+    // formals, so the exact retained symbol supplies the same declared type.
+    // This matters for anonymous contract endpoints: `input: f32` compared
+    // with `128.0` must land that literal as f32, not guess a default format.
+    if path.symbol.is_valid()
+        && path.head_symbol == path.symbol
+        && let Some((_, parameter)) = program
+            .state_parameters
+            .iter()
+            .find(|(_, parameter)| parameter.symbol == path.symbol)
+    {
+        return Some(parameter.type_reference);
+    }
+
     for machine in program.machines() {
         if let Some(owned) = program
             .machine_owned_data(machine)

@@ -131,7 +131,10 @@ fn capture_scalar(term: &mut ScalarTerm, captures: &[(ScalarTerm, ScalarTerm)]) 
             capture_scalar(value, captures);
             capture_scalar(count, captures);
         }
-        ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        ScalarTerm::Value { .. }
+        | ScalarTerm::Boolean(_)
+        | ScalarTerm::Integer { .. }
+        | ScalarTerm::IeeeFloatLiteral(_) => {}
     }
 }
 

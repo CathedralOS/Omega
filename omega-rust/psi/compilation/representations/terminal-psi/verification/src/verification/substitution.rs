@@ -55,12 +55,19 @@ pub(crate) fn substitute_proposition_values(
             format,
             left,
             right,
-        } => Proposition::ScalarIeeeFloatComparison {
-            kind: *kind,
-            format: *format,
-            left: substitute_scalar_term_values(left, substitutions),
-            right: substitute_scalar_term_values(right, substitutions),
-        },
+        } => {
+            let mut left = substitute_scalar_term_values(left, substitutions);
+            let mut right = substitute_scalar_term_values(right, substitutions);
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind: *kind,
+                format: *format,
+                left,
+                right,
+            }
+        }
         Proposition::ByteSequenceEqual { left, right } => Proposition::ByteSequenceEqual {
             left: left.clone(),
             right: right.clone(),
@@ -173,12 +180,19 @@ pub(crate) fn substitute_proposition_structural_places(
             format,
             left,
             right,
-        } => Proposition::ScalarIeeeFloatComparison {
-            kind: *kind,
-            format: *format,
-            left: substitute_scalar_term_places(left, substitutions),
-            right: substitute_scalar_term_places(right, substitutions),
-        },
+        } => {
+            let mut left = substitute_scalar_term_places(left, substitutions);
+            let mut right = substitute_scalar_term_places(right, substitutions);
+            if kind.is_symmetric() && left > right {
+                std::mem::swap(&mut left, &mut right);
+            }
+            Proposition::ScalarIeeeFloatComparison {
+                kind: *kind,
+                format: *format,
+                left,
+                right,
+            }
+        }
         Proposition::ByteSequenceEqual { left, right } => {
             let rebase = |field: &semantic_vocabulary::ByteSequenceStructuralField| {
                 substitutions
@@ -336,7 +350,10 @@ fn substitute_scalar_term_places(
                 substitute(value, substitutions);
                 substitute(count, substitutions);
             }
-            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+            ScalarTerm::Value { .. }
+            | ScalarTerm::Boolean(_)
+            | ScalarTerm::Integer { .. }
+            | ScalarTerm::IeeeFloatLiteral(_) => {}
         }
     }
     substitute(&mut term, substitutions);
@@ -385,7 +402,8 @@ pub(super) fn substitute_scalar_term_values(
         | ScalarTerm::IntegerField { .. }
         | ScalarTerm::ViewExtent { .. }
         | ScalarTerm::Boolean(_)
-        | ScalarTerm::Integer { .. } => term.clone(),
+        | ScalarTerm::Integer { .. }
+        | ScalarTerm::IeeeFloatLiteral(_) => term.clone(),
         ScalarTerm::BooleanNot { operand } => ScalarTerm::BooleanNot {
             operand: Box::new(recurse(operand)),
         },

@@ -240,7 +240,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         id: "rule:predicate-denotation",
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
-        premises: "a premise proved under the unchanged original roster whose bounded Boolean and closed fixed-integer literal denotation normal form exists",
+        premises: "a premise proved under the unchanged original roster whose bounded Boolean, closed fixed-integer literal, and closed same-format IEEE literal comparison denotation normal form exists; open IEEE relations remain atomic without unknown-float reflexivity",
         conclusion: "one proposition convertible to the premise's denotation; the outer conclusion still must equal the exact reconstructed obligation",
         dependencies: &["rule:traversal", "conversion:predicate-denotation"],
         implementation: &[PROOF, EQUALITY_RULES, PREDICATE_DENOTATION, NODES],
@@ -251,7 +251,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
         premises: "a premise plus a nonempty ordered list of proved scalar equations, each oriented from an exact value identity to its term",
-        conclusion: "the premise transported through only the carried equations when both sides' denotation normal forms match; constructor tags, types, and operand order are preserved",
+        conclusion: "the premise transported through only the carried equations when both sides' denotation normal forms match; constructor tags and types are preserved, IEEE payload identity is not IEEE equality, and ordered comparison operands remain ordered while only symmetric IEEE equality and inequality are canonicalized",
         dependencies: &["rule:traversal", "conversion:value-equality-denotation"],
         implementation: &[
             PROOF,
