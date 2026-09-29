@@ -119,8 +119,7 @@ pass/calls/nested_indexed_scalar_arguments_exit checked 640ms @ec06d9821c1c+wt
 pass/calls/nested_machine_continuation checked 1719ms
 pass/calls/nested_value_call_arg_compile checked 1385ms
 pass/calls/ordered_field_selector_calls_exit checked 925ms @e3012d6c0627+wt
-pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 331ms @0e894def985b+wt
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Store::find`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 0, statement 2)
+pass/calls/runtime_alias_write_through_guarded_transition_exit checked 552ms @76bba5577e21+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit checked 1245ms
 pass/calls/runtime_case_record_return_exit checked 1058ms
 pass/calls/runtime_constructor_computed_field_exit checked 909ms
@@ -264,6 +263,7 @@ pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1282ms
 pass/control_flow/case_pattern_rename_waive_exit rejected 775ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
 pass/control_flow/composite_state_parameter checked 1151ms
+pass/control_flow/conditional_unit_completion_exit checked 536ms @76bba5577e21+wt
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 287ms
 pass/control_flow/explicit_state_value_frontier checked 299ms
 pass/control_flow/field_subject_named_arm_chain checked 946ms

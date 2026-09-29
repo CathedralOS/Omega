@@ -307,22 +307,19 @@ pub(super) fn validate(
                         block: *block,
                         position: parameter.position,
                     })
-                && (parameter.access == terminal_psi::StructuralAccess::SharedBorrow
-                    || (parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                        && abstracted.result == AbstractFunctionResult::Unit
-                        && plan.structural_types.iter().any(|declaration| {
-                            declaration.id == parameter.structural_type
-                                && matches!(
-                                    declaration.shape,
-                                    terminal_psi::StructuralTypeShape::ByteSequence(
-                                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. },
-                                    ) | terminal_psi::StructuralTypeShape::ElementView { .. }
-                                )
-                        })))
-                && parameter.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
-                && !parameter.is_self
-                && parameter.qualifications.is_empty()
-                && parameter.projected_qualifications.is_empty()
+                // A control-flow join carries the same borrowed storage as
+                // entry. Referent layout and access determine its carrier,
+                // not the function result or whether the referent is a view.
+                // Exact predecessor bindings and loan authority are replayed
+                // separately by reference custody and target control flow.
+                && parameter.access != terminal_psi::StructuralAccess::Owned
+                && crate::structural_inputs::structural_reference_input::parameter_shape(
+                    parameter,
+                    &plan.structural_types,
+                )
+                .is_some()
+                && (!parameter.is_self
+                    || target.attachment == Some(parameter.structural_type))
         }) {
             continue;
         }
