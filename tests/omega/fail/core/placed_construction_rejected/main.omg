@@ -10,8 +10,5 @@ machine forge() -> Placed<Native, Packet> {
     Placed { }
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

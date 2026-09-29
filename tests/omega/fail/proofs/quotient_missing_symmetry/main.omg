@@ -43,8 +43,5 @@ where equivalent satisfies
     Equivalence<Representative, equivalent>
     as RepresentativeEquivalence;
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

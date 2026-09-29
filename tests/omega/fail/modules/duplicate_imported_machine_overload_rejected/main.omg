@@ -4,8 +4,6 @@
 use geo_a::seed;
 use geo_b::seed;
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     seed();
 }

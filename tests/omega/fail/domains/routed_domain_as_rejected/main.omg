@@ -11,9 +11,7 @@ trait TokenIssuer {
         result in Token::Issued;
 }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     let raw: Token = Token { value: 7 };
     let forged: Token in Issued = raw as Token in Issued;
 }

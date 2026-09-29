@@ -2,8 +2,6 @@
 // value by spelling an empty record literal.
 boundary data Token;
 
-data Main { }
-
-machine Main::main(&mut self) {
+machine main() {
     let token: Token = Token { };
 }

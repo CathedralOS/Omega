@@ -24,8 +24,5 @@ ensures
     Token { value: 0 }
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

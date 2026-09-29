@@ -6,8 +6,5 @@ data Bad {
     body: &'ghost i32;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

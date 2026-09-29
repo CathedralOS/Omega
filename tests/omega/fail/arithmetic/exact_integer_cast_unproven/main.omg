@@ -12,6 +12,4 @@ machine wrapped_then_cross_signed() -> u8 {
     ((100 as i8 in Wrapping) + (100 as i8 in Wrapping)) as u8
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

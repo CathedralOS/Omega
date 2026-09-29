@@ -4,5 +4,4 @@
 // silently ZII the extra parameter). The malformed entry can never project a
 // dependency row, so this program stays deliberately dependency-free: its
 // pinned rejection must not rest on a bundled-library import with no edge.
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }

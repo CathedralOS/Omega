@@ -8,6 +8,5 @@ boundary trait Process {
 machine exit_composite(code: i32) satisfies Process::exit via ForeignBinding::Syscall(60) {
 }
 
-data Main { }
-machine Main::main(&mut self) {
+machine main() {
 }

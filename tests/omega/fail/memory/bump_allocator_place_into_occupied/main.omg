@@ -79,6 +79,4 @@ reaches ExtentPartition, ResidentStorage
     recomposed as Extent
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

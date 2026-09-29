@@ -13,5 +13,4 @@ satisfies CheckedMath::identity
     transition { _ -> (input) }
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

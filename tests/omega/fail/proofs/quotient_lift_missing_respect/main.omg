@@ -49,8 +49,5 @@ machine bad_lift(value: EquivalenceClass) -> EquivalenceClass {
     advance(value)
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

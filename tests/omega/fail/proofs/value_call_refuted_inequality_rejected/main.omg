@@ -12,8 +12,5 @@ machine invalid_nonzero_identity() -> Nat {
     nonzero_identity(Nat::Zero)
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

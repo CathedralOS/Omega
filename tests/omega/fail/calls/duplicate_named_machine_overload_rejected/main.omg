@@ -2,8 +2,6 @@
 // signatures admit no overload distinction: the result dispatch set is
 // empty, and predicate-only result refinements do not distinguish
 // overloads.
-data Main {}
-
 machine add(a: u32, b: u32) -> u32 {
     transition { _ -> a }
 }
@@ -12,4 +10,4 @@ machine add(a: u32, b: u32) -> u32 {
     transition { _ -> b }
 }
 
-machine Main::main(&mut self) {}
+machine main() {}

@@ -12,8 +12,5 @@ boundary trait TokenIssuer {
         candidate in Token::Issued;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

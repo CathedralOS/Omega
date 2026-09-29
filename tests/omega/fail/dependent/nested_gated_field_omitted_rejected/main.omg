@@ -2,7 +2,6 @@
 // its captain field even though Team itself spells no additional clause.
 data Player { health: i32 [1..=100]; }
 data Team { captain: Player; score: i32; }
-data Main {}
-machine Main::main(&mut self) {
+machine main() {
     let team: Team = Team {};
 }

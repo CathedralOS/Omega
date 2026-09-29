@@ -14,8 +14,5 @@ machine exercise<'a>(first: &'a mut i32, second: &'a mut i32) {
     selected = 2;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

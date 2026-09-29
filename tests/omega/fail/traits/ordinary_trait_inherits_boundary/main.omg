@@ -4,8 +4,5 @@ boundary trait Device {
 trait HiddenDevice: Device {
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

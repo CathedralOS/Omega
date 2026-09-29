@@ -8,5 +8,4 @@ machine convert(value: i32) -> i32 [0..=100] {
     transition { _ -> (value) }
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

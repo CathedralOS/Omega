@@ -9,5 +9,4 @@ machine RealProvider::choose() -> i32 satisfies Pick::choose {
 
 data MissingProvider { }
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }

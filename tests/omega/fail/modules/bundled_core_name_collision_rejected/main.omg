@@ -4,6 +4,4 @@
 // collision is named rather than silently shadowed.
 use omega::language::core::marker;
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

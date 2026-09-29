@@ -2,5 +2,4 @@ machine invalid(value: u8)
 ensures embed(value == value) == 1
 {}
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

@@ -1,6 +1,4 @@
-data Main {}
-
-machine Main::main(&mut self) -> i32 {
+machine main() -> i32 {
     transition {
         _ -> write(&mut 1)
     }
