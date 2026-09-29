@@ -13,6 +13,10 @@
 //! operands, `IntegerExactAddDefinitionBound` and
 //! `IntegerExactSubtractDefinitionBound` over two proved operand endpoints,
 //! and the total-image bounds `range` already produces.
+//! Prior nonliteral products use four-corner bounds and explicit equality
+//! transport in `multiplication`; no new trusted arithmetic rule is needed.
+
+mod multiplication;
 
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
@@ -206,6 +210,16 @@ fn closure(
             substitute_equalities(bound, &equalities, &mut discovered);
         }
         for (index, output, expression) in &definitions {
+            multiplication::definition_bounds(
+                context,
+                assumptions.len(),
+                semantic_axioms,
+                *index,
+                output,
+                expression,
+                &proofs,
+                &mut discovered,
+            );
             exact_definition_bounds(
                 integer_type,
                 *index,
