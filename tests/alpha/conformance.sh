@@ -22,6 +22,13 @@ unset OMEGA_PATH_PARENT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/alpha/seed_env.sh"
 require_seed_execution_host "alpha conformance"
 cd "$TEST_DIR"
+# MSYS shells hide the authored exit byte behind 127 for every sign-bit-set
+# DWORD other than the audited trap's; the cases below pin byte-level values,
+# so on those hosts observation needs the native subprocess route.
+if [ "$ALPHA_SEED_EXIT_COLLAPSED" = 1 ] && ! command -v python3 >/dev/null 2>&1; then
+  echo "alpha conformance: byte-level exit observation on this host needs python3" >&2
+  exit 2
+fi
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
@@ -35,7 +42,13 @@ tc() {
   if ! stamp_seed "$TMP/tape" "$SEED" "$TMP/exe" >/dev/null 2>&1; then
     FAIL=$((FAIL+1)); echo "  FAIL $name : seed stamping failed"; return
   fi
-  out=$(printf '%s' "$stdin" | "$TMP/exe" 2>/dev/null); got_exit=$?
+  if [ "$ALPHA_SEED_EXIT_COLLAPSED" = 1 ]; then
+    printf '%s' "$stdin" > "$TMP/case-stdin"
+    got_exit=$(python3 "$TEST_DIR/native_exit.py" "$TMP/exe" "$TMP/case-stdin" "$TMP/case-stdout")
+    out=$(cat "$TMP/case-stdout")
+  else
+    out=$(printf '%s' "$stdin" | "$TMP/exe" 2>/dev/null); got_exit=$?
+  fi
   ok=1
   [ "$got_exit" = "$exp_exit" ] || ok=0
   [ -z "$exp_out" ] || [ "$out" = "$exp_out" ] || ok=0

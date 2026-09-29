@@ -37,7 +37,16 @@ PASS=0; FAIL=0
 cmp_tape() {  # name  tapefile  stdin  (set +e around the runs: programs exit nonzero by design)
   stamp_seed "$2" "$SEED" "$T/exe" >/dev/null 2>&1
   set +e
-  so=$(printf '%s' "$3" | "$T/exe" 2>/dev/null); sc=$?
+  # MSYS shells report every sign-bit-set exit DWORD other than the audited
+  # trap's as 127, hiding the halt's authored byte; observe the raw DWORD
+  # natively so the seed/reference comparison stays byte-level.
+  if [ "$ALPHA_SEED_EXIT_COLLAPSED" = 1 ]; then
+    printf '%s' "$3" > "$T/stdin"
+    sc=$(python3 "$OMEGA_REPO_ROOT/tests/alpha/native_exit.py" "$T/exe" "$T/stdin" "$T/stdout")
+    so=$(cat "$T/stdout")
+  else
+    so=$(printf '%s' "$3" | "$T/exe" 2>/dev/null); sc=$?
+  fi
   po=$(printf '%s' "$3" | python3 alpha_ref.py "$2" 2>/dev/null); pc=$?
   set -e
   if [ "$sc" = "$pc" ] && [ "$so" = "$po" ]; then PASS=$((PASS+1)); else

@@ -237,31 +237,45 @@ h_mul:
 48 89 04 CB
 E9 .rel32 next
 h_div:
-; field note (review 6165a54d4d4b..82741ec43919): this h_div/h_mod pair runs a bare
-; cqo; idiv r8 with no divisor-zero / INT64_MIN÷-1 pre-check, unlike
-; alpha_x64_linux.s and the arm64 seed, so a real #DE leaks as 0xC0000094 (exit 148
-; under wine) instead of the semantic Trap (132). Re-forging the guards changes the
-; bound identity in seed_env.sh — adjudicate on the audited-seed lane before touching.
+; Divisor pre-check identical to alpha_x64_linux.s and the arm64 seed: this host
+; delivers a hardware #DE as 0xC0000094/0xC0000095 rather than the audited ud2
+; Trap (0xC000001D), so both faulting divisor forms trap before idiv executes.
 0F B6 0E
 48 FF C6
 0F B6 16
 48 FF C6
-4C 8B 04 D3
-48 8B 04 CB
-48 99
-49 F7 F8
-48 89 04 CB
+4C 8B 04 D3                     ; r8 = divisor
+48 8B 04 CB                     ; rax = dividend
+4D 85 C0                        ; test r8, r8
+0F 84 .rel32 trap               ; divisor zero -> Trap
+49 83 F8 FF                     ; cmp r8, -1
+75 .rel8 div_ok                 ; ordinary divisor: skip the overflow compare
+49 B9 00 00 00 00 00 00 00 80   ; movabs r9, 0x8000000000000000
+4C 39 C8                        ; cmp rax, r9
+0F 84 .rel32 trap               ; INT64_MIN / -1 -> Trap
+div_ok:
+48 99                           ; cqo
+49 F7 F8                        ; idiv r8
+48 89 04 CB                     ; quotient
 E9 .rel32 next
 h_mod:
 0F B6 0E
 48 FF C6
 0F B6 16
 48 FF C6
-4C 8B 04 D3
-48 8B 04 CB
-48 99
-49 F7 F8
-48 89 14 CB
+4C 8B 04 D3                     ; r8 = divisor
+48 8B 04 CB                     ; rax = dividend
+4D 85 C0                        ; test r8, r8
+0F 84 .rel32 trap               ; divisor zero -> Trap
+49 83 F8 FF                     ; cmp r8, -1
+75 .rel8 mod_ok                 ; ordinary divisor: skip the overflow compare
+49 B9 00 00 00 00 00 00 00 80   ; movabs r9, 0x8000000000000000
+4C 39 C8                        ; cmp rax, r9
+0F 84 .rel32 trap               ; INT64_MIN % -1 -> Trap
+mod_ok:
+48 99                           ; cqo
+49 F7 F8                        ; idiv r8
+48 89 14 CB                     ; remainder
 E9 .rel32 next
 h_loadb:
 0F B6 0E

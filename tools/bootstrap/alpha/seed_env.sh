@@ -23,7 +23,7 @@ ALPHA_MAX_RAW_TAPE_SIZE=16777212
 ALPHA_SEED_ARM64_MACOS_SIZE=16844016
 ALPHA_SEED_ARM64_MACOS_SHA256=a8a198082d00458c2645ca388e07dc814166f4380f2a42104724e6185763624b
 ALPHA_SEED_X64_WINDOWS_SIZE=16782336
-ALPHA_SEED_X64_WINDOWS_SHA256=4ee9ee0f97c1b11c5a7ef32ffd05f1eeb193d1e9b327cb89df9ac54431aad701
+ALPHA_SEED_X64_WINDOWS_SHA256=e2556e507167f75ce2bb276e855d5f9c77823a69585f3d30c16e1cdfbbb6eb66
 ALPHA_SEED_X64_LINUX_SIZE=16789856
 ALPHA_SEED_X64_LINUX_SHA256=39ccffa0303d07c0c1fee7dc40ded00e0e667b311836cdbced2768f868b775b1
 
@@ -73,6 +73,18 @@ esac
 ALPHA_SEED_EXECUTABLE=0
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64|Linux-x86_64|MINGW*-x86_64|MSYS*-x86_64) ALPHA_SEED_EXECUTABLE=1 ;;
+esac
+
+# MSYS shells (Git Bash) normalize the raw process exit DWORD: the audited
+# Trap's STATUS_ILLEGAL_INSTRUCTION (0xC000001D) still surfaces as SIGILL
+# (132), but every other sign-bit-set code — including a halt whose register
+# sign-extends into the DWORD — observes as 127, hiding the authored low byte.
+# Seed-executing gates that pin byte-level exit expectations take the native
+# subprocess route (tests/alpha/native_exit.py) when this is 1 instead of
+# reading $? directly.
+ALPHA_SEED_EXIT_COLLAPSED=0
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) ALPHA_SEED_EXIT_COLLAPSED=1 ;;
 esac
 
 # require_seed_execution_host LABEL : refuse a seed-executing gate on a host
