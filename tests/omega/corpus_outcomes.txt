@@ -175,6 +175,7 @@ pass/calls/statement_call_recursive_overload_compile checked 341ms
 pass/calls/structural_mut_to_shared_argument checked 458ms
 pass/calls/structural_self_rooted_argument checked 477ms
 pass/calls/transition_arg_local_from_embedded_call_exit checked 669ms @3da828ba5434+wt
+pass/calls/transition_tail_call_to_machine checked 8498ms @82ad342b75d9b207f4120d41af670b6e5bcaa464
 pass/calls/state_and_machine_names_exit checked 546ms @0f14a853dd22504c15fa85132ed4eb1e6d7f2ab7+wt
 pass/calls/unread_multistate_receiver_exit checked 498ms @5c1d6f8344c7+wt
 pass/calls/value_call_as_host_arg_exit rejected 1622ms
@@ -182,6 +183,7 @@ pass/calls/value_call_as_host_arg_exit rejected 1622ms
 pass/calls/value_call_element_view_arg_compile checked 294ms
 pass/calls/value_call_embedded_in_binary_exit checked 663ms @3da828ba5434+wt
 pass/calls/value_call_param_effect_arm checked 1698ms
+pass/calls/value_call_subexpression checked 9085ms @82ad342b75d9b207f4120d41af670b6e5bcaa464
 pass/calls/value_call_transition_argument checked 497ms @5c1d6f8344c7+wt
 pass/capabilities/aarch64_hfa_import_compile checked 1350ms
 pass/capabilities/acquires_through_helper_return checked 460ms
