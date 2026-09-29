@@ -61,10 +61,11 @@ Machine parameters do not become ambient names inside every state. Locals and
 state inputs identify what the body may observe, mutate, move, or lend.
 Every incoming edge establishes that state's requirements.
 
-A declared state receiver, such as `state advance(&mut self, index: u64)`,
-retains the machine attachment. The jump writes `advance(next_index)`;
-`self` is not repeated among its ordinary arguments. This does not authorize
-rebinding the receiver to another object.
+Context is an ordinary parameter too. For
+`state advance(context: &mut Context, index: u64)`, the incoming jump writes
+`advance(context, next_index)`. No machine attachment supplies an implicit
+argument. The edge must preserve the context's loan and storage lifetime just
+like any other reference passed to a state.
 
 Explicit transfer need not copy bytes. Storage planning may reuse the same
 slot while proof and debug artifacts retain the exact mapping. Owned values

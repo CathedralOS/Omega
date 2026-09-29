@@ -192,34 +192,36 @@ must independently reconstruct the window rather than trust producer approval.
 
 ## Consumers and cleanup
 
-Ownership is determined by the receiver type: bare `self` is owned; `&self` and
-`&mut self` are references. Method and static-call forms obey the same rule.
-`self` is syntax for a parameter of the attached data type, not a separate
-ownership category. The same parameter type has the same transfer, loan,
-cleanup, and disposition obligations whether passed as a receiver or as an
-ordinary parameter. Normal completion grants no receiver-specific consumption.
-`move self` transfers into a consuming machine; there is no terminal-consumer
-annotation and no inference from the method's name.
+Ownership is determined by each ordinary parameter's type: `value: T` receives
+an owned value; `value: &T` and `value: &mut T` receive references. A qualified
+machine name adds no hidden argument or ownership category. All calls preserve
+the parameter's ordinary transfer, loan, cleanup and disposition obligations.
+For example, `Resource::close(move resource)` transfers to a consuming
+`resource: Resource` parameter; `Resource::inspect(&resource)` does not.
+There is no terminal-consumer annotation and no inference from the machine's name.
 
 A call returning an outcome containing the obligation transfers it back. A
 normal return without it requires its authorized disposition within the
 callee. Pending or failure outcomes of incomplete consuming operations retain
-the live input rather than discard it. A borrowed-receiver call cannot silently
-become an owned consumer.
+the live input rather than discard it. A call with a borrowed argument cannot
+silently become an owned consumer.
 
 Affine ownership permits eligible automatic cleanup. Linear ownership permits
 it only when the type owner declares that exact plan as a valid terminal
 disposition. The hook must return normally and be infallible, nonblocking,
 non-suspending, free of abnormal outcomes, and require no runtime authority
-beyond its receiver. Termination alone is insufficient: the transitive hook
-contract must exclude process exit as well as crashes. The compiler begins
-consumption before temporarily lending
-`&mut self` to the hook; this is not consumption by an ordinary borrowed call.
+beyond its explicit value parameter. Termination alone is insufficient: the
+transitive hook contract must exclude process exit as well as crashes. The
+compiler begins consumption before temporarily lending the value to the
+hook's ordinary `value: &mut T` parameter; this is not
+consumption by an ordinary borrowed call.
 [Nominal cleanup](../terminal-psi/ownership.md#nominal-cleanup) owns the reserved
 `T::drop` edge and ordinary consuming early-disposal call.
 
-Only the data declaration's owning package may declare its exact attached
-`T::drop`, and at most one exists. The hook receives and must return a whole
+Only the data declaration's owning package may declare its exact static
+`machine T::drop(value: &mut T)`, and at most one exists. The parameter name is
+ordinary; the exact owner/type/hook identity, not a receiver flag, selects the
+compiler cleanup edge. The hook receives and must return a whole
 valid value before structural field cleanup. A nominal-drop type cannot be
 partially moved; meaningful decomposition requires an explicit consuming
 machine. An unrelated ordinary machine named `drop` has no reserved meaning.

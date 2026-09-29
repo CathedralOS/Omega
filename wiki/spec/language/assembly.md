@@ -22,13 +22,16 @@ exact register-clobber declaration:
 
 ```omega
 asm where
-    requires self.ready
+    requires context.ready
     clobbers none
-    ensures self.ready
+    ensures context.ready
 {
     lfence; sfence
 }
 ```
+
+Here `context` is an ordinary explicit parameter or local in scope; assembly
+does not introduce an implicit machine receiver.
 
 `requires` is proved at block entry. `ensures` is proved at a falling-through
 exit after instruction writes invalidate stale facts. These are checked

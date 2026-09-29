@@ -39,8 +39,9 @@ input lifetime. The source must supply the result's declared access and remain
 live for the result's use. A signature does not authorize returning unrelated
 storage merely because its type has the same lifetime spelling.
 
-For an elided output, a borrowed receiver supplies the usual receiver relation;
-otherwise one unambiguous reference input supplies it. Several unnamed carried
+For an elided output, one unambiguous reference input supplies the relation.
+A qualified machine name, parameter name, or first-argument position grants no
+priority among possible sources. Several unnamed carried
 references do not become one source merely because they occupy one parameter.
 Ambiguous elision requires an explicit relation, not a guess by name or position.
 

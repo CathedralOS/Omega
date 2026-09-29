@@ -26,8 +26,8 @@ all zero. Implicit zero-filling creates none, and zero is not a universal
 An owned value can move into another location:
 
 ```omega
-machine InventorySystem::repair(&mut self, replacement: Inventory) {
-    self.inventory = move replacement;
+machine InventorySystem::repair(system: &mut InventorySystem, replacement: Inventory) {
+    system.inventory = move replacement;
 }
 ```
 
@@ -43,7 +43,7 @@ entitled to a whole valid value.
 ## Copy Values
 
 ```omega
-let depth: u32 = self.level_depth;
+let depth: u32 = level.depth;
 let next_depth: u32 = depth + 1;
 ```
 
@@ -73,7 +73,7 @@ cross a suspension, CPU, thread or storage boundary, or that shared use is safe.
 Shared borrows grant observation under their access contract:
 
 ```omega
-machine RoomFormatter::render(&self, room: &Room, out: &write [u8]) {
+machine RoomFormatter::render(formatter: &RoomFormatter, room: &Room, out: &write [u8]) {
 }
 ```
 
@@ -88,8 +88,8 @@ remains separate from copyability.
 A mutable borrow is exclusive for its borrowed place:
 
 ```omega
-machine Player::heal(&mut self, amount: i32) {
-    self.health += amount;
+machine Player::heal(player: &mut Player, amount: i32) {
+    player.health += amount;
 }
 ```
 
@@ -103,17 +103,17 @@ An exclusive borrow may temporarily leave a field empty while you own its former
 contents:
 
 ```omega
-machine InventorySystem::rearrange(&mut self) {
-    let inventory: Inventory = self.inventory;
-    // inventory owns the value; self.inventory is temporarily absent.
-    self.inventory = move inventory;
+machine InventorySystem::rearrange(system: &mut InventorySystem) {
+    let inventory: Inventory = system.inventory;
+    // inventory owns the value; system.inventory is temporarily absent.
+    system.inventory = move inventory;
 }
 ```
 
 This opens an ownership invariant window. You may transform the detached value
 and install a different valid replacement, provided every returning path repairs
 the original field. While it is absent, reading it, borrowing it, or passing
-`self` as a whole valid object rejects. Unaffected fields remain usable where
+`system` as a whole valid object rejects. Unaffected fields remain usable where
 their borrows and invariants permit. A nominal whole-value cleanup hook still
 prevents partial extraction.
 
@@ -142,8 +142,8 @@ fill(&write buffer[..]); // caller must establish nonempty buffer
 
 `&write` has the exclusion and lifetime rules of `&mut`, with a narrower set
 of operations. Mutable access can explicitly attenuate to write-only; write-only
-access cannot become readable or mutable. Its receiver spelling is `&write self`,
-and an explicit lifetime precedes the modifier: `&'buffer write T`.
+access cannot become readable or mutable. An explicit lifetime precedes the
+modifier: `&'buffer write T`.
 
 It is not vacant output storage: the referent is a live `T` before and after
 the loan. Stores, content-independent projection and view metadata such as
@@ -265,12 +265,12 @@ A borrowed window keeps its backing valid and rejects overlapping writes. For
 copy-eligible `Entry`:
 
 ```omega
-let view: &[Entry] = self.entries.as_slice();
-self.entries[0].value = 7; // rejected: view is used below
+let view: &[Entry] = &entries[..];
+entries[0].value = 7; // rejected: view is used below
 let first: Entry = view[0];
 ```
 
-A view restricted to `self.entries[1..]` need not conflict with a write to
+A view restricted to `entries[1..]` need not conflict with a write to
 element zero. Reallocation that invalidates a live vector view rejects too.
 The rule concerns the actual borrowed window and backing, not a blanket ban on
 every operation bearing the vector's name.
@@ -287,8 +287,8 @@ machine header<'buffer>(
 }
 ```
 
-The result retains `buffer`'s loan, not `scratch`'s. Common single-reference-input
-and borrowed-receiver cases use elision, so most signatures need no tick. Prefer
+The result retains `buffer`'s loan, not `scratch`'s. A single unambiguous reference
+input permits elision; multiple possible sources need an explicit relation. Prefer
 descriptive lifetime names such as `'buffer` or `'arena`.
 
 Borrow-carrying data makes zero-copy results ordinary values:

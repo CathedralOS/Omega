@@ -30,21 +30,21 @@ data MutexGuard<T> {
     mutex: &Mutex<T>;
 }
 
-machine MutexGuard::drop(&mut self)
+machine MutexGuard::drop<T>(guard: &mut MutexGuard<T>)
     // The checked body must establish the mutex's published release contract.
 {
-    self.mutex.unlock_raw();
+    Mutex::unlock_raw(guard.mutex);
 }
 ```
 
 Only the data declaration's owning package may declare the exact attached
 `T::drop`. At most one exists. It is a compiler-selected hook, not a trait
 requirement or an authored callable: source selection of that exact declaration
-as a method, qualified call, static-machine argument, or forwarded reference
+as a qualified call, static-machine argument, or forwarded reference
 rejects. An unrelated ordinary machine named `drop` has no reserved meaning.
 
 At a cleanup edge the compiler has already begun consuming the owning
-occurrence and temporarily lends the whole valid value as `&mut self` to the
+occurrence and temporarily lends the whole valid value as `value: &mut T` to the
 hook. The signature therefore remains honest: the hook borrows during an
 enclosing consumption; it does not turn an ordinary mutable call into a hidden
 move. When the hook returns, structural field cleanup completes the one
@@ -65,7 +65,7 @@ the remaining cleanup sequence despite being terminating and non-crashing.
 
 These restrictions, not multiplicity alone, determine whether a linear type
 can authorize automatic cleanup. The disposition must be expressible using the
-receiver's owned authority and facts established at the edge, with no extra
+value's owned authority and facts established at the edge, with no extra
 runtime argument, returned custody, failure, blocking, or suspension. Many
 linear protocols therefore remain explicit: unregistering may require
 quiescence evidence, returning storage may need allocator authority, and
@@ -90,7 +90,7 @@ pub machine drop<T>(value: T) {
 `omega::core::drop(value)` moves the whole value into that machine. The caller's
 occurrence is dead immediately, and the callee's return edge invokes the same
 cleanup plan that scope exit would use. This is not a direct call to
-`T::drop(&mut self)` and does not require a `Drop` or `Disposable` trait.
+`T::drop(value: &mut T)` and does not require a `Drop` or `Disposable` trait.
 
 The core machine is checked once against a symbolic contextual-cleanup row. At
 each application the concrete type supplies its exact structural plan,
@@ -106,8 +106,9 @@ and dynamic code consumes the type descriptor described below, so neither needs
 a nominal `T: Drop` bound.
 
 Named consuming machines remain the source surface for protocols with results
-or stronger behavior. `close(self)`, `finish(self)`, `commit(self)`,
-`unregister(self, ...)`, and `abandon(self)` may fail, block, return authority,
+or stronger behavior. `File::close(file)`, `Task::finish(task)`,
+`Transaction::commit(transaction)`, `Registry::unregister(registration, ...)`,
+and `Claim::abandon(claim)` may fail, block, return authority,
 or promise more than the automatic fallback. They are distinct operations, not
 alternative spellings of the hook.
 
@@ -131,8 +132,8 @@ Such an explicit consumer uses the ordinary call acknowledgement required by
 its contract:
 
 ```omega
-let closed: CloseResult = block file.close();
-let outcome: TaskOutcome<T> = suspend block task.finish();
+let closed: CloseResult = block File::close(move file);
+let outcome: TaskOutcome<T> = suspend block Task::finish(move task);
 ```
 
 The marker makes the waiting site visible; explicit consumption, not the
@@ -248,7 +249,7 @@ Cleanup order is deterministic:
 1. Independent roots are cleaned in reverse declaration order.
 2. Locals therefore precede by-value machine or state parameters declared
    before them.
-3. A whole value's nominal `drop(&mut self)` runs before structural field
+3. A whole value's nominal `T::drop(value: &mut T)` runs before structural field
    cleanup.
 4. Remaining fields are cleaned in reverse declaration order.
 5. Fixed-array elements are established from lowest to highest index and the
