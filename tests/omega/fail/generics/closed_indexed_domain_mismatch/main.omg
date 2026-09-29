@@ -14,8 +14,5 @@ machine mismatch(value: i64 in Quantity<Units::SECOND>) {
     let meters: i64 in Quantity<Units::METER> = value;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

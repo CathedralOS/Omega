@@ -19,8 +19,5 @@ machine exercise<'source>(
     selected.body = 2;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

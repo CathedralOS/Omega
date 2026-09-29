@@ -4,5 +4,4 @@ boundary trait NativeSlice {
 
 machine send(value: &[u8]) satisfies NativeSlice::send via ForeignBinding::Syscall(60);
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }

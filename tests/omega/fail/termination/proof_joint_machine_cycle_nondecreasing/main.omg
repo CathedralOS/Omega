@@ -6,8 +6,7 @@ data ProofNat {
     case Succ(prev: ProofNat);
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}
 
 machine left(n: ProofNat) -> ProofNat
 terminates by n;

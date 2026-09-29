@@ -7,8 +7,5 @@ use omega::language::core::nat;
 
 machine Nat::Descending(value: u64) -> u64;
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

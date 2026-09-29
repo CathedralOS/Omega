@@ -15,5 +15,4 @@ machine SecondProvider::choose() -> i32 satisfies Pick::choose {
     transition { _ -> (2) }
 }
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }

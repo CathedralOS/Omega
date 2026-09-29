@@ -3,5 +3,4 @@ requires divisor == 0
 ensures
     (embed(7i32) / embed(divisor)) == (embed(7i32) / embed(divisor))
 {}
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

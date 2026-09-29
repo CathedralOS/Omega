@@ -3,6 +3,4 @@ data Socket {}
 pub domain Socket::Usable = Socket::Ready;
 pub domain Socket::Ready = Socket::Usable;
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

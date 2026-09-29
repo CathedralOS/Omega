@@ -15,6 +15,4 @@ machine sneak(whole: Extent in Granted) -> Extent
     weak.e as Extent
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

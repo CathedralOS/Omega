@@ -1,5 +1,4 @@
 machine false_quotient()
 ensures embed(-7i32) / 2 == -4
 {}
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

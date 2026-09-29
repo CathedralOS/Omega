@@ -2,5 +2,4 @@ machine quotient(value: i32)
 requires value >= 0, value <= 9
 ensures embed(value) / 2 <= 3
 {}
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

@@ -21,9 +21,6 @@ machine Token::forge(value: u64) -> Token in Issued::Fresh {
     Token { value: value }
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     let token: Token in Issued::Fresh = Token::forge(7);
 }

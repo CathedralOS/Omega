@@ -11,8 +11,5 @@ data CounterMessage {
     retired #3;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

@@ -53,6 +53,4 @@ reaches ResidentStorage
     released as Extent
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

@@ -19,8 +19,5 @@ data Counter {
     #2 timestamp: i32;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

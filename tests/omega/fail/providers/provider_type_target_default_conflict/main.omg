@@ -43,5 +43,4 @@ macos_arm64 machine SecondTargetPackage::provider_defaults(defaults: &mut Second
     defaults.select_provider<Pick, SecondProvider>();
 }
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }

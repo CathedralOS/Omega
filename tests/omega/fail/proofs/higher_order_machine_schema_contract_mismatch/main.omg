@@ -23,8 +23,5 @@ machine rejected(value: Index) -> Index {
     forward_schema<bad_schema, sample>(value)
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

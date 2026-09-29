@@ -43,8 +43,5 @@ machine CounterV3::from_v2(
     out.nickname = 0;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

@@ -27,8 +27,5 @@ machine exercise<'left, 'right>(
     held.pair.right = 2;
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

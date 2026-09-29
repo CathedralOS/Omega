@@ -92,8 +92,5 @@ reaches TranslationAuthority
     authority.unmap(pending)
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

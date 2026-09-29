@@ -6,5 +6,4 @@ const HALF: Rat = Rat {
     den: Nat::Succ { prev: Nat::Succ { prev: Nat::Zero } }
 };
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

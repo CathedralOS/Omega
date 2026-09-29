@@ -18,8 +18,5 @@ ensures different(value, value)
 {
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }
