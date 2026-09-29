@@ -157,6 +157,42 @@ fn has_readable_structural_access(access: StructuralAccess) -> bool {
     )
 }
 
+/// A view local's store destination: any operation minting a structural
+/// result at the place whose type is `ElementView` (directly, or through a
+/// `Reference` shell carrying the loan's access). That declaration is what
+/// a runtime index resolves against.
+fn element_view_source(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    destination: PlaceId,
+) -> Option<StructuralTypeId> {
+    let structural_type = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            operation.result.structural().and_then(|result| {
+                (result.place == destination
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Affine | StructuralMultiplicity::Unrestricted
+                    ))
+                .then_some(result.structural_type)
+            })
+        })?;
+    let mut declaration = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)?;
+    if let StructuralTypeShape::Reference { referent, .. } = &declaration.shape {
+        declaration = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == *referent)?;
+    }
+    matches!(declaration.shape, StructuralTypeShape::ElementView { .. }).then_some(declaration.id)
+}
+
 pub(in crate::validation) fn structural_scalar_field_store_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -175,6 +211,11 @@ pub(in crate::validation) fn structural_scalar_field_store_type(
         crate::validation::record::completed_source(module, machine, destination)
     {
         result.structural_type
+    } else if let Some(view_type) = element_view_source(module, machine, destination) {
+        // A store destination may be a view local: its establishment mints
+        // the `Reference` shell carrying the loan's custody and access, and
+        // the indexed path resolves inside the referent `ElementView`.
+        view_type
     } else {
         let parameter = readable_parameter_for(machine, destination).ok_or_else(invalid)?;
         if !matches!(

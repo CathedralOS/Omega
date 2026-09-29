@@ -418,6 +418,17 @@ fn resolve_structural_path(
                 StructuralPathSegment::RuntimeIndex { .. },
                 StructuralTypeShape::FixedArray { element, .. },
             ) => *element,
+            // A view's extent is its stored runtime length — the same
+            // verified obligation, just carried by the loan rather than
+            // the type's literal.
+            (
+                StructuralPathSegment::FixedIndex(_),
+                StructuralTypeShape::ElementView { element },
+            ) => *element,
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ElementView { element },
+            ) => *element,
             _ => return None,
         };
     }

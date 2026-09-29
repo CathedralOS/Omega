@@ -296,6 +296,17 @@ pub(crate) fn validate_structural_path(
             (_, StructuralTypeShape::ByteSequence(_)) => {
                 return malformed("byte-sequence structural type has no projected children");
             }
+            // A view's extent is its stored runtime length: an index step
+            // selects an element whose bound the verifier reconstructs at
+            // the owning operation, as for the fixed-array siblings.
+            (
+                StructuralPathSegment::FixedIndex(_),
+                StructuralTypeShape::ElementView { element },
+            ) => *element,
+            (
+                StructuralPathSegment::RuntimeIndex { .. },
+                StructuralTypeShape::ElementView { element },
+            ) => *element,
             (_, StructuralTypeShape::ElementView { .. }) => {
                 return malformed("element-view structural type has no projected children");
             }

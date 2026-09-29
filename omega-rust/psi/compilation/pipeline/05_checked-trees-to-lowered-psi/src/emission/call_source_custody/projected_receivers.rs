@@ -387,18 +387,25 @@ fn resolve_source(
                 .ok_or(LoweringError::Unsupported(
                     "projected receiver index has no declared collection",
                 ))?;
-                let TypeReferenceNode::FixedArray {
-                    length: checked_trees::types::FixedArrayLength::Literal(length),
-                    ..
-                } = checked.type_reference_table.type_reference(reference)
-                else {
-                    return unsupported("projected receiver index has no literal array length");
-                };
-                if usize::try_from(index)
-                    .ok()
-                    .is_none_or(|index| index >= *length)
-                {
-                    return unsupported("projected receiver index is out of bounds");
+                match checked.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::FixedArray {
+                        length: checked_trees::types::FixedArrayLength::Literal(length),
+                        ..
+                    } => {
+                        if usize::try_from(index)
+                            .ok()
+                            .is_none_or(|index| index >= *length)
+                        {
+                            return unsupported("projected receiver index is out of bounds");
+                        }
+                    }
+                    // A view-typed receiver carries no literal length: its
+                    // extent is the bound witness, and Terminal re-proves the
+                    // element against it exactly as the runtime selectors do.
+                    TypeReferenceNode::Slice { .. } => {}
+                    _ => {
+                        return unsupported("projected receiver index has no literal array length");
+                    }
                 }
                 path.push(CheckedUnitStructuralPathSegment::FixedIndex(index));
                 captured_segments.push(facts::PlaceSegment::FixedIndex {

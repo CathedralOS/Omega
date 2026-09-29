@@ -1,0 +1,57 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+// Record-element field stores through an exclusive element view: `fill`
+// establishes `cells: &mut [Cell]` over the bag's array and stores scalar
+// leaves beneath indexed elements. A view carries no literal array length —
+// the loan's stored extent is the bound's witness at every stage.
+
+data Cell {
+    value: i32;
+    tag: i32;
+}
+
+data Bag {
+    cells: [Cell; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.fill(&mut self.bag);
+
+    transition self.bag.cells[2].value == 7 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        transition self.bag.cells[2].tag == 9 {
+            true -> finish()
+            false -> bad()
+        }
+    }
+
+    state finish(&mut self) {
+        self.console.exit_process(181);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(90);
+    }
+}
+
+machine Main::fill(&mut self, bag: &mut Bag) {
+    let cells: &mut [Cell] = bag.cells.as_mut_slice();
+    cells[2].value = 7;
+    cells[2].tag = 9;
+    transition {
+        _ -> done()
+    }
+
+    state done() {
+    }
+}

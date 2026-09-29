@@ -803,6 +803,11 @@ pub(super) fn validate_structural_scalar_field_store(
                         | OperationKind::EstablishZeroedStructural { .. }
                         | OperationKind::CallStructural { .. }
                         | OperationKind::CallStructuralWithScalarArguments { .. }
+                        // A view local is a loan descriptor, not a record
+                        // home, but it is the exact authored carrier an
+                        // indexed field store writes through.
+                        | OperationKind::EstablishElementView { .. }
+                        | OperationKind::EstablishMutableElementView { .. }
                 )
             })
             .filter_map(|producer| producer.result.structural())
