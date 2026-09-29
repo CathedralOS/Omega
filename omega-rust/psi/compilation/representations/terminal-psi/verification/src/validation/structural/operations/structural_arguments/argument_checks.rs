@@ -199,6 +199,15 @@ pub(in crate::validation) fn validate_structural_argument(
                                         | StructuralAccess::MutableBorrow
                                 )
                                 && is_runtime_indexed_borrow_path(&argument.path)))
+                            // A mutable view lends itself for one call, ordinary
+                            // or boundary alike: a host `read_bytes(region)` is
+                            // the same call-scoped loan as `region.set(..)`. The
+                            // view must itself be mutable. Custody is not decided
+                            // here: argument pairs refuse a second overlapping
+                            // loan, the mutable-view availability replay refuses
+                            // a name an edge already transferred, and boundary
+                            // results cannot carry a reference, so the loan ends
+                            // with the call. An owned view never reaches a host.
                             && (argument.access == StructuralAccess::SharedBorrow
                                 || (ordinary_call && argument.access == StructuralAccess::Owned)
                                 || ((ordinary_call
