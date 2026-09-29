@@ -549,7 +549,8 @@ pub(in crate::execution) fn view_kind(
     borrowed_slice_view_element(program, reference, &[]).map(|_| ViewKind::Elements)
 }
 
-fn view_identity(
+/// The type identity of a view of `kind`, as the view's own family spells it.
+pub(in crate::execution) fn view_identity(
     program: &TypedTrees,
     kind: ViewKind,
     reference: TypeReferenceHandle,

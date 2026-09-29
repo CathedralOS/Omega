@@ -45,7 +45,6 @@ pub(crate) fn structural_call_arguments(
     call_site: &crate::semantic::calls::CallSite<'_>,
     receiver_symbol: SymbolHandle,
     statement_index: usize,
-    allow_fixed_index_projection: bool,
     allow_field_path_projection: bool,
     caller_structural_results: &[(CheckedUnitStructuralResultBindingPlan, facts::PlaceRoot)],
     trace: &crate::execution::terminal_unit::control::LocalConstructionTrace,
@@ -387,7 +386,7 @@ pub(crate) fn structural_call_arguments(
         // plans; projected spellings still resolve through the parameter and
         // alias arms below.
         if place.segments.is_empty()
-            && let Some(plan) = computation_arguments::shared_slice_view_argument(
+            && let Some(plan) = computation_arguments::shared_view_argument(
                 program,
                 &facts.borrow,
                 caller_machine.symbol,
@@ -396,6 +395,7 @@ pub(crate) fn structural_call_arguments(
                 &place,
                 source_symbol,
                 target,
+                view_subslice::ViewKind::Elements,
             )
         {
             output.push(plan);
@@ -580,7 +580,6 @@ pub(crate) fn structural_call_arguments(
             }
             segments
                 if allow_field_path_projection
-                    && allow_fixed_index_projection
                     && target_machine.supply_mode == MachineSupplyMode::CheckedBody
                     && caller_parameters[source_index].multiplicity == Multiplicity::Affine
                     && caller_parameters[source_index].access == CheckedStructuralAccess::Owned
@@ -604,11 +603,10 @@ pub(crate) fn structural_call_arguments(
                 )?
             }
             [facts::PlaceSegment::FixedIndex { index }]
-                if allow_fixed_index_projection
-                    && caller_parameters
-                        .get(source_index)?
-                        .qualifications
-                        .is_empty() =>
+                if caller_parameters
+                    .get(source_index)?
+                    .qualifications
+                    .is_empty() =>
             {
                 projected_argument_path_with_identity(
                     program,
@@ -630,7 +628,6 @@ pub(crate) fn structural_call_arguments(
                     && segments.iter().all(|segment| {
                         matches!(segment, facts::PlaceSegment::FixedIndex { .. })
                     })
-                    && allow_fixed_index_projection
                     && caller_parameters
                         .get(source_index)?
                         .qualifications

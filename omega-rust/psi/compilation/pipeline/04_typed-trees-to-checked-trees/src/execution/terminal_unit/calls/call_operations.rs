@@ -328,7 +328,6 @@ pub(in crate::execution) fn build_call_operation(
         &call_site,
         call.receiver_symbol,
         call.statement_index,
-        true,
         allow_field_path_projection,
         caller_structural_results,
         trace,

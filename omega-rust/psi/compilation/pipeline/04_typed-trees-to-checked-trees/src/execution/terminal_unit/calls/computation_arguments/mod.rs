@@ -11,8 +11,7 @@ use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::types::{
-    ShapeCollector, base_type_identity, borrowed_slice_view_element,
-    borrowed_slice_view_type_identity, parameter_qualifications,
+    ShapeCollector, base_type_identity, borrowed_slice_view_element, parameter_qualifications,
     structural_access_for_type_reference,
 };
 
@@ -24,6 +23,7 @@ use crate::execution::terminal_unit::TypedTrees;
 
 use crate::execution::terminal_unit::calls::projected_borrowed_path;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
+use crate::execution::terminal_unit::calls::view_subslice::{ViewKind, view_identity};
 
 #[cfg(test)]
 mod tests;
@@ -105,33 +105,25 @@ pub(crate) fn structural_computation_argument(
         });
     }
     if target_access == CheckedStructuralAccess::SharedBorrow {
-        let argument =
+        let kind =
             if super::super::types::byte_sequence_carrier(program, target.type_reference, &[])
                 .is_some_and(|carrier| carrier.is_borrowed_view())
             {
-                shared_byte_view_argument(
-                    program,
-                    borrow,
-                    machine,
-                    state,
-                    call,
-                    &place,
-                    name.symbol,
-                    target,
-                )
+                ViewKind::Bytes
             } else {
-                shared_slice_view_argument(
-                    program,
-                    borrow,
-                    machine,
-                    state,
-                    call,
-                    &place,
-                    name.symbol,
-                    target,
-                )
+                ViewKind::Elements
             };
-        if let Some(argument) = argument {
+        if let Some(argument) = shared_view_argument(
+            program,
+            borrow,
+            machine,
+            state,
+            call,
+            &place,
+            name.symbol,
+            target,
+            kind,
+        ) {
             return Some(argument);
         }
     }
@@ -196,18 +188,9 @@ pub(crate) fn structural_computation_argument(
     if access != target_access {
         return None;
     }
-    let parameter_index = parameters[..source_position]
-        .iter()
-        .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
-        })
-        .count();
+    let parameter_index = dense_structural_index(program, parameters, source_position)?;
     Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: u32::try_from(parameter_index).ok()?,
-        },
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         path: Vec::new(),
         type_identity: base_type_identity(program, target.type_reference, &[])?,
         access,
@@ -485,14 +468,7 @@ pub(crate) fn borrowed_nominal_argument(
                 }
             }
         }
-        let ordinal = parameters[..position]
-            .iter()
-            .filter(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-            })
-            .count();
+        let parameter_index = dense_structural_index(program, parameters, position)?;
         (
             reference,
             matches!(
@@ -501,9 +477,7 @@ pub(crate) fn borrowed_nominal_argument(
                     .type_reference(parameter.type_reference),
                 TypeReferenceNode::Reference { .. }
             ),
-            CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(ordinal).ok()?,
-            },
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         )
     } else {
         // A projection borrows the same established local home. Resolve its
@@ -775,11 +749,13 @@ pub(crate) fn borrowed_nominal_argument(
     })
 }
 
-/// A `&[T]` actual loans its whole established view carrier: an authored view
-/// local's slot or a view parameter's own loan. The reference shell is the
-/// loan itself — the same presentation the call-statement lane gives a
-/// borrowed view — while this lane names the view's established home.
-pub(crate) fn shared_slice_view_argument(
+/// A whole borrowed-view actual, `&[T]` or `&[u8]`, loans its established
+/// view carrier: an authored view local's slot or a view parameter's own loan.
+/// The reference shell is the loan itself — the same presentation the
+/// call-statement lane gives a borrowed view — while this lane names the
+/// view's established home. Source and access rules are identical for both
+/// view families; only the carrier test and the type identity differ.
+pub(in crate::execution) fn shared_view_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
@@ -788,9 +764,21 @@ pub(crate) fn shared_slice_view_argument(
     place: &crate::flow::CanonicalPlace,
     symbol: SymbolHandle,
     target: &StateParameter,
+    kind: ViewKind,
 ) -> Option<CheckedUnitStructuralArgumentPlan> {
-    borrowed_slice_view_element(program, target.type_reference, &[])?;
-    let identity = borrowed_slice_view_type_identity(program, target.type_reference, &[], &[]);
+    let is_view = match kind {
+        ViewKind::Elements => {
+            borrowed_slice_view_element(program, target.type_reference, &[]).is_some()
+        }
+        ViewKind::Bytes => {
+            super::super::types::byte_sequence_carrier(program, target.type_reference, &[])?
+                .is_borrowed_view()
+        }
+    };
+    if !is_view {
+        return None;
+    }
+    let identity = view_identity(program, kind, target.type_reference)?;
     let parameters = program.state_parameters(state);
     let (source, source_type) = if let Some(position) = parameters
         .iter()
@@ -800,17 +788,9 @@ pub(crate) fn shared_slice_view_argument(
         if parameter.is_const || parameter.is_self {
             return None;
         }
-        let parameter_index = parameters[..position]
-            .iter()
-            .filter(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-            })
-            .count();
         (
             CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
+                parameter_index: dense_structural_index(program, parameters, position)?,
             },
             parameter.type_reference,
         )
@@ -828,7 +808,7 @@ pub(crate) fn shared_slice_view_argument(
             local.type_reference,
         )
     };
-    if borrowed_slice_view_type_identity(program, source_type, &[], &[]) != identity {
+    if view_identity(program, kind, source_type)? != identity {
         return None;
     }
     if exact_structural_borrow_access(
@@ -852,84 +832,28 @@ pub(crate) fn shared_slice_view_argument(
     })
 }
 
-/// A `&[u8]` byte-view actual — the byte-sequence carrier sibling of
-/// `shared_slice_view_argument`. Source and access rules are identical; only
-/// the carrier family and its type identity differ.
-pub(crate) fn shared_byte_view_argument(
+/// The dense structural-namespace index of the authored parameter at
+/// `position`: the number of earlier formals whose type is not primitive.
+///
+/// Known latent mismatch, deliberately preserved: this count includes
+/// `[erased]` non-primitive formals, while the structural parameter roster
+/// skips them (`strips_erased_parameter` in the signature builders). An erased
+/// non-primitive formal ahead of `position` makes this index name a later
+/// roster row than the parameter's own.
+fn dense_structural_index(
     program: &TypedTrees,
-    borrow: &checked_trees::BorrowFacts,
-    machine: SymbolHandle,
-    state: &typed_trees::state::State,
-    call: &checked_trees::FlowCallFact,
-    place: &crate::flow::CanonicalPlace,
-    symbol: SymbolHandle,
-    target: &StateParameter,
-) -> Option<CheckedUnitStructuralArgumentPlan> {
-    if !super::super::types::byte_sequence_carrier(program, target.type_reference, &[])?
-        .is_borrowed_view()
-    {
-        return None;
-    }
-    let identity =
-        super::super::types::byte_sequence_type_identity(program, target.type_reference, &[], &[])?;
-    let parameters = program.state_parameters(state);
-    let (source, source_type) = if let Some(position) = parameters
+    parameters: &[StateParameter],
+    position: usize,
+) -> Option<u32> {
+    let index = parameters[..position]
         .iter()
-        .position(|parameter| parameter.symbol == symbol)
-    {
-        let parameter = &parameters[position];
-        if parameter.is_const || parameter.is_self {
-            return None;
-        }
-        let parameter_index = parameters[..position]
-            .iter()
-            .filter(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-            })
-            .count();
-        (
-            CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                parameter_index: u32::try_from(parameter_index).ok()?,
-            },
-            parameter.type_reference,
-        )
-    } else {
-        let (_, local) = program
-            .state_local_declaration(state, symbol)
-            .filter(|&(ordinal, _)| ordinal < call.statement_index)?;
-        if !local.initial_value.is_valid() {
-            return None;
-        }
-        (
-            CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol },
-            local.type_reference,
-        )
-    };
-    if super::super::types::byte_sequence_type_identity(program, source_type, &[], &[])? != identity
-    {
-        return None;
-    }
-    if exact_structural_borrow_access(
-        program,
-        borrow,
-        machine,
-        state.symbol,
-        call,
-        place,
-        CheckedStructuralAccess::SharedBorrow,
-        &[],
-    )? != CheckedStructuralAccess::SharedBorrow
-    {
-        return None;
-    }
-    Some(CheckedUnitStructuralArgumentPlan {
-        source,
-        path: Vec::new(),
-        type_identity: identity,
-        access: CheckedStructuralAccess::SharedBorrow,
-    })
+        .filter(|parameter| {
+            program
+                .primitive_type_reference(parameter.type_reference)
+                .is_none()
+        })
+        .count();
+    u32::try_from(index).ok()
 }
 
 fn owned_copy_local_argument(
@@ -1032,18 +956,9 @@ fn owned_parameter_argument(
     {
         return None;
     }
-    let parameter_index = parameters[..source_position]
-        .iter()
-        .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
-        })
-        .count();
+    let parameter_index = dense_structural_index(program, parameters, source_position)?;
     Some(CheckedUnitStructuralArgumentPlan {
-        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
-            parameter_index: u32::try_from(parameter_index).ok()?,
-        },
+        source: CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index },
         path: Vec::new(),
         type_identity,
         access: CheckedStructuralAccess::Owned,
