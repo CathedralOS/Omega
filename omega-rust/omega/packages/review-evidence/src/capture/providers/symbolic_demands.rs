@@ -127,7 +127,13 @@ pub(crate) fn project_boundary_application_demands(
             symbolic_demand_authored_use_kind(compilation, expression, origin, operator)?;
         let location = canonical_source_span_location(
             compilation,
-            authored_application_source_span(compilation, expression, use_kind, operator.symbol)?,
+            authored_application_source_span(
+                compilation,
+                expression,
+                use_kind,
+                operator.symbol,
+                symbols::SymbolHandle::default(),
+            )?,
             PackageReviewSourceLocationRole::BoundaryApplicationUse,
         )?;
         if location.owner != PackageReviewSourceLocationOwner::Package(package) {
@@ -198,8 +204,13 @@ fn symbolic_demand_authored_use_kind(
         })
     {
         kinds.push(
-            token_authored_use_kind(compilation, expression, requirement)
-                .unwrap_or(selected_dispatch::CheckedOperatorAuthoredUseKind::Named),
+            token_authored_use_kind(
+                compilation,
+                expression,
+                requirement,
+                symbols::SymbolHandle::default(),
+            )
+            .unwrap_or(selected_dispatch::CheckedOperatorAuthoredUseKind::Named),
         );
     }
     kinds.extend(
