@@ -21,7 +21,6 @@ data Adder {
 }
 
 machine Adder::fletcher(
-    &self,
     s: &[i32 in Wrapping],
     sum1: i32 in Wrapping,
     sum2: i32 in Wrapping
@@ -48,7 +47,7 @@ machine Main::main(&mut self) reaches Console {
     self.adder.bytes[5] = 6;
 
     let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();
-    let checksum: i32 = self.adder.fletcher(s, 0, 0);
+    let checksum: i32 = Adder::fletcher(s, 0, 0);
     self.console.write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
     self.console.write_line("[press Enter to close]");
     _ = block self.console.read_line(&mut self.pause);
