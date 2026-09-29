@@ -195,7 +195,6 @@ satisfies HookProcedure::call
     message
 }
 
-data Main { }
-machine Main::main(&mut self) reaches HookRegistrar {
+machine main() reaches HookRegistrar {
     HookRegistrar::install<HookProvider::call>(1u64, 2u64);
 }
