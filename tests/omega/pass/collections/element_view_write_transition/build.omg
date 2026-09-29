@@ -2,7 +2,7 @@
 // exact entry.
 
 machine build(builder: &mut Build) {
-    builder.application("mutable_slice_view_edge_release");
+    builder.application("element_view_write_transition");
     builder.depend(Source::Path { location: "../../../../../source/library/std" });
     builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
     builder.roots.bind(linux_x86_64::ProgramEntry, Main::main);
