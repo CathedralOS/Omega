@@ -194,7 +194,7 @@ pub fn selected_program_entry_machine<'config>(
 
 /// Validate only the static source compatibility of `ProgramEntry`.
 /// schema. Hosted targets expose no arrival parameters: the selected machine
-/// is either free or has exactly one mutable `self` receiver for later bridge
+/// is either free or has exactly one mutable context parameter for later bridge
 /// provisioning. Freestanding parameters must exactly match the canonical
 /// typed positions on the target-selected arrival requirement.
 ///
@@ -239,8 +239,8 @@ fn validate_program_entry_source_compatibility<'typed>(
     }
 
     let parameters = typed.state_parameters(entry);
-    let context = provisioned_entry_context(typed, machine, entry, machine_name)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let context =
+        provisioned_entry_context(typed, machine, entry).map_err(|diagnostic| vec![diagnostic])?;
     if let Some(context) = &context
         && typed_trees_to_checked_trees::data_requires_establishment(typed, context.definition)
     {
@@ -331,23 +331,24 @@ fn validate_program_entry_source_compatibility<'typed>(
     Ok((machine, entry))
 }
 
-struct ProvisionedEntryContext<'program> {
-    source_position: u32,
-    parameter: &'program typed_trees::signature::StateParameter,
-    definition: &'program typed_trees::data::DataDefinition,
+/// Borrowed source coordinates shared by entry selection and service discovery.
+pub struct ProvisionedEntryContext<'program> {
+    pub source_position: u32,
+    pub parameter: &'program typed_trees::signature::StateParameter,
+    pub definition: &'program typed_trees::data::DataDefinition,
 }
 
 /// The source occurrence provisioned by the entry bridge is not a physical
 /// arrival argument and is unrelated to the machine's namespace qualifier.
 /// Placed views keep their own custody-input role. Legacy receivers remain
 /// identifiable only while their source migration is unfinished.
-fn provisioned_entry_context<'program>(
+pub fn provisioned_entry_context<'program>(
     typed: &'program TypedTrees,
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
-    machine_name: &str,
 ) -> Result<Option<ProvisionedEntryContext<'program>>, Diagnostic> {
     use typed_trees::types::TypeReferenceNode;
+    let machine_name = machine.name.as_str();
 
     let mut candidates =
         typed
@@ -440,8 +441,8 @@ pub fn validate_selected_program_entry_shape(
     let (machine, entry) = validate_program_entry_source_compatibility(typed, selected)?;
     let machine_name = selected.machine_name;
     let parameters = typed.state_parameters(entry);
-    let context = provisioned_entry_context(typed, machine, entry, machine_name)
-        .map_err(|diagnostic| vec![diagnostic])?;
+    let context =
+        provisioned_entry_context(typed, machine, entry).map_err(|diagnostic| vec![diagnostic])?;
     // Same exclusion as source compatibility: placed-view inputs are custody
     // rows, not arrival parameters, so they never occupy the signature's
     // visible-parameter roles.

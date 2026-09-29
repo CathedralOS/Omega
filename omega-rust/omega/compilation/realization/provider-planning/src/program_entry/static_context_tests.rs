@@ -117,7 +117,7 @@ fn context_source_position_is_not_a_dense_structural_ordinal() {
         .find(|machine| machine.symbol == selected.machine_symbol)
         .unwrap();
     let entry = &program.machine_states(machine)[0];
-    let context = super::provisioned_entry_context(&program, machine, entry, "run")
+    let context = super::provisioned_entry_context(&program, machine, entry)
         .unwrap()
         .unwrap();
     assert_eq!(context.source_position, 1);
