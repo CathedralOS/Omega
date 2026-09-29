@@ -1327,6 +1327,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
   calls as controls. `dependent/runtime_sibling_len_index_exit` exercises the
   library returned-view form `let view: &[u8] = self.buf.as_slice()`.
 
+  Whole-local explicit call loans use captured borrow access rather than a
+  duplicate binding-mutability gate. On macOS ARM64, `omega run
+  tests/omega/pass/calls/caller_result_binding_mutable_loan_exit/main.omg`
+  exits 70: both callee writes reach the caller's unchanged record. The guarded
+  counterpart `calls/runtime_alias_write_through_guarded_transition_exit`
+  advances to `Store::find`'s anonymous `false -> {}` successor, which
+  `terminal_unit/state_graph/mod.rs::successor_bindings` still rejects as a
+  non-named target. **STATE-LOCAL-VALUE-FRONTIER** owns that remaining control
+  dependency; acceptance is the unchanged guarded fixture also exiting 70.
+
   `samples/cli/systems/descriptor_walk` combines three independent triggers in
   `let d: &Desc = &self.buf[off] as &Desc`: shared access, runtime selection and
   recast. Test each separately and the unchanged sample together; coordinate
