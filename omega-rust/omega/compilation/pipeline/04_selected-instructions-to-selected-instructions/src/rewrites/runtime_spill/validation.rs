@@ -15,7 +15,7 @@
 //! content. A producer admission error therefore fails validation even when
 //! the proposal is exactly what that producer emitted.
 //!
-//! The shared `control`, `require_dominated_uses`, `slot::shared_slot`,
+//! The shared `control`, `require_dominated_uses`, `slot::assign`,
 //! `stored_transport_size`, `next_chunk` and `surviving_home_exists` helpers
 //! stay shared: the audit reads the same contract, not the producer's record.
 
@@ -78,13 +78,10 @@ struct Reconstructed<'source> {
     lineage: VictimLineage,
     address_scalar_type: ScalarType,
     definitions: Vec<StorageDefinition>,
-    /// The physical slot the rewrite addresses — the appended private slot,
-    /// or an already-declared `Spill` slot whose storage windows the
-    /// last-writer replay proved disjoint from this victim's.
-    slot: LocalStorageSlotId,
-    /// `true` when `slot` is the victim's own private slot and the rewrite
-    /// must append its `local_storage_slots` declaration.
-    fresh_slot: bool,
+    /// The slot every emitted store and reload pair names, resolved at
+    /// storage-window granularity — the audit's own replay of the interval
+    /// assignment, not the producer's record.
+    assignment: slot::Assignment,
     /// Stored structural-transport arguments naming the victim, one per
     /// binding, with the snapshot chunk-load identities in byte order.
     structural_uses: Vec<StructuralArgumentUse>,
@@ -215,6 +212,7 @@ fn expected_instruction(
 /// the slot rows directly.
 fn expected_reload(
     reconstructed: &Reconstructed<'_>,
+    slot: LocalStorageSlotId,
     register: VirtualRegisterId,
     next_instruction: &mut u32,
     next_register: &mut u32,
@@ -301,7 +299,7 @@ fn expected_reload(
         address: expected_instruction(
             address_instruction,
             SelectedInstructionKind::FrameAddress {
-                slot: FrameStorageSlotId::Local(reconstructed.slot),
+                slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             reconstructed.address,
@@ -330,6 +328,7 @@ fn expected_reload(
 /// class ahead of it.
 fn expected_store(
     reconstructed: &Reconstructed<'_>,
+    slot: LocalStorageSlotId,
     stored: VirtualRegisterId,
     next_instruction: &mut u32,
     next_register: &mut u32,
@@ -381,7 +380,7 @@ fn expected_store(
         store: expected_instruction(
             store_instruction,
             SelectedInstructionKind::Store64 {
-                slot: FrameStorageSlotId::Local(reconstructed.slot),
+                slot: FrameStorageSlotId::Local(slot),
                 byte_offset: 0,
             },
             reconstructed.store,
@@ -1570,21 +1569,17 @@ fn reconstruct<'source>(
             }
         }
     }
-    // Prefer reusing an already-declared spill slot when the last-writer
-    // replay proves the incumbent's and this victim's storage windows never
-    // interleave. Reuse declares nothing, so the shared slot is charged to the
-    // frame once; otherwise the victim gets its private slot as before.
-    let (slot, fresh_slot) = match slot::shared_slot(
+    // Resolve every emitted access's slot at window granularity on the
+    // audit's own derived positions — the same interval assignment the
+    // proposal had to produce.
+    let assignment = slot::assign(
         function,
         register,
         &definitions,
         &use_positions,
         &shared_reload,
         &span_closes,
-    ) {
-        Some(shared) => (shared, false),
-        None => (private_slot, true),
-    };
+    );
     Ok(Reconstructed {
         function,
         use_blocks,
@@ -1595,8 +1590,7 @@ fn reconstruct<'source>(
         lineage,
         address_scalar_type: ScalarType::Integer(unsigned),
         definitions,
-        slot,
-        fresh_slot,
+        assignment,
         structural_uses,
         first_instruction,
         first_register,
@@ -2004,12 +1998,19 @@ pub fn validate_runtime_spill_with_span_policy(
         // A boundary definition's store opens the block; replay consumes it
         // from the stream before the first source instruction, in the same
         // order the proposal emitted it.
-        for definition in reconstructed.definitions.iter().filter(|definition| {
-            definition.block_index == block_index
-                && matches!(definition.position, StoragePosition::BlockStart)
-        }) {
+        for (definition_index, definition) in
+            reconstructed
+                .definitions
+                .iter()
+                .enumerate()
+                .filter(|(_, definition)| {
+                    definition.block_index == block_index
+                        && matches!(definition.position, StoragePosition::BlockStart)
+                })
+        {
             let store = expected_store(
                 &reconstructed,
+                reconstructed.assignment.store_slot(definition_index),
                 definition.register,
                 &mut next_instruction,
                 &mut next_register,
@@ -2060,6 +2061,9 @@ pub fn validate_runtime_spill_with_span_policy(
                     _ => {
                         let reload = expected_reload(
                             &reconstructed,
+                            reconstructed
+                                .assignment
+                                .load_slot(block_index, instruction_index),
                             register,
                             &mut next_instruction,
                             &mut next_register,
@@ -2106,17 +2110,22 @@ pub fn validate_runtime_spill_with_span_policy(
             if reconstructed.span_closes[block_index].contains(&instruction_index) {
                 open_reload = None;
             }
-            for definition in reconstructed.definitions.iter().filter(|definition| {
-                definition.block_index == block_index
-                    && match definition.position {
-                        StoragePosition::AfterInstruction(anchor)
-                        | StoragePosition::AfterUseDef {
-                            instruction: anchor,
-                            ..
-                        } => anchor == original.id,
-                        StoragePosition::BlockStart => false,
-                    }
-            }) {
+            for (definition_index, definition) in reconstructed
+                .definitions
+                .iter()
+                .enumerate()
+                .filter(|(_, definition)| {
+                    definition.block_index == block_index
+                        && match definition.position {
+                            StoragePosition::AfterInstruction(anchor)
+                            | StoragePosition::AfterUseDef {
+                                instruction: anchor,
+                                ..
+                            } => anchor == original.id,
+                            StoragePosition::BlockStart => false,
+                        }
+                })
+            {
                 // The `UseDef` store reads the register its operand was
                 // redirected to — replay resolves it on the rebuilt
                 // instruction, exactly where the proposal's emitter read it.
@@ -2131,6 +2140,7 @@ pub fn validate_runtime_spill_with_span_policy(
                 };
                 let store = expected_store(
                     &reconstructed,
+                    reconstructed.assignment.store_slot(definition_index),
                     stored,
                     &mut next_instruction,
                     &mut next_register,
@@ -2166,6 +2176,7 @@ pub fn validate_runtime_spill_with_span_policy(
             }
             let reload = expected_reload(
                 &reconstructed,
+                reconstructed.assignment.end_of_block_slot(block_index),
                 register,
                 &mut next_instruction,
                 &mut next_register,
@@ -2207,6 +2218,7 @@ pub fn validate_runtime_spill_with_span_policy(
                 }
                 let reload = expected_reload(
                     &reconstructed,
+                    reconstructed.assignment.end_of_block_slot(block_index),
                     register,
                     &mut next_instruction,
                     &mut next_register,
@@ -2265,6 +2277,7 @@ pub fn validate_runtime_spill_with_span_policy(
                 let reloaded = if pending.dedicated_reload {
                     let reload = expected_reload(
                         &reconstructed,
+                        reconstructed.assignment.end_of_block_slot(block_index),
                         register,
                         &mut next_instruction,
                         &mut next_register,
@@ -2318,6 +2331,7 @@ pub fn validate_runtime_spill_with_span_policy(
                     }
                     let reload = expected_reload(
                         &reconstructed,
+                        reconstructed.assignment.end_of_block_slot(block_index),
                         register,
                         &mut next_instruction,
                         &mut next_register,
@@ -2391,12 +2405,13 @@ pub fn validate_runtime_spill_with_span_policy(
     if values.next().is_some() {
         return Err(RuntimeSpillError::ReplayMismatch);
     }
-    // A fresh private slot must be the appended tail entry; a shared slot
-    // declared nothing, so the storage list must equal the source exactly.
-    if reconstructed.fresh_slot {
+    // A private slot declared by at least one window must be the appended tail
+    // entry; a fully shared victim declared nothing, so the storage list must
+    // equal the source exactly.
+    if reconstructed.assignment.declares_private {
         if restored_function.local_storage_slots.pop()
             != Some(SelectedLocalStorageSlot {
-                id: reconstructed.slot,
+                id: reconstructed.assignment.private,
                 byte_size: 8,
                 alignment: 8,
             })

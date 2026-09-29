@@ -61,15 +61,16 @@ pub(super) struct Admission<'source> {
     pub lineage: VictimLineage,
     pub address_scalar_type: ScalarType,
     pub definitions: Vec<StorageDefinition>,
-    /// The physical slot the rewrite addresses. When `fresh_slot` is false this
-    /// is an already-declared `Spill` slot whose storage windows the last-writer
-    /// replay proved disjoint from this victim's; no storage entry is appended.
-    pub slot: LocalStorageSlotId,
-    /// `true` when `slot` is the victim's own private slot and the rewrite must
-    /// append its `local_storage_slots` declaration. `false` means the slot was
-    /// already declared by an earlier victim — frame demand is unchanged and
-    /// the byte must not be counted a second time.
-    pub fresh_slot: bool,
+    /// The slot every emitted store and reload pair names. Each storage
+    /// window — the definitions one reload position may observe and the
+    /// positions they reach — independently takes the first declared `Spill`
+    /// slot the last-writer replay proves disjoint from its accesses; a
+    /// window no candidate admits falls back to the victim's private slot.
+    /// `declares_private` decides whether the rewrite appends that
+    /// declaration: `false` means every window landed on storage already
+    /// charged to earlier victims, so frame demand stays unchanged and the
+    /// bytes are never counted a second time.
+    pub assignment: slot::Assignment,
     /// Stored structural-transport arguments naming the victim, one per
     /// binding. The snapshot's chunk loads are the real uses and were admitted
     /// as ordinary instruction operands; `loads` holds those load identities
@@ -1254,21 +1255,21 @@ pub(super) fn admit<'source>(
             }
         }
     }
-    // Prefer reusing an already-declared spill slot when the last-writer
-    // replay proves the incumbent's and this victim's storage windows never
-    // interleave. Reuse declares nothing, so the shared slot is charged to the
-    // frame once; otherwise the victim gets its private slot as before.
-    let (slot, fresh_slot) = match slot::shared_slot(
+    // Resolve every emitted access's slot at window granularity: definitions
+    // one reload position may observe merge into a single storage window
+    // because that load can name only one slot, and each window independently
+    // takes the first declared spill slot the last-writer replay proves
+    // disjoint from its accesses. Reuse declares nothing, so a shared slot is
+    // charged to the frame once; windows no candidate admits share the
+    // victim's private slot, appended once.
+    let assignment = slot::assign(
         function,
         register,
         &definitions,
         &use_positions,
         &shared_reload,
         &span_closes,
-    ) {
-        Some(shared) => (shared, false),
-        None => (private_slot, true),
-    };
+    );
     Ok(Admission {
         function,
         use_blocks,
@@ -1279,8 +1280,7 @@ pub(super) fn admit<'source>(
         lineage,
         address_scalar_type: ScalarType::Integer(unsigned),
         definitions,
-        slot,
-        fresh_slot,
+        assignment,
         structural_uses,
         first_instruction,
         first_register,
@@ -1638,6 +1638,7 @@ impl Reload {
 
 pub(super) fn reload(
     admitted: &Admission<'_>,
+    slot: LocalStorageSlotId,
     register: VirtualRegisterId,
     next_instruction: &mut u32,
     next_register: &mut u32,
@@ -1724,7 +1725,7 @@ pub(super) fn reload(
         address: instruction(
             address_instruction,
             SelectedInstructionKind::FrameAddress {
-                slot: frame(admitted.slot),
+                slot: frame(slot),
                 byte_offset: 0,
             },
             admitted.address,
@@ -1778,6 +1779,7 @@ impl Store {
 
 pub(super) fn store(
     admitted: &Admission<'_>,
+    slot: LocalStorageSlotId,
     stored: VirtualRegisterId,
     next_instruction: &mut u32,
     next_register: &mut u32,
@@ -1829,7 +1831,7 @@ pub(super) fn store(
         store: instruction(
             store_instruction,
             SelectedInstructionKind::Store64 {
-                slot: frame(admitted.slot),
+                slot: frame(slot),
                 byte_offset: 0,
             },
             admitted.store,

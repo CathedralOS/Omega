@@ -964,3 +964,439 @@ fn unclassifiable_slot_accesses_keep_the_victim_private() {
         .unwrap();
     }
 }
+
+/// Two incumbent slots and one victim whose mid-block redefinition splits its
+/// storage into two windows: instruction 11's definition serves the reload at
+/// instruction 12 and instruction 16's serves the reload at 17. Incumbent A's
+/// access stream — `Store64` at index 5, `FrameAddress`/`Load64` at indices
+/// 8–9 — brackets the second window while incumbent B's — `Store64` at 0,
+/// `FrameAddress`/`Load64` at 3–4 — brackets the first, so no single slot can
+/// host the whole victim while each window still fits one incumbent. When
+/// `late_b_load` also lands a second `FrameAddress`/`Load64` pair on B after
+/// the second window, B's stream covers it too and that window falls back to
+/// the private slot while the first keeps A.
+fn split_window_source(target: NativeTarget, late_b_load: bool) -> ValidatedRuntimeSpill {
+    let environment = baseline_target_register_environment(target).unwrap();
+    let keys = environment.selected_keys();
+    let store = environment.constraint(keys.store64.unwrap()).unwrap();
+    let address = environment.constraint(keys.frame_address.unwrap()).unwrap();
+    let load = environment.constraint(keys.load64.unwrap()).unwrap();
+    let copy = environment.constraint(keys.copy_i64).unwrap();
+    let incumbent_a = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(50),
+    };
+    let incumbent_b = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(51),
+    };
+    let frame_a = FrameStorageSlotId::Local(incumbent_a);
+    let frame_b = FrameStorageSlotId::Local(incumbent_b);
+    let mut source = fixture(target);
+    {
+        let function = &mut Arc::make_mut(&mut source.transformed).functions[0];
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let class = copy.operands[0].class;
+        function.local_storage_slots.extend([
+            SelectedLocalStorageSlot {
+                id: incumbent_a,
+                byte_size: 8,
+                alignment: 8,
+            },
+            SelectedLocalStorageSlot {
+                id: incumbent_b,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ]);
+        function.virtual_registers.clear();
+        let mut roster = |id: u32, origin: VirtualRegisterOrigin, site| {
+            function.virtual_registers.push(VirtualRegister {
+                id: VirtualRegisterId(id),
+                scalar_type,
+                class,
+                origin,
+                definition_site: site,
+                entry_fixed_view: None,
+            });
+        };
+        let parameter = |index: usize| VirtualRegisterOrigin::EntryParameter {
+            source_value: ValueId::new(index as u64 + 2).unwrap(),
+            parameter_index: index,
+        };
+        let node_site = Some(ValueDefinitionSite::Node {
+            block: BlockId::new(1).unwrap(),
+            node: 0,
+        });
+        let parameter_site =
+            |index: usize| Some(ValueDefinitionSite::FunctionParameter(index as u32));
+        // The victim: produced by instruction 11, redefined by 16.
+        roster(
+            1,
+            VirtualRegisterOrigin::InstructionResult {
+                instruction: SelectedInstructionId(11),
+                source_value: ValueId::new(1).unwrap(),
+            },
+            node_site,
+        );
+        for (id, instruction) in [
+            (60u32, None),
+            (61, None),
+            (62, Some(14)),
+            (63, Some(19)),
+            (64, Some(21)),
+            (70, None),
+            (71, Some(12)),
+            (72, None),
+            (73, Some(17)),
+        ] {
+            match instruction {
+                Some(instruction) => roster(
+                    id,
+                    VirtualRegisterOrigin::InstructionResult {
+                        instruction: SelectedInstructionId(instruction),
+                        source_value: ValueId::new(u64::from(id)).unwrap(),
+                    },
+                    node_site,
+                ),
+                None => roster(
+                    id,
+                    parameter(id as usize - 58),
+                    parameter_site(id as usize - 58),
+                ),
+            }
+        }
+        for (id, instruction, owner) in [(80u32, 13, 51), (81, 18, 50), (82, 20, 51)] {
+            roster(
+                id,
+                VirtualRegisterOrigin::SpillAddress {
+                    instruction: SelectedInstructionId(instruction),
+                    register: VirtualRegisterId(owner),
+                },
+                None,
+            );
+        }
+        let mut body = Vec::new();
+        body.push(admission::instruction(
+            SelectedInstructionId(10),
+            SelectedInstructionKind::Store64 {
+                slot: frame_b,
+                byte_offset: 0,
+            },
+            store,
+            &[VirtualRegisterId(60)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(11),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[VirtualRegisterId(70), VirtualRegisterId(1)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(12),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[VirtualRegisterId(1), VirtualRegisterId(71)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(13),
+            SelectedInstructionKind::FrameAddress {
+                slot: frame_b,
+                byte_offset: 0,
+            },
+            address,
+            &[VirtualRegisterId(80)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(14),
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            load,
+            &[VirtualRegisterId(80), VirtualRegisterId(62)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(15),
+            SelectedInstructionKind::Store64 {
+                slot: frame_a,
+                byte_offset: 0,
+            },
+            store,
+            &[VirtualRegisterId(61)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(16),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[VirtualRegisterId(72), VirtualRegisterId(1)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(17),
+            SelectedInstructionKind::CopyI64,
+            copy,
+            &[VirtualRegisterId(1), VirtualRegisterId(73)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(18),
+            SelectedInstructionKind::FrameAddress {
+                slot: frame_a,
+                byte_offset: 0,
+            },
+            address,
+            &[VirtualRegisterId(81)],
+        ));
+        body.push(admission::instruction(
+            SelectedInstructionId(19),
+            SelectedInstructionKind::Load64 { byte_offset: 0 },
+            load,
+            &[VirtualRegisterId(81), VirtualRegisterId(63)],
+        ));
+        if late_b_load {
+            body.push(admission::instruction(
+                SelectedInstructionId(20),
+                SelectedInstructionKind::FrameAddress {
+                    slot: frame_b,
+                    byte_offset: 0,
+                },
+                address,
+                &[VirtualRegisterId(82)],
+            ));
+            body.push(admission::instruction(
+                SelectedInstructionId(21),
+                SelectedInstructionKind::Load64 { byte_offset: 0 },
+                load,
+                &[VirtualRegisterId(82), VirtualRegisterId(64)],
+            ));
+        }
+        function.blocks[0].instructions = body;
+    }
+    let identity = selected_instruction_plan_identity(source.transformed());
+    source.receipt.source_selected = identity;
+    source.receipt.transformed_selected = identity;
+    source
+}
+
+/// Interval-granular reuse: the redefined victim splits into two windows, and
+/// each takes the first incumbent whose own accesses cannot interleave with
+/// it — the early window lands on A because its store clears before A's
+/// stream begins, while the late window lands on B because it follows B's
+/// last read. A whole-victim share would fail both slots: the emitted plan
+/// appends no storage entry, so the frame still charges exactly the two
+/// declared slots.
+#[test]
+fn split_storage_windows_reuse_two_incumbent_slots() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let incumbent_a = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(50),
+    };
+    let incumbent_b = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(51),
+    };
+    let source = split_window_source(target, false);
+    let result =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let function = &result.transformed().functions[0];
+    // Both windows landed on declared slots: no private slot was appended,
+    // so the declared storage — and its frame-byte charge — is unchanged.
+    assert_eq!(
+        function.local_storage_slots.as_slice(),
+        [
+            SelectedLocalStorageSlot {
+                id: incumbent_a,
+                byte_size: 8,
+                alignment: 8,
+            },
+            SelectedLocalStorageSlot {
+                id: incumbent_b,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ]
+    );
+    let instructions = &function.blocks[0].instructions;
+    // The first window's store follows instruction 11 and names incumbent A;
+    // its reload pair for the use in instruction 12 names A as well.
+    let position = |id| {
+        instructions
+            .iter()
+            .position(|instruction| instruction.id == SelectedInstructionId(id))
+            .unwrap()
+    };
+    assert_eq!(
+        instructions[position(11) + 1].kind,
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(incumbent_a),
+            byte_offset: 0,
+        }
+    );
+    let first = position(12);
+    assert_eq!(
+        instructions[first - 2].kind,
+        SelectedInstructionKind::FrameAddress {
+            slot: FrameStorageSlotId::Local(incumbent_a),
+            byte_offset: 0,
+        }
+    );
+    assert_eq!(
+        instructions[first - 1].kind,
+        SelectedInstructionKind::Load64 { byte_offset: 0 }
+    );
+    // The second window's store follows instruction 16 and names incumbent
+    // B; its reload pair for the use in instruction 17 names B as well.
+    assert_eq!(
+        instructions[position(16) + 1].kind,
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(incumbent_b),
+            byte_offset: 0,
+        }
+    );
+    let second = position(17);
+    assert_eq!(
+        instructions[second - 2].kind,
+        SelectedInstructionKind::FrameAddress {
+            slot: FrameStorageSlotId::Local(incumbent_b),
+            byte_offset: 0,
+        }
+    );
+    assert_eq!(
+        instructions[second - 1].kind,
+        SelectedInstructionKind::Load64 { byte_offset: 0 }
+    );
+    validate_runtime_spill(
+        &source,
+        0,
+        VirtualRegisterId(1),
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // A store retargeted to the other incumbent is a real interleave — B's
+    // trailing load would observe the window's bytes — so independent replay
+    // rejects it: its own assignment names A there.
+    let mut forged = result.transformed().clone();
+    forged.functions[0].blocks[0].instructions[position(11) + 1].kind =
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(incumbent_b),
+            byte_offset: 0,
+        };
+    assert_eq!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            forged
+        )
+        .unwrap_err(),
+        RuntimeSpillError::ReplayMismatch
+    );
+}
+
+/// A window every candidate interleaves with keeps the victim's private slot:
+/// B's trailing read now covers the second window, so only the first window
+/// shares — with A — while the second's store and reload name the appended
+/// private slot. The declaration is counted once for the whole victim.
+#[test]
+fn a_window_no_candidate_fits_falls_back_to_the_private_slot() {
+    let target = NativeTarget::linux_x64();
+    let environment = baseline_target_register_environment(target).unwrap();
+    let incumbent_a = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(50),
+    };
+    let incumbent_b = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(51),
+    };
+    let private = LocalStorageSlotId::Spill {
+        register: VirtualRegisterId(1),
+    };
+    let source = split_window_source(target, true);
+    let result =
+        spill_selected_runtime_value(&source, 0, VirtualRegisterId(1), &environment, budget())
+            .unwrap();
+    let function = &result.transformed().functions[0];
+    // One appended declaration serves the unfitted window; the incumbent
+    // entries are untouched.
+    assert_eq!(
+        function.local_storage_slots.as_slice(),
+        [
+            SelectedLocalStorageSlot {
+                id: incumbent_a,
+                byte_size: 8,
+                alignment: 8,
+            },
+            SelectedLocalStorageSlot {
+                id: incumbent_b,
+                byte_size: 8,
+                alignment: 8,
+            },
+            SelectedLocalStorageSlot {
+                id: private,
+                byte_size: 8,
+                alignment: 8,
+            },
+        ]
+    );
+    let instructions = &function.blocks[0].instructions;
+    let position = |id| {
+        instructions
+            .iter()
+            .position(|instruction| instruction.id == SelectedInstructionId(id))
+            .unwrap()
+    };
+    assert_eq!(
+        instructions[position(11) + 1].kind,
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(incumbent_a),
+            byte_offset: 0,
+        }
+    );
+    assert_eq!(
+        instructions[position(16) + 1].kind,
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(private),
+            byte_offset: 0,
+        }
+    );
+    let second = position(17);
+    assert_eq!(
+        instructions[second - 2].kind,
+        SelectedInstructionKind::FrameAddress {
+            slot: FrameStorageSlotId::Local(private),
+            byte_offset: 0,
+        }
+    );
+    assert_eq!(
+        instructions[second - 1].kind,
+        SelectedInstructionKind::Load64 { byte_offset: 0 }
+    );
+    validate_runtime_spill(
+        &source,
+        0,
+        VirtualRegisterId(1),
+        &environment,
+        budget(),
+        result.transformed().clone(),
+    )
+    .unwrap();
+    // The unfitted window cannot be coerced onto a declared slot either:
+    // retargeting its store onto incumbent A contradicts the audit's own
+    // window assignment.
+    let mut forged = result.transformed().clone();
+    forged.functions[0].blocks[0].instructions[position(16) + 1].kind =
+        SelectedInstructionKind::Store64 {
+            slot: FrameStorageSlotId::Local(incumbent_a),
+            byte_offset: 0,
+        };
+    assert_eq!(
+        validate_runtime_spill(
+            &source,
+            0,
+            VirtualRegisterId(1),
+            &environment,
+            budget(),
+            forged
+        )
+        .unwrap_err(),
+        RuntimeSpillError::ReplayMismatch
+    );
+}
