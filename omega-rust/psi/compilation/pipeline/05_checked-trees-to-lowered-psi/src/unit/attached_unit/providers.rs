@@ -85,7 +85,7 @@ fn callable_candidate(
 }
 
 /// The requirement a boundary call names: a boundary-trait signature, or a
-/// top-level `boundary requirement` declaration.
+/// top-level `boundary requirement` declaration, or a legacy operator.
 #[derive(Clone, Copy)]
 enum CatalogRequirement<'a> {
     Trait {
@@ -93,6 +93,7 @@ enum CatalogRequirement<'a> {
         signature: &'a checked_trees::signature::StateSignature,
     },
     TopLevel(&'a checked_trees::machine::Machine),
+    Operator(&'a typed_trees::operator::OperatorDefinition),
 }
 
 /// A closed requirement keeps its authored conformance coordinate on the
@@ -124,6 +125,17 @@ fn satisfies_requirement<'program>(
                         .as_ref()
                         .is_some_and(|name| name == &signature.name)
                 });
+        }
+        CatalogRequirement::Operator(operator) => {
+            // The settled satisfaction edge is mandatory. Equal signatures
+            // or names from another package cannot donate a candidate.
+            return Ok(conformance.requirement_symbol == operator.symbol
+                && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
+                    &checked.typed,
+                    machine,
+                    conformance,
+                )
+                .is_some_and(|resolved| resolved.symbol == operator.symbol));
         }
         CatalogRequirement::TopLevel(requirement) => requirement,
     };
@@ -227,7 +239,15 @@ pub(super) fn checked_unit_provider_candidates(
                         == language_semantics::MachineSupplyMode::TopLevelRequirement
             }) {
                 Some(requirement) => CatalogRequirement::TopLevel(requirement),
-                None => continue,
+                None => match checked
+                    .typed
+                    .operators()
+                    .iter()
+                    .find(|operator| operator.is_boundary && operator.symbol == boundary_symbol)
+                {
+                    Some(operator) => CatalogRequirement::Operator(operator),
+                    None => continue,
+                },
             },
             _ => {
                 return unsupported(
@@ -248,6 +268,12 @@ pub(super) fn checked_unit_provider_candidates(
                 .normalized_machine_overload_identity(requirement)
                 .map(|identity| identity.identity())
                 .unwrap_or_default(),
+            CatalogRequirement::Operator(operator) => {
+                typed_trees::operator::boundary_operator_requirement_identity(
+                    &checked.typed,
+                    operator,
+                )
+            }
         };
         if requirement_identity.is_empty() {
             return unsupported("Unit boundary requirement has an empty overload identity");

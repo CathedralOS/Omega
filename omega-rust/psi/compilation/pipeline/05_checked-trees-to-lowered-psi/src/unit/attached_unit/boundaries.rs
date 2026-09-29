@@ -37,6 +37,7 @@ pub(super) fn lower_declarations(
     let mut declarations = Vec::with_capacity(boundaries.len());
     let mut parameter_rosters = Vec::with_capacity(boundaries.len());
     for (index, (plan, identity)) in boundaries.iter().enumerate() {
+        validate_requirement_kind(checked, plan)?;
         let parameters = lower_unit_parameters(
             &plan.structural_parameters,
             type_ids,
@@ -53,6 +54,7 @@ pub(super) fn lower_declarations(
         let requirement_count = scalar_requires.len();
         let id = boundary_machine_id(dense_identity(index)?);
         declarations.push(BoundaryMachineDeclaration {
+            kind: plan.kind,
             scalar_requires,
             parameter_order: lower_boundary_parameter_order(
                 &plan.scalar_parameters,
@@ -98,6 +100,45 @@ pub(super) fn lower_declarations(
         });
     }
     Ok((declarations, parameter_rosters))
+}
+
+/// Rejoin the published role to its authored owner. Handle equality is not
+/// a declaration kind, and a selected implementation cannot supply this fact.
+pub(crate) fn validate_requirement_kind(
+    checked: &CheckedTrees,
+    plan: &CheckedBoundaryMachinePlan,
+) -> Result<(), LoweringError> {
+    use semantic_vocabulary::BoundaryRequirementKind;
+    let matches_source =
+        match plan.kind {
+            BoundaryRequirementKind::Machine => checked.typed.machines().iter().any(|machine| {
+                machine.symbol == plan.machine && plan.contract_owner == machine.symbol
+            }),
+            BoundaryRequirementKind::Trait => checked.typed.traits().iter().any(|definition| {
+                definition.is_boundary
+                    && definition.symbol == plan.contract_owner
+                    && checked
+                        .typed
+                        .trait_machine_signatures(definition)
+                        .iter()
+                        .any(|signature| {
+                            signature.symbol == plan.machine && plan.state == signature.symbol
+                        })
+            }),
+            BoundaryRequirementKind::Operator => checked.typed.operators().iter().any(|operator| {
+                operator.is_boundary
+                    && operator.symbol == plan.machine
+                    && plan.state == operator.symbol
+                    && plan.contract_owner == operator.symbol
+            }),
+        };
+    if !matches_source
+        || (plan.kind != BoundaryRequirementKind::Machine
+            && plan.attachment_type_identity.is_some())
+    {
+        return unsupported("boundary requirement kind disagrees with its authored owner");
+    }
+    Ok(())
 }
 
 /// A boundary's scalar `requires` rows in its declaration-local formal

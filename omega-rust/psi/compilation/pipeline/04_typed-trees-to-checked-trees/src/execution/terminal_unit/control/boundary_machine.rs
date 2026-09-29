@@ -52,6 +52,7 @@ pub(crate) fn build_boundary_machine(
 
     Some(CheckedBoundaryMachinePlan {
         machine: machine.symbol,
+        kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,
         contract_owner: machine.symbol,
         attachment_type_identity: Some(attachment_type_identity),
@@ -229,100 +230,17 @@ pub(crate) fn build_static_boundary_requirements(
             else {
                 continue;
             };
-            let mut structural_parameters = Vec::new();
-            let mut scalar_parameters = Vec::new();
-            let mut supported = true;
-            let mut abi_position = 0_usize;
-            for parameter in program.state_signature_parameters(signature) {
-                // A boundary-trait receiver selects the provider occurrence;
-                // it is not an outbound ABI argument. Its progress premise is
-                // closed by installation rather than materialized here.
-                if parameter.is_self {
-                    continue;
-                }
-                // Foreign ABI positions are agreed with the boundary; an
-                // erased parameter has no such agreement yet.
-                if parameter.relevance.is_erased() {
-                    supported = false;
-                    break;
-                }
-                let Some(source_position) = u32::try_from(abi_position).ok() else {
-                    supported = false;
-                    break;
-                };
-                abi_position += 1;
-                // A specialization-resolved formal names its derived actual;
-                // compound formals keep their own reference and identity-level
-                // substitution covers the generic arguments inside them.
-                let parameter_type =
-                    substituted_formal_type(program, parameter.type_reference, &substitutions);
-                // `is_mutable` is set by a `mut` binding and by an exclusive
-                // borrow alike. An exclusive borrow is already carried exactly
-                // by the parameter's structural access below. Owned mutable
-                // primitive destinations need no storage inside this caller;
-                // other owned mutable carriers remain unsupported.
-                if parameter.is_const
-                    || (parameter.is_mutable
-                        && !is_reference(program, parameter_type)
-                        && crate::values::mutable_scalar_parameter_type(program, parameter)
-                            .is_none())
-                {
-                    supported = false;
-                    break;
-                }
-                if let Some(primitive_type) = program.primitive_type_reference(parameter_type) {
-                    scalar_parameters.push(CheckedStructuralScalarParameterPlan {
-                        source_position,
-                        primitive_type,
-                    });
-                    continue;
-                }
-                let Some(type_identity) = shapes.add_type(parameter_type, &[], &substitutions)
-                else {
-                    supported = false;
-                    break;
-                };
-                let Some(qualifications) =
-                    parameter_qualifications(program, shapes, parameter_type, &[])
-                else {
-                    supported = false;
-                    break;
-                };
-                if is_reference(program, parameter_type)
-                    && !byte_sequence_carrier(program, parameter_type, &[])
-                        .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
-                    && !(qualifications.is_empty()
-                        && (shared_plain_affine_referent(program, parameter_type).is_some()
-                            || mutable_plain_nonlinear_referent(program, parameter_type).is_some()))
-                {
-                    supported = false;
-                    break;
-                }
-                let Some(access) = structural_access_for_type_reference(program, parameter_type)
-                else {
-                    supported = false;
-                    break;
-                };
-                let Some(projected_qualifications) =
-                    projected_parameter_qualifications(program, shapes, parameter_type, &[])
-                else {
-                    supported = false;
-                    break;
-                };
-                structural_parameters.push(CheckedUnitStructuralParameterPlan {
-                    position: source_position,
-                    is_self: false,
-                    type_identity,
-                    multiplicity: crate::checks::type_multiplicity(program, parameter_type),
-                    access,
-                    qualifications,
-                    projected_qualifications,
-                    fused_service_erasure: None,
-                });
-            }
-            if !supported {
+            let Some((structural_parameters, scalar_parameters)) = boundary_parameters(
+                program,
+                shapes,
+                program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .filter(|parameter| !parameter.is_self),
+                &substitutions,
+            ) else {
                 continue;
-            }
+            };
             let Some(capsule) = facts
                 .contract_plans
                 .crash_capsule(definition.symbol, signature.symbol)
@@ -392,6 +310,7 @@ pub(crate) fn build_static_boundary_requirements(
                 .collect();
             plans.push(CheckedBoundaryMachinePlan {
                 machine: signature.symbol,
+                kind: semantic_vocabulary::BoundaryRequirementKind::Trait,
                 state: signature.symbol,
                 contract_owner: definition.symbol,
                 attachment_type_identity: None,
@@ -414,9 +333,193 @@ pub(crate) fn build_static_boundary_requirements(
             });
         }
     }
+    for operator in program
+        .operators()
+        .iter()
+        .filter(|operator| operator.is_boundary)
+    {
+        if let Some(plan) = build_boundary_operator(program, facts, shapes, operator) {
+            plans.push(plan);
+        }
+    }
     plans.sort_by_key(|plan| (plan.machine.arena_index(), plan.machine.generation()));
     plans.dedup_by_key(|plan| plan.machine);
     plans
+}
+
+/// Shared runtime parameter projection for bodyless requirements. The caller
+/// omits only a trait's provider receiver; an operator's receiver is an actual
+/// operand and retains its position, type, and access like every other input.
+fn boundary_parameters<'program>(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    parameters: impl Iterator<Item = &'program typed_trees::signature::StateParameter>,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+) -> Option<(
+    Vec<CheckedUnitStructuralParameterPlan>,
+    Vec<CheckedStructuralScalarParameterPlan>,
+)> {
+    let mut structural_parameters = Vec::new();
+    let mut scalar_parameters = Vec::new();
+    for (position, parameter) in parameters.enumerate() {
+        // Erased foreign positions still have no agreed runtime transfer.
+        if parameter.relevance.is_erased() {
+            return None;
+        }
+        let source_position = u32::try_from(position).ok()?;
+        let parameter_type =
+            substituted_formal_type(program, parameter.type_reference, substitutions);
+        // An exclusive reference already retains its access. Owned mutable
+        // primitive destinations require no caller-side storage; other mutable
+        // owned carriers remain outside the current boundary presentation.
+        if parameter.is_const
+            || (parameter.is_mutable
+                && !is_reference(program, parameter_type)
+                && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+        {
+            return None;
+        }
+        if let Some(primitive_type) = program.primitive_type_reference(parameter_type) {
+            scalar_parameters.push(CheckedStructuralScalarParameterPlan {
+                source_position,
+                primitive_type,
+            });
+            continue;
+        }
+        let type_identity = shapes.add_type(parameter_type, &[], substitutions)?;
+        let qualifications = parameter_qualifications(program, shapes, parameter_type, &[])?;
+        if is_reference(program, parameter_type)
+            && !byte_sequence_carrier(program, parameter_type, &[])
+                .is_some_and(checked_trees::CheckedByteSequenceCarrier::is_borrowed)
+            && !(qualifications.is_empty()
+                && (shared_plain_affine_referent(program, parameter_type).is_some()
+                    || mutable_plain_nonlinear_referent(program, parameter_type).is_some()))
+        {
+            return None;
+        }
+        structural_parameters.push(CheckedUnitStructuralParameterPlan {
+            position: source_position,
+            is_self: parameter.is_self,
+            type_identity,
+            multiplicity: crate::checks::type_multiplicity(program, parameter_type),
+            access: structural_access_for_type_reference(program, parameter_type)?,
+            qualifications,
+            projected_qualifications: projected_parameter_qualifications(
+                program,
+                shapes,
+                parameter_type,
+                &[],
+            )?,
+            fused_service_erasure: None,
+        });
+    }
+    Some((structural_parameters, scalar_parameters))
+}
+
+/// Legacy operator syntax declares the same portable requirement as a
+/// bodyless call. Its authored symbol owns the signature and contract; no
+/// synthetic machine or selected provider may replace that identity.
+fn build_boundary_operator(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    operator: &typed_trees::operator::OperatorDefinition,
+) -> Option<CheckedBoundaryMachinePlan> {
+    if !program.operator_type_parameters(operator).is_empty() {
+        return None;
+    }
+    let capsule = facts
+        .contract_plans
+        .crash_capsule(operator.symbol, operator.symbol)?;
+    let result = boundary_result_plan(program, shapes, operator.return_type, &[], &[])?;
+    let (structural_parameters, scalar_parameters) = boundary_parameters(
+        program,
+        shapes,
+        program.operator_parameters(operator).iter(),
+        &[],
+    )?;
+    let mut scalar_requires = Vec::new();
+    for contract in program.operator_contracts(operator) {
+        if contract.kind != typed_trees::signature::SignatureContractKind::Requires {
+            continue;
+        }
+        if contract.binding.is_some() {
+            return None;
+        }
+        let mut conjunction = None;
+        for fact in program.proof_facts.span_or_empty(contract.facts) {
+            let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+                // A membership must be retained by the structural qualification
+                // route, never silently erased from this scalar contract.
+                return None;
+            };
+            let predicate = crate::values::lower_operator_crash_contract_expression(
+                program,
+                &facts.operators,
+                operator,
+                *expression,
+            )?;
+            conjunction = Some(match conjunction {
+                None => predicate,
+                Some(left) => checked_trees::CheckedBooleanExpression::And {
+                    left: Box::new(left),
+                    right: Box::new(predicate),
+                },
+            });
+        }
+        scalar_requires.push(checked_trees::ClosedScalarContractValue::Predicate(
+            conjunction?,
+        ));
+    }
+    let ranges = crate::values::lower_callable_parameter_range_requirements(
+        program,
+        program.operator_parameters(operator),
+    );
+    for clause in ranges.scalar_clauses {
+        // A present but unrepresentable range cannot disappear from a
+        // boundary signature. Float ranges need their own proof carrier.
+        let Some(clause @ checked_trees::ClosedScalarContractValue::Predicate(_)) = clause else {
+            return None;
+        };
+        scalar_requires.push(clause);
+    }
+    let mut domain_requirements = Vec::new();
+    for (position, parameter) in structural_parameters.iter().enumerate() {
+        let argument_index = u32::try_from(position).ok()?;
+        domain_requirements.extend(parameter.qualifications.iter().map(|domain| {
+            CheckedUnitStructuralDomainRequirementPlan {
+                argument_index,
+                domain: *domain,
+            }
+        }));
+    }
+    // Operator declarations have no authored service-reach clause. A public
+    // omission is an explicit empty ceiling, not private body inference.
+    let service_reach = language_semantics::ServiceReachSummary {
+        direct: language_semantics::ServiceReachRowTable::EMPTY_ROW,
+        transitive: language_semantics::ServiceReachRowTable::EMPTY_ROW,
+    };
+    Some(CheckedBoundaryMachinePlan {
+        machine: operator.symbol,
+        kind: semantic_vocabulary::BoundaryRequirementKind::Operator,
+        state: operator.symbol,
+        contract_owner: operator.symbol,
+        attachment_type_identity: None,
+        structural_parameters,
+        scalar_parameters,
+        result,
+        domain_requirements,
+        scalar_requires,
+        contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
+        contract_commitment: capsule.target_contract_commitment(),
+        contract_service_reach: language_semantics::ServiceReachPlan {
+            interface: language_semantics::ServiceReachInterface::PublishedCeiling(
+                service_reach.transitive,
+            ),
+            checked_inferred: service_reach.transitive,
+        },
+        service_reach,
+    })
 }
 
 /// A target can denote its own requirement and project to another one. Retain

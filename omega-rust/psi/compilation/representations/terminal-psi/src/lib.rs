@@ -25,6 +25,7 @@ pub use artifacts::{
 };
 
 pub use language_core::BindingRelevance;
+pub use semantic_vocabulary::BoundaryRequirementKind;
 pub use terminal_module::{
     AtomicAccessEvent, AtomicReadModifyWrite, Block, BoundaryContentGuarantee,
     BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,

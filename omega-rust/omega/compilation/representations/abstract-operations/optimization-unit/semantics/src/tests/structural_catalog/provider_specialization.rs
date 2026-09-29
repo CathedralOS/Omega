@@ -82,8 +82,19 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
     assert_invalid(unknown_boundary);
 
     let mut attached_boundary = baseline.clone();
+    attached_boundary.boundary_machines[1].kind = terminal_psi::BoundaryRequirementKind::Machine;
     attached_boundary.boundary_machines[1].attachment = Some(attachment);
     assert_invalid(attached_boundary);
+
+    let mut operator_with_root = baseline.clone();
+    operator_with_root.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Operator;
+    assert_invalid(operator_with_root.clone());
+    operator_with_root.functions[0].structural_places.remove(0);
+    refresh_identity(&mut operator_with_root);
+    validate_psi_optimization_unit(&operator_with_root)
+        .expect("independent operator and provider-field calls coexist without an invented root");
+    operator_with_root.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Trait;
+    assert_invalid(operator_with_root);
 
     let mut self_parameter = baseline.clone();
     let parameter_place = id(454, PlaceId::new);

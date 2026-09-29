@@ -51,6 +51,11 @@ pub(super) fn validate_boundary_machines(
         }
         super::super::crash::validate_boundary_crash_routes(boundary)?;
         validate_boundary_scalar_requires(boundary)?;
+        if boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
+            && boundary.attachment.is_some()
+        {
+            return Err(ModuleError::InvalidBoundaryMachineIdentity(boundary.id));
+        }
         validate_attachment(boundary.id, boundary.attachment, types)?;
         validate_structural_signature(
             &boundary.structural_parameters,

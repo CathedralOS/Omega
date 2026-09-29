@@ -126,6 +126,7 @@ fn declaration(
     result: terminal_psi::BoundaryMachineResult,
 ) -> terminal_psi::BoundaryMachineDeclaration {
     terminal_psi::BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: BoundaryMachineId::new(1).unwrap(),

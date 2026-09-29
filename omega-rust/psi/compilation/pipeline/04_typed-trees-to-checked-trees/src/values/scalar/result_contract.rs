@@ -555,20 +555,30 @@ pub(crate) fn lower_scalar_parameter_range_requirements(
     program: &TypedTrees,
     machine: &typed_trees::machine::Machine,
 ) -> ParameterRangeRequirements {
+    let Some(entry) = program.machine_states(machine).first() else {
+        // An absent entry cannot publish an empty-but-complete range roster.
+        return ParameterRangeRequirements {
+            integer_predicates: Vec::new(),
+            scalar_clauses: Vec::new(),
+            float_entry_ranges: None,
+            integer_entry_ranges: None,
+        };
+    };
+    lower_callable_parameter_range_requirements(program, program.state_parameters(entry))
+}
+
+/// Parameter ranges belong to the declared callable signature, whether its
+/// owner has a machine body or is a bodyless operator requirement.
+pub(crate) fn lower_callable_parameter_range_requirements(
+    program: &TypedTrees,
+    parameters: &[StateParameter],
+) -> ParameterRangeRequirements {
     let mut ranges = ParameterRangeRequirements {
         integer_predicates: Vec::new(),
         scalar_clauses: Vec::new(),
         float_entry_ranges: Some(Vec::new()),
         integer_entry_ranges: Some(Vec::new()),
     };
-    let Some(entry) = program.machine_states(machine).first() else {
-        // No entry state means no constraints at all; the rosters stay
-        // `None` rather than claiming an empty-but-complete roster.
-        ranges.float_entry_ranges = None;
-        ranges.integer_entry_ranges = None;
-        return ranges;
-    };
-    let parameters = program.state_parameters(entry);
     let mut scalar_position = 0;
     for parameter in parameters {
         let primitive_type = program.primitive_type_reference(parameter.type_reference);

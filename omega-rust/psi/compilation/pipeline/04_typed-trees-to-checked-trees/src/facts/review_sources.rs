@@ -175,12 +175,15 @@ fn validate_checked_call_join(
         }
         CallSite::Expression { call, .. } => {
             let (receiver_symbol, receiver_path) = call_receiver_parts(program, call.receiver);
+            let boundary_operator =
+                typed_trees::operator::resolve_named_expression_call(program, call)
+                    .filter(|operator| operator.is_boundary);
             let resolved_target = resolve_state_call_target(
                 program,
                 machine,
                 state,
                 receiver_symbol,
-                call.target_symbol,
+                boundary_operator.map_or(call.target_symbol, |operator| operator.symbol),
                 receiver_path.as_deref(),
                 &call.target,
             );
@@ -191,9 +194,22 @@ fn validate_checked_call_join(
                 } else {
                     call.target_symbol
                 },
-                call.receiver.is_valid()
-                    && program.symbols.get(receiver_symbol).kind
-                        != symbols::SymbolKind::ConformanceParameter,
+                boundary_operator.map_or_else(
+                    || {
+                        call.receiver.is_valid()
+                            && program.symbols.get(receiver_symbol).kind
+                                != symbols::SymbolKind::ConformanceParameter
+                    },
+                    |operator| {
+                        call.receiver.is_valid()
+                            && program.operator_parameters(operator).len()
+                                == program
+                                    .expression_table
+                                    .expression_handles(call.arguments)
+                                    .len()
+                                    + 1
+                    },
+                ),
                 call.operational_acknowledgement,
             )
         }

@@ -207,6 +207,15 @@ reject. A primitive service use does not disappear because the service also
 appears in an abstract row's bound.
 
 An attachment retains its nominal receiver and erased provider fields.
+Each boundary declaration retains its authored owner kind: machine, trait
+signature, or legacy operator. Only trait signatures consume provider-field
+roots; absence of a nominal attachment does not make an operator a trait call.
+Source replay checks the owner kind, and both Terminal and Omega attachment
+validation use it. The kind participates in canonical identity. Machine
+declarations include token-bearing machines and top-level requirements, so
+this classification does not replace closed-application or physical-child
+custody.
+
 Sorted provider-attachment roots bind each used field to exactly its directly
 called bodyless requirements, not to an installed native provider. Missing
 attachments, duplicate/orphan roots, and roots forwarded as runtime arguments

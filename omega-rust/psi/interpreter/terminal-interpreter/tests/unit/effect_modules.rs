@@ -98,6 +98,7 @@ pub(super) fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
@@ -228,6 +229,7 @@ pub(super) fn scalar_boundary_effect_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),
@@ -415,6 +417,7 @@ pub(super) fn effect_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Machine,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),

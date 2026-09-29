@@ -1060,6 +1060,7 @@ dependencies = [
  "terminal-production",
  "terminal-psi",
  "tokens-to-syntax-trees",
+ "typed-trees",
  "typed-trees-to-checked-trees",
  "validation",
 ]

@@ -127,6 +127,7 @@ fn call_unit(callee: MachineId) -> OperationKind {
 
 fn boundary_declaration(raw: u64) -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         id: boundary_id(raw),
         identity: format!("test::boundary_{raw}"),

@@ -47,6 +47,7 @@ fn rejects_structural_call_argument_arity_and_access_corruption() {
     boundary
         .boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id,

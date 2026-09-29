@@ -163,9 +163,21 @@ pub(in crate::execution) fn build_call_operation(
                 .map(move |signature| (definition, signature))
         })
         .collect::<Vec<_>>();
-    // A call through a boundary trait requirement plans against the foreign
-    // ABI contract; every other target takes the ordinary route below.
-    if let [(definition, signature)] = static_boundaries.as_slice() {
+    // Both declaration spellings retain a requirement edge. The shared
+    // planner sees the authored signature, never its selected provider.
+    let requirement = match static_boundaries.as_slice() {
+        [(definition, signature)] => Some(super::trait_boundary_call::BoundaryRequirement::Trait {
+            definition,
+            signature,
+        }),
+        [] => program
+            .operators()
+            .iter()
+            .find(|operator| operator.is_boundary && operator.symbol == direct_boundary_target)
+            .map(super::trait_boundary_call::BoundaryRequirement::Operator),
+        _ => return None,
+    };
+    if let Some(requirement) = requirement {
         return super::trait_boundary_call::build(
             program,
             facts,
@@ -180,13 +192,9 @@ pub(in crate::execution) fn build_call_operation(
             coordinate,
             &call_site,
             source_site,
-            definition,
-            signature,
+            requirement,
             selected_realization,
         );
-    }
-    if !static_boundaries.is_empty() {
-        return None;
     }
 
     phase("call operation: target state");

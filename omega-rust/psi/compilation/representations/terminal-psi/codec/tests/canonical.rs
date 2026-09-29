@@ -72,6 +72,7 @@ fn unused_provider_attachment_fixture() -> TerminalModule {
     });
     module.machines[0].attachment = Some(structural_type_id(1));
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),
@@ -588,6 +589,7 @@ fn structural_effect_fixture() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Machine,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),
@@ -962,6 +964,7 @@ fn project_boundary_argument(
     let boundary = &mut module.boundary_machines[0];
     boundary.requires.clear();
     boundary.attachment = Some(projected_type);
+    boundary.kind = terminal_psi::BoundaryRequirementKind::Machine;
     boundary.structural_parameters[0].structural_type = projected_type;
     boundary.structural_parameters[0].qualifications.clear();
     module.machines[0].structural_parameters[0].multiplicity = StructuralMultiplicity::Affine;

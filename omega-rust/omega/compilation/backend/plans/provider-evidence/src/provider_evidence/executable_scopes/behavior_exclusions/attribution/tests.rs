@@ -37,6 +37,7 @@ fn fixture() -> (TypedTrees, TerminalModule, SymbolHandle) {
         parents: Vec::new(),
     });
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).unwrap(),
         identity,

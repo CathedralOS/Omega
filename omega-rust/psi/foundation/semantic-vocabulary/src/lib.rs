@@ -37,8 +37,8 @@ pub use content::{
     content_conservation_report_fingerprint,
 };
 pub use identity::{
-    AdmissionSiteId, BlockId, BoundaryMachineId, ClaimId, ContentDomainId, ContractId,
-    CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
+    AdmissionSiteId, BlockId, BoundaryMachineId, BoundaryRequirementKind, ClaimId, ContentDomainId,
+    ContractId, CycleComponentId, DomainSemanticId, EdgeId, EvidenceIdentity, EvidenceTermId,
     FuelScheduleIdentity, MachineId, ObligationId, OperationId, PackageKeyIdentity, PlaceId,
     ProfileDecisionId, PropositionId, PsiSemanticId, RankingRelationId, RecursiveComponentId,
     ScalarDomainId, ScalarQualificationSetId, ServiceId, StructuralCaseId, StructuralDomainId,

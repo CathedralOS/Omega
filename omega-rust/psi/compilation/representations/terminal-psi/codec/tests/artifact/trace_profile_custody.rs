@@ -586,6 +586,7 @@ fn custody_module() -> TerminalModule {
         reborrow_root_handoffs: Vec::new(),
         reborrow_restored_call_uses: Vec::new(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,

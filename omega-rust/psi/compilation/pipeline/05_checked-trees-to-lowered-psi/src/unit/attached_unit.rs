@@ -46,6 +46,7 @@ use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
 // admission, providers, catalogs, boundaries, claims and signatures.
 mod admission;
 mod boundaries;
+pub(crate) use boundaries::validate_requirement_kind;
 mod call_catalog;
 mod call_closure;
 pub(crate) mod catalog;

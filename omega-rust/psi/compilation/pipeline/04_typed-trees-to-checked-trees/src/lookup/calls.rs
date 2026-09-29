@@ -181,6 +181,17 @@ pub(crate) fn resolve_state_call_target(
     {
         return requirement.symbol;
     }
+    // A legacy boundary operator is a callable requirement, not a machine
+    // state. Keep its declaration identity in the ordinary call graph; the
+    // provider remains an Omega-side choice after Terminal publication.
+    if target_symbol.is_valid()
+        && program
+            .operators()
+            .iter()
+            .any(|operator| operator.is_boundary && operator.symbol == target_symbol)
+    {
+        return target_symbol;
+    }
     if receiver.is_none() || receiver_symbol == machine.symbol {
         let local = resolve_state_symbol_in_machine(program, machine, target_symbol);
         if local.is_valid() {

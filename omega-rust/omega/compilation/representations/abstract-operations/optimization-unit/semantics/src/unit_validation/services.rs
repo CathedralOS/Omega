@@ -349,6 +349,11 @@ pub(crate) fn boundary_structural_signature_matches(
     types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
     domains: &BTreeMap<StructuralDomainId, &terminal_psi::StructuralDomainDeclaration>,
 ) -> bool {
+    if boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
+        && boundary.attachment.is_some()
+    {
+        return false;
+    }
     structural_signature_matches(
         &boundary.structural_parameters,
         boundary.attachment,

@@ -67,7 +67,11 @@ pub(crate) fn call_is_boundary(program: &TypedTrees, target_symbol: symbols::Sym
                 .trait_machine_signatures(definition)
                 .iter()
                 .any(|signature| signature.symbol == requirement_symbol)
-    }) || validation::exact_external_leaf_boundary_requirement(program, target_symbol).is_some()
+    }) || program
+        .operators()
+        .iter()
+        .any(|operator| operator.is_boundary && operator.symbol == target_symbol)
+        || validation::exact_external_leaf_boundary_requirement(program, target_symbol).is_some()
 }
 
 #[allow(clippy::too_many_arguments)]

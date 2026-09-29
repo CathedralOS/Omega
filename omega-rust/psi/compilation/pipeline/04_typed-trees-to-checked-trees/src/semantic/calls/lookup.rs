@@ -162,6 +162,14 @@ pub(crate) fn call_target_parameters(
         return Some(program.state_signature_parameters(signature));
     }
 
+    if let Some(operator) = program
+        .operators()
+        .iter()
+        .find(|operator| operator.is_boundary && operator.symbol == target_state_symbol)
+    {
+        return Some(program.operator_parameters(operator));
+    }
+
     program
         .traits()
         .iter()
@@ -195,6 +203,14 @@ pub(crate) fn call_target_type_parameters(
 
     if let Some((machine, _)) = program.machine_parameter_signature(target_state_symbol) {
         return program.machine_type_parameters(machine);
+    }
+
+    if let Some(operator) = program
+        .operators()
+        .iter()
+        .find(|operator| operator.is_boundary && operator.symbol == target_state_symbol)
+    {
+        return program.operator_type_parameters(operator);
     }
 
     if let Some(trait_definition) = program.traits().iter().find(|trait_definition| {

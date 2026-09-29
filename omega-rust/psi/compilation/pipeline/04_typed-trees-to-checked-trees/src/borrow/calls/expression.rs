@@ -50,12 +50,15 @@ pub(super) fn collect_expression_borrow_calls(
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) =
                 call_receiver_parts(collection.program, call.receiver);
+            let boundary_operator =
+                typed_trees::operator::resolve_named_expression_call(collection.program, call)
+                    .filter(|operator| operator.is_boundary);
             let resolved_target = resolve_state_call_target(
                 collection.program,
                 collection.machine,
                 collection.state,
                 receiver_symbol,
-                call.target_symbol,
+                boundary_operator.map_or(call.target_symbol, |operator| operator.symbol),
                 receiver_path.as_deref(),
                 &call.target,
             );
@@ -96,9 +99,26 @@ pub(super) fn collect_expression_borrow_calls(
                     } else {
                         call.target_symbol
                     },
-                    call.receiver.is_valid()
-                        && collection.program.symbols.get(receiver_symbol).kind
-                            != symbols::SymbolKind::ConformanceParameter,
+                    boundary_operator.map_or_else(
+                        || {
+                            call.receiver.is_valid()
+                                && collection.program.symbols.get(receiver_symbol).kind
+                                    != symbols::SymbolKind::ConformanceParameter
+                        },
+                        |operator| {
+                            // A qualified requirement namespace is not a
+                            // runtime operand. Only the declaration's extra
+                            // receiver position establishes receiver custody.
+                            call.receiver.is_valid()
+                                && collection.program.operator_parameters(operator).len()
+                                    == collection
+                                        .program
+                                        .expression_table
+                                        .expression_handles(call.arguments)
+                                        .len()
+                                        + 1
+                        },
+                    ),
                     accesses,
                 );
             }
@@ -141,5 +161,110 @@ pub(super) fn collect_expression_borrow_calls(
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_)
         | ExpressionNode::ZeroValue(_) => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn named_boundary_operator_retains_one_ordinary_call_without_namespace_receiver() {
+        let checked = crate::tests::front_end::checked_program(
+            r#"
+            data CheckedMath {}
+            boundary operator CheckedMath::offset_zero(value: i32) -> i32
+                requires value == value
+                ensures result == value + 0;
+            machine run(value: i32) -> i32 {
+                let result: i32 = CheckedMath::offset_zero(value);
+                result
+            }
+            "#,
+        );
+        let operator = checked
+            .typed
+            .operators()
+            .iter()
+            .find(|operator| operator.is_boundary)
+            .expect("the authored requirement");
+        let calls = checked
+            .facts
+            .borrow
+            .calls
+            .iter()
+            .map(|(_, call)| call)
+            .filter(|call| call.target_symbol == operator.symbol)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            calls.len(),
+            1,
+            "the operator use is one ordinary invocation"
+        );
+        assert!(
+            !calls[0].has_receiver,
+            "CheckedMath is a namespace, not storage"
+        );
+        assert_eq!(
+            checked
+                .facts
+                .flow
+                .control
+                .calls
+                .iter()
+                .filter(|(_, call)| call.target_symbol == operator.symbol)
+                .count(),
+            1,
+            "flow and borrow topology retain the same requirement"
+        );
+        assert_eq!(checked.facts.operators.boundary_applications.len(), 1);
+        let boundary = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .boundary_machines
+            .iter()
+            .find(|boundary| boundary.machine == operator.symbol)
+            .expect("the authored operator publishes a requirement declaration");
+        assert_eq!(boundary.state, operator.symbol);
+        assert_eq!(boundary.contract_owner, operator.symbol);
+        assert_eq!(
+            boundary.kind,
+            semantic_vocabulary::BoundaryRequirementKind::Operator
+        );
+        assert_eq!(boundary.scalar_parameters.len(), 1);
+        assert_eq!(
+            boundary.scalar_requires.len(),
+            1,
+            "the requirement is not erased"
+        );
+        assert!(boundary.attachment_type_identity.is_none());
+        assert_eq!(
+            crate::semantic::calls::call_target_parameters(&checked.typed, operator.symbol),
+            Some(checked.typed.operator_parameters(operator)),
+        );
+        for substitute_target in [false, true] {
+            let mut forged = checked.facts.flow.clone();
+            let (call_handle, _) = forged
+                .control
+                .calls
+                .iter()
+                .find(|(_, call)| call.target_symbol == operator.symbol)
+                .expect("the retained operator call");
+            let call = forged.control.calls.get_mut(call_handle);
+            if substitute_target {
+                call.target_symbol = symbols::SymbolHandle::invalid();
+            } else {
+                call.has_receiver = true;
+            }
+            let diagnostics = crate::facts::review_sources::bind_checked_body_call_source_spans(
+                &checked.typed,
+                &mut forged,
+            )
+            .expect_err("source replay rejects a substituted target or namespace receiver");
+            assert!(diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("checked body-call identity does not match typed call site")
+            }));
+        }
     }
 }

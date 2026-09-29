@@ -34,6 +34,7 @@ fn module(nested: bool) -> TerminalModule {
     let mut boundary_parameter = parameter.clone();
     boundary_parameter.place = place_id(6);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(1),
@@ -253,6 +254,7 @@ fn installed_structural_provider_preserves_identity_into_a_projected_boundary_ef
     let mut module = module(false);
     let parameter = module.machines[1].structural_parameters[0].clone();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(2),
@@ -513,6 +515,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
     let mut mint_parameter = module.boundary_machines[0].structural_parameters[0].clone();
     mint_parameter.place = super::place_id(20);
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(2),
@@ -537,6 +540,7 @@ fn installed_boundary_result_mints_the_callers_claims() {
     unregister_parameter.multiplicity = StructuralMultiplicity::Linear;
     unregister_parameter.qualifications = vec![live];
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(3),
@@ -701,6 +705,7 @@ fn installed_boundary_result_claims_require_linear_custody() {
 
 fn assumed_required_boundary() -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_id(4),

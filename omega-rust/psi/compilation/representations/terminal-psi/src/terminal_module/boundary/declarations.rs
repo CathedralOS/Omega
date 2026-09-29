@@ -60,6 +60,7 @@ pub enum BoundaryParameterKind {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BoundaryMachineDeclaration {
     pub id: BoundaryMachineId,
+    pub kind: semantic_vocabulary::BoundaryRequirementKind,
     pub identity: String,
     pub attachment: Option<StructuralTypeId>,
     /// Exact interleave of the two lanes. Each parameter appears once, in its

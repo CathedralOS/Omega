@@ -1,4 +1,4 @@
-//! A call to a boundary trait requirement through a static binder.
+//! Calls to authored boundary requirements, including legacy operators.
 //!
 //! The requirement's formals stay generic; the call's checked
 //! specialization supplies each `Type` binder's actual and each `machine`
@@ -37,9 +37,21 @@ use crate::execution::terminal_unit::{
     PermissionEventKind, SymbolHandle, TypedTrees, is_reference,
 };
 
-/// Plan a call whose target is `signature`, the one requirement of boundary
-/// trait `definition` it names. `None` means some argument, result, receiver,
-/// or contract of this call has no admitted boundary presentation.
+/// Authored requirement declarations share one call planner. This is a
+/// borrowed view of the actual declaration, never a manufactured machine or
+/// a choice of provider; declaration identity survives into the call row.
+#[derive(Clone, Copy)]
+pub(super) enum BoundaryRequirement<'program> {
+    Trait {
+        definition: &'program typed_trees::trait_definition::TraitDefinition,
+        signature: &'program typed_trees::signature::StateSignature,
+    },
+    Operator(&'program typed_trees::operator::OperatorDefinition),
+}
+
+/// Plan a requirement call with its original argument/result custody.
+/// `None` means some operand, receiver, or contract has no admitted boundary
+/// presentation; selection never weakens that signature.
 pub(super) fn build(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -54,8 +66,7 @@ pub(super) fn build(
     coordinate: CheckedUnitCallCoordinate,
     call_site: &crate::semantic::calls::CallSite<'_>,
     source_site: Option<checked_trees::NominalMachineUseSite>,
-    definition: &typed_trees::trait_definition::TraitDefinition,
-    signature: &typed_trees::signature::StateSignature,
+    requirement: BoundaryRequirement<'_>,
     selected_realization: Option<(SymbolHandle, SymbolHandle)>,
 ) -> Option<CheckedUnitEffectOperationPlan> {
     let phase = |name: &'static str| {
@@ -63,8 +74,48 @@ pub(super) fn build(
         trace.statement(Some(coordinate.statement_index));
     };
     phase("call operation: boundary signature");
-    let arguments = crate::semantic::calls::call_site_argument_expressions(program, call_site);
-    let source_parameters = program.state_signature_parameters(signature);
+    let (
+        owner,
+        target,
+        source_parameters,
+        signature_type_parameters,
+        return_type,
+        callback_parameters,
+    ) = match requirement {
+        BoundaryRequirement::Trait {
+            definition,
+            signature,
+        } => (
+            definition.symbol,
+            signature.symbol,
+            program.state_signature_parameters(signature),
+            program.state_signature_type_parameters(signature),
+            signature.return_type,
+            signature.native_callback_parameters.as_slice(),
+        ),
+        BoundaryRequirement::Operator(operator) => (
+            operator.symbol,
+            operator.symbol,
+            program.operator_parameters(operator),
+            program.operator_type_parameters(operator),
+            operator.return_type,
+            &[][..],
+        ),
+    };
+    let operator_arguments = match (requirement, call_site) {
+        (
+            BoundaryRequirement::Operator(_),
+            crate::semantic::calls::CallSite::Expression { call, .. },
+        ) => Some(crate::facts::operator_crashes::named_call_operands(
+            program,
+            call,
+            source_parameters,
+        )?),
+        _ => None,
+    };
+    let arguments = operator_arguments.as_deref().unwrap_or_else(|| {
+        crate::semantic::calls::call_site_argument_expressions(program, call_site)
+    });
     // A boundary signature is a foreign ABI contract; an erased position
     // has no agreed foreign transfer yet, so the call fails closed here.
     if source_parameters
@@ -76,10 +127,11 @@ pub(super) fn build(
     let abi_parameters = source_parameters
         .iter()
         .enumerate()
-        .filter(|(_, parameter)| !parameter.is_self)
+        .filter(|(_, parameter)| {
+            !parameter.is_self || matches!(requirement, BoundaryRequirement::Operator(_))
+        })
         .collect::<Vec<_>>();
     let caller_source_parameters = program.state_parameters(state);
-    let signature_type_parameters = program.state_signature_type_parameters(signature);
     // MP2b's admission of this call's static machine arguments survives
     // checking as a specialization fact: each `Type` binder's derived
     // actual and each `machine` binder's admitted provider entry. The
@@ -163,14 +215,14 @@ pub(super) fn build(
         };
         facts.nominal_machine_uses.uses.iter().find(|nominal_use| {
             Some(nominal_use.site) == source_site
-                && nominal_use.registration_operation == signature.symbol
+                && nominal_use.registration_operation == target
                 && usize::try_from(nominal_use.static_machine_ordinal).ok() == Some(ordinal)
                 && nominal_use.satisfaction_trait == trait_definition
                 && nominal_use.satisfaction_requirement == requirement
         })
     };
     let admitted_callback_telescope = source_site.is_some()
-        && signature.native_callback_parameters.len() <= signature_type_parameters.len()
+        && callback_parameters.len() <= signature_type_parameters.len()
         && signature_type_parameters
             .iter()
             .enumerate()
@@ -178,7 +230,7 @@ pub(super) fn build(
                 let Some(nominal_use) = nominal_use_at_binder(ordinal, parameter) else {
                     return false;
                 };
-                match signature.native_callback_parameters.get(ordinal) {
+                match callback_parameters.get(ordinal) {
                     Some(callback) => parameter.name == callback.binder,
                     None => nominal_use.callback_placement.is_some(),
                 }
@@ -188,8 +240,7 @@ pub(super) fn build(
             .fused_service_erasure
             .as_ref()
             .is_some_and(|receipt| {
-                receipt.source_parameter == call.receiver_symbol
-                    && receipt.requirement == definition.symbol
+                receipt.source_parameter == call.receiver_symbol && receipt.requirement == owner
             })
     });
     let mut scalar_parameters = Vec::new();
@@ -371,7 +422,9 @@ pub(super) fn build(
         });
     }
     phase("call operation: boundary telescope");
-    if !program.trait_type_parameters(definition).is_empty() {
+    if let BoundaryRequirement::Trait { definition, .. } = requirement
+        && !program.trait_type_parameters(definition).is_empty()
+    {
         return None;
     }
     if !signature_type_parameters.is_empty()
@@ -381,8 +434,7 @@ pub(super) fn build(
         return None;
     }
     phase("call operation: boundary parameter custody");
-    if program
-        .state_signature_parameters(signature)
+    if source_parameters
         .iter()
         // `is_mutable` is set by a `mut` binding and by an exclusive
         // borrow alike, and the requirement's exclusive borrow is
@@ -414,43 +466,43 @@ pub(super) fn build(
     }
     if if let Some((_, qualifier)) = selected_realization {
         call.has_receiver && call.receiver_symbol != qualifier
-    } else {
+    } else if matches!(requirement, BoundaryRequirement::Trait { .. }) {
         !call.has_receiver
-            || (call.receiver_symbol != definition.symbol
-                && !provider_attachment_receiver_matches(
-                    program,
-                    machine,
-                    call_site,
-                    definition.symbol,
-                )
+            || (call.receiver_symbol != owner
+                && !provider_attachment_receiver_matches(program, machine, call_site, owner)
                 && !routed_service_parameter_receiver)
+    } else {
+        false
     } {
         return None;
     }
     phase("call operation: boundary result");
-    let signature_return =
-        substituted_formal_type(program, signature.return_type, substitutions.as_slice());
+    let signature_return = substituted_formal_type(program, return_type, substitutions.as_slice());
     if validation::is_closed_primitive_array_type(program, signature_return) {
         return None;
     }
     if match expected_call_result {
         None => !is_unit(program, signature_return),
-        Some(expected) => !boundary_value_result_matches(
-            program,
-            signature.return_type,
-            expected,
-            substitutions.as_slice(),
-        ),
+        Some(expected) => {
+            !boundary_value_result_matches(program, return_type, expected, substitutions.as_slice())
+        }
     } {
         return None;
     }
     phase("call operation: boundary contracts");
-    if !signature_contracts_are_exact_parameter_qualifications(
-        program,
-        definition.symbol,
+    if let BoundaryRequirement::Trait {
+        definition,
         signature,
-    ) {
-        return None;
+    } = requirement
+    {
+        if !signature_contracts_are_exact_parameter_qualifications(
+            program,
+            definition.symbol,
+            signature,
+        ) || signature.suspends
+        {
+            return None;
+        }
     }
     // Suspension parks the activation, which this synchronous call
     // shape cannot express. Blocking only occupies the worker while
@@ -459,12 +511,7 @@ pub(super) fn build(
     // during checking, and the envelope travels on the target
     // contract fingerprint below, so a blocking boundary is planned
     // exactly like a nonblocking one.
-    if signature.suspends {
-        return None;
-    }
-    let capsule = facts
-        .contract_plans
-        .crash_capsule(definition.symbol, signature.symbol)?;
+    let capsule = facts.contract_plans.crash_capsule(owner, target)?;
     // Trait calls transfer each owned argument into the boundary. Their
     // permission events are transfers, not the terminal consumption used
     // by an owned receiver. Reuse the exact call-site custody replay so
@@ -484,8 +531,8 @@ pub(super) fn build(
     Some(CheckedUnitEffectOperationPlan::BoundaryCall {
         coordinate,
         source_site,
-        target_machine: signature.symbol,
-        target_state: signature.symbol,
+        target_machine: target,
+        target_state: target,
         target_contract_report_fingerprint: capsule.target_contract_report_fingerprint(),
         service_reach: call.service_reach,
         scalar_arguments: checked_call_scalar_arguments(

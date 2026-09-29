@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 checked-trees = { path = "../../representations/checked-trees" }
+typed-trees = { path = "../../representations/typed-trees" }
 lowered-psi = { path = "../../representations/lowered-psi" }
 proof-admission = { path = "../../proof/admission" }
 terminal-psi = { path = "../../representations/terminal-psi" }

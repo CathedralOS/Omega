@@ -39,6 +39,11 @@ pub(crate) fn encode_boundary_machine(
 ) -> Result<(), CodecError> {
     writer.id(declaration.id);
     writer.string("boundary machine identity", &declaration.identity)?;
+    writer.u8(match declaration.kind {
+        terminal_psi::BoundaryRequirementKind::Machine => 0,
+        terminal_psi::BoundaryRequirementKind::Trait => 1,
+        terminal_psi::BoundaryRequirementKind::Operator => 2,
+    });
     encode_optional_id(writer, declaration.attachment);
     writer.len(
         "boundary parameter order",
@@ -245,6 +250,12 @@ pub(crate) fn decode_boundary_machine(
     Ok(BoundaryMachineDeclaration {
         id: reader.id("BoundaryMachineId")?,
         identity: reader.string("boundary machine identity")?,
+        kind: match reader.u8()? {
+            0 => terminal_psi::BoundaryRequirementKind::Machine,
+            1 => terminal_psi::BoundaryRequirementKind::Trait,
+            2 => terminal_psi::BoundaryRequirementKind::Operator,
+            tag => return Err(CodecError::InvalidTag("BoundaryRequirementKind", tag)),
+        },
         attachment: decode_optional_id(reader, "StructuralTypeId")?,
         parameter_order: decode_counted(reader, |reader| match reader.u8()? {
             0 => Ok(terminal_psi::BoundaryParameterKind::Scalar),

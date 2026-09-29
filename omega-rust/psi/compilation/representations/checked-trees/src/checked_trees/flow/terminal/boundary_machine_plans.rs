@@ -52,6 +52,7 @@ pub struct CheckedProviderAttachmentRequirementPlan {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedBoundaryMachinePlan {
+    pub kind: semantic_vocabulary::BoundaryRequirementKind,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     /// Exact owner of the canonical contract carrier. For an attached
