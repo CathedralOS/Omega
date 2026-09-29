@@ -1099,56 +1099,85 @@ mod tests {
         assert!(derive(&checked, selection, &module).is_none());
     }
 
+    /// Produce `Main::run`, returning the module and whether its receipt
+    /// grants hosted zero initialization, or the production refusal.
+    fn produce_run(checked: &CheckedTrees) -> Result<(terminal_psi::TerminalModule, bool), String> {
+        let produced =
+            TerminalProductionRequest::new(checked, TerminalMachineSelection::Name("Main::run"))
+                .produce(TerminalProductionCustody {
+                    retain_unoptimized: false,
+                    entry_identity: Some([7; 32]),
+                    callback_custody: (),
+                    timings: &mut TerminalProductionTimings::default(),
+                })
+                .map_err(|error| format!("{error:?}"))?;
+        let eligible = produced
+            .receipt()
+            .expect("entry receipt")
+            .receiver_eligibility()
+            .is_some();
+        let module = terminal_codec::decode_module(produced.artifact().semantic_bytes()).unwrap();
+        Ok((module, eligible))
+    }
+
+    /// Zero-initialized attachment storage requires every contained byte
+    /// field predicate to hold for the empty sequence
+    /// (`wiki/spec/terminal-psi/structural_access.md`), so production refuses
+    /// a receiver whose storage holds a predicate empty bytes violate before
+    /// any receipt exists. The receipt's own judgment still refuses that
+    /// source when it is joined to storage produced for a zero-valid sibling.
+    fn assert_zero_invalid_storage_refused(
+        source: &str,
+        module: &terminal_psi::TerminalModule,
+        refusal: &str,
+    ) {
+        let checked = check_source(source);
+        let error = produce_run(&checked).expect_err(source);
+        assert!(error.contains(refusal), "{source}: {error}");
+        let selection = checked_trees_to_lowered_psi::select_terminal_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::run"),
+        )
+        .unwrap();
+        assert!(derive(&checked, selection, module).is_none(), "{source}");
+    }
+
     #[test]
     fn byte_receiver_zero_eligibility_requires_every_resolved_domain_predicate() {
-        for (domains, constraint, eligible) in [
-            (
-                "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires no_nul(self);",
-                "First & Second",
-                true,
-            ),
-            (
-                "domain [u8; 3]::Utf8 requires non_empty(self);",
-                "Utf8",
-                false,
-            ),
-            (
-                "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires non_empty(self);",
-                "First & Second",
-                false,
-            ),
-            (
-                "domain [u8; 3]::Extra requires valid_utf8(self); non_empty(self);",
-                "Extra",
-                false,
-            ),
-        ] {
-            let checked = check_source(&format!(
+        let source = |domains: &str, constraint: &str| {
+            format!(
                 "{domains}
                  data Child {{ bytes: [u8; 3] in {constraint}; }}
                  data Main {{ value: i32; child: Child; }}
                  machine Main::run(&mut self) {{ self.value = 7; }}"
-            ));
-            let produced = TerminalProductionRequest::new(
-                &checked,
-                TerminalMachineSelection::Name("Main::run"),
             )
-            .produce(TerminalProductionCustody {
-                retain_unoptimized: false,
-                entry_identity: Some([7; 32]),
-                callback_custody: (),
-                timings: &mut TerminalProductionTimings::default(),
-            })
-            .unwrap();
-            assert_eq!(
-                produced
-                    .receipt()
-                    .expect("entry receipt")
-                    .receiver_eligibility()
-                    .is_some(),
-                eligible,
-                "{domains}"
-            );
+        };
+        let (module, eligible) = produce_run(&check_source(&source(
+            "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires no_nul(self);",
+            "First & Second",
+        )))
+        .unwrap();
+        assert!(eligible, "every predicate holds for the empty sequence");
+        for (domains, constraint, refusal) in [
+            (
+                "domain [u8; 3]::First requires non_empty(self);",
+                "First",
+                "InvalidStructuralFieldIdentity",
+            ),
+            (
+                "domain [u8; 3]::First requires valid_utf8(self); domain [u8; 3]::Second requires non_empty(self);",
+                "First & Second",
+                "InvalidStructuralFieldIdentity",
+            ),
+            // Two facts do not reduce to one recognized byte predicate, so the
+            // field has no Terminal type and the receiver signature declines.
+            (
+                "domain [u8; 3]::Extra requires valid_utf8(self); non_empty(self);",
+                "Extra",
+                "local construction stopped at signature",
+            ),
+        ] {
+            assert_zero_invalid_storage_refused(&source(domains, constraint), &module, refusal);
         }
     }
 
@@ -1340,32 +1369,36 @@ mod tests {
         }
         // A byte domain on the element record that refuses empty contents
         // rejects through the same element chain.
-        let checked = check_source(
-            "domain [u8; 3]::NonEmpty requires non_empty(self); data Pair { bytes: [u8; 3] in NonEmpty; } data Main { value: i32; grid: [Pair; 2]; } machine Main::run(&mut self) { self.value = 7; }",
-        );
-        let produced =
-            TerminalProductionRequest::new(&checked, TerminalMachineSelection::Name("Main::run"))
-                .produce(TerminalProductionCustody {
-                    retain_unoptimized: false,
-                    entry_identity: Some([7; 32]),
-                    callback_custody: (),
-                    timings: &mut TerminalProductionTimings::default(),
-                })
-                .unwrap();
-        assert!(
-            produced
-                .receipt()
-                .expect("entry receipt")
-                .receiver_eligibility()
-                .is_none()
+        let element_source = |domain: &str| {
+            format!(
+                "domain [u8; 3]::Text requires {domain}(self); data Pair {{ bytes: [u8; 3] in Text; }} data Main {{ value: i32; grid: [Pair; 2]; }} machine Main::run(&mut self) {{ self.value = 7; }}"
+            )
+        };
+        let (module, eligible) = produce_run(&check_source(&element_source("valid_utf8"))).unwrap();
+        assert!(eligible, "an empty element field is valid UTF-8");
+        assert_zero_invalid_storage_refused(
+            &element_source("non_empty"),
+            &module,
+            "InvalidStructuralFieldIdentity",
         );
     }
 
     #[test]
     fn receiver_sum_storage_rejects_payloads_zero_cannot_establish() {
+        // A byte domain that refuses the empty carrier beneath the zero tag.
+        let payload_source = |domain: &str| {
+            format!(
+                "domain [u8; 3]::Text requires {domain}(self); data Event {{ case Say(text: [u8; 3] in Text); case Quiet; }} data Main {{ value: i32; event: Event; }} machine Main::run(&mut self) {{ self.value = 7; }}"
+            )
+        };
+        let (module, eligible) = produce_run(&check_source(&payload_source("valid_utf8"))).unwrap();
+        assert!(eligible, "an empty first-case payload is valid UTF-8");
+        assert_zero_invalid_storage_refused(
+            &payload_source("non_empty"),
+            &module,
+            "InvalidStructuralFieldIdentity",
+        );
         for source in [
-            // A byte domain that refuses the empty carrier beneath the zero tag.
-            "domain [u8; 3]::NonEmpty requires non_empty(self); data Event { case Say(text: [u8; 3] in NonEmpty); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
             // A borrowed view payload has no owned bytes to provision.
             "data Event { case Say(text: &[u8]); case Quiet; } data Main { value: i32; event: Event; } machine Main::run(&mut self) { self.value = 7; }",
             // A range-gated payload beneath the zero tag is not an established
