@@ -44,11 +44,16 @@ pub(crate) fn validate_assignment(
     if owner.symbol != machine {
         return unsupported("byte-field store has a different authored machine");
     }
+    // Alias replay needs the use occurrence to rejoin the declaration, active
+    // loan and retirement evidence. Discarding this retained coordinate would
+    // restrict replacement to directly spelled parameter fields even though
+    // checking already normalized a borrowed destination to the same storage.
+    let statement_index = store.statement_index as usize;
     let source = crate::emission::call_source_custody::projected_receivers::store_destination(
         checked,
         machine,
         state_symbol,
-        None,
+        Some(statement_index),
         assignment.target,
     )?;
     let parameter = checked
@@ -77,6 +82,7 @@ pub(crate) fn validate_assignment(
         checked,
         machine,
         state_symbol,
+        statement_index,
         assignment.value,
         &store.value,
         store.value.root,
@@ -89,6 +95,7 @@ fn validate_value(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
+    statement_index: usize,
     expression: checked_trees::expression::ExpressionHandle,
     plan: &CheckedByteSequenceValuePlan,
     node: arena::Handle<ByteValue>,
@@ -122,6 +129,7 @@ fn validate_value(
                 checked,
                 machine,
                 state_symbol,
+                statement_index,
                 binary.left,
                 plan,
                 *left,
@@ -131,6 +139,7 @@ fn validate_value(
                 checked,
                 machine,
                 state_symbol,
+                statement_index,
                 binary.right,
                 plan,
                 *right,
@@ -155,7 +164,7 @@ fn validate_value(
                     checked,
                     machine,
                     state_symbol,
-                    None,
+                    Some(statement_index),
                     expression,
                 )?;
             let parameter = checked
