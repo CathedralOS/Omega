@@ -99,6 +99,43 @@ pub(super) fn scalar_type(
         })
 }
 
+/// The scalar type of one runtime selector a primitive read carries.
+///
+/// A selector declared in the read's own block (a block parameter or an
+/// earlier result) or as a machine parameter keeps the in-block rule: it must
+/// precede the read. A selector declared in another block is the common
+/// shape of a state's scalar parameter read inside a conditional arm: the
+/// arm's successor block reads `self.a[k]` while `k` is the state block's
+/// parameter. Terminal verification already required that value to be
+/// defined before this use (`require_defined` over the dominating
+/// definitions), so its machine-wide SSA declaration is its type here; this
+/// lowering checks only that the selector is an integer the address model
+/// scales, never where it was defined.
+fn read_selector_type(
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    operation: semantic_vocabulary::OperationId,
+    index: ValueId,
+    values: &BTreeMap<ValueId, ScalarType>,
+) -> Option<ScalarType> {
+    let declared_here = machine
+        .parameters
+        .iter()
+        .chain(block.parameters.iter())
+        .any(|declaration| declaration.id == index)
+        || block
+            .operations
+            .iter()
+            .filter_map(|candidate| candidate.result.scalar())
+            .any(|result| result.id == index);
+    if declared_here {
+        return super::structural_scalar_fields::dominating_scalar_type(
+            machine, block, operation, index,
+        );
+    }
+    values.get(&index).copied()
+}
+
 pub(super) fn lower(
     operation: &Operation,
     block: &terminal_psi::Block,
@@ -152,12 +189,7 @@ pub(super) fn lower(
                 })
                 .ok_or_else(invalid)?;
             if super::primitive_projection::read_leaf_type(types, identity, path, |index| {
-                super::structural_scalar_fields::dominating_scalar_type(
-                    machine,
-                    block,
-                    operation.id,
-                    index,
-                )
+                read_selector_type(machine, block, operation.id, index, values)
             }) != Some(result.scalar_type)
             {
                 return Err(invalid());
@@ -175,5 +207,157 @@ pub(super) fn lower(
         _ => Err(LoweringError::InvalidPrimitiveLocalEstablishment(
             operation.id,
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_selector_type;
+    use semantic_vocabulary::{
+        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, OperationId, ScalarType,
+        ValueId,
+    };
+    use std::collections::BTreeMap;
+    use terminal_psi::{
+        Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
+        TerminalMachineResult, Terminator, ValueDeclaration,
+    };
+
+    fn u64_type() -> ScalarType {
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap())
+    }
+
+    fn declaration(id: u64) -> ValueDeclaration {
+        ValueDeclaration {
+            qualifications: Default::default(),
+            id: ValueId::new(id).unwrap(),
+            scalar_type: u64_type(),
+        }
+    }
+
+    fn operation(id: u64, result: Option<u64>) -> Operation {
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(id).unwrap(),
+            result: result.map_or(OperationResult::Unit, |value| {
+                OperationResult::Scalar(declaration(value))
+            }),
+            kind: OperationKind::BooleanConstant { value: true },
+        }
+    }
+
+    fn block(id: u64, parameters: Vec<ValueDeclaration>, operations: Vec<Operation>) -> Block {
+        Block {
+            erased_proof_formals: Vec::new(),
+            erased_scalar_formals: Vec::new(),
+            id: BlockId::new(id).unwrap(),
+            parameters,
+            structural_parameters: Vec::new(),
+            operations,
+            terminator: Terminator::ReturnUnit {
+                edge: EdgeId::new(id).unwrap(),
+                trivial_affine_discards: Vec::new(),
+            },
+        }
+    }
+
+    /// The state block declares the selector `k` (value 2) as a block
+    /// parameter; the conditional arm's block reads with it at operation 7.
+    fn machine(arm: Block) -> TerminalMachine {
+        TerminalMachine {
+            closed_reach_application: None,
+            declared_service_reach: Vec::new(),
+            id: MachineId::new(1).unwrap(),
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            ranked_scc: None,
+            result: TerminalMachineResult::Unit,
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: BlockId::new(2).unwrap(),
+            blocks: vec![block(2, vec![declaration(2)], Vec::new()), arm],
+            contract: MachineContract {
+                erased_proof_formals: Vec::new(),
+                erased_scalar_formals: Vec::new(),
+                id: ContractId::new(9).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn machine_values(machine: &TerminalMachine) -> BTreeMap<ValueId, ScalarType> {
+        machine
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block.parameters.iter().cloned().chain(
+                    block
+                        .operations
+                        .iter()
+                        .filter_map(|operation| operation.result.scalar()),
+                )
+            })
+            .map(|value| (value.id, value.scalar_type))
+            .collect()
+    }
+
+    #[test]
+    fn selector_declared_in_a_dominating_block_takes_its_machine_declaration() {
+        let machine = machine(block(5, Vec::new(), vec![operation(7, None)]));
+        let values = machine_values(&machine);
+        let arm = &machine.blocks[1];
+        assert_eq!(
+            read_selector_type(
+                &machine,
+                arm,
+                OperationId::new(7).unwrap(),
+                ValueId::new(2).unwrap(),
+                &values,
+            ),
+            Some(u64_type())
+        );
+    }
+
+    #[test]
+    fn selector_declared_in_the_read_block_must_precede_the_read() {
+        // Value 3 is produced in the arm's own block after the read: the
+        // in-block rule still refuses it rather than trusting the global map.
+        let machine = machine(block(
+            5,
+            Vec::new(),
+            vec![operation(7, None), operation(8, Some(3))],
+        ));
+        let values = machine_values(&machine);
+        let arm = &machine.blocks[1];
+        assert_eq!(
+            read_selector_type(
+                &machine,
+                arm,
+                OperationId::new(7).unwrap(),
+                ValueId::new(3).unwrap(),
+                &values,
+            ),
+            None
+        );
+        // A selector no block declares has no type to scale.
+        assert_eq!(
+            read_selector_type(
+                &machine,
+                arm,
+                OperationId::new(7).unwrap(),
+                ValueId::new(11).unwrap(),
+                &values,
+            ),
+            None
+        );
     }
 }

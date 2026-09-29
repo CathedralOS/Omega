@@ -1304,25 +1304,35 @@ crash and native exit behavior. Use affected check/native corpus slices under
 [the validation policy](tools/testing.md), with full gates at release closure.
 
 - **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS.** Complete whole-array and indexed-row
-  assignment for arithmetic-policy elements and structural elements. Customers:
-  `samples/cli/collections/matrix_multiply` assigns nested Wrapping arrays;
-  `samples/cli/rendering/dungeon_render` assigns an array of payload-free
-  `Cell` cases. Preserve plain-record arrays too. The reduced fixture,
-  `tests/omega/pending/collections/element_policy_array_literal_store`, contains
-  only the flat Wrapping case; its other policy, record and row controls are
+  assignment for arithmetic-policy elements and structural elements, and the
+  element reads those programs make. Customers:
+  `samples/cli/collections/matrix_multiply` assigns and reads nested Wrapping
+  arrays; `samples/cli/rendering/dungeon_render` assigns an array of
+  payload-free `Cell` cases. Preserve plain-record arrays too.
+  `tests/omega/pass/collections/element_policy_array_literal_store` checks only
+  the flat Wrapping store; its other policy, record and row controls are
   comments, not executable coverage.
 
-  In stage 04 `execution/terminal_unit/structural_scalar_store/primitive.rs`,
-  `array_literal_stores` uses `closed_array_store_type` and requires a field
-  destination, excluding indexed rows separately. The shared
-  `checking/src/value_custody/literals/constant_arrays.rs` predicate accepts
-  bare primitive leaves; `closed_array_store_type` peels whole-array policies
-  only. Keep that shared contract. The statement sequence already has constructed
-  structural-value replacement through `borrowed_windows.rs`, and the shape
-  collector admits policy-bearing array storage. Trace the failing assignment
-  through those owners; neither globally widening the primitive predicate nor
-  adding another aggregate representation is the repair.
-  `types/arithmetic_policy_array_tests.rs` checks shape, not assignment execution.
+  Frontier (macOS ARM64, debug CLI, `omega --check`): matrix's whole nested
+  literal stores check; it stops at `state graph: terminator: conditional
+  successors: scalar arguments` in `dot` because `self.a[i][k]` has no checked
+  read. `values/scalar/scalar_lowering.rs` `selected_element` spells one
+  runtime selector over a static path (`StructuralParameterIndexedRead { path,
+  index, element_path }`), so any runtime selector beneath another (`a[i][k]`,
+  `a[i][1]`) is refused in every scalar position; Wrapping and the arithmetic
+  are not triggers (`a[0][k]` and flat `a[k]` read and run). Terminal
+  `PrimitiveScalarRead` paths and Omega stage 00 already carry several runtime
+  segments, and stage 00 types a selector defined in a dominating block
+  (`tests/omega/pass/collections/runtime_indexed_successor_argument_exit`).
+  The repair is a nested runtime selector in the checked read and its stage-05
+  replay (`prepare_expression.rs`, `source_custody/value_correspondence`,
+  `storage_reads`), not a flattened index. dungeon stops at `structural field
+  store: scalar field type` (state 0, statement 1): stage 04 `computations.rs`
+  roots `is_fixed_array_value` literals only for LocalData, so `self.grid =
+  [Cell::Wall, ...]` has no structural value. Rooting it for assignments
+  reaches stage 05, which refuses `FixedArray` establishment
+  (`structural_values/emission.rs`); a single `self.grid[2] = Cell::Door` already
+  runs through the window pair. Keep the shared `constant_arrays.rs` predicate.
 
   Acceptance: executable controls for bare/whole-array-policy/element-policy
   arrays, Wrapping and Saturating, nested arrays, records and cases, whole and
