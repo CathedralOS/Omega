@@ -21,7 +21,10 @@ impl<'program> Evaluator<'program> {
                     offset + byte_index
                 ))
             })?;
-            let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
+            let byte = cell.borrow().as_int().ok_or_else(|| {
+                Halt::Trap("byte-region read requires concrete integer bytes".to_owned())
+            })? as u64
+                & 0xFF;
             bits |= byte << (8 * byte_index);
         }
         let assembled = match target {
@@ -39,6 +42,9 @@ impl<'program> Evaluator<'program> {
         target: PrimitiveType,
         value: Value,
     ) -> EvalResult<()> {
+        if matches!(value, Value::UndeterminedNaN(_)) {
+            return trap("undetermined NaN has no representation for a byte-region write");
+        }
         let size = target
             .scalar_byte_size()
             .ok_or_else(|| Halt::Trap("byte-region recast target is not scalar".to_owned()))?;
@@ -282,7 +288,10 @@ impl<'program> Evaluator<'program> {
                     offset + byte_index
                 ))
             })?;
-            let byte = cell.borrow().as_int().unwrap_or(0) as u64 & 0xFF;
+            let byte = cell.borrow().as_int().ok_or_else(|| {
+                Halt::Trap("stored-integer view requires concrete integer bytes".to_owned())
+            })? as u64
+                & 0xFF;
             bits |= byte << (8 * byte_index);
         }
         if matches!(interpretation, layout_plans::IntegerInterpretation::Signed)
@@ -945,6 +954,9 @@ impl<'program> Evaluator<'program> {
             Value::Ref(cell) => cell.borrow().clone(),
             other => other,
         };
+        if matches!(value, Value::UndeterminedNaN(_)) {
+            return trap("undetermined NaN has no representation for a raw-bit recast");
+        }
         match target {
             PrimitiveType::F32 => {
                 let bits = match value {

@@ -35,6 +35,7 @@ impl<'program> Evaluator<'program> {
                     SemanticFloatFormat::BINARY64
                 };
                 let meaning = match value {
+                    Value::UndeterminedNaN(_) => FloatMeaning::NaN,
                     Value::Float(source) => {
                         FloatSemantics::convert(format, &FloatMeaning::from_f64(source))
                     }
@@ -48,7 +49,7 @@ impl<'program> Evaluator<'program> {
                     }
                     _ => return trap(format!("cast to {target:?} of non-numeric")),
                 };
-                Ok(Value::Float(meaning.to_interpreter_value(format)))
+                Ok(self.semantic_float_result(meaning, format))
             }
             PrimitiveType::Bool => Ok(Value::Bool(value.as_bool().unwrap_or(false))),
             integer => {
@@ -58,10 +59,12 @@ impl<'program> Evaluator<'program> {
                     // FLOAT -> int is one of three distinct conversion
                     // operations. Wrapping has no float reading and is
                     // rejected by validation.
-                    Value::Float(value) => {
+                    value @ (Value::Float(_) | Value::UndeterminedNaN(_)) => {
                         let format = semantic_integer_format(integer)
                             .expect("a primitive integer has a semantic format");
-                        let meaning = FloatMeaning::from_f64(value);
+                        let meaning = value.float_meaning().ok_or_else(|| {
+                            Halt::Trap("float conversion lost its meaning".to_owned())
+                        })?;
                         let converted = match domain {
                             ArithmeticDomain::Saturating => {
                                 FloatSemantics::to_integer_saturating(&meaning, format)

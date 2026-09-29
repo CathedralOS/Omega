@@ -117,12 +117,11 @@ impl<'program> Evaluator<'program> {
                         Some(primitive),
                         frame,
                     )?;
-                    let (Value::Float(left), Value::Float(right)) = (&left, &right) else {
+                    if !left.is_float() || !right.is_float() {
                         return trap(format!(
                             "selected float execution at {handle:?} received nonfloat operands: {left:?}, {right:?}"
                         ));
-                    };
-                    let (left, right) = (*left, *right);
+                    }
                     let domain = match selected.policy {
                         checked_trees::CheckedArithmeticPolicyAdapter::None => ArithmeticDomain::Exact,
                         checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { .. } => ArithmeticDomain::Saturating,
@@ -130,8 +129,8 @@ impl<'program> Evaluator<'program> {
                     };
                     return self.eval_float_binary(
                         selected.operation,
-                        left,
-                        right,
+                        &left,
+                        &right,
                         Some((primitive, domain)),
                         None,
                     );
@@ -739,15 +738,11 @@ impl<'program> Evaluator<'program> {
                     SemanticFloatFormat::BINARY64
                 };
                 return match self.eval_expression(arguments[0], frame)? {
-                    Value::Float(value) => {
-                        let meaning = if format == SemanticFloatFormat::BINARY32 {
-                            FloatMeaning::from_f32(value as f32)
-                        } else {
-                            FloatMeaning::from_f64(value)
-                        };
-                        Ok(Value::Float(
-                            FloatSemantics::square_root(format, &meaning)
-                                .to_interpreter_value(format),
+                    value if value.is_float() => {
+                        let meaning = self.float_operand(&value, format)?;
+                        Ok(self.semantic_float_result(
+                            FloatSemantics::square_root(format, &meaning),
+                            format,
                         ))
                     }
                     other => Err(Halt::Trap(format!(
@@ -774,12 +769,8 @@ impl<'program> Evaluator<'program> {
                     SemanticFloatFormat::BINARY64
                 };
                 return match self.eval_expression(arguments[0], frame)? {
-                    Value::Float(value) => {
-                        let meaning = if format == SemanticFloatFormat::BINARY32 {
-                            FloatMeaning::from_f32(value as f32)
-                        } else {
-                            FloatMeaning::from_f64(value)
-                        };
+                    value if value.is_float() => {
+                        let meaning = self.float_operand(&value, format)?;
                         let (variant_name, negative) =
                             match FloatSemantics::classify(format, &meaning) {
                                 SemanticFloatClass::NaN => ("NaN", None),
@@ -841,12 +832,8 @@ impl<'program> Evaluator<'program> {
                     SemanticFloatFormat::BINARY64
                 };
                 return match self.eval_expression(arguments[0], frame)? {
-                    Value::Float(value) => {
-                        let meaning = if format == SemanticFloatFormat::BINARY32 {
-                            FloatMeaning::from_f32(value as f32)
-                        } else {
-                            FloatMeaning::from_f64(value)
-                        };
+                    value if value.is_float() => {
+                        let meaning = self.float_operand(&value, format)?;
                         let result = match target {
                             "float#is_nan" => FloatSemantics::is_nan(&meaning),
                             "float#is_finite" => FloatSemantics::is_finite(&meaning),
@@ -1214,16 +1201,12 @@ impl<'program> Evaluator<'program> {
         let mut operands = Vec::with_capacity(arguments.len());
         for argument in arguments {
             let value = self.eval_expression(argument, frame)?;
-            let Value::Float(value) = value else {
+            if !value.is_float() {
                 return Err(Halt::Trap(format!(
                     "{target} expects float arguments, got {value:?}"
                 )));
-            };
-            operands.push(if format == SemanticFloatFormat::BINARY32 {
-                FloatSemantics::convert(format, &FloatMeaning::from_f64(value))
-            } else {
-                FloatMeaning::from_f64(value)
-            });
+            }
+            operands.push(self.float_operand(&value, format)?);
         }
 
         let float_value = |meaning: FloatMeaning, division: bool| -> EvalResult<Value> {
@@ -1252,7 +1235,7 @@ impl<'program> Evaluator<'program> {
                     })?,
                 ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => meaning,
             };
-            Ok(Value::Float(meaning.to_interpreter_value(format)))
+            Ok(self.semantic_float_result(meaning, format))
         };
         let value = match target {
             "negate" => float_value(FloatSemantics::negate(format, &operands[0]), false)?,

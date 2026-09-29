@@ -150,6 +150,14 @@ fn check_primitive(
     match (primitive, value) {
         (PrimitiveType::Bool, BuildTimeValue::Bool(_))
         | (PrimitiveType::F32 | PrimitiveType::F64, BuildTimeValue::Float(_)) => Ok(()),
+        (
+            PrimitiveType::F32,
+            BuildTimeValue::UndeterminedNaN(numerics::literals::FloatFormat::F32),
+        )
+        | (
+            PrimitiveType::F64,
+            BuildTimeValue::UndeterminedNaN(numerics::literals::FloatFormat::F64),
+        ) => Ok(()),
         (primitive, BuildTimeValue::Int(_)) if primitive.accepts_integer_literal() => Ok(()),
         _ => Err(format!(
             "{path} expected `{}`, found {}",
@@ -643,7 +651,7 @@ fn kind(value: &BuildTimeValue) -> &'static str {
         BuildTimeValue::Unit => "Unit",
         BuildTimeValue::Int(_) => "integer",
         BuildTimeValue::Bool(_) => "Bool",
-        BuildTimeValue::Float(_) => "float",
+        BuildTimeValue::Float(_) | BuildTimeValue::UndeterminedNaN(_) => "float",
         BuildTimeValue::Text(_) => "Text",
         BuildTimeValue::Struct { .. } => "record",
         BuildTimeValue::Case { .. } => "sum case",

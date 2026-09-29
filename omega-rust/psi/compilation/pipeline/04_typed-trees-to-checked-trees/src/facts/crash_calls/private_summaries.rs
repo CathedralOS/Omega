@@ -35,9 +35,7 @@ pub(crate) fn infer_private_body_summaries(
                 machine: target.machine,
                 direct: inferred_direct_body_crash_buckets(target),
                 invocations: machine_non_transition_invocation_sites(
-                    program,
-                    flow,
-                    target.machine,
+                    program, operators, flow, target,
                 )?,
             })
         })
@@ -305,15 +303,16 @@ pub(crate) fn solve_private_summary_fixed_point(
 
 fn machine_non_transition_invocation_sites(
     program: &TypedTrees,
+    operators: &checked_trees::CheckedOperatorFacts,
     flow: &checked_trees::FlowFacts,
-    machine: SymbolHandle,
+    plan: &checked_trees::MachineContractPlan,
 ) -> Option<Vec<SummaryInvocationSite>> {
     let mut sites = Vec::new();
     for (_, state) in flow
         .control
         .states
         .iter()
-        .filter(|(_, state)| state.machine_symbol == machine)
+        .filter(|(_, state)| state.machine_symbol == plan.machine)
     {
         for call in flow.control.calls.span_or_empty(state.calls) {
             // Scalar builtins are computations, not machine invocations. Their
@@ -338,6 +337,44 @@ fn machine_non_transition_invocation_sites(
                 site,
                 crate::semantic::calls::CallSite::TransitionNamed { .. }
             ) {
+                continue;
+            }
+            // Named operators have flow call rows but are not machine edges.
+            // Their failure routes are already included by direct-body buckets.
+            // Join the exact checked occurrence, and require that crash-bearing
+            // declarations retained their site before excluding this call row.
+            if let crate::semantic::calls::CallSite::Expression { expression, .. } = site
+                && let Some((named_handle, named)) =
+                    operators.named_uses.iter().find(|(_, named)| {
+                        named.expression == expression
+                            && named.selected_operator_symbol == call.target_symbol
+                            && matches!(named.origin,
+                            checked_trees::CheckedValueOrigin::StateStatement {
+                                machine_symbol, state_symbol, statement_index, ..
+                            } if machine_symbol == plan.machine
+                                && state_symbol == state.state_symbol
+                                && statement_index == call.statement_index)
+                    })
+            {
+                let operator = typed_trees::operator::declaration_by_symbol(
+                    program,
+                    named.selected_operator_symbol,
+                )?;
+                let declares_crashes =
+                    program.operator_contracts(operator).iter().any(|contract| {
+                        matches!(
+                            contract.kind,
+                            typed_trees::signature::SignatureContractKind::Crashes { .. }
+                        )
+                    });
+                if declares_crashes
+                    && !plan.crash.checked_operators().iter().any(|site| {
+                        site.named_use == named_handle
+                            && site.selected_operator == named.selected_operator_symbol
+                    })
+                {
+                    return None;
+                }
                 continue;
             }
             let (target_machine, target_state) =

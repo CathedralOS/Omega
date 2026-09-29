@@ -92,7 +92,7 @@ use scalar_numerics::{
     apply_arithmetic_domain, big_integer_runtime_value, float_to_integer_trap_message,
     integer_bounds, integer_primitive_byte_width, interpreter_f32_from_bits,
     interpreter_f32_to_bits, is_unsigned_integer_primitive, primitive_bit_width,
-    primitive_is_unsigned64, project_landed_float, semantic_integer_format, wrap_to_width,
+    primitive_is_unsigned64, semantic_integer_format, wrap_to_width,
 };
 
 pub(super) const STEP_BUDGET: u64 = 10_000_000;
@@ -253,6 +253,8 @@ pub(crate) struct Evaluator<'program> {
     operator_facts: Option<&'program CheckedOperatorFacts>,
     boundary_adapter_dispatch: &'program [checked_trees::CheckedBoundaryAdapterDispatch],
     pub(super) selected_build_time_operators: &'program [crate::SelectedBuildTimeBinaryOperator],
+    /// Semantic evaluation cannot choose observable bits for computed NaN.
+    semantic_float_evaluation: bool,
     pub(super) stdout: Vec<u8>,
     pub(super) stderr: Vec<u8>,
     /// Exact output emitted through the compiler-owned `Build.log` facet.

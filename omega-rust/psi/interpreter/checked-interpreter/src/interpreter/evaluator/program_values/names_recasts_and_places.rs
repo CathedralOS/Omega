@@ -739,6 +739,18 @@ impl<'program> Evaluator<'program> {
         domain: ArithmeticDomain,
     ) -> EvalResult<Value> {
         match &value {
+            Value::UndeterminedNaN(format) => {
+                let expected = match format {
+                    numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
+                    numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
+                };
+                if primitive != expected {
+                    return trap(
+                        "undetermined NaN cannot change its landed carrier without a conversion",
+                    );
+                }
+                Ok(value)
+            }
             Value::Int(raw) => Ok(Value::Int(apply_arithmetic_domain(
                 *raw, primitive, domain,
             )?)),

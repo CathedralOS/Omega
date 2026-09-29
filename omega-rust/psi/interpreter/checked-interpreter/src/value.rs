@@ -399,6 +399,8 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     Float(f64),
+    /// A semantic NaN has a landed format but no observable representation.
+    UndeterminedNaN(numerics::literals::FloatFormat),
     /// Text: a `&[u8]` view, a string literal, OR an owned `[u8; N]` carrier. Stored as raw
     /// BYTES (not a Rust `String`) because Omega text is `&[u8]` -- bytes that need only be
     /// valid Utf8 at domain boundaries, not at every intermediate step. Bytes (vs a UTF-8
@@ -478,6 +480,20 @@ impl Value {
         }
     }
 
+    pub(crate) fn is_float(&self) -> bool {
+        matches!(self, Self::Float(_) | Self::UndeterminedNaN(_))
+    }
+
+    /// Semantic observations do not require a NaN payload. Concrete projections
+    /// continue to use `as_float`, which deliberately declines undetermined NaN.
+    pub(crate) fn float_meaning(&self) -> Option<numerics::float_semantics::FloatMeaning> {
+        use numerics::float_semantics::FloatMeaning;
+        match self {
+            Self::UndeterminedNaN(_) => Some(FloatMeaning::NaN),
+            _ => self.as_float().map(FloatMeaning::from_f64),
+        }
+    }
+
     /// Clone with VALUE SEMANTICS: a `Struct`/`Enum`/`Array` gets FRESH element cells (a deep
     /// copy), so mutating a field of the copy does NOT alias the original. A `Ref` is preserved
     /// (it shares the referent cell -- a reference aliases by design), and scalars/strings use
@@ -535,6 +551,7 @@ impl Value {
             | Value::Int(_)
             | Value::Bool(_)
             | Value::Float(_)
+            | Value::UndeterminedNaN(_)
             | Value::Str(_)
             | Value::Ref(_) => Ok(self.clone()),
         }

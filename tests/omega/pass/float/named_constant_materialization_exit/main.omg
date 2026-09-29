@@ -1,0 +1,28 @@
+// A named boundary call in a constant must retain its selected declaration,
+// evaluate through the ordinary checked route, and materialize the result.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+pub const ROOT: f32 = F32::square_root(4.0f32);
+pub const ROOT64: f64 = F64::square_root(9.0f64);
+pub const NAN_CLASSIFIED: bool = F32::is_nan(F32::square_root(-1.0f32));
+machine classify(value: f32) -> bool { F32::is_nan(value) }
+pub const THROUGH_CALL: bool = classify(F32::square_root(-1.0f32));
+
+data Main {
+    console: Binding<Console>;
+    root: f32;
+    root64: f64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.root = ROOT;
+    self.root64 = ROOT64;
+    transition NAN_CLASSIFIED && THROUGH_CALL && self.root == 2.0f32 && self.root64 == 3.0f64 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}

@@ -477,9 +477,20 @@ pub(crate) fn evaluate(
                         builtin_operators.push(operator);
                     }
                 }
-                scalar_encoding = Some(result.value.encoding());
+                scalar_encoding = Some(
+                    result
+                        .value
+                        .encoding()
+                        .map_err(|reason| failure(reference, reason))?,
+                );
                 use crate::const_evaluation::const_generic_expressions::value::ScalarValue;
                 let literal = match result.value {
+                    ScalarValue::UndeterminedNaN(_) => {
+                        return Err(failure(
+                            reference,
+                            "constant result is NaN without an exact raw-NaN realization",
+                        ));
+                    }
                     ScalarValue::Float { format, bits } => {
                         let spelling = match format {
                             numerics::literals::FloatFormat::F32 => {

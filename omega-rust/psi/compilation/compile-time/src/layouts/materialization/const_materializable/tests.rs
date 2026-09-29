@@ -317,6 +317,23 @@ fn unsupported_or_malformed_value_shapes_fail_closed() {
     .expect_err("NaN without exact raw representation evidence remains fenced");
     assert!(error.0.contains("exact raw-NaN realization"), "{error:?}");
 
+    let semantic = BuildTimeValue::Struct {
+        type_name: "Floating".into(),
+        fields: vec![(
+            "value".into(),
+            BuildTimeValue::UndeterminedNaN(numerics::literals::FloatFormat::F64),
+        )],
+    };
+    let error = validate_const_materializable_typed_owned_layout(
+        &typed,
+        "Floating",
+        &float_layout,
+        &semantic,
+        ByteOrder::LittleEndian,
+    )
+    .expect_err("semantic NaN has no payload to emit through an aggregate field");
+    assert!(error.0.contains("exact raw-NaN realization"), "{error:?}");
+
     let narrow_layout = one_field_layout(&typed, "Floating32", 4, 4);
     let rounded = BuildTimeValue::Struct {
         type_name: "Floating32".into(),
