@@ -31,8 +31,9 @@ use target_operations::{
     BoundaryByteSequenceArgument, BoundaryExecutionBinding, BoundaryRealization,
     BoundaryScalarArgument, CompilerBuiltinExecution, NativeCallOrigin,
     NormalizedForeignCallBinding, ProviderExecutionBinding, ScalarAbiValue, ScalarFunctionAbi,
-    TargetBoundaryResult, TargetControlTerminator, TargetDynamicDescriptorArgument,
-    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi, TargetFunction,
+    TargetBoundaryResult, TargetControlTerminator, TargetDynamicCallResult,
+    TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceSource,
+    TargetDynamicDescriptorParameterAbi, TargetDynamicDispatch, TargetFunction,
     TargetNativeCallbackArgument, TargetReferenceResult, TargetStructuralArgument,
     TargetStructuralArgumentSource, TargetStructuralHomeLayout, TargetStructuralHomeRequirement,
     TargetUnitOperation, TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
@@ -84,51 +85,13 @@ enum EmbeddedCall<'a> {
         requirement_obligations: &'a [ObligationId],
         crash_continuations: &'a [CrashRouteBucket],
     },
-    /// `StructuralScalarCallWithDynamicArguments` and
-    /// `StructuralUnitCallWithDynamicArguments`: ordered `{data, table}`
-    /// descriptor pairs instead of scalar or structural rows.
-    DynamicArguments {
-        callee: MachineId,
+    /// `CallDynamic`: one call whose ABI transports descriptors. The dispatch
+    /// kind selects the custody to replay; the plan, result role, obligations
+    /// and crash routes replay the same way for every kind.
+    Dynamic {
+        dispatch: &'a TargetDynamicDispatch,
         call_plan: &'a CallPlan,
-        result: Option<(&'a AbstractResult, &'a TargetUnitScalarHomeRequirement)>,
-        structural_arguments: &'a [TargetStructuralArgument],
-        dynamic_arguments: &'a [TargetDynamicDescriptorArgument],
-        claim_transfers: &'a [ClaimTransfer],
-        requirement_obligations: &'a [ObligationId],
-        crash_continuations: &'a [CrashRouteBucket],
-    },
-    /// `StoredDynamicScalarCall`: reload and invoke one stored descriptor.
-    StoredDynamic {
-        dynamic_dispatch: &'a AbstractStoredDynamicDispatch,
-        call_plan: &'a CallPlan,
-        result: &'a AbstractResult,
-        result_home: &'a TargetUnitScalarHomeRequirement,
-        source_argument: &'a TargetStructuralArgument,
-        requirement_obligations: &'a [ObligationId],
-        crash_continuations: &'a [CrashRouteBucket],
-    },
-    /// `DynamicParameterScalarCall` and `DynamicParameterUnitCall`: indirect
-    /// requirement invocations through one of the function's own descriptor
-    /// parameters — the descriptor ABI, requirement row, erased dispatch plan,
-    /// and slot offset all replay against the declared interface.
-    ParameterDynamic {
-        dynamic_dispatch: &'a AbstractParameterDynamicDispatch,
-        parameter_abi: &'a TargetDynamicDescriptorParameterAbi,
-        requirement: &'a TerminalDynamicRequirement,
-        dispatch_call_plan: &'a CallPlan,
-        table_slot_byte_offset: u32,
-        result: Option<(&'a AbstractResult, &'a TargetUnitScalarHomeRequirement)>,
-        requirement_obligations: &'a [ObligationId],
-        crash_continuations: &'a [CrashRouteBucket],
-    },
-    /// `DynamicScalarCall` and `DynamicUnitCall`: rebound descriptor calls
-    /// through a private table.
-    ReboundDynamic {
-        dynamic_dispatch: &'a AbstractReboundDynamicDispatch,
-        call_plan: &'a CallPlan,
-        result: Option<(&'a AbstractResult, &'a TargetUnitScalarHomeRequirement)>,
-        initial_argument: &'a TargetStructuralArgument,
-        rebound_argument: &'a TargetStructuralArgument,
+        result: &'a TargetDynamicCallResult,
         requirement_obligations: &'a [ObligationId],
         crash_continuations: &'a [CrashRouteBucket],
     },
@@ -168,6 +131,18 @@ enum EmbeddedCall<'a> {
         completion_receipts: &'a [terminal_psi::CompletionReceipt],
         nonreturning_tail: bool,
     },
+}
+
+/// The source side of one dynamic call: a direct call's forwarded descriptor
+/// rosters, or one abstract descriptor dispatch.
+enum SourceDynamicCall<'a> {
+    DescriptorArguments {
+        callee: MachineId,
+        structural_arguments: &'a [StructuralArgument],
+        dynamic_arguments: &'a [AbstractDynamicDescriptorArgument],
+        claim_transfers: &'a [ClaimTransfer],
+    },
+    Dispatch(&'a AbstractDynamicDispatch),
 }
 
 /// The result contract one source operation binds the embedded call to.
@@ -316,157 +291,19 @@ pub(super) fn validate(
                         },
                     )
                 }
-                TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
+                TargetUnitOperation::CallDynamic {
                     psi_operation,
+                    dispatch,
+                    call_plan,
                     result,
-                    callee,
-                    call_plan,
-                    result_home,
-                    structural_arguments,
-                    dynamic_arguments,
-                    claim_transfers,
                     requirement_obligations,
                     crash_continuations,
                 } => (
                     *psi_operation,
-                    EmbeddedCall::DynamicArguments {
-                        callee: *callee,
-                        call_plan,
-                        result: Some((result, result_home)),
-                        structural_arguments,
-                        dynamic_arguments,
-                        claim_transfers,
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
-                    psi_operation,
-                    callee,
-                    call_plan,
-                    structural_arguments,
-                    dynamic_arguments,
-                    claim_transfers,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::DynamicArguments {
-                        callee: *callee,
-                        call_plan,
-                        result: None,
-                        structural_arguments,
-                        dynamic_arguments,
-                        claim_transfers,
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::StoredDynamicScalarCall {
-                    psi_operation,
-                    result,
-                    dynamic_dispatch,
-                    call_plan,
-                    result_home,
-                    source_argument,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::StoredDynamic {
-                        dynamic_dispatch,
+                    EmbeddedCall::Dynamic {
+                        dispatch,
                         call_plan,
                         result,
-                        result_home,
-                        source_argument,
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::DynamicScalarCall {
-                    psi_operation,
-                    result,
-                    dynamic_dispatch,
-                    call_plan,
-                    result_home,
-                    initial_argument,
-                    rebound_argument,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::ReboundDynamic {
-                        dynamic_dispatch,
-                        call_plan,
-                        result: Some((result, result_home)),
-                        initial_argument,
-                        rebound_argument,
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::DynamicUnitCall {
-                    psi_operation,
-                    dynamic_dispatch,
-                    call_plan,
-                    initial_argument,
-                    rebound_argument,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::ReboundDynamic {
-                        dynamic_dispatch,
-                        call_plan,
-                        result: None,
-                        initial_argument,
-                        rebound_argument,
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::DynamicParameterScalarCall {
-                    psi_operation,
-                    result,
-                    dynamic_dispatch,
-                    parameter_abi,
-                    requirement,
-                    dispatch_call_plan,
-                    table_slot_byte_offset,
-                    result_home,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::ParameterDynamic {
-                        dynamic_dispatch,
-                        parameter_abi,
-                        requirement,
-                        dispatch_call_plan,
-                        table_slot_byte_offset: *table_slot_byte_offset,
-                        result: Some((result, result_home)),
-                        requirement_obligations,
-                        crash_continuations,
-                    },
-                ),
-                TargetUnitOperation::DynamicParameterUnitCall {
-                    psi_operation,
-                    dynamic_dispatch,
-                    parameter_abi,
-                    requirement,
-                    dispatch_call_plan,
-                    table_slot_byte_offset,
-                    requirement_obligations,
-                    crash_continuations,
-                } => (
-                    *psi_operation,
-                    EmbeddedCall::ParameterDynamic {
-                        dynamic_dispatch,
-                        parameter_abi,
-                        requirement,
-                        dispatch_call_plan,
-                        table_slot_byte_offset: *table_slot_byte_offset,
-                        result: None,
                         requirement_obligations,
                         crash_continuations,
                     },
@@ -747,35 +584,22 @@ pub(super) fn validate(
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-                result: AbstractStructuralCallResult::Unit,
-            } => replay.dynamic_arguments_call(
+                result:
+                    result @ (AbstractStructuralCallResult::Unit
+                    | AbstractStructuralCallResult::Scalar(_)),
+            } => replay.dynamic_call(
                 *psi_operation,
-                *callee,
-                None,
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-                target_calls.get(psi_operation),
-            )?,
-            AbstractOperation::CallStructural {
-                psi_operation,
-                result: AbstractStructuralCallResult::Scalar(result),
-                callee,
-                arguments: _,
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
-                requirement_obligations,
-                crash_continuations,
-            } => replay.dynamic_arguments_call(
-                *psi_operation,
-                *callee,
-                Some(result),
-                structural_arguments,
-                dynamic_arguments,
-                claim_transfers,
+                SourceDynamicCall::DescriptorArguments {
+                    callee: *callee,
+                    structural_arguments,
+                    dynamic_arguments,
+                    claim_transfers,
+                },
+                if let AbstractStructuralCallResult::Scalar(result) = result {
+                    Some(*result)
+                } else {
+                    None
+                },
                 requirement_obligations,
                 crash_continuations,
                 target_calls.get(psi_operation),
@@ -787,40 +611,18 @@ pub(super) fn validate(
                 requirement_obligations,
                 crash_continuations,
             } => {
-                let scalar = match result {
-                    AbstractDynamicCallResult::Scalar(result) => Some(result),
-                    AbstractDynamicCallResult::Unit => None,
-                };
-                match dispatch {
-                    AbstractDynamicDispatch::Rebound(dynamic_dispatch) => replay
-                        .rebound_dynamic_call(
-                            *psi_operation,
-                            scalar,
-                            dynamic_dispatch,
-                            requirement_obligations,
-                            crash_continuations,
-                            target_calls.get(psi_operation),
-                        )?,
-                    // Stored custody is admitted only with a scalar result.
-                    AbstractDynamicDispatch::Stored(dynamic_dispatch) => replay
-                        .stored_dynamic_call(
-                            *psi_operation,
-                            scalar.ok_or(*psi_operation)?,
-                            dynamic_dispatch,
-                            requirement_obligations,
-                            crash_continuations,
-                            target_calls.get(psi_operation),
-                        )?,
-                    AbstractDynamicDispatch::Parameter(dynamic_dispatch) => replay
-                        .parameter_dynamic_call(
-                            *psi_operation,
-                            scalar,
-                            dynamic_dispatch,
-                            requirement_obligations,
-                            crash_continuations,
-                            target_calls.get(psi_operation),
-                        )?,
+                // Stored custody is admitted only with a scalar result.
+                if matches!(dispatch, AbstractDynamicDispatch::Stored(_)) && result.is_unit() {
+                    return Err(*psi_operation);
                 }
+                replay.dynamic_call(
+                    *psi_operation,
+                    SourceDynamicCall::Dispatch(dispatch),
+                    result.scalar(),
+                    requirement_obligations,
+                    crash_continuations,
+                    target_calls.get(psi_operation),
+                )?
             }
             AbstractOperation::StoreDynamicDescriptor {
                 psi_operation,
@@ -1380,15 +1182,9 @@ impl Replay<'_> {
             let home = match operation {
                 TargetUnitOperation::IeeeFloatCompare { result_home, .. }
                 | TargetUnitOperation::NearestIeeeFloatArithmetic { result_home, .. }
-                | TargetUnitOperation::StoredDynamicScalarCall { result_home, .. }
-                | TargetUnitOperation::DynamicScalarCall { result_home, .. }
-                | TargetUnitOperation::DynamicParameterScalarCall { result_home, .. }
-                | TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
-                    result_home,
-                    ..
-                }
                 | TargetUnitOperation::ScalarDefinition { result_home, .. } => Some(result_home),
                 TargetUnitOperation::Call { result, .. } => result.scalar_home(),
+                TargetUnitOperation::CallDynamic { result, .. } => result.scalar_home(),
                 TargetUnitOperation::NormalizedForeignCall { result_home, .. } => {
                     result_home.as_ref()
                 }
@@ -2332,30 +2128,25 @@ impl Replay<'_> {
         Ok(())
     }
 
-    /// A dynamic-argument call expands each existential descriptor into an
-    /// ordered `{data, table}` pointer pair. The callee's leading descriptor
-    /// parameters, the source custody joins, and the concrete instance
-    /// projections all replay independently.
-    #[allow(clippy::too_many_arguments)]
-    fn dynamic_arguments_call(
+    /// One dynamic call replays against its source operation. The dispatch
+    /// kind's own replay rederives its custody, argument rows and evaluated
+    /// plan from the declarations; the retained plan must equal that plan.
+    /// The result role binds the source result: Unit retains no home, and a
+    /// Boolean or integer result retains its home at this operation with the
+    /// declared value, type and shape. No other scalar type has a home.
+    fn dynamic_call(
         &self,
         psi_operation: OperationId,
-        source_callee: MachineId,
-        expected_result: Option<&AbstractResult>,
-        source_structural: &[StructuralArgument],
-        source_dynamic: &[AbstractDynamicDescriptorArgument],
-        claim_transfers: &[ClaimTransfer],
+        source: SourceDynamicCall<'_>,
+        expected_result: Option<AbstractResult>,
         requirement_obligations: &[ObligationId],
         crash_continuations: &[CrashRouteBucket],
         call: Option<&EmbeddedCall<'_>>,
     ) -> Result<(), OperationId> {
-        let Some(&EmbeddedCall::DynamicArguments {
-            callee,
+        let Some(&EmbeddedCall::Dynamic {
+            dispatch,
             call_plan,
-            result: actual_result,
-            structural_arguments,
-            dynamic_arguments,
-            claim_transfers: actual_claims,
+            result,
             requirement_obligations: actual_obligations,
             crash_continuations: actual_crashes,
         }) = call
@@ -2366,6 +2157,144 @@ impl Replay<'_> {
                 Err(psi_operation)
             };
         };
+        if *actual_obligations != *requirement_obligations
+            || *actual_crashes != *crash_continuations
+            || expected_result.is_some_and(|result| {
+                !matches!(
+                    result.scalar_type,
+                    ScalarType::Boolean | ScalarType::Integer(_)
+                )
+            })
+        {
+            return Err(psi_operation);
+        }
+        let result_shape =
+            expected_result.map(|result| structural_shapes::scalar_shape(result.scalar_type));
+        let expected_plan = match (source, dispatch) {
+            (
+                SourceDynamicCall::DescriptorArguments {
+                    callee: source_callee,
+                    structural_arguments: source_structural,
+                    dynamic_arguments: source_dynamic,
+                    claim_transfers,
+                },
+                TargetDynamicDispatch::DescriptorArguments {
+                    callee,
+                    arguments,
+                    claim_transfers: actual_claims,
+                },
+            ) => {
+                if *callee != source_callee || *actual_claims != *claim_transfers {
+                    return Err(psi_operation);
+                }
+                self.descriptor_arguments_dispatch(
+                    psi_operation,
+                    source_callee,
+                    expected_result,
+                    result_shape,
+                    source_structural,
+                    source_dynamic,
+                    arguments,
+                )?
+            }
+            (
+                SourceDynamicCall::Dispatch(AbstractDynamicDispatch::Stored(custody)),
+                TargetDynamicDispatch::Stored {
+                    custody: actual_custody,
+                    source_argument,
+                },
+            ) => {
+                let (Some(result), Some(result_shape)) = (expected_result, result_shape) else {
+                    return Err(psi_operation);
+                };
+                if actual_custody != custody {
+                    return Err(psi_operation);
+                }
+                self.stored_dispatch(
+                    psi_operation,
+                    result.scalar_type,
+                    result_shape,
+                    custody,
+                    source_argument,
+                )?
+            }
+            (
+                SourceDynamicCall::Dispatch(AbstractDynamicDispatch::Rebound(custody)),
+                TargetDynamicDispatch::Rebound {
+                    custody: actual_custody,
+                    initial_argument,
+                    rebound_argument,
+                },
+            ) => {
+                if actual_custody != custody {
+                    return Err(psi_operation);
+                }
+                self.rebound_dispatch(
+                    psi_operation,
+                    expected_result,
+                    result_shape,
+                    custody,
+                    initial_argument,
+                    rebound_argument,
+                )?
+            }
+            (
+                SourceDynamicCall::Dispatch(AbstractDynamicDispatch::Parameter(custody)),
+                TargetDynamicDispatch::Parameter {
+                    custody: actual_custody,
+                    parameter_abi,
+                    requirement,
+                    table_slot_byte_offset,
+                },
+            ) => {
+                if actual_custody != custody {
+                    return Err(psi_operation);
+                }
+                self.parameter_dispatch(
+                    psi_operation,
+                    expected_result,
+                    result_shape,
+                    custody,
+                    parameter_abi,
+                    requirement,
+                    *table_slot_byte_offset,
+                )?
+            }
+            _ => return Err(psi_operation),
+        };
+        if *call_plan != expected_plan {
+            return Err(psi_operation);
+        }
+        match (expected_result, result) {
+            (None, TargetDynamicCallResult::Unit) => Ok(()),
+            (Some(expected), TargetDynamicCallResult::Scalar(home))
+                if home.defining_operation == psi_operation
+                    && home.source_value == expected.value
+                    && home.scalar_type == expected.scalar_type
+                    && Some(home.shape) == result_shape =>
+            {
+                Ok(())
+            }
+            _ => Err(psi_operation),
+        }
+    }
+
+    /// A direct call forwarding descriptors expands each existential
+    /// descriptor into an ordered `{data, table}` pointer pair. The callee's
+    /// leading descriptor parameters, the source custody joins, and the
+    /// concrete instance projections all replay independently. Returns the
+    /// descriptor-pair plan.
+    #[allow(clippy::too_many_arguments)]
+    fn descriptor_arguments_dispatch(
+        &self,
+        psi_operation: OperationId,
+        source_callee: MachineId,
+        expected_result: Option<AbstractResult>,
+        result_shape: Option<ValueShape>,
+        source_structural: &[StructuralArgument],
+        source_dynamic: &[AbstractDynamicDescriptorArgument],
+        dynamic_arguments: &[TargetDynamicDescriptorArgument],
+    ) -> Result<CallPlan, OperationId> {
         // A non-entry helper may forward its own borrowed descriptor
         // parameters without an attachment; projected or rebound sources still
         // require the attached structural-parameter lane they read from.
@@ -2378,12 +2307,7 @@ impl Replay<'_> {
             }))
             || !source_structural.is_empty()
             || source_dynamic.is_empty()
-            || callee != source_callee
-            || !structural_arguments.is_empty()
             || dynamic_arguments.len() != source_dynamic.len()
-            || *actual_claims != *claim_transfers
-            || *actual_obligations != *requirement_obligations
-            || *actual_crashes != *crash_continuations
         {
             return Err(psi_operation);
         }
@@ -2406,10 +2330,6 @@ impl Replay<'_> {
             (None, AbstractFunctionResult::Unit) => true,
             (Some(result), AbstractFunctionResult::Scalar(declared)) => {
                 declared.scalar_type == result.scalar_type
-                    && matches!(
-                        result.scalar_type,
-                        ScalarType::Boolean | ScalarType::Integer(_)
-                    )
             }
             _ => false,
         };
@@ -2440,8 +2360,6 @@ impl Replay<'_> {
         let pointer_alignment =
             u16::try_from(self.native_target.pointer_alignment).map_err(|_| psi_operation)?;
         let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
-        let result_shape =
-            expected_result.map(|result| structural_shapes::scalar_shape(result.scalar_type));
         let descriptor_parameter_count =
             source_dynamic.len().checked_mul(2).ok_or(psi_operation)?;
         let expected_plan = evaluate_call_plan(
@@ -2452,30 +2370,14 @@ impl Replay<'_> {
             },
         )
         .map_err(|_| psi_operation)?;
-        if call_plan != &expected_plan
-            || expected_plan.parameters.len() != descriptor_parameter_count
-        {
+        if expected_plan.parameters.len() != descriptor_parameter_count {
             return Err(psi_operation);
-        }
-        match (expected_result, actual_result) {
-            (None, None) => {}
-            (Some(expected), Some((actual, home))) => {
-                if *actual != *expected
-                    || home.defining_operation != psi_operation
-                    || home.source_value != expected.value
-                    || home.scalar_type != expected.scalar_type
-                    || Some(home.shape) != result_shape
-                {
-                    return Err(psi_operation);
-                }
-            }
-            _ => return Err(psi_operation),
         }
         for (ordinal, (actual, custody)) in dynamic_arguments.iter().zip(source_dynamic).enumerate()
         {
             self.descriptor_argument(psi_operation, ordinal, actual, custody, &expected_plan)?;
         }
-        Ok(())
+        Ok(expected_plan)
     }
 
     /// One `{data, table}` descriptor pair replays its selection's concrete
@@ -2645,84 +2547,48 @@ impl Replay<'_> {
     }
 
     /// A stored dynamic call replays the descriptor's unique establishment
-    /// and the callee realization's single-argument signature.
-    fn stored_dynamic_call(
+    /// and the callee realization's single-argument signature. Returns the
+    /// realization plan.
+    fn stored_dispatch(
         &self,
         psi_operation: OperationId,
-        result: &AbstractResult,
-        dynamic_dispatch: &AbstractStoredDynamicDispatch,
-        requirement_obligations: &[ObligationId],
-        crash_continuations: &[CrashRouteBucket],
-        call: Option<&EmbeddedCall<'_>>,
-    ) -> Result<(), OperationId> {
-        let Some(&EmbeddedCall::StoredDynamic {
-            dynamic_dispatch: actual_dispatch,
-            call_plan,
-            result: actual_result,
-            result_home,
-            source_argument,
-            requirement_obligations: actual_obligations,
-            crash_continuations: actual_crashes,
-        }) = call
-        else {
-            return if call.is_none() {
-                Ok(())
-            } else {
-                Err(psi_operation)
-            };
-        };
-        if !matches!(
-            result.scalar_type,
-            ScalarType::Boolean | ScalarType::Integer(_)
-        ) || self.source.attachment.is_none()
-            || actual_dispatch != dynamic_dispatch
-            || !dynamic_dispatch.has_complete_custody(self.source.machine, psi_operation)
-            || *actual_result != *result
-            || *actual_obligations != *requirement_obligations
-            || *actual_crashes != *crash_continuations
-            || self
-                .source
-                .operations
-                .iter()
-                .filter(|candidate| {
-                    matches!(candidate,
-                        AbstractOperation::StoreDynamicDescriptor { stored, .. }
-                            if stored == &dynamic_dispatch.stored)
-                })
-                .count()
-                != 1
+        expected_result: ScalarType,
+        result_shape: ValueShape,
+        custody: &AbstractStoredDynamicDispatch,
+        source_argument: &TargetStructuralArgument,
+    ) -> Result<CallPlan, OperationId> {
+        if self
+            .source
+            .operations
+            .iter()
+            .filter(|candidate| {
+                matches!(candidate,
+                    AbstractOperation::StoreDynamicDescriptor { stored, .. }
+                        if stored == &custody.stored)
+            })
+            .count()
+            != 1
         {
             return Err(psi_operation);
         }
-        let result_shape = structural_shapes::scalar_shape(result.scalar_type);
         let (expected_plan, callee_parameter) = self.stored_call_layout(
             psi_operation,
             psi_operation,
-            dynamic_dispatch,
-            result.scalar_type,
+            custody,
+            expected_result,
             result_shape,
         )?;
-        if call_plan != &expected_plan {
-            return Err(psi_operation);
-        }
         let [destination] = expected_plan.parameters.as_slice() else {
             return Err(psi_operation);
         };
         self.projected_call_argument(
             psi_operation,
             source_argument,
-            &dynamic_dispatch.stored.selection.source,
+            &custody.stored.selection.source,
             callee_parameter,
             destination,
         )?;
-        if result_home.defining_operation != psi_operation
-            || result_home.source_value != result.value
-            || result_home.scalar_type != result.scalar_type
-            || result_home.shape != result_shape
-        {
-            return Err(psi_operation);
-        }
-        Ok(())
+        Ok(expected_plan)
     }
 
     /// The shared stored-call projection: dispatch custody joins at the call
@@ -2775,41 +2641,22 @@ impl Replay<'_> {
 
     /// A rebound dynamic call lowers both the initializer and the latest
     /// source against the selected realization's single-argument signature.
-    fn rebound_dynamic_call(
+    /// Returns the realization plan.
+    fn rebound_dispatch(
         &self,
         psi_operation: OperationId,
-        expected_result: Option<&AbstractResult>,
-        dynamic_dispatch: &AbstractReboundDynamicDispatch,
-        requirement_obligations: &[ObligationId],
-        crash_continuations: &[CrashRouteBucket],
-        call: Option<&EmbeddedCall<'_>>,
-    ) -> Result<(), OperationId> {
-        let Some(&EmbeddedCall::ReboundDynamic {
-            dynamic_dispatch: actual_dispatch,
-            call_plan,
-            result: actual_result,
-            initial_argument,
-            rebound_argument,
-            requirement_obligations: actual_obligations,
-            crash_continuations: actual_crashes,
-        }) = call
-        else {
-            return if call.is_none() {
-                Ok(())
-            } else {
-                Err(psi_operation)
-            };
-        };
+        expected_result: Option<AbstractResult>,
+        result_shape: Option<ValueShape>,
+        custody: &AbstractReboundDynamicDispatch,
+        initial_argument: &TargetStructuralArgument,
+        rebound_argument: &TargetStructuralArgument,
+    ) -> Result<CallPlan, OperationId> {
         if self.source.attachment.is_none()
-            || actual_dispatch != dynamic_dispatch
-            || !dynamic_dispatch
-                .has_complete_application_custody(self.source.machine, psi_operation)
-            || *actual_obligations != *requirement_obligations
-            || *actual_crashes != *crash_continuations
+            || !custody.has_complete_application_custody(self.source.machine, psi_operation)
         {
             return Err(psi_operation);
         }
-        let callee = dynamic_dispatch.dispatch.realization;
+        let callee = custody.dispatch.realization;
         let callee_function = self.callee(callee, psi_operation)?;
         let [callee_parameter] = callee_function.structural_parameters.as_slice() else {
             return Err(psi_operation);
@@ -2818,10 +2665,6 @@ impl Replay<'_> {
             (AbstractFunctionResult::Unit, None) => true,
             (AbstractFunctionResult::Scalar(declared), Some(result)) => {
                 declared.scalar_type == result.scalar_type
-                    && matches!(
-                        result.scalar_type,
-                        ScalarType::Boolean | ScalarType::Integer(_)
-                    )
             }
             _ => false,
         };
@@ -2831,91 +2674,53 @@ impl Replay<'_> {
         {
             return Err(psi_operation);
         }
-        let result_shape =
-            expected_result.map(|result| structural_shapes::scalar_shape(result.scalar_type));
         let expected_plan = self.expected_plan(callee_function, psi_operation)?;
         let [destination] = expected_plan.parameters.as_slice() else {
             return Err(psi_operation);
         };
-        if call_plan != &expected_plan
-            || expected_plan
-                .result
-                .as_ref()
-                .map(|placement| placement.shape)
-                != result_shape
+        if expected_plan
+            .result
+            .as_ref()
+            .map(|placement| placement.shape)
+            != result_shape
         {
             return Err(psi_operation);
         }
         self.projected_call_argument(
             psi_operation,
             initial_argument,
-            &dynamic_dispatch.initial.source,
+            &custody.initial.source,
             callee_parameter,
             destination,
         )?;
         self.projected_call_argument(
             psi_operation,
             rebound_argument,
-            &dynamic_dispatch.rebound.source,
+            &custody.rebound.source,
             callee_parameter,
             destination,
         )?;
-        match (expected_result, actual_result) {
-            (None, None) => Ok(()),
-            (Some(expected), Some((actual, home))) => {
-                if *actual == *expected
-                    && home.defining_operation == psi_operation
-                    && home.source_value == expected.value
-                    && home.scalar_type == expected.scalar_type
-                    && Some(home.shape) == result_shape
-                {
-                    Ok(())
-                } else {
-                    Err(psi_operation)
-                }
-            }
-            _ => Err(psi_operation),
-        }
+        Ok(expected_plan)
     }
 
     /// A parameter-dispatch call invokes one requirement slot of the caller's
     /// own descriptor parameter. Every retained row replays independently:
-    /// the dispatch custody join, the signature-bound descriptor ABI roster
-    /// row, the closed-interface requirement selected by the slot, the erased
-    /// one-pointer dispatch plan, the slot's byte offset in the incoming
-    /// table, and the result row and home when the requirement returns one.
-    /// The retained plan never names a concrete realization.
-    fn parameter_dynamic_call(
+    /// the signature-bound descriptor ABI roster row, the closed-interface
+    /// requirement selected by the slot, and the slot's byte offset in the
+    /// incoming table. Returns the erased one-pointer adapter plan; the
+    /// retained plan never names a concrete realization.
+    #[allow(clippy::too_many_arguments)]
+    fn parameter_dispatch(
         &self,
         psi_operation: OperationId,
-        expected_result: Option<&AbstractResult>,
-        dynamic_dispatch: &AbstractParameterDynamicDispatch,
-        requirement_obligations: &[ObligationId],
-        crash_continuations: &[CrashRouteBucket],
-        call: Option<&EmbeddedCall<'_>>,
-    ) -> Result<(), OperationId> {
-        let Some(&EmbeddedCall::ParameterDynamic {
-            dynamic_dispatch: actual_dispatch,
-            parameter_abi,
-            requirement: actual_requirement,
-            dispatch_call_plan,
-            table_slot_byte_offset,
-            result: actual_result,
-            requirement_obligations: actual_obligations,
-            crash_continuations: actual_crashes,
-        }) = call
-        else {
-            return if call.is_none() {
-                Ok(())
-            } else {
-                Err(psi_operation)
-            };
-        };
-        if actual_dispatch != dynamic_dispatch
-            || !dynamic_dispatch.has_complete_custody(self.source.machine, psi_operation)
-            || *actual_obligations != *requirement_obligations
-            || *actual_crashes != *crash_continuations
-        {
+        expected_result: Option<AbstractResult>,
+        result_shape: Option<ValueShape>,
+        custody: &AbstractParameterDynamicDispatch,
+        parameter_abi: &TargetDynamicDescriptorParameterAbi,
+        actual_requirement: &TerminalDynamicRequirement,
+        table_slot_byte_offset: u32,
+    ) -> Result<CallPlan, OperationId> {
+        if !custody.has_complete_custody(self.source.machine, psi_operation) {
             return Err(psi_operation);
         }
         // The consumed parameter must be the roster row this function's
@@ -2926,36 +2731,24 @@ impl Replay<'_> {
             .graph
             .dynamic_parameters
             .iter()
-            .find(|abi| abi.parameter == dynamic_dispatch.parameter)
+            .find(|abi| abi.parameter == custody.parameter)
         else {
             return Err(psi_operation);
         };
         if parameter_abi != expected_abi {
             return Err(psi_operation);
         }
-        let Some(requirement) = dynamic_dispatch
+        let Some(requirement) = custody
             .parameter
             .requirements
             .iter()
-            .find(|requirement| requirement.slot == dynamic_dispatch.dispatch.requirement_slot)
+            .find(|requirement| requirement.slot == custody.dispatch.requirement_slot)
         else {
             return Err(psi_operation);
         };
         if actual_requirement != requirement {
             return Err(psi_operation);
         }
-        let expected_scalar = match expected_result {
-            Some(result)
-                if matches!(
-                    result.scalar_type,
-                    ScalarType::Boolean | ScalarType::Integer(_)
-                ) =>
-            {
-                Some(result.scalar_type)
-            }
-            Some(_) => return Err(psi_operation),
-            None => None,
-        };
         let closed_scalar = match requirement.result {
             ClosedConformanceCallableResult::Unit => None,
             ClosedConformanceCallableResult::I32 => Some(ScalarType::Integer(
@@ -2963,11 +2756,9 @@ impl Replay<'_> {
             )),
             ClosedConformanceCallableResult::Bool => Some(ScalarType::Boolean),
         };
-        if closed_scalar != expected_scalar {
+        if closed_scalar != expected_result.map(|result| result.scalar_type) {
             return Err(psi_operation);
         }
-        let result_shape =
-            expected_result.map(|result| structural_shapes::scalar_shape(result.scalar_type));
         let pointer_size =
             u16::try_from(self.native_target.pointer_size).map_err(|_| psi_operation)?;
         let pointer_alignment =
@@ -2983,10 +2774,9 @@ impl Replay<'_> {
             },
         )
         .map_err(|_| psi_operation)?;
-        if dispatch_call_plan != &expected_plan
-            || expected_plan.parameters.len() != 1
+        if expected_plan.parameters.len() != 1
             || table_slot_byte_offset
-                != dynamic_dispatch
+                != custody
                     .dispatch
                     .requirement_slot
                     .checked_mul(u32::from(pointer_size))
@@ -2994,22 +2784,7 @@ impl Replay<'_> {
         {
             return Err(psi_operation);
         }
-        match (expected_result, actual_result) {
-            (None, None) => Ok(()),
-            (Some(expected), Some((actual, home))) => {
-                if *actual == *expected
-                    && home.defining_operation == psi_operation
-                    && home.source_value == expected.value
-                    && home.scalar_type == expected.scalar_type
-                    && Some(home.shape) == result_shape
-                {
-                    Ok(())
-                } else {
-                    Err(psi_operation)
-                }
-            }
-            _ => Err(psi_operation),
-        }
+        Ok(expected_plan)
     }
 
     /// The producer's `projected_argument::lower` replay: the argument must be

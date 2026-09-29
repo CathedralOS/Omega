@@ -1,28 +1,22 @@
-//! Exact projected scalar store and structural-scalar call lowering for an
-//! attached Unit body.
+//! Exact projected scalar store lowering for an attached Unit body.
 
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId};
+use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TerminalPsiProvenance,
 };
 use terminal_psi::StructuralAccess;
-mod dynamic_arguments;
 
 use super::super::scalar::scalar_shape;
 use super::super::scalar_abi::fixed_native_scalar_shape;
 use super::super::structural_layout::{
     direct_boolean_field_offset, direct_integer_field_offset, direct_scalar_field_offset,
-    resolve_structural_field_path, runtime_projection,
-};
-use super::scalar_call::{KnownUnitInteger, insert_known_unit_integer};
-pub(in crate::lowering) use dynamic_arguments::{
-    lower_dynamic_argument_scalar_call, lower_dynamic_argument_unit_call,
+    runtime_projection,
 };
 
 #[allow(clippy::too_many_arguments)]

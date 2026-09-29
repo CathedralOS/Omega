@@ -907,9 +907,14 @@ pub(super) fn validate_operation(
                 target, abstracted, sources, custody, optimized, native, plan, unit,
             )?;
         }
+        // Only the parameter-descriptor dispatch has a legalization mirror; a
+        // stored, rebound or descriptor-forwarding dynamic call is a custody
+        // mismatch here.
         (
-            TargetUnitOperation::DynamicParameterScalarCall { .. }
-            | TargetUnitOperation::DynamicParameterUnitCall { .. },
+            TargetUnitOperation::CallDynamic {
+                dispatch: target_operations::TargetDynamicDispatch::Parameter { .. },
+                ..
+            },
             _,
         ) => {
             indirect_calls::validate(function, target, abstracted, sources, native)?;

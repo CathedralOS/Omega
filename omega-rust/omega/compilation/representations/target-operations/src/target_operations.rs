@@ -30,10 +30,11 @@ pub struct TargetOperationPlan {
 pub mod calls;
 pub use calls::{
     MixedStructuralScalarFunctionAbi, ScalarAbiValue, ScalarFunctionAbi, TargetBoundaryResult,
-    TargetCallResult, TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
-    TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
-    TargetNativeCallbackArgument, TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput,
-    TargetUnitScalarArgumentSource, TargetUnitScalarCallArgument,
+    TargetCallResult, TargetDynamicCallResult, TargetDynamicDescriptorArgument,
+    TargetDynamicDescriptorInstanceArgument, TargetDynamicDescriptorInstanceSource,
+    TargetDynamicDescriptorParameterAbi, TargetDynamicDispatch, TargetNativeCallbackArgument,
+    TargetOperationPlanWithPlacedViewInputs, TargetPlacedViewInput, TargetUnitScalarArgumentSource,
+    TargetUnitScalarCallArgument,
 };
 pub mod control_flow;
 pub use control_flow::{

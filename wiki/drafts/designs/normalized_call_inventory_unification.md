@@ -29,6 +29,13 @@ semantics:
 | `DynamicParameterScalarCall` | `AbstractParameterDynamicDispatch` + `parameter_abi` + `requirement` + `table_slot_byte_offset` + `dispatch_call_plan` | none beyond the descriptor parameter | `AbstractResult` + scalar home |
 | `DynamicParameterUnitCall` | same | same | none |
 
+Status: the seven descriptor rows above are now one `CallDynamic` operation.
+Its `dispatch: TargetDynamicDispatch` is `DescriptorArguments`, `Stored`,
+`Rebound` or `Parameter`; its `result: TargetDynamicCallResult` is `Unit` or
+`Scalar(home)`; `call_plan`, obligations and crash routes sit on the
+operation. The remaining unification joins `Call`, `CallDynamic` and
+`NormalizedForeignCall`.
+
 plus two adjacent-but-separate leaves: `NormalizedForeignCall` (evaluated
 import leaf: `boundary` + `provider_execution` + `binding`, foreign
 scalar/structural argument rows, `Option<TargetUnitScalarHomeRequirement>`)

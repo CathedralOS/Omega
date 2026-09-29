@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     ValueId,
 };
 use target::NativeTarget;
-use target_operations::TargetUnitOperation;
+use target_operations::{TargetDynamicCallResult, TargetDynamicDispatch, TargetUnitOperation};
 use terminal_psi::{
     ClosedConformanceCallableResult, StructuralAccess, TerminalDynamicDescriptorParameter,
     TerminalDynamicRequirement, TerminalParameterDynamicDispatch,
@@ -234,7 +234,10 @@ fn parameter_dynamic_call_target_replay_rejects_stored_field_substitution() {
                     .any(|operation| {
                         matches!(
                             operation,
-                            TargetUnitOperation::DynamicParameterScalarCall { .. }
+                            TargetUnitOperation::CallDynamic {
+                                dispatch: TargetDynamicDispatch::Parameter { .. },
+                                ..
+                            }
                         )
                     })
             })
@@ -247,15 +250,22 @@ fn parameter_dynamic_call_target_replay_rejects_stored_field_substitution() {
             .find(|operation| {
                 matches!(
                     operation,
-                    TargetUnitOperation::DynamicParameterScalarCall { .. }
+                    TargetUnitOperation::CallDynamic {
+                        dispatch: TargetDynamicDispatch::Parameter { .. },
+                        ..
+                    }
                 )
             })
             .unwrap();
-        let TargetUnitOperation::DynamicParameterScalarCall {
-            requirement,
-            table_slot_byte_offset,
-            parameter_abi,
-            result_home,
+        let TargetUnitOperation::CallDynamic {
+            dispatch:
+                TargetDynamicDispatch::Parameter {
+                    requirement,
+                    table_slot_byte_offset,
+                    parameter_abi,
+                    ..
+                },
+            result: TargetDynamicCallResult::Scalar(result_home),
             ..
         } = operation
         else {

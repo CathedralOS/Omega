@@ -98,17 +98,7 @@ pub(super) fn validate(
                     );
                 }
             }
-            TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
-                psi_operation,
-                structural_arguments,
-                ..
-            }
-            | TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
-                psi_operation,
-                structural_arguments,
-                ..
-            }
-            | TargetUnitOperation::NormalizedForeignCall {
+            TargetUnitOperation::NormalizedForeignCall {
                 psi_operation,
                 structural_arguments,
                 ..

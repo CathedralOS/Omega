@@ -1,31 +1,30 @@
-//! Structural calls whose ABI arguments are dynamic descriptor pairs.
+//! Direct calls whose ABI arguments are dynamic descriptor pairs.
 
+use super::{LoweredDynamicCall, dynamic_result_home};
+use crate::LoweringError;
+use crate::lowering::structural_layout::resolve_structural_field_path;
+use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{
-    AbstractDynamicDescriptorSource, AbstractFunctionResult, AbstractStructuralCallResult,
+    AbstractDynamicCallResult, AbstractDynamicDescriptorArgument, AbstractDynamicDescriptorSource,
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
 };
-use calling_conventions::{CallPlan, CallSignature, CallingPolicy, evaluate_call_plan};
-use semantic_vocabulary::MachineId;
+use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
+use semantic_vocabulary::{MachineId, OperationId, PlaceId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use target::NativeTarget;
 use target_operations::{
     TargetDynamicDescriptorArgument, TargetDynamicDescriptorInstanceArgument,
     TargetDynamicDescriptorInstanceSource, TargetDynamicDescriptorParameterAbi,
-    TargetUnitScalarHomeRequirement,
+    TargetDynamicDispatch, TargetStructuralParameter,
 };
 use terminal_psi::StructuralPathSegment;
 
-use crate::lowering::structural_type_lookup::StructuralTypeLookup;
-use abstract_operations::AbstractDynamicDescriptorArgument;
-
-use super::{
-    AbstractFunction, AbstractOperation, KnownUnitInteger, LoweringError, OperationId, PlaceId,
-    ScalarType, StructuralTypeId, TargetStructuralParameter, TargetUnitOperation,
-    TerminalPsiProvenance, ValueId, ValueShape, insert_known_unit_integer,
-    resolve_structural_field_path, scalar_shape,
-};
-
+/// Lower one direct Unit- or scalar-result call that forwards descriptors.
+/// Both result roles share the callee join and the descriptor-pair plan; the
+/// role selects only the plan's result placement and whether a scalar home is
+/// defined.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
+pub(super) fn lower(
     operation: &AbstractOperation,
     function: &AbstractFunction,
     target: NativeTarget,
@@ -35,23 +34,26 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
     caller_dynamic_parameters: &[TargetDynamicDescriptorParameterAbi],
     shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
     active: &mut BTreeSet<StructuralTypeId>,
-    scalar_values: &mut BTreeMap<ValueId, KnownUnitInteger>,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<TargetUnitScalarHomeRequirement, LoweringError> {
+) -> Result<LoweredDynamicCall, LoweringError> {
     let AbstractOperation::CallStructural {
         psi_operation,
-        result: AbstractStructuralCallResult::Scalar(result),
+        result,
         callee,
         arguments,
         structural_arguments,
         dynamic_arguments,
         claim_transfers,
-        requirement_obligations,
-        crash_continuations,
+        ..
     } = operation
     else {
-        unreachable!("dynamic-argument scalar lowering receives only its exact role")
+        unreachable!("descriptor-argument lowering receives only direct calls")
+    };
+    let result = match result {
+        AbstractStructuralCallResult::Unit => AbstractDynamicCallResult::Unit,
+        AbstractStructuralCallResult::Scalar(result) => AbstractDynamicCallResult::Scalar(*result),
+        AbstractStructuralCallResult::Structural { .. } => {
+            unreachable!("a structural-result call never lowers as a dynamic call")
+        }
     };
     let invalid = || LoweringError::InvalidDynamicDispatch {
         machine: function.machine,
@@ -78,7 +80,6 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
         .get(callee)
         .copied()
         .ok_or(LoweringError::UnknownCallTarget(*callee))?;
-    let callee_result = callee_function.result.scalar().ok_or_else(invalid)?;
     let callee_dynamic_parameters = callee_function
         .operations
         .iter()
@@ -93,157 +94,14 @@ pub(in crate::lowering) fn lower_dynamic_argument_scalar_call(
             _ => None,
         })
         .collect::<Vec<_>>();
-    if !callee_function.parameters.is_empty()
-        || !callee_function.structural_parameters.is_empty()
-        || !callee_function.published_service_ceiling.is_empty()
-        || callee_result.scalar_type != result.scalar_type
-        || callee_dynamic_parameters.len() != dynamic_arguments.len()
-        || dynamic_arguments
-            .iter()
-            .enumerate()
-            .any(|(ordinal, argument)| {
-                argument.target != *callee_dynamic_parameters[ordinal]
-                    || argument.target.ordinal != u32::try_from(ordinal).unwrap_or(u32::MAX)
-                    || argument.target.source_position != u32::try_from(ordinal).unwrap_or(u32::MAX)
-                    || !argument.has_complete_custody(function.machine, *psi_operation, *callee)
-            })
-    {
-        return Err(invalid());
-    }
-    let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
-    let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
-    let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
-    let result_shape = scalar_shape(result.value, result.scalar_type, false)?;
-    if !matches!(
-        result.scalar_type,
-        ScalarType::Boolean | ScalarType::Integer(_)
-    ) {
-        return Err(LoweringError::UnitScalarCallIntegerTypeUnsupported(
-            result.value,
-        ));
-    }
-    let descriptor_parameter_count = dynamic_arguments.len().checked_mul(2).ok_or_else(invalid)?;
-    let call_plan = evaluate_call_plan(
-        CallingPolicy::native_for_target(target),
-        &CallSignature {
-            parameters: vec![pointer_shape; descriptor_parameter_count],
-            result: Some(result_shape),
-        },
-    )
-    .map_err(LoweringError::AbiPlan)?;
-    if call_plan.result.as_ref().map(|placement| placement.shape) != Some(result_shape)
-        || call_plan.parameters.len() != descriptor_parameter_count
-    {
-        return Err(invalid());
-    }
-    let target_dynamic_arguments = prepare_dynamic_arguments(
-        function.machine,
-        *psi_operation,
-        dynamic_arguments,
-        &call_plan,
-        parameters_by_place,
-        caller_dynamic_parameters,
-        structural_types,
-        shape_cache,
-        active,
-    )?;
-    let result_home = TargetUnitScalarHomeRequirement {
-        defining_operation: *psi_operation,
-        source_value: result.value,
-        scalar_type: result.scalar_type,
-        shape: result_shape,
+    let result_matches = match (&callee_function.result, result) {
+        (AbstractFunctionResult::Unit, AbstractDynamicCallResult::Unit) => true,
+        (AbstractFunctionResult::Scalar(declared), AbstractDynamicCallResult::Scalar(result)) => {
+            declared.scalar_type == result.scalar_type
+        }
+        _ => false,
     };
-    if matches!(result.scalar_type, ScalarType::Integer(_)) {
-        insert_known_unit_integer(
-            scalar_values,
-            result.value,
-            KnownUnitInteger::Home(result_home),
-        )?;
-    }
-    operations.push(
-        TargetUnitOperation::StructuralScalarCallWithDynamicArguments {
-            psi_operation: *psi_operation,
-            result: *result,
-            callee: *callee,
-            call_plan,
-            result_home,
-            structural_arguments: Vec::new(),
-            dynamic_arguments: target_dynamic_arguments,
-            claim_transfers: claim_transfers.clone(),
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
-        },
-    );
-    provenance.operations.push(*psi_operation);
-    Ok(result_home)
-}
-
-#[allow(clippy::too_many_arguments)]
-pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
-    operation: &AbstractOperation,
-    function: &AbstractFunction,
-    target: NativeTarget,
-    functions: &BTreeMap<MachineId, &AbstractFunction>,
-    structural_types: &StructuralTypeLookup<'_>,
-    parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    caller_dynamic_parameters: &[TargetDynamicDescriptorParameterAbi],
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
-    operations: &mut Vec<TargetUnitOperation>,
-    provenance: &mut TerminalPsiProvenance,
-) -> Result<(), LoweringError> {
-    let AbstractOperation::CallStructural {
-        psi_operation,
-        callee,
-        arguments,
-        structural_arguments,
-        dynamic_arguments,
-        claim_transfers,
-        requirement_obligations,
-        crash_continuations,
-        result: AbstractStructuralCallResult::Unit,
-    } = operation
-    else {
-        unreachable!("dynamic-argument Unit lowering receives only its exact role")
-    };
-    let invalid = || LoweringError::InvalidDynamicDispatch {
-        machine: function.machine,
-        operation: *psi_operation,
-    };
-    // Same forwarding rule as the scalar form: unattached callers may only
-    // pass their own descriptor parameters through.
-    if (function.attachment.is_none()
-        && dynamic_arguments.iter().any(|argument| {
-            !matches!(
-                argument.source,
-                AbstractDynamicDescriptorSource::Parameter(_)
-            )
-        }))
-        || !arguments.is_empty()
-        || !structural_arguments.is_empty()
-        || dynamic_arguments.is_empty()
-    {
-        return Err(invalid());
-    }
-    let callee_function = functions
-        .get(callee)
-        .copied()
-        .ok_or(LoweringError::UnknownCallTarget(*callee))?;
-    let callee_dynamic_parameters = callee_function
-        .operations
-        .iter()
-        .take_while(|operation| {
-            matches!(
-                operation,
-                AbstractOperation::DynamicDescriptorParameter { .. }
-            )
-        })
-        .filter_map(|operation| match operation {
-            AbstractOperation::DynamicDescriptorParameter { parameter } => Some(parameter),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    if callee_function.result != AbstractFunctionResult::Unit
+    if !result_matches
         || !callee_function.parameters.is_empty()
         || !callee_function.structural_parameters.is_empty()
         || !callee_function.published_service_ceiling.is_empty()
@@ -263,19 +121,23 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
     let pointer_size = u16::try_from(target.pointer_size).map_err(|_| invalid())?;
     let pointer_alignment = u16::try_from(target.pointer_alignment).map_err(|_| invalid())?;
     let pointer_shape = ValueShape::integer(u32::from(pointer_size), pointer_alignment);
+    let result_home = dynamic_result_home(*psi_operation, result)?;
+    let result_shape = result_home.map(|home| home.shape);
     let descriptor_parameter_count = dynamic_arguments.len().checked_mul(2).ok_or_else(invalid)?;
     let call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target),
         &CallSignature {
             parameters: vec![pointer_shape; descriptor_parameter_count],
-            result: None,
+            result: result_shape,
         },
     )
     .map_err(LoweringError::AbiPlan)?;
-    if call_plan.result.is_some() || call_plan.parameters.len() != descriptor_parameter_count {
+    if call_plan.result.as_ref().map(|placement| placement.shape) != result_shape
+        || call_plan.parameters.len() != descriptor_parameter_count
+    {
         return Err(invalid());
     }
-    let target_dynamic_arguments = prepare_dynamic_arguments(
+    let arguments = prepare_dynamic_arguments(
         function.machine,
         *psi_operation,
         dynamic_arguments,
@@ -286,20 +148,15 @@ pub(in crate::lowering) fn lower_dynamic_argument_unit_call(
         shape_cache,
         active,
     )?;
-    operations.push(
-        TargetUnitOperation::StructuralUnitCallWithDynamicArguments {
-            psi_operation: *psi_operation,
+    Ok(LoweredDynamicCall {
+        dispatch: TargetDynamicDispatch::DescriptorArguments {
             callee: *callee,
-            call_plan,
-            structural_arguments: Vec::new(),
-            dynamic_arguments: target_dynamic_arguments,
+            arguments,
             claim_transfers: claim_transfers.clone(),
-            requirement_obligations: requirement_obligations.clone(),
-            crash_continuations: crash_continuations.clone(),
         },
-    );
-    provenance.operations.push(*psi_operation);
-    Ok(())
+        call_plan,
+        result_home,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

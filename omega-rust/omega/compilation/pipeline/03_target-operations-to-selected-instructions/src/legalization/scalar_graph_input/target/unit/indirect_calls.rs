@@ -6,7 +6,10 @@ use super::{
     TargetUnitOperation, ValueId,
 };
 use crate::legalization::scalar_graph_input::indirect_calls::parameter_call_contract;
-use target_operations::TargetUnitScalarHomeRequirement;
+use abstract_operations::{AbstractDynamicCallResult, AbstractDynamicDispatch};
+use target_operations::{
+    TargetDynamicCallResult, TargetDynamicDispatch, TargetUnitScalarHomeRequirement,
+};
 
 pub(super) fn validate(
     function: &TargetFunction,
@@ -16,114 +19,70 @@ pub(super) fn validate(
     native: &TargetOperationPlan,
 ) -> Result<(), LegalizationError> {
     let (
-        psi_operation,
-        dynamic_dispatch,
-        parameter_abi,
-        requirement,
-        dispatch_call_plan,
-        table_slot_byte_offset,
-        result_home,
-        expected_result,
-    ) = match (target, abstracted) {
-        (
-            TargetUnitOperation::DynamicParameterScalarCall {
-                psi_operation,
-                result,
-                dynamic_dispatch,
-                parameter_abi,
-                requirement,
-                dispatch_call_plan,
-                table_slot_byte_offset,
-                result_home,
-                requirement_obligations,
-                crash_continuations,
-            },
-            AbstractOperation::CallDynamic {
-                psi_operation: actual,
-                dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dispatch),
-                result: abstract_operations::AbstractDynamicCallResult::Scalar(defined),
-                requirement_obligations: obligations,
-                crash_continuations: crashes,
-            },
-        ) if psi_operation == actual
-            && result == defined
-            && dynamic_dispatch == dispatch
-            && requirement_obligations == obligations
-            && crash_continuations == crashes =>
-        {
-            (
-                *psi_operation,
-                dynamic_dispatch,
-                parameter_abi,
-                requirement,
-                dispatch_call_plan,
-                *table_slot_byte_offset,
-                Some(*result_home),
-                Some(result.scalar_type),
-            )
-        }
-        (
-            TargetUnitOperation::DynamicParameterUnitCall {
-                psi_operation,
-                dynamic_dispatch,
-                parameter_abi,
-                requirement,
-                dispatch_call_plan,
-                table_slot_byte_offset,
-                requirement_obligations,
-                crash_continuations,
-            },
-            AbstractOperation::CallDynamic {
-                psi_operation: actual,
-                dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(dispatch),
-                result: abstract_operations::AbstractDynamicCallResult::Unit,
-                requirement_obligations: obligations,
-                crash_continuations: crashes,
-            },
-        ) if psi_operation == actual
-            && dynamic_dispatch == dispatch
-            && requirement_obligations == obligations
-            && crash_continuations == crashes =>
-        {
-            (
-                *psi_operation,
-                dynamic_dispatch,
-                parameter_abi,
-                requirement,
-                dispatch_call_plan,
-                *table_slot_byte_offset,
-                None,
-                None,
-            )
-        }
-        _ => return Err(LegalizationError::custody()),
+        TargetUnitOperation::CallDynamic {
+            psi_operation,
+            dispatch:
+                TargetDynamicDispatch::Parameter {
+                    custody,
+                    parameter_abi,
+                    requirement,
+                    table_slot_byte_offset,
+                },
+            call_plan,
+            result,
+            requirement_obligations,
+            crash_continuations,
+        },
+        AbstractOperation::CallDynamic {
+            psi_operation: actual,
+            dispatch: AbstractDynamicDispatch::Parameter(dispatch),
+            result: defined,
+            requirement_obligations: obligations,
+            crash_continuations: crashes,
+        },
+    ) = (target, abstracted)
+    else {
+        return Err(LegalizationError::custody());
     };
+    // The result role must agree: a scalar row replays its home below, and a
+    // Unit row carries none.
+    if psi_operation != actual
+        || custody != dispatch
+        || requirement_obligations != obligations
+        || crash_continuations != crashes
+        || !matches!(
+            (result, defined),
+            (
+                TargetDynamicCallResult::Unit,
+                AbstractDynamicCallResult::Unit
+            ) | (
+                TargetDynamicCallResult::Scalar(_),
+                AbstractDynamicCallResult::Scalar(_)
+            )
+        )
+    {
+        return Err(LegalizationError::custody());
+    }
     let contract = parameter_call_contract(
         &function.graph.dynamic_parameters,
         function.machine,
-        psi_operation,
-        dynamic_dispatch,
-        expected_result,
+        *psi_operation,
+        custody,
+        defined.scalar().map(|result| result.scalar_type),
         native.target,
     )?;
     if *parameter_abi != contract.parameter_abi
         || *requirement != contract.requirement
-        || *dispatch_call_plan != contract.dispatch_call_plan
-        || table_slot_byte_offset != contract.table_slot_byte_offset
+        || *call_plan != contract.dispatch_call_plan
+        || *table_slot_byte_offset != contract.table_slot_byte_offset
     {
         return Err(LegalizationError::custody());
     }
-    if let (
-        Some(home),
-        AbstractOperation::CallDynamic {
-            dispatch: abstract_operations::AbstractDynamicDispatch::Parameter(_),
-            result: abstract_operations::AbstractDynamicCallResult::Scalar(result),
-            ..
-        },
-    ) = (result_home, abstracted)
+    if let (TargetDynamicCallResult::Scalar(home), AbstractDynamicCallResult::Scalar(result)) =
+        (result, defined)
     {
         let expected = TargetUnitScalarHomeRequirement {
-            defining_operation: psi_operation,
+            defining_operation: *psi_operation,
             source_value: result.value,
             scalar_type: result.scalar_type,
             shape: contract
@@ -133,10 +92,10 @@ pub(super) fn validate(
                 .ok_or_else(|| LegalizationError::custody())?
                 .shape,
         };
-        if home != expected {
+        if *home != expected {
             return Err(LegalizationError::custody());
         }
-        sources.push((result.value, Source::Home(home)));
+        sources.push((result.value, Source::Home(*home)));
     }
     Ok(())
 }
