@@ -481,7 +481,11 @@ fn authored_indexed_primitive_read(
     let Some(primitive) =
         validation::declared_place_type_raw(&checked.typed, machine, Some(state), expression)
             .and_then(|reference| {
+                // The retained leaf carries the base primitive whether or not
+                // its declared type keeps a range or policy qualification, so
+                // the authored side reads the same primitive.
                 validation::unrestricted_builtin_primitive(&checked.typed, reference)
+                    .or_else(|| checked.typed.primitive_type_reference(reference))
             })
             .filter(|primitive| supported_mutable_parameter(*primitive))
     else {
