@@ -303,6 +303,12 @@ fn lower_nonbinary_expression_node_into_table(
                 let arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 0, x);
                 expression_table(lowerer).set_expression_handle_at_offset(arguments, 1, negated);
+                // The `max` is this authored `abs` call's own application,
+                // not an extra call: it keeps the authored call's
+                // acknowledgement, so it owes and receives the same Call
+                // selection an authored `max` would, at the `abs` token. A
+                // float operand then settles that selection on the bound
+                // `F64::maximum` requirement, which review custody rejoins.
                 return Ok(expression_table(lowerer).insert(ExpressionNode::Call(
                     TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
@@ -311,11 +317,7 @@ fn lower_nonbinary_expression_node_into_table(
                         machine_arguments: Box::default(),
                         arguments,
                         evidence_arguments: Box::default(),
-                        operational_acknowledgement:
-                            language_semantics::CallOperationalAcknowledgement {
-                                origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                                ..Default::default()
-                            },
+                        operational_acknowledgement: call.operational_acknowledgement,
                     },
                 )));
             }
@@ -335,6 +337,26 @@ fn lower_nonbinary_expression_node_into_table(
                 let x = lower_expression_into_table(lowerer, syntax_trees, argument_handles[0])?;
                 let lo = lower_expression_into_table(lowerer, syntax_trees, argument_handles[1])?;
                 let hi = lower_expression_into_table(lowerer, syntax_trees, argument_handles[2])?;
+                // The two applications realize this one authored `clamp` call
+                // and keep its acknowledgement, so each owes an authored Call
+                // selection like an authored `min`/`max`. They need distinct
+                // authored coordinates, or the selection ledger would merge
+                // them into one occurrence selecting two declarations: the
+                // inner `max` takes the `clamp` token and the outer `min`,
+                // whose value is the whole clamp, takes the application from
+                // that token through its last argument.
+                let token = call.target.source_span();
+                let last_argument = syntax_trees.expressions.source_span(argument_handles[2]);
+                let application = if last_argument.source_id == token.source_id
+                    && last_argument.span.end > token.span.start
+                {
+                    source::SourceSpan::new(
+                        token.source_id,
+                        source::Span::new(token.span.start, last_argument.span.end),
+                    )
+                } else {
+                    token
+                };
                 let max_arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(max_arguments, 0, x);
                 expression_table(lowerer).set_expression_handle_at_offset(max_arguments, 1, lo);
@@ -342,16 +364,28 @@ fn lower_nonbinary_expression_node_into_table(
                     expression_table(lowerer).insert(ExpressionNode::Call(TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: SymbolHandle::invalid(),
-                        target: DiagnosticName::from_str("max", call.target.source_span()),
+                        target: DiagnosticName::from_str("max", token),
                         machine_arguments: Box::default(),
                         arguments: max_arguments,
                         evidence_arguments: Box::default(),
-                        operational_acknowledgement:
-                            language_semantics::CallOperationalAcknowledgement {
-                                origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                                ..Default::default()
-                            },
+                        operational_acknowledgement: call.operational_acknowledgement,
                     }));
+                expression_table(lowerer).set_source_span(max_call, token);
+                // The outer `min` is the value this lowering returns, so the
+                // caller records it as authored; the inner `max` is recorded
+                // here, as `abs` records its synthesized subtraction.
+                if let Some(exposure) = lowerer.current_authored_expression_exposure {
+                    expression_table(lowerer).set_authored_expression_exposure(max_call, exposure);
+                    lowerer.pending_authored_expressions.push(
+                        crate::resolution::lowerer::PendingAuthoredExpression {
+                            expression: max_call,
+                            exposure,
+                        },
+                    );
+                }
+                if let Some(partition) = lowerer.current_compiler_selection_partition {
+                    expression_table(lowerer).set_compiler_selection_partition(max_call, partition);
+                }
                 let min_arguments = expression_table(lowerer).reserve_expression_handles(2);
                 expression_table(lowerer).set_expression_handle_at_offset(
                     min_arguments,
@@ -363,15 +397,11 @@ fn lower_nonbinary_expression_node_into_table(
                     TableCallExpression {
                         receiver: ExpressionHandle::invalid(),
                         target_symbol: SymbolHandle::invalid(),
-                        target: DiagnosticName::from_str("min", call.target.source_span()),
+                        target: DiagnosticName::from_str("min", application),
                         machine_arguments: Box::default(),
                         arguments: min_arguments,
                         evidence_arguments: Box::default(),
-                        operational_acknowledgement:
-                            language_semantics::CallOperationalAcknowledgement {
-                                origin: language_semantics::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                                ..Default::default()
-                            },
+                        operational_acknowledgement: call.operational_acknowledgement,
                     },
                 )));
             }
