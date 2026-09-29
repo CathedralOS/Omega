@@ -20,6 +20,38 @@ pub(super) fn prove(
     semantic_axioms: &[Proposition],
     machine_parameters: &BTreeSet<ValueId>,
 ) -> Option<ProofNode> {
+    // Transport through the field a read observes first. Rejoining a live
+    // store replaces that field with the stored computation, which can drop a
+    // relation proved about the field itself, so it only runs when the
+    // field-level transport fails.
+    transport(
+        context,
+        goal,
+        assumptions,
+        semantic_axioms,
+        machine_parameters,
+        false,
+    )
+    .or_else(|| {
+        transport(
+            context,
+            goal,
+            assumptions,
+            semantic_axioms,
+            machine_parameters,
+            true,
+        )
+    })
+}
+
+fn transport(
+    context: &PropositionContext,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    semantic_axioms: &[Proposition],
+    machine_parameters: &BTreeSet<ValueId>,
+    rejoin_stores: bool,
+) -> Option<ProofNode> {
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut pending = Vec::new();
     goal.visit_value_ids(|value| pending.push(value));
@@ -61,10 +93,12 @@ pub(super) fn prove(
             // transitivity, then let the ordinary definition walk expand that
             // value. Only reconstruction's surviving store facts participate;
             // do not recover a write from source or another observation scope.
-            if !matches!(
-                observed,
-                ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. }
-            ) {
+            if !rejoin_stores
+                || !matches!(
+                    observed,
+                    ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. }
+                )
+            {
                 return None;
             }
             let store = facts.iter().find(|store| {
@@ -179,5 +213,55 @@ mod tests {
                 "a missing or different field store cannot replay the certificate"
             );
         }
+    }
+
+    /// A relation proved about the live field itself must stay usable when
+    /// that field also holds a stored computation: transport through the
+    /// field first, and rejoin the store only when that fails. Rejoining
+    /// first replaced `field <= 4` with an unbounded `unknown + 1 <= 4`.
+    #[test]
+    fn a_field_relation_is_not_lost_to_its_stored_computation() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let scalar_type = ScalarType::Integer(integer_type);
+        let context = PropositionContext::from_value_types_and_places(
+            (1..=3).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
+            [(
+                PlaceId::new(1).unwrap(),
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            )],
+        )
+        .unwrap();
+        let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
+        let literal =
+            |number| ScalarTerm::integer(integer_type, IntegerValue::Signed(number)).unwrap();
+        let field = ScalarTerm::integer_field_path(
+            PlaceId::new(1).unwrap(),
+            vec![CanonicalStructuralPathSegment::Field(
+                StructuralFieldId::new(1).unwrap(),
+            )],
+            integer_type,
+        );
+        let axioms = vec![
+            Proposition::Equal(
+                value(2),
+                ScalarTerm::exact_integer_add(integer_type, value(1), literal(1)).unwrap(),
+            ),
+            Proposition::Equal(field.clone(), value(2)),
+            Proposition::Equal(value(3), field.clone()),
+        ];
+        let assumptions = vec![Proposition::LessOrEqual(field, literal(4))];
+        let goal = Proposition::LessOrEqual(value(3), literal(4));
+        let parameters = BTreeSet::new();
+        let proof = prove(&context, &goal, &assumptions, &axioms, &parameters)
+            .expect("the read transports to the bounded field");
+        proof_admission::accept_certificate(&context, &goal, &assumptions, &axioms, &proof)
+            .unwrap();
+        assert!(
+            prove(&context, &goal, &[], &axioms, &parameters).is_none(),
+            "without the field bound neither route proves the goal"
+        );
     }
 }
