@@ -515,6 +515,44 @@ fn named_boundary_operator_executes_through_the_ordinary_requirement_route() {
 }
 
 #[test]
+fn named_boundary_return_preserves_scalar_requirements() {
+    let checked = crate::front_end::checked_program(
+        r#"
+        data CheckedMath {}
+        boundary operator CheckedMath::offset_zero(input: i32) -> i32
+        requires input >= 0;
+        machine run() -> i32 {
+            let result: i32 = CheckedMath::offset_zero(70);
+            result
+        }
+    "#,
+    );
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_boundary_scalar_returns
+            .boundary_machines
+            .iter()
+            .all(|boundary| boundary.scalar_requires.is_empty()),
+        "the legacy return route cannot discharge or erase scalar boundary requirements"
+    );
+    let lowered = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("run"),
+    )
+    .expect("the ordinary requirement-call route retains its precondition");
+    let boundary = lowered
+        .semantic_module
+        .boundary_machines
+        .iter()
+        .find(|boundary| boundary.kind == terminal_psi::BoundaryRequirementKind::Operator)
+        .expect("named requirement declaration");
+    assert!(!boundary.scalar_requires.is_empty());
+    encode_module(&lowered.semantic_module).expect("retained call obligations are well formed");
+}
+
+#[test]
 fn closed_operator_catalog_rejects_substituted_or_missing_application_custody() {
     let baseline = checked_closed_operator_candidates();
     let provider = baseline
