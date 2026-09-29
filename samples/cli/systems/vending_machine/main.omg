@@ -28,7 +28,6 @@ data Main {
     a: i32 in Wrapping;
     b: i32 in Wrapping;
     change: Change;
-    sum: i32 in Wrapping;
 }
 
 // A value machine with a runtime-selected arm ladder. The sales_count bump
@@ -91,13 +90,13 @@ machine Main::main(&mut self) reaches Console {
 
     state report(&mut self, extra: Change, bonus: i32 in Wrapping) {
         // 35 + 50 - 65 + 40 + 10 - 20 + 3 + 17 = 70
-        self.sum = self.a + self.b - 65
+        let sum: i32 in Wrapping = self.a + self.b - 65
             + self.change.quarters * 40
             + self.change.remainder
             - extra.remainder
             + self.sales_count
             + bonus;
-        transition self.sum == 70 { true -> good() _ -> bad(94) }
+        transition sum == 70 { true -> good() _ -> bad(94) }
     }
 
     state good(&mut self) { self.console.exit_process(70); }
