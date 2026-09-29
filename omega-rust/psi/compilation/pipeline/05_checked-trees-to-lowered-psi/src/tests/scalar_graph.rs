@@ -273,6 +273,7 @@ fn primitive_scalar_source_conditional_emits_empty_affine_cleanup() {
         &[],
         &[],
         &[],
+        &[],
         None,
     )
     .expect("primitive scalar conditional should lower");

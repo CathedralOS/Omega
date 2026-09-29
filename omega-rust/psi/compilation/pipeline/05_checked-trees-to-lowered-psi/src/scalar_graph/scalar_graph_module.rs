@@ -147,6 +147,7 @@ pub(crate) fn build_scalar_graph_module(
     identity_base: u64,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
+    boundaries: &[crate::unit::attached_unit::BoundaryParameters],
     literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
     loop_plan: Option<&crate::scalar_graph::scalar_graph_lowering::cycles::ScalarLoopPlan>,
 ) -> Result<LoweredPsi, LoweringError> {
@@ -163,6 +164,7 @@ pub(crate) fn build_scalar_graph_module(
         identity_base,
         machine_ids,
         requirement_counts,
+        boundaries,
         &[],
         &scalar_contracts::ContractViewNamespace::EMPTY,
         literal_places,
@@ -184,6 +186,10 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     identity_base: u64,
     machine_ids: &[(symbols::SymbolHandle, MachineId)],
     requirement_counts: &[(symbols::SymbolHandle, usize)],
+    // Lowered boundary declarations the module's nested boundary
+    // applications resolve against; a route with no attached Unit closure
+    // declares none and such applications fail closed there.
+    boundaries: &[crate::unit::attached_unit::BoundaryParameters],
     view_parameters: &[(u32, StructuralParameterDeclaration)],
     views: &scalar_contracts::ContractViewNamespace<'_>,
     literal_places: &[crate::scalar_graph::scalar_computations::literals::Slot],
@@ -304,7 +310,7 @@ pub(crate) fn build_scalar_graph_module_in_namespace(
     let call_emission = CallEmissionContext {
         machine_ids,
         requirement_counts,
-        boundaries: &[],
+        boundaries,
         next_obligation_identity: call_obligation_base,
         obligation_limit: identity_base
             .checked_add(TERMINAL_MACHINE_IDENTITY_STRIDE)

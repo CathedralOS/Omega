@@ -88,6 +88,7 @@ impl Expansion<'_> {
                 source_coordinate: coordinate,
                 source_expression: source.authored_expression,
                 target_machine,
+                target_state,
                 result_type,
                 arguments: parameters(&operand_types)
                     .into_iter()

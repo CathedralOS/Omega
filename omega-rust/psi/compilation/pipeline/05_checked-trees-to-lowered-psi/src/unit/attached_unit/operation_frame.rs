@@ -89,6 +89,11 @@ pub(super) use calls::CallInputs;
 pub(crate) struct BoundaryParameters {
     /// The checked boundary machine calls name.
     pub(crate) source: symbols::SymbolHandle,
+    /// The checked signature the declaration lowers: the requirement state
+    /// for a machine boundary, or the same symbol as `source` for a trait or
+    /// operator requirement. Several declarations may share `source`; a call
+    /// names one declaration by the pair.
+    pub(crate) signature: symbols::SymbolHandle,
     /// The published boundary identity.
     pub(crate) id: BoundaryMachineId,
     pub(crate) structural: Vec<StructuralParameterDeclaration>,

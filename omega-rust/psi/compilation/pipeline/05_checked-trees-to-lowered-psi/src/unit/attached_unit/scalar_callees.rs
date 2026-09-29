@@ -391,6 +391,7 @@ pub(super) fn emit(
                 identity_base,
                 catalog.machine_ids,
                 catalog.requirement_counts,
+                catalog.boundary_parameters,
                 &graph_parameters.1,
                 &views,
                 &machine.literal_places,
