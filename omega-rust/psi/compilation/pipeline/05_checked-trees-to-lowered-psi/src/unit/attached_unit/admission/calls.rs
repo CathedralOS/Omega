@@ -36,7 +36,8 @@ use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use checked_trees::{
     CheckedBoundaryMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan, CheckedUnitStructuralReturnPlan,
+    CheckedUnitCallResult, CheckedUnitEntryClaimPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralReturnPlan,
 };
 use symbols::SymbolHandle;
 
@@ -111,24 +112,18 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     operation: &CheckedUnitEffectOperationPlan,
     boundaries: &mut Vec<(&'a CheckedBoundaryMachinePlan, String)>,
 ) -> Result<(), LoweringError> {
-    match operation {
-        // A member call shares its construction's statement custody: the
-        // construction's source replay rejoins the member's occurrence and
-        // result as part of the value. Only its target is admitted here.
-        CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } => {
-            for call in calls {
-                unit_target(checked, plans, call.operation())?;
-            }
-            return Ok(());
+    // A member call shares its construction's statement custody: the
+    // construction's source replay rejoins the member's occurrence and
+    // result as part of the value. Only its target is admitted here.
+    if let CheckedUnitEffectOperationPlan::EstablishStructuralValue { calls, .. } = operation {
+        for call in calls {
+            unit_target(checked, plans, call.operation())?;
         }
-        CheckedUnitEffectOperationPlan::CallUnit { .. }
-        | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-        | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-        | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. } => {}
-        _ => return Ok(()),
+        return Ok(());
     }
+    let Some(planned) = operation.call() else {
+        return Ok(());
+    };
     crate::emission::call_source_custody::validate_operation(
         checked,
         caller.machine,
@@ -189,102 +184,50 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
         CheckedUnitEffectOperationPlan::ScalarCall { .. } => {
             scalar_call(checked, caller, operation)
         }
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            ..
-        } => {
+        // The three boundary calls differ only in the result their boundary
+        // must declare.
+        _ if planned.is_boundary() => {
             retain_exact_flow_call(
                 checked,
                 caller.machine,
                 caller.state,
-                *coordinate,
-                *target_state,
+                planned.coordinate(),
+                planned.target_state(),
             )?;
+            let expected = match planned.result() {
+                CheckedUnitCallResult::Unit => CheckedBoundaryMachineResultPlan::Unit,
+                CheckedUnitCallResult::Scalar(result) => {
+                    CheckedBoundaryMachineResultPlan::Scalar(result.primitive_type)
+                }
+                CheckedUnitCallResult::Structural(result) => {
+                    let target = unique_unit_boundary(plans, planned.target_machine())?;
+                    if !matches!(
+                        &target.result,
+                        CheckedBoundaryMachineResultPlan::Structural {
+                            type_identity,
+                            multiplicity,
+                            ..
+                        } if type_identity == &result.type_identity
+                            && multiplicity == &result.multiplicity
+                    ) {
+                        return unsupported(
+                            "Unit structural result drifted from its checked boundary target",
+                        );
+                    }
+                    target.result.clone()
+                }
+            };
             retain_exact_unit_boundary(
                 checked,
                 plans,
                 boundaries,
-                *target_machine,
-                *target_state,
-                *target_contract_report_fingerprint,
-                *service_reach,
-                CheckedBoundaryMachineResultPlan::Unit,
+                planned.target_machine(),
+                planned.target_state(),
+                planned.target_contract_report_fingerprint(),
+                planned.service_reach(),
+                expected,
             )?;
-            boundary_consumer(checked, plans, caller, operation, *target_machine)
-        }
-        CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            result,
-            ..
-        } => {
-            retain_exact_flow_call(
-                checked,
-                caller.machine,
-                caller.state,
-                *coordinate,
-                *target_state,
-            )?;
-            retain_exact_unit_boundary(
-                checked,
-                plans,
-                boundaries,
-                *target_machine,
-                *target_state,
-                *target_contract_report_fingerprint,
-                *service_reach,
-                CheckedBoundaryMachineResultPlan::Scalar(result.primitive_type),
-            )?;
-            boundary_consumer(checked, plans, caller, operation, *target_machine)
-        }
-        CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            target_machine,
-            target_state,
-            target_contract_report_fingerprint,
-            service_reach,
-            result,
-            ..
-        } => {
-            retain_exact_flow_call(
-                checked,
-                caller.machine,
-                caller.state,
-                *coordinate,
-                *target_state,
-            )?;
-            let target = unique_unit_boundary(plans, *target_machine)?;
-            if !matches!(
-                &target.result,
-                CheckedBoundaryMachineResultPlan::Structural {
-                    type_identity,
-                    multiplicity,
-                    ..
-                } if type_identity == &result.type_identity
-                    && multiplicity == &result.multiplicity
-            ) {
-                return unsupported(
-                    "Unit structural result drifted from its checked boundary target",
-                );
-            }
-            retain_exact_unit_boundary(
-                checked,
-                plans,
-                boundaries,
-                *target_machine,
-                *target_state,
-                *target_contract_report_fingerprint,
-                *service_reach,
-                target.result.clone(),
-            )?;
-            boundary_consumer(checked, plans, caller, operation, *target_machine)
+            boundary_consumer(checked, plans, caller, operation, planned.target_machine())
         }
         _ => unreachable!("only call operations reach call admission"),
     }
