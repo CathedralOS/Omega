@@ -654,6 +654,54 @@ pub(crate) fn build_checked_unit_effect_plans_with_call_frames(
             _ => {}
         }
     }
+    // A shared record loan's referee is a structural surface no signature,
+    // parameter, or operation names: member reads through the loan observe
+    // the borrowed record's fields, so its shape must reach the catalog for
+    // the member read's namespace resolution to find it.
+    let loaned_record_types = candidates
+        .iter()
+        .map(|plan| plan.machine)
+        .chain(composed_machines.iter().map(|plan| plan.machine))
+        .collect::<Vec<_>>();
+    let mut retained_loan_identities = Vec::new();
+    for machine in loaned_record_types {
+        let Some(source_machine) = program
+            .machines()
+            .iter()
+            .find(|candidate| candidate.symbol == machine)
+        else {
+            continue;
+        };
+        for state in program.machine_states(source_machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                let TypeReferenceNode::Reference {
+                    referee,
+                    access: language_semantics::ReferenceAccess::Shared,
+                    ..
+                } = program
+                    .type_reference_table
+                    .type_reference(local.type_reference)
+                else {
+                    continue;
+                };
+                if !matches!(
+                    program.type_reference_table.type_reference(*referee),
+                    TypeReferenceNode::Named { .. }
+                ) {
+                    continue;
+                }
+                if let Some(identity) = shapes.add_type(*referee, &[], &[]) {
+                    retained_loan_identities.push(identity);
+                }
+            }
+        }
+    }
+    for identity in &retained_loan_identities {
+        retained_type_identities.insert(identity.as_str());
+    }
     shapes.retain_transitive(&retained_type_identities);
 
     CheckedUnitEffectPlans {

@@ -1185,6 +1185,8 @@ fail/borrows/borrow_unknown_index_pair_mut rejected 305ms expected
 	cannot prove index `right_index` is within length 2 in Main::main::main
 fail/borrows/mutable_record_state_alias rejected 282ms expected
 	state `finish` receives `cell` as mutable more than once
+fail/borrows/runtime_index_mut_borrow rejected 1905ms expected
+	cannot prove index `self.off` is within length 48 in Main::main::main
 fail/boundary/bare_field_value_rejected rejected 151ms expected
 	field `console` on data `Main` names bare boundary trait `Console` in value position; the intrinsic `Binding<R>` carrier is the only service value spelling
 fail/build/build_effects_undeclared rejected 43ms expected
@@ -2046,11 +2048,13 @@ run/borrows/local_mut_borrow checked 1368ms
 run/borrows/probe_shared_len checked 1340ms
 run/borrows/recast_mut_borrow checked 1367ms
 run/borrows/reference_local_binding_routes checked 1036ms
+run/borrows/reference_result_call_binding checked 5429ms
 run/borrows/runtime_index_bounded_borrow checked 1355ms
 run/borrows/shared_field_borrow checked 1040ms
 run/borrows/shared_indexed_read checked 1407ms
 run/borrows/shared_local_borrow checked 1041ms
 run/borrows/shared_recast_borrow checked 1041ms
+run/borrows/shared_record_loan_member_read checked 4336ms
 run/borrows/shared_runtime_index_borrow checked 1040ms
 run/contained_health_loop_command_branch checked 302ms
 run/nested_mut_alias_assignment_return checked 339ms
