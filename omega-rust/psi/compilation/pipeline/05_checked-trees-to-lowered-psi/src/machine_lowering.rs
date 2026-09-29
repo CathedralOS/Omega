@@ -209,6 +209,9 @@ fn lower_terminal_selection(
     // validation; a nonempty table is then refused by the execution gate below
     // until executable quotient lowering exists.
     retain_checked_quotient_correspondences(checked, &mut lowered.semantic_module)?;
+    crate::emission::operation_emission::element_unification::unify_hoisted_element_reads(
+        &mut lowered.semantic_module,
+    );
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );

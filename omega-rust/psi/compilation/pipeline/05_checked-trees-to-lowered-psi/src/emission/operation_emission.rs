@@ -6,6 +6,7 @@
 pub(crate) mod boolean;
 pub(crate) mod buffer;
 pub(crate) mod calls;
+pub(crate) mod element_unification;
 pub(crate) mod expressions;
 pub(crate) mod integer;
 pub(crate) mod place_declarations;
