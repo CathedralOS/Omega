@@ -10,11 +10,7 @@ data Point {
     y: i32 in Trapping;
 }
 
-data Main {
-    console: Binding<Console>;
-}
-
-machine Main::main(&mut self) reaches Console {
+machine main() reaches Console {
     let mut made: Point;
-    self.console.exit_process(70);
+    Console::exit_process(70);
 }

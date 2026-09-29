@@ -17,10 +17,6 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 
-data Main {
-    console: Binding<Console>;
-}
-
 machine prefix_count<Count: i32>(base: i32) -> i32 in Wrapping {
     Count as i32 in Wrapping
 }
@@ -45,12 +41,12 @@ machine reassigned_source() -> i32 in Wrapping {
     forwarded + obliged
 }
 
-machine Main::main(&mut self)
+machine main()
 reaches Console {
     let n: i32 = 3;
     let direct: i32 in Wrapping = prefix_count<n>(7);
     let reassigned: i32 in Wrapping = reassigned_source();
     let closed: i32 in Wrapping = prefix_count<4>(9);
     let total: i32 in Wrapping = direct + reassigned + closed;
-    self.console.exit_process(total as i32);
+    Console::exit_process(total as i32);
 }
