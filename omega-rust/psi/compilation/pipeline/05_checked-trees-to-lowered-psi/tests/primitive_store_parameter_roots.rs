@@ -145,11 +145,11 @@ fn a_primitive_store_after_a_scalar_formal_writes_its_authored_parameter() {
 }
 
 /// The state graph replays a primitive store's authored root before it emits
-/// anything. Its emission still refuses a borrowed primitive after a scalar
-/// formal (`primitive_references::bindings` requires each borrowed scalar at
-/// its dense position), so this pins the replay: the untampered root resolves
-/// to its own parameter and stops at that emission wall, while the sibling's
-/// authored position fails replay against the authored target.
+/// anything. Terminal has no block-parameter form for a `&mut` primitive, so
+/// emission then refuses the state's parameters; this pins the replay: the
+/// untampered root resolves to its own parameter and stops at that emission
+/// wall, while the sibling's authored position fails replay against the
+/// authored target.
 #[test]
 fn a_state_graph_primitive_store_replays_its_authored_parameter_after_a_scalar_formal() {
     for (target, position, sibling) in [("first", 1, 2), ("second", 2, 1)] {
@@ -178,12 +178,12 @@ fn a_state_graph_primitive_store_replays_its_authored_parameter_after_a_scalar_f
             TerminalMachineSelection::Name("enter"),
         )
         .map(|_| ())
-        .expect_err("the state graph's primitive-reference reads stop emission");
+        .expect_err("a state's `&mut` primitive parameter stops emission");
         assert!(
             matches!(
                 error,
                 checked_trees_to_lowered_psi::LoweringError::Unsupported(
-                    "primitive reference read changed its parameter custody"
+                    "a state's mutable primitive reference parameter has no Terminal block form"
                 )
             ),
             "{target}: replay admits the authored root: {error:?}"

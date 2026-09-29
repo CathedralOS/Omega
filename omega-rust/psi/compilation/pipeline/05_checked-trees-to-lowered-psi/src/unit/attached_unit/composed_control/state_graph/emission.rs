@@ -194,6 +194,25 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
                         ))?
                         .place;
                 } else {
+                    // Terminal admits a mutable block parameter only over a
+                    // plain record. A `&mut` or write-only primitive scalar
+                    // has no block-parameter form, so refuse it here rather
+                    // than publish a block the verifier rejects.
+                    if matches!(
+                        parameter.access,
+                        terminal_psi::StructuralAccess::MutableBorrow
+                            | terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    ) && catalogs.structural_types.iter().any(|declaration| {
+                        declaration.id == parameter.structural_type
+                            && matches!(
+                                declaration.shape,
+                                terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
+                            )
+                    }) {
+                        return unsupported(
+                            "a state's mutable primitive reference parameter has no Terminal block form",
+                        );
+                    }
                     // The persistent receiver and claim aliases are not block
                     // parameters. Only transferred structural values occupy
                     // its dense namespace.
