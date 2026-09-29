@@ -59,6 +59,20 @@ pub enum TargetUnitOperation {
         left: TargetUnitScalarArgumentSource,
         right: TargetUnitScalarArgumentSource,
     },
+    /// One Terminal boundary call whose admitted settlement is a compiler
+    /// float-arithmetic builtin, realized inline in the caller. `boundary`
+    /// and `execution` keep the call's identity and the admitted catalog
+    /// row; `left` and `right` are its two scalar arguments in authored
+    /// order and `result_home` its scalar result. No frame or call exists.
+    NearestIeeeFloatArithmetic {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        execution: BoundaryExecutionBinding,
+        realization: crate::NearestIeeeFloatArithmeticRealization,
+        result_home: TargetUnitScalarHomeRequirement,
+        left: TargetUnitScalarArgumentSource,
+        right: TargetUnitScalarArgumentSource,
+    },
     EstablishPrimitiveLocal {
         psi_operation: OperationId,
         result: StructuralOperationResult,

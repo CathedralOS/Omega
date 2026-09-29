@@ -1361,6 +1361,7 @@ impl Replay<'_> {
         {
             let home = match operation {
                 TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+                | TargetUnitOperation::NearestIeeeFloatArithmetic { result_home, .. }
                 | TargetUnitOperation::StoredDynamicScalarCall { result_home, .. }
                 | TargetUnitOperation::DynamicScalarCall { result_home, .. }
                 | TargetUnitOperation::DynamicParameterScalarCall { result_home, .. }
@@ -1870,6 +1871,10 @@ impl Replay<'_> {
             BoundaryExecutionBinding::CompilerBuiltin(CompilerBuiltinExecution::HostedReadByte) => {
                 matches!(realization, BoundaryRealization::HostedReadByte(_))
             }
+            // Inline float arithmetic never forms a settlement row.
+            BoundaryExecutionBinding::CompilerBuiltin(
+                CompilerBuiltinExecution::NearestIeeeFloatArithmetic { .. },
+            ) => false,
             BoundaryExecutionBinding::AdmittedProvider(_) => true,
         };
         if !execution_matches {

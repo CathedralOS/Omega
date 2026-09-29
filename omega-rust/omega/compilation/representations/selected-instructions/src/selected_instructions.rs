@@ -17,7 +17,11 @@
 
 mod atomic;
 pub mod calls;
+mod ieee_float_arithmetic;
 pub use atomic::{AtomicForm, AtomicOperation, AtomicWidth};
+pub use ieee_float_arithmetic::{
+    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
+};
 pub mod constraints;
 pub mod control_flow;
 mod functions;

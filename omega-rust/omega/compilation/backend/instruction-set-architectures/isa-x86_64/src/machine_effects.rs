@@ -71,6 +71,13 @@ pub fn x86_64_machine_effect_catalog(
                             )?,
                     ));
                 }
+                if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
+                    return Ok(
+                        crate::selected_form_encoding::ieee_float_arithmetic::declaration(
+                            form, constraint,
+                        ),
+                    );
+                }
                 if semantic == MachineSemanticKind::HostedExitProcessI32 {
                     return crate::selected_form_encoding::hosted_exit_process::declaration(
                         target, constraint,
@@ -325,6 +332,7 @@ fn selected_keys(
         float64_to_bits: Some(crate::X86_64_FLOAT64_TO_BITS),
         bits_to_float32: Some(crate::X86_64_BITS_TO_FLOAT32),
         bits_to_float64: Some(crate::X86_64_BITS_TO_FLOAT64),
+        ieee_float_arithmetic: Some(crate::X86_64_IEEE_FLOAT_ARITHMETIC),
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
         multiply_i64: crate::X86_64_MULTIPLY_I64,
@@ -578,6 +586,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
     if let MachineSemanticKind::TrappingInteger(form) = semantic {
         return TrappingShape::of(form).encoded_effects();
     }
+    if let MachineSemanticKind::NearestIeeeFloatArithmetic(_) = semantic {
+        return crate::selected_form_encoding::ieee_float_arithmetic::effects();
+    }
     let view = |name: &str| {
         physical
             .view_named(name)
@@ -591,6 +602,9 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             (0..form.operation.input_count()).collect(),
             form.observed_operand().into_iter().collect(),
         ),
+        MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
+            unreachable!("float arithmetic effects returned above")
+        }
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
         MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
@@ -862,6 +876,9 @@ fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
             minimum_bytes: 1,
             maximum_bytes: None,
         },
+        MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
+            unreachable!("float arithmetic uses its dedicated declaration")
+        }
         MachineSemanticKind::Crash => MachineSizeKnowledge::ExactBytes(2),
         MachineSemanticKind::MaterializeBooleanEqual
         | MachineSemanticKind::MaterializeBooleanU64LessThan

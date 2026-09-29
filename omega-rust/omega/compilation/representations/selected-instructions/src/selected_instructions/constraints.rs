@@ -51,6 +51,9 @@ pub struct SelectedConstraintKeys {
     pub float64_to_bits: Option<RegisterConstraintKey>,
     pub bits_to_float32: Option<RegisterConstraintKey>,
     pub bits_to_float64: Option<RegisterConstraintKey>,
+    /// Nearest-even IEEE arithmetic on general-register payloads: two
+    /// inputs and one result, with fixed scratch floating registers clobbered.
+    pub ieee_float_arithmetic: Option<RegisterConstraintKey>,
     pub add_i64: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
     pub multiply_i64: RegisterConstraintKey,

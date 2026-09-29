@@ -63,6 +63,13 @@ pub fn aarch64_machine_effect_catalog(
                         form, constraint,
                     ));
                 }
+                if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
+                    return Ok(
+                        crate::selected_form_encoding::ieee_float_arithmetic::declaration(
+                            form, constraint,
+                        ),
+                    );
+                }
                 if semantic == MachineSemanticKind::Crash {
                     return Ok(crate::selected_form_encoding::crash::declaration(
                         constraints
@@ -315,6 +322,7 @@ fn selected_keys(
         copy_i64: AARCH64_COPY_I64,
         float32_to_bits: Some(crate::AARCH64_FLOAT32_TO_BITS),
         float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
+        ieee_float_arithmetic: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
         bits_to_float32: Some(crate::AARCH64_BITS_TO_FLOAT32),
         bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
         add_i64: AARCH64_ADD_I64,
@@ -449,6 +457,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
     let (reads, writes) = match semantic {
         MachineSemanticKind::AtomicAccess(form) => {
             return crate::selected_form_encoding::atomic::effects(form);
+        }
+        MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
+            return crate::selected_form_encoding::ieee_float_arithmetic::effects();
         }
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),

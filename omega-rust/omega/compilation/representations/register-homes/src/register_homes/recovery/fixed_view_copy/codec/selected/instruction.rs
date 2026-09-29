@@ -85,6 +85,7 @@ pub(super) fn decode_instruction(
 fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     let tag = match kind {
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::CallAggregate { .. } => 35,
         SelectedInstructionKind::ReturnAggregate { .. } => 36,
         SelectedInstructionKind::Store { .. } => 24,
@@ -413,6 +414,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
+        tag if selected_instructions::IeeeFloatArithmeticForm::from_machine_tag(tag).is_some() => {
+            SelectedInstructionKind::NearestIeeeFloatArithmetic {
+                form: selected_instructions::IeeeFloatArithmeticForm::from_machine_tag(tag)
+                    .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+            }
+        }
         tag if selected_instructions::AtomicForm::from_machine_tag(tag).is_some() => {
             SelectedInstructionKind::AtomicAccess {
                 form: selected_instructions::AtomicForm::from_machine_tag(tag)
@@ -677,6 +684,17 @@ mod tests {
     use super::{Cursor, MachineId, SelectedInstructionKind};
     use crate::register_homes::recovery::fixed_view_copy::codec::selected::decode_kind;
     use crate::register_homes::recovery::fixed_view_copy::codec::selected::instruction::encode_kind;
+
+    #[test]
+    fn float_arithmetic_forms_keep_their_shared_tags_through_recovery() {
+        for form in selected_instructions::IeeeFloatArithmeticForm::ALL {
+            let kind = SelectedInstructionKind::NearestIeeeFloatArithmetic { form };
+            let mut bytes = Vec::new();
+            encode_kind(&mut bytes, kind);
+            assert_eq!(bytes, [form.machine_tag()]);
+            assert_eq!(decode_kind(&mut Cursor::new(&bytes)).unwrap(), kind);
+        }
+    }
 
     #[test]
     fn atomic_forms_keep_their_dense_shared_tags_through_recovery() {

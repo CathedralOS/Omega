@@ -96,6 +96,7 @@ fn keys() -> SelectedConstraintKeys {
         float64_to_bits: Some(instruction(29)),
         bits_to_float32: Some(instruction(30)),
         bits_to_float64: Some(instruction(31)),
+        ieee_float_arithmetic: Some(instruction(785)),
         add_i64: instruction(2),
         subtract_i64: instruction(4),
         multiply_i64: instruction(44),
@@ -933,6 +934,7 @@ fn alternative_family_tag_is_pinned_for_every_family() {
             family,
             MachineAlternativeFamily::TrappingInteger(_)
                 | MachineAlternativeFamily::AtomicAccess(_)
+                | MachineAlternativeFamily::NearestIeeeFloatArithmetic(_)
         ) {
             continue;
         }
@@ -1410,5 +1412,57 @@ fn machine_alternative_identity_bytes_are_pinned_for_every_variant() {
             );
             assert_eq!(bytes, expected, "{applicability:?} {size:?}");
         }
+    }
+}
+
+#[test]
+fn float_arithmetic_family_tags_are_dense_distinct_and_pinned() {
+    use crate::{IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat};
+    let pinned = [
+        (
+            IeeeFloatArithmeticOperation::Add,
+            IeeeFloatFormat::Binary32,
+            230,
+        ),
+        (
+            IeeeFloatArithmeticOperation::Add,
+            IeeeFloatFormat::Binary64,
+            231,
+        ),
+        (
+            IeeeFloatArithmeticOperation::Subtract,
+            IeeeFloatFormat::Binary64,
+            233,
+        ),
+        (
+            IeeeFloatArithmeticOperation::Divide,
+            IeeeFloatFormat::Binary64,
+            237,
+        ),
+    ];
+    for (operation, format, expected) in pinned {
+        let form = IeeeFloatArithmeticForm { operation, format };
+        assert_eq!(
+            alternative_family_tag(MachineAlternativeFamily::NearestIeeeFloatArithmetic(form)),
+            expected
+        );
+        assert_eq!(
+            semantic_kind_tag(MachineSemanticKind::NearestIeeeFloatArithmetic(form)),
+            expected
+        );
+    }
+    let atomic = crate::AtomicForm::ALL
+        .iter()
+        .map(|form| form.machine_tag())
+        .max()
+        .unwrap();
+    for form in IeeeFloatArithmeticForm::ALL {
+        let tag =
+            alternative_family_tag(MachineAlternativeFamily::NearestIeeeFloatArithmetic(form));
+        assert!(tag > atomic, "{form:?} aliases an atomic family tag");
+        assert!(
+            MachineSemanticKind::ALL
+                .contains(&MachineSemanticKind::NearestIeeeFloatArithmetic(form))
+        );
     }
 }

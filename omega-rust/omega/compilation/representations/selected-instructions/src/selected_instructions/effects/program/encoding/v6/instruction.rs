@@ -102,6 +102,12 @@ fn decode_kind(
     allow_jump: bool,
 ) -> Result<SelectedInstructionKind, PreAllocationMachineEffectDecodeError> {
     Ok(match cursor.byte()? {
+        tag if crate::IeeeFloatArithmeticForm::from_machine_tag(tag).is_some() => {
+            SelectedInstructionKind::NearestIeeeFloatArithmetic {
+                form: crate::IeeeFloatArithmeticForm::from_machine_tag(tag)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            }
+        }
         tag if crate::AtomicForm::from_machine_tag(tag).is_some() => {
             SelectedInstructionKind::AtomicAccess {
                 form: crate::AtomicForm::from_machine_tag(tag)
@@ -462,6 +468,12 @@ fn decode_alternative_for_version(
     allow_jump: bool,
 ) -> Result<MachineAlternative, PreAllocationMachineEffectDecodeError> {
     let family = match cursor.byte()? {
+        tag if crate::IeeeFloatArithmeticForm::from_machine_tag(tag).is_some() => {
+            MachineAlternativeFamily::NearestIeeeFloatArithmetic(
+                crate::IeeeFloatArithmeticForm::from_machine_tag(tag)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            )
+        }
         tag if crate::AtomicForm::from_machine_tag(tag).is_some() => {
             MachineAlternativeFamily::AtomicAccess(
                 crate::AtomicForm::from_machine_tag(tag)

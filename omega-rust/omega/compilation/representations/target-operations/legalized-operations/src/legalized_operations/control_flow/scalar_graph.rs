@@ -237,7 +237,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::BitwiseOr { left, right }
             | LegalizedScalarInstructionKind::BitwiseXor { left, right }
             | LegalizedScalarInstructionKind::Compare { left, right, .. }
-            | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
+            | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. }
+            | LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { left, right, .. } => {
                 [*left, *right].into_iter().for_each(visit)
             }
         }
@@ -257,6 +258,16 @@ pub enum LegalizedScalarInstructionKind {
     },
     IeeeFloatCompare {
         comparison: semantic_vocabulary::IeeeFloatComparisonOperation,
+        format: semantic_vocabulary::IeeeFloatFormat,
+        left: ValueId,
+        right: ValueId,
+    },
+    /// One selected compiler float-arithmetic boundary call realized
+    /// inline: the exact nearest-even IEEE operation of `format` on the
+    /// call's two arguments. `boundary` keeps the call's Terminal identity.
+    NearestIeeeFloatArithmetic {
+        boundary: semantic_vocabulary::BoundaryMachineId,
+        operation: target_operations::IeeeFloatArithmeticOperation,
         format: semantic_vocabulary::IeeeFloatFormat,
         left: ValueId,
         right: ValueId,

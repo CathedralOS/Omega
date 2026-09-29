@@ -525,6 +525,7 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
         }
         MachineSemanticKind::TrappingInteger(form) => trapping_family_tag(form),
         MachineSemanticKind::AtomicAccess(form) => form.machine_tag(),
+        MachineSemanticKind::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
     }
 }
 
@@ -637,6 +638,7 @@ pub const fn alternative_family_tag(family: MachineAlternativeFamily) -> u8 {
         }
         MachineAlternativeFamily::TrappingInteger(form) => trapping_family_tag(form),
         MachineAlternativeFamily::AtomicAccess(form) => form.machine_tag(),
+        MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => form.machine_tag(),
     }
 }
 

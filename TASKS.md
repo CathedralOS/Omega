@@ -1703,11 +1703,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `native-artifact/src/physical/derivation/evidence.rs`. The new
     `boundary_internal_call_evidence` test covers a nongeneric requirement's
     internal physical child, not this whole generic matrix.
-  - Install named float execution as Omega builtins, preserving each exact
-    selected meaning: negate, min/max, square root, directed arithmetic,
-    conversions, multiply-then-add and distinct FMA. Native
-    `provider_admission/compiler_builtins.rs` currently handles hosted
-    exit/read/write only. Re-drive `pending/arithmetic/float_computation_no_route`
+  - Install the remaining named float executions as Omega builtins,
+    preserving each exact selected meaning: negate, min/max, square root,
+    directed arithmetic, conversions, multiply-then-add and distinct FMA.
+    Primitive `Float::{add,subtract,multiply,divide}` at f32/f64 already
+    install: stage 00 `compiler_builtins.rs` admits `PrimitiveFloatBinary`
+    arithmetic against the local target catalog and the exact boundary
+    signature, stage 02 `control_flow/ieee_float_arithmetic.rs` realizes the
+    call inline, and each ISA encodes one `NearestIeeeFloatArithmetic` form
+    through scratch FP registers with its own decoder. `pass/float/nearest_even_binary_arithmetic_exit`
+    executes with exit **70** on macOS ARM64 and builds for linux_x86_64.
+    Follow that route per execution. The other `pass/float` customers now stop
+    in Psi (nested value calls, omitted unit plans, `finite` proof), not at
+    native installation. Re-drive `pending/arithmetic/float_computation_no_route`
     both with and without the ordinary float-operations import across
     arithmetic/comparison, field/local/guard positions and f32/f64.
     Preserve declared operator selection rather than use a spelling-based

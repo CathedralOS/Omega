@@ -121,6 +121,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         // other tag of this plan identity.
         SelectedInstructionKind::TrappingInteger { form } => crate::trapping_family_tag(form),
         SelectedInstructionKind::AtomicAccess { form } => form.machine_tag(),
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => form.machine_tag(),
         SelectedInstructionKind::LoadPacked { .. } => 46,
         SelectedInstructionKind::StorePacked { .. } => 47,
         SelectedInstructionKind::CallAggregate { .. } => 35,
@@ -346,6 +347,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::SaturatingMultiply { .. }
         | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::AtomicAccess { .. }
+        | SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::Float32ToBits

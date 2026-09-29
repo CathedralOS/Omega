@@ -188,6 +188,7 @@ pub(in crate::legalization::scalar_graph_input) fn definition(
             }),
         )),
         TargetUnitOperation::IeeeFloatCompare { result_home, .. }
+        | TargetUnitOperation::NearestIeeeFloatArithmetic { result_home, .. }
         | TargetUnitOperation::ScalarDefinition { result_home, .. }
         | TargetUnitOperation::Call {
             result: target_operations::TargetCallResult::Scalar(result_home),

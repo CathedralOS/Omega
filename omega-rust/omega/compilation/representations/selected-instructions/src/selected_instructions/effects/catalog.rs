@@ -13,7 +13,9 @@ use register_model::ValidatedRegisterConstraintCatalog;
 
 use validation::validate_declaration;
 
-use crate::{AtomicForm, SaturatingCarrier, SelectedConstraintKeys, TrappingForm};
+use crate::{
+    AtomicForm, IeeeFloatArithmeticForm, SaturatingCarrier, SelectedConstraintKeys, TrappingForm,
+};
 pub use identity::{
     MachineIdentityBytes, alternative_family_tag, encode_machine_alternative_identity,
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
@@ -176,13 +178,19 @@ pub enum MachineSemanticKind {
     /// in-function architectural trap when the policy predicate holds.
     TrappingInteger(TrappingForm),
     AtomicAccess(AtomicForm),
+    NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
 }
 
 impl MachineSemanticKind {
     /// Every semantic in canonical declaration order: the fixed roster, then
     /// every Trapping form in its dense ordinal (and derived) order.
-    pub const ALL: [Self; Self::FIXED.len() + TrappingForm::COUNT + AtomicForm::COUNT] = {
-        let mut all = [Self::Crash; Self::FIXED.len() + TrappingForm::COUNT + AtomicForm::COUNT];
+    pub const ALL: [Self;
+        Self::FIXED.len() + TrappingForm::COUNT + AtomicForm::COUNT + IeeeFloatArithmeticForm::COUNT] = {
+        let mut all = [Self::Crash;
+            Self::FIXED.len()
+                + TrappingForm::COUNT
+                + AtomicForm::COUNT
+                + IeeeFloatArithmeticForm::COUNT];
         let mut index = 0;
         while index < Self::FIXED.len() {
             all[index] = Self::FIXED[index];
@@ -198,6 +206,12 @@ impl MachineSemanticKind {
             all[Self::FIXED.len() + TrappingForm::COUNT + atomic] =
                 Self::AtomicAccess(AtomicForm::ALL[atomic]);
             atomic += 1;
+        }
+        let mut float = 0;
+        while float < IeeeFloatArithmeticForm::COUNT {
+            all[Self::FIXED.len() + TrappingForm::COUNT + AtomicForm::COUNT + float] =
+                Self::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm::ALL[float]);
+            float += 1;
         }
         all
     };
@@ -409,6 +423,7 @@ pub enum MachineAlternativeFamily {
     ExactRemainderI64,
     SaturatingMultiply(SaturatingCarrier),
     TrappingInteger(TrappingForm),
+    NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm),
 }
 
 impl From<MachineSemanticKind> for MachineAlternativeFamily {
@@ -507,6 +522,9 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::SaturatingMultiply(carrier) => Self::SaturatingMultiply(carrier),
             MachineSemanticKind::TrappingInteger(form) => Self::TrappingInteger(form),
             MachineSemanticKind::AtomicAccess(form) => Self::AtomicAccess(form),
+            MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
+                Self::NearestIeeeFloatArithmetic(form)
+            }
         }
     }
 }

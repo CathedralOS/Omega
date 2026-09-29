@@ -5,16 +5,16 @@
 
 mod execution;
 pub use execution::{
-    BoundaryExecutionBinding, CompilerBuiltinExecution, ProviderExecutionBinding,
-    ProviderPlanReportIdentity,
+    BoundaryExecutionBinding, CompilerBuiltinExecution, IeeeFloatArithmeticOperation,
+    ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
 mod realizations;
 pub use realizations::{
     BoundaryRealization, BoundarySettlementRealization, ClaimCompletionOnlyRealization,
     DirectPortReadU8Realization, HostedExitProcessI32Realization, HostedReadByteRealization,
     HostedWriteByteI32Realization, LinuxWriteLineRealization, MetadataOnlyPortRealization,
-    NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
-    NormalizedForeignStructuralArgument,
+    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
+    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument,
 };
 mod arguments;
 pub use arguments::{

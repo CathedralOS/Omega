@@ -377,6 +377,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 }
                 AbstractOperation::CallUnit { psi_operation, crash_continuations, .. } => selected.calls.iter().any(|row| row.operation == *psi_operation && row.call.result_placement.is_none() && row.call.crash_continuations == *crash_continuations),
                 AbstractOperation::BoundaryCall { psi_operation, .. } => selected.boundary_settlements.iter().any(|row| row.settlement.operation() == *psi_operation)
+                    || ieee_float_arithmetic_retained(operation, targeted, selected)
                     || selected.calls.iter().any(|row| row.operation == *psi_operation && matches!(row.call.source, legalized_operations::NativeCallOrigin::InstalledProvider { .. }))
                     || selected.normalized_foreign_calls.iter().any(|row| row.operation == *psi_operation),
                 AbstractOperation::Crash { .. } => control_flow::retained(operation, targeted),
@@ -511,6 +512,59 @@ fn byte_concatenation_retained<'operation>(
 }
 
 /// Account for one exact typed literal; mandatory source replay validates its realization.
+/// A boundary call realized inline as compiler float arithmetic retains one
+/// target row for its operation and boundary, and one selected arithmetic
+/// form of that row's operation and format attributed to it alone.
+fn ieee_float_arithmetic_retained(
+    operation: &AbstractOperation,
+    targeted: &target_operations::TargetFunction,
+    selected: &selected_instructions::SelectedFunction,
+) -> bool {
+    let AbstractOperation::BoundaryCall {
+        psi_operation,
+        boundary,
+        ..
+    } = operation
+    else {
+        return false;
+    };
+    let mut rows = targeted
+        .graph
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|row| match row {
+            target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+                psi_operation: retained,
+                boundary: row_boundary,
+                realization,
+                ..
+            } if retained == psi_operation => Some((*row_boundary, *realization)),
+            _ => None,
+        });
+    let (Some((row_boundary, realization)), None) = (rows.next(), rows.next()) else {
+        return false;
+    };
+    let form = selected_instructions::IeeeFloatArithmeticForm {
+        operation: realization.operation,
+        format: realization.format,
+    };
+    row_boundary == *boundary
+        && selected
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter(|instruction| {
+                instruction.kind
+                    == selected_instructions::SelectedInstructionKind::NearestIeeeFloatArithmetic {
+                        form,
+                    }
+                    && instruction.provenance.operations == [*psi_operation]
+            })
+            .count()
+            == 1
+}
+
 fn ieee_literal_retained<'operation>(
     operation: &AbstractOperation,
     operations: impl IntoIterator<Item = &'operation target_operations::TargetUnitOperation>,

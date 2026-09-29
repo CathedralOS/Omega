@@ -545,6 +545,31 @@ pub(super) fn validate(
                 target_operations::BoundaryRealization::HostedWriteByteI32(_)
             ) => {}
         (
+            LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
+                boundary,
+                operation: arithmetic,
+                format,
+                left,
+                right,
+            },
+            AbstractOperation::BoundaryCall {
+                boundary: expected,
+                arguments,
+                ..
+            },
+        ) if boundary == expected
+            && arguments.as_slice() == [*left, *right]
+            && matches!(
+                scalar_graph_input::ieee_float_arithmetic::row(native, optimized.machine, operation)?,
+                Some(target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {
+                    boundary: row_boundary,
+                    realization,
+                    ..
+                }) if row_boundary == boundary
+                    && realization.operation == *arithmetic
+                    && realization.format == *format
+            ) => {}
+        (
             LegalizedScalarInstructionKind::HostedExitProcessI32 { boundary, source },
             AbstractOperation::BoundaryCall {
                 boundary: expected,

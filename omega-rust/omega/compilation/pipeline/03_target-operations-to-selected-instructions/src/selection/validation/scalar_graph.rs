@@ -29,6 +29,7 @@ mod byte_input;
 mod byte_output;
 mod control;
 mod ieee_comparison;
+mod ieee_float_arithmetic;
 mod integer_arithmetic;
 mod normalized_foreign;
 mod process_exit;
@@ -191,6 +192,9 @@ pub(in crate::selection) fn validate_with_environment(
                     }
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
                         ieee_comparison::validate(operation, &mut replay)?
+                    }
+                    LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { .. } => {
+                        ieee_float_arithmetic::validate(operation, &mut replay)?
                     }
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
                         structural::observe(source, &mut replay, operation)?

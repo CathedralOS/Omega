@@ -49,6 +49,13 @@ pub const X86_64_BITS_TO_FLOAT64: RegisterConstraintKey = RegisterConstraintKey 
     variant: 713,
 };
 
+/// Nearest-even IEEE arithmetic on general-register payloads: two inputs and
+/// one result, with MXCSR read and scratch `xmm4`/`xmm5` clobbered.
+pub const X86_64_IEEE_FLOAT_ARITHMETIC: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 785,
+};
+
 pub const X86_64_HOSTED_EXIT_PROCESS_I32: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 715,
@@ -350,7 +357,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 81] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 82] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -498,4 +505,5 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 81] = [
     X86_64_SAVE_FLOATING_CONTROL,
     X86_64_RESTORE_FLOATING_CONTROL,
     X86_64_CRASH,
+    X86_64_IEEE_FLOAT_ARITHMETIC,
 ];

@@ -58,6 +58,28 @@ impl HostedWriteByteI32Realization {
     }
 }
 
+/// Inline nearest-even IEEE arithmetic for one selected primitive float
+/// provider. The call's two scalar arguments become the operation's operands
+/// and its scalar result the operation's result; no call, frame, or import
+/// exists. Both supported architectures carry scalar IEEE binary32/binary64
+/// arithmetic that honors the canonical floating controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NearestIeeeFloatArithmeticRealization {
+    pub operation: crate::IeeeFloatArithmeticOperation,
+    pub format: semantic_vocabulary::IeeeFloatFormat,
+}
+
+impl NearestIeeeFloatArithmeticRealization {
+    /// The local target catalog: AArch64 FP/SIMD and x86-64 SSE2 scalar
+    /// arithmetic are architectural baselines on every native target.
+    pub fn supports_target(target: target::NativeTarget) -> bool {
+        matches!(
+            target.architecture,
+            target::Architecture::Aarch64 | target::Architecture::X86_64
+        )
+    }
+}
+
 /// Import-free Linux standard-output realization through the kernel's
 /// `write(2)` ABI. The emitted loop consumes the complete immutable payload
 /// and one trailing newline or traps; no hosted import is implied.
@@ -130,6 +152,7 @@ builtin_settlement_conversion!(HostedExitProcessI32Realization);
 builtin_settlement_conversion!(HostedReadByteRealization);
 builtin_settlement_conversion!(HostedWriteByteI32Realization);
 builtin_settlement_conversion!(ClaimCompletionOnlyRealization);
+builtin_settlement_conversion!(NearestIeeeFloatArithmeticRealization);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BoundaryRealization {
@@ -140,6 +163,13 @@ pub enum BoundaryRealization {
     HostedReadByte(HostedReadByteRealization),
     HostedWriteByteI32(HostedWriteByteI32Realization),
     ClaimCompletionOnly(ClaimCompletionOnlyRealization),
+    NearestIeeeFloatArithmetic(NearestIeeeFloatArithmeticRealization),
+}
+
+impl From<NearestIeeeFloatArithmeticRealization> for BoundaryRealization {
+    fn from(realization: NearestIeeeFloatArithmeticRealization) -> Self {
+        Self::NearestIeeeFloatArithmetic(realization)
+    }
 }
 
 impl From<MetadataOnlyPortRealization> for BoundaryRealization {

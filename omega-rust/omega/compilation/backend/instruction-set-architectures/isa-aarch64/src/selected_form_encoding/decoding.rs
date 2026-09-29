@@ -672,6 +672,8 @@ pub(crate) fn validate_decoded(
     let valid = match kind {
         // Atomic bytes have their own opcode/width/register decoder.
         SelectedInstructionKind::AtomicAccess { .. } => false,
+        // Float arithmetic bytes have their own field decoder.
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => false,
         SelectedInstructionKind::Crash => registers.is_empty() && decoded == [DecodedWord::Crash],
         SelectedInstructionKind::TrappingInteger { form } => {
             decoded == super::trapping_forms::realization(form, registers)
@@ -1095,6 +1097,9 @@ pub(crate) fn footprint(
     let (read_indices, write_indices, writes_nzcv) = match kind {
         SelectedInstructionKind::AtomicAccess { form } => {
             return super::atomic::footprint(form, operands);
+        }
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
+            return super::ieee_float_arithmetic::footprint(operands);
         }
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         // Every Trapping realization leaves NZCV unspecified; the encoded

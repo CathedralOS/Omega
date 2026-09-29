@@ -888,6 +888,21 @@ pub fn aarch64_register_constraint_catalog(
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
     indirect_results::append_constraints(&mut constraints, model);
+    // Scalar IEEE arithmetic reads FPCR's rounding controls and clobbers its
+    // scratch vectors; the effect declaration in
+    // `selected_form_encoding::ieee_float_arithmetic` restates this row.
+    constraints.push(RegisterInstructionConstraint {
+        id: RegisterConstraintId(0),
+        key: crate::AARCH64_IEEE_FLOAT_ARITHMETIC,
+        operands: vec![
+            allocatable(0, RegisterOperandAccess::Use, GPR64),
+            allocatable(1, RegisterOperandAccess::Use, GPR64),
+            allocatable(2, RegisterOperandAccess::Def, GPR64),
+        ],
+        implicit_uses: sorted_units(view("fpcr").units.iter().copied()),
+        implicit_defs: Vec::new(),
+        clobbers: sorted_units(view("q16").units.iter().chain(&view("q17").units).copied()),
+    });
     for (key, restore) in [
         (crate::AARCH64_SAVE_FLOATING_CONTROL, false),
         (crate::AARCH64_RESTORE_FLOATING_CONTROL, true),

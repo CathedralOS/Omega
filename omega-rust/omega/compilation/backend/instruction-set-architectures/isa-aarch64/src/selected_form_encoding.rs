@@ -22,6 +22,7 @@ pub use floating_control::{
 pub(crate) mod hosted_exit_process;
 pub(crate) mod hosted_read_byte;
 pub(crate) mod hosted_write_byte;
+pub(crate) mod ieee_float_arithmetic;
 #[cfg(test)]
 mod integer_normalization_tests;
 mod jump;

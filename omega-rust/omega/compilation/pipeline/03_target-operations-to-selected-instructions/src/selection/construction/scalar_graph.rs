@@ -29,6 +29,7 @@ mod byte_input;
 mod byte_output;
 mod control;
 mod ieee_comparison;
+mod ieee_float_arithmetic;
 mod integer_arithmetic;
 pub(in crate::selection) mod integer_conversion;
 mod normalized_foreign;
@@ -325,6 +326,9 @@ fn select_function(
                     }
                     LegalizedScalarInstructionKind::IeeeFloatCompare { .. } => {
                         ieee_comparison::emit(operation, &mut builder)?
+                    }
+                    LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { .. } => {
+                        ieee_float_arithmetic::emit(operation, &mut builder)?
                     }
                     LegalizedScalarInstructionKind::StructuralCaseMembership { .. } => {
                         structural::observe(source, &mut builder, operation)?

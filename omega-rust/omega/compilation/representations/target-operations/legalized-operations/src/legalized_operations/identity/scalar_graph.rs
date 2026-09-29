@@ -101,6 +101,25 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&left.get().to_le_bytes());
                     bytes.extend_from_slice(&right.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic {
+                    boundary,
+                    operation,
+                    format,
+                    left,
+                    right,
+                } => {
+                    bytes.push(TAG_NEAREST_IEEE_FLOAT_ARITHMETIC);
+                    bytes.extend_from_slice(&boundary.get().to_le_bytes());
+                    bytes.push(match operation {
+                        target_operations::IeeeFloatArithmeticOperation::Add => 0,
+                        target_operations::IeeeFloatArithmeticOperation::Subtract => 1,
+                        target_operations::IeeeFloatArithmeticOperation::Multiply => 2,
+                        target_operations::IeeeFloatArithmeticOperation::Divide => 3,
+                    });
+                    encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(*format));
+                    bytes.extend_from_slice(&left.get().to_le_bytes());
+                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                }
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                     result,
                     left,
@@ -1081,6 +1100,7 @@ fn encode_terminator(bytes: &mut Vec<u8>, terminator: &LegalizedScalarTerminator
 /// A case-qualified scalar field read: above the trapping forms (95..166) and
 /// the atomic access tag (167).
 const TAG_CASE_PAYLOAD_FIELD_READ: u8 = 168;
+const TAG_NEAREST_IEEE_FLOAT_ARITHMETIC: u8 = 169;
 
 /// One tag per Trapping form, above every other instruction tag: 95 plus the
 /// form's dense ordinal (95 through 166).

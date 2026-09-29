@@ -26,6 +26,12 @@ pub enum SelectedInstructionKind {
     AtomicAccess {
         form: super::AtomicForm,
     },
+    /// One nearest-even IEEE operation on raw payloads in general registers:
+    /// operands are left, right, then the defined result. Scratch floating
+    /// registers and the sticky status flags are declared clobbers.
+    NearestIeeeFloatArithmetic {
+        form: super::IeeeFloatArithmeticForm,
+    },
     /// Unconditional trap realizing the exact semantic Crash terminator.
     Crash,
     /// Copy exactly count bytes between disjoint valid ranges. Inputs 0/1/2

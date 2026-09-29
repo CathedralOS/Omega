@@ -481,6 +481,11 @@ pub(in crate::lowering) fn lower_boundary_call(
                     });
                     *nonreturning_boundary = exits_process;
                 }
+                BoundaryRealization::NearestIeeeFloatArithmetic(_) => {
+                    // Float arithmetic realizes inline on the control-flow
+                    // route; it never forms a call-shaped settlement row.
+                    return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
+                }
                 BoundaryRealization::DirectPortReadU8(_) => {
                     // The direct port read emits the one closed `in al, dx`
                     // sequence itself, so nothing arrives through the argument
