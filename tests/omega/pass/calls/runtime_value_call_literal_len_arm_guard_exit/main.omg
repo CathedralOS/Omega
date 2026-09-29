@@ -14,8 +14,8 @@ machine Main::classify(&mut self, path: &[u8]) -> i32 {
         true -> big()
         false -> small()
     }
-    state big(&mut self) -> i32 { 2 }
-    state small(&mut self) -> i32 { 1 }
+    state big() -> i32 { 2 }
+    state small() -> i32 { 1 }
 }
 machine Main::main(&mut self) reaches Console {
     let a: i32 = self.classify("a/b/c");

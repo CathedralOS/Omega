@@ -14,8 +14,8 @@ data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
 data Main { console: Binding<Console>; d: i32; v: i32; vec: Vec2; }
 machine Main::delta(&self, d: i32) -> Vec2 {
     transition d == 1 { true -> pos() _ -> neg() }
-    state pos(&self) -> Vec2 { Vec2 { x: 3, y: 4 } }
-    state neg(&self) -> Vec2 { Vec2 { x: 7, y: 9 } }
+    state pos() -> Vec2 { Vec2 { x: 3, y: 4 } }
+    state neg() -> Vec2 { Vec2 { x: 7, y: 9 } }
 }
 machine pick(x: i32) -> i32 {
     transition x > 0 { true -> hi() _ -> lo() }

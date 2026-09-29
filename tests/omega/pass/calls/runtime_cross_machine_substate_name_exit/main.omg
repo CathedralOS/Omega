@@ -1,6 +1,6 @@
 // Two machines each have a sub-state named `try1`: Picker::pick and Main::read_at. A NAMED
 // transition target (`try1(idx)`) must resolve to a SIBLING state of the CURRENT machine, not
-// collide on the shared name and run the OTHER machine's body. So after `self.picker.pick(2)`
+// collide on the shared name and run the OTHER machine's body. So after `Picker::pick(2)`
 // (whose `try1` returns a literal) runs, `self.read_at(4)` must still dispatch through read_at's
 // OWN `try1`/`try2`/`try3` to return `self.table[4]` -- not pick's `try1` literal.
 //
@@ -17,7 +17,7 @@ data Main {
     picker: Picker;
 }
 
-machine Picker::pick(&mut self, key: i32) -> i32 {
+machine Picker::pick(key: i32) -> i32 {
     transition key == 0 {
         true -> (0)
         _ -> try1(key)
@@ -62,7 +62,7 @@ machine Main::main(&mut self) reaches Console {
     self.table[3] = 30;
     self.table[4] = 60;
 
-    let i: i32 = self.picker.pick(2);
+    let i: i32 = Picker::pick(2);
     let v: i32 = self.read_at(4);
 
     transition v == 60 && i == 4 {

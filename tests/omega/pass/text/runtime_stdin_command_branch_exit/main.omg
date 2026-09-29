@@ -11,7 +11,7 @@ data Command {
 data Parser {
 }
 
-machine Parser::resolve(&mut self, line: &[u8], count: u64) -> Command {
+machine Parser::resolve(line: &[u8], count: u64) -> Command {
     transition {
         count <= line.len && line[0..count] == "look" -> Command::Look
         count <= line.len && line[0..count] == "quit" -> Command::Quit
@@ -68,7 +68,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state parsed_input(&mut self, count: u64) {
-        self.command = self.parser.resolve(&self.line, count);
+        self.command = Parser::resolve(&self.line, count);
 
         transition self.command {
             Command::Look -> look()
