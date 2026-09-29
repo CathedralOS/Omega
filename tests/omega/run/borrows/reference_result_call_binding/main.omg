@@ -1,18 +1,19 @@
-// Binding a CALL RESULT that is a reference into a `let` local has no route.
-// The same call returning a scalar binds fine. Found by attributing the macOS
-// arm64 native roster, where four fixtures sit at `statement sequence: call:
-// flow call` -- `pass/dependent/runtime_sibling_len_index_exit` spells it
-// `let view: &[u8] = self.buf.as_slice();`.
+// Binding a CALL RESULT that is a reference into a `let` local previously
+// had no route (`statement sequence: call: flow call`). The binding now
+// routes — a targetless `--check` compiles — and the residual wall is
+// downstream: native artifact canonical abstract optimization declines
+// `InvalidStructuralTypeIdentity(StructuralTypeId(3))` on the reference
+// result's carried type.
 //
 //   let v: u32   = self.plain();            checks   (scalar result)
-//   let v: &u32  = self.borrow_it();        OMITTED  (this fixture)
-//   let v: &[u8] = self.buf.as_slice();     OMITTED  (a std method)
+//   let v: &u32  = self.borrow_it();        check-green, native-red (this fixture)
+//   let v: &[u8] = self.buf.as_slice();     same residual wall (a std method)
 //
 // A STATEMENT call with a `&mut` argument checks, so it is not calls, and not
 // references in argument position -- it is a reference in RESULT position
 // reaching a local binding.
 //
-// SAME GAP as `tests/omega/pending/borrows/reference_local_binding_routes`,
+// SAME GAP as `tests/omega/run/borrows/reference_local_binding_routes`,
 // which found that a reference binding routes ONLY for a `&mut` of a
 // self-rooted place named directly. A call result is one more producer that
 // does not route. The label is not the cause and the phase varies with the
