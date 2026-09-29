@@ -1030,25 +1030,22 @@ invokes
 
 // The stopwatch read: monotonic-now minus `start`, saturating at ZERO (a
 // start Instant from a different process/boot measures garbage; ZERO is the
-// honest total answer). `now().duration_since(start)` composition.
-// SINGLE-LEVEL body: the natural composition
-// (`self.now().duration_since(start)`) needs a value call on a LOCAL
-// receiver -- a CLEAN COMPILE ERROR since 2026-07-09 (receiver resolution
-// reaches fields and state parameters only; the silent-zero flavor is
-// fenced). Until local receivers land, this inlines now()'s normalization +
-// the checked_duration_since borrow idiom over entry lets.
+// honest total answer). This body combines now()'s normalization with the
+// checked_duration_since arithmetic.
+// The clock capability is an explicit borrowed parameter; arithmetic states
+// carry only the values they use, not the clock capability.
 //
 // Shares let names with `now()` deliberately: two same-named-let callees
 // from one caller state pinned the cross-callee collision (both flavors now
 // FIXED -- runtime_time_elapsed_since_exit is the live std tripwire).
-pub machine Time::elapsed_since(&mut self, start: Instant) -> Duration
+pub machine Time::elapsed_since(time: &mut Time, start: Instant) -> Duration
 reaches
     TimeHost
 invokes
     TimeHost;
 {
-    let ticks: u64 = self.host.monotonic_ticks();
-    let frequency_raw: u64 = self.host.monotonic_ticks_per_second();
+    let ticks: u64 = time.host.monotonic_ticks();
+    let frequency_raw: u64 = time.host.monotonic_ticks_per_second();
     let frequency: u64 = clamp(frequency_raw, 1, 18446744073);
     let now_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
@@ -1073,19 +1070,19 @@ invokes
         true -> elapsed_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
         false -> elapsed_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
-    state elapsed_bigger(&mut self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
+    state elapsed_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
         transition nanoseconds_fit {
             true -> elapsed_emit(seconds_direct, nanoseconds_direct)
             false -> elapsed_emit(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state elapsed_equal_or_less(&mut self, seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> Duration {
+    state elapsed_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> Duration {
         transition seconds_equal && nanoseconds_fit {
             true -> elapsed_emit(seconds_direct, nanoseconds_direct)
             false -> elapsed_backwards()
         }
     }
-    state elapsed_emit(&mut self, seconds_final: u64, nanoseconds_final: u32) -> Duration {
+    state elapsed_emit(seconds_final: u64, nanoseconds_final: u32) -> Duration {
         Duration {
             seconds: seconds_final,
             subsecond_nanoseconds: nanoseconds_final % 1000000000,
@@ -1093,7 +1090,7 @@ invokes
     }
     // A start Instant from a different process/boot can sit "ahead" of now:
     // saturate at ZERO (total, never faulting).
-    state elapsed_backwards(&mut self) -> Duration { Duration::ZERO }
+    state elapsed_backwards() -> Duration { Duration::ZERO }
 }
 
 // Sleep for (approximately, never less than the platform grants) the given
