@@ -5,7 +5,7 @@
 //
 // Regression shape this pins: an inline-branching ASSIGNMENT-VALUE call had its
 // callee statements emitted BOTH by the runtime-bodies splice and by the branch
-// prelude expansion, so `let ok = self.roll(&mut tally)` incremented twice per
+// prelude expansion, so `let ok = Main::roll(&mut tally)` incremented twice per
 // call (43/44 below). The splice is the executor for non-guard roles; non-guard
 // preludes carry no callee operations.
 use omega_language_std::console;
@@ -22,7 +22,6 @@ data Main {
 }
 
 machine Main::roll(
-    &mut self,
     tally: &mut Tally
     ) -> bool {
     tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
@@ -42,7 +41,7 @@ machine Main::main(&mut self) reaches Console {
 
 
     state statement_call(&mut self) {
-        _ = self.roll(&mut self.tally);
+        _ = Main::roll(&mut self.tally);
 
         transition {
             _ -> assignment_call()
@@ -50,7 +49,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state assignment_call(&mut self) {
-        let ok: bool = self.roll(&mut self.tally);
+        let ok: bool = Main::roll(&mut self.tally);
 
         transition {
             _ -> report()

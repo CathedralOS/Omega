@@ -4,10 +4,10 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
 }
-machine Main::get(&self) -> i32 {
+machine Main::get() -> i32 {
 }
 machine Main::main(&mut self) {
-    let r: i32 = self.get();
+    let r: i32 = Main::get();
     transition r == 0 {
         true -> yes()
         false -> no()

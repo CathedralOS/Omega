@@ -72,7 +72,7 @@ machine init_field_call(source: &Cell) -> u64 {
 
 // API SHAPE 2 (holds): transition arm `(expr)` payload carrying nested
 // scalar calls.
-machine Main::holds(&mut self, result: Parse, want_len: u64, want_size: u64) -> bool {
+machine Main::holds(result: Parse, want_len: u64, want_size: u64) -> bool {
     transition result {
         Parse::Parsed { value } -> (value.get_len() == want_len
             && value.get_sum().size(1) == want_size)
@@ -101,7 +101,7 @@ machine size_via_call(cell: Cell) -> u64 {
 // API SHAPE 3: nested scalar call inside a named-target transition argument.
 machine Main::next_arg(&mut self, x: u64) -> u64 {
     transition { _ -> finish(bump(x)) }
-    state finish(&mut self, y: u64) -> u64 {
+    state finish(y: u64) -> u64 {
         transition { _ -> (y) }
     }
 }
@@ -109,7 +109,7 @@ machine Main::next_arg(&mut self, x: u64) -> u64 {
 // Nested call inside a named-target arm argument (call-in-call).
 machine Main::target_arg_nested(&mut self, x: u64) -> u64 {
     transition { _ -> finish(bump(bump(x))) }
-    state finish(&mut self, y: u64) -> u64 {
+    state finish(y: u64) -> u64 {
         transition { _ -> (y) }
     }
 }

@@ -5,7 +5,7 @@ data Entry {
 data Main {
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main() -> i32 {
     transition {
         _ -> 0
     }

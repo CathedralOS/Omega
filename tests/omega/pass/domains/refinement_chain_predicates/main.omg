@@ -26,7 +26,7 @@ data Main {
 machine consume(player: Player in Alive::Critical) {
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
     let player: Player in Alive::Critical = Player::spawn();
     consume(player);
 }

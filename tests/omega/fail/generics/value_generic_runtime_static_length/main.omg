@@ -8,7 +8,7 @@ machine ident<Count: u32>() -> u32 {
     Count
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
     let n: u32 = 3;
     let a: u32 = ident<n>();
 }

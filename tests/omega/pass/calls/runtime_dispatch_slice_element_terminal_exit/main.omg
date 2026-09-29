@@ -19,11 +19,11 @@ terminates by (j, i) -> Nat::BoundedDistance;
         true -> pick(s, i, j + 1)
         false -> leaf(s, j)
     }
-    state leaf(&mut self, s: &[i32], j: u64) -> i32 {
+    state leaf(s: &[i32], j: u64) -> i32 {
         transition j < s.len { true -> leaf_go(s, j) _ -> leaf_zero() }
     }
-    state leaf_go(&mut self, s: &[i32], j: u64) -> i32 { s[j] }
-    state leaf_zero(&mut self) -> i32 { 0 }
+    state leaf_go(s: &[i32], j: u64) -> i32 { s[j] }
+    state leaf_zero() -> i32 { 0 }
 }
 machine Main::main(&mut self) reaches Console {
     self.nums[0] = 5;

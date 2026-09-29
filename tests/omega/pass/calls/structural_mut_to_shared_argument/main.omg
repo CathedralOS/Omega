@@ -14,4 +14,4 @@ machine collect(merged: &mut Counts) -> u64 {
     copy.tally
 }
 
-machine Main::main(&mut self) { }
+machine Main::main() { }

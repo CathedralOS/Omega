@@ -124,7 +124,7 @@ machine Sha256::stage_block(&mut self) {
         self.i = self.i + 1;
         transition { _ -> copy() }
     }
-    state done(&mut self) {
+    state done() {
     }
     state stuck(&mut self) {
         self.bad = true;
@@ -455,7 +455,7 @@ machine Sha256::digest(&mut self) {
         self.i = self.i + 1;
         transition { _ -> write_loop() }
     }
-    state finish(&mut self) {
+    state finish() {
     }
     state stuck(&mut self) {
         self.bad = true;

@@ -14,5 +14,5 @@ data Main {
     value: i32 in Scanned;
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
 }

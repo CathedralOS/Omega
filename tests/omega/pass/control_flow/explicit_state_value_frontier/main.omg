@@ -1,5 +1,5 @@
 data Packet { value: u64; }
-machine Packet::inspect(&self) {}
+machine Packet::inspect() {}
 machine inspect(packet: &Packet, output: &mut u64) {
     let saved: u64 = 7;
     transition { _ -> finish(packet, output, saved) }

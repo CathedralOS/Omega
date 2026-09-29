@@ -1,5 +1,5 @@
 // A transition's guard SUBJECT evaluates exactly ONCE per transition evaluation.
-// The parser lowers `transition self.roll(x) { true -> a false -> b }` into one
+// The parser lowers `transition Main::roll(x) { true -> a false -> b }` into one
 // guard per arm, each holding a copy of the subject call; the backend must run
 // the callee a single time and let every arm's comparison reuse that result
 // (native: one branch prelude, per-arm value-selection leafs; interpreter:
@@ -25,7 +25,6 @@ data Main {
 }
 
 machine Main::roll(
-    &mut self,
     tally: &mut Tally
     ) -> bool {
     tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
@@ -45,7 +44,7 @@ machine Main::main(&mut self) reaches Console {
 
 
     state decide(&mut self) {
-        transition self.roll(&mut self.tally) {
+        transition Main::roll(&mut self.tally) {
             true -> report()
             false -> report()
         }

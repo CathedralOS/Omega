@@ -15,4 +15,4 @@ data Holder {
 domain Holder::Invalid requires self.slot.value;
 
 data Main {}
-machine Main::main(&mut self) {}
+machine Main::main() {}

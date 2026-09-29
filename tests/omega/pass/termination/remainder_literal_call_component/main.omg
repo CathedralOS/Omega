@@ -11,7 +11,7 @@ data Limits where 0 <= bound, bound <= 20, 1 <= step, step <= 5 {
 
 data Main { pad: u64; }
 
-machine Main::main(&mut self)
+machine Main::main()
 {}
 
 machine Main::walk(&mut self, remaining: u64, held: Limits)

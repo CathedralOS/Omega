@@ -13,5 +13,5 @@ data Main {
     items: [u8; 8] in Utf8;
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
 }

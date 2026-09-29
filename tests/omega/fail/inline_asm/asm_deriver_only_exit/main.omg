@@ -2,6 +2,6 @@
 // deriver-only. A user block cannot bypass the entry StatePlan or manufacture
 // an exit that is absent from Omega's checked state graph.
 data Main {}
-machine Main::main(&mut self) {
+machine Main::main() {
     asm { iretq }
 }

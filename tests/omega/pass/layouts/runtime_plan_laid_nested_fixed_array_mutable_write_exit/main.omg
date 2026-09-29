@@ -7,7 +7,7 @@ use omega::language::core::binding;
 
 data SpreadArray { }
 
-machine SpreadArray::plan(&mut self, schema: Schema) -> Plan {
+machine SpreadArray::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

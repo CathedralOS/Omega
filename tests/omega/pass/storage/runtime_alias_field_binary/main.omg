@@ -6,7 +6,6 @@ data Main {
 }
 
 machine Main::main(
-    &mut self,
     reward: &mut Reward
 ) {
     reward.gold = reward.gold + 1;

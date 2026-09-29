@@ -16,5 +16,5 @@ data Main {
     value: i32;
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
 }

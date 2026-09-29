@@ -18,11 +18,11 @@ machine Main::main(&mut self) {
     transition { _ -> update() }
 
     state update(&mut self) {
-        self.touch_other();
+        Main::touch_other();
         self.pair.left = 15;
     }
 }
 
-machine Main::touch_other(&mut self) {
+machine Main::touch_other() {
     let mut other: i32 = 1;
 }

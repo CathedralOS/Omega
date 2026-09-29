@@ -22,7 +22,7 @@ machine Picker::pick(&mut self, key: i32) -> i32 {
         true -> (0)
         _ -> try1(key)
     }
-    state try1(&mut self, key: i32) {
+    state try1(key: i32) {
         transition key == 1 {
             true -> (2)
             _ -> (4)

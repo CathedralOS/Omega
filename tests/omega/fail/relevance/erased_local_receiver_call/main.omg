@@ -13,7 +13,7 @@ machine Counter::increment(&mut self) {
 data Main {
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
     let c [erased]: Counter = Counter { value: 0 };
     c.increment();
 }

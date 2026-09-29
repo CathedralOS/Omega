@@ -24,6 +24,6 @@ data Main {
     librarian: Librarian;
 }
 
-machine Main::main(&mut self, folder: Binding<Folder>) {
+machine Main::main(folder: Binding<Folder>) {
     archive(folder);
 }

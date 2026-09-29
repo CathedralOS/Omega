@@ -34,5 +34,5 @@ requires
     let sum: Quantity = a + b;
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
 }

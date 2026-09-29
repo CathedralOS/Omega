@@ -2,7 +2,6 @@ data Main {
 }
 
 machine Main::main(
-    &mut self,
     health: &mut i32
 ) {
     health = 1;

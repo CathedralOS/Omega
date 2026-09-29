@@ -12,7 +12,6 @@ machine main() {
 }
 
 machine Main::retain(
-    &mut self,
     startup: SecondaryProcessorStartup,
     envelope: StartupEnvelopeCarrier
 ) -> SecondaryProcessorStartup {

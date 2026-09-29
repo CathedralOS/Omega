@@ -1,5 +1,5 @@
 data Inner { value: u64; }
-machine Inner::inspect(&self) {}
+machine Inner::inspect() {}
 
 data Outer { inner: Inner; }
 

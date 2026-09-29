@@ -205,7 +205,7 @@ machine Compose::rd(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> rd_done() }
     }
-    state rd_done(&mut self) {
+    state rd_done() {
     }
 }
 
@@ -221,7 +221,7 @@ machine Compose::ru32(&mut self) {
     self.acc = self.acc + ((self.b8 as u64 in Wrapping) << 24);
     self.w32 = (self.acc as u32 in Wrapping) as u32;
     transition { _ -> done() }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -239,7 +239,7 @@ machine Compose::skip(&mut self, n: u64 in Wrapping) {
         self.j = self.j + 1;
         transition { _ -> loop_s(n) }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -273,7 +273,7 @@ machine Compose::rdident(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -316,7 +316,7 @@ machine Compose::rdstr(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -399,7 +399,7 @@ machine Compose::resolve_name(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -444,7 +444,7 @@ machine Compose::rd_selector(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -464,7 +464,7 @@ machine Compose::emit_u8(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -479,7 +479,7 @@ machine Compose::emit_u32(&mut self) {
     self.w8 = ((self.acc >> 24) as u8 in Wrapping) as u8;
     self.emit_u8();
     transition { _ -> done() }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -613,7 +613,7 @@ machine Compose::emit_ident(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -953,7 +953,7 @@ machine Compose::decode_req(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -987,7 +987,7 @@ machine Compose::dskip(&mut self, n: u64 in Wrapping) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -1033,7 +1033,7 @@ machine Compose::dskip_row(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -1069,7 +1069,7 @@ machine Compose::dskip_rows(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -1572,20 +1572,20 @@ machine Compose::analyze_desc(&mut self) {
         self.ep_n[self.h1] = self.k;
         transition { _ -> done() }
     }
-    state bad_03b(&mut self) {
+    state bad_03b() {
         transition { _ -> bad() }
     }
-    state bad_08b(&mut self) {
+    state bad_08b() {
         transition { _ -> bad() }
     }
-    state bad_24b(&mut self) {
+    state bad_24b() {
         transition { _ -> bad() }
     }
     state bad(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
     state bad_01(&mut self) {
         transition self.errtag[0] == 63 {
@@ -2127,7 +2127,7 @@ machine Compose::decode_meta(&mut self) {
         self.jb = self.jb + 1;
         transition { _ -> dc_loop() }
     }
-    state meta_end(&mut self) {
+    state meta_end() {
         // every instance record is consumed in roster order
         transition { _ -> analyze() }
     }
@@ -2339,7 +2339,7 @@ machine Compose::decode_meta(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
     state bad_45(&mut self) {
         transition self.errtag[0] == 63 {
@@ -2419,7 +2419,7 @@ machine Compose::decode_meta(&mut self) {
         self.errtag[3] = 55;
         transition { _ -> bad() }
     }
-    state bad_38(&mut self) {
+    state bad_38() {
         transition { _ -> bad() }
     }
     state bad_39(&mut self) {
@@ -2913,7 +2913,7 @@ machine Compose::decode_bind(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -3051,7 +3051,7 @@ machine Compose::reach_go(&mut self) {
         self.reach[self.h0] = 1;
         transition { _ -> sweep_next() }
     }
-    state sweep_no(&mut self) {
+    state sweep_no() {
         transition { _ -> sweep_next() }
     }
     state sweep_next(&mut self) {
@@ -3062,7 +3062,7 @@ machine Compose::reach_go(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -3299,7 +3299,7 @@ machine Compose::spath(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -3631,7 +3631,7 @@ machine Compose::eval_all(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -3678,7 +3678,7 @@ machine Compose::emit_name(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -3729,7 +3729,7 @@ machine Compose::emit_pol_call(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -3841,7 +3841,7 @@ machine Compose::emit_inst(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -3882,7 +3882,7 @@ machine Compose::emit_bind(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -4032,7 +4032,7 @@ machine Compose::emit_pol(&mut self) {
         self.ok = false;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -4112,7 +4112,7 @@ machine Compose::check_asm(&mut self) {
             _ -> m_next()
         }
     }
-    state b_done(&mut self) {
+    state b_done() {
         transition { _ -> m_next() }
     }
     state hit(&mut self) {
@@ -4145,7 +4145,7 @@ machine Compose::check_asm(&mut self) {
         self.errtag[3] = 88;
         transition { _ -> done() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -4212,7 +4212,7 @@ machine Compose::emit_all(&mut self) {
         self.i = self.i + 1;
         transition { _ -> pols_l() }
     }
-    state done(&mut self) {
+    state done() {
     }
 }
 
@@ -4365,7 +4365,7 @@ machine Compose::publish(&mut self, source: &BuildSource, output: &mut BuildOutp
             _ -> fail_eval(log, output)
         }
     }
-    state ph_sat(&mut self, log: &mut BuildLog, output: &mut BuildOutput, descriptor: i32) {
+    state ph_sat(log: &mut BuildLog, output: &mut BuildOutput, descriptor: i32) {
         log.write_line("eval-ok");
         transition { _ -> all_sat(log, output, descriptor) }
     }
@@ -4418,7 +4418,7 @@ machine Compose::publish(&mut self, source: &BuildSource, output: &mut BuildOutp
             _ -> unsat(log, output, descriptor)
         }
     }
-    state unsat(&mut self, log: &mut BuildLog, output: &mut BuildOutput, descriptor: i32) {
+    state unsat(log: &mut BuildLog, output: &mut BuildOutput, descriptor: i32) {
         log.write_line("unsat");
         transition { _ -> failed(output) }
     }

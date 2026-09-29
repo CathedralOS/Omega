@@ -17,21 +17,21 @@ machine Helper::check(&mut self, x: i32) -> bool {
     self.seen = x;
     transition self.seen == 1 { true -> yes() _ -> no() }
     state yes() -> bool { true }
-    state no(&mut self) -> bool { false }
+    state no() -> bool { false }
 }
 data Probe { helper: Helper; flag: bool; }
 machine Probe::make(&mut self) -> Verdict {
     self.flag = self.helper.check(1);
     transition self.flag { true -> mk_yes() _ -> mk_no() }
     state mk_yes() -> Verdict { Verdict::Yes }
-    state mk_no(&mut self) -> Verdict { Verdict::No }
+    state mk_no() -> Verdict { Verdict::No }
 }
 data Sensor { seen: i32; }
 machine Sensor::check(&mut self, x: i32) -> bool {
     self.seen = x;
     transition self.seen == 2 { true -> yes() _ -> no() }
     state yes() -> bool { true }
-    state no(&mut self) -> bool { false }
+    state no() -> bool { false }
 }
 data Bracket { sensor: Sensor; a: i32; flag: bool; b: i32; }
 machine Bracket::make(&mut self) -> Verdict {
@@ -40,7 +40,7 @@ machine Bracket::make(&mut self) -> Verdict {
     self.b = 3;
     transition self.flag { true -> mk_yes() _ -> mk_no() }
     state mk_yes() -> Verdict { Verdict::Yes }
-    state mk_no(&mut self) -> Verdict { Verdict::No }
+    state mk_no() -> Verdict { Verdict::No }
 }
 data Main { console: Binding<Console>; probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
 machine Main::main(&mut self) reaches Console {

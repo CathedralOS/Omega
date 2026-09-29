@@ -1,6 +1,6 @@
 data Main { observed: u64; }
 
-machine Main::main(&mut self) {}
+machine Main::main() {}
 
 machine Main::first(&mut self, remaining: u64, cap: u64, step: u64, spare: u64)
     requires 0 <= remaining && remaining <= 5 && 0 <= cap && cap <= 20 && 1 <= step && step <= 5

@@ -30,7 +30,7 @@ machine Main::replace(&mut self, choice: u8, byte: u8) {
         transition self.byte < 128 { true -> write() _ -> done() }
     }
     state write(&mut self) { self.label[1] = self.byte; }
-    state done(&mut self) { }
+    state done() { }
 }
 
 machine Main::main(&mut self) reaches Console {
