@@ -1,16 +1,16 @@
 //! The structural return machine and exact parameter qualifications.
 
-use crate::execution::terminal_unit::calls::{entry_claims, structural_signature};
+use crate::execution::terminal_unit::calls::{
+    build_unit_trivial_affine_locals, entry_claims, structural_signature,
+};
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, parameter_qualifications, projected_parameter_qualifications,
-    return_unit_affine_discards, type_graph_requires_nominal_drop,
+    return_unit_affine_discards,
 };
 use crate::execution::terminal_unit::{
     CarryPolicy, CheckFacts, CheckedStructuralResultPlan, CheckedStructuralReturnMachinePlan,
-    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitStructuralTypeShape, ExpressionNode,
-    Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionEventKind,
-    PermissionEventSource, ProofFact, SemanticDomainId, SignatureContractKind, StateParameter,
-    StatementNode, TypeReferenceNode, TypedTrees,
+    ExpressionNode, Multiplicity, ProofFact, SemanticDomainId, SignatureContractKind,
+    StateParameter, StatementNode, TypedTrees,
 };
 
 pub(crate) fn build_structural_return_machine(
@@ -40,109 +40,20 @@ pub(crate) fn build_structural_return_machine(
     let binders = machine_binders(program, machine);
     let (attachment_type_identity, structural_parameters) =
         structural_signature(program, shapes, machine, state, &binders, false)?;
-    let trivial_affine_locals = local_statements
-        .iter()
-        .enumerate()
-        .map(|(declaration_ordinal, statement)| {
-            let StatementNode::LocalData(local) = statement else {
-                unreachable!("the local prefix contains only local declarations")
-            };
-            let TypeReferenceNode::Named { .. } = program
-                .type_reference_table
-                .type_reference(local.type_reference)
-            else {
-                return None;
-            };
-            if local.is_mutable
-                || !local.initial_value.is_valid()
-                || crate::checks::type_multiplicity(program, local.type_reference)
-                    != Multiplicity::Affine
-                || !parameter_qualifications(program, shapes, local.type_reference, &binders)?
-                    .is_empty()
-                || type_graph_requires_nominal_drop(program, local.type_reference)
-            {
-                return None;
-            }
-            let ExpressionNode::StructLiteral(literal) =
-                program.expression_table.expression(local.initial_value)
-            else {
-                return None;
-            };
-            if literal.case_name.is_some()
-                || !program
-                    .expression_table
-                    .struct_fields(literal.fields)
-                    .is_empty()
-            {
-                return None;
-            }
-            let local_events = facts
-                .flow
-                .ownership
-                .permissions
-                .iter()
-                .filter(|(_, event)| {
-                    event.machine_symbol == machine.symbol
-                        && event.state_symbol == state.symbol
-                        && event.root == facts::PlaceRoot::Symbol(local.symbol)
-                })
-                .map(|(_, event)| event)
-                .collect::<Vec<_>>();
-            let [establishment, settlement] = local_events.as_slice() else {
-                return None;
-            };
-            let establishment_source = PermissionEventSource::Statement {
-                statement_index: declaration_ordinal,
-            };
-            let establishment_provenance = language_semantics::PermissionProvenance::Established {
-                machine_symbol: machine.symbol,
-                state_symbol: state.symbol,
-                source: establishment_source,
-            };
-            if establishment.source != establishment_source
-                || establishment.kind != PermissionEventKind::Establish
-                || establishment.multiplicity != Multiplicity::Affine
-                || establishment.access != PermissionAccess::Owned
-                || establishment.claim_identity != PermissionClaimIdentity::Unknown
-                || establishment.provenance != establishment_provenance
-                || establishment.obligation_live
-                || !facts
-                    .flow
-                    .ownership
-                    .segments
-                    .span_or_empty(establishment.segments)
-                    .is_empty()
-                || settlement.source != PermissionEventSource::StateExit
-                || settlement.kind != PermissionEventKind::AffineDrop
-                || settlement.multiplicity != Multiplicity::Affine
-                || settlement.access != PermissionAccess::Owned
-                || settlement.claim_identity != PermissionClaimIdentity::Unknown
-                || settlement.provenance != establishment_provenance
-                || settlement.obligation_live
-                || !facts
-                    .flow
-                    .ownership
-                    .segments
-                    .span_or_empty(settlement.segments)
-                    .is_empty()
-            {
-                return None;
-            }
-            let type_identity = shapes.add_type(local.type_reference, &binders, &[])?;
-            let shape = shapes.types.get(&type_identity)?;
-            if !matches!(
-                &shape.shape,
-                CheckedUnitStructuralTypeShape::Record { fields } if fields.is_empty()
-            ) {
-                return None;
-            }
-            Some(CheckedTrivialAffineStructuralLocalPlan {
-                declaration_ordinal: u32::try_from(declaration_ordinal).ok()?,
-                type_identity,
-                construction: None,
-            })
-        })
-        .collect::<Option<Vec<_>>>()?;
+    // The body holds only these locals and a returned name, so no call can
+    // take a local's transfer: each one settles by its exit drop.
+    let trivial_affine_locals = build_unit_trivial_affine_locals(
+        program,
+        facts,
+        shapes,
+        machine,
+        state,
+        &binders,
+        local_statements,
+    )?
+    .into_iter()
+    .map(|(plan, _)| plan)
+    .collect::<Vec<_>>();
     let input = structural_parameters.first()?;
     if input.multiplicity != Multiplicity::Linear
         || input.is_self
