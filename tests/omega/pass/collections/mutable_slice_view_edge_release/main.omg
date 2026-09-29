@@ -1,0 +1,39 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+// Mutable element-view release across a named edge: `release` establishes
+// an exclusive `&mut [i32]` view of the bag's cells, then crosses an
+// ordinary transition with the loan live. The state's result custody must
+// book the view's loan release as its owner on the edge — an owned-storage
+// disposal never applies to the reference shell.
+
+data Bag {
+    cells: [i32; 4];
+}
+
+data Main {
+    console: Binding<Console>;
+    bag: Bag;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.release(&mut self.bag);
+
+    transition {
+        _ -> good()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(181);
+    }
+}
+
+machine Main::release(&mut self, bag: &mut Bag) {
+    let cells: &mut [i32] = bag.cells.as_mut_slice();
+    transition {
+        _ -> done()
+    }
+
+    state done() {
+    }
+}

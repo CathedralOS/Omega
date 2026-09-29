@@ -199,6 +199,8 @@ pass/capabilities/windows_provides_import_exit rejected 2053ms
 	receiving terminal-authority policy version 7 does not classify normalized foreign mechanism NormalizedForeign(NormalizedForeignTerminalMechanismIdentity { target: WindowsX64, locator_identity: ForeignLocatorIdentityDigest([144, 186, 40, 58, 248, 174, 194, 125, 207, 78, 218, 115, 81, 6, 179, 111, 153, 34, 35, 115, 153, 107, 151, 110, 248, 164, 120, 235, 163, 205, 22, 6]), implementation_contract: BoundaryCallingPlanCommitment([246, 184, 138, 50, 13, 152, 237, 214, 207, 93, 41, 7, 127, 141, 216, 133, 187, 126, 81, 213, 47, 186, 45, 181, 193, 80, 17, 8, 120, 50, 204, 58]), argument_contract: AdmittedPlan }) required by `named-callable(path(Beeper::beep),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())`
 pass/collections/array_local_control checked 291ms
 pass/collections/element_policy_array_literal_store checked 8467ms
+pass/collections/mutable_slice_view_edge_release checked 1012ms @f07778d7f128+wt
+pass/collections/mutable_slice_view_establishment checked 1075ms @f07778d7f128+wt
 pass/collections/owned_array_scalar_comparisons checked 307ms
 pass/collections/runtime_argmax_index_exit checked 1039ms
 pass/collections/runtime_case_array_element_write_exit rejected 986ms
