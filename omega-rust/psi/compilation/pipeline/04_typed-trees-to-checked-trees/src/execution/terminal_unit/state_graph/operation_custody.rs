@@ -189,27 +189,6 @@ pub(super) fn admit(
                         }
                         _ => false,
                     }) => {}
-            // A returned reference binds loan custody over caller-frame
-            // storage: its source meets the same admission a shared call
-            // argument does, and its affine binding ends exactly once at
-            // the terminator's own return plan — the selected edge already
-            // owns that end.
-            CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
-                if source.access == CheckedStructuralAccess::SharedBorrow
-                    && call_argument_admitted(source, &operations[..operation_index]) => {}
-            // A reference release replays the end of a loan its producing
-            // call minted inside this state: the binding ordinal ties it to
-            // that call, whose own custody the earlier arms already met.
-            CheckedUnitEffectOperationPlan::ReleaseReference {
-                binding_ordinal, ..
-            } if operations[..operation_index].iter().any(|operation| {
-                matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::StructuralCall { result, .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, .. }
-                        if result.binding_ordinal == *binding_ordinal
-                )
-            }) => {}
             _ => {
                 // Name the operation family whose custody the selected
                 // edges cannot yet carry; admitted families never reach
