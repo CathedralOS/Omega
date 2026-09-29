@@ -34,7 +34,9 @@ declared carrier beneath the view carrier. A same-carrier recast changes only
 facts and reads the place directly. Stage 05 lowers the source read with its
 declared-type checks intact and replays the carrier relation
 (`expression_preparation/representation_view.rs`): equal-width integer
-carriers read the two's-complement modular image. Boolean and IEEE float
+carriers read the two's-complement modular image, and a wider integer view of
+a runtime-selected `u8` element reads the byte region little-endian, one
+element read (and one Terminal index obligation) per byte. Boolean and IEEE float
 cross-carrier views (`bool` as `u8`, `f32` as `u32`) reject there because
 Terminal Psi has no bit-reinterpretation or 0/1-landing re-view operation yet;
 Boolean view targets still retag their guard leaf until that form exists.

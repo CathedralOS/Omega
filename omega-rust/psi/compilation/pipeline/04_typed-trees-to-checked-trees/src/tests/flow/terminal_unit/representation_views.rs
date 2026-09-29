@@ -100,3 +100,59 @@ fn recast_guard_reads_retain_the_declared_carrier_beneath_the_view() {
     // The same-carrier recast is the place's own read, not a re-view.
     assert_eq!(reads.fields, [PrimitiveType::U32]);
 }
+
+#[test]
+fn a_runtime_offset_byte_region_view_retains_its_first_byte_element() {
+    let checked = checked(
+        r#"
+        data Main { buf: [u8; 12]; k: u32; }
+        machine Main::main(&mut self) {
+            self.k = 4;
+            transition self.k <= 8 { true -> read(self.k) _ -> bad() }
+            state read(&mut self, off: u32) {
+                let word: &u32 = &self.buf[off] as &u32;
+                transition word == 67305985 {
+                    true -> good()
+                    _ -> bad()
+                }
+            }
+            state good(&mut self) {}
+            state bad(&mut self) {}
+        }
+        "#,
+    );
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("::main"))
+        .expect("the authored Main::main machine");
+    let state = checked
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.name.as_str().ends_with("read"))
+        .expect("the offset state");
+    let guard = checked
+        .facts
+        .values
+        .scalar_expressions
+        .expression_at(state.symbol, 1, CheckedScalarExpressionRole::Guard)
+        .expect("the byte-region guard lowers to one pure expression");
+    let mut reads = GuardReads::default();
+    scalar(guard, &mut reads);
+    let [(view, operand)] = reads.views.as_slice() else {
+        panic!("one byte-region view: {guard:?}");
+    };
+    assert_eq!(*view, PrimitiveType::U32);
+    assert!(
+        matches!(
+            operand,
+            CheckedScalarExpression::StructuralParameterIndexedRead {
+                primitive_type: PrimitiveType::U8,
+                inner_indexes,
+                element_path,
+                ..
+            } if inner_indexes.is_empty() && element_path.is_empty()
+        ),
+        "the view keeps the authored first-byte element read: {operand:?}"
+    );
+}

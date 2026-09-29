@@ -101,3 +101,83 @@ fn a_computed_operand_cannot_stand_in_for_the_viewed_place() {
         error(replay(substituted, integer(IntegerSign::Unsigned, 32))).contains("one scalar place")
     );
 }
+
+fn byte_element_read(index: LoweredDirectExpression) -> LoweredDirectExpression {
+    LoweredDirectExpression::IndexedPrimitiveRead {
+        source: PlaceId::new(41).unwrap(),
+        path: Vec::new(),
+        index: Box::new(index),
+        inner_indexes: Vec::new(),
+        element_path: Vec::new(),
+        scalar_type: integer(IntegerSign::Unsigned, 8),
+    }
+}
+
+/// Every byte read of an assembled region, in authored-footprint order.
+fn byte_reads(expression: &LoweredDirectExpression, reads: &mut Vec<LoweredDirectExpression>) {
+    match expression {
+        LoweredDirectExpression::IndexedPrimitiveRead { index, .. } => {
+            reads.push(index.as_ref().clone());
+        }
+        LoweredDirectExpression::IntegerBinary { left, right, .. } => {
+            byte_reads(left, reads);
+            byte_reads(right, reads);
+        }
+        LoweredDirectExpression::IntegerWiden { operand, .. }
+        | LoweredDirectExpression::IntegerExactCast { operand, .. }
+        | LoweredDirectExpression::IntegerBitwiseNot { operand, .. } => byte_reads(operand, reads),
+        _ => {}
+    }
+}
+
+#[test]
+fn a_byte_region_view_reads_each_footprint_byte_from_its_first_element() {
+    let offset = LoweredDirectExpression::Parameter {
+        position: 0,
+        scalar_type: integer(IntegerSign::Unsigned, 64),
+    };
+    let word = integer(IntegerSign::Unsigned, 32);
+    let lowered = replay(byte_element_read(offset.clone()), word).expect("u8 region as u32");
+    assert_eq!(lowered.scalar_type(), word);
+    let mut reads = Vec::new();
+    byte_reads(&lowered, &mut reads);
+    // The first byte keeps the authored selector; each later byte offsets it,
+    // so each read owes its own `index < extent` obligation.
+    assert_eq!(reads.len(), 4);
+    assert!(matches!(
+        &reads[0],
+        LoweredDirectExpression::Parameter { position: 0, .. }
+    ));
+    for (byte, read) in reads.iter().enumerate().skip(1) {
+        let LoweredDirectExpression::IntegerBinary { left, right, .. } = read else {
+            panic!("byte {byte} offsets the authored selector: {read:?}");
+        };
+        assert!(matches!(
+            left.as_ref(),
+            LoweredDirectExpression::Parameter { position: 0, .. }
+        ));
+        assert!(matches!(right.as_ref(),
+            LoweredDirectExpression::IntegerLiteral { value: IntegerValue::Unsigned(value), .. }
+                if *value == byte as u128));
+    }
+
+    let signed = integer(IntegerSign::Signed, 16);
+    assert_eq!(
+        replay(byte_element_read(offset), signed)
+            .expect("u8 region as i16")
+            .scalar_type(),
+        signed
+    );
+}
+
+#[test]
+fn a_byte_region_view_must_start_at_a_runtime_selected_byte() {
+    // A whole `u8` field is not the first element of a byte region.
+    assert!(
+        error(replay(
+            field_read(integer(IntegerSign::Unsigned, 8)),
+            integer(IntegerSign::Unsigned, 32)
+        ))
+        .contains("one runtime-selected byte")
+    );
+}
