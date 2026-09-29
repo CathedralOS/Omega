@@ -8,6 +8,7 @@ use selected_instructions::{
     SelectedBlockId, SelectedInstructionId, SelectedInstructionKind, SelectedTerminator,
     VirtualRegisterId,
 };
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 
 /// Independent replay rebuilds each boundary's copy — the inserted
 /// instruction sequence, the fresh segment registers, and the retargeted
@@ -138,6 +139,62 @@ fn independent_site_replay_rejects_stale_boundary_facts() {
         ),
         Err(FixedViewCopyError::NonCanonicalCopies)
     ));
+}
+
+/// Replay applies the producer's width-only scalar gate independently: a
+/// signed i64 source rebuilds every site copy, while a narrower integer or a
+/// non-integer scalar refuses — the same fence the producer enforces.
+#[test]
+fn independent_replay_admits_signed_i64_and_rejects_non_64_scalars() {
+    let (function, boundaries, row) = immediate_fixture();
+    let references = boundaries.iter().collect::<Vec<_>>();
+
+    let mut signed = function.clone();
+    signed.virtual_registers[0].scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let mut transformed = signed.clone();
+    assert_eq!(
+        replay_site_copies(
+            0,
+            &signed,
+            &references,
+            &mut transformed,
+            &row,
+            row.key,
+            false,
+            5,
+            1,
+        )
+        .unwrap()
+        .len(),
+        3
+    );
+
+    for scalar in [
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+        ScalarType::Boolean,
+    ] {
+        let mut changed = function.clone();
+        changed.virtual_registers[0].scalar_type = scalar;
+        let mut transformed = changed.clone();
+        assert!(matches!(
+            replay_site_copies(
+                0,
+                &changed,
+                &references,
+                &mut transformed,
+                &row,
+                row.key,
+                false,
+                5,
+                1,
+            ),
+            Err(FixedViewCopyError::UnsupportedSourceRegister {
+                function: 0,
+                register: 0
+            })
+        ));
+    }
 }
 
 /// The leaf-local replay gate is unchanged: the instruction-result source

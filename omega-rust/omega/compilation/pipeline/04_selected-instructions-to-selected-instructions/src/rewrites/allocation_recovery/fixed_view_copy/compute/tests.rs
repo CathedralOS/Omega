@@ -2,11 +2,10 @@
 use super::apply::apply_copy;
 use super::source_exit::build_source_exit_copies;
 use super::{
-    FixedViewCopy, FixedViewCopyError, FixedViewCopyPolicy, IntegerSign,
-    RegisterInstructionConstraint, RegisterOperandAccess, ScalarType, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
-    SelectedTerminator, VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    FixedViewCopy, FixedViewCopyError, FixedViewCopyPolicy, RegisterInstructionConstraint,
+    RegisterOperandAccess, ScalarType, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
+    VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 
 use optimization_unit::ValueDefinitionSite;
@@ -20,7 +19,9 @@ use register_model::{
 };
 use selected_instructions::{LiveRangeEdgeConnector, LiveRangePoint, LivenessPosition};
 use selected_instructions::{SelectedBlock, SelectedBlockId, SelectedFunction, SelectedSuccessor};
-use semantic_vocabulary::{BlockId, EdgeId, IntegerType, IntegerValue, MachineId, ValueId};
+use semantic_vocabulary::{
+    BlockId, EdgeId, IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, MachineId, ValueId,
+};
 
 fn key(variant: u32) -> RegisterConstraintKey {
     RegisterConstraintKey {
@@ -786,6 +787,103 @@ fn immediate_site_copy_rejects_malformed_boundary_and_source_premises() {
         let mut transformed = changed.clone();
         assert!(matches!(
             build(&changed, &boundaries, &mut transformed),
+            Err(FixedViewCopyError::UnsupportedSourceRegister {
+                function: 0,
+                register: 0
+            })
+        ));
+    }
+}
+
+/// The scalar gate is width-only: `CopyI64` preserves a 64-bit bit-pattern
+/// without interpreting sign, so a signed i64 source admits through the same
+/// sites and shared exits as the unsigned form, while narrower integers and
+/// non-integer scalars — including a same-width float — still refuse.
+#[test]
+fn source_scalar_gate_admits_signed_i64_and_rejects_non_64_scalars() {
+    let (function, boundaries, row) = immediate_fixture();
+    let references = boundaries.iter().collect::<Vec<_>>();
+
+    let mut signed = function.clone();
+    signed.virtual_registers[0].scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let mut transformed = signed.clone();
+    let copies = super::site::build_site_copies(
+        0,
+        &signed,
+        &references,
+        &mut transformed,
+        &row,
+        row.key,
+        false,
+        5,
+        1,
+    )
+    .unwrap();
+    assert_eq!(copies.len(), 3);
+    // The fresh copy-result register preserves the signed source's scalar
+    // type — the move rewrites the bit-pattern's home, not its meaning.
+    assert_eq!(
+        transformed.virtual_registers[1].scalar_type,
+        signed.virtual_registers[0].scalar_type
+    );
+    let mut transformed = signed.clone();
+    assert_eq!(
+        build_source_exit_copies(
+            0,
+            &signed,
+            &references,
+            &mut transformed,
+            &row,
+            row.key,
+            FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+            5,
+            1,
+        )
+        .unwrap()
+        .len(),
+        3
+    );
+
+    for scalar in [
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap()),
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+        ScalarType::Boolean,
+        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+    ] {
+        let mut changed = function.clone();
+        changed.virtual_registers[0].scalar_type = scalar;
+        let mut transformed = changed.clone();
+        assert!(matches!(
+            super::site::build_site_copies(
+                0,
+                &changed,
+                &references,
+                &mut transformed,
+                &row,
+                row.key,
+                false,
+                5,
+                1,
+            ),
+            Err(FixedViewCopyError::UnsupportedSourceRegister {
+                function: 0,
+                register: 0
+            })
+        ));
+        let mut transformed = changed.clone();
+        assert!(matches!(
+            build_source_exit_copies(
+                0,
+                &changed,
+                &references,
+                &mut transformed,
+                &row,
+                row.key,
+                FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+                5,
+                1,
+            ),
             Err(FixedViewCopyError::UnsupportedSourceRegister {
                 function: 0,
                 register: 0

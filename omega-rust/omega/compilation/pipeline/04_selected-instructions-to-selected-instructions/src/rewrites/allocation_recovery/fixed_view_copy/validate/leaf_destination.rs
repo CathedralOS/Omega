@@ -1,6 +1,6 @@
 use register_model::RegisterOperandAccess;
 use selected_instructions::{SelectedInstructionId, SelectedTerminator, VirtualRegisterId};
-use semantic_vocabulary::{IntegerSign, ScalarType};
+use semantic_vocabulary::ScalarType;
 
 use crate::FixedViewCopyError;
 
@@ -101,11 +101,12 @@ pub(super) fn terminator(
     }
 }
 
-pub(super) fn replay_is_u64(scalar: ScalarType) -> bool {
+/// Replay applies the same admission the producer's `is_i64` does:
+/// `CopyI64` preserves a 64-bit register bit-pattern without interpreting
+/// sign, so any 64-bit integer source — signed or unsigned — is admitted.
+pub(super) fn replay_is_i64(scalar: ScalarType) -> bool {
     match scalar {
-        ScalarType::Integer(integer) => {
-            integer.sign() == IntegerSign::Unsigned && integer.bits() == 64
-        }
+        ScalarType::Integer(integer) => integer.bits() == 64,
         _ => false,
     }
 }

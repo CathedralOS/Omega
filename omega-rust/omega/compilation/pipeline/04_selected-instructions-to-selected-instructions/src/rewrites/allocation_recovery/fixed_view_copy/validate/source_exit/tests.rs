@@ -7,7 +7,7 @@ use crate::rewrites::allocation_recovery::fixed_view_copy::compute::tests::{
 use selected_instructions::{
     SelectedInstructionId, SelectedInstructionKind, SelectedTerminator, VirtualRegisterId,
 };
-use semantic_vocabulary::ValueId;
+use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, ValueId};
 
 fn replay(
     function: &selected_instructions::SelectedFunction,
@@ -227,6 +227,49 @@ fn independent_shared_copy_replay_is_terminal_on_the_transformed_function() {
         .map(|(copies, _)| copies),
         Ok(vec![produced])
     );
+}
+
+/// The shared-exit replay gate matches the producer's width-only scalar
+/// admission: a signed i64 source replays under the default leg, while a
+/// narrower integer still refuses.
+#[test]
+fn independent_shared_replay_admits_signed_i64_and_rejects_narrower_scalars() {
+    let (function, boundaries, row) = immediate_fixture();
+    let references = boundaries.iter().collect::<Vec<_>>();
+
+    let mut signed = function.clone();
+    signed.virtual_registers[0].scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    assert_eq!(
+        replay(
+            &signed,
+            &references,
+            &row,
+            FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+            5,
+            1,
+        )
+        .map(|(copies, _)| copies.len()),
+        Ok(3)
+    );
+
+    let mut narrow = function.clone();
+    narrow.virtual_registers[0].scalar_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+    assert!(matches!(
+        replay(
+            &narrow,
+            &references,
+            &row,
+            FixedViewCopyPolicy::SharedSourceExitBeforeFixedUseV1,
+            5,
+            1,
+        ),
+        Err(FixedViewCopyError::UnsupportedSourceRegister {
+            function: 0,
+            register: 0
+        })
+    ));
 }
 
 /// The default leg replays the immediate form's origin admission:

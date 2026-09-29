@@ -1,9 +1,8 @@
 //! Selected-CFG copy insertion and operand rewriting mechanics.
 use super::{
-    IntegerSign, RegisterInstructionConstraint, ScalarType, SelectedInstruction,
-    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand,
-    SelectedTerminator, VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    RegisterInstructionConstraint, ScalarType, SelectedInstruction, SelectedInstructionId,
+    SelectedInstructionKind, SelectedInstructionProvenance, SelectedOperand, SelectedTerminator,
+    VirtualFixedConstraintSite, VirtualRegister, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use crate::FixedViewCopy;
 use crate::FixedViewCopyError;
@@ -175,10 +174,13 @@ fn selected_operand(
     }
 }
 
-pub(super) fn is_u64(scalar: ScalarType) -> bool {
+/// `CopyI64` is a raw 64-bit register move: it preserves the source
+/// bit-pattern without interpreting sign, so a fixed-view copy admits any
+/// 64-bit integer source — signed or unsigned — and no narrower or
+/// non-integer scalar.
+pub(super) fn is_i64(scalar: ScalarType) -> bool {
     matches!(
         scalar,
-        ScalarType::Integer(integer)
-            if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64
+        ScalarType::Integer(integer) if integer.bits() == 64
     )
 }
