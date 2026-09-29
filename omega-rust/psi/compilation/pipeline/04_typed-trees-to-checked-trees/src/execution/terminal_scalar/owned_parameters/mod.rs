@@ -72,6 +72,7 @@ pub(super) fn validate(
                     pending.extend([*left, *right])
                 }
                 CheckedScalarComputationKind::Qualification { operand, .. }
+                | CheckedScalarComputationKind::AuthoredCast { operand, .. }
                 | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                     pending.push(*operand)
                 }

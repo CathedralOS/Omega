@@ -196,6 +196,32 @@ pub(crate) fn validate_computation_calls(
                 )?;
                 pending.push((*operand, false, source));
             }
+            CheckedScalarComputationKind::AuthoredCast {
+                source_expression,
+                operand,
+                result_type,
+                ..
+            } => {
+                dispatch::source_scope(
+                    checked,
+                    machine,
+                    state,
+                    authored_scope,
+                    *source_expression,
+                    node.primitive_type,
+                )?;
+                let source = qualifications::authored_operand(
+                    checked,
+                    machine,
+                    state,
+                    statement,
+                    *source_expression,
+                    *operand,
+                    *result_type,
+                    node.primitive_type,
+                )?;
+                pending.push((*operand, false, source));
+            }
             CheckedScalarComputationKind::BooleanToInteger {
                 source_expression,
                 operand,
