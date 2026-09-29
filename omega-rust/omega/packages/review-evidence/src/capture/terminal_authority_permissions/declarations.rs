@@ -58,7 +58,21 @@ pub(super) fn resolve_services<'a>(
             ));
         }
         let service = nominal_identity(compilation, symbol)?;
-        if service.owner() != PackageReviewNominalOwner::Package(accepted.package()) {
+        // ProcessExit binds a package-owned provider of the core declaration;
+        // its package is not the declaration's owner. The resolved binding has
+        // already rejoined the exact core symbol and selected provider plan.
+        // Retain that toolchain source identity in permission evidence rather
+        // than relabeling the service as package-owned.
+        let expected_owner = match accepted.role() {
+            package_compilation::AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => {
+                matches!(
+                    service.owner(),
+                    PackageReviewNominalOwner::ToolchainSource(_)
+                )
+            }
+            _ => service.owner() == PackageReviewNominalOwner::Package(accepted.package()),
+        };
+        if !expected_owner {
             return Err(rejected("accepted service changed its exact package owner"));
         }
         let requirements = super::requirements::resolve(compilation, symbol, &schema)?;

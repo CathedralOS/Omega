@@ -3,7 +3,7 @@ use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
 use compiler::CheckedCompilation;
-use effects::provider_plan::ServiceSchema;
+use effects::provider_plan::{ProviderBinding, ServiceMethod, ServiceSchema};
 use effects::{
     ServiceTerminalAuthorityPermission, TerminalAuthorityClass, TerminalAuthorityDisposition,
 };
@@ -150,7 +150,14 @@ pub(super) fn semantic_bindings_by_consumer(
 /// compiler review. The bound recompilation remains the exact validator, and
 /// its resulting provider and authority rows still require root policy.
 ///
-/// The Console exit proposal for the closure root also carries the
+/// Console and core ProcessExit use the same exit-binding proposal flow. Console
+/// owns its schema in the provider package; ProcessExit owns its schema in core
+/// and binds the provider package instead. Both retain the exact selected plan
+/// and require the bound recompilation to validate that ownership relationship.
+/// Intrinsic and imported exit leaves go through the same review: target linkage
+/// changes realization, not the consumer's obligation to approve termination.
+///
+/// The exit proposal for the closure root also carries the
 /// terminal-authority permissions its recognized compiler-intrinsic leaves
 /// need at native realization: process termination for `exit_process`, and
 /// process output and input for the `write_byte` and `read_byte` rows the
@@ -226,60 +233,65 @@ pub(super) fn candidate_semantic_binding_inputs(
                 binding,
             ));
         }
-        let candidates = review
-            .projection()
-            .selected_providers()
-            .iter()
-            .filter(|provider| is_package_console_intrinsic_candidate(provider))
-            .collect::<Vec<_>>();
-        let provider = match candidates.as_slice() {
-            [] => continue,
-            [provider] => *provider,
-            _ => {
-                return Err(
-                    CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
-                        consumer: review.key().clone(),
-                        role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-                        candidate_count: candidates.len(),
-                    },
-                );
-            }
-        };
-        let PackageReviewNominalOwner::Package(package) = provider.schema_declaration().owner()
-        else {
-            unreachable!("candidate predicate admits only package-owned schemas")
-        };
-        let invalid = || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
-            consumer: review.key().clone(),
-            role: AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-        };
-        let mut binding = AcceptedSemanticBinding::new(
+        for role in [
             AcceptedSemanticBindingRole::ConsoleExitProcessI32,
-            package,
-            provider.schema_declaration().path(),
-            provider.schema().identity_digest(),
-            provider.selected_plan_digest(),
-        )
-        .map_err(|_| invalid())?;
-        if review.key() == root && review.checked_context().purpose() == DependencyPurpose::Product
-        {
-            binding = binding
-                .with_terminal_authority_permissions(
-                    candidate_console_permissions(provider).ok_or_else(invalid)?,
-                )
-                .map_err(|_| invalid())?;
+            AcceptedSemanticBindingRole::ProcessExitExitProcessI32,
+        ] {
+            let candidates = review
+                .projection()
+                .selected_providers()
+                .iter()
+                .filter_map(|provider| {
+                    candidate_hosted_exit_provider_package(provider, role)
+                        .map(|package| (provider, package))
+                })
+                .collect::<Vec<_>>();
+            let (provider, package) = match candidates.as_slice() {
+                [] => continue,
+                [candidate] => *candidate,
+                _ => {
+                    return Err(
+                        CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
+                            consumer: review.key().clone(),
+                            role,
+                            candidate_count: candidates.len(),
+                        },
+                    );
+                }
+            };
+            let invalid = || CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                consumer: review.key().clone(),
+                role,
+            };
+            let mut binding = AcceptedSemanticBinding::new(
+                role,
+                package,
+                provider.schema_declaration().path(),
+                provider.schema().identity_digest(),
+                provider.selected_plan_digest(),
+            )
+            .map_err(|_| invalid())?;
+            if review.key() == root
+                && review.checked_context().purpose() == DependencyPurpose::Product
+            {
+                binding = binding
+                    .with_terminal_authority_permissions(
+                        candidate_hosted_exit_permissions(provider, role).ok_or_else(invalid)?,
+                    )
+                    .map_err(|_| invalid())?;
+            }
+            inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
+                review.key().clone(),
+                review.checked_context(),
+                binding,
+            ));
         }
-        inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
-            review.key().clone(),
-            review.checked_context(),
-            binding,
-        ));
     }
     Ok(inputs)
 }
 
-/// The terminal-authority permission rows for the compiler-intrinsic Console
-/// leaves of one nominated provider schema: process termination for the
+/// The terminal-authority permission rows for the hosted leaves of one
+/// nominated provider schema: process termination for the
 /// exact `exit_process` requirement, process output for `write_byte` and
 /// process input for `read_byte`. Each class is the one the compiler's own
 /// mechanism classification assigns to that hosted leaf. The readable names
@@ -287,10 +299,11 @@ pub(super) fn candidate_semantic_binding_inputs(
 /// row binds the schema digest and requirement identity, so a lookalike
 /// schema cannot reuse an accepted row. The exit leaf is the nomination
 /// itself and must be present exactly once; the byte leaves are proposed only
-/// when the provider declares them as compiler-intrinsic rows, so a provider
-/// without console I/O proposes no output or input row.
-fn candidate_console_permissions(
+/// when a Console provider declares their external rows. The separate
+/// ProcessExit role proposes only termination, never console I/O authority.
+fn candidate_hosted_exit_permissions(
     provider: &CheckedPackageProviderReview,
+    role: AcceptedSemanticBindingRole,
 ) -> Option<Vec<ServiceTerminalAuthorityPermission>> {
     const LEAVES: [(&str, TerminalAuthorityClass, bool); 3] = [
         (
@@ -301,11 +314,15 @@ fn candidate_console_permissions(
         ("write_byte", TerminalAuthorityClass::ProcessOutput, false),
         ("read_byte", TerminalAuthorityClass::ProcessInput, false),
     ];
-    let mut permissions = Vec::with_capacity(LEAVES.len());
-    for (name, class, required) in LEAVES {
-        let mut methods = provider
-            .compiler_intrinsic_methods()
-            .filter(|method| method.name == name);
+    let leaves = match role {
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32 => &LEAVES[..],
+        AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => &LEAVES[..1],
+        _ => return None,
+    };
+    let mut permissions = Vec::with_capacity(leaves.len());
+    for &(name, class, required) in leaves {
+        let mut methods =
+            candidate_hosted_exit_methods(provider).filter(|method| method.name == name);
         let Some(method) = methods.next() else {
             if required {
                 return None;
@@ -565,16 +582,45 @@ fn callable_service_references(
     services
 }
 
-fn is_package_console_intrinsic_candidate(provider: &CheckedPackageProviderReview) -> bool {
-    let PackageReviewNominalOwner::Package(package) = provider.schema_declaration().owner() else {
-        return false;
+fn candidate_hosted_exit_provider_package(
+    provider: &CheckedPackageProviderReview,
+    role: AcceptedSemanticBindingRole,
+) -> Option<semantic_vocabulary::PackageKeyIdentity> {
+    let package = provider.provider_type_package()?;
+    let expected_schema_owner = match role {
+        AcceptedSemanticBindingRole::ConsoleExitProcessI32 => {
+            provider.service_schema() == "Console"
+                && provider.schema_declaration().owner()
+                    == PackageReviewNominalOwner::Package(package)
+        }
+        AcceptedSemanticBindingRole::ProcessExitExitProcessI32 => {
+            provider.service_schema() == "ProcessExit"
+                && matches!(
+                    provider.schema_declaration().owner(),
+                    PackageReviewNominalOwner::ToolchainSource(_)
+                )
+        }
+        _ => false,
     };
-    provider.service_schema() == "Console"
-        && provider.provider_type_package() == Some(package)
+    (expected_schema_owner
         && provider.realizing_package() == Some(package)
-        && provider
-            .compiler_intrinsic_methods()
-            .any(|method| method.name == "exit_process")
+        && candidate_hosted_exit_methods(provider).any(|method| method.name == "exit_process"))
+    .then_some(package)
+}
+
+fn candidate_hosted_exit_methods(
+    provider: &CheckedPackageProviderReview,
+) -> impl Iterator<Item = &ServiceMethod> {
+    provider.rows().iter().filter_map(|row| {
+        if matches!(
+            row.binding,
+            ProviderBinding::CompilerIntrinsic { .. } | ProviderBinding::Import { .. }
+        ) {
+            provider.schema().method_for_row(row)
+        } else {
+            None
+        }
+    })
 }
 
 #[cfg(test)]
