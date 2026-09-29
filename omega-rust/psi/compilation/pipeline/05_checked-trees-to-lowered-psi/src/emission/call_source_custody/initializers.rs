@@ -280,12 +280,13 @@ pub(crate) fn validate(
         }
         _ => return unsupported("computed result operands have no authored value-producing call"),
     };
-    // A field store's scalar boundary application tree has the same ordered
-    // operand custody: its nested applications are its computed operands.
+    // A field store's or local's scalar boundary application tree has the
+    // same ordered operand custody: its nested applications are its computed
+    // operands.
     let stored_application =
         matches!(
             statements.get(coordinate.statement_index as usize),
-            Some(StatementNode::Assignment(_))
+            Some(StatementNode::Assignment(_) | StatementNode::LocalData(_))
         ) && validation::nested_boundary_applications_compose(&checked.typed, expression);
     if machine.symbol != caller_machine
         || !(stored_application

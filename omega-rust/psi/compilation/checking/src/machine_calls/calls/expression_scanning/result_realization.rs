@@ -63,6 +63,7 @@ pub(crate) fn report_nested_call_in_local_initializer(
     if scalar_initializer_computation_is_supported(program, machine, value)
         || result_initializer_call_is_supported(program, machine, value)
         || reference_result_nested_operand_call_is_supported(program, machine, value)
+        || immutable_boundary_application_initializer(program, machine, value)
     {
         // This exempts a destination, not its semantics. Ordinary call checks
         // still validate every argument; unsupported computation nodes or call
@@ -1404,6 +1405,28 @@ pub(crate) fn report_nested_call_in_bound_value_call(
             return;
         }
     }
+}
+
+/// An immutable local initialized by a scalar boundary application tree
+/// (`let m: f64 = F64::maximum(a - b, 0.5)`) keeps its outer application as
+/// the statement's result operation over ordered nested operands. A mutable
+/// local's storage initializer has no such plan and keeps the fence.
+fn immutable_boundary_application_initializer(
+    program: &TypedTrees,
+    machine: &Machine,
+    value: ExpressionHandle,
+) -> bool {
+    nested_boundary_applications_compose(program, value)
+        && program.machine_states(machine).iter().any(|state| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    matches!(statement, StatementNode::LocalData(local)
+                        if local.initial_value == value && !local.is_mutable)
+                })
+        })
 }
 
 /// True when `value` is a bodyless scalar boundary application whose every

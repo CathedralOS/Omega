@@ -1742,28 +1742,38 @@ crash and native exit behavior. Use affected check/native corpus slices under
     signatures. Nested boundary applications compose: a nested `a * b`,
     `F64::from_i32(x)` or guard operand is a checked `BoundaryCall`
     computation whose one Terminal `BoundaryCall` runs between its operands
-    and its consumer, and the checker admits field stores whose value is such
-    a tree. On macOS ARM64, `pass/float/nested_float_operator_applications_exit`
-    exits **70**, `arithmetic/stats_compute` **70** and `rendering/mandelbrot`
-    **0** natively. `basics/temperature_convert` and
-    `rendering/bouncing_ball_2d` stop at the float-to-integer policy cast
-    store `(x as i32 in Saturating) as i32` (`structural field store: pure
-    source: scalar expression row`, also at base with flat arithmetic), like
-    `float/float_trapping_*`; spelling it `I32::from_f64` then `as i32`
-    stops at `scalar source custody disagrees with its authored destination
-    role`. `arithmetic/vector_distance` needs its builtin `sqrt(..)` over a
-    computed operand bound to `F64::square_root`; `rendering/mandelbrot_zoom`
-    stops at its `Main::clock` Fused provider. Pure scalar-graph machines
+    and its consumer. Field stores and immutable locals whose value is such a
+    tree pass the checker, including named operators with literal operands
+    (`min(a * b, 11.5)`). On macOS ARM64, `pass/float/nested_float_operator_applications_exit`
+    exits **70**, `arithmetic/stats_compute` **70**, `basics/unit_converter`
+    **70** and `rendering/mandelbrot` **0** natively.
+    `basics/temperature_convert`, `rendering/bouncing_ball_2d`,
+    `arithmetic/sensor_min_max` and `arithmetic/vector_distance` stop at the
+    float-to-integer policy cast store `(x as i32 in Saturating) as i32`
+    (`structural field store: pure source: scalar expression row`, also at
+    base with flat arithmetic), like `float/float_trapping_*`. A cast has no
+    call occurrence or selected conversion requirement to lower through; the
+    explicit `I32::from_f64` spelling selects the unqualified overload.
+    Float `clamp(..)` and `abs(..)` stop at review projection: their
+    synthesized `F64::minimum`/`F64::maximum` calls retain 0 authored
+    selection occurrences. `vector_distance` hits this at `abs(self.dx)`.
+    `rendering/mandelbrot_zoom` stops at its `Main::clock` Fused provider;
+    `gui/{window_demo,windowed_calculator}` stop after their float statements
+    at a borrowed byte-array element argument and `gui/window_app` at a
+    structural field store destination parameter. Pure scalar-graph machines
     carry no boundary roster, so nested applications there reject
-    (`expressions/match_float_subjects`). `float/{named_provider_negate_is_nan_exit,
-    named_provider_fused_multiply_add_exit,x86_fma_plan_association}` stop at
-    `statement sequence: local data: scalar local: pure initializer`:
-    `statement_sequence.rs::scalar_computation_local_at` uses an execution
-    result-slot ordinal to look up a source-local initializer, and preceding
-    call-result field stores advance only the former. Separate source
-    occurrence custody from executable value positions through the Psi 04/05
-    consumers, then rerun those customers. `named_provider_multiply_then_add_exit`
-    now reaches its own `u64` to `i32` exit-code store rejection.
+    (`expressions/match_float_subjects`).
+    Wrong code at `53fa9ef457`: in one state, `self.s = self.a + self.b; let
+    m: f64 = self.b * 2.0;` then `m == 8.0` is false natively. The local reads
+    the call-result slot: source custody now counts preceding call-result
+    field stores in `binding_ordinal`, while `scalar_computation_local_at` and
+    the scalar expression local namespace count only authored locals.
+    `float/{named_provider_negate_is_nan_exit,named_provider_fused_multiply_add_exit,
+    x86_fma_plan_association}` stop at `statement sequence: local data: scalar
+    local: pure initializer` on the same split. Separate source occurrence
+    custody from executable value positions through the Psi 04/05 consumers,
+    then rerun those customers. `named_provider_multiply_then_add_exit` reaches
+    its own `u64` to `i32` exit-code store rejection.
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
     through selected-plan settlement and physical-child replay. Reuse stage

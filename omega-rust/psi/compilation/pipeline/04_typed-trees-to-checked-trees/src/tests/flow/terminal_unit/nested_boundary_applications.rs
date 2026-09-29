@@ -219,3 +219,73 @@ fn reordered_or_duplicated_application_occurrences_reject() {
         "a reordered occurrence rejects"
     );
 }
+
+/// A literal operand of a legacy named operator lands at the operator's
+/// formal, so `F64::minimum(a * b, 2.5)` carries a pure literal beside its
+/// nested application instead of losing the whole statement plan.
+#[test]
+fn named_operator_literal_operands_land_beside_nested_applications() {
+    let checked = checked(
+        "data Root { first: f64; }
+        pub boundary machine * Float::multiply(left: f64, right: f64) -> f64;
+        pub data F64 {}
+        pub boundary operator F64::minimum(left: f64, right: f64) -> f64
+        ensures true;
+        machine Root::enter(&mut self, a: f64, b: f64) {
+            self.first = F64::minimum(a * b, 2.5);
+        }",
+    );
+    let symbol = machine_named(&checked, "Root::enter");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(symbol)
+            .is_some(),
+        "{:?}",
+        checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .omission_for_machine(symbol)
+    );
+    let state = checked.machine_states(
+        checked
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == symbol)
+            .unwrap(),
+    )[0]
+    .symbol;
+    let role = |argument_ordinal| CheckedScalarExpressionRole::BoundaryCallArgument {
+        call_ordinal: 0,
+        argument_ordinal,
+    };
+    assert!(matches!(
+        checked
+            .facts
+            .values
+            .scalar_computations
+            .root_at(state, 0, role(0))
+            .map(|root| &checked
+                .facts
+                .values
+                .scalar_computations
+                .nodes
+                .get(root.root)
+                .kind),
+        Some(CheckedScalarComputationKind::BoundaryCall {
+            call_ordinal: 1,
+            ..
+        })
+    ));
+    assert!(matches!(
+        checked
+            .facts
+            .values
+            .scalar_expressions
+            .expression_at(state, 0, role(1)),
+        Some(checked_trees::CheckedScalarExpression::IeeeFloatLiteral { .. })
+    ));
+}
