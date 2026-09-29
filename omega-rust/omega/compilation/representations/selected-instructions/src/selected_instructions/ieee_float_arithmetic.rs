@@ -110,7 +110,7 @@ mod tests {
             IeeeFloatArithmeticForm::from_machine_payload(IeeeFloatArithmeticForm::COUNT as u8),
             None
         );
-        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 64);
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 66);
         // Catalog declarations follow this order, so it must be sorted.
         assert!(IeeeFloatArithmeticForm::ALL.is_sorted());
     }

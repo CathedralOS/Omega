@@ -6,20 +6,27 @@ use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
 use std::collections::{BTreeMap, BTreeSet};
 
 #[test]
-fn nan_classification_requires_the_called_boundary_format() {
+fn classification_requires_the_called_boundary_format() {
     use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
     use target_operations::{CompilerBuiltinExecution, IeeeFloatArithmeticOperation};
-    let identity =
-        CompilerIntrinsicExecutionIdentity::BuiltinFunction(symbols::BuiltinFunction::FloatIsNan);
-    assert_eq!(super::compiler_builtin_execution(identity, None), None);
-    for format in [Binary32, Binary64] {
-        assert_eq!(
-            super::compiler_builtin_execution(identity, Some(format)),
-            Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
-                operation: IeeeFloatArithmeticOperation::IsNan,
-                format,
-            })
-        );
+    for (function, operation) in [
+        (
+            symbols::BuiltinFunction::FloatIsNan,
+            IeeeFloatArithmeticOperation::IsNan,
+        ),
+        (
+            symbols::BuiltinFunction::FloatIsInfinite,
+            IeeeFloatArithmeticOperation::IsInfinite,
+        ),
+    ] {
+        let identity = CompilerIntrinsicExecutionIdentity::BuiltinFunction(function);
+        assert_eq!(super::compiler_builtin_execution(identity, None), None);
+        for format in [Binary32, Binary64] {
+            assert_eq!(
+                super::compiler_builtin_execution(identity, Some(format)),
+                Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
+            );
+        }
     }
 }
 

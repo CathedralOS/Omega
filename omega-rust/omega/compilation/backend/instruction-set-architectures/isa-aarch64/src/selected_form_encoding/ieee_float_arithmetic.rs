@@ -23,6 +23,10 @@
 //!   mask out, carrier-width `ADD #1` (16 bytes). Equality produces all ones
 //!   for non-NaNs and zero for NaNs; wrapping addition yields canonical false
 //!   or true without writing NZCV or evaluating the operand twice;
+//! - infinity classification: payload in, `FABS`, materialize positive infinity
+//!   through the result register into `v17`, `FCMEQ`, mask out, `LSR` (28 bytes).
+//!   Only either infinity equals positive infinity after sign removal; NaNs
+//!   remain unordered. The top mask bit is canonical zero/one, without NZCV;
 //! - integer to float: one `SCVTF`/`UCVTF` reading the general register
 //!   directly (`w` for 32-bit and `x` for 64-bit sources), one `FMOV` out
 //!   (8 bytes);
@@ -222,6 +226,13 @@ enum Word {
         source: u8,
         result: u8,
     },
+    /// `LSR Wd|Xd, Wn|Xn, #count` (`UBFM`), without changing NZCV.
+    LogicalShiftRight {
+        wide: bool,
+        count: u8,
+        source: u8,
+        result: u8,
+    },
 }
 
 fn encode_word(word: Word) -> u32 {
@@ -334,6 +345,17 @@ fn encode_word(word: Word) -> u32 {
                 | reg(source) << 5
                 | reg(result)
         }
+        Word::LogicalShiftRight {
+            wide,
+            count,
+            source,
+            result,
+        } => {
+            (if wide { 0xd340_fc00 } else { 0x5300_7c00 })
+                | u32::from(count) << 16
+                | reg(source) << 5
+                | reg(result)
+        }
         Word::BitwiseSelect {
             mask,
             if_set,
@@ -419,6 +441,18 @@ fn decode_word(word: u32) -> Option<Word> {
             source: field(5),
             result: field(0),
         },
+        _ if matches!(word & 0xffc0_fc00, 0x5300_7c00 | 0xd340_fc00) => {
+            let count = ((word >> 16) & 63) as u8;
+            if !bit(31) && count >= 32 {
+                return None;
+            }
+            Word::LogicalShiftRight {
+                wide: bit(31),
+                count,
+                source: field(5),
+                result: field(0),
+            }
+        }
         _ if word & 0xffe0_fc00 == 0x2e60_1c00 => Word::BitwiseSelect {
             mask: field(0),
             if_set: field(5),
@@ -456,6 +490,38 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
     };
     let (first, second, mask) = (LEFT_SCRATCH, RIGHT_SCRATCH, MASK_SCRATCH);
     match form.operation {
+        IeeeFloatArithmeticOperation::IsInfinite => vec![
+            move_in(registers[0], first, double),
+            Word::OneSource {
+                double,
+                opcode: 1,
+                source: first,
+                result: first,
+            },
+            // Input has already moved, so the output may safely hold the
+            // infinity constant even when both operands name one register.
+            Word::MoveWide {
+                keep: false,
+                shift: if double { 3 } else { 1 },
+                immediate: if double { 0x7ff0 } else { 0x7f80 },
+                general: result,
+            },
+            move_in(result, second, double),
+            Word::Compare {
+                equal: true,
+                double,
+                left: first,
+                right: second,
+                result: first,
+            },
+            move_out(first),
+            Word::LogicalShiftRight {
+                wide: double,
+                count: if double { 63 } else { 31 },
+                source: result,
+                result,
+            },
+        ],
         IeeeFloatArithmeticOperation::IsNan => vec![
             move_in(registers[0], first, double),
             Word::Compare {
@@ -798,6 +864,31 @@ mod tests {
     fn encodings_match_the_architectural_words() {
         use IeeeFloatArithmeticOperation as Operation;
         use IeeeFloatFormat::{Binary32, Binary64};
+        // Independently assembled, with the input and result aliased.
+        assert_eq!(
+            words(form(Operation::IsInfinite, Binary32), &[0, 0]),
+            [
+                0x1e27_0010,
+                0x1e20_c210,
+                0xd2af_f000,
+                0x1e27_0011,
+                0x5e31_e610,
+                0x1e26_0200,
+                0x531f_7c00
+            ]
+        );
+        assert_eq!(
+            words(form(Operation::IsInfinite, Binary64), &[0, 0]),
+            [
+                0x9e67_0010,
+                0x1e60_c210,
+                0xd2ef_fe00,
+                0x9e67_0011,
+                0x5e71_e610,
+                0x9e66_0200,
+                0xd37f_fc00
+            ]
+        );
         // Independently assembled: FMOV; FCMEQ self; FMOV; ADD #1.
         assert_eq!(
             words(form(Operation::IsNan, Binary32), &[0, 0]),
