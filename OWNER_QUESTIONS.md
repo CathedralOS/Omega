@@ -111,4 +111,49 @@ Proposed solutions below are recommendations, not owner rulings. Remove an
 entry when the contract answers it; retain any unfinished implementation on
 its owning task.
 
-None.
+### Q1 - How does an author bound every element of a fixed array?
+
+Named decision: `per-element-array-bounds`.
+
+**Context:** `samples/cli/simulation/game_of_life/main.omg` declares
+`board: [i32 [0..=1]; 16]` and `next: [i32 [0..=1]; 16]` — a range-constrained
+element carrier. `ShapeCollector::add_type` declines that element on purpose:
+`is_unrestricted_nonatomic_primitive` (types/mod.rs:1661) admits only an
+arithmetic-policy constraint, with the comment that "ranges and other
+qualifications still need their own retained obligations". A 15-line probe
+confirms `[i32 [0..=1]; 16]` declines at `signature` while `[i32; 16]` checks.
+
+[Domains and qualification](wiki/spec/language/domains.md) retired the
+bracketed scalar-interval suffix in favor of ordinary propositions, and routes
+common-field relationships to the data declaration's `where`. `where` clauses
+name fields and parameters, not elements — there is no element quantifier. An
+interval-only element domain (`i32::AliveCell requires self in 0..=1`) is the
+shape the owner already rejected under `scalar-range-contract-spelling`
+(6deef33a5c). `dependent_values.md` default-domain obligations likewise speak
+to fields and cases.
+
+**Problem:** No current contract spells a bound that holds for every element
+of a fixed array. Dropping the bound to `[i32; 16]` weakens the authored
+contract the program was written under; keeping it keeps the program declined
+before checking. The blocker sits in `terminal_unit/types/`, whose verification
+surface is claimed by LOCAL-DATA-CLUSTER-TERMINAL-VERIFY.
+
+**Proposed solution:** Give fixed arrays a constrained-element carrier that
+lowers to one retained per-element obligation — either a named element domain
+(`[i32 in AliveCell; 16]`, which needs the interval-domain rejection revisited
+for this exact role) or elementwise quantification in `where`
+(`where forall i, board[i] in 0..=1`). Either needs a Terminal shape for the
+element obligation so checking and Omega both replay it.
+
+**Alternatives:**
+- Keep the contract silent and require authors to re-establish the bound at
+  each element read/write. This declines the authored declaration without
+  replacing it and pushes per-element reasoning to every use site.
+- Admit the bracketed element suffix under the retired-scalar-suffix rules.
+  The spec deliberately routes scalar intervals to propositions; reviving the
+  suffix only inside array brackets creates a second spelling for the same
+  relationship.
+- Model the bound as a proposition over the whole array value in `where`
+  (a predicate on the array, not per element). It records the intent but gives
+  element reads no fact, so checking still cannot discharge `next[i] in 0..=1`
+  without elementwise decomposition.

@@ -51,10 +51,19 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   boundary-settlement lane, not the operator-call lane.
 
   `derive_operator_physical_span` handles checked static calls, comparison
-  spans and FMA; other intrinsic families still fall through to a named
-  `UnsupportedOperatorSpan`. Preserve their full scope, including float
-  arithmetic, negation, conversion and builtins, without claiming their old
-  source refusals are current evidence. Dynamic coverage has a different join:
+  spans and FMA. macw11 measured why no further arm can be added today: only
+  float/integer comparisons produce a Terminal intrinsic operation (float
+  arithmetic, negation, conversion and builtins produce none; Terminal FMA is
+  refused at `comparison_settlement.rs:315`), and production physical evidence
+  is always fragment-scoped (`from_validated_fragment_publication` is the sole
+  producer). `driver/tests/boundary_internal_call_evidence.rs` now witnesses
+  `match_float_patterns`' two comparison occurrences binding complete physical
+  children on macOS ARM64 and Linux x86-64; `boundary_operator_frontier.rs`
+  additionally pins the stage-05 receiver-field float guard refusal
+  (`prepare_expression.rs:268`). New physical coverage first needs those
+  upstream producers: the stage-05 float field observation, stage-04 guard
+  retention, and the Terminal float operations. Dynamic coverage has a
+  different join:
   stage 07 reconstructs local rebound scalar/unit descriptor-table calls,
   while forwarded/register-indirect occurrence production remains open.
   `derive_dynamic_call_span` already consumes rebound, stored, parameter and
@@ -78,11 +87,15 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   `custody_field_inventory!` and `run_one_field_substitution_matrix`; the
   `optimization-core` re-export is for Omega consumers, not a Psi dependency.
 
-  Start with the manual matrices in Terminal codec
-  `tests/artifact/{proposition_vocabulary_custody,reborrow_restored_call_use_custody,trace_profile_custody}.rs`,
-  native-artifact's semantic-wrapper container/receipt tests, image region and
-  footprint tests, image-emission's internal scalar-call/boundary-settlement
-  tests, and provider-evidence's `component_era_entry_ledger/custody.rs`.
+  The Terminal codec (ae970cc6c1), native-artifact semantic-wrapper
+  (ac20c488a9) and image-emission object/scalar-call/hosted/placement
+  (2e620b1271) families already run on the driver. Remaining: the image
+  crate's `executable_regions` and `footprint_certificate` tests (a staged
+  plan for their re-sealing legs and the
+  `initialized_data_envelope` exclusion is recorded on claim ticket
+  61fd07e264d6474098b7bf11edd01560), and provider-evidence's
+  `component_era_entry_ledger/custody.rs` (its replays produce diagnostic
+  strings, not an exact error type — pin a checkable judgment first).
   Recheck surviving selected-dispatch source-edit matrices and any custody
   families formerly owned by compiler tests before scheduling a migration:
   deleted test targets do not establish equivalent coverage.
@@ -121,11 +134,13 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     work; `tests/read_modify_write.rs` pins a dedicated reload for the tied use.
   - Composition: fixed-view probe declines, pressure after materialized copies,
     and pressure after active-resident rematerialization already enter runtime
-    spill with their validated prefix (`assignment/recovery.rs`). Completed
-    literal-fold/pre-allocation runs still take `assignment::transformed` homes
-    directly in `stage_register_allocation`; connect residual pressure there
-    without losing rewrite custody. Close remaining multi-recovery selection
-    composition through the same route and independent replay.
+    spill with their validated prefix (`assignment/recovery.rs`). Residual
+    pressure after completed literal-fold and pre-allocation runs also
+    composes into runtime spill (e4dab11af5): `RuntimeSpillSource` carries
+    SelectedLowering/PreAllocation arms that replay the run's custody as a
+    prefix and bind its completion identity in the manifest. Remaining
+    multi-recovery composition still goes through the same route and
+    independent replay.
   - Slot reuse: emitted recovery uses eight-byte `LocalStorageSlotId::Spill`
     homes. `rewrites/runtime_spill/slot.rs` reuses a slot only when last-writer
     replay proves noninterleaving windows for its supported store/load forms.
@@ -135,15 +150,18 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     input or restore the removed logical-plan join. Retire superseded
     `unsequenced_spill_stages/` owners with their consumers instead of extending
     parallel slot-assignment implementations.
-  - Stack provisioning: carry a witnessed runtime-spilled function through
-    image-emission's final-frame production and `function_fragments/validation/stack.rs`,
-    `object_artifact/stack_demand.rs` and
-    `installation_record/record_construction.rs::derive_installation_stack_demand`,
-    then external-root admission or hosted-receiver partitioning. Reuse those
-    existing demand/supply joins under the
-    [compiler-owned stack contract](wiki/spec/resources/storage.md#compiler-owned-stack-accesses);
-    ABI entry-spill fixtures alone do not establish allocation-recovery coverage.
-    Target-required setup and probing belong to frame/provisioning owners.
+  - Stack provisioning: the hosted path already joined frame to demand, and
+    `tests/artifacts/runtime_spill_stack_demand.rs` (84e088156d) pins it with
+    real spill storage: a 40-live-value function takes runtime spill on three
+    targets and its frame participates in stack demand, hosted-receiver
+    supply, installation-record derivation and stale/insufficient rejection.
+    External (non-hosted) entry roots are not yet covered. Two corpus
+    programs exercise runtime spill natively on macOS ARM64:
+    `collections/runtime_vec_u32_growth_exit` exits 70 and
+    `calls/nested_call_tail_roots_exit` exits 0 (its macOS native golden row
+    is stale); `saturating_signed_divide_min_by_neg_one` no longer spills on
+    arm64 (its `corpus_outcomes.txt` row is stale; the item now produces its
+    x86-64 artifacts via the runtime split under ALLOCATION-REFINEMENT).
 
   Acceptance: a compiler-produced pressure customer executes through the common
   native route with independently replayed spill operations and final-frame
@@ -160,6 +178,19 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   `rewrites/allocation_recovery/fixed_view_copy/`; stage 05's
   [allocation recovery](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs)
   owns the pressure decision and subsequent assignment.
+
+  `rewrites/runtime_split.rs` (d78956d764) adds the first runtime
+  split: a `CopyI64` right after a pinned definition moves the value into a
+  fresh unconstrained home, and stage-05 recovery tries it before
+  rematerialization or spill (manifest tag `RuntimeSplit`, codec v15,
+  independent replay refuses a spill recorded while a split was possible).
+  `pass/arithmetic/saturating_signed_divide_min_by_neg_one` now produces
+  linux_x86_64 and windows_x86_64 artifacts; its x86 execution and golden
+  re-record wait on an x86 host. Known upstream bug the split worked around:
+  stage 03 records the wrong defining instruction when it registers a result
+  before emitting a helper (x86 division scratch, divisor copies) in
+  `selection/{construction,validation}/scalar_graph/integer_arithmetic.rs`;
+  the spill rewrite still trusts that origin and rejects such values.
 
   Existing cuts authenticate fixed uses; fixed-view copies already cover
   shared source exits. `split_domain_pressure` and its candidate tests score
@@ -249,10 +280,15 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   `preterminal_optimization.rs`,
   `consumed_literal_join_keeps_the_invariant_and_refuses_rewrites` combines a
   runtime-index obligation with constant-return arms and asserts both passes
-  leave the complete module unchanged. The passes return the original module
-  on a proof-question-changing proposal; their execution records retain identity
-  output but do not explain that refusal. This preserves correctness and is
-  an optimization limitation, not a blocker to ordinary native execution.
+  leave the complete module unchanged. Both passes now record the refusal as a
+  `PsiRewriteRefusal` on `PsiOptimizationStageResult::refusals()` (07a2bd6072;
+  `ChangedProofQuestion`/`ProposalLeftProofContextDangling`, producer-side only
+  — not encoded in the canonical execution record), and
+  `unconsumed_literal_join_rewrites_without_refusal` is the no-obligation
+  control. Missing: the verifier-side proof-context transport that would let
+  the rewrites survive, and surfacing `refusals()` past terminal-production
+  into compiler reports. This preserves correctness and is an optimization
+  limitation, not a blocker to ordinary native execution.
 
   Acceptance: a source/corpus customer with a consumed join invariant either
   retains the selected rewrites through independently checked proof-context
@@ -276,12 +312,16 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
   Remaining boundaries:
   - Remaining establishment/custody families, including affine/linear Owned
-    argument transfers, claim transfers, and structural-result calls carrying
-    requirement obligations or selected evidence. Copyable unrestricted
-    whole-root arguments and admitted claim-free affine/unrestricted results
-    already move. `Call`, `CallUnit` and `CallStructuralScalar` already carry
-    discharged requirement obligations; do not treat all obligated calls as
-    unsupported. New cyclic source operations must pass ordinary Psi verification.
+    argument transfers and claim transfers. Obligated structural-result calls
+    now relocate with their discharged rosters (121bb2db8c), and a claim-free
+    member `CallUnit` shared borrow of an operation result keeps the relocated
+    case contained (0964c56169); all four borrow-call admissions tolerate the
+    run's relocated-root discards. `CallStructuralScalar` shared borrows stop
+    earlier, at the Terminal verifier's cyclic fence
+    (`unranked_cycles.rs`), and `selected_evidence` carriers are unreachable
+    from source inside loops (stage 04's `guarded_call_returns` builds only
+    whole-machine plans). New cyclic source operations must pass ordinary Psi
+    verification.
   - Structural predicates in crash-continuation rosters. All four call forms
     already re-derive supported rosters from verifier-owned callee contracts;
     structural-signature calls still require scalar-only predicates because
@@ -366,14 +406,17 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 - **DECLARATIVE-PEEPHOLES.** Execute declarative relationships for physical
   register units, effects, traps, memory, stack and control flow through the
   selected-stage catalog, and nominate ordinary literal folds beyond pressure
-  recovery. Owners: `rewrites/selected_lowering/literal_fold/` and
+  recovery. Owners: `rewrites/selected_lowering/literal_fold/`,
+  `rewrites/constant_branch/` and
   [staged peepholes](omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/unexecuted/peepholes/mod.rs).
 
-  The literal route still takes one incoming
-  `ImmediateU64RematerializationCandidate` per function/iteration under
-  `frameless_leaf_caller_saved_views`. Its sole consumer may now occur later in
-  the same block; adjacency is no longer required. Generalize nomination to
-  non-pressure materializations without weakening use/provenance custody.
+  Literal nomination now scans every `MaterializeI64` per function
+  (8cefe60b9f): producer and replay each re-derive sole-use custody and
+  provenance, unprovable candidates decline, and
+  `LiteralExtensionElimination`/`U12Load8IndexedOffset` are reachable from
+  compiler-generated workloads. The `WrappingRemainder*` "unreachable" test
+  comments (`literal_fold/pair_rule.rs`, `evidence_matrix/literal_folds.rs`)
+  still explain reachability in classification terms and need re-checking.
   `COMPARE_ZERO`/`COMPARE_LEFT_ZERO` already select `CompareI64Zero`; the
   left-zero test covers equality readers and rejects ordering readers on both
   architectures. Preserve that behavior through the common descriptor route;
@@ -382,14 +425,19 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   Several relationships exist as descriptors and helper-tested rewrites but
   are still unexecuted:
 
-  - `terminator_pair` and `condition_materialization` retire decided flag uses,
-    preserve the required unit traffic, and rewrite branch control or a boolean
-    result. They overlap the executed constant-branch/boolean families; integrate
-    at the existing semantic owner rather than creating another enablement path.
+  - `condition_materialization` retires decided flag uses, preserves the
+    required unit traffic, and rewrites into a boolean result. `terminator_pair`
+    is done this way (a6268b2b4c): its nine decided-branch rules moved into
+    `rewrites/constant_branch/pair.rs` and now drive
+    `SelectedConstantBranchFoldV1`, with admission and replay cross-checking
+    the machine-effect catalog. Move `condition_materialization` into
+    `rewrites/constant_boolean` on the same route.
   - `projected_access` carries pointer reads/writes and preserves architectural
-    faults while absorbing an address displacement. Reconcile it with the
-    executed address-fold family, including its target-specific bounds; the
-    staged descriptor's common scaled-immediate bound is narrower on x86-64.
+    faults while absorbing an address displacement. The evidence matrix
+    records that `SelectedAddressOffsetFoldV1` can never commit on
+    compiler-emitted plans today (its producer needs consumers such as
+    `Load8Indexed`, `ByteViewAddress`, `CopyBytes` and slot `Store64`); the
+    descriptor stays staged until that production exists.
   - `copied_call_operand` retains ABI pins, implicit uses/definitions, clobbers,
     trap/control effects and the target's call-stack lifecycle while rebinding
     copied arguments. Its helper coverage does not establish native execution.
@@ -481,8 +529,19 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   membership and integer field reads beneath fixed indexes from source before
   assigning a blocker. Record admission now includes sum/mixed children and
   scalar arrays; the old record-only restriction is obsolete.
-  `EstablishStructuralCase` still rejects in stage 00's operation routing,
-  so that customer needs ordinary operation admission before specialization.
+  `EstablishStructuralCase` already routes through stage 00
+  (`routing.rs` → `structural_establishment.rs`); a source probe
+  (`o in Outer::Wrap`) folds with no admission change. Zeroed establishments
+  now prove scalar leaves and the first declared case (4c4bcf6610), and an
+  `EstablishCase` payload copy proves member reads on the built case
+  (2ecb9cce55) — both with optimization-unit-semantics replays.
+  Stage-05/source frontiers confirmed by reprobe: runtime-index
+  `StructuralCaseMembership` cannot reach stage 01 from any current source
+  form, fixed-index integer reads on unestablished parameters decline by
+  contract, and bounded indexed reads stop at stage 05's authored-binding
+  check. Still missing: a `Case` path step for membership through a payload
+  copy, ordinary-path copies (need field-name-to-id mapping first), and
+  call-produced children (INTERPROCEDURAL-SUMMARIES).
 
   Borrowed restoration windows already reach abstract operations as
   `MoveStructuralField`/`StoreStructuralField`; uniform-binding proofs reject
@@ -589,27 +648,15 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   cross-target compile legs; they are evidence for their recorded revisions,
   not a current compiler baseline. Do not rebuild the harness.
 
-  Repair evidence gaps in `tools/benchmark/benchmark.py` before using new rows
-  for promotion:
-
-  - Bind the record to the actual compiler build and effective selection.
-    `measure` records checkout HEAD and a binary path, not the binary's build
-    identity; `--enable` only augments the row label, while compiler arguments
-    carry only `--disable-optimization`. Use authored selections and reconcile
-    the compiler's receipt instead of claiming a metadata-only enable executed.
-  - Require the expected runtime result for acceptance: `measure` can publish
-    `exit_code_match: false`, and `validate_record` accepts that record. Preserve
-    failed observations as failures, not successful benchmark evidence.
-  - Settle the requested target's package review. `settle_package_review` takes
-    the first `review:` line, which may name another target's already-accepted
-    document and skip the needed resume. Reproduce dependent subjects through
-    current preparation and route its actual compiler failure to its owner;
-    old std carrier/provider diagnostics are not a standing migration task.
-  - Keep matching-host gaps visible. `matrix_rows` suppresses a target's pending
-    host row after any applicable record, even when every runtime leg is a
-    cross-compile skip. Repair that accounting, the stale Intel macOS
-    `HOST_LEGS` label, and `tools/tests/test_benchmark.py`'s target-catalog path
-    (the owner is now the [backend target catalog](omega-rust/omega/compilation/backend/target/src/target_profile.rs)).
+  The evidence repairs landed at 2d0ef2edb5 with the compiler receipt fix at
+  0f14a853dd: records are `omega-benchmark-record/2`, every compile adds a
+  catalog probe disable so the compiler's own rollback receipt is reconciled
+  against the authored selection, the record binds the binary's SHA-256,
+  version and profile, an expected-exit mismatch refuses the measurement, the
+  package review settles the requested target's document, and host legs stay
+  pending until a measured runtime retires them (Intel macOS uses its
+  canonical label). No /2 record is committed yet — the committed corpus is
+  still /1.
 
   Remaining runtime legs: Linux ARM64, Windows x64, Intel macOS and an applicable
   UEFI subject on QEMU/hardware. Exercise Windows job-object peak-memory
