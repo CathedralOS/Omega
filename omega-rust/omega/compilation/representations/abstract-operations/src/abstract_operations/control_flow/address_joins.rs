@@ -12,8 +12,9 @@
 
 use semantic_vocabulary::StructuralTypeId;
 use terminal_psi::{
-    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    StructuralTypeShape,
 };
 
 /// Whether this block parameter is carried as the address of its referent.
@@ -127,6 +128,9 @@ pub fn referent_type<'a>(
 /// A primitive scalar, or an aggregate built only from owned scalar storage.
 /// Fixed arrays retain their backing storage exactly like nested records;
 /// they do not introduce a loan or descriptor into the borrowed referent.
+/// Case tags and owned payloads likewise remain in that backing storage. All
+/// alternatives must be plain: the address transport cannot depend on which
+/// case happens to be active when an edge is taken.
 /// `active` rejects malformed recursive catalogs, including array cycles.
 fn is_plain_referent<'a>(
     identity: StructuralTypeId,
@@ -139,43 +143,50 @@ fn is_plain_referent<'a>(
     let Some(declaration) = lookup(identity) else {
         return false;
     };
-    match &declaration.shape {
+    active.push(identity);
+    let plain = match &declaration.shape {
         StructuralTypeShape::PrimitiveScalar(_) => true,
         StructuralTypeShape::Record { fields } => {
-            active.push(identity);
-            let plain = !fields.is_empty()
-                && fields.iter().all(|field| match &field.field_type {
-                    StructuralFieldType::Scalar(_)
-                    | StructuralFieldType::BoundedInteger(_)
-                    | StructuralFieldType::IeeeFloat(_) => true,
-                    StructuralFieldType::Structural(child) => {
-                        lookup(*child).is_some_and(|child| {
-                            matches!(
-                                child.shape,
-                                StructuralTypeShape::Record { .. }
-                                    | StructuralTypeShape::FixedArray { .. }
-                            )
-                        }) && is_plain_referent(*child, lookup, active)
-                    }
-                    StructuralFieldType::ByteSequence(_)
-                    | StructuralFieldType::PredicateByteSequence { .. }
-                    | StructuralFieldType::Erased { .. } => false,
-                });
-            active.pop();
-            plain
+            !fields.is_empty() && plain_fields(fields, lookup, active)
         }
         StructuralTypeShape::FixedArray { element, .. } => {
-            active.push(identity);
-            let plain = is_plain_referent(*element, lookup, active);
-            active.pop();
-            plain
+            is_plain_referent(*element, lookup, active)
+        }
+        StructuralTypeShape::Sum { cases } => {
+            !cases.is_empty()
+                && cases
+                    .iter()
+                    .all(|case| plain_fields(&case.fields, lookup, active))
+        }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            plain_fields(fields, lookup, active)
+                && !cases.is_empty()
+                && cases
+                    .iter()
+                    .all(|case| plain_fields(&case.fields, lookup, active))
         }
         StructuralTypeShape::Reference { .. }
         | StructuralTypeShape::ByteSequence(_)
-        | StructuralTypeShape::ElementView { .. }
-        | StructuralTypeShape::Sum { .. }
-        | StructuralTypeShape::Mixed { .. } => false,
-    }
+        | StructuralTypeShape::ElementView { .. } => false,
+    };
+    active.pop();
+    plain
+}
+
+fn plain_fields<'a>(
+    fields: &[StructuralFieldDeclaration],
+    lookup: impl Fn(StructuralTypeId) -> Option<&'a StructuralTypeDeclaration> + Copy,
+    active: &mut Vec<StructuralTypeId>,
+) -> bool {
+    fields.iter().all(|field| match &field.field_type {
+        StructuralFieldType::Scalar(_)
+        | StructuralFieldType::BoundedInteger(_)
+        | StructuralFieldType::IeeeFloat(_) => true,
+        StructuralFieldType::Structural(child) => is_plain_referent(*child, lookup, active),
+        StructuralFieldType::ByteSequence(_)
+        | StructuralFieldType::PredicateByteSequence { .. }
+        | StructuralFieldType::Erased { .. } => false,
+    })
 }
 
 #[cfg(test)]
