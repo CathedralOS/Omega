@@ -50,13 +50,13 @@ machine Main::main(&mut self) {
         _ -> bad()
     }
 
-    state count(&mut self, r: i32) {
+    state count(r: i32) {
         transition r == 0 {
             true -> good()
             _ -> bad()
         }
     }
 
-    state good(&mut self) {}
-    state bad(&mut self) {}
+    state good() {}
+    state bad() {}
 }

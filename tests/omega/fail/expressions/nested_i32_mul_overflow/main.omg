@@ -50,7 +50,7 @@ machine Main::main(&mut self) {
         _ -> not_three()
     }
     state three(&mut self) { self.console.exit_process(73); }
-    state not_three(&mut self) {
+    state not_three() {
         transition r == 4 {
             true -> four()
             _ -> other()

@@ -28,7 +28,7 @@ data Driver {
 machine Driver::drive(&mut self, sink: &mut Sink, more: bool) {
     transition { _ -> go(sink, more) }
 
-    state go(&mut self, sink: &mut Sink, more: bool) {
+    state go(sink: &mut Sink, more: bool) {
         transition more {
             true -> step(sink)
             false -> done()

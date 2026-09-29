@@ -72,7 +72,7 @@ machine Main::main(&mut self) reaches Console + FilesystemHost {
             SystemTimeDifference::Unmeasured -> bad(73)
         }
     }
-    state check_gap(&mut self, duration: Duration) {
+    state check_gap(duration: Duration) {
         // Native: ~0s (just created). Interp: ~767M s (2001 -> 2026 virtual
         // constants). Both < 10^9; a garbage decode blows the bound.
         transition duration.seconds < 1000000000 { true -> check_mtime() _ -> bad(74) }

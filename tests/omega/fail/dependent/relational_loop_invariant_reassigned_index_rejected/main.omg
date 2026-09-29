@@ -32,5 +32,5 @@ machine Main::main(&mut self) {
         }
     }
 
-    state done(&mut self) { }
+    state done() { }
 }

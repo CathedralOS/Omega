@@ -26,7 +26,7 @@ machine Main::main(&mut self) reaches Console {
         _ -> mutate(&mut m)
     }
 
-    state inspect(&mut self, view: &Pair) {
+    state inspect(view: &Pair) {
         transition { _ -> hold(Pair { a: view.a }) }
     }
 
@@ -35,7 +35,7 @@ machine Main::main(&mut self) reaches Console {
         self.console.exit_process(view.a);
     }
 
-    state hold(&mut self, p: Pair) {
+    state hold(p: Pair) {
         transition { _ -> inspect_param(&p) }
     }
 

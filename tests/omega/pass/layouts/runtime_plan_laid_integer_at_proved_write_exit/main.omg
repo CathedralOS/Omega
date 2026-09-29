@@ -88,7 +88,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
 
-    state check_by_value(&mut self, value: SignedByte<PortableByte>) {
+    state check_by_value(value: SignedByte<PortableByte>) {
         transition value.value == 0 {
             true -> good()
             _ -> bad()

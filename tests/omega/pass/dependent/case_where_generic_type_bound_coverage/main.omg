@@ -11,5 +11,5 @@ machine Main::main(&mut self) {
     transition self.v {
         Value::Boolean { value } -> done()
     }
-    state done(&mut self) {}
+    state done() {}
 }

@@ -23,7 +23,7 @@ machine Main::main(&mut self) reaches Console {
 machine Builder::build(&mut self, level: &mut Level) {
     level.room_count = 4;
     transition { _ -> carve_at(level, 0) }
-    state carve_at(&mut self, level: &mut Level, index: u64 [0..=3]) {
+    state carve_at(level: &mut Level, index: u64 [0..=3]) {
         let tag: i32 = 100 + (index as i32);
         carve(level, tag);
         let next: u64 = index + 1;

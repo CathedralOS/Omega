@@ -105,14 +105,14 @@ machine Main::main(&mut self) reaches Console {
         false -> bad_first()
     }
 
-    state check_popped(&mut self, popped: i32 in Wrapping, second: i32 in Wrapping) {
+    state check_popped(popped: i32 in Wrapping, second: i32 in Wrapping) {
         transition popped == 7 {
             true -> check_second(second)
             false -> bad_popped()
         }
     }
 
-    state check_second(&mut self, second: i32 in Wrapping) {
+    state check_second(second: i32 in Wrapping) {
         transition second == 9 {
             true -> check_length()
             false -> bad_second()

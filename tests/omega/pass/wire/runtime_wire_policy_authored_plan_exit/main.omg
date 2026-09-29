@@ -122,7 +122,7 @@ terminates by fuel;
 {
     transition { _ -> fill(schema, fuel, 0) }
 
-    state fill(&mut self, schema: Schema, fuel: u64, index: u64 in Wrapping)
+    state fill(schema: Schema, fuel: u64, index: u64 in Wrapping)
     requires 1 <= fuel
     requires fuel <= 128 {
         transition fuel > 1 && index < 32 && index < schema.field_count {

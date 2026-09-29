@@ -51,6 +51,6 @@ machine Main::apply(&mut self, event: Event) {
     state add_balance(&mut self, cents: i32 in Wrapping) {
         self.register.balance = self.register.balance + cents;
     }
-    state idle(&mut self) {
+    state idle() {
     }
 }

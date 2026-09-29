@@ -22,7 +22,7 @@ machine Main::main(&mut self) reaches Console {
     self.ranged = 0.5;
     transition { _ -> accepts_range(self.ranged) }
 
-    state accepts_range(&self, value: f32 in Finite) {
+    state accepts_range(value: f32 in Finite) {
         transition value == 0.5 { true -> good() _ -> bad() }
     }
 

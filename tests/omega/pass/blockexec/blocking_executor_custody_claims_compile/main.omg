@@ -186,7 +186,7 @@ machine submit(submission: Submission, claim: Ticket, executor_open: bool) -> Su
         false -> refuse(submission, claim)
     }
 
-    state admit(&mut self, submission: Submission, claim: Ticket) {
+    state admit(submission: Submission, claim: Ticket) {
         // The accepted submission's custody transfers to the executor;
         // released at contract shape.
         Submission::release(submission);
