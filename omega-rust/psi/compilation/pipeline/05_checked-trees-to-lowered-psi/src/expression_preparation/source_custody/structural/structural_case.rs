@@ -65,11 +65,24 @@ pub(super) fn validate(
         .record_fields
         .span(fields)
         .ok_or(LoweringError::Unsupported("case field span is stale"))?;
-    if authored.len() != declared.len() || retained.len() != authored.len() {
+    // Erased owner members authored beside the case are declared-level
+    // content: they carry no runtime storage and answer no payload
+    // declaration, so they leave the replayed roster untouched.
+    let payload_authored: Vec<_> = authored
+        .iter()
+        .filter(|initializer| {
+            !checked.data_members(data).iter().any(|member| {
+                matches!(member, checked_trees::data::DataMember::Field(owner_field)
+                    if owner_field.symbol == initializer.field_symbol
+                        && owner_field.relevance.is_erased())
+            })
+        })
+        .collect();
+    if payload_authored.len() != declared.len() || retained.len() != payload_authored.len() {
         return unsupported("case establishment changed its complete payload roster");
     }
     let mut selected = Vec::new();
-    for (ordinal, (field, initializer)) in retained.iter().zip(authored).enumerate() {
+    for (ordinal, (field, initializer)) in retained.iter().zip(payload_authored).enumerate() {
         let declaration = declared
             .iter()
             .find(|item| item.symbol == field.field)

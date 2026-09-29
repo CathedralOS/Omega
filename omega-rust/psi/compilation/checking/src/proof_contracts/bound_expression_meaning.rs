@@ -549,6 +549,23 @@ pub fn exact_case_reference_owner(
     let table = &program.expression_table;
     let members = table.name_path_members(case.members);
     let selected = table.name_path_member_symbols(case.member_symbols);
+    // A resolved bare `T::Case` keeps only the case symbol -- the qualifier is
+    // spent in resolution and the owning union remains as the case's parent.
+    if members.len() == 1
+        && selected.len() == 1
+        && selected.first() == Some(&case.symbol)
+    {
+        let parent = program.symbols.get(case.symbol).parent;
+        return program.data_definitions().iter().find(|owner| {
+            owner.symbol == parent
+                && program.data_members(owner).iter().any(|member| {
+                    matches!(
+                        member,
+                        DataMember::Variant(variant) if variant.symbol == case.symbol
+                    )
+                })
+        });
+    }
     if members.len() < 2
         || selected.len() != members.len()
         || selected.first() != Some(&case.head_symbol)

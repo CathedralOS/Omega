@@ -50,10 +50,20 @@ impl emission::Emission<'_, '_, '_> {
             .iter()
             .find(|item| item.id == self.structural_type)
             .ok_or(LoweringError::Unsupported("case structural type missing"))?;
-        let StructuralTypeShape::Sum { cases } = &shape.shape else {
-            return unsupported("case construction has a non-sum shape");
+        let cases = match &shape.shape {
+            StructuralTypeShape::Sum { cases } => cases.clone(),
+            // Erased owner members keep the union's mixed declaration shape
+            // without a runtime field list: establishing a case writes the
+            // tag and the case's payload alone.
+            StructuralTypeShape::Mixed { fields, cases }
+                if fields.iter().all(|field| {
+                    matches!(field.field_type, StructuralFieldType::Erased { .. })
+                }) =>
+            {
+                cases.clone()
+            }
+            _ => return unsupported("case construction has a non-sum shape"),
         };
-        let cases = cases.clone();
         let mut selected = None;
         for member in self.checked.data_members(owner) {
             let checked_trees::data::DataMember::Variant(variant) = member else {
