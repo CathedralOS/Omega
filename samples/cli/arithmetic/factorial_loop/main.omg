@@ -1,20 +1,15 @@
 // Accumulator factorial via a SELF-TRANSITION LOOP (`-> fact(n - 1, acc * n)`
 // re-enters the entry state -- a jump with re-bound arguments; Omega has NO
-// recursion, and the call-spelled `self.fact(..)` form is a compile error).
-// The loop-carried arguments stage through scratch so the multiply reads the
-// PRE-decrement n (the parallel-assignment guarantee), proven terminating by
-// `terminates by n;`.
+// recursion). The loop-carried arguments stage through scratch so the multiply
+// reads the PRE-decrement n (the parallel-assignment guarantee), proven
+// terminating by `terminates by n;`.
 //
 //   fact(5, 1) = 120
 //
 // Expected exit: 120
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;
-use omega::language::core::binding;
-data Main {
-    console: Binding<Console>;
-}
-machine Main::fact(&mut self, n: u64, acc: u64 in Wrapping)
+machine fact(n: u64, acc: u64 in Wrapping)
 terminates by n;
 -> u64
 {
@@ -23,8 +18,8 @@ terminates by n;
         false -> (acc as u64)
     }
 }
-machine Main::main(&mut self) reaches Console {
-    let result: u64 = self.fact(5, 1);
+machine main() reaches Console {
+    let result: u64 = fact(5, 1);
     let code: i32 = narrow_u64_to_i32_trapping(result);
-    self.console.exit_process(code);
+    Console::exit_process(code);
 }
