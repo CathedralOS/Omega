@@ -12,7 +12,7 @@ use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::types::{
     ShapeCollector, base_type_identity, borrowed_slice_view_element, parameter_qualifications,
-    structural_access_for_type_reference,
+    strips_erased_parameter, structural_access_for_type_reference,
 };
 
 use crate::execution::terminal_unit::StateParameter;
@@ -833,13 +833,10 @@ pub(in crate::execution) fn shared_view_argument(
 }
 
 /// The dense structural-namespace index of the authored parameter at
-/// `position`: the number of earlier formals whose type is not primitive.
-///
-/// Known latent mismatch, deliberately preserved: this count includes
-/// `[erased]` non-primitive formals, while the structural parameter roster
-/// skips them (`strips_erased_parameter` in the signature builders). An erased
-/// non-primitive formal ahead of `position` makes this index name a later
-/// roster row than the parameter's own.
+/// `position`: the number of earlier formals the structural roster keeps.
+/// The signature builders strip `[erased]` formals before splitting scalars
+/// from structural values (`strips_erased_parameter`), and stage 05 replays
+/// that roster, so an erased proof formal occupies no structural slot here.
 fn dense_structural_index(
     program: &TypedTrees,
     parameters: &[StateParameter],
@@ -848,9 +845,10 @@ fn dense_structural_index(
     let index = parameters[..position]
         .iter()
         .filter(|parameter| {
-            program
-                .primitive_type_reference(parameter.type_reference)
-                .is_none()
+            strips_erased_parameter(parameter) != Some(true)
+                && program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_none()
         })
         .count();
     u32::try_from(index).ok()

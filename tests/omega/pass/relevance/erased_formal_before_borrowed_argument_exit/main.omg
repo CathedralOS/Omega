@@ -1,0 +1,42 @@
+// An erased proof formal occupies no structural position. `relay` forwards
+// its borrowed `values` parameter to `first` inside a scalar computation;
+// the forwarded argument must name `values`, not a slot counted past the
+// erased `witness`. The trailing erased formal must not disturb it either.
+// Native run: exit 70 = the callee read the forwarded record; 71 = it did not.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Proof {
+    tag: i32;
+}
+
+data Inner {
+    a: u8;
+    b: u8;
+}
+
+data Main {
+    console: Binding<Console>;
+    inner: Inner;
+    result: u8;
+}
+
+machine first(values: &Inner) -> u8 {
+    values.a
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.inner.a = 70;
+    self.inner.b = 1;
+    self.relay(Proof { tag: 1 }, &self.inner, Proof { tag: 2 });
+    transition self.result == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::relay(&mut self, witness [erased]: Proof, values: &Inner, trailing [erased]: Proof) {
+    self.result = first(values);
+}

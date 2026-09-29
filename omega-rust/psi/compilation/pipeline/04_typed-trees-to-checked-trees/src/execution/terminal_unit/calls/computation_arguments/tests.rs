@@ -536,3 +536,69 @@ fn computed_receiver_alone_keeps_the_unit_callers_storage() {
     assert!(receiver.is_self);
     assert_eq!(receiver.access, CheckedStructuralAccess::MutableBorrow);
 }
+
+/// A borrowed parameter forwarded into a scalar computation names its slot in
+/// the structural roster. The roster strips `[erased]` formals, so an erased
+/// proof formal ahead of `values` must not shift the forwarded index, and
+/// one after it changes nothing.
+#[test]
+fn erased_formals_occupy_no_structural_slot_in_forwarded_computation_arguments() {
+    let checked = checked(
+        r#"
+        data Proof { tag: i32; }
+        data Inner { a: u8; b: u8; }
+        data Main { inner: Inner; result: u8; }
+        machine first(values: &Inner) -> u8 { values.a }
+        machine Main::relay(&mut self, witness [erased]: Proof, values: &Inner, trailing [erased]: Proof) {
+            self.result = first(values);
+        }
+        "#,
+    );
+    let relay = machine(&checked.typed, "Main::relay");
+    let callee = machine(&checked.typed, "first");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(relay.symbol)
+        .expect("the relay keeps its unit plan");
+    let roster = plan
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.position)
+        .collect::<Vec<_>>();
+    assert_eq!(roster, [0, 2], "the roster keeps `self` and `values` only");
+    let plans = &checked.facts.values.scalar_computations;
+    let structural_arguments = plans
+        .nodes
+        .iter()
+        .find_map(|(_, node)| {
+            let checked_trees::CheckedScalarComputationKind::Call {
+                target_machine,
+                structural_arguments,
+                ..
+            } = node.kind
+            else {
+                return None;
+            };
+            (target_machine == callee.symbol).then_some(structural_arguments)
+        })
+        .expect("the forwarded computation call");
+    let [checked_trees::CheckedScalarComputationStructuralArgument::Place(argument)] = plans
+        .structural_arguments
+        .span(structural_arguments)
+        .unwrap()
+    else {
+        panic!("one forwarded loan");
+    };
+    assert!(
+        matches!(
+            argument.source,
+            checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: 1
+            }
+        ),
+        "`values` is roster slot 1, not a slot counted past `witness`: {:?}",
+        argument.source
+    );
+}
