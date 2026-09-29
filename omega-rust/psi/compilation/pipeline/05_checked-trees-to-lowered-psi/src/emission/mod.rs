@@ -1,8 +1,8 @@
 //! Operation and store emission shared by Unit and scalar bodies.
 //!
 //! Owns the ordered scalar-binding emitter, primitive and structural store
-//! emission, byte-sequence writes, and the call-operand source custody those
-//! emitters replay.
+//! emission, runtime-indexed byte and element writes, and the call-operand
+//! source custody those emitters replay.
 
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
@@ -32,13 +32,11 @@ use crate::terminal_identities::{
 };
 
 pub(crate) mod atomic_sources;
-pub(crate) mod byte_sequence_write;
 pub(crate) mod call_source_custody;
-pub(crate) mod element_view_write;
+pub(crate) mod indexed_write;
 pub(crate) mod operation_emission;
 pub(crate) mod primitive_store;
 pub(crate) mod runtime_elements;
-pub(crate) mod structural_byte_sequence_index_store;
 pub(crate) mod structural_byte_sequence_store;
 pub(crate) mod structural_scalar_store;
 pub(crate) mod structural_scalar_store_source;
@@ -71,72 +69,6 @@ pub(crate) fn next_byte_sequence_literal_ordinal(
         .count();
     u32::try_from(literals)
         .map_err(|_| LoweringError::Unsupported("literal declaration ordinal exceeds u32"))
-}
-
-/// Resolve a byte-sequence store's scalar source against the dense scalar
-/// namespace. A bound pure authored expression lowers through its
-/// `AssignmentValue` row; the SSA result of the scalar call this same
-/// statement performs binds no local and carries no `AssignmentValue` row, so
-/// it is read back where the ordered call operation established it as the most
-/// recent scalar value.
-pub(crate) fn byte_store_scalar_value(
-    bindings: &crate::expression_preparation::bindings::ScalarBindings,
-    checked: &CheckedTrees,
-    state: symbols::SymbolHandle,
-    statement_index: u32,
-    value: &checked_trees::CheckedByteSequenceStoreValue,
-    values: &[ValueDeclaration],
-) -> Result<crate::emission::operation_emission::expressions::LoweredDirectExpression, LoweringError>
-{
-    match value {
-        checked_trees::CheckedByteSequenceStoreValue::Pure(_) => bindings.expression_at(
-            checked,
-            state,
-            statement_index,
-            CheckedScalarExpressionRole::AssignmentValue,
-        ),
-        checked_trees::CheckedByteSequenceStoreValue::ScalarResult { position } => {
-            let position = usize::try_from(*position).map_err(|_| {
-                LoweringError::Unsupported("byte store call-result position exceeds usize")
-            })?;
-            if position.checked_add(1) != Some(values.len()) {
-                return unsupported(
-                    "byte store call result is not this statement's established scalar result",
-                );
-            }
-            let scalar_type = terminal_scalar_type(PrimitiveType::U8)?;
-            if values[position].scalar_type != scalar_type {
-                return unsupported("byte store call result differs from its element type");
-            }
-            Ok(
-                crate::emission::operation_emission::expressions::LoweredDirectExpression::Local {
-                    position,
-                    scalar_type,
-                },
-            )
-        }
-    }
-}
-
-/// Evaluate the authored integer before converting to Terminal's count
-/// coordinate. Widening the expression itself would change narrow or wrapping
-/// arithmetic. The ordinary exact-cast obligation proves fit (including signed
-/// nonnegativity); the consuming store separately proves the current live bound.
-pub(crate) fn emit_byte_index(
-    expression: &operation_emission::expressions::LoweredDirectExpression,
-    values: &[ValueDeclaration],
-    next_value: &mut u64,
-    next_obligation: &mut u64,
-    operations: &mut operation_emission::buffer::OperationBuffer,
-) -> Result<ValueId, LoweringError> {
-    let operand = emit_direct_expression(expression, values, next_value, operations);
-    emit_u64_coordinate(
-        operand,
-        expression.scalar_type(),
-        next_value,
-        next_obligation,
-        operations,
-    )
 }
 
 /// Convert an already-evaluated integer to Terminal's `u64` count

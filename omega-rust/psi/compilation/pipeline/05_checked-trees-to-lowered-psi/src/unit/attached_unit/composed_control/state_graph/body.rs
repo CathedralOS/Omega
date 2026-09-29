@@ -5,6 +5,7 @@ use super::super::super::{
 };
 use super::super::{CheckedTrees, LoweringError};
 use super::CheckedComposedUnitControlStatePlan;
+use crate::emission::indexed_write::{self, IndexedWriteLeaf};
 use checked_trees::statement::StatementNode;
 
 pub(super) fn validate(
@@ -502,12 +503,12 @@ pub(super) fn validate(
                 if write.statement_index as usize != ordinal {
                     return unsupported("Unit graph reordered a byte-view write");
                 }
-                crate::emission::byte_sequence_write::validate_assignment(
+                indexed_write::validate_assignment(
                     checked,
                     machine,
                     state.state,
                     assignment,
-                    write,
+                    IndexedWriteLeaf::ByteView(write),
                 )?;
             }
             (
@@ -517,12 +518,12 @@ pub(super) fn validate(
                 if write.statement_index as usize != ordinal {
                     return unsupported("Unit graph reordered an element-view write");
                 }
-                crate::emission::element_view_write::validate_assignment(
+                indexed_write::validate_assignment(
                     checked,
                     machine,
                     state.state,
                     assignment,
-                    write,
+                    IndexedWriteLeaf::ElementView(write),
                 )?;
             }
             (
@@ -532,12 +533,12 @@ pub(super) fn validate(
                 if store.statement_index as usize != ordinal {
                     return unsupported("Unit graph reordered an indexed byte store");
                 }
-                crate::emission::structural_byte_sequence_index_store::validate_assignment(
+                indexed_write::validate_assignment(
                     checked,
                     machine,
                     state.state,
                     assignment,
-                    store,
+                    IndexedWriteLeaf::ByteField(store),
                 )?;
             }
             (

@@ -60,6 +60,7 @@ use super::{parameters, reference_results};
 use crate::emission::borrowed_window::{
     BorrowedWindowLedger, BorrowedWindowRepairValue, WindowEvaluation,
 };
+use crate::emission::indexed_write::{IndexedWriteLeaf, IndexedWriteTarget};
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::view_subslice::ViewFamily;
@@ -495,11 +496,16 @@ impl OperationFrame<'_, '_> {
             CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
                 self.structural_byte_sequence_field_store(store)
             }
-            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                self.structural_byte_sequence_field_byte_store(store)
-            }
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => self
+                .indexed_write(IndexedWriteTarget::ByteField {
+                    store,
+                    parameters: self.parameters,
+                }),
             CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                self.byte_sequence_write(write)
+                self.indexed_write(IndexedWriteTarget::ByteView {
+                    write,
+                    parameters: self.parameters,
+                })
             }
             CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
                 self.element_view_write(write)
@@ -809,81 +815,38 @@ impl OperationFrame<'_, '_> {
             .with_structural_locals(&self.evaluation.structural_locals)
     }
 
-    fn structural_byte_sequence_field_byte_store(
-        &mut self,
-        store: &checked_trees::CheckedStructuralByteSequenceFieldByteStorePlan,
-    ) -> Result<(), LoweringError> {
+    /// One runtime-indexed write: the index, then the value, lower in the
+    /// assignment's scalar namespace, and `indexed_write::emit` checks the
+    /// leaf's destination and emits the coordinate, length and write. Only a
+    /// byte field's dense namespace carries the resolved structural field and
+    /// case observations.
+    fn indexed_write(&mut self, target: IndexedWriteTarget<'_>) -> Result<(), LoweringError> {
+        let leaf = target.leaf();
         let dense;
         let bindings = match &self.evaluation.scalar_bindings {
             Some(bindings) => bindings,
             None => {
-                dense = self
-                    .dense_assignment_namespace()
-                    .with_resolved_structural_observations(
-                        &self.evaluation.structural_fields,
-                        &self.evaluation.structural_cases,
-                    );
+                let namespace = self.dense_assignment_namespace();
+                dense = match leaf {
+                    IndexedWriteLeaf::ByteField(_) => namespace
+                        .with_resolved_structural_observations(
+                            &self.evaluation.structural_fields,
+                            &self.evaluation.structural_cases,
+                        ),
+                    IndexedWriteLeaf::ByteView(_) | IndexedWriteLeaf::ElementView(_) => namespace,
+                };
                 &dense
             }
         };
         let index = bindings.expression_at(
             self.checked,
             self.state,
-            store.statement_index,
+            leaf.statement_index(),
             CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
         )?;
-        let value = crate::emission::byte_store_scalar_value(
-            bindings,
-            self.checked,
-            self.state,
-            store.statement_index,
-            &store.value,
-            self.values,
-        )?;
-        let kind = crate::emission::structural_byte_sequence_index_store::emit(
-            store,
-            self.parameters,
-            self.structural_types.declarations(),
-            &index,
-            &value,
-            self.values,
-            self.next_value,
-            &mut self.calls.next_obligation_identity,
-            self.operations,
-        )?;
-        self.push_unit(kind);
-        Ok(())
-    }
-
-    fn byte_sequence_write(
-        &mut self,
-        write: &checked_trees::CheckedByteSequenceWritePlan,
-    ) -> Result<(), LoweringError> {
-        let dense;
-        let bindings = match &self.evaluation.scalar_bindings {
-            Some(bindings) => bindings,
-            None => {
-                dense = self.dense_assignment_namespace();
-                &dense
-            }
-        };
-        let index = bindings.expression_at(
-            self.checked,
-            self.state,
-            write.statement_index,
-            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
-        )?;
-        let value = crate::emission::byte_store_scalar_value(
-            bindings,
-            self.checked,
-            self.state,
-            write.statement_index,
-            &write.value,
-            self.values,
-        )?;
-        let kind = crate::emission::byte_sequence_write::emit(
-            write,
-            self.parameters,
+        let value = leaf.lower_value(bindings, self.checked, self.state, self.values)?;
+        let kind = crate::emission::indexed_write::emit(
+            target,
             self.structural_types.declarations(),
             &index,
             &value,
@@ -962,42 +925,11 @@ impl OperationFrame<'_, '_> {
                 (argument.place, produced.structural_type)
             }
         };
-        let dense;
-        let bindings = match &self.evaluation.scalar_bindings {
-            Some(bindings) => bindings,
-            None => {
-                dense = self.dense_assignment_namespace();
-                &dense
-            }
-        };
-        let index = bindings.expression_at(
-            self.checked,
-            self.state,
-            write.statement_index,
-            CheckedScalarExpressionRole::AssignmentIndex { depth: 0 },
-        )?;
-        let value = crate::emission::element_view_write::element_store_scalar_value(
-            bindings,
-            self.checked,
-            self.state,
-            write.statement_index,
-            &write.value,
-            write.element,
-            self.values,
-        )?;
-        let kind = crate::emission::element_view_write::emit(
-            destination_place,
-            destination_type,
-            self.structural_types.declarations(),
-            &index,
-            &value,
-            self.values,
-            self.next_value,
-            &mut self.calls.next_obligation_identity,
-            self.operations,
-        )?;
-        self.push_unit(kind);
-        Ok(())
+        self.indexed_write(IndexedWriteTarget::ElementView {
+            write,
+            place: destination_place,
+            structural_type: destination_type,
+        })
     }
 
     fn structural_scalar_field_store(

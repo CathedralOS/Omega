@@ -4,6 +4,7 @@ use super::{
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralPathSegment, LoweringError,
     terminal_scalar_type, unsupported,
 };
+use crate::emission::indexed_write::{self, IndexedWriteLeaf};
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
 
@@ -111,12 +112,12 @@ pub(crate) fn validate(
             }) {
                 return unsupported("byte-view assignment has conflicting store custody");
             }
-            crate::emission::byte_sequence_write::validate_assignment(
+            indexed_write::validate_assignment(
                 checked,
                 plan.machine,
                 plan.state,
                 assignment,
-                write,
+                IndexedWriteLeaf::ByteView(write),
             )?;
             continue;
         } else if !writes.is_empty() {
@@ -156,12 +157,12 @@ pub(crate) fn validate(
             }) {
                 return unsupported("element-view assignment has conflicting store custody");
             }
-            crate::emission::element_view_write::validate_assignment(
+            indexed_write::validate_assignment(
                 checked,
                 plan.machine,
                 plan.state,
                 assignment,
-                write,
+                IndexedWriteLeaf::ElementView(write),
             )?;
             continue;
         } else if !element_writes.is_empty() {
@@ -199,12 +200,12 @@ pub(crate) fn validate(
             {
                 return unsupported("indexed assignment has conflicting store custody");
             }
-            crate::emission::structural_byte_sequence_index_store::validate_assignment(
+            indexed_write::validate_assignment(
                 checked,
                 plan.machine,
                 plan.state,
                 assignment,
-                store,
+                IndexedWriteLeaf::ByteField(store),
             )?;
             continue;
         } else if !indexed_stores.is_empty() {
@@ -381,12 +382,12 @@ pub(crate) fn validate(
             else {
                 return unsupported("byte-view write has no authored assignment");
             };
-            crate::emission::byte_sequence_write::validate_assignment(
+            indexed_write::validate_assignment(
                 checked,
                 plan.machine,
                 plan.state,
                 assignment,
-                write,
+                IndexedWriteLeaf::ByteView(write),
             )?;
         }
         if let CheckedUnitEffectOperationPlan::ElementViewWrite(write) = operation {
@@ -396,12 +397,12 @@ pub(crate) fn validate(
             else {
                 return unsupported("element-view write has no authored assignment");
             };
-            crate::emission::element_view_write::validate_assignment(
+            indexed_write::validate_assignment(
                 checked,
                 plan.machine,
                 plan.state,
                 assignment,
-                write,
+                IndexedWriteLeaf::ElementView(write),
             )?;
         }
         if let CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) =
@@ -413,12 +414,12 @@ pub(crate) fn validate(
             else {
                 return unsupported("byte replacement has no authored assignment");
             };
-            crate::emission::structural_byte_sequence_index_store::validate_assignment(
+            indexed_write::validate_assignment(
                 checked,
                 plan.machine,
                 plan.state,
                 assignment,
-                store,
+                IndexedWriteLeaf::ByteField(store),
             )?;
         }
     }
