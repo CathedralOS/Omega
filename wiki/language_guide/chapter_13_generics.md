@@ -117,14 +117,14 @@ An explicit OR constraint can describe the family once:
 
 ```omega
 trait ByteScanner {
-    machine scan<Width: u32>(&self, bytes: &[u8]) -> u64
+    machine scan<Width: u32>(scanner: &Self, bytes: &[u8]) -> u64
     where
         Width == 16 || Width == 32 || Width == 64;
 }
 ```
 
 The intended compiler route emits the required static bodies and dispatches at
-the method boundary for a runtime width. The caller proves roster membership;
+the requirement boundary for a runtime width. The caller proves roster membership;
 an arbitrary input needs an authored guard or failure outcome. There is no
 automatic fallback or enumeration of the entire u32 range. Each body still owes
 its target, bounds, and effect obligations. A const-only inner kernel receives
@@ -139,12 +139,12 @@ no implicit boxing or variable-layout return is introduced. The
 and [dynamic-family contract](../spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families)
 define the rules.
 
-Generic virtual calls of this shape are implemented, not merely intended:
-`tests/omega/pass/traits/dyn_finite_family_dispatch` erases a receiver to
-`&dyn Shape` and calls `erased.code<16>()` and `erased.code<32>()`, each
-resolving to its own generated row. The limit is narrower than "no generic
-virtual calls": the only legal binder tuple is one complete roster tuple of
-closed static values, so a width chosen at runtime has no dispatch.
+The implementation canary
+`tests/omega/pass/traits/dyn_finite_family_dispatch` exercises separate generated
+rows for closed widths 16 and 32. Its remaining receiver syntax is migration
+debt, not the static source contract shown above. The implemented limit is
+narrower than "no generic virtual calls": the binder tuple must be one complete
+roster tuple of closed static values; runtime width selection is not yet covered.
 
 ## Type Equality And Indexed-Domain Matching
 
@@ -344,8 +344,9 @@ selections must refine that public bound. Ordinary type/result arguments may
 be inferred when the selected signature and value arguments determine an exact
 application; that is not inference of conformance evidence or callable contracts.
 
-Stateful callbacks use ordinary instance fields and receiver access; dynamically
-selected interfaces use `dyn` traits. A static machine symbol is not a stored or
+Stateful callbacks take ordinary explicit context parameters; dynamically
+selected interfaces use `dyn` traits. Invocation scratch belongs in local bindings,
+not in persistent callback context merely to make it accessible. A static machine symbol is not a stored or
 returned runtime callback value. `address_of<Selected<u32>>()` may expose the address
 of a fully selected executable application, but the resulting number is not
 call authority; see [address exposure](chapter_20_memory_layout_abi.md#exposing-addresses).
