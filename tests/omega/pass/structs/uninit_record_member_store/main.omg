@@ -11,12 +11,8 @@ data Point {
     y: i32;
 }
 
-data Main {
-    console: Binding<Console>;
-}
-
-machine Main::main(&mut self) reaches Console {
+machine main() reaches Console {
     let mut made: Point;
     made.x = 7;
-    self.console.exit_process(70 + made.x as i32);
+    Console::exit_process(70 + made.x as i32);
 }
