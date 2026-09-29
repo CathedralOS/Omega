@@ -140,12 +140,15 @@ fn expected_omega_case_application_name(root: &Path) -> String {
 /// stating why in its own `build.omg`: `uefi/uefi_hello` is freestanding, the
 /// two wrapping-arithmetic subjects and `cli/basics/standalone` are
 /// dependency-free benchmark subjects `tools/benchmark` measures without
-/// settling a dependency graph, and `cli/proofs/structural_proofs` emits no
-/// runtime code. Every other sample declares the ordinary std edge.
+/// settling a dependency graph, `cli/proofs/structural_proofs` emits no
+/// runtime code, and `cli/device/device_extent_access` checks a provider
+/// contract on core vocabulary behind an inert entry. Every other sample
+/// declares the ordinary std edge.
 const DEPENDENCY_FREE_SAMPLES: &[&str] = &[
     "cli/arithmetic/wrapping_collatz_max",
     "cli/arithmetic/wrapping_square_sum",
     "cli/basics/standalone",
+    "cli/device/device_extent_access",
     "cli/proofs/structural_proofs",
     "uefi/uefi_hello",
 ];

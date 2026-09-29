@@ -1,3 +1,8 @@
+// Checked provider-contract sample. No package dependencies: the bound
+// entry is inert and every declaration it checks comes from the bundled
+// core vocabulary, while native realization of the loan crossings is
+// still the toolchain's next edge.
+
 machine build(builder: &mut Build) {
     builder.application("device_extent_access");
     builder.accept_boundary<ExtentRootProvider>();
