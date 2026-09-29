@@ -20,6 +20,42 @@ fn binding_field_of_explicit_parameter_keeps_boundary_calls() {
 }
 
 #[test]
+fn binding_field_after_local_array_keeps_boundary_arguments() {
+    let checked = checked_with_service(
+        r#"
+pub boundary trait Host {
+    machine create(path: &[u8], mode: i32) -> i32;
+    machine close(descriptor: i32);
+}
+pub data Clock { host: Binding<Host>; }
+pub data Context { clock: Clock; host: Binding<Host>; }
+machine Context::run(context: &mut Context) reaches Host {
+    let mode: i32 = 438;
+    let mut buffer: [u8; 144];
+    let descriptor: i32 = context.host.create("file", mode);
+    context.host.close(descriptor);
+}
+"#,
+    );
+    let machine = machine_named(&checked, "Context::run");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans.for_machine(machine).unwrap_or_else(|| {
+        panic!(
+            "boundary call lost: {:?}",
+            plans.omission_for_machine(machine)
+        )
+    });
+    assert!(plan.attachment_type_identity.is_none());
+    assert_eq!(
+        plan.operations
+            .iter()
+            .filter(|operation| operation.call().is_some_and(|call| call.is_boundary()))
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn projected_record_call_selects_the_admitted_target_body() {
     let checked = checked_with_service(
         r#"
