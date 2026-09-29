@@ -187,6 +187,7 @@ impl Expansion<'_> {
                     pending.extend([(*right, false), (*left, false)]);
                 }
                 CheckedScalarComputationKind::Qualification { operand, .. }
+                | CheckedScalarComputationKind::AuthoredCast { operand, .. }
                 | CheckedScalarComputationKind::BooleanToInteger { operand, .. } => {
                     pending.push((*operand, false))
                 }

@@ -130,7 +130,9 @@ fn scalar_erasure_does_not_publish_predicate_or_routed_tag_graphs() {
             false,
         );
         // Checking permits explicit non-owning erasure. This producer slice
-        // transports only vacuous scalar tags, not predicate/route evidence.
+        // transports only vacuous scalar tags, not predicate/route evidence:
+        // the published node keeps the cast's occurrence and conversion
+        // domain, never the domain's predicates or establishment routes.
         assert!(
             checked
                 .facts
@@ -139,7 +141,19 @@ fn scalar_erasure_does_not_publish_predicate_or_routed_tag_graphs() {
                 .expressions
                 .is_empty()
         );
-        assert!(checked.facts.values.scalar_computations.roots.is_empty());
+        let roots = &checked.facts.values.scalar_computations.roots;
+        assert_eq!(roots.iter().count(), 1, "one authored-cast root");
+        let root = roots.iter().next().unwrap().1;
+        let node = checked
+            .facts
+            .values
+            .scalar_computations
+            .nodes
+            .get(root.root);
+        assert!(
+            matches!(node.kind, CheckedScalarComputationKind::AuthoredCast { .. }),
+            "erasure publishes the authored cast, not qualification evidence"
+        );
     }
 }
 
