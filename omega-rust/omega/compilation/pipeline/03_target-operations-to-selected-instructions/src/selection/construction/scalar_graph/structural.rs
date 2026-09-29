@@ -33,6 +33,7 @@ pub(super) use local_storage::{byte_field_argument, fixed_array_argument};
 mod case_membership;
 mod element_establishment;
 mod element_subslice;
+mod element_view_write;
 mod element_views;
 mod primitive_locals;
 pub(super) use case_membership::observe;
@@ -220,6 +221,13 @@ pub(super) fn operation(
         LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
     ) {
         byte_views::write(source, builder, row)?;
+        return Ok(true);
+    }
+    if matches!(
+        row.kind,
+        LegalizedScalarInstructionKind::ElementViewWrite { .. }
+    ) {
+        element_view_write::write(source, builder, row)?;
         return Ok(true);
     }
     if matches!(

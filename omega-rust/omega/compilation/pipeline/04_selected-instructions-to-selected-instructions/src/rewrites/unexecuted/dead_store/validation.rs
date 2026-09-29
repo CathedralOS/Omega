@@ -173,6 +173,7 @@ fn disturbs(
         | ReadIndexedPrimitive { .. }
         | WriteByteSpan { .. }
         | WriteByteSequence { .. }
+        | WriteElementView { .. }
         | WriteIndexedPrimitive { .. }
         | WriteIndexedStructural { .. } => {
             matches!(subject.storage, SubjectStorage::Place)

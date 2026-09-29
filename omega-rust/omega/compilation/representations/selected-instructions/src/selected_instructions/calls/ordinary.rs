@@ -238,6 +238,14 @@ pub enum SelectedMemoryAccessRole {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// Exactly one checked element store at the dynamic element index through
+    /// the view's exclusive loan — the write counterpart of `ReadElementView`.
+    WriteElementView {
+        index: semantic_vocabulary::ValueId,
+        length: semantic_vocabulary::ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
+    },
     ReadPlace,
     WritePlace,
     WriteLocal {

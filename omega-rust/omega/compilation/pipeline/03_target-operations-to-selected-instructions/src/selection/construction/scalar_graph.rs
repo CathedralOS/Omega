@@ -412,6 +412,7 @@ fn select_function(
                     | LegalizedScalarInstructionKind::PrimitiveLocalStore { .. }
                     | LegalizedScalarInstructionKind::WriteOnlyPrimitiveStore { .. }
                     | LegalizedScalarInstructionKind::ByteSequenceWrite { .. }
+                    | LegalizedScalarInstructionKind::ElementViewWrite { .. }
                     | LegalizedScalarInstructionKind::StructuralByteSequenceFieldByteStore {
                         ..
                     }

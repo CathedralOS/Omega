@@ -390,7 +390,7 @@ pub(super) fn source_plan_matches(
     symbol: SymbolHandle,
     plan: &CheckedUnitStructuralArgumentSourcePlan,
 ) -> bool {
-    let (_, authored) =
+    let (owner, authored) =
         match crate::expression_preparation::source_custody::authored_state(checked, state) {
             Ok(authored) => authored,
             Err(_) => return false,
@@ -402,15 +402,37 @@ pub(super) fn source_plan_matches(
     {
         return *plan == (CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol });
     }
+    // `parameter_index` is the dense index into the machine's own structural
+    // parameter roster (`structural_argument_plans.rs`), not an authored-order
+    // index: erased, `const`, placed-view, primitive, and a borrowed `self`
+    // hold no roster slot. Resolve the authored position through the plan
+    // that owns the argument instead of recounting the authored signature.
+    let effects = &checked.facts.flow.terminal_unit_effects;
+    let roster = effects
+        .for_machine(owner.symbol)
+        .map(|plan| plan.structural_parameters.as_slice())
+        .or_else(|| {
+            effects
+                .composed_for_machine(owner.symbol)
+                .and_then(|plan| plan.states.iter().find(|plan| plan.state == state))
+                .map(|plan| plan.structural_parameters.as_slice())
+        })
+        .or_else(|| {
+            effects
+                .boundary_for_machine(owner.symbol)
+                .map(|plan| plan.structural_parameters.as_slice())
+        });
     let filtered = parameters
         .iter()
-        .filter(|parameter| {
-            !parameter.is_const
-                && checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
         .position(|parameter| parameter.symbol == symbol)
+        .and_then(|position| u32::try_from(position).ok())
+        .and_then(|position| {
+            roster.and_then(|parameters| {
+                parameters
+                    .iter()
+                    .position(|parameter| parameter.position == position)
+            })
+        })
         .and_then(|index| u32::try_from(index).ok());
     match plan {
         CheckedUnitStructuralArgumentSourcePlan::StructuralLocal {

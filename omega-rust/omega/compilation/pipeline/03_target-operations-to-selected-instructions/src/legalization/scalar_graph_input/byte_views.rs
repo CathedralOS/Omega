@@ -348,7 +348,11 @@ pub(super) fn validate(
                     })
         }) || establishes.iter().any(|(operation, result, destination)| {
             place.id == *destination
-                && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                && matches!(
+                    result.multiplicity,
+                    terminal_psi::StructuralMultiplicity::Unrestricted
+                        | terminal_psi::StructuralMultiplicity::Affine
+                )
                 && result.qualifications.is_empty()
                 && result.projected_qualifications.is_empty()
                 && result.claims.is_empty()

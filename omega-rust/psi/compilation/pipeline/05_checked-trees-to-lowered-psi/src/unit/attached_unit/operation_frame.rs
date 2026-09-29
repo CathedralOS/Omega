@@ -54,9 +54,9 @@
 use super::argument_evaluation::Evaluation;
 use super::bodies::UnitPlans;
 use super::primitive_locals::{self, PrimitiveLocal};
-use super::{parameters, reference_results};
 use super::signatures::MachineSignature;
 use super::view_ranges::{ViewRangeSite, ViewRangeSource};
+use super::{parameters, reference_results};
 use crate::emission::borrowed_window::{
     BorrowedWindowLedger, BorrowedWindowRepairValue, WindowEvaluation,
 };
@@ -933,7 +933,11 @@ impl OperationFrame<'_, '_> {
                     .ok_or(LoweringError::Unsupported(
                         "element-view write names an unknown structural local",
                     ))?;
-                if argument.access != StructuralAccess::Owned || !argument.path.is_empty() {
+                if !matches!(
+                    argument.access,
+                    StructuralAccess::Owned | StructuralAccess::MutableBorrow
+                ) || !argument.path.is_empty()
+                {
                     return unsupported("element-view write local root is not a whole owned home");
                 }
                 let produced = self

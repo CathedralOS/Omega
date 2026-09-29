@@ -24,6 +24,7 @@ use crate::values::TerminalStructuralValue;
 use semantic_vocabulary::IntegerSign;
 use semantic_vocabulary::IntegerType;
 use semantic_vocabulary::IntegerValue;
+use semantic_vocabulary::PlaceId;
 use semantic_vocabulary::ScalarType;
 use semantic_vocabulary::StructuralPlaceKind;
 use semantic_vocabulary::ValueId;
@@ -38,10 +39,21 @@ use terminal_psi::StructuralMultiplicity;
 use terminal_psi::StructuralPathSegment;
 use terminal_psi::StructuralTypeShape;
 
+/// The storage a mutable element view writes through to. A shared view has
+/// no home: its captured snapshot is the only truth a read can observe.
+pub(crate) enum ElementViewHome {
+    /// Whole-place owned scalar array; elements live in `scalar_array_values`.
+    ScalarArray(PlaceId),
+    /// One primitive leaf per `FixedIndex` under a projected collection place,
+    /// in `structural_primitive_storage`.
+    PrimitiveStorage(StructuralRuntimePlace),
+}
+
 #[derive(Clone)]
 pub(crate) struct ElementView {
     backing: Arc<[TerminalScalarValue]>,
     window: Range<usize>,
+    home: Option<Arc<ElementViewHome>>,
 }
 
 impl ElementView {
@@ -50,6 +62,18 @@ impl ElementView {
         Self {
             backing: elements.into(),
             window: 0..length,
+            home: None,
+        }
+    }
+
+    /// One mutable view: `backing` is still the read snapshot the window
+    /// selects, and `home` is the storage a write-through updates beside it.
+    pub(crate) fn new_mutable(elements: Vec<TerminalScalarValue>, home: ElementViewHome) -> Self {
+        let length = elements.len();
+        Self {
+            backing: elements.into(),
+            window: 0..length,
+            home: Some(Arc::new(home)),
         }
     }
 
@@ -62,12 +86,14 @@ impl ElementView {
     }
 
     /// Share the backing under a narrowed window, mirroring
-    /// `ByteSequenceView::subslice`.
+    /// `ByteSequenceView::subslice`. A derived window is immutable: the home
+    /// does not transfer, since a narrowed write target was never verified.
     pub(crate) fn subslice(&self, start: usize, end: usize) -> Option<Self> {
         self.backing[self.window.clone()].get(start..end)?;
         Some(Self {
             backing: Arc::clone(&self.backing),
             window: self.window.start.checked_add(start)?..self.window.start.checked_add(end)?,
+            home: None,
         })
     }
 }
@@ -251,9 +277,10 @@ impl TerminalExecution {
     }
 
     /// Establish one mutable element view over the source collection's stored
-    /// elements. The binding keeps the snapshot shape of its shared sibling:
-    /// `ElementViewWrite` still fails closed until mutable element bindings
-    /// land, so no store can observe a divergent backing.
+    /// elements. The binding keeps the snapshot shape of its shared sibling
+    /// for reads, and records the home a mutable loan's writes reseat into —
+    /// the exclusive loan means the source cannot be observed through any
+    /// other channel while the view is live.
     pub(crate) fn execute_establish_mutable_element_view(
         &mut self,
         operation: &Operation,
@@ -352,7 +379,7 @@ impl TerminalExecution {
         if collection_element != *element {
             return Err(invalid());
         }
-        let elements = if resolved.path.is_empty() {
+        let (elements, home) = if resolved.path.is_empty() {
             let array = self
                 .scalar_array_values
                 .get(&source.place)
@@ -369,7 +396,10 @@ impl TerminalExecution {
             {
                 return Err(invalid());
             }
-            array.elements.clone()
+            (
+                array.elements.clone(),
+                ElementViewHome::ScalarArray(source.place),
+            )
         } else {
             let extent = usize::try_from(collection_length).map_err(|_| invalid())?;
             let mut elements = Vec::with_capacity(extent);
@@ -388,10 +418,13 @@ impl TerminalExecution {
                 }
                 elements.push(leaf);
             }
-            elements
+            (
+                elements,
+                ElementViewHome::PrimitiveStorage(StructuralRuntimePlace::from(&resolved)),
+            )
         };
         self.element_view_values
-            .insert(result.place, ElementView::new(elements));
+            .insert(result.place, ElementView::new_mutable(elements, home));
         self.structural_values.insert(
             result.place,
             TerminalStructuralValue {
@@ -401,6 +434,89 @@ impl TerminalExecution {
                 path: Vec::new(),
             },
         );
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Write one scalar element through the view's exclusive loan. The
+    /// dominating length operand must equal the view's live window exactly
+    /// and the index must be in bounds; the store reseats both the view's
+    /// snapshot and the home storage the loan covers.
+    pub(crate) fn execute_element_view_write(
+        &mut self,
+        operation: &Operation,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let OperationKind::ElementViewWrite {
+            destination,
+            index,
+            value,
+            length,
+            ..
+        } = &operation.kind
+        else {
+            return Err(invalid());
+        };
+        if operation.result != OperationResult::Unit {
+            return Err(invalid());
+        }
+        let index = count(index, &self.values)?;
+        let length = count(length, &self.values)?;
+        let element = self
+            .values
+            .get(value)
+            .copied()
+            .ok_or(TerminalInterpretError::VerifiedValueMissing(*value))?;
+        if !terminal_scalar_belongs_to_type(element) {
+            return Err(invalid());
+        }
+        let Some(view) = self.element_view_values.get_mut(destination) else {
+            return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                *destination,
+            ));
+        };
+        let Some(home) = view.home.clone() else {
+            return Err(invalid());
+        };
+        if view.len() != length || index >= length {
+            return Err(invalid());
+        }
+        let position = view.window.start.checked_add(index).ok_or_else(invalid)?;
+        let Some(existing) = view.backing.get(position) else {
+            return Err(invalid());
+        };
+        if existing.scalar_type() != element.scalar_type() {
+            return Err(invalid());
+        }
+        match &*home {
+            ElementViewHome::ScalarArray(place) => {
+                let Some(array) = self.scalar_array_values.get_mut(place) else {
+                    return Err(invalid());
+                };
+                let Some(slot) = array.elements.get_mut(position) else {
+                    return Err(invalid());
+                };
+                *slot = element;
+            }
+            ElementViewHome::PrimitiveStorage(root) => {
+                let mut place = root.clone();
+                place
+                    .path
+                    .push(StructuralPathSegment::FixedIndex(position as u64));
+                if self
+                    .structural_primitive_storage
+                    .get(&place)
+                    .map(|leaf| leaf.scalar_type())
+                    != Some(element.scalar_type())
+                {
+                    return Err(invalid());
+                }
+                self.structural_primitive_storage.insert(place, element);
+            }
+        }
+        let Some(view) = self.element_view_values.get_mut(destination) else {
+            return Err(invalid());
+        };
+        Arc::make_mut(&mut view.backing)[position] = element;
         Ok(OperationFlow::Advance)
     }
 

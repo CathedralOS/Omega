@@ -335,6 +335,31 @@ pub(super) fn emit(
         .zip(parameters)
         .map(|(source, parameter)| (source.position, parameter.clone()))
         .collect();
+    // A borrowed `self` the machine signature retained stays ambient in the
+    // effect plan's roster. Join its lowered declaration under the authored
+    // parameter position so self-rooted computed borrows and field bindings
+    // resolve the receiver's storage. The signature's own `position` is the
+    // dense declaration index, not the authored coordinate this roster keys.
+    if let Some(parameter) = parameters.iter().find(|parameter| parameter.is_self)
+        && let Some(position) =
+            crate::expression_preparation::source_custody::authored_state(checked, plan.state)
+                .ok()
+                .and_then(|(_, state)| {
+                    checked
+                        .state_parameters(state)
+                        .iter()
+                        .position(|parameter| parameter.is_self)
+                })
+                .and_then(|position| u32::try_from(position).ok())
+        && !evaluation
+            .structural_parameters
+            .iter()
+            .any(|(existing, _)| *existing == position)
+    {
+        evaluation
+            .structural_parameters
+            .push((position, parameter.clone()));
+    }
     evaluation.primitive_storage =
         crate::expression_preparation::source_custody::primitive_references::bindings(
             checked,

@@ -350,6 +350,7 @@ pub(super) fn admit(source: &StagedOptimizedRelocationFreeObjectContainer) -> Re
                 AbstractOperation::EstablishElementView { .. }
                 | AbstractOperation::ElementViewLength { .. }
                 | AbstractOperation::ElementViewRead { .. }
+                | AbstractOperation::ElementViewWrite { .. }
                 | AbstractOperation::ElementViewSubslice { .. } => {
                     element_operation_retained(operation, targeted)
                 }
@@ -730,6 +731,13 @@ fn element_operation_retained(
                             psi_operation: retained,
                             ..
                         },
+                    ..
+                },
+            )
+            | (
+                AbstractOperation::ElementViewWrite { psi_operation, .. },
+                TargetUnitOperation::ElementViewWrite {
+                    psi_operation: retained,
                     ..
                 },
             ) => psi_operation == retained,

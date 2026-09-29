@@ -143,8 +143,9 @@ pub enum AbstractOperation {
         result: AbstractResult,
         source: PlaceId,
     },
-    /// Establish one shared element view over a structural collection place.
-    /// The view is a descriptor loan, not an element copy.
+    /// Establish one borrowed element view over a structural collection place.
+    /// The view is a descriptor loan, not an element copy; `source.access`
+    /// records whether the loan is shared or exclusive.
     EstablishElementView {
         psi_operation: OperationId,
         result: StructuralOperationResult,
@@ -168,6 +169,17 @@ pub enum AbstractOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
         path: Vec<terminal_psi::StructuralPathSegment>,
+    },
+    /// Write one scalar element through the exact mutable element view and
+    /// verified bounds (`view[index] = element`). `length` is the dominating
+    /// same-view element-length observation the bounds obligation names.
+    ElementViewWrite {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
     },
     /// Establish an immutable element window with the exact source, endpoints
     /// and two-leg bounds proof.
@@ -927,6 +939,7 @@ impl AbstractOperation {
             | Self::EstablishElementView { psi_operation, .. }
             | Self::ElementViewLength { psi_operation, .. }
             | Self::ElementViewRead { psi_operation, .. }
+            | Self::ElementViewWrite { psi_operation, .. }
             | Self::ElementViewSubslice { psi_operation, .. }
             | Self::IntegerStructuralField { psi_operation, .. }
             | Self::BooleanNot { psi_operation, .. }

@@ -112,6 +112,11 @@ pub(crate) fn reconstruct_fact_index(function: &PsiOptimizationFunction) -> Vec<
                 obligation,
                 ..
             }
+            | O::ElementViewWrite {
+                psi_operation,
+                obligation,
+                ..
+            }
             | O::IntegerExactCast {
                 psi_operation,
                 obligation,

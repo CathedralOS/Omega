@@ -375,6 +375,11 @@ fn validate_operation_foundation(
         OperationKind::EstablishElementView { .. } => {
             storage_foundations::validate_establish_element_view(module, machine, operation)?
         }
+        OperationKind::EstablishMutableElementView { .. } => {
+            storage_foundations::validate_establish_mutable_element_view(
+                module, machine, operation,
+            )?
+        }
         OperationKind::ElementViewLength { .. } => {
             storage_foundations::validate_element_view_length(operation)?
         }

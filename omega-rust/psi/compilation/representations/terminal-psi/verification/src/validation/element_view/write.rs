@@ -52,7 +52,10 @@ pub(in crate::validation) fn mutable_result(
             operation.result.structural().filter(|result| {
                 result.place == place
                     && result.structural_type == structural_type
-                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && matches!(
+                        result.multiplicity,
+                        StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                    )
                     && result.qualifications.is_empty()
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()

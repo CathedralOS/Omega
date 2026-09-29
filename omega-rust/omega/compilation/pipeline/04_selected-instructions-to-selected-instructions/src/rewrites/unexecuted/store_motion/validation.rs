@@ -155,6 +155,7 @@ fn interferes(
         | SelectedMemoryAccessRole::ReadIndexedPrimitive { .. }
         | SelectedMemoryAccessRole::WriteByteSpan { .. }
         | SelectedMemoryAccessRole::WriteByteSequence { .. }
+        | SelectedMemoryAccessRole::WriteElementView { .. }
         | SelectedMemoryAccessRole::WriteIndexedPrimitive { .. }
         | SelectedMemoryAccessRole::WriteIndexedStructural { .. } => {
             matches!(moved.storage, SubjectStorage::Place)

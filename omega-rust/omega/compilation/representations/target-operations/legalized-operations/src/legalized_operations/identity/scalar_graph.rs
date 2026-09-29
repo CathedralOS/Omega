@@ -585,6 +585,26 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     super::structural_types::encode_structural_argument(bytes, source);
                     bytes.extend_from_slice(&element.get().to_le_bytes());
                 }
+                LegalizedScalarInstructionKind::ElementViewWrite {
+                    destination,
+                    index,
+                    value,
+                    length,
+                    obligation,
+                    accepted_fact,
+                } => {
+                    bytes.push(44);
+                    for identity in [
+                        destination.get(),
+                        index.get(),
+                        value.get(),
+                        length.get(),
+                        obligation.get(),
+                    ] {
+                        bytes.extend_from_slice(&identity.to_le_bytes());
+                    }
+                    bytes.extend_from_slice(&accepted_fact.bytes());
+                }
                 LegalizedScalarInstructionKind::ElementViewSubslice {
                     result,
                     source,

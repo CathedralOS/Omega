@@ -480,6 +480,15 @@ pub(super) fn lower_operation(
             operations,
             provenance,
         ),
+        AbstractOperation::ElementViewWrite { .. } => super::element_view_write::lower(
+            operation,
+            function,
+            structural_types,
+            prepared,
+            live,
+            operations,
+            provenance,
+        ),
         AbstractOperation::EstablishByteSequenceConcatenation { .. } => {
             super::byte_concatenation::lower(
                 operation,
@@ -552,6 +561,16 @@ pub(super) fn lower_operation(
                 .is_some()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
+            }
+            // The mutable loan's affine custody ends at scope exit: record
+            // the view place's result home so edge and return cleanup admit
+            // its no-code discard alongside other affine result homes.
+            if result.multiplicity == terminal_psi::StructuralMultiplicity::Affine {
+                let home =
+                    super::aggregate_results::home(*psi_operation, result, structural_types)?;
+                if live.structural_homes.insert(*destination, home).is_some() {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
             }
             operations.push(TargetUnitOperation::EstablishElementView {
                 result: result.clone(),

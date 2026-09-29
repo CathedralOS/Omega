@@ -142,6 +142,7 @@ fn disturbs(
         WritePlace => access.place == read.place && read.overlaps(access),
         WriteByteSpan { .. }
         | WriteByteSequence { .. }
+        | WriteElementView { .. }
         | WriteIndexedPrimitive { .. }
         | WriteIndexedStructural { .. } => {
             access.place == read.place && read.reaches(access, function)

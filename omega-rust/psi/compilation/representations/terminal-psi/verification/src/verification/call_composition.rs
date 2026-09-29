@@ -4,11 +4,13 @@ use std::collections::BTreeMap;
 
 use proof_admission::{Obligation, ObligationClass};
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, MachineId, PlaceId, Proposition, ScalarTerm, ScalarType,
-    StructuralCaseSubject, ValueId,
+    CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, MachineId, PlaceId,
+    Proposition, ScalarTerm, ScalarType, StructuralCaseSubject, StructuralPlaceKind,
+    StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    Operation, OperationKind, StructuralAccess, StructuralArgument, TerminalMachine, TerminalModule,
+    BindingRelevance, Operation, OperationKind, StructuralAccess, StructuralArgument,
+    StructuralFieldType, StructuralTypeShape, TerminalMachine, TerminalModule,
 };
 use terminal_semantics::{CallResultRule, call_composition_semantic_row};
 
@@ -118,8 +120,13 @@ pub(super) fn compose_call_operation(
                 .get(callee)
                 .copied()
                 .expect("validated unit-call target exists");
-            let structural_substitutions =
-                structural_contract_substitutions(module, machine, callee, structural_arguments)?;
+            let structural_substitutions = structural_contract_substitutions(
+                module,
+                machine,
+                callee,
+                structural_arguments,
+                axioms,
+            )?;
             let mut value_substitutions = callee
                 .parameters
                 .iter()
@@ -367,8 +374,13 @@ pub(super) fn compose_call_operation(
                 .result
                 .structural()
                 .expect("validated structural-call target has a structural result");
-            let mut substitutions =
-                structural_contract_substitutions(module, machine, callee, structural_arguments)?;
+            let mut substitutions = structural_contract_substitutions(
+                module,
+                machine,
+                callee,
+                structural_arguments,
+                axioms,
+            )?;
             substitutions.insert(callee_result.place, (call_result.place, Vec::new()));
             let mut scalar_substitutions = callee
                 .parameters
@@ -540,7 +552,7 @@ fn compose_structural_scalar_call(
     operation_obligations: &mut Vec<ReconstructedOperationObligation>,
 ) -> Result<(), ModuleError> {
     let structural_substitutions =
-        structural_contract_substitutions(module, machine, callee, structural_arguments)?;
+        structural_contract_substitutions(module, machine, callee, structural_arguments, axioms)?;
     let mut value_substitutions = callee
         .parameters
         .iter()
@@ -605,6 +617,121 @@ fn compose_structural_scalar_call(
     Ok(())
 }
 
+/// The structural type `place` carries at its root in `caller`.
+fn caller_place_root_type(caller: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
+    if let Some(parameter) = caller
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+    {
+        return Some(parameter.structural_type);
+    }
+    if let Some(parameter) = caller
+        .blocks
+        .iter()
+        .flat_map(|block| &block.structural_parameters)
+        .find(|parameter| parameter.place == place)
+    {
+        return Some(parameter.structural_type);
+    }
+    caller.structural_places.iter().find_map(|row| {
+        if row.id != place {
+            return None;
+        }
+        match row.kind {
+            StructuralPlaceKind::OperationResult {
+                structural_type, ..
+            }
+            | StructuralPlaceKind::ByteSequenceLiteral {
+                structural_type, ..
+            }
+            | StructuralPlaceKind::TrivialAffineLocal {
+                structural_type, ..
+            } => Some(structural_type),
+            StructuralPlaceKind::Parameter { position, .. } => caller
+                .structural_parameters
+                .get(position as usize)
+                .map(|parameter| parameter.structural_type),
+            _ => None,
+        }
+    })
+}
+
+/// The structural type reached by a canonical argument prefix. `Field` steps
+/// resolve inside records, `FixedIndex` steps inside a fixed array's extent,
+/// and `Case` steps supply no owned structural namespace here.
+fn canonical_path_end_type(
+    module: &TerminalModule,
+    mut current: StructuralTypeId,
+    path: &[CanonicalStructuralPathSegment],
+) -> Option<StructuralTypeId> {
+    for segment in path {
+        let declaration = module
+            .structural_types
+            .iter()
+            .find(|item| item.id == current)?;
+        current = match (segment, &declaration.shape) {
+            (
+                CanonicalStructuralPathSegment::Field(identity),
+                StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. },
+            ) => {
+                let field = fields.iter().find(|field| field.id == *identity)?;
+                if field.relevance != BindingRelevance::Relevant {
+                    return None;
+                }
+                let StructuralFieldType::Structural(child) = field.field_type else {
+                    return None;
+                };
+                child
+            }
+            (
+                CanonicalStructuralPathSegment::FixedIndex(index),
+                StructuralTypeShape::FixedArray { element, length },
+            ) if index < length => *element,
+            _ => return None,
+        };
+    }
+    Some(current)
+}
+
+/// A `ViewExtent` term whose root and path name a fixed array has a declared
+/// static extent: supply it as a caller-side fact so a callee's substituted
+/// requires discharges against the argument's real storage.
+fn mint_static_extent_axiom(
+    module: &TerminalModule,
+    caller: &TerminalMachine,
+    argument: &StructuralArgument,
+    prefix: &[CanonicalStructuralPathSegment],
+    axioms: &mut Vec<Proposition>,
+) {
+    let Some(root) = caller_place_root_type(caller, argument.place) else {
+        return;
+    };
+    let Some(end) = canonical_path_end_type(module, root, prefix) else {
+        return;
+    };
+    let Some(length) =
+        module
+            .structural_types
+            .iter()
+            .find_map(|declaration| match declaration.shape {
+                StructuralTypeShape::FixedArray { length, .. } if declaration.id == end => {
+                    Some(length)
+                }
+                _ => None,
+            })
+    else {
+        return;
+    };
+    let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
+    let extent = ScalarTerm::view_extent(argument.place, prefix.to_vec(), integer_type);
+    let Ok(count) = ScalarTerm::integer(integer_type, IntegerValue::Unsigned(u128::from(length)))
+    else {
+        return;
+    };
+    push_unique(axioms, Proposition::Equal(extent, count));
+}
+
 /// Borrowed referents and fixed byte windows have no owned-field spelling in
 /// the proposition algebra. A window must never substitute its entire backing.
 /// Omit an unused binder only after checking the complete published contract;
@@ -614,12 +741,14 @@ fn structural_contract_substitutions(
     caller: &TerminalMachine,
     callee: &TerminalMachine,
     arguments: &[StructuralArgument],
+    axioms: &mut Vec<Proposition>,
 ) -> Result<BTreeMap<PlaceId, (PlaceId, Vec<CanonicalStructuralPathSegment>)>, ModuleError> {
     let mut substitutions = BTreeMap::new();
     for (parameter, argument) in callee.structural_parameters.iter().zip(arguments) {
         if let Some(prefix) =
             crate::validation::structural_argument_canonical_prefix(module, caller, argument)
         {
+            mint_static_extent_axiom(module, caller, argument, &prefix, axioms);
             substitutions.insert(parameter.place, (argument.place, prefix));
             continue;
         }

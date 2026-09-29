@@ -80,6 +80,7 @@ pub(in crate::legalization) fn admit(
         ..
     }
     | AbstractOperation::ByteSequenceWrite { psi_operation, .. }
+    | AbstractOperation::ElementViewWrite { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldByteStore { psi_operation, .. }
     | AbstractOperation::ByteSequenceStore { psi_operation, .. }
     | AbstractOperation::StructuralByteSequenceFieldStore { psi_operation, .. }
@@ -670,6 +671,41 @@ pub(super) fn validate(
                 || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
                 || value_type(optimized, *value) != Some(ScalarType::Integer(u8_type()))
+            {
+                return Err(LegalizationError::custody());
+            }
+            continue;
+        }
+        if let AbstractOperation::ElementViewWrite {
+            destination,
+            index,
+            value,
+            length,
+            ..
+        } = &node.operation
+        {
+            // The view place is a `&mut [T]` parameter or an establishment
+            // whose collection argument carries the exclusive loan; the
+            // element's own scalar type stays authored on the value operand.
+            let mutable_view =
+                super::byte_views::mutable_parameter(optimized, *destination).is_some()
+                    || optimized
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.nodes)
+                        .any(|node| {
+                            matches!(&node.operation,
+                                AbstractOperation::EstablishElementView {
+                                    destination: view, source, ..
+                                } if *view == *destination
+                                    && source.access == terminal_psi::StructuralAccess::MutableBorrow)
+                        });
+            if result.is_some()
+                || !node.definitions.is_empty()
+                || !mutable_view
+                || value_type(optimized, *index) != Some(ScalarType::Integer(u64_type()))
+                || value_type(optimized, *length) != Some(ScalarType::Integer(u64_type()))
+                || !matches!(value_type(optimized, *value), Some(ScalarType::Integer(_)))
             {
                 return Err(LegalizationError::custody());
             }

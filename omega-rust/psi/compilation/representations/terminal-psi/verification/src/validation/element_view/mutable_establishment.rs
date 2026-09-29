@@ -7,8 +7,10 @@ use crate::validation::{
 };
 
 /// A mutable establishment mirrors the immutable sibling's result shape and
-/// source resolution; the custody difference is exactly the argument access:
-/// `MutableBorrow` marks the exclusive loan the checked planner rosters.
+/// source resolution; the custody differences are the argument access —
+/// `MutableBorrow` marks the exclusive loan the checked planner rosters — and
+/// the result multiplicity, which spells `Affine`: the loan's holder dies with
+/// its binding's scope.
 pub(in crate::validation) fn validate_establishment(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -35,7 +37,7 @@ pub(in crate::validation) fn validate_establishment(
     ) {
         return Err(invalid());
     }
-    if result.multiplicity != StructuralMultiplicity::Unrestricted
+    if result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()

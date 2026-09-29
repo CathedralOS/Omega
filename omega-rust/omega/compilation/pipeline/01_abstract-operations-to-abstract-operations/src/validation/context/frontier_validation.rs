@@ -372,12 +372,44 @@ fn validate_surviving_byte_operations(
                     source,
                     element,
                     ..
+                } => {
+                    // The shared abstract establishment respells either
+                    // Terminal establishment kind; the argument's access
+                    // carries the shared/mutable distinction.
+                    let kind = match &original.kind {
+                        terminal_psi::OperationKind::EstablishMutableElementView { .. } => {
+                            terminal_psi::OperationKind::EstablishMutableElementView {
+                                destination: *destination,
+                                source: source.clone(),
+                                element: *element,
+                            }
+                        }
+                        _ => terminal_psi::OperationKind::EstablishElementView {
+                            destination: *destination,
+                            source: source.clone(),
+                            element: *element,
+                        },
+                    };
+                    (
+                        terminal_psi::OperationResult::Structural(result.clone()),
+                        kind,
+                    )
+                }
+                O::ElementViewWrite {
+                    destination,
+                    index,
+                    value,
+                    length,
+                    obligation,
+                    ..
                 } => (
-                    terminal_psi::OperationResult::Structural(result.clone()),
-                    terminal_psi::OperationKind::EstablishElementView {
+                    terminal_psi::OperationResult::Unit,
+                    terminal_psi::OperationKind::ElementViewWrite {
                         destination: *destination,
-                        source: source.clone(),
-                        element: *element,
+                        index: *index,
+                        value: *value,
+                        length: *length,
+                        obligation: *obligation,
                     },
                 ),
                 O::ElementViewLength { result, source, .. } => (

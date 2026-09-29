@@ -1,7 +1,9 @@
 //! Join an element-view length observation to its exact validated producer or
 //! to the descriptor every block arrival transfers.
 
-use semantic_vocabulary::{Proposition, StructuralPlaceKind};
+use semantic_vocabulary::{
+    IntegerSign, IntegerType, Proposition, ScalarTerm, ScalarType, StructuralPlaceKind,
+};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalModule,
@@ -87,8 +89,10 @@ fn establishment_collection_length(
     machine: &TerminalMachine,
     operation: &Operation,
 ) -> Option<u64> {
-    let OperationKind::EstablishElementView { source, .. } = &operation.kind else {
-        return None;
+    let source = match &operation.kind {
+        OperationKind::EstablishElementView { source, .. }
+        | OperationKind::EstablishMutableElementView { source, .. } => source,
+        _ => return None,
     };
     let root = source_root_type(machine, source.place)?;
     let collection = path_end_type(module, root, &source.path)?;
@@ -162,6 +166,27 @@ pub(super) fn length_equation(
                     result: *result,
                 },
             )
+        }
+        StructuralPlaceKind::Parameter { position, .. } => {
+            let Some(parameter) = machine.structural_parameters.get(position as usize) else {
+                return Ok(None);
+            };
+            let is_element_view = module.structural_types.iter().any(|declaration| {
+                declaration.id == parameter.structural_type
+                    && matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+            });
+            if !is_element_view {
+                return Ok(None);
+            }
+            // A signature element view's extent is the descriptor the caller
+            // supplied: the read result is exactly the parameter's own
+            // `ViewExtent` term, which call-site composition instantiates
+            // against the actual argument.
+            let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is valid");
+            return Ok(Some(Proposition::Equal(
+                ScalarTerm::value(*result, ScalarType::Integer(integer_type)),
+                ScalarTerm::view_extent(*source, Vec::new(), integer_type),
+            )));
         }
         _ => return Ok(None),
     };
@@ -247,6 +272,7 @@ fn arrival_producer<'machine>(
             if !matches!(
                 producer.kind,
                 OperationKind::EstablishElementView { .. }
+                    | OperationKind::EstablishMutableElementView { .. }
                     | OperationKind::ElementViewSubslice { .. }
             ) {
                 continue;

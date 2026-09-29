@@ -495,6 +495,35 @@ pub(super) fn validate_operation(
                 .iter()
                 .any(|(identity, source)| identity == expected_value && source == value) => {}
         (
+            TargetUnitOperation::ElementViewWrite {
+                psi_operation,
+                destination,
+                view,
+                index,
+                value,
+                length,
+                obligation,
+            },
+            AbstractOperation::ElementViewWrite {
+                psi_operation: expected_operation,
+                destination: expected_destination,
+                index: expected_index,
+                value: expected_value,
+                length: expected_length,
+                obligation: expected_obligation,
+            },
+        ) if psi_operation == expected_operation
+            && destination == expected_destination
+            && length == expected_length
+            && obligation == expected_obligation
+            && checker.mutable_element_view(view, *expected_destination)
+            && sources
+                .iter()
+                .any(|(identity, source)| identity == expected_index && source == index)
+            && sources
+                .iter()
+                .any(|(identity, source)| identity == expected_value && source == value) => {}
+        (
             TargetUnitOperation::EstablishPrimitiveLocal {
                 psi_operation,
                 result,

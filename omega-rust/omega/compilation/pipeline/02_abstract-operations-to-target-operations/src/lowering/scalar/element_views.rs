@@ -21,14 +21,6 @@ use terminal_psi::{
     StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
 };
 
-pub(in crate::lowering) fn is_immutable_element_view_parameter(
-    parameter: &StructuralParameterDeclaration,
-    structural_types: &StructuralTypeLookup<'_>,
-) -> bool {
-    parameter.access == StructuralAccess::SharedBorrow
-        && is_element_view_parameter(parameter, structural_types)
-}
-
 pub(in crate::lowering) fn is_element_view_parameter(
     parameter: &StructuralParameterDeclaration,
     structural_types: &StructuralTypeLookup<'_>,
@@ -257,8 +249,14 @@ pub(in crate::lowering) fn element_view_for_place(
         matches!(operation,
             AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
     }) {
+        // A shared establishment mints the immutable shell; the mutable
+        // loan's result carries the exclusive custody's affine multiplicity.
+        let expected_multiplicity = match source.access {
+            StructuralAccess::MutableBorrow => StructuralMultiplicity::Affine,
+            _ => StructuralMultiplicity::Unrestricted,
+        };
         if result.place != place
-            || result.multiplicity != StructuralMultiplicity::Unrestricted
+            || result.multiplicity != expected_multiplicity
             || !result.qualifications.is_empty()
             || !result.projected_qualifications.is_empty()
             || !result.claims.is_empty()
@@ -295,8 +293,7 @@ pub(in crate::lowering) fn element_view_for_place(
             .find(|parameter| parameter.place == place)
             .map(|parameter| (entry, parameter))
     }) {
-        if entry.block == function.entry
-            || !is_immutable_element_view_parameter(parameter, structural_types)
+        if entry.block == function.entry || !is_element_view_parameter(parameter, structural_types)
         {
             return Err(invalid());
         }
@@ -318,7 +315,7 @@ pub(in crate::lowering) fn element_view_for_place(
             .iter()
             .find(|parameter| parameter.place == place)
             .ok_or_else(invalid)?;
-        if !is_immutable_element_view_parameter(semantic, structural_types)
+        if !is_element_view_parameter(semantic, structural_types)
             || parameter.structural_type != semantic.structural_type
             || parameter.access != semantic.access
             || parameter.multiplicity != semantic.multiplicity
@@ -405,6 +402,82 @@ pub(in crate::lowering) fn element_view_for_place(
     ))
 }
 
+/// Resolve one writable element-view place's descriptor identity. Mutable
+/// views are whole machine or block parameters declared `&mut [T]`, or
+/// operation-result places whose establishment lent the collection under
+/// `MutableBorrow`; subslices establish immutable windows, so a mutable
+/// write can never name one.
+pub(in crate::lowering) fn mutable_element_view_for_place(
+    function: &AbstractFunction,
+    structural_types: &StructuralTypeLookup<'_>,
+    parameters: &[TargetStructuralParameter],
+    values: &BTreeMap<ValueId, KnownScalar>,
+    lengths: &BTreeMap<ValueId, PlaceId>,
+    place: PlaceId,
+) -> Result<(TargetElementView, StructuralTypeId), LoweringError> {
+    let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
+    if let Some(AbstractOperation::EstablishElementView { source, .. }) =
+        function.operations.iter().find(|operation| {
+            matches!(operation,
+                AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
+        })
+    {
+        if source.access != StructuralAccess::MutableBorrow {
+            return Err(invalid());
+        }
+        return element_view_for_place(
+            function,
+            structural_types,
+            parameters,
+            values,
+            lengths,
+            place,
+            &mut Vec::new(),
+        );
+    }
+    if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
+        entry
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == place)
+            .map(|parameter| (entry, parameter))
+    }) {
+        if entry.block == function.entry
+            || parameter.access != StructuralAccess::MutableBorrow
+            || !is_element_view_parameter(parameter, structural_types)
+        {
+            return Err(invalid());
+        }
+        return Ok((
+            TargetElementView::BlockParameter {
+                block: entry.block,
+                place,
+                structural_type: parameter.structural_type,
+            },
+            parameter.structural_type,
+        ));
+    }
+    let Some(semantic) = function
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == place)
+    else {
+        return Err(invalid());
+    };
+    if semantic.access != StructuralAccess::MutableBorrow {
+        return Err(invalid());
+    }
+    element_view_for_place(
+        function,
+        structural_types,
+        parameters,
+        values,
+        lengths,
+        place,
+        &mut Vec::new(),
+    )
+}
+
 /// Resolve an establishment's collection argument to its exact backing
 /// projection: an all-field path over a signature parameter whose tip is the
 /// fixed array carrying the view's element type.
@@ -425,11 +498,13 @@ fn established_source(
     LoweringError,
 > {
     let invalid = || LoweringError::UnsupportedOperationInScalarFunction(function.machine);
-    if source.access != StructuralAccess::SharedBorrow
-        || source
-            .path
-            .iter()
-            .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
+    if !matches!(
+        source.access,
+        StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+    ) || source
+        .path
+        .iter()
+        .any(|segment| !matches!(segment, StructuralPathSegment::Field(_)))
     {
         return Err(invalid());
     }
