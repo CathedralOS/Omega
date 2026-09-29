@@ -19,7 +19,8 @@ use semantic_vocabulary::{
     StructuralTypeId, ValueId,
 };
 use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralAccess, StructuralArgument, StructuralFieldType, StructuralPathSegment,
+    StructuralTypeDeclaration, StructuralTypeShape,
 };
 
 /// The bounds relation a `RuntimeIndex` segment's obligation proves for an
@@ -118,6 +119,36 @@ pub fn structural_paths_may_overlap(
             _ => left == right,
         })
 }
+/// Whether `child` is a borrow formed strictly inside the extent `parent`
+/// already loans on the same place. A receiver's own claim is the callee's
+/// context, so a member borrow inside it is a subloan under the parent —
+/// a frozen or suspended child under the loan parent-child table — never an
+/// independent second claim. The parent's access admits the child's: a
+/// mutable or owned parent freezes a shared child and suspends a mutable or
+/// write-only child, while a write-only parent admits borrow children only.
+/// Callers decide which argument plays the parent; containment is strict, so
+/// same-extent pairs are never children, and a shared parent never admits an
+/// exclusive child.
+pub fn interior_member_borrow(parent: &StructuralArgument, child: &StructuralArgument) -> bool {
+    let admitted = match parent.access {
+        StructuralAccess::MutableBorrow | StructuralAccess::Owned => matches!(
+            child.access,
+            StructuralAccess::SharedBorrow
+                | StructuralAccess::MutableBorrow
+                | StructuralAccess::WriteOnlyBorrow
+        ),
+        StructuralAccess::WriteOnlyBorrow => matches!(
+            child.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        ),
+        StructuralAccess::SharedBorrow => false,
+    };
+    admitted
+        && child.place == parent.place
+        && child.path.len() > parent.path.len()
+        && child.path.starts_with(&parent.path)
+}
+
 /// Resolve `path` from `root` to its tip declaration, rejecting a duplicated
 /// declaration or field id. This grants no access or establishment authority
 /// for the root.

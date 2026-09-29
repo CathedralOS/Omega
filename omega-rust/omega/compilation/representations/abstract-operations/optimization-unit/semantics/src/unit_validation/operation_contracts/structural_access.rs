@@ -4,7 +4,7 @@ use abstract_operations::AbstractOperation as O;
 use optimization_unit::PsiOptimizationFunction;
 use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
-use terminal_semantics::structural_paths_may_overlap;
+use terminal_semantics::{interior_member_borrow, structural_paths_may_overlap};
 
 #[cfg(test)]
 mod tests;
@@ -415,12 +415,21 @@ pub(crate) fn structural_arguments_match(
             return false;
         }
     }
+    let receiver = parameters.iter().position(|parameter| parameter.is_self);
     for first in 0..arguments.len() {
         for second in first + 1..arguments.len() {
             let left = &arguments[first];
             let right = &arguments[second];
+            // The receiver's claim is the callee's own context: a borrow
+            // strictly inside it is a subloan under the loan parent-child
+            // table, never an independent second claim.
+            let interior_loan = receiver.is_some_and(|index| {
+                (first == index && interior_member_borrow(left, right))
+                    || (second == index && interior_member_borrow(right, left))
+            });
             if left.place == right.place
                 && structural_paths_may_overlap(&left.path, &right.path)
+                && !interior_loan
                 && (structural_access_is_exclusive(left.access)
                     || structural_access_is_exclusive(right.access)
                     // Moving an affine owner is exclusive even when the other

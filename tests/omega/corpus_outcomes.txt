@@ -120,11 +120,11 @@ pass/calls/runtime_dispatch_binary_call_argument_exit rejected 1097ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Builder::build`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 1, statement 4)
 pass/calls/runtime_dispatch_float_terminal_exit rejected 2364ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
-pass/calls/runtime_dispatch_machine_array_slice_arg_exit rejected 772ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
+pass/calls/runtime_dispatch_machine_array_slice_arg_exit rejected 6847ms
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(28)))
 pass/calls/runtime_dispatch_result_enum_case_exit checked 750ms
-pass/calls/runtime_dispatch_slice_element_terminal_exit rejected 738ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
+pass/calls/runtime_dispatch_slice_element_terminal_exit rejected 9267ms
+	terminal-artifact production failed: Lowering(OperationProofUnavailable(ObligationId(28)))
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 823ms
 pass/calls/runtime_enum_self_method_exit rejected 814ms
 	native artifact ProgramEntry receiver provisioning failed: hosted receiver requires a checked ZII-valid value with no executable nominal cleanup
@@ -146,16 +146,14 @@ pass/calls/runtime_nested_case_argument_exit checked 1225ms
 pass/calls/runtime_nested_value_call_guard_exit checked 4393ms
 pass/calls/runtime_option_value_call_exit checked 1158ms
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 957ms
-pass/calls/runtime_param_receiver_second_instance_exit rejected 856ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(14), first_argument: 0, second_argument: 1 }))
+pass/calls/runtime_param_receiver_second_instance_exit checked 6933ms
 pass/calls/runtime_qualified_tail_recursion_exit checked 830ms
 pass/calls/runtime_reference_returned_slice_element_write_exit rejected 865ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::fill`), which was itself omitted at local construction at `structural field store: destination parameter`
 pass/calls/runtime_referenced_local_outlives_sibling_guard_call_exit rejected 842ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Main::run`), which was itself omitted at an unavailable callee (`Dungeon::initialize`), which was itself omitted at an unavailable callee (`MazeBuilder::build`), which was itself omitted at local construction at `statement sequence: local data: initializer expression` (state 0, statement 0)
 pass/calls/runtime_same_type_second_receiver_mutation_exit checked 866ms
-pass/calls/runtime_shared_ref_param_member_exit rejected 762ms
-	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(5), first_argument: 0, second_argument: 1 }))
+pass/calls/runtime_shared_ref_param_member_exit checked 7865ms
 pass/calls/runtime_std_math_sin_cos_exit rejected 2467ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
 pass/calls/runtime_structural_literal_call_initializer_exit checked 848ms
@@ -205,7 +203,7 @@ pass/collections/array_local_control checked 291ms
 pass/collections/owned_array_scalar_comparisons checked 307ms
 pass/collections/runtime_argmax_index_exit checked 1039ms
 pass/collections/runtime_case_array_element_write_exit rejected 986ms
-	terminal-artifact production failed: Lowering(Unsupported("runtime field observation requires a field leaf after its index"))
+	native-artifact Terminal production failed: Lowering(Unsupported("scalar read differs from its authored binding or mutable place"))
 pass/collections/runtime_computed_index_direct_exit checked 1109ms
 pass/collections/runtime_declared_range_index_write_exit checked 820ms
 pass/collections/runtime_double_indexed_rmw_exit rejected 768ms
@@ -246,7 +244,6 @@ pass/constraints/selected_arithmetic_return_ensures checked 279ms
 pass/contracts/proof_fact_indexed_domain_application checked 294ms
 pass/control_flow/arm_pattern_rest_optout_exit rejected 801ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
-pass/control_flow/borrowed_state_argument checked 1551ms
 pass/control_flow/case_arm_payload_receiver_call rejected 1536ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1282ms
@@ -314,7 +311,8 @@ pass/data/opaque_copy_selected checked 170ms
 pass/data/payload_less_case_equality checked 304ms
 pass/data/property_carry_declared checked 299ms
 pass/data/record_pattern_let_exit checked 1828ms
-pass/data/runtime_case_reassignment_exit checked 851ms
+pass/data/runtime_case_reassignment_exit rejected 851ms
+	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
 pass/data/runtime_data_properties_exit checked 944ms
 pass/data/runtime_mixed_shape_exit rejected 912ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
@@ -1223,8 +1221,6 @@ fail/build/package_local_calling_copy rejected 98ms expected
 	duplicate data `BoundaryEntryPlan`
 	duplicate data `CallingPolicyRejection`
 	duplicate data `BoundaryPlanResult`
-fail/build/placed_view_program_entry_input rejected 1158ms expected
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: parameter source`
 fail/build/program_entry_binding_outside_build rejected 304ms expected
 	root binding requires a compiler-issued &mut Build receiver
 fail/build/program_entry_receiver_not_zii rejected 135ms expected

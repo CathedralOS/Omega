@@ -80,8 +80,9 @@ pub use semantic_rows::{
     exact_operation_semantic_row_in, is_unconditionally_total_scalar, operation_semantic_row,
 };
 pub use static_path::{
-    canonical_case_leaf_type, canonical_structural_path_tip, runtime_index_bound,
-    runtime_index_selects, runtime_structural_path_tip, structural_paths_may_overlap,
+    canonical_case_leaf_type, canonical_structural_path_tip, interior_member_borrow,
+    runtime_index_bound, runtime_index_selects, runtime_structural_path_tip,
+    structural_paths_may_overlap,
 };
 pub use structural_effect::{
     StructuralEffectAction, StructuralEffectCustody, StructuralEffectExternalEffect,
