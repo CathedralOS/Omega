@@ -2531,7 +2531,9 @@ completion syntax or other terminal service is a prerequisite.
   `runtime_shared_domain_weakening_recast_exit`,
   `runtime_mutable_equivalent_domain_recast_exit` and
   `runtime_guarded_offset_recast_exit`; a runtime-offset byte-region read
-  replays byte by byte from its first `u8` element. The remaining executable
+  replays byte by byte from its first `u8` element, and
+  `runtime_integer_bit_view_recast_exit` pins equal-width integer and signed
+  byte-region views with the interpreter in agreement. The remaining executable
   customers stop at these missing capabilities:
 
   - Boolean and IEEE float cross-carrier views (`bool` as `u8`, `f32` as
