@@ -324,11 +324,14 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
         SelectedInstructionKind::CompareI64Immediate { immediate } => {
             encode_integer(bytes, immediate)
         }
+        // Every float form shares one tag; its dense ordinal follows.
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
+            bytes.push(form.machine_payload())
+        }
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::CopyBytes
         | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::AtomicAccess { .. }
-        | SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::BitwiseAndI64

@@ -19,7 +19,13 @@
 //!   `FNEG`/`FSQRT`/`FCVT`, one `FMOV` out (12 bytes);
 //! - integer to float: one `SCVTF`/`UCVTF` reading the general register
 //!   directly (`w` for 32-bit and `x` for 64-bit sources), one `FMOV` out
-//!   (8 bytes).
+//!   (8 bytes);
+//! - float to integer: one `FMOV` in and one `FCVTZS`/`FCVTZU` writing the
+//!   result register directly (8 bytes), plus `SXTW` for `i32`, whose scalar
+//!   graph carrier is sign-extended (12 bytes). The conversion rounds toward
+//!   zero, saturates to the destination width and maps NaN to zero: exactly
+//!   the Saturating contract, and the identity on every operand an Exact
+//!   requirement's proof admits.
 //!
 //! Rounding operations round under FPCR, which Omega's native boundaries keep
 //! at the canonical control state (round to nearest, ties to even; no trap
@@ -166,6 +172,18 @@ enum Word {
         general: u8,
         vector: u8,
     },
+    /// `FCVTZS`/`FCVTZU` (scalar, integer): toward-zero conversion that
+    /// saturates to the destination width and maps NaN to zero.
+    FloatToInteger {
+        wide: bool,
+        double: bool,
+        unsigned: bool,
+        vector: u8,
+        general: u8,
+    },
+    /// `SXTW` (`SBFM Xd, Xn, #0, #31`): sign-extend a 32-bit result into the
+    /// 64-bit carrier the scalar graph keeps for signed 32-bit values.
+    SignExtend32 { source: u8, result: u8 },
     /// `FCMGT` (register, scalar): all ones where `left > right`.
     CompareGreater {
         double: bool,
@@ -225,6 +243,21 @@ fn encode_word(word: Word) -> u32 {
                 | reg(general) << 5
                 | reg(vector)
         }
+        Word::FloatToInteger {
+            wide,
+            double,
+            unsigned,
+            vector,
+            general,
+        } => {
+            0x1e38_0000
+                | width(wide) << 31
+                | width(double) << 22
+                | u32::from(unsigned) << 16
+                | reg(vector) << 5
+                | reg(general)
+        }
+        Word::SignExtend32 { source, result } => 0x9340_7c00 | reg(source) << 5 | reg(result),
         Word::CompareGreater {
             double,
             left,
@@ -279,6 +312,17 @@ fn decode_word(word: u32) -> Option<Word> {
             unsigned: bit(16),
             general: field(5),
             vector: field(0),
+        },
+        _ if word & 0x7f3e_fc00 == 0x1e38_0000 => Word::FloatToInteger {
+            wide: bit(31),
+            double: float_type(22)?,
+            unsigned: bit(16),
+            vector: field(5),
+            general: field(0),
+        },
+        0x9340_7c00 => Word::SignExtend32 {
+            source: field(5),
+            result: field(0),
         },
         _ if word & 0xffa0_fc00 == 0x7ea0_e400 => Word::CompareGreater {
             double: bit(22),
@@ -378,6 +422,28 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
             },
             move_out(first),
         ],
+        IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } => {
+            // Exact and Saturating realize alike: the conversion saturates
+            // and maps NaN to zero, which is the identity on every operand an
+            // Exact requirement's proof admits.
+            let mut words = vec![
+                move_in(registers[0], first, double),
+                Word::FloatToInteger {
+                    wide: target.bits() == 64,
+                    double,
+                    unsigned: !target.is_signed(),
+                    vector: first,
+                    general: result,
+                },
+            ];
+            if target.is_signed() && target.bits() == 32 {
+                words.push(Word::SignExtend32 {
+                    source: result,
+                    result,
+                });
+            }
+            words
+        }
         IeeeFloatArithmeticOperation::FromInteger(source) => vec![
             Word::IntegerToFloat {
                 wide: source.bits() == 64,
@@ -461,7 +527,7 @@ mod tests {
     use super::{encode, validate};
     use selected_instructions::{
         IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
-        IeeeFloatIntegerSource,
+        IeeeFloatIntegerCarrier,
     };
 
     fn form(
@@ -544,7 +610,7 @@ mod tests {
         assert_eq!(
             words(
                 form(
-                    Operation::FromInteger(IeeeFloatIntegerSource::I32),
+                    Operation::FromInteger(IeeeFloatIntegerCarrier::I32),
                     Binary64
                 ),
                 &[3, 4]
@@ -555,7 +621,7 @@ mod tests {
         assert_eq!(
             words(
                 form(
-                    Operation::FromInteger(IeeeFloatIntegerSource::I64),
+                    Operation::FromInteger(IeeeFloatIntegerCarrier::I64),
                     Binary32
                 ),
                 &[3, 4]
@@ -566,12 +632,74 @@ mod tests {
         assert_eq!(
             words(
                 form(
-                    Operation::FromInteger(IeeeFloatIntegerSource::U32),
+                    Operation::FromInteger(IeeeFloatIntegerCarrier::U32),
                     Binary64
                 ),
                 &[3, 4]
             ),
             [0x1e63_0070, 0x9e66_0204]
+        );
+    }
+
+    /// Exact and Saturating truncation of one carrier and format share one
+    /// realization; every other pair of forms differs in its words.
+    fn shares_realization(left: IeeeFloatArithmeticForm, right: IeeeFloatArithmeticForm) -> bool {
+        use IeeeFloatArithmeticOperation::TruncateToInteger;
+        left == right
+            || matches!(
+                (left.operation, right.operation),
+                (
+                    TruncateToInteger { target: left_target, .. },
+                    TruncateToInteger { target: right_target, .. },
+                ) if left_target == right_target && left.format == right.format
+            )
+    }
+
+    #[test]
+    fn truncation_encodings_match_the_architectural_words() {
+        use IeeeFloatArithmeticOperation::TruncateToInteger;
+        use selected_instructions::IeeeFloatToIntegerDomain::{Exact, Saturating};
+        // fmov d16, x3; fcvtzs w4, d16; sxtw x4, w4
+        assert_eq!(
+            words(
+                form(
+                    TruncateToInteger {
+                        target: IeeeFloatIntegerCarrier::I32,
+                        domain: Saturating,
+                    },
+                    IeeeFloatFormat::Binary64,
+                ),
+                &[3, 4]
+            ),
+            [0x9e67_0070, 0x1e78_0204, 0x9340_7c84]
+        );
+        // fmov s16, w3; fcvtzs x4, s16
+        assert_eq!(
+            words(
+                form(
+                    TruncateToInteger {
+                        target: IeeeFloatIntegerCarrier::I64,
+                        domain: Exact,
+                    },
+                    IeeeFloatFormat::Binary32,
+                ),
+                &[3, 4]
+            ),
+            [0x1e27_0070, 0x9e38_0204]
+        );
+        // fmov d16, x3; fcvtzu w4, d16
+        assert_eq!(
+            words(
+                form(
+                    TruncateToInteger {
+                        target: IeeeFloatIntegerCarrier::U32,
+                        domain: Saturating,
+                    },
+                    IeeeFloatFormat::Binary64,
+                ),
+                &[3, 4]
+            ),
+            [0x9e67_0070, 0x1e79_0204]
         );
     }
 
@@ -592,7 +720,8 @@ mod tests {
                 }
             }
             for other in IeeeFloatArithmeticForm::ALL {
-                if other != form && other.operand_count() == form.operand_count() {
+                if other.operand_count() == form.operand_count() && !shares_realization(other, form)
+                {
                     assert!(
                         validate(other, registers, &bytes).is_err(),
                         "{other:?} as {form:?}"

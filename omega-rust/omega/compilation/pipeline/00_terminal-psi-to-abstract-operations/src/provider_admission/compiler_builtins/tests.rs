@@ -60,7 +60,7 @@ fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
         target::NativeTarget::windows_x64(),
     ] {
         for realization in forms() {
-            let scalar = ScalarType::IeeeFloat(realization.format);
+            let scalar = realization.operation.result_type(realization.format);
             let exact = boundary(
                 exact_signature(realization),
                 BoundaryMachineResult::Scalar(scalar),
@@ -71,7 +71,7 @@ fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
             );
         }
     }
-    assert_eq!(forms().count(), 24);
+    assert_eq!(forms().count(), 36);
 }
 
 #[test]

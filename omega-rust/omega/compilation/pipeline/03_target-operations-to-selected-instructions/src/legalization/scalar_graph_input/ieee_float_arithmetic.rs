@@ -13,7 +13,7 @@
 use super::LegalizationError;
 use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan};
 use optimization_unit::PsiOptimizationUnit;
-use semantic_vocabulary::{MachineId, OperationId, ScalarType, ValueId};
+use semantic_vocabulary::{MachineId, OperationId, ValueId};
 use target_operations::{
     BoundaryExecutionBinding, CompilerBuiltinExecution, NearestIeeeFloatArithmeticRealization,
     TargetOperationPlan, TargetUnitOperation, TargetUnitScalarArgumentSource,
@@ -99,7 +99,7 @@ pub(in crate::legalization) fn validate(
     {
         return Err(LegalizationError::custody());
     }
-    let scalar = ScalarType::IeeeFloat(realization.format);
+    let scalar = realization.operation.result_type(realization.format);
     let operand = realization.operation.operand_type(realization.format);
     let expected_execution = BoundaryExecutionBinding::CompilerBuiltin(
         CompilerBuiltinExecution::NearestIeeeFloatArithmetic {

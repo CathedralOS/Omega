@@ -12,7 +12,7 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use abstract_operations::{AbstractBoundaryResult, AbstractFunction, AbstractOperation};
-use semantic_vocabulary::{BoundaryMachineId, ScalarType};
+use semantic_vocabulary::BoundaryMachineId;
 use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{
@@ -80,7 +80,7 @@ pub(super) fn lower(
             format: realization.format,
         },
     );
-    let scalar = ScalarType::IeeeFloat(realization.format);
+    let scalar = realization.operation.result_type(realization.format);
     let operand = realization.operation.operand_type(realization.format);
     let AbstractBoundaryResult::Scalar(result) = result else {
         return Err(mismatch);
@@ -118,7 +118,16 @@ pub(super) fn lower(
         scalar_type: scalar,
         shape,
     };
-    if live
+    // An integer result joins the known integers, as every other integer
+    // result home does, so integer comparisons and stores observe it; an
+    // IEEE result stays an ordinary scalar home.
+    if matches!(scalar, semantic_vocabulary::ScalarType::Integer(_)) {
+        crate::lowering::unit::scalar_call::insert_known_unit_integer(
+            &mut live.integers,
+            result.value,
+            crate::lowering::unit::scalar_call::KnownUnitInteger::Home(result_home),
+        )?;
+    } else if live
         .scalar_homes
         .insert(result.value, result_home)
         .is_some()

@@ -2,8 +2,8 @@
 //! count and types, operand registers, result register, constraint row and
 //! provenance from the legal instruction; never invoke the producer.
 use super::{
-    LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
-    SelectedInstructionProvenance, VirtualRegisterId,
+    LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedInstructionProvenance,
+    VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -30,7 +30,7 @@ pub(super) fn validate(
         operation: arithmetic,
         format,
     };
-    let scalar = ScalarType::IeeeFloat(format);
+    let scalar = arithmetic.result_type(format);
     let operand = arithmetic.operand_type(format);
     let values = std::iter::once(left).chain(right).collect::<Vec<_>>();
     if result.scalar_type != scalar || values.len() != form.operand_count() {

@@ -331,6 +331,10 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
                 bytes.extend_from_slice(&value.to_le_bytes());
             }
         },
+        // Every float form shares one tag; its dense ordinal follows.
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
+            bytes.push(form.machine_payload())
+        }
         SelectedInstructionKind::CompareI64Zero
         | SelectedInstructionKind::BitwiseAndI64
         | SelectedInstructionKind::BitwiseOrI64
@@ -347,7 +351,6 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &SelectedInstruction) {
         | SelectedInstructionKind::SaturatingMultiply { .. }
         | SelectedInstructionKind::TrappingInteger { .. }
         | SelectedInstructionKind::AtomicAccess { .. }
-        | SelectedInstructionKind::NearestIeeeFloatArithmetic { .. }
         | SelectedInstructionKind::CompareI64
         | SelectedInstructionKind::CopyI64
         | SelectedInstructionKind::Float32ToBits

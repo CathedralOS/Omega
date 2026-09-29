@@ -1722,25 +1722,24 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `boundary_internal_call_evidence` test covers a nongeneric requirement's
     internal physical child, not this whole generic matrix.
   - Install the remaining named float executions as Omega builtins,
-    preserving each exact selected meaning: float-to-integer conversion in
-    every declared domain (unqualified proof-guarded, Trapping, Saturating),
-    `i8`/`i16`/`u8`/`u16`/`u64` sources into f32/f64, directed arithmetic,
-    multiply-then-add and distinct FMA. Primitive
+    preserving each exact selected meaning: Trapping float-to-integer
+    conversion, `i8`/`i16`/`u8`/`u16`/`u64` carriers in both directions,
+    directed arithmetic, multiply-then-add and distinct FMA. Primitive
     `Float::{add,subtract,multiply,divide}`,
     `F32`/`F64::{negate,minimum,maximum,square_root}`,
-    `from_i32`/`from_i64`/`from_u32` and `F64::from_f32`/`F32::from_f64`
-    install: stage 00 `compiler_builtins.rs` admits each as one
+    `from_i32`/`from_i64`/`from_u32`, `F64::from_f32`/`F32::from_f64` and
+    unqualified or Saturating `I32`/`I64`/`U32::from_f32`/`from_f64` install:
+    stage 00 `compiler_builtins.rs` admits each as one
     `NearestIeeeFloatArithmetic` operation against the local target catalog
     and the exact boundary signature of that operation, stage 02
     `control_flow/ieee_float_arithmetic.rs` realizes the call inline, and each
     ISA encodes one form through scratch FP registers with its own decoder.
-    `pass/float/{nearest_even_binary_arithmetic_exit,named_ieee_operations_exit,named_ieee_conversions_exit}`
-    execute with exit **70** on macOS ARM64 and build for linux_x86_64.
-    The 24 selected forms hold machine tags 230 through 253; only 254 and 255
-    remain, so float-to-integer forms first need a wider selected-form tag in
-    `selected-instructions` identity, program and recovery codecs.
-    `samples/cli/arithmetic/fibonacci_golden` now stops only at its
-    `I32::from_f64` in Saturating ("has no native boundary realization").
+    The 36 forms share selected-form tag 230 followed by an ordinal payload
+    byte, so new operations need no new tag. `pass/float/{nearest_even_binary_arithmetic_exit,named_ieee_operations_exit,named_ieee_conversions_exit,named_ieee_truncations_exit}`
+    execute with exit **70** on macOS ARM64 and build for linux_x86_64, and
+    `samples/cli/arithmetic/fibonacci_golden` meets its exit **161** oracle.
+    An unqualified conversion of a runtime field still fails its `requires`
+    proof even under a dominating non-NaN/range guard (**FLOAT-PROVIDERS**).
     The other `pass/float` customers stop in Psi (nested value calls, omitted
     unit plans, `finite` proof), not at native installation. Re-drive `pending/arithmetic/float_computation_no_route`
     both with and without the ordinary float-operations import across

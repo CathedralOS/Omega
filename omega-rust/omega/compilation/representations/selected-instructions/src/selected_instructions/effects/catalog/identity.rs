@@ -86,6 +86,7 @@ pub fn machine_effect_catalog_identity(
     encode_len(&mut bytes, catalog.declarations.len());
     for declaration in &catalog.declarations {
         bytes.push(semantic_kind_tag(declaration.semantic));
+        bytes.extend(semantic_kind_payload(declaration.semantic));
         encode_constraint_key(&mut bytes, declaration.constraint);
         // Keep effect matches exhaustive so additions cannot silently collide
         // with an older catalog identity.
@@ -529,6 +530,24 @@ pub(crate) const fn semantic_kind_tag(kind: MachineSemanticKind) -> u8 {
     }
 }
 
+/// The payload byte written directly after [`semantic_kind_tag`] for a
+/// family whose forms share one tag: the IEEE float forms.
+pub(crate) const fn semantic_kind_payload(kind: MachineSemanticKind) -> Option<u8> {
+    match kind {
+        MachineSemanticKind::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
+        _ => None,
+    }
+}
+
+/// The payload byte written directly after [`alternative_family_tag`] for a
+/// family whose forms share one tag: the IEEE float forms.
+pub(crate) const fn alternative_family_payload(family: MachineAlternativeFamily) -> Option<u8> {
+    match family {
+        MachineAlternativeFamily::NearestIeeeFloatArithmetic(form) => Some(form.machine_payload()),
+        _ => None,
+    }
+}
+
 /// The canonical identity tag of a [`MachineAlternativeFamily`].
 ///
 /// This table *is* the identity: the machine-effect catalog identity, the
@@ -669,6 +688,9 @@ pub fn encode_machine_alternative_key_identity<Sink: MachineIdentityBytes + ?Siz
     key: crate::MachineAlternativeKey,
 ) {
     bytes.identity_bytes(&[alternative_family_tag(key.family)]);
+    if let Some(payload) = alternative_family_payload(key.family) {
+        bytes.identity_bytes(&[payload]);
+    }
     bytes.identity_bytes(&key.variant.to_le_bytes());
 }
 

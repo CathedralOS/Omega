@@ -183,6 +183,10 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: SelectedInstructionKind) {
     };
     bytes.push(tag);
     match kind {
+        // Every float form shares one tag; its dense ordinal follows.
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
+            bytes.push(form.machine_payload())
+        }
         SelectedInstructionKind::LoadPacked { byte_offset, width }
         | SelectedInstructionKind::StorePacked { byte_offset, width } => {
             bytes.extend_from_slice(&byte_offset.to_le_bytes());
@@ -414,10 +418,12 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec) fn decode_kind(
     cursor: &mut Cursor<'_>,
 ) -> Result<SelectedInstructionKind, FixedViewCopyDecodeError> {
     Ok(match cursor.byte()? {
-        tag if selected_instructions::IeeeFloatArithmeticForm::from_machine_tag(tag).is_some() => {
+        tag @ selected_instructions::IeeeFloatArithmeticForm::FAMILY_TAG => {
             SelectedInstructionKind::NearestIeeeFloatArithmetic {
-                form: selected_instructions::IeeeFloatArithmeticForm::from_machine_tag(tag)
-                    .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
+                form: selected_instructions::IeeeFloatArithmeticForm::from_machine_payload(
+                    cursor.byte()?,
+                )
+                .ok_or(FixedViewCopyDecodeError::UnknownInstructionKind(tag))?,
             }
         }
         tag if selected_instructions::AtomicForm::from_machine_tag(tag).is_some() => {
@@ -691,7 +697,7 @@ mod tests {
             let kind = SelectedInstructionKind::NearestIeeeFloatArithmetic { form };
             let mut bytes = Vec::new();
             encode_kind(&mut bytes, kind);
-            assert_eq!(bytes, [form.machine_tag()]);
+            assert_eq!(bytes, [form.machine_tag(), form.machine_payload()]);
             assert_eq!(decode_kind(&mut Cursor::new(&bytes)).unwrap(), kind);
         }
     }

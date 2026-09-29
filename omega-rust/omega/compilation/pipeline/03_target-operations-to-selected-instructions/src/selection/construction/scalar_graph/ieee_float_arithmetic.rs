@@ -3,7 +3,7 @@
 //! result stay in general registers; the binary or unary constraint row gives
 //! the target form its scratch floating registers.
 use super::{
-    Builder, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
+    Builder, LegalizedScalarInstructionKind, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
@@ -30,7 +30,7 @@ pub(super) fn emit(
         operation: arithmetic,
         format,
     };
-    let scalar = ScalarType::IeeeFloat(format);
+    let scalar = arithmetic.result_type(format);
     let operand = arithmetic.operand_type(format);
     let values = std::iter::once(left).chain(right).collect::<Vec<_>>();
     if result.scalar_type != scalar || values.len() != form.operand_count() {

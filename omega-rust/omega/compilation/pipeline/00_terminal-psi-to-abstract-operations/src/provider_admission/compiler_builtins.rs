@@ -4,13 +4,14 @@
 //! and plan-index custody live in `retained`. Neither replaces admission.
 //!
 //! Hosted builtins settle as call-shaped rows. Selected float arithmetic,
-//! minimum, maximum, negation, square root and conversion into a float
-//! format settle as `NearestIeeeFloatArithmetic`, which stage 02 realizes
-//! inline as one IEEE operation: its admission additionally requires the
-//! boundary's exact signature for that operation and result format
-//! (`(format, format) -> format`, `(format) -> format`, `(other) -> format`
-//! or `(integer) -> format`), so a row selected for another format, carrier
-//! or shape cannot stand in.
+//! minimum, maximum, negation, square root, conversion into a float format
+//! and Exact or Saturating conversion to an integer settle as
+//! `NearestIeeeFloatArithmetic`, which stage 02 realizes inline as one IEEE
+//! operation: its admission additionally requires the boundary's exact
+//! signature for that operation and format (`(format, format) -> format`,
+//! `(format) -> format`, `(other) -> format`, `(integer) -> format` or
+//! `(format) -> integer`), so a row selected for another format, carrier or
+//! shape cannot stand in.
 
 mod proposals;
 mod retained;
@@ -216,7 +217,7 @@ fn compiler_intrinsic_execution_identity(
             use effects::CompilerNumericType as Numeric;
             use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
             use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
-            use target_operations::IeeeFloatIntegerSource as Integer;
+            use target_operations::IeeeFloatIntegerCarrier as Integer;
             let (float_format, numeric, other) = match format {
                 semantic_vocabulary::IeeeFloatFormat::Binary32 => (
                     numerics::literals::FloatFormat::F32,
@@ -238,6 +239,11 @@ fn compiler_intrinsic_execution_identity(
                 target: numeric,
                 domain: numerics::arithmetic::ArithmeticDomain::Exact,
             };
+            let carrier = |carrier| match carrier {
+                Integer::I32 => Numeric::I32,
+                Integer::I64 => Numeric::I64,
+                Integer::U32 => Numeric::U32,
+            };
             let builtin = CompilerIntrinsicExecutionIdentity::BuiltinFunction;
             match operation {
                 Arithmetic::Add => binary(Primitive::Add),
@@ -251,9 +257,21 @@ fn compiler_intrinsic_execution_identity(
                     CompilerIntrinsicExecutionIdentity::NamedFloatNegation(float_format)
                 }
                 Arithmetic::ConvertFormat => conversion(other),
-                Arithmetic::FromInteger(Integer::I32) => conversion(Numeric::I32),
-                Arithmetic::FromInteger(Integer::I64) => conversion(Numeric::I64),
-                Arithmetic::FromInteger(Integer::U32) => conversion(Numeric::U32),
+                Arithmetic::FromInteger(source) => conversion(carrier(source)),
+                Arithmetic::TruncateToInteger { target, domain } => {
+                    CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                        source: numeric,
+                        target: carrier(target),
+                        domain: match domain {
+                            target_operations::IeeeFloatToIntegerDomain::Exact => {
+                                numerics::arithmetic::ArithmeticDomain::Exact
+                            }
+                            target_operations::IeeeFloatToIntegerDomain::Saturating => {
+                                numerics::arithmetic::ArithmeticDomain::Saturating
+                            }
+                        },
+                    }
+                }
             }
         }
     }

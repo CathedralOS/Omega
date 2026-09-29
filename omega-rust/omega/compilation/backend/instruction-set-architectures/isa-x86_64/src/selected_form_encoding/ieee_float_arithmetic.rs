@@ -19,7 +19,11 @@
 //! - integer to float: one `CVTSI2S?` reading the general register (32-bit
 //!   for `i32`, 64-bit for `i64`), move out. A `u32` operand is first copied
 //!   with a 32-bit `MOV` into the result register, which zero-extends it, and
-//!   converted from that 64-bit register, so every `u32` value is exact.
+//!   converted from that 64-bit register, so every `u32` value is exact;
+//! - float to integer: a flag-free clamped `CVTTSD2SI` (see `truncation`),
+//!   saturating to the carrier and mapping NaN to zero. That is exactly the
+//!   Saturating contract and the identity on every operand an Exact
+//!   requirement's proof admits, so both domains share the instructions.
 //!
 //! Rounding operations round under MXCSR, which Omega's native boundaries
 //! keep at the canonical value (round to nearest, ties to even; every
@@ -42,10 +46,10 @@ use super::{
 use crate::selected_form_encoding::request_validation::resolve_registers;
 use register_model::{RegisterConstraintKey, RegisterUnitId};
 use selected_instructions::{
-    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, MachineAlternative,
-    MachineAlternativeApplicability, MachineBarrier, MachineCallEffect, MachineCleanupEffect,
-    MachineEffectDeclaration, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
-    MachineSizeKnowledge, MachineTrapBehavior,
+    IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier,
+    MachineAlternative, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
+    MachineCleanupEffect, MachineEffectDeclaration, MachineLatencyKnowledge, MachineMemoryEffect,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
 
 type Error = X86_64SelectedFormEncodingError;
@@ -173,6 +177,25 @@ enum Instruction {
     },
     /// `[REX] 89 /r`: `MOV r/m32, r32`, zero-extending the destination.
     Move32 { destination: u8, source: u8 },
+    /// `66 0F 28 /r`: `MOVAPD xmm, xmm`.
+    MoveAligned { destination: u8, source: u8 },
+    /// `F2 0F C2 /r ib`: `CMPSD xmm, xmm, predicate`, an all-ones or zero
+    /// mask in the destination's low lane.
+    CompareScalar {
+        predicate: u8,
+        destination: u8,
+        source: u8,
+    },
+    /// `66 0F 54 /r`: `ANDPD xmm, xmm`.
+    And { destination: u8, source: u8 },
+    /// `REX.W B8+r io`: `MOVABS r64, imm64`.
+    MoveImmediate64 { general: u8, value: u64 },
+    /// `F2 [REX] 0F 2C /r`: `CVTTSD2SI r32/r64, xmm`, toward zero; an
+    /// unordered or out-of-range operand yields the integer indefinite value
+    /// (the destination's minimum).
+    FloatToInteger { wide: bool, general: u8, xmm: u8 },
+    /// `REX.W 63 /r`: `MOVSXD r64, r32`.
+    SignExtend32 { destination: u8, source: u8 },
 }
 
 fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
@@ -244,6 +267,36 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
             optional_rex(bytes, 0x40 | ((source >> 3) << 2) | (destination >> 3));
             bytes.extend([0x89, modrm(source, destination)]);
         }
+        Instruction::MoveAligned {
+            destination,
+            source,
+        } => bytes.extend([0x66, 0x0f, 0x28, modrm(destination, source)]),
+        Instruction::CompareScalar {
+            predicate,
+            destination,
+            source,
+        } => bytes.extend([0xf2, 0x0f, 0xc2, modrm(destination, source), predicate]),
+        Instruction::And {
+            destination,
+            source,
+        } => bytes.extend([0x66, 0x0f, 0x54, modrm(destination, source)]),
+        Instruction::MoveImmediate64 { general, value } => {
+            bytes.extend([0x48 | (general >> 3), 0xb8 | (general & 7)]);
+            bytes.extend(value.to_le_bytes());
+        }
+        Instruction::FloatToInteger { wide, general, xmm } => {
+            bytes.push(0xf2);
+            optional_rex(bytes, 0x40 | (u8::from(wide) << 3) | ((general >> 3) << 2));
+            bytes.extend([0x0f, 0x2c, modrm(general, xmm)]);
+        }
+        Instruction::SignExtend32 {
+            destination,
+            source,
+        } => bytes.extend([
+            0x48 | ((destination >> 3) << 2) | (source >> 3),
+            0x63,
+            modrm(destination, source),
+        ]),
     }
 }
 
@@ -290,6 +343,34 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
                 rest,
             ))
         }
+        [0x66, 0x0f, opcode @ (0x28 | 0x54), modrm, rest @ ..] => {
+            let (destination, source) = register_pair(*modrm)?;
+            Some((
+                if *opcode == 0x28 {
+                    Instruction::MoveAligned {
+                        destination,
+                        source,
+                    }
+                } else {
+                    Instruction::And {
+                        destination,
+                        source,
+                    }
+                },
+                rest,
+            ))
+        }
+        [0xf2, 0x0f, 0xc2, modrm, predicate, rest @ ..] => {
+            let (destination, source) = register_pair(*modrm)?;
+            Some((
+                Instruction::CompareScalar {
+                    predicate: *predicate,
+                    destination,
+                    source,
+                },
+                rest,
+            ))
+        }
         [0x66, tail @ ..] => {
             let (rex, tail) = optional_rex(tail);
             let [0x0f, opcode @ (0x6e | 0x7e), modrm, rest @ ..] = tail else {
@@ -322,6 +403,19 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
                         rest,
                     ))
                 }
+                // REX.R names the general destination; REX.B would name
+                // xmm8 or above.
+                [0x0f, 0x2c, modrm, rest @ ..] if double && rex & 3 == 0 => {
+                    let (general, xmm) = register_pair(*modrm)?;
+                    Some((
+                        Instruction::FloatToInteger {
+                            wide: rex & 8 != 0,
+                            general: general | (((rex >> 2) & 1) << 3),
+                            xmm,
+                        },
+                        rest,
+                    ))
+                }
                 [0x0f, opcode, modrm, rest @ ..] if rex == 0x40 => {
                     let (destination, source) = register_pair(*modrm)?;
                     Some((
@@ -339,17 +433,40 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
         }
         _ => {
             let (rex, tail) = optional_rex(bytes);
-            let [0x89, modrm, rest @ ..] = tail else {
-                return None;
-            };
-            let (source, destination) = register_pair(*modrm)?;
-            (rex & 0xa == 0).then_some((
-                Instruction::Move32 {
-                    destination: destination | ((rex & 1) << 3),
-                    source: source | (((rex >> 2) & 1) << 3),
-                },
-                rest,
-            ))
+            let wide = rex & 0xa == 8;
+            match tail {
+                [0x89, modrm, rest @ ..] if rex & 0xa == 0 => {
+                    let (source, destination) = register_pair(*modrm)?;
+                    Some((
+                        Instruction::Move32 {
+                            destination: destination | ((rex & 1) << 3),
+                            source: source | (((rex >> 2) & 1) << 3),
+                        },
+                        rest,
+                    ))
+                }
+                [opcode @ 0xb8..=0xbf, rest @ ..] if wide && rex & 4 == 0 && rest.len() >= 8 => {
+                    let (value, rest) = rest.split_at(8);
+                    Some((
+                        Instruction::MoveImmediate64 {
+                            general: (opcode & 7) | ((rex & 1) << 3),
+                            value: u64::from_le_bytes(value.try_into().ok()?),
+                        },
+                        rest,
+                    ))
+                }
+                [0x63, modrm, rest @ ..] if wide => {
+                    let (destination, source) = register_pair(*modrm)?;
+                    Some((
+                        Instruction::SignExtend32 {
+                            destination: destination | (((rex >> 2) & 1) << 3),
+                            source: source | ((rex & 1) << 3),
+                        },
+                        rest,
+                    ))
+                }
+                _ => None,
+            }
         }
     }
 }
@@ -418,6 +535,9 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
             in_place(!double, 0x5a),
             move_out,
         ],
+        IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } => {
+            truncation(double, target, registers[0], result)
+        }
         IeeeFloatArithmeticOperation::FromInteger(source) if !source.is_signed() => vec![
             Instruction::Move32 {
                 destination: result,
@@ -452,6 +572,151 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
             move_out,
         ],
     }
+}
+
+/// `2^31`, `2^63` and `2^32 - 1` as binary64 payloads: the first operand
+/// value each signed carrier cannot hold, and the unsigned carrier's maximum.
+const TWO_TO_31: u64 = 0x41e0_0000_0000_0000;
+const TWO_TO_63: u64 = 0x43e0_0000_0000_0000;
+const U32_MAXIMUM: u64 = 0x41ef_ffff_ffe0_0000;
+/// `CMPSD` predicates: less-or-equal and ordered.
+const LESS_OR_EQUAL: u8 = 2;
+const ORDERED: u8 = 7;
+
+/// Saturating toward-zero conversion of the operand payload in `source` to
+/// `target`, without touching RFLAGS or memory. The operand is widened to
+/// binary64 (exactly), a NaN is replaced by `+0` through an ordered mask, and
+/// the result register doubles as the scratch that materializes each bound.
+///
+/// A signed carrier truncates with `CVTTSD2SI`, whose integer indefinite
+/// value (the carrier's minimum) is already the saturated result of every
+/// operand below the range; an operand at or above `2^31` (`2^63`) also
+/// yields it, so a `bound <= operand` mask XORed over the result turns that
+/// minimum into the maximum. `i32` is then sign-extended into its scalar
+/// graph carrier. `u32` clamps the operand to `[+0, 2^32 - 1]` with
+/// `MAXSD`/`MINSD` and truncates with the 64-bit `CVTTSD2SI`, whose result
+/// then fits and leaves the upper half zero.
+fn truncation(
+    double: bool,
+    target: IeeeFloatIntegerCarrier,
+    source: u8,
+    result: u8,
+) -> Vec<Instruction> {
+    let (left, right) = (LEFT_SCRATCH, RIGHT_SCRATCH);
+    let mut program = vec![Instruction::Transfer {
+        to_float: true,
+        wide: double,
+        xmm: left,
+        general: source,
+    }];
+    if !double {
+        // `CVTSS2SD xmm4, xmm4`: binary32 widens exactly.
+        program.push(Instruction::Scalar {
+            double: false,
+            opcode: 0x5a,
+            destination: left,
+            source: left,
+        });
+    }
+    program.extend([
+        Instruction::MoveAligned {
+            destination: right,
+            source: left,
+        },
+        Instruction::CompareScalar {
+            predicate: ORDERED,
+            destination: right,
+            source: left,
+        },
+        Instruction::And {
+            destination: left,
+            source: right,
+        },
+    ]);
+    let bound = |value: u64| {
+        [
+            Instruction::MoveImmediate64 {
+                general: result,
+                value,
+            },
+            Instruction::Transfer {
+                to_float: true,
+                wide: true,
+                xmm: right,
+                general: result,
+            },
+        ]
+    };
+    if !target.is_signed() {
+        program.extend([
+            Instruction::Xor {
+                double: true,
+                destination: right,
+                source: right,
+            },
+            // `MAXSD xmm4, xmm5`: negative operands and `-0` become `+0`.
+            Instruction::Scalar {
+                double: true,
+                opcode: 0x5f,
+                destination: left,
+                source: right,
+            },
+        ]);
+        program.extend(bound(U32_MAXIMUM));
+        program.extend([
+            // `MINSD xmm4, xmm5`.
+            Instruction::Scalar {
+                double: true,
+                opcode: 0x5d,
+                destination: left,
+                source: right,
+            },
+            Instruction::FloatToInteger {
+                wide: true,
+                general: result,
+                xmm: left,
+            },
+        ]);
+        return program;
+    }
+    let wide = target.bits() == 64;
+    program.extend(bound(if wide { TWO_TO_63 } else { TWO_TO_31 }));
+    program.extend([
+        Instruction::CompareScalar {
+            predicate: LESS_OR_EQUAL,
+            destination: right,
+            source: left,
+        },
+        Instruction::FloatToInteger {
+            wide,
+            general: result,
+            xmm: left,
+        },
+        Instruction::Transfer {
+            to_float: true,
+            wide,
+            xmm: left,
+            general: result,
+        },
+        Instruction::Xor {
+            double: true,
+            destination: left,
+            source: right,
+        },
+        Instruction::Transfer {
+            to_float: false,
+            wide,
+            xmm: left,
+            general: result,
+        },
+    ]);
+    if !wide {
+        program.push(Instruction::SignExtend32 {
+            destination: result,
+            source: result,
+        });
+    }
+    program
 }
 
 fn canonical(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<u8> {
@@ -528,7 +793,7 @@ mod tests {
     use super::{encode, validate};
     use selected_instructions::{
         IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation, IeeeFloatFormat,
-        IeeeFloatIntegerSource, MachineAlternativeFamily, MachineAlternativeKey,
+        IeeeFloatIntegerCarrier, MachineAlternativeFamily, MachineAlternativeKey,
     };
 
     fn key(form: IeeeFloatArithmeticForm) -> MachineAlternativeKey {
@@ -629,7 +894,7 @@ mod tests {
         // cvtsi2sd xmm4, r9d; movq rax, xmm4
         assert_eq!(
             bytes_of(
-                Operation::FromInteger(IeeeFloatIntegerSource::I32),
+                Operation::FromInteger(IeeeFloatIntegerCarrier::I32),
                 Binary64,
                 &["r9", "rax"]
             ),
@@ -638,7 +903,7 @@ mod tests {
         // cvtsi2ss xmm4, rcx; movd eax, xmm4
         assert_eq!(
             bytes_of(
-                Operation::FromInteger(IeeeFloatIntegerSource::I64),
+                Operation::FromInteger(IeeeFloatIntegerCarrier::I64),
                 Binary32,
                 &["rcx", "rax"]
             ),
@@ -647,7 +912,7 @@ mod tests {
         // mov r11d, ecx; cvtsi2sd xmm4, r11; movq r11, xmm4
         assert_eq!(
             bytes_of(
-                Operation::FromInteger(IeeeFloatIntegerSource::U32),
+                Operation::FromInteger(IeeeFloatIntegerCarrier::U32),
                 Binary64,
                 &["rcx", "r11"]
             ),
@@ -655,6 +920,82 @@ mod tests {
                 0x41, 0x89, 0xcb, 0xf2, 0x49, 0x0f, 0x2a, 0xe3, 0x66, 0x49, 0x0f, 0x7e, 0xe3,
             ]
         );
+    }
+
+    /// Exact and Saturating truncation of one carrier and format share one
+    /// realization; every other pair of forms differs in its bytes.
+    fn shares_realization(left: IeeeFloatArithmeticForm, right: IeeeFloatArithmeticForm) -> bool {
+        use IeeeFloatArithmeticOperation::TruncateToInteger;
+        left == right
+            || matches!(
+                (left.operation, right.operation),
+                (
+                    TruncateToInteger { target: left_target, .. },
+                    TruncateToInteger { target: right_target, .. },
+                ) if left_target == right_target && left.format == right.format
+            )
+    }
+
+    #[test]
+    fn truncation_encodings_match_the_architectural_bytes() {
+        use IeeeFloatArithmeticOperation::TruncateToInteger;
+        use selected_instructions::IeeeFloatToIntegerDomain::Saturating;
+        let truncate = |target| TruncateToInteger {
+            target,
+            domain: Saturating,
+        };
+        // movq xmm4, rcx; movapd xmm5, xmm4; cmpordsd xmm5, xmm4;
+        // andpd xmm4, xmm5; movabs rax, 2^31; movq xmm5, rax;
+        // cmplesd xmm5, xmm4; cvttsd2si eax, xmm4; movd xmm4, eax;
+        // xorpd xmm4, xmm5; movd eax, xmm4; movsxd rax, eax
+        assert_eq!(
+            bytes_of(
+                truncate(IeeeFloatIntegerCarrier::I32),
+                IeeeFloatFormat::Binary64,
+                &["rcx", "rax"]
+            ),
+            [
+                0x66, 0x48, 0x0f, 0x6e, 0xe1, 0x66, 0x0f, 0x28, 0xec, 0xf2, 0x0f, 0xc2, 0xec, 0x07,
+                0x66, 0x0f, 0x54, 0xe5, 0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xe0, 0x41,
+                0x66, 0x48, 0x0f, 0x6e, 0xe8, 0xf2, 0x0f, 0xc2, 0xec, 0x02, 0xf2, 0x0f, 0x2c, 0xc4,
+                0x66, 0x0f, 0x6e, 0xe0, 0x66, 0x0f, 0x57, 0xe5, 0x66, 0x0f, 0x7e, 0xe0, 0x48, 0x63,
+                0xc0,
+            ]
+        );
+        // The binary32 operand widens first with cvtss2sd xmm4, xmm4.
+        let widened = bytes_of(
+            truncate(IeeeFloatIntegerCarrier::I64),
+            IeeeFloatFormat::Binary32,
+            &["rcx", "r9"],
+        );
+        assert_eq!(
+            widened[..8],
+            [0x66, 0x0f, 0x6e, 0xe1, 0xf3, 0x0f, 0x5a, 0xe4]
+        );
+        // movabs r9, 2^63 and the 64-bit cvttsd2si r9, xmm4.
+        assert!(
+            widened
+                .windows(10)
+                .any(|window| window == [0x49, 0xb9, 0, 0, 0, 0, 0, 0, 0xe0, 0x43])
+        );
+        assert!(
+            widened
+                .windows(5)
+                .any(|window| window == [0xf2, 0x4c, 0x0f, 0x2c, 0xcc])
+        );
+        // u32 clamps with maxsd/minsd around movabs of 2^32 - 1 and ends in
+        // the 64-bit cvttsd2si.
+        let unsigned = bytes_of(
+            truncate(IeeeFloatIntegerCarrier::U32),
+            IeeeFloatFormat::Binary64,
+            &["rcx", "r9"],
+        );
+        assert!(
+            unsigned.windows(10).any(
+                |window| window == [0x49, 0xb9, 0x00, 0x00, 0xe0, 0xff, 0xff, 0xff, 0xef, 0x41]
+            )
+        );
+        assert!(unsigned.ends_with(&[0xf2, 0x0f, 0x5d, 0xe5, 0xf2, 0x4c, 0x0f, 0x2c, 0xcc]));
     }
 
     #[test]
@@ -683,7 +1024,11 @@ mod tests {
             }
             for other in IeeeFloatArithmeticForm::ALL {
                 if other != form && other.operand_count() == form.operand_count() {
-                    assert!(validate(&physical, other, key(other), operands, &bytes).is_err());
+                    // Exact and Saturating truncation share their bytes; the
+                    // alternative key still binds the exact form.
+                    if !shares_realization(other, form) {
+                        assert!(validate(&physical, other, key(other), operands, &bytes).is_err());
+                    }
                     assert!(validate(&physical, form, key(other), operands, &bytes).is_err());
                 }
             }
