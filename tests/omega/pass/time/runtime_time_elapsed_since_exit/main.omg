@@ -13,20 +13,20 @@ data Main {
     time: Time;
 }
 
-machine Main::main(&mut self) reaches Console + Clock {
-    let start: Instant = self.time.now();
-    self.clock.sleep(30);
-    let elapsed: Duration = Time::elapsed_since(&mut self.time, start);
+machine Main::main(context: &mut Main) reaches Console + Clock {
+    let start: Instant = Time::now(&mut context.time);
+    context.clock.sleep(30);
+    let elapsed: Duration = Time::elapsed_since(&mut context.time, start);
     transition elapsed.seconds == 0 {
-        true -> check_subsecond(elapsed.subsecond_nanoseconds)
-        false -> good()
+        true -> check_subsecond(context, elapsed.subsecond_nanoseconds)
+        false -> good(context)
     }
-    state check_subsecond(&mut self, subsecond_nanoseconds: u32) {
+    state check_subsecond(context: &mut Main, subsecond_nanoseconds: u32) {
         transition subsecond_nanoseconds >= 30000000 {
-            true -> good()
-            false -> fail_short()
+            true -> good(context)
+            false -> fail_short(context)
         }
     }
-    state good(&mut self) { self.console.exit_process(70); }
-    state fail_short(&mut self) { self.console.exit_process(1); }
+    state good(context: &mut Main) { context.console.exit_process(70); }
+    state fail_short(context: &mut Main) { context.console.exit_process(1); }
 }

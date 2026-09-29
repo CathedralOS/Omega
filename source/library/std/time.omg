@@ -178,27 +178,27 @@ pub machine Duration::checked_as_microseconds(&self) -> TotalResult {
 // The whole duration as a millisecond count (subseconds truncate to the
 // millisecond). Threshold 18_446_744_073_709_551 = u64::MAX / 1e3; at the
 // edge only millisecond parts up to 615 still fit.
-pub machine Duration::checked_as_milliseconds(&self) -> TotalResult {
-    let seconds_small: bool = self.seconds < 18446744073709551;
-    let seconds_edge: bool = self.seconds == 18446744073709551;
-    let subsecond_part: u32 = self.subsecond_nanoseconds / 1000000;
+pub machine Duration::checked_as_milliseconds(duration: &Duration) -> TotalResult {
+    let seconds_small: bool = duration.seconds < 18446744073709551;
+    let seconds_edge: bool = duration.seconds == 18446744073709551;
+    let subsecond_part: u32 = duration.subsecond_nanoseconds / 1000000;
     let subsecond_fits: bool = subsecond_part <= 615;
-    let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000)
+    let total: u64 in Wrapping = ((duration.seconds as u64 in Wrapping) * 1000)
         + (widen_u32_to_u64(subsecond_part) as u64 in Wrapping);
     transition seconds_small {
         true -> total_ok(total as u64)
         false -> total_edge(seconds_edge, subsecond_fits, total as u64)
     }
-    state total_ok(&self, total: u64) -> TotalResult {
+    state total_ok(total: u64) -> TotalResult {
         TotalResult::Ok { total: total }
     }
-    state total_edge(&self, seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
+    state total_edge(seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
         transition seconds_edge && subsecond_fits {
             true -> total_ok(total)
             false -> total_overflow()
         }
     }
-    state total_overflow(&self) -> TotalResult {
+    state total_overflow() -> TotalResult {
         TotalResult::Overflow
     }
 }
@@ -962,14 +962,14 @@ pub data Time {
 // the interpreter's virtual 1000); a host reporting 0 or an absurd frequency
 // measures degraded instead of faulting. Re-read per call: Time stays
 // stateless (no capture-once field machinery) until a profile says otherwise.
-pub machine Time::now(&mut self) -> Instant
+pub machine Time::now(time: &mut Time) -> Instant
 reaches
     TimeHost
 invokes
     TimeHost;
 {
-    let ticks: u64 = self.host.monotonic_ticks();
-    let frequency_raw: u64 = self.host.monotonic_ticks_per_second();
+    let ticks: u64 = time.host.monotonic_ticks();
+    let frequency_raw: u64 = time.host.monotonic_ticks_per_second();
     let frequency: u64 = clamp(frequency_raw, 1, 18446744073);
     let whole_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
@@ -1099,7 +1099,7 @@ invokes
 // is RETURNED so the caller can observe it. All-entry lets; the clamps
 // carry the narrowing proofs (4294968 * 1000 + 999 just exceeds u32::MAX,
 // hence the second clamp).
-pub machine Time::sleep_for(&mut self, duration: Duration) -> u32
+pub machine Time::sleep_for(time: &mut Time, duration: Duration) -> u32
 reaches
     TimeHost
 invokes
@@ -1114,6 +1114,6 @@ invokes
     let total: u64 = total_wide as u64;
     let capped: u64 [0..=4294967295] = clamp(total, 0, 4294967295);
     let milliseconds: u32 = narrow_u64_to_u32_exact(capped);
-    self.host.sleep(milliseconds);
+    time.host.sleep(milliseconds);
     milliseconds
 }
