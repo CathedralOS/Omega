@@ -1,0 +1,24 @@
+// Negative pin — REFERENCE-LOCAL-BINDING-ROUTES sibling (verified rejecting
+// on 233d30cb1ce): an UNBOUNDED runtime index `&mut self.buf[self.off]`
+// fails the static index proof — `self.off` carries no declared range,
+// where-fact, guard, or tracked value, and indexing has no runtime bound
+// check to fall back to. The bounded sibling
+// (run/borrows/runtime_index_bounded_borrow) declares `off: u32 [0..=47]`
+// and runs natively.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+    off: u32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let borrowed: &mut u8 = &mut self.buf[self.off];
+    transition { _ -> done() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}
