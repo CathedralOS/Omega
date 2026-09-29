@@ -1,4 +1,4 @@
-//! Compose ordinary integer certificates under each retained alternative.
+//! Introduce one unresolved case for the shared integer proof search.
 
 use super::super::integer_evidence::ProjectedFact;
 use proof_admission::{ProofNode, ProofRule};
@@ -16,91 +16,36 @@ pub(super) fn connected_implications<'a>(
     dependencies::connected_implications(goal, assumptions, semantic_axioms)
 }
 
-/// Prove a goal the caller has already failed to prove under `assumptions`
-/// by eliminating each connected case; only a branch that adds an
-/// alternative retries the ordinary builder.
+/// Split the first unresolved connected case. The caller owns recursive search
+/// in each branch, including any new cases its proved implications introduce.
 pub(super) fn prove(
     goal: &Proposition,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-    mut ordinary: impl FnMut(&[Proposition]) -> Option<ProofNode>,
+    mut prove_branch: impl FnMut(&[Proposition]) -> Option<ProofNode>,
 ) -> Option<ProofNode> {
-    // Stable citation order prevents revisiting permutations of the same
-    // cases. Each recursive path consumes a strict suffix of this finite set.
     let cases = dependencies::connected_cases(goal, assumptions, semantic_axioms);
-    eliminate_cases(goal, assumptions, semantic_axioms, &cases, &mut ordinary)
-}
-
-fn prove_branch(
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    cases: &[ProjectedFact<'_>],
-    ordinary: &mut impl FnMut(&[Proposition]) -> Option<ProofNode>,
-) -> Option<ProofNode> {
-    if let Some(proof) = ordinary(assumptions) {
-        return Some(proof);
-    }
-    eliminate_cases(goal, assumptions, semantic_axioms, cases, ordinary)
-}
-
-fn eliminate_cases(
-    goal: &Proposition,
-    assumptions: &[Proposition],
-    semantic_axioms: &[Proposition],
-    cases: &[ProjectedFact<'_>],
-    ordinary: &mut impl FnMut(&[Proposition]) -> Option<ProofNode>,
-) -> Option<ProofNode> {
-    let fact = cases.first()?;
-    let Proposition::Disjunction(disjuncts) = fact.proposition else {
-        unreachable!("only retained disjunctions become cases")
-    };
-    // Implication search can re-enter the ordinary case producer inside an
-    // already-selected branch. Splitting that same disjunction again only
-    // appends duplicate assumptions, defeats scope memoization and multiplies
-    // the search. The caller already tried this scope: skip a resolved case
-    // without another leaf attempt, but retain genuinely new implied cases.
-    // Only unconditional conjunction descent exposes facts; a conditional
-    // conclusion or another unselected disjunct supplies no such evidence.
-    if disjuncts.iter().any(|disjunct| {
-        assumptions
-            .iter()
-            .chain(semantic_axioms)
-            .any(|fact| contains_unconditional(fact, disjunct))
-    }) {
-        return eliminate_cases(goal, assumptions, semantic_axioms, &cases[1..], ordinary);
-    }
+    // Stable citation order and skipping established alternatives prevent
+    // permutations and repeated assumptions. Conditional conclusions are not
+    // established until the shared search has proved their premises.
+    let (fact, disjuncts) = cases.into_iter().find_map(|fact| {
+        let Proposition::Disjunction(disjuncts) = fact.proposition else {
+            return None;
+        };
+        let resolved = disjuncts.iter().any(|disjunct| {
+            assumptions
+                .iter()
+                .chain(semantic_axioms)
+                .any(|fact| contains_unconditional(fact, disjunct))
+        });
+        (!resolved).then_some((fact, disjuncts))
+    })?;
     let branches = disjuncts
         .iter()
         .map(|disjunct| {
             let mut branch_assumptions = assumptions.to_vec();
             branch_assumptions.push(disjunct.clone());
-            // The assumed alternative can carry alternatives of its own
-            // (a nested computation's negative polarity, for example).
-            // They are facts only inside this branch, so they extend this
-            // branch's roster rather than the ambient case list; the
-            // remaining shared cases still keep their citation order.
-            let mut branch_cases = cases[1..].to_vec();
-            for nested in super::super::integer_evidence::nested_case_facts(
-                assumptions.len(),
-                branch_assumptions
-                    .last()
-                    .expect("branch assumption pushed above"),
-            ) {
-                if !branch_cases
-                    .iter()
-                    .any(|case| case.proposition == nested.proposition)
-                {
-                    branch_cases.push(nested);
-                }
-            }
-            prove_branch(
-                goal,
-                &branch_assumptions,
-                semantic_axioms,
-                &branch_cases,
-                ordinary,
-            )
+            prove_branch(&branch_assumptions)
         })
         .collect::<Option<Vec<_>>>();
     if let Some(branches) = branches {
@@ -112,12 +57,8 @@ fn eliminate_cases(
             },
         });
     }
-    // Splitting on this case first loses nothing: a proof that splits
-    // on a later case first is still available inside each of this
-    // case's branches, whose extra assumption the monotone builder
-    // tolerates, and one of those branches already failed. So every later
-    // case fails too; trying them costs 2^n builder searches and never
-    // changes the answer.
+    // The recursive owner has already tried remaining cases in the stronger
+    // branch scope. Retrying them here merely changes their order.
     None
 }
 

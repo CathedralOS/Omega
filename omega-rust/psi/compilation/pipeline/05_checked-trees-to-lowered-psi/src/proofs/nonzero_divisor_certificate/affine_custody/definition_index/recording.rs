@@ -211,7 +211,7 @@ struct ScopeProofs {
     /// scope: conjunction and disjunction splits re-ask goals the direct
     /// path already settled, so the composed answer is memoized once.
     cascade: BTreeMap<Proposition, Option<ProofNode>>,
-    /// `build_without_implications` answers per `(goal, machine parameter
+    /// `build_without_cases` answers per `(goal, machine parameter
     /// roster)` — the `ordinary` leaf inside every implication search.
     /// Sibling searches under this exact scope share one derivation instead
     /// of re-running the cascade for every premise they discharge.
@@ -648,11 +648,11 @@ impl DefinitionIndex {
             .insert(goal.clone(), proof);
     }
 
-    /// `build_without_implications` answers per `(goal, machine parameter
+    /// `build_without_cases` answers per `(goal, machine parameter
     /// roster)` — the `ordinary` leaf inside every implication search, shared
     /// across sibling searches under this exact scope. The in-progress marker
-    /// breaks re-entrant cycles reached through `case_analysis` branches that
-    /// re-enter selection for a goal already being computed.
+    /// breaks arithmetic/transport re-entry for a goal already being computed;
+    /// case and implication recursion belong to the shared search above it.
     pub(in crate::proofs::nonzero_divisor_certificate) fn cached_selection_proof(
         &self,
         goal: &Proposition,
