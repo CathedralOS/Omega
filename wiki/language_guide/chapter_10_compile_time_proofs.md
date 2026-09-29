@@ -530,12 +530,13 @@ own the complete rules.
 ## Citing Proofs
 
 An ordinary statement call carries a theorem to a use site. In this schematic
-ring-buffer fragment, the named theorem's contract establishes the required
-index bound under the caller's facts:
+ring-buffer fragment, `buffer` is an ordinary `&mut RingBuffer` parameter.
+The named theorem's contract establishes the required index bound under the
+caller's facts:
 
 ```omega
-mask_is_mod(self.head, self.cap);
-self.slots[self.head & (self.cap - 1)] = x;
+mask_is_mod(buffer.head, buffer.cap);
+buffer.slots[buffer.head & (buffer.cap - 1)] = value;
 ```
 
 The fact-only call erases at runtime. Its assumptions still need proof, and

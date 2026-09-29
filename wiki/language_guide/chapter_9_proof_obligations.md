@@ -66,7 +66,7 @@ return, not whether a return is eventually reached.
 
 ```omega
 boundary trait FiniteReader {
-    machine read_all(&mut self, out: &mut Vec<u8>) -> ReadResult
+    machine read_all(out: &mut Vec<u8>) -> ReadResult
         terminates;
 }
 ```
@@ -107,17 +107,19 @@ data Player {
     health: i32 in 0..=100;
 }
 
-machine Player::take_damage(&mut self, damage: i32)
+machine Player::take_damage(player: &mut Player, damage: i32)
 requires damage >= 0
-requires damage <= self.health
+requires damage <= player.health
 {
-    self.health -= damage;
+    player.health -= damage;
 }
 ```
 
-At entry, health is established in range and the receiver supplies exclusive
-access. The two requirements establish that subtraction neither overflows nor
-takes health below zero. Assignment preserves the field's domain.
+At entry, health is established in range and the explicit mutable parameter
+supplies exclusive access. A caller writes `Player::take_damage(&mut player, damage)`;
+the qualified name supplies no argument. The two requirements establish that
+subtraction neither overflows nor takes health below zero. Assignment preserves
+the field's domain.
 
 If a multi-write update temporarily breaks a cross-field invariant, an
 [invariant window](chapter_11_invariant_windows.md) may defer that invariant's
