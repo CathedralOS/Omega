@@ -69,8 +69,8 @@ adds decomposition rather than replacing linearity.
 
 ## Source conservation contracts
 
-`old(place)` denotes the callable-entry revision of a parameter, `self`, or
-their structural places. It is proof-only, does not copy an owned value, and is
+`old(place)` denotes the callable-entry revision of an ordinary parameter or
+its structural places. It is proof-only, does not copy an owned value, and is
 not general historical quantification. `separate(a, b, ...)` is proof-only
 partial n-ary algebra composition; it generates compatibility and separation
 obligations. Both are compiler-owned call-shaped operations, erased rather than

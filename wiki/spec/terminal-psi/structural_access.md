@@ -130,7 +130,7 @@ Receiving checks reconstruct the selected type and native tag offset from every
 retained path segment; another element, a same-spelled case in another nominal
 type, or an asserted byte offset cannot replace that evidence.
 
-The path may also select an array element at run time: `self.items[self.w] is
+The path may also select an array element at run time: `context.items[context.w] is
 Color::Red` is one `StructuralCaseMembership` whose path is `items`,
 `RuntimeIndex`. The observation then owns that element's bound, the obligation
 every runtime segment owns (`index < extent`, plus `0 <= index` for a signed
@@ -139,7 +139,7 @@ selector), reconstructed against the array its prefix resolves to. It reads
 `Case` step or leaf copy that needs one must still find a membership of a
 canonical place. The Boolean result still selects exactly one dispatch arm.
 Symbol resolution hoists such a dispatch subject into one shared
-`let __hoist = &self.items[self.w];` so the arms stay one exhaustive
+`let __hoist = &context.items[context.w];` so the arms stay one exhaustive
 dispatch; the Unit plan erases that borrow while nothing but the dispatch's
 transitions follows it, and each arm observes the element itself. Omega
 rebuilds the tag's address from declarations: the carrier's static offset
@@ -193,7 +193,7 @@ every dimension of a nested array. Cases, reference crossings and nonprimitive
 leaves reject.
 
 A read, and only a read, may also end at a scalar field of a record element it
-selects at run time: `self.cells[self.i].hp` is one `PrimitiveScalarRead` whose
+selects at run time: `context.cells[context.i].hp` is one `PrimitiveScalarRead` whose
 path is `cells`, `RuntimeIndex`, `hp`. The final field must be a relevant,
 non-address integer or Boolean `Scalar` field of the record the carrier
 resolves to; erased, bounded, IEEE, byte and structural fields reject, and so
@@ -440,13 +440,15 @@ substitute capacity for live length nor discharge source encoding predicates.
 Both operations cost one logical operation unit. Indexed writes detach shared
 immutable backing before mutation, preserving the source and sibling values.
 
-Receiver writes require an actual mutable or write-only receiver. An attached
-namespace alone grants no storage authority. Source `Self`, receiver position,
-and the `self` write-frame root refer to the exact attachment, not an ordinary
-parameter relabeled as a receiver. Executable entry provisioning is separate:
-a receiver entry requires a generated bridge supplying initialized, root-backed
-storage and its activation loan. A receiver-free attached machine needs no
-hidden pointer.
+Writes through reference parameters require actual mutable or write-only access
+to the exact captured place. A qualified machine namespace grants no storage
+authority. Write-frame roots identify ordinary parameter occurrences and their
+loan evidence, not receiver flags or an inferred attachment. The `context`
+examples above use such an explicit parameter; its name has no special meaning.
+Executable entry provisioning is separate: the designated ordinary context
+parameter requires a generated bridge supplying initialized, root-backed storage
+and its activation loan under the [entry contract](../build/entry_roots.md#entry-shape-and-arrival-bridge).
+A qualified machine with no such parameter needs no hidden pointer.
 
 ## Conformance checks
 
