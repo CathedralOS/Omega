@@ -2,10 +2,10 @@
 //!
 //! A value-returning cycle returns a header-carried value, while the machine's
 //! `ensures` relates the result to its invocation formals. The ordinary roster
-//! proposes closed entry bounds, storage bounds and acyclic joins; the relation
-//! between a loop-carried value and an immutable formal is a cyclic header
-//! invariant no other pass proposes, so the guarantee obligation stays open and
-//! the machine fails to lower. This pass runs only when a guarantee of a cyclic
+//! proposes closed entry bounds, storage bounds and scoped join demands. Some
+//! return guarantees additionally need relations between loop-carried values
+//! and immutable formals that exit equations alone cannot recover. This pass
+//! runs only when a guarantee of a cyclic
 //! machine cannot be proved from the retained roster, and proposes three
 //! families at the header the entry edge binds from the formals: every entry
 //! requirement conjunct rewritten over the bound header parameters, `header ==

@@ -1,5 +1,139 @@
 use crate::TerminalMachineSelection;
 
+const GUARDED_VIEW_LOOP: &str = "
+    data Entry [copy] { value: i32 in Wrapping; }
+    data Grid { entries: [Entry; 4]; }
+    machine Grid::run(&mut self) -> i32 in Wrapping {
+        let view: &[Entry] = self.entries.as_slice();
+        transition view.len > 0 { true -> scan(view, 0, 0) false -> 0 }
+        state scan(&mut self, entries: &[Entry], index: u64 in Wrapping,
+                   total: i32 in Wrapping) -> i32 in Wrapping {
+            let current: Entry = entries[index];
+            let next_total: i32 in Wrapping = total + 1;
+            let next_index: u64 in Wrapping = index + 1;
+            let has_next: bool = next_index < entries.len;
+            transition has_next {
+                true -> scan(entries, next_index, next_total)
+                false -> next_total
+            }
+        }
+    }";
+
+#[test]
+fn guarded_loop_parameters_retain_operation_demands() {
+    for source in [
+        GUARDED_VIEW_LOOP.to_owned(),
+        GUARDED_VIEW_LOOP.replace("index + 1", "index + 2"),
+    ] {
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = crate::machine_lowering::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Grid::run"),
+        )
+        .expect("each guarded arrival establishes the next read's index bound");
+        assert!(!lowered.semantic_module.scalar_block_invariants.is_empty());
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("the loop invariant and every operation replay independently");
+    }
+}
+
+#[test]
+fn a_loop_guard_that_admits_the_extent_does_not_prove_an_index_bound() {
+    let source = GUARDED_VIEW_LOOP.replace("next_index < entries.len", "next_index <= entries.len");
+    let diagnostics = crate::front_end::checked_program_result(&source)
+        .expect_err("the source checker rejects the out-of-bounds arrival");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("cannot prove index"))
+    );
+
+    let checked = crate::front_end::checked_program(GUARDED_VIEW_LOOP);
+    let mut changed = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Grid::run"),
+    )
+    .unwrap();
+    let header = changed
+        .semantic_module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .find(|block| {
+            block.operations.iter().any(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::ElementViewRead { .. }
+                )
+            })
+        })
+        .expect("the loop body reads an element");
+    let guard = header
+        .operations
+        .iter_mut()
+        .find(|operation| {
+            matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerLessThan { .. }
+            )
+        })
+        .expect("the loop backedge has a strict bound");
+    let terminal_psi::OperationKind::IntegerLessThan { left, right } = guard.kind else {
+        unreachable!("selected a strict comparison");
+    };
+    guard.kind = terminal_psi::OperationKind::IntegerLessOrEqual { left, right };
+    assert!(
+        terminal_verifier::verify_module(
+            &changed.semantic_module,
+            &changed.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "old evidence must not authorize the changed arrival"
+    );
+    changed.semantic_module.scalar_block_invariants.clear();
+    changed.proof_bundle = terminal_verifier::ProofBundle::default();
+    assert!(
+        crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err(),
+        "a candidate bound is not authority when the backedge can invalidate it"
+    );
+}
+
+#[test]
+fn loop_parameter_demands_are_not_specific_to_indexing() {
+    let checked = crate::front_end::checked_program(
+        "
+        data Calculator { result: u64 in Wrapping; }
+        machine Calculator::run(&mut self) {
+            transition { _ -> divide(4) }
+            state divide(&mut self, divisor: u64 in Wrapping) {
+                self.result = 100 / divisor;
+                let next: u64 in Wrapping = divisor - 1;
+                transition next > 0 {
+                    true -> divide(next)
+                    false -> done()
+                }
+            }
+            state done(&mut self) { }
+        }",
+    );
+    let lowered = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Calculator::run"),
+    )
+    .expect("the same all-arrival rule retains a nonzero divisor");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("division and induction obligations replay independently");
+}
+
 const CONTRACTED_FIELD_LOOP: &str = "
     data Grid where 0 <= bound, bound <= 2 { bound: u32; result: u32; }
     machine Grid::run(&mut self) {

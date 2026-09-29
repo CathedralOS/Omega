@@ -1,4 +1,4 @@
-//! Propose guarantee/operation demands and literal ranges at acyclic scalar joins.
+//! Propose guarantee/operation demands and literal ranges at scalar joins.
 //!
 //! Reconstruction deliberately intersects ordinary path facts. A lost join
 //! equation needs checked arrivals, not unioned branch facts. Work backwards
@@ -7,6 +7,10 @@
 //! resulting predicate is separately proved on every actual arrival, and the
 //! original guarantee remains an independent final obligation. No call body is
 //! inspected and no source shape selects a compiler path.
+//! A loop header is also a join: propose its scoped operation demand through
+//! the same equations, then prove both initial and preserving arrivals. Excluding
+//! cyclic joins loses guarded parameter bounds at the verifier's iteration cut;
+//! including them never turns an unproved candidate into an induction hypothesis.
 //! Operation and call demands use the same arrival proofs as authored guarantees.
 //! Mathematical exact-add questions propose scalar operand bounds; the original
 //! arithmetic question is still proved separately after retaining those bounds.
@@ -59,9 +63,6 @@ pub(super) fn candidates(
         let Ok(context) = validated.value_context(machine) else {
             continue;
         };
-        let Ok(components) = terminal_verifier::control_cycle_members(machine) else {
-            continue;
-        };
         let literals = machine
             .blocks
             .iter()
@@ -108,9 +109,6 @@ pub(super) fn candidates(
             if header.id == machine.entry
                 || arrivals.get(&header.id).copied().unwrap_or(0) < 2
                 || structural_targets.contains(&header.id)
-                || components
-                    .iter()
-                    .any(|component| component.contains(&header.id))
             {
                 continue;
             }
