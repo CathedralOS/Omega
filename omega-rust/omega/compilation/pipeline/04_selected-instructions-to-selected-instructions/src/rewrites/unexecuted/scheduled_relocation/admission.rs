@@ -25,7 +25,8 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
+    surface,
 };
 
 /// The admitted run relocation: where the run leaves and where it lands.
@@ -43,37 +44,6 @@ pub(super) struct Admission {
     /// destination's terminator-carried instruction lands the run at the
     /// body end.
     pub(super) landing_index: usize,
-}
-
-/// Whether the member's effect is pure register and condition-state work
-/// that cannot observe or abandon the execution it leaves behind.
-/// `schedulable` already cleared barrier kinds, call contracts, and
-/// unaccounted memory-capable kinds, but a row-less load or private-slot
-/// `Store64` still performs a memory access: sinking it would remove the
-/// access — and any fault or slot write it carried — from every path the
-/// move abandons. The same holds for kinds whose target encoding may
-/// architecturally fault: their proof obligations establish definedness
-/// for the source operation, but this audit runs at the selected level
-/// where the encoded trap behavior is the honest bound — an execution
-/// that could fault must still run on every path that ran it before.
-fn sinkable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
-        CopyBytes
-            | LoadPacked { .. }
-            | StorePacked { .. }
-            | Store { .. }
-            | Load8Indexed
-            | Load64 { .. }
-            | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Store64 { .. }
-            | ExactDivideU64 { .. }
-            | SaturatingDivide { .. }
-            | SaturatingRemainder { .. }
-    )
 }
 
 /// Whether every execution leaving `from` reaches `to` before it can exit
@@ -415,7 +385,7 @@ pub(super) fn admit<'source>(
     // on reaching the destination, so only pure register and
     // condition-state work may relocate.
     for member in &run {
-        if schedulable(function, member) != Some(false) || !sinkable(member) {
+        if schedulable(function, member) != Some(false) || !speculatable(member) {
             return Err(ScheduledRelocationError::UnsupportedInstruction);
         }
     }

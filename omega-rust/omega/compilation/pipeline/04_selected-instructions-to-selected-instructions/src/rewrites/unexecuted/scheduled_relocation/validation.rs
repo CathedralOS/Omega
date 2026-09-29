@@ -18,7 +18,8 @@ use crate::rewrites::block_edges::{
 };
 use crate::rewrites::unexecuted::dead_path;
 use crate::rewrites::window_hazards::{
-    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, surface,
+    RunRelocationRejection, admit_run_relocation, register_writes, schedulable, speculatable,
+    surface,
 };
 
 /// The validator's own reconstruction of the relocation the contract
@@ -32,29 +33,6 @@ struct Reconstructed<'source> {
     member_last: usize,
     target_index: usize,
     landing_index: usize,
-}
-
-/// Whether the member's effect is pure register and condition-state work
-/// that cannot observe or abandon the execution it leaves behind — the
-/// validator's own sinkable bar, kept separate from the producer's.
-fn sinkable(instruction: &SelectedInstruction) -> bool {
-    use selected_instructions::SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
-        CopyBytes
-            | LoadPacked { .. }
-            | StorePacked { .. }
-            | Store { .. }
-            | Load8Indexed
-            | Load64 { .. }
-            | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Store64 { .. }
-            | ExactDivideU64 { .. }
-            | SaturatingDivide { .. }
-            | SaturatingRemainder { .. }
-    )
 }
 
 /// The validator's own continuation search: every simple continuation
@@ -344,7 +322,7 @@ fn reconstruct<'source>(
         }
     }
     for member in &run {
-        if schedulable(function, member) != Some(false) || !sinkable(member) {
+        if schedulable(function, member) != Some(false) || !speculatable(member) {
             return Err(ScheduledRelocationError::UnsupportedInstruction);
         }
     }

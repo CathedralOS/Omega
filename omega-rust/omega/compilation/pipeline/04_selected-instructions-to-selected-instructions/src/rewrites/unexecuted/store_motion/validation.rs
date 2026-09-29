@@ -20,11 +20,10 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::RegisterOperandAccess;
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedBlockId, SelectedBoundarySettlement,
-    SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction, SelectedInstructionId,
-    SelectedInstructionKind, SelectedInstructionPlan, SelectedMemoryAccess,
-    SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
-    SelectedValueTransport, VirtualRegisterId,
+    FrameStorageSlotId, SelectedBlockId, SelectedBoundarySettlement, SelectedCasePayloadTransport,
+    SelectedFunction, SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
+    SelectedInstructionPlan, SelectedMemoryAccess, SelectedMemoryAccessRole,
+    SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
 };
 use semantic_vocabulary::PlaceId;
 use target_operations_to_selected_instructions::selected_instruction_plan_identity;
@@ -38,6 +37,7 @@ use crate::rewrites::unexecuted::place_storage::{
     local_slot_is_place_storage, slot_is_subject_storage, staging_slot,
     structural_place_declarations,
 };
+use crate::rewrites::window_hazards::unaccounted_kind;
 
 /// The validator's own reconstruction of the motion the contract permits:
 /// the admitted store's coordinates, the landing position its own walk
@@ -270,77 +270,6 @@ fn barrier_kind(instruction: &SelectedInstruction) -> bool {
             | ConditionalBranchNonZero
             | ConditionalBranchU64LessThan
             | ConditionalBranchI64LessThan
-    )
-}
-
-/// An interval instruction without a roster row must be unable to reach
-/// any semantic or place-backed storage — the validator's own accounting
-/// decision. Private-slot frame accesses touch compiler-owned
-/// spill/boundary slots that no referent place aliases, and pure
-/// register work has no memory side at all. Any other memory-capable
-/// kind without a row is an unaccounted access whose reach the slide
-/// cannot prove.
-fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
-    use SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
-        Store64 {
-            slot: FrameStorageSlotId::Local(
-                LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. },
-            ),
-            ..
-        } | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Load64 { .. }
-            | Load8Indexed
-            | LoadPacked { .. }
-            | FrameAddress { .. }
-            | AddressOffset { .. }
-            | ByteViewAddress
-            | CopyI64
-            | MaterializeI64 { .. }
-            | CompareI64
-            | CompareI64Zero
-            | CompareI64Immediate { .. }
-            | ExactAddI64 { .. }
-            | ExactSubtractI64 { .. }
-            | ExactMultiplyI64 { .. }
-            | ExactAddI64Immediate { .. }
-            | ExactSubtractI64Immediate { .. }
-            | WrappingAddI64
-            | WrappingSubtractI64
-            | WrappingMultiplyI64
-            | ExactDivideU64 { .. }
-            | ExactRemainderU64 { .. }
-            | WrappingRemainderI64 { .. }
-            | WrappingDivideI64 { .. }
-            | ExactDivideI64 { .. }
-            | ExactRemainderI64 { .. }
-            | SaturatingAdd { .. }
-            | SaturatingSubtract { .. }
-            | SaturatingDivide { .. }
-            | SaturatingRemainder { .. }
-            | SaturatingMultiply { .. }
-            | BitwiseAndI64
-            | BitwiseOrI64
-            | BitwiseNotI64
-            | BitwiseXorI64
-            | ZeroExtendU8
-            | ZeroExtendU16
-            | ZeroExtendU32
-            | SignExtendI8
-            | SignExtendI16
-            | SignExtendI32
-            | Float32ToBits
-            | Float64ToBits
-            | BitsToFloat32
-            | BitsToFloat64
-            | MaterializeBooleanEqual
-            | MaterializeBooleanU64LessThan
-            | MaterializeBooleanI64LessThan
-            | MaterializeBooleanU64LessOrEqual
-            | MaterializeBooleanI64LessOrEqual
     )
 }
 

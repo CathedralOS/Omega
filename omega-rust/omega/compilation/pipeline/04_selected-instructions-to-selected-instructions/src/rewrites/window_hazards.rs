@@ -116,82 +116,101 @@ pub(in crate::rewrites) fn is_barrier(instruction: &SelectedInstruction) -> bool
 /// pure register work has no memory side at all. Any other memory-capable
 /// kind without a row is an unaccounted access whose reach the relocation
 /// cannot prove.
-fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
+pub(in crate::rewrites) fn unaccounted_kind(instruction: &SelectedInstruction) -> bool {
+    unrostered_reach(instruction) != UnrosteredReach::Private
+}
+
+/// What an instruction without a roster row can reach. Private work is
+/// register-only or touches a compiler-owned spill/boundary slot that no
+/// referent place aliases. A store or byte copy outside that set could write
+/// rostered storage. Every other memory-capable kind is unaccounted: no
+/// rewrite can prove its reach.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(in crate::rewrites) enum UnrosteredReach {
+    Private,
+    Store,
+    Unaccounted,
+}
+
+pub(in crate::rewrites) fn unrostered_reach(instruction: &SelectedInstruction) -> UnrosteredReach {
     use SelectedInstructionKind::*;
-    !matches!(
-        instruction.kind,
+    match instruction.kind {
         Store64 {
-            slot: FrameStorageSlotId::Local(
-                LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. },
-            ),
+            slot:
+                FrameStorageSlotId::Local(
+                    LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. },
+                ),
             ..
-        } | Load8 { .. }
-            | Load16 { .. }
-            | Load32 { .. }
-            | Load64 { .. }
-            | Load8Indexed
-            | LoadPacked { .. }
-            | FrameAddress { .. }
-            | AddressOffset { .. }
-            | ByteViewAddress
-            | CopyI64
-            | MaterializeI64 { .. }
-            | CompareI64
-            | CompareI64Zero
-            | CompareI64Immediate { .. }
-            | ExactAddI64 { .. }
-            | ExactSubtractI64 { .. }
-            | ExactMultiplyI64 { .. }
-            | ExactAddI64Immediate { .. }
-            | ExactSubtractI64Immediate { .. }
-            | SaturatingAdd { .. }
-            | WrappingAddI64
-            | WrappingSubtractI64
-            | WrappingMultiplyI64
-            | SaturatingSubtract { .. }
-            | SaturatingDivide { .. }
-            | SaturatingRemainder { .. }
-            | SaturatingMultiply { .. }
-            | ExactDivideU64 { .. }
-            | ExactRemainderU64 { .. }
-            | WrappingRemainderI64 { .. }
-            | WrappingDivideI64 { .. }
-            | ExactDivideI64 { .. }
-            | ExactRemainderI64 { .. }
-            | BitwiseAndI64
-            | BitwiseOrI64
-            | BitwiseNotI64
-            | BitwiseXorI64
-            | ZeroExtendU8
-            | ZeroExtendU16
-            | ZeroExtendU32
-            | SignExtendI8
-            | SignExtendI16
-            | SignExtendI32
-            | Float32ToBits
-            | Float64ToBits
-            | BitsToFloat32
-            | BitsToFloat64
-            | MaterializeBooleanEqual
-            | MaterializeBooleanU64LessThan
-            | MaterializeBooleanI64LessThan
-            | MaterializeBooleanU64LessOrEqual
-            | MaterializeBooleanI64LessOrEqual
-    )
+        }
+        | Load8 { .. }
+        | Load16 { .. }
+        | Load32 { .. }
+        | Load64 { .. }
+        | Load8Indexed
+        | LoadPacked { .. }
+        | FrameAddress { .. }
+        | AddressOffset { .. }
+        | ByteViewAddress
+        | CopyI64
+        | MaterializeI64 { .. }
+        | CompareI64
+        | CompareI64Zero
+        | CompareI64Immediate { .. }
+        | ExactAddI64 { .. }
+        | ExactSubtractI64 { .. }
+        | ExactMultiplyI64 { .. }
+        | ExactAddI64Immediate { .. }
+        | ExactSubtractI64Immediate { .. }
+        | SaturatingAdd { .. }
+        | WrappingAddI64
+        | WrappingSubtractI64
+        | WrappingMultiplyI64
+        | SaturatingSubtract { .. }
+        | SaturatingDivide { .. }
+        | SaturatingRemainder { .. }
+        | SaturatingMultiply { .. }
+        | ExactDivideU64 { .. }
+        | ExactRemainderU64 { .. }
+        | WrappingRemainderI64 { .. }
+        | WrappingDivideI64 { .. }
+        | ExactDivideI64 { .. }
+        | ExactRemainderI64 { .. }
+        | BitwiseAndI64
+        | BitwiseOrI64
+        | BitwiseNotI64
+        | BitwiseXorI64
+        | ZeroExtendU8
+        | ZeroExtendU16
+        | ZeroExtendU32
+        | SignExtendI8
+        | SignExtendI16
+        | SignExtendI32
+        | Float32ToBits
+        | Float64ToBits
+        | BitsToFloat32
+        | BitsToFloat64
+        | MaterializeBooleanEqual
+        | MaterializeBooleanU64LessThan
+        | MaterializeBooleanI64LessThan
+        | MaterializeBooleanU64LessOrEqual
+        | MaterializeBooleanI64LessOrEqual => UnrosteredReach::Private,
+        Store { .. } | StorePacked { .. } | Store64 { .. } | CopyBytes => UnrosteredReach::Store,
+        _ => UnrosteredReach::Unaccounted,
+    }
 }
 
 /// Whether an instruction's effect is pure register and condition-state
-/// work that adds no observable execution on arrivals it never ran on.
-/// `schedulable` already cleared barrier kinds, call contracts, and
-/// unaccounted memory-capable kinds, but a row-less load or private-slot
-/// `Store64` still performs a memory access: sinking it would add the
-/// access — and any fault or slot write it carried — to every traversal
-/// entering the relocation's landing through the other inflows. The same
-/// holds for kinds whose target encoding may architecturally fault: their
-/// proof obligations establish definedness for the source operation, but
-/// this audit runs at the selected level where the encoded trap behavior
-/// is the honest bound — an execution that could fault must still run
-/// only on the paths that ran it before.
+/// work, so relocating it across a join or a branch changes no observable
+/// execution. `schedulable` already cleared barrier kinds, call contracts,
+/// and unaccounted memory-capable kinds, but a row-less load or private-slot
+/// `Store64` still performs a memory access: hoisting or sinking it would
+/// add the access, and any fault or slot write it carried, to traversals
+/// that never ran it, or remove it from traversals that did. The same holds
+/// for kinds whose target encoding may architecturally fault: their proof
+/// obligations establish definedness for the source operation, but this
+/// audit runs at the selected level where the encoded trap behavior is the
+/// honest bound, so a faulting execution must run on exactly the paths that
+/// ran it before. Every relocation shares this one list.
 pub(in crate::rewrites) fn speculatable(instruction: &SelectedInstruction) -> bool {
     use SelectedInstructionKind::*;
     !matches!(

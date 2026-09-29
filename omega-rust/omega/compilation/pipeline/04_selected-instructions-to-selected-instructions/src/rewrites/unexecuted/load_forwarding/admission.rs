@@ -88,11 +88,10 @@ use optimization_core::OptimizationWorkBudget;
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_model::{RegisterInstructionConstraint, RegisterOperandAccess};
 use selected_instructions::{
-    FrameStorageSlotId, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedFunction,
-    SelectedInstruction, SelectedInstructionId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccess, SelectedMemoryAccessRole,
-    SelectedStructuralTransport, SelectedSuccessor, SelectedValueTransport, VirtualRegisterId,
-    VirtualRegisterOrigin,
+    FrameStorageSlotId, SelectedCasePayloadTransport, SelectedFunction, SelectedInstruction,
+    SelectedInstructionId, SelectedInstructionKind, SelectedInstructionProvenance,
+    SelectedMemoryAccess, SelectedMemoryAccessRole, SelectedStructuralTransport, SelectedSuccessor,
+    SelectedValueTransport, VirtualRegisterId, VirtualRegisterOrigin,
 };
 use semantic_vocabulary::PlaceId;
 use terminal_psi::StructuralPlaceDeclaration;
@@ -104,6 +103,7 @@ use crate::rewrites::unexecuted::place_storage::{
     constant_index, extent_intersects, extent_reached_by, local_slot_is_place_storage,
     structural_place_declarations,
 };
+use crate::rewrites::window_hazards::{UnrosteredReach, unrostered_reach};
 
 pub(super) struct Admission<'source> {
     pub block_index: usize,
@@ -1365,71 +1365,10 @@ fn reject_barrier(instruction: &SelectedInstruction) -> Result<(), StoredLoadFor
 /// slots, and pure register work has no memory side at all. A referent store
 /// or any other frame slot without its row is an unaccounted write.
 fn reject_unaccounted(instruction: &SelectedInstruction) -> Result<(), StoredLoadForwardingError> {
-    use SelectedInstructionKind::*;
-    match instruction.kind {
-        Store64 {
-            slot:
-                FrameStorageSlotId::Local(
-                    LocalStorageSlotId::Spill { .. } | LocalStorageSlotId::Boundary { .. },
-                ),
-            ..
-        }
-        | Load8 { .. }
-        | Load16 { .. }
-        | Load32 { .. }
-        | Load64 { .. }
-        | Load8Indexed
-        | LoadPacked { .. }
-        | FrameAddress { .. }
-        | AddressOffset { .. }
-        | ByteViewAddress
-        | CopyI64
-        | MaterializeI64 { .. }
-        | CompareI64
-        | CompareI64Zero
-        | CompareI64Immediate { .. }
-        | ExactAddI64 { .. }
-        | ExactSubtractI64 { .. }
-        | ExactMultiplyI64 { .. }
-        | ExactAddI64Immediate { .. }
-        | ExactSubtractI64Immediate { .. }
-        | WrappingAddI64
-        | WrappingSubtractI64
-        | WrappingMultiplyI64
-        | ExactDivideU64 { .. }
-        | ExactRemainderU64 { .. }
-        | WrappingRemainderI64 { .. }
-        | WrappingDivideI64 { .. }
-        | ExactDivideI64 { .. }
-        | ExactRemainderI64 { .. }
-        | SaturatingAdd { .. }
-        | SaturatingSubtract { .. }
-        | SaturatingDivide { .. }
-        | SaturatingRemainder { .. }
-        | SaturatingMultiply { .. }
-        | BitwiseAndI64
-        | BitwiseOrI64
-        | BitwiseNotI64
-        | BitwiseXorI64
-        | ZeroExtendU8
-        | ZeroExtendU16
-        | ZeroExtendU32
-        | SignExtendI8
-        | SignExtendI16
-        | SignExtendI32
-        | Float32ToBits
-        | Float64ToBits
-        | BitsToFloat32
-        | BitsToFloat64
-        | MaterializeBooleanEqual
-        | MaterializeBooleanU64LessThan
-        | MaterializeBooleanI64LessThan
-        | MaterializeBooleanU64LessOrEqual
-        | MaterializeBooleanI64LessOrEqual => Ok(()),
-        Store { .. } | StorePacked { .. } | Store64 { .. } | CopyBytes => {
-            Err(StoredLoadForwardingError::AliasingWrite)
-        }
-        _ => Err(StoredLoadForwardingError::UnsupportedInstruction),
+    match unrostered_reach(instruction) {
+        UnrosteredReach::Private => Ok(()),
+        UnrosteredReach::Store => Err(StoredLoadForwardingError::AliasingWrite),
+        UnrosteredReach::Unaccounted => Err(StoredLoadForwardingError::UnsupportedInstruction),
     }
 }
 
