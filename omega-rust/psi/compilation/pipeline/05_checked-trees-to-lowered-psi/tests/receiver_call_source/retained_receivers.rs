@@ -1,5 +1,6 @@
-//! Declared borrowed receivers retained by scalar callees, rejoined at
-//! statement calls and shared across tail-fused bodies.
+//! Declared borrowed receivers retained by scalar callees: rejoined at
+//! statement calls, shared across tail-fused bodies and lent by direct
+//! result calls.
 
 use super::{CheckedStructuralAccess, CheckedUnitEffectOperationPlan};
 use checked_trees_to_lowered_psi::{LoweringError, TerminalMachineSelection};
@@ -176,5 +177,74 @@ fn tail_fused_bodies_share_one_retained_receiver() {
     assert!(
         lower(&changed, "Main::ping").is_err(),
         "a member with another receiver roster must not share the entry's"
+    );
+}
+
+const DIRECT_SOURCE: &str = r#"
+    data Check {}
+    data Main { check: Check; seen: u64; }
+    machine Check::flag(&mut self, ok: bool, code: u64) -> u64 {
+        transition ok { true -> 0 false -> code }
+    }
+    machine Main::enter(&mut self) {
+        self.seen = 3;
+        let first: u64 = self.check.flag(self.seen == 3, 1);
+        let second: u64 = self.check.flag(self.seen == 4, 2);
+        self.seen = second;
+    }
+"#;
+
+/// A scalar local bound directly to a receiver method is the caller's
+/// ordinary result operation: each call lends its receiver in one operation
+/// of the caller's block instead of staging every operand in its own block.
+#[test]
+fn direct_receiver_initializers_stay_single_call_operations() {
+    let checked = crate::front_end::checked_program(DIRECT_SOURCE);
+    let plan = super::unit_plan(&checked, "Main::enter");
+    let calls = plan
+        .operations
+        .iter()
+        .filter(|operation| {
+            matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments, ..
+            } if structural_arguments.len() == 1
+                && structural_arguments[0].access == CheckedStructuralAccess::MutableBorrow)
+        })
+        .count();
+    assert_eq!(
+        calls, 2,
+        "both initializers are receiver-lending result calls"
+    );
+    assert!(
+        !plan.operations.iter().any(|operation| matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                value: checked_trees::CheckedCallScalarArgument::Computation(_),
+                ..
+            }
+        )),
+        "no initializer is re-rooted as a whole-call computation"
+    );
+    let lowered = lower(&checked, "Main::enter").expect("direct receiver initializers lower");
+    verify(&lowered);
+    let entry = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .find(|machine| machine.id == lowered.semantic_module.entry)
+        .expect("caller entry");
+    let [block] = entry.blocks.as_slice() else {
+        panic!("receiver calls do not split the caller's straight-line body");
+    };
+    assert_eq!(
+        block
+            .operations
+            .iter()
+            .filter(|operation| matches!(
+                operation.kind,
+                terminal_psi::OperationKind::CallStructuralScalar { .. }
+            ))
+            .count(),
+        2
     );
 }

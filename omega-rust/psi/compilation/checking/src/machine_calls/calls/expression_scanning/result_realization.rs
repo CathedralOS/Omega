@@ -413,7 +413,99 @@ pub fn unit_result_initializer_call_is_supported(
         local.type_reference,
         true,
         false,
+    ) || self_place_receiver_scalar_call(
+        program,
+        machine,
+        local.initial_value,
+        local.type_reference,
     )
+}
+
+/// A scalar local bound directly to a method call on the caller's own
+/// receiver or a field path beneath it (`let f: i32 = self.check.flag(ok)`)
+/// is the same ordinary result operation as a free call. The Unit call lane
+/// lends that place as the callee's borrowed receiver operand in one
+/// operation; the whole-call computation would instead stage every operand
+/// in its own block. Owned receivers, receivers reached through calls or
+/// indexing, boundary callees and structural results keep their routes.
+fn self_place_receiver_scalar_call(
+    program: &TypedTrees,
+    machine: &Machine,
+    value: ExpressionHandle,
+    result_type: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+        return false;
+    };
+    if !call.target_symbol.is_valid()
+        || !call.carries_only_positional_arguments()
+        || !call.selects_only_nominal_route()
+        || !program.expression_table.expression_is_valid(call.receiver)
+        || program.primitive_type_reference(result_type).is_none()
+    {
+        return false;
+    }
+    let Some((owner, target)) =
+        program
+            .machine_holding_state(call.target_symbol)
+            .and_then(|owner| {
+                program
+                    .machine_states(owner)
+                    .first()
+                    .filter(|entry| entry.symbol == call.target_symbol)
+                    .map(|entry| (owner, entry))
+            })
+    else {
+        return false;
+    };
+    let parameters = program.state_parameters(target);
+    let Some(receiver) = parameters.first() else {
+        return false;
+    };
+    if owner.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !owner.attached_data_symbol.is_valid()
+        || !receiver.is_self
+        || parameters
+            .iter()
+            .filter(|parameter| parameter.is_self)
+            .count()
+            != 1
+        || !matches!(
+            program
+                .type_reference_table
+                .type_reference(receiver.type_reference),
+            typed_trees::types::TypeReferenceNode::Reference {
+                access: language_semantics::ReferenceAccess::Shared
+                    | language_semantics::ReferenceAccess::Mutable,
+                ..
+            }
+        )
+        || program
+            .primitive_type_reference(target.return_type)
+            .is_none()
+    {
+        return false;
+    }
+    let mut cursor = call.receiver;
+    let mut visited = Vec::new();
+    loop {
+        if !program.expression_table.expression_is_valid(cursor) || visited.contains(&cursor) {
+            return false;
+        }
+        visited.push(cursor);
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Member(member) if member.case_variant.is_none() => {
+                cursor = member.receiver;
+            }
+            ExpressionNode::Name(name) => {
+                return name.symbol == machine.symbol
+                    && name.head_symbol == machine.symbol
+                    && matches!(program.expression_table.name_path_members(name.members),
+                        [only] if only.is_self_receiver());
+            }
+            _ => return false,
+        }
+    }
 }
 
 fn boundary_structural_initializer(

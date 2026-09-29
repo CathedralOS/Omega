@@ -63,8 +63,9 @@ fn unread_multistate_receiver_keeps_its_unit_graph_and_callers() {
         "every authored receiver remains in its state's signature"
     );
     // Candidate pruning drops a caller whose scalar target is unavailable,
-    // so the published plan is the availability evidence: the call is a
-    // computation root of the caller's scalar local.
+    // so the published plan is the availability evidence: the local's direct
+    // receiver call is the caller's result operation into the Unit graph,
+    // lending the declared shared receiver.
     let run = checked
         .facts
         .flow
@@ -73,10 +74,13 @@ fn unread_multistate_receiver_keeps_its_unit_graph_and_callers() {
         .expect("the Unit caller of the multi-state callee keeps its plan");
     assert!(matches!(
         run.operations.first(),
-        Some(CheckedUnitEffectOperationPlan::EstablishScalarLocal {
-            value: checked_trees::CheckedCallScalarArgument::Computation(_),
+        Some(CheckedUnitEffectOperationPlan::ScalarCall {
+            target_machine,
+            structural_arguments,
             ..
-        })
+        }) if *target_machine == proc
+            && matches!(structural_arguments.as_slice(), [receiver]
+                if receiver.access == checked_trees::CheckedStructuralAccess::SharedBorrow)
     ));
 }
 

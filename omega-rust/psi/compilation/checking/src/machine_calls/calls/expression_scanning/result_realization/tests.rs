@@ -196,3 +196,74 @@ fn mutable_receiver_scalar_calls_share_initializer_and_assignment_admission() {
     );
     crate::validate_program(&program).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
+
+/// A scalar local bound directly to a method of the caller's own receiver or
+/// a field beneath it is a result operation, as a free call is. An owned
+/// receiver and a receiver outside the caller's `self` keep their routes.
+#[test]
+fn borrowed_self_place_receiver_initializers_are_result_operations() {
+    let program = crate::front_end::typed_program(
+        r#"
+        data Check { seen: u64; }
+        data Main { check: Check; }
+        machine Check::flag(&mut self, ok: bool) -> u64 {
+            transition ok { true -> 0 false -> 7 }
+        }
+        machine Check::peek(&self, ok: bool) -> u64 { self.seen }
+        machine Main::enter(&mut self, other: &mut Check) {
+            let field: u64 = self.check.flag(true);
+            let shared: u64 = self.check.peek(false);
+            let parameter: u64 = other.flag(true);
+        }
+    "#,
+    );
+    crate::validate_program(&program).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
+    let machine = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::enter")
+        .unwrap();
+    let [state] = program.machine_states(machine) else {
+        panic!("one authored state")
+    };
+    let initializers = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) => Some(local.initial_value),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [field, shared, parameter] = initializers.as_slice() else {
+        panic!("three authored initializers")
+    };
+    assert!(result_initializer_call_is_supported(
+        &program, machine, *field
+    ));
+    assert!(result_initializer_call_is_supported(
+        &program, machine, *shared
+    ));
+    assert!(!result_initializer_call_is_supported(
+        &program, machine, *parameter
+    ));
+
+    let flag = program
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Check::flag")
+        .unwrap();
+    let receiver = program.machine_states(flag)[0].parameters.start();
+    let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = program
+        .type_reference_table
+        .type_reference(program.state_parameters.get(receiver).type_reference)
+    else {
+        panic!("borrowed authored receiver")
+    };
+    let mut owned = program.clone();
+    owned.state_parameters.get_mut(receiver).type_reference = *referee;
+    assert!(
+        !result_initializer_call_is_supported(&owned, machine, *field),
+        "an owned receiver is not lent by the result operation"
+    );
+}
