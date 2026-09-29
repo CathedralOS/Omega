@@ -1584,30 +1584,73 @@ fn successor_bindings(
                                     ordinal as usize,
                                     &place,
                                 )
-                            // A continuation edge refuses an argument bound
-                            // to a reference-bearing place, and a path below
-                            // the root names projected reference custody the
-                            // verifier does not yet admit — both live in the
-                            // sibling-owned terminal verifier, so a loan that
-                            // would need them declines at this arm instead of
-                            // emitting an invalid edge.
-                            && path.is_empty()
+                            // A path below the root names projected
+                            // reference custody: the edge mints an
+                            // `EstablishReference` carrier typed by the
+                            // target's reference shape while the rooted
+                            // place stays the loan's source. A
+                            // reference-bearing declared shape still
+                            // declines — the terminal verifier admits the
+                            // projected carrier but not an argument bound
+                            // to reference-bearing storage.
+                            && path.iter().all(|segment| {
+                                matches!(
+                                    segment,
+                                    CheckedUnitStructuralPathSegment::Field(_)
+                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                )
+                            })
                             && program
                                 .normalized_type_identity(projected_type)
                                 .into_string()
                                 == target.type_identity
                             && {
+                                // The loan's custody is the projected
+                                // subtree: a member projection inside an
+                                // owned root borrows only that leaf, so
+                                // the reference-bearing law applies to the
+                                // projected type rather than the whole
+                                // root. A borrowed root loans its whole
+                                // carrier either way — its referent
+                                // already rides an outstanding loan.
                                 let declared = match source_parameter.access {
                                     CheckedStructuralAccess::SharedBorrow
                                     | CheckedStructuralAccess::MutableBorrow => shapes
-                                        .add_reference_type(typed_parameter.type_reference, &[]),
-                                    _ => Some(source_parameter.type_identity.clone()),
+                                        .add_reference_type(typed_parameter.type_reference, &[])
+                                        // The `&mut self` receiver borrows
+                                        // without a `&`-typed declaration:
+                                        // its loanable custody is still the
+                                        // projected subtree, so a carrier
+                                        // that cannot be formed falls back
+                                        // to the projected identity.
+                                        .or_else(|| {
+                                            Some(
+                                                program
+                                                    .normalized_type_identity(projected_type)
+                                                    .into_string(),
+                                            )
+                                        }),
+                                    _ => Some(
+                                        program
+                                            .normalized_type_identity(projected_type)
+                                            .into_string(),
+                                    ),
                                 };
                                 declared.is_some_and(|identity| {
                                     !declared_contains_reference(shapes, &identity)
                                 })
                             }
                         {
+                            let carrier_identity = if path.is_empty() {
+                                String::new()
+                            } else {
+                                shapes.add_reference_type(
+                                    target_parameters
+                                        .get(target.position as usize)?
+                                        .type_reference,
+                                    &[],
+                                )?
+                            };
                             return Some(CheckedStructuralControlTransferPlan {
                                 source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     subject: CheckedUnitStructuralArgumentPlan {
@@ -1618,7 +1661,7 @@ fn successor_bindings(
                                         type_identity: target.type_identity.clone(),
                                         access: expected_access,
                                     },
-                                    carrier_identity: String::new(),
+                                    carrier_identity,
                                 },
                                 target_parameter_index: u32::try_from(target_index).ok()?,
                             });
@@ -1655,13 +1698,27 @@ fn successor_bindings(
                                         | CheckedUnitStructuralPathSegment::FixedIndex(_)
                                 )
                             })
-                            && path.is_empty()
                             && program
                                 .normalized_type_identity(projected_type)
                                 .into_string()
                                 == target.type_identity
-                            && !declared_contains_reference(shapes, &result.type_identity)
+                            && !declared_contains_reference(
+                                shapes,
+                                &program
+                                    .normalized_type_identity(projected_type)
+                                    .into_string(),
+                            )
                         {
+                            let carrier_identity = if path.is_empty() {
+                                String::new()
+                            } else {
+                                shapes.add_reference_type(
+                                    target_parameters
+                                        .get(target.position as usize)?
+                                        .type_reference,
+                                    &[],
+                                )?
+                            };
                             return Some(CheckedStructuralControlTransferPlan {
                                 source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
                                     subject: CheckedUnitStructuralArgumentPlan {
@@ -1672,7 +1729,7 @@ fn successor_bindings(
                                         type_identity: target.type_identity.clone(),
                                         access: expected_access,
                                     },
-                                    carrier_identity: String::new(),
+                                    carrier_identity,
                                 },
                                 target_parameter_index: u32::try_from(target_index).ok()?,
                             });

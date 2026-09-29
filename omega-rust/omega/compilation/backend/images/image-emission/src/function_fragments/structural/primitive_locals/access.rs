@@ -131,6 +131,32 @@ fn readable(
     let Some(contract) = &selected.structural else {
         return false;
     };
+    // A `&`-typed block continuation parameter is declared on its block
+    // entry, not the function signature: the edge already binds its referent
+    // storage, so a whole-place read loads it exactly like a borrowed
+    // function parameter's referent.
+    if let Some(parameter) = function
+        .block_entries
+        .iter()
+        .flat_map(|entry| &entry.structural_parameters)
+        .find(|parameter| parameter.place == place)
+    {
+        return matches!(
+            parameter.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty()
+            && contract
+                .structural_types
+                .iter()
+                .filter(|declaration_type| {
+                    declaration_type.id == parameter.structural_type
+                        && declaration_type.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+                })
+                .count()
+                == 1;
+    }
     let mut parameters = contract
         .parameters
         .iter()

@@ -189,7 +189,7 @@ fn source_contract(
         )
         .find(|parameter| parameter.place == place)
     {
-        return plain(parameter).then_some((
+        return (plain(parameter) || parameter.is_self).then_some((
             parameter.structural_type,
             parameter.access,
             parameter.multiplicity,

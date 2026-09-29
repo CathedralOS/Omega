@@ -341,6 +341,7 @@ impl StateGraphEmission<'_, '_> {
                     }
                     continue;
                 }
+                let mut argument_path = Vec::new();
                 let place = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::EstablishedValue { value, ref calls } => {
                             // The edge establishes the fresh construction into
@@ -430,7 +431,7 @@ impl StateGraphEmission<'_, '_> {
                                     );
                                 }
                             };
-                            let path = subject.path.iter().map(|segment| match segment {
+                            let mut path = subject.path.iter().map(|segment| match segment {
                                 checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
                                     terminal_psi::StructuralPathSegment::Field(identity.clone())),
                                 checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Some(
@@ -444,12 +445,29 @@ impl StateGraphEmission<'_, '_> {
                                 // place itself — the target borrows exactly
                                 // the storage the borrow expression names.
                                 root
+                            } else if matches!(
+                                subject.access,
+                                checked_trees::CheckedStructuralAccess::SharedBorrow
+                            ) {
+                                // A shared projected loan joins the rooted
+                                // place and its projection path directly as
+                                // the continuation argument: the verifier
+                                // resolves the projected leaf against the
+                                // target's declared referent — no reference
+                                // carrier forms.
+                                argument_path = path;
+                                root
                             } else {
-                                // A projected loan mints a fresh reference
-                                // carrier over the subject's rooted place:
-                                // an EstablishReference op captures the path
-                                // below the root and the argument names the
-                                // carrier, never the rooted place itself.
+                                // A mutable projected loan mints a fresh
+                                // reference carrier over the subject's
+                                // rooted place: an EstablishReference op
+                                // captures the path below the root and the
+                                // argument names the carrier, never the
+                                // rooted place itself. The carrier's source
+                                // path ends in `Referent` — the terminal
+                                // verifier resolves the projected leaf
+                                // through that dereference marker.
+                                path.push(terminal_psi::StructuralPathSegment::Referent);
                                 let declaration = crate::unit::attached_unit::reference_results::emit_carrier(
                                     crate::terminal_identities::lookup_type_id(
                                         &self.catalogs.type_ids,
@@ -506,8 +524,14 @@ impl StateGraphEmission<'_, '_> {
                             destination
                         }
                     };
-                if target_parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                {
+                // Shared loan subjects keep their backing local's storage
+                // for the loan's duration exactly like mutable ones: the
+                // activation-entry home dies once at the machine's return.
+                if matches!(
+                    target_parameter.access,
+                    checked_trees::CheckedStructuralAccess::MutableBorrow
+                        | checked_trees::CheckedStructuralAccess::SharedBorrow
+                ) {
                     let loaned_binding = match transfer.source {
                         checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(binding_ordinal),
                         checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { ref subject, .. } => match subject.source {
@@ -534,7 +558,7 @@ impl StateGraphEmission<'_, '_> {
                 }
                 structural_arguments.push(StructuralArgument {
                     place,
-                    path: Vec::new(),
+                    path: argument_path,
                     access: match target_parameter.access {
                         checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
                         checked_trees::CheckedStructuralAccess::MutableBorrow => {

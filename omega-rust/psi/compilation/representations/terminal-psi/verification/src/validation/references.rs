@@ -226,42 +226,55 @@ fn leaf_reference_type(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     for segment in fields {
-        let StructuralPathSegment::Field(identity) = segment else {
-            return None;
-        };
         let declaration = module
             .structural_types
             .iter()
             .find(|item| item.id == current)?;
-        // Common fields project identically through a record or a mixed sum;
-        // case-only fields are not individually borrowable storage.
-        let fields = match &declaration.shape {
-            StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. } => {
-                fields
+        match segment {
+            StructuralPathSegment::Field(identity) => {
+                // Common fields project identically through a record or a
+                // mixed sum; case-only fields are not individually
+                // borrowable storage.
+                let fields = match &declaration.shape {
+                    StructuralTypeShape::Record { fields }
+                    | StructuralTypeShape::Mixed { fields, .. } => fields,
+                    _ => return None,
+                };
+                let field = fields.iter().find(|field| &field.identity == identity)?;
+                if field.relevance != terminal_psi::BindingRelevance::Relevant {
+                    return None;
+                }
+                current = match &field.field_type {
+                    StructuralFieldType::Structural(child) => *child,
+                    // A scalar member names the module's matching primitive
+                    // storage declaration; borrowing it carries that leaf
+                    // type, not a reference formed at the member.
+                    StructuralFieldType::Scalar(scalar) => module
+                        .structural_types
+                        .iter()
+                        .find(|item| {
+                            matches!(
+                                item.shape,
+                                StructuralTypeShape::PrimitiveScalar(shape) if shape == *scalar
+                            )
+                        })
+                        .map(|item| item.id)?,
+                    _ => return None,
+                };
+            }
+            // A fixed index selects an element of an in-bound array: the
+            // projected leaf is the element type when the index stays
+            // inside the declared length.
+            StructuralPathSegment::FixedIndex(index) => {
+                current = match &declaration.shape {
+                    StructuralTypeShape::FixedArray { element, length } if *index < *length => {
+                        *element
+                    }
+                    _ => return None,
+                };
             }
             _ => return None,
-        };
-        let field = fields.iter().find(|field| &field.identity == identity)?;
-        if field.relevance != terminal_psi::BindingRelevance::Relevant {
-            return None;
         }
-        current = match &field.field_type {
-            StructuralFieldType::Structural(child) => *child,
-            // A scalar member names the module's matching primitive storage
-            // declaration; borrowing it carries that leaf type, not a
-            // reference formed at the member.
-            StructuralFieldType::Scalar(scalar) => module
-                .structural_types
-                .iter()
-                .find(|item| {
-                    matches!(
-                        item.shape,
-                        StructuralTypeShape::PrimitiveScalar(shape) if shape == *scalar
-                    )
-                })
-                .map(|item| item.id)?,
-            _ => return None,
-        };
     }
     Some(current)
 }

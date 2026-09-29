@@ -126,13 +126,11 @@ fn address_join_argument(
         .iter()
         .find(|source| source.place == argument.place)
     {
-        (!source.is_self
-            && (if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
-                source.access == terminal_psi::StructuralAccess::MutableBorrow
-            } else {
-                source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
-            })
-            && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
+        ((if parameter.access == terminal_psi::StructuralAccess::MutableBorrow {
+            source.access == terminal_psi::StructuralAccess::MutableBorrow
+        } else {
+            source.access != terminal_psi::StructuralAccess::WriteOnlyBorrow
+        }) && source.multiplicity != terminal_psi::StructuralMultiplicity::Linear
             && source.qualifications.is_empty()
             && source.projected_qualifications.is_empty())
         .then_some(source.structural_type)
