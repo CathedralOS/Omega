@@ -28,7 +28,8 @@ machine + Quantity::Cyclic::add(left: Quantity, right: Quantity) -> Quantity {
 
 data Main {}
 
-machine Main::combine(main: &Main,
+machine Main::combine(
+    main: &Main,
     left: Quantity in Linear,
     right: Quantity in Cyclic
 ) {
