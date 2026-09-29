@@ -584,21 +584,40 @@ fn a_routed_task_result_into_self_rejects_claim_custody_corruption() {
         "mismatched claim ordinal",
     );
 
-    // One call may not consume the same claim custody twice.
-    let mut second_consume = baseline.clone();
-    let duplicate = second_consume
+    // One call may not consume the same claim custody twice. A byte-identical
+    // copy of the consume row is refused at the lowering entrance, which
+    // validates the whole permission ledger before any consumer reads it.
+    let mut repeated_consume = baseline.clone();
+    let duplicate = repeated_consume
         .facts
         .flow
         .ownership
         .permissions
-        .get_mut(consume)
+        .get(consume)
         .clone();
+    repeated_consume
+        .facts
+        .flow
+        .ownership
+        .permissions
+        .insert(duplicate.clone());
+    rejects(
+        &repeated_consume,
+        "checked permission ledger repeats an identical event",
+        "identical consume row",
+    );
+    // A second consume of the same claim at the same call that names another
+    // root is a well-formed ledger row, so the claimed-custody join itself
+    // must refuse it.
+    let mut second_consume = baseline.clone();
+    let mut rerooted = duplicate;
+    rerooted.root = facts::PlaceRoot::Symbol(probe);
     second_consume
         .facts
         .flow
         .ownership
         .permissions
-        .insert(duplicate);
+        .insert(rerooted);
     rejects(
         &second_consume,
         "Unit structural result claim custody lost its exact caller consume event",

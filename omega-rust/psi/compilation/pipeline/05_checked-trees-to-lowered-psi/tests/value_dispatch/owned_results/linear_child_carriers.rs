@@ -14,9 +14,11 @@ use language_semantics::{PermissionClaimIdentity, PermissionProvenance};
 /// Lowering is bounded at the same consumer gap as the primitive borrowed
 /// referent: no machine whose body holds claim-bearing custody has a
 /// source-independent checked scalar control plan yet, so `lower_machine`
-/// stops before the receipt replay. The claim-set replay itself is pinned by
-/// the lowerer crate's structural replay unit tests, and the checker-side
-/// independent replay by
+/// stops before the receipt replay. With distinct sources the checker records
+/// the re-established children's consumes without a claim identity, and the
+/// lowering entrance's permission-ledger validation refuses those rows first.
+/// The claim-set replay itself is pinned by the lowerer crate's structural
+/// replay unit tests, and the checker-side independent replay by
 /// `carrier_owned_selection_replay_rejects_mutated_claim_evidence`.
 #[test]
 fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
@@ -135,20 +137,53 @@ fn carrier_match_moves_the_whole_claim_frontier_and_reconsumes_each_child() {
         // the join, so per-child `Token::settle` use checks. The claim-bearing
         // local itself still waits on unit-control local construction: the
         // machine stops at the documented consumer gap rather than lowering.
-        let formatted = format!(
-            "{:?}",
-            checked_trees_to_lowered_psi::lower_machine(
-                &checked,
-                TerminalMachineSelection::Name("choose")
-            )
-            .unwrap_err()
-        );
-        assert!(
-            formatted.starts_with(
-                r#"InvalidUnitMachinePlan { machine: "choose", reason: "machine has no source-independent checked scalar control plan"#
-            ),
-            "{name}: a claim-bearing local has no scalar control plan yet ({formatted})"
-        );
+        let error = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("choose"),
+        )
+        .unwrap_err();
+        // A join of distinct sources has no single claim identity for the
+        // children it re-establishes, so their settle consumes carry a live
+        // obligation with an unknown claim. The entrance ledger validation
+        // refuses exactly those rows before any consumer reads them.
+        let unidentified = ownership
+            .permissions
+            .iter()
+            .filter(|(_, event)| {
+                event.obligation_live && event.claim_identity == PermissionClaimIdentity::Unknown
+            })
+            .map(|(_, event)| event)
+            .collect::<Vec<_>>();
+        if shared_source {
+            assert!(unidentified.is_empty(), "{name}: {unidentified:#?}");
+            let formatted = format!("{error:?}");
+            assert!(
+                formatted.starts_with(
+                    r#"InvalidUnitMachinePlan { machine: "choose", reason: "machine has no source-independent checked scalar control plan"#
+                ),
+                "{name}: a claim-bearing local has no scalar control plan yet ({formatted})"
+            );
+        } else {
+            assert_eq!(unidentified.len(), expected_fields.len(), "{name}");
+            assert!(
+                unidentified.iter().all(|event| {
+                    event.kind == language_semantics::PermissionEventKind::Consume
+                        && event.multiplicity == language_semantics::Multiplicity::Linear
+                        && matches!(
+                            ownership.segments.span_or_empty(event.segments),
+                            [facts::PlaceSegment::Field { .. }]
+                        )
+                }),
+                "{name}: only the joined children's settle consumes lack a claim: {unidentified:#?}"
+            );
+            assert_eq!(
+                error,
+                checked_trees_to_lowered_psi::LoweringError::Unsupported(
+                    "checked permission event carries a live obligation without an identified claim"
+                ),
+                "{name}"
+            );
+        }
     }
 }
 
