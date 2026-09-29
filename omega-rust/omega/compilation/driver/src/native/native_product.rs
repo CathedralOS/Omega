@@ -15,9 +15,6 @@ pub fn produce_native_report(
     let rollback = request
         .optimization_rollback
         .settle(&checked.build().config.settings.optimizations);
-    provider_planning::component_progress::reject_undischarged_build_bound_progress(
-        checked.execution().component_progress.as_ref(),
-    )?;
 
     // Capture package acceptance from the checked source, independently of the
     // proposal being produced. These are NOT receiver permission rows: the
