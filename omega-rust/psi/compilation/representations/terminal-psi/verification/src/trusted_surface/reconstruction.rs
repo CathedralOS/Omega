@@ -397,6 +397,24 @@ static FACT_BYTE_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     soundness: TRUSTED,
 };
 
+static FACT_BYTE_FIELD_LITERAL_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry {
+    id: "fact:byte-field-literal-read-range",
+    family: LedgerFamily::ReconstructedFactKind,
+    binding: PROCEDURAL,
+    premises: "a validated indexed byte-field read whose exact field was replaced from a unique nonempty literal, with that content unchanged on every path from replacement to read, including backedges",
+    conclusion: "the read's immutable u8 result lies between the literal's minimum and maximum octets; its independent index/length obligation remains required",
+    dependencies: &[
+        "formation:operation-validation",
+        "fact:structural-effect-observation",
+    ],
+    implementation: &[
+        OPERATION_FACTS,
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields.rs",
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/byte_sequence_fields/freshness.rs",
+    ],
+    soundness: TRUSTED,
+};
+
 static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:element-extent-length",
     family: LedgerFamily::ReconstructedFactKind,
@@ -723,6 +741,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     FACT_SCALAR_CASE_ESTABLISHMENT,
     FACT_STRUCTURAL_CASE_ESTABLISHMENT,
     FACT_BYTE_EXTENT_LENGTH,
+    FACT_BYTE_FIELD_LITERAL_READ_RANGE,
     FACT_ELEMENT_EXTENT_LENGTH,
     FACT_STRUCTURAL_EFFECT_OBSERVATION,
     FACT_INTEGER_FIELD_READ_RANGE,
