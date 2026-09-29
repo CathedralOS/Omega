@@ -2,7 +2,9 @@
 
 use crate::emission::expression_validation::validate_direct_parameter_types;
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
-use crate::emission::operation_emission::calls::{LoweredDirectCallBinding, ScalarCallCrashScope};
+use crate::emission::operation_emission::calls::{
+    LoweredDirectCallBinding, PreparedStructuralArgument, ScalarCallCrashScope,
+};
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::bindings as storage;
 use crate::expression_preparation::qualifications::PreparedScalarQualifications;
@@ -13,8 +15,8 @@ use crate::scalar_graph::scalar_graph_lowering::prepared_graph;
 use crate::scalar_graph::scalar_graph_lowering::structural_values;
 use crate::scalar_graph::{
     CheckedScalarExpressionRole, CheckedScalarSuccessor, CheckedTrees, LoweringError,
-    QualifiedScalarType, StructuralAccess, StructuralArgument, StructuralPathSegment,
-    StructuralTypeDeclaration, allocate_dense, place_id, scalar_carriers, unsupported,
+    QualifiedScalarType, StructuralAccess, StructuralArgument, StructuralTypeDeclaration,
+    allocate_dense, place_id, scalar_carriers, unsupported,
 };
 use checked_trees::CheckedErasedProofParameterPlan;
 
@@ -93,7 +95,7 @@ pub(crate) fn lower_scalar_call(
     caller_value_types: &[QualifiedScalarType],
     scalar_bindings: &storage::ScalarBindings,
     arguments: Vec<LoweredDirectExpression>,
-    structural_arguments: Vec<StructuralArgument>,
+    structural_arguments: Vec<PreparedStructuralArgument>,
     crash_scope: ScalarCallCrashScope,
     caller_erased_proof_parameters: &[CheckedErasedProofParameterPlan],
 ) -> Result<LoweredDirectCallBinding, LoweringError> {
@@ -108,6 +110,10 @@ pub(crate) fn lower_scalar_call(
             target_machine,
         )?
     };
+    // Immutable selectors retain their positions in the caller's scalar frame.
+    // A field selector needs an ordered operand read before later arguments;
+    // a store selector belongs to its assignment. Neither may be read lazily
+    // when this call finally emits after its scalar arguments have evaluated.
     if target.structural_parameters().len() != structural_arguments.len()
         || !target.entry_claims().is_empty()
         || structural_arguments.iter().any(|argument| {
@@ -115,10 +121,16 @@ pub(crate) fn lower_scalar_call(
                 && (!matches!(
                     argument.access,
                     StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
-                ) || argument
-                    .path
-                    .iter()
-                    .any(|segment| !matches!(segment, StructuralPathSegment::Field(_))))
+                ) || argument.path.iter().any(|segment| {
+                    !matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                                checked_trees::CheckedRuntimeIndex::Parameter { .. }
+                            )
+                    )
+                }))
         })
     {
         return unsupported("computed scalar call requires exact structural custody");

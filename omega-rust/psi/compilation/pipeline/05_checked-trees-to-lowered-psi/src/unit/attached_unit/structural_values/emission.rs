@@ -943,7 +943,7 @@ impl Emission<'_, '_, '_> {
                         .into_iter();
                     StructuralArgument {
                         place,
-                        path: super::super::parameters::lower_argument_path(
+                        path: crate::expression_preparation::bindings::structural_paths::lower_argument_path(
                             &source.path,
                             Some(self.values.as_slice()),
                             &mut selector_values,

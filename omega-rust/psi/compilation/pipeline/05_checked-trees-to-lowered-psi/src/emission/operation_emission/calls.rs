@@ -21,6 +21,59 @@ use terminal_psi::{
     Block, Operation, OperationKind, StructuralArgument, Terminator, ValueDeclaration,
 };
 
+/// The source place is known during preparation; runtime path values and their
+/// bounds obligations belong to the emitting call's actual scalar frame.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PreparedStructuralArgument {
+    pub(crate) place: semantic_vocabulary::PlaceId,
+    pub(crate) access: terminal_psi::StructuralAccess,
+    pub(crate) path: Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+}
+
+impl PreparedStructuralArgument {
+    pub(crate) fn from_static(argument: StructuralArgument) -> Result<Self, LoweringError> {
+        use checked_trees::CheckedUnitStructuralPathSegment as CheckedPath;
+        use terminal_psi::StructuralPathSegment as TerminalPath;
+        let path = argument
+            .path
+            .into_iter()
+            .map(|segment| match segment {
+                TerminalPath::Field(field) => Ok(CheckedPath::Field(field)),
+                TerminalPath::FixedIndex(index) => Ok(CheckedPath::FixedIndex(index)),
+                TerminalPath::FixedByteRange { start, end } => {
+                    Ok(CheckedPath::FixedByteRange { start, end })
+                }
+                TerminalPath::Referent => Ok(CheckedPath::Referent),
+                TerminalPath::RuntimeIndex { .. } => {
+                    unsupported("prepared call cannot capture another operation's runtime path")
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self {
+            place: argument.place,
+            access: argument.access,
+            path,
+        })
+    }
+
+    fn emit(
+        &self,
+        values: &[ValueDeclaration],
+        calls: &mut CallEmissionContext<'_>,
+    ) -> Result<StructuralArgument, LoweringError> {
+        Ok(StructuralArgument {
+            place: self.place,
+            access: self.access,
+            path: crate::expression_preparation::bindings::structural_paths::lower_argument_path(
+                &self.path,
+                Some(values),
+                &mut std::iter::empty(),
+                Some(calls),
+            )?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LoweredDirectCallBinding {
     pub(crate) source_coordinate: SourceCallCoordinate,
@@ -34,7 +87,7 @@ pub(crate) struct LoweredDirectCallBinding {
     /// `Formal` positions index the caller's erased-proof roster; scalar
     /// leaves resolve against this operation's caller namespace at emission.
     pub(crate) erased_proof_arguments: Vec<crate::scalar_graph::scalar_contracts::LoweredProofTerm>,
-    pub(crate) structural_arguments: Vec<StructuralArgument>,
+    pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
     pub(crate) uses_structural_frame: bool,
     pub(crate) crash_continuations: Vec<checked_trees::CrashRouteBucket>,
     pub(crate) parameter_relative_crash_routes: Vec<checked_trees::CrashRouteBucket>,
@@ -357,6 +410,11 @@ fn emit_direct_call_operation(
             )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
+    let structural_arguments = call
+        .structural_arguments
+        .iter()
+        .map(|argument| argument.emit(source_values_before_call, call_emission))
+        .collect::<Result<Vec<_>, _>>()?;
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
@@ -381,7 +439,7 @@ fn emit_direct_call_operation(
                 arguments: arguments.iter().map(|argument| argument.id).collect(),
                 erased_arguments,
                 erased_proof_arguments,
-                structural_arguments: call.structural_arguments.clone(),
+                structural_arguments,
                 claim_transfers: Vec::new(),
                 requirement_obligations,
                 crash_continuations,

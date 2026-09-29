@@ -20,7 +20,9 @@ use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, emit_direct_expression,
 };
 use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
-use crate::expression_preparation::bindings::structural_paths::lower_structural_path;
+use crate::expression_preparation::bindings::structural_paths::{
+    lower_argument_path, lower_structural_path,
+};
 use semantic_vocabulary::ValueId;
 mod service_forward;
 mod source_path;
@@ -1169,84 +1171,6 @@ pub(crate) fn mint_runtime_index_selectors(
         }
     }
     Ok(values)
-}
-
-/// A checked argument path can carry a runtime selector only when the
-/// operand lowering owns the index's evaluation and obligation: a dense
-/// scalar parameter of the calling state is already in the caller's operand
-/// frame, and a `StructuralField` selector consumes the field read
-/// `mint_runtime_index_selectors` emitted in argument order ahead of this
-/// lowering. Either way the call allocates the selector's bound obligation
-/// from the emission context (the same counter `allocate_requirement`
-/// serves). An `AssignmentIndex` segment belongs to a store destination, not
-/// a call argument, so it is refused here.
-pub(crate) fn lower_argument_path(
-    path: &[CheckedUnitStructuralPathSegment],
-    caller_scalar_values: Option<&[ValueDeclaration]>,
-    selector_values: &mut dyn Iterator<Item = ValueId>,
-    calls: Option<&mut CallEmissionContext<'_>>,
-) -> Result<Vec<terminal_psi::StructuralPathSegment>, LoweringError> {
-    if !path
-        .iter()
-        .any(|segment| matches!(segment, CheckedUnitStructuralPathSegment::RuntimeIndex(_)))
-    {
-        return lower_structural_path(path);
-    }
-    let mut calls = calls;
-    path.iter()
-        .map(|segment| match segment {
-            CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::Parameter { position },
-            ) => {
-                let (Some(values), Some(calls)) = (caller_scalar_values, calls.as_deref_mut())
-                else {
-                    return Err(LoweringError::Unsupported(
-                        "runtime index argument path has no caller scalar frame",
-                    ));
-                };
-                let index = values
-                    .get(usize::try_from(*position).map_err(|_| {
-                        LoweringError::Unsupported("runtime index position exceeds usize")
-                    })?)
-                    .ok_or(LoweringError::Unsupported(
-                        "runtime index selector position has no caller scalar",
-                    ))?;
-                if !matches!(
-                    index.scalar_type,
-                    ScalarType::Integer(integer) if !integer.is_address()
-                ) {
-                    return Err(LoweringError::Unsupported(
-                        "runtime index selector is not an integer operand",
-                    ));
-                }
-                calls.allocate_requirement().map(|obligation| {
-                    terminal_psi::StructuralPathSegment::RuntimeIndex {
-                        index: index.id,
-                        obligation,
-                    }
-                })
-            }
-            CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::StructuralField(_),
-            ) => {
-                let Some(calls) = calls.as_deref_mut() else {
-                    return Err(LoweringError::Unsupported(
-                        "runtime index argument path has no caller scalar frame",
-                    ));
-                };
-                let index = selector_values.next().ok_or(LoweringError::Unsupported(
-                    "field-selector runtime index has no evaluated operand",
-                ))?;
-                calls.allocate_requirement().map(|obligation| {
-                    terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation }
-                })
-            }
-            CheckedUnitStructuralPathSegment::RuntimeIndex(_) => Err(LoweringError::Unsupported(
-                "an assignment-index selector is owned by its store destination",
-            )),
-            segment => Ok(lower_structural_path(std::slice::from_ref(segment))?.remove(0)),
-        })
-        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
