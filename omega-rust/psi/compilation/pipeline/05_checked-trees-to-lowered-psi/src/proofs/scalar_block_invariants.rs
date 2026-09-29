@@ -155,6 +155,14 @@ fn retain_provable_roster_bounded(
     let mandatory = source_roster.as_slice();
     let module = &mut lowered.semantic_module;
     let mut remaining = MAX_CANDIDATE_WORK;
+    // A reconstructed obligation yields the same producer output every round;
+    // each round's fresh questions repeat every prior site plus the newly
+    // minted invariant arrivals. Share the queried roster with the producers
+    // so a site is transported at most once across the whole discovery loop:
+    // rounds then cost only the genuinely new questions, and a rejected
+    // candidate cannot re-mint itself and keep discovery from settling.
+    let mut join_queried = BTreeSet::new();
+    let mut arrival_queried = BTreeSet::new();
     let mut candidates = entry_ranges::candidates(module);
     candidates.extend(field_bounds::candidates(
         module,
@@ -170,6 +178,7 @@ fn retain_provable_roster_bounded(
         original,
         &mut remaining,
         declines,
+        &mut join_queried,
     ));
     if remaining == 0 {
         declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
@@ -278,13 +287,21 @@ fn retain_provable_roster_bounded(
         // Nested feedback cuts need retained storage bounds as well as scalar
         // join demands. Revisit only the arrivals of demanded headers: rerunning
         // operation proposals would repeatedly wrap their expanding guard sets.
-        candidates = field_bounds::arrival_bounds(module, &questions, &mut remaining, declines);
+        candidates = field_bounds::arrival_bounds(
+            module,
+            &questions,
+            &mut remaining,
+            declines,
+            &mut arrival_queried,
+        );
         candidates.extend(joins::candidates(
             module,
             &questions,
             &mut remaining,
             declines,
+            &mut join_queried,
         ));
+
         if remaining == 0 {
             declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
         }

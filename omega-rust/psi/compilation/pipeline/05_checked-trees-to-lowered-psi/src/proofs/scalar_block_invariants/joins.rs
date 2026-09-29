@@ -54,6 +54,12 @@ pub(super) fn candidates(
     questions: &ReconstructedTerminalObligationSet,
     remaining: &mut usize,
     declines: &mut crate::proofs::ProofSearchDeclines,
+    // A site's transport output is a pure function of its reconstructed
+    // obligation; the roster discovery loop re-queries the module every round
+    // while only newly minted invariant questions can add candidates. The
+    // caller shares this set so each obligation is queried at most once
+    // across every round.
+    queried: &mut BTreeSet<semantic_vocabulary::ObligationId>,
 ) -> Vec<ScalarBlockInvariant> {
     let mut candidates = Vec::new();
     let Ok(validated) = terminal_verifier::validate_module(module) else {
@@ -105,13 +111,44 @@ pub(super) fn candidates(
             .obligations()
             .iter()
             .any(|site| site.owner.machine() == machine.id);
-        for header in &machine.blocks {
-            if header.id == machine.entry
-                || arrivals.get(&header.id).copied().unwrap_or(0) < 2
-                || structural_targets.contains(&header.id)
-            {
-                continue;
+        let qualifying_headers = machine
+            .blocks
+            .iter()
+            .filter(|header| {
+                header.id != machine.entry
+                    && arrivals.get(&header.id).copied().unwrap_or(0) >= 2
+                    && !structural_targets.contains(&header.id)
+            })
+            .collect::<Vec<_>>();
+        if qualifying_headers.is_empty() {
+            continue;
+        }
+        // A site's arrival equations are a function of its reconstructed
+        // axioms alone: every demanded join transports the goal through the
+        // same definitions and reversed maps. Build each site's table once
+        // per machine instead of re-indexing its axiom roster under every
+        // qualifying header.
+        let mut site_equations = Vec::new();
+        for site in questions.obligations() {
+            let demanded = match site.owner {
+                ReconstructedTerminalObligationOwner::ContractEnsures {
+                    machine: owner, ..
+                }
+                | ReconstructedTerminalObligationOwner::Operation { machine: owner, .. }
+                | ReconstructedTerminalObligationOwner::CallRequires { machine: owner, .. }
+                | ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                    machine: owner, ..
+                } => owner == machine.id,
+                _ => false,
+            };
+            if demanded && queried.insert(site.obligation.id) {
+                site_equations.push((
+                    site,
+                    ArrivalEquations::new(&site.semantic_axioms, remaining),
+                ));
             }
+        }
+        for header in qualifying_headers {
             let Ok(scope) = PropositionContext::from_value_types(
                 machine
                     .parameters
@@ -173,26 +210,17 @@ pub(super) fn candidates(
                     }
                 }
             }
-            for site in questions
-                .obligations()
-                .iter()
-                .filter(|site| match site.owner {
-                    ReconstructedTerminalObligationOwner::ContractEnsures {
-                        machine: owner,
-                        ..
-                    }
-                    | ReconstructedTerminalObligationOwner::Operation { machine: owner, .. }
-                    | ReconstructedTerminalObligationOwner::CallRequires {
-                        machine: owner, ..
-                    } => owner == machine.id,
-                    ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
-                        machine: owner,
-                        header: destination,
-                        ..
-                    } => owner == machine.id && destination != header.id,
-                    _ => false,
-                })
-            {
+            for (site, equations) in &site_equations {
+                // The destination exclusion stays per header: an invariant
+                // demand never proposes at its own destination join.
+                if let ReconstructedTerminalObligationOwner::ScalarBlockInvariant {
+                    header: destination,
+                    ..
+                } = site.owner
+                    && destination == header.id
+                {
+                    continue;
+                }
                 let Some(next) = remaining.checked_sub(1) else {
                     declines.record(
                         crate::lowering_error::ProofSearchCapacity::ScalarInvariantCandidateWork,
@@ -200,13 +228,12 @@ pub(super) fn candidates(
                     return candidates;
                 };
                 *remaining = next;
-                let Some(equations) = ArrivalEquations::new(&site.semantic_axioms, remaining)
-                else {
+                let Some(equations) = equations else {
                     continue;
                 };
                 let Some(mut predicate) = scoped_goal(
                     &site.obligation.proposition,
-                    &equations,
+                    equations,
                     &allowed,
                     &scope,
                     &context,
