@@ -382,6 +382,70 @@ pub(super) fn validate_bindings(
             }
             continue;
         }
+        if let checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+            subject,
+            carrier_identity,
+        } = &transfer.source
+        {
+            // The authored operand is a borrow of the place the loan names:
+            // its access matches the loan's and the target's, the projected
+            // identity is the target's, the path carries only the segments
+            // the admit side admits, and the subject roots at a parameter or
+            // a rejoinable result binding.
+            let argument_position = explicit_argument_position(target.position);
+            let expression = arguments
+                .get(argument_position)
+                .ok_or(LoweringError::Unsupported(
+                    "Unit graph loan argument missing",
+                ))?;
+            let borrow_access = match checked.expression_table.expression(*expression) {
+                ExpressionNode::Borrow(borrow) => borrow.access,
+                _ => return unsupported("Unit graph loan argument lost its borrow"),
+            };
+            let access_permitted = matches!(
+                (borrow_access, subject.access),
+                (
+                    language_semantics::ReferenceAccess::Shared,
+                    checked_trees::CheckedStructuralAccess::SharedBorrow
+                ) | (
+                    language_semantics::ReferenceAccess::Mutable,
+                    checked_trees::CheckedStructuralAccess::MutableBorrow
+                )
+            );
+            let source_permitted = match subject.source {
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                    parameter_index,
+                } => state
+                    .structural_parameters
+                    .get(parameter_index as usize)
+                    .is_some_and(|parameter| {
+                        parameter.access != checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+                    }),
+                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                    ..
+                } => true,
+                _ => false,
+            };
+            if transfer.target_parameter_index as usize != position
+                || !access_permitted
+                || !source_permitted
+                || subject.access != target.access
+                || subject.type_identity != target.type_identity
+                || target.multiplicity != Multiplicity::Unrestricted
+                || target.is_self
+                || carrier_identity.is_empty() != subject.path.is_empty()
+                || !subject.path.iter().all(|segment| {
+                    matches!(
+                        segment,
+                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                    )
+                })
+            {
+                return unsupported("Unit graph loan argument custody drifted");
+            }
+            continue;
+        }
         if let checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
             subject,
             case_identity,
@@ -679,6 +743,9 @@ pub(super) fn validate_bindings(
                     "Unit graph established argument was not independently rejoined",
                 );
             }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. } => {
+                return unsupported("Unit graph loan argument was not independently rejoined");
+            }
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");
             }
@@ -721,6 +788,9 @@ pub(super) fn validate_bindings(
                 return unsupported(
                     "Unit graph established argument was not independently rejoined",
                 );
+            }
+            checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { .. } => {
+                return unsupported("Unit graph loan argument was not independently rejoined");
             }
             checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload { .. } => {
                 return unsupported("Unit graph case-payload was not independently rejoined");

@@ -213,6 +213,22 @@ fn lower_catalogs(
                 _ => None,
             }),
     );
+    type_roots.extend(
+        states
+            .iter()
+            .flat_map(|state| state.successors())
+            .flat_map(|successor| &successor.transfers)
+            .filter_map(|transfer| match &transfer.source {
+                // A projected loan's carrier declares the `&'a V` view no
+                // parameter or operation names; it must reach the lowered
+                // table before the edge emits the EstablishReference op.
+                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                    carrier_identity,
+                    ..
+                } if !carrier_identity.is_empty() => Some(carrier_identity.clone()),
+                _ => None,
+            }),
+    );
     for (boundary, _) in boundaries {
         type_roots.extend(boundary.attachment_type_identity.iter().cloned());
         type_roots.extend(

@@ -410,6 +410,68 @@ impl StateGraphEmission<'_, '_> {
                             )?);
                             destination
                         }
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                            ref subject, ref carrier_identity,
+                        } => {
+                            let root = match subject.source {
+                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                                    edge_evaluation.current_structural_place(state_parameters.get(parameter_index as usize).ok_or(
+                                        LoweringError::Unsupported("Unit graph loan subject descriptor disappeared"),
+                                    )?.place)
+                                }
+                                checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => {
+                                    edge_evaluation.current_structural_place(
+                                        case_emission::result(state, binding_ordinal, operations)?.place(),
+                                    )
+                                }
+                                _ => {
+                                    return unsupported(
+                                        "Unit graph loan subject source unsupported",
+                                    );
+                                }
+                            };
+                            let path = subject.path.iter().map(|segment| match segment {
+                                checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => Some(
+                                    terminal_psi::StructuralPathSegment::Field(identity.clone())),
+                                checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Some(
+                                    terminal_psi::StructuralPathSegment::FixedIndex(*index)),
+                                _ => None,
+                            }).collect::<Option<Vec<_>>>().ok_or(
+                                LoweringError::Unsupported("Unit graph loan path segment unsupported"),
+                            )?;
+                            if path.is_empty() {
+                                // A whole-place loan forwards the rooted
+                                // place itself — the target borrows exactly
+                                // the storage the borrow expression names.
+                                root
+                            } else {
+                                // A projected loan mints a fresh reference
+                                // carrier over the subject's rooted place:
+                                // an EstablishReference op captures the path
+                                // below the root and the argument names the
+                                // carrier, never the rooted place itself.
+                                let declaration = crate::unit::attached_unit::reference_results::emit_carrier(
+                                    crate::terminal_identities::lookup_type_id(
+                                        &self.catalogs.type_ids,
+                                        carrier_identity,
+                                    )?,
+                                    StructuralArgument {
+                                        place: root,
+                                        path,
+                                        access: match subject.access {
+                                            checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                                                StructuralAccess::MutableBorrow
+                                            }
+                                            _ => StructuralAccess::SharedBorrow,
+                                        },
+                                    },
+                                    &mut self.catalogs.next_place,
+                                    operations,
+                                )?;
+                                self.structural_places.push(declaration);
+                                declaration.id
+                            }
+                        }
                         checked_trees::CheckedStructuralControlTransferSourcePlan::CasePayload {
                             ref subject, ref case_identity, ref field_identity, ref path,
                         } => {
@@ -445,18 +507,29 @@ impl StateGraphEmission<'_, '_> {
                         }
                     };
                 if target_parameter.access == checked_trees::CheckedStructuralAccess::MutableBorrow
-                    && let checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } = transfer.source
                 {
-                    if position != 0 || self.entry_reentered {
-                        return unsupported("Unit graph local loan requires an activation entry home");
-                    }
-                    let result = case_emission::result(state, binding_ordinal, operations)?;
-                    if result.multiplicity() == StructuralMultiplicity::Affine
-                        && let Some(previous) =
-                            self.loaned_local_homes.insert(binding_ordinal, place)
-                        && previous != place
-                    {
-                        return unsupported("Unit graph local loan changed its backing home");
+                    let loaned_binding = match transfer.source {
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::StructuralResult { binding_ordinal } => Some(binding_ordinal),
+                        checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan { ref subject, .. } => match subject.source {
+                            checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal } => Some(binding_ordinal),
+                            _ => None,
+                        },
+                        _ => None,
+                    };
+                    if let Some(binding_ordinal) = loaned_binding {
+                        if position != 0 || self.entry_reentered {
+                            return unsupported(
+                                "Unit graph local loan requires an activation entry home",
+                            );
+                        }
+                        let result = case_emission::result(state, binding_ordinal, operations)?;
+                        if result.multiplicity() == StructuralMultiplicity::Affine
+                            && let Some(previous) =
+                                self.loaned_local_homes.insert(binding_ordinal, place)
+                            && previous != place
+                        {
+                            return unsupported("Unit graph local loan changed its backing home");
+                        }
                     }
                 }
                 structural_arguments.push(StructuralArgument {

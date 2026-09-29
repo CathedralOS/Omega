@@ -1,0 +1,45 @@
+// PASS canary: a `&place` / `&mut place` successor argument loans the named
+// subtree into the successor's borrowed parameter instead of establishing a
+// fresh value. The loan transfer forwards the place the borrow names —
+// an established result local, a mutable local, or an owned parameter —
+// as the edge argument, keeping custody provenance the positional
+// parameter transfer could not express.
+//
+// `view: &Pair` receives `&r` (established result) and `&p` (owned
+// parameter); `view: &mut Pair` receives `&mut m` (mutable local).
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair [copy] { a: i32; }
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let r: Pair = Pair { a: 5 };
+    let mut m: Pair = Pair { a: 2 };
+
+    transition r.a > 0 {
+        true -> inspect(&r)
+        _ -> mutate(&mut m)
+    }
+
+    state inspect(&mut self, view: &Pair) {
+        transition { _ -> hold(Pair { a: view.a }) }
+    }
+
+    state mutate(&mut self, view: &mut Pair) {
+        view.a = 9;
+        self.console.exit_process(view.a);
+    }
+
+    state hold(&mut self, p: Pair) {
+        transition { _ -> inspect_param(&p) }
+    }
+
+    state inspect_param(&mut self, view: &Pair) {
+        self.console.exit_process(view.a);
+    }
+}

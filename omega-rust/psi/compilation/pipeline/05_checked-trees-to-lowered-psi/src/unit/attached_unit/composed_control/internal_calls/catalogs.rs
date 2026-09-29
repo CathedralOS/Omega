@@ -81,6 +81,34 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
                 _ => None,
             }),
     );
+    type_roots.extend(
+        states
+            .iter()
+            .flat_map(|state| state.successors())
+            .flat_map(|successor| &successor.transfers)
+            .filter_map(|transfer| match &transfer.source {
+                // A projected loan's carrier declares the `&'a V` view no
+                // parameter or operation names; it must reach the lowered
+                // table before the edge emits the EstablishReference op.
+                checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                    carrier_identity,
+                    ..
+                } if !carrier_identity.is_empty() => Some(carrier_identity.clone()),
+                _ => None,
+            }),
+    );
+    eprintln!(
+        "loan-debug type_roots={:?} successors={:?}",
+        type_roots,
+        states
+            .iter()
+            .flat_map(|state| state.successors())
+            .flat_map(|s| s
+                .transfers
+                .iter()
+                .map(|t| format!("{:?}", std::mem::discriminant(&t.source))))
+            .collect::<Vec<_>>()
+    );
     let unit_roots = targets
         .iter()
         .map(|(target, _)| target.entry().map(|entry| entry.machine))

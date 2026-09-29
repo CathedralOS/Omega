@@ -1013,6 +1013,7 @@ enum SuccessorGuard {
     ResultTransfer,
     CasePayloadTransfer,
     EstablishedArgument,
+    LoanTransfer,
     ParameterTransfer,
     ScalarArguments,
     ErasedArguments,
@@ -1051,6 +1052,7 @@ impl SuccessorEdge {
                     SuccessorGuard::EstablishedArgument => {
                         guard_phase!($edge, "established argument")
                     }
+                    SuccessorGuard::LoanTransfer => guard_phase!($edge, "loan transfer"),
                     SuccessorGuard::ParameterTransfer => guard_phase!($edge, "parameter transfer"),
                     SuccessorGuard::ScalarArguments => guard_phase!($edge, "scalar arguments"),
                     SuccessorGuard::ErasedArguments => guard_phase!($edge, "erased arguments"),
@@ -1082,6 +1084,64 @@ impl SuccessorEdge {
     }
 }
 
+/// The terminal verifier refuses a continuation argument bound to a
+/// place whose declared type carries a reference, so a loan can only name
+/// storage whose declared shape has no `Reference` anywhere inside it.
+fn declared_contains_reference(
+    shapes: &crate::execution::terminal_unit::types::ShapeCollector<'_>,
+    identity: &str,
+) -> bool {
+    let mut pending = vec![identity.to_owned()];
+    let mut visited = std::collections::BTreeSet::new();
+    while let Some(current) = pending.pop() {
+        if !visited.insert(current.clone()) {
+            continue;
+        }
+        let Some(plan) = shapes.types.get(&current) else {
+            return true;
+        };
+        let mut fields = |items: &[checked_trees::CheckedUnitStructuralFieldPlan]| {
+            for field in items {
+                if let checked_trees::CheckedUnitStructuralFieldType::Structural { type_identity } =
+                    &field.field_type
+                {
+                    pending.push(type_identity.clone());
+                }
+            }
+        };
+        match &plan.shape {
+            checked_trees::CheckedUnitStructuralTypeShape::Reference { .. } => return true,
+            checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+            | checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            checked_trees::CheckedUnitStructuralTypeShape::Record { fields: items } => {
+                fields(items);
+            }
+            checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                ..
+            }
+            | checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                element_type_identity,
+            } => pending.push(element_type_identity.clone()),
+            checked_trees::CheckedUnitStructuralTypeShape::Sum { cases } => {
+                for case in cases {
+                    fields(&case.fields);
+                }
+            }
+            checked_trees::CheckedUnitStructuralTypeShape::Mixed {
+                fields: items,
+                cases,
+            } => {
+                fields(items);
+                for case in cases {
+                    fields(&case.fields);
+                }
+            }
+        }
+    }
+    false
+}
+
 fn successor(
     program: &TypedTrees,
     facts: &CheckFacts,
@@ -1092,6 +1152,7 @@ fn successor(
     transition: &typed_trees::statement::TableTransition,
     ordinal: u32,
     edge: SuccessorEdge,
+    shapes: &mut ShapeCollector<'_>,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
     let successor = successor_bindings(
@@ -1105,6 +1166,7 @@ fn successor(
         ordinal,
         &[],
         edge,
+        shapes,
         trace,
     )?;
     trace.phase(edge.phase(SuccessorGuard::EdgeCleanup));
@@ -1156,6 +1218,7 @@ fn successor_bindings(
     ordinal: u32,
     payload_parameters: &[u32],
     edge: SuccessorEdge,
+    shapes: &mut ShapeCollector<'_>,
     trace: &control::LocalConstructionTrace,
 ) -> Option<CheckedStructuralControlSuccessorPlan> {
     let mark = |guard| {
@@ -1389,6 +1452,219 @@ fn successor_bindings(
                     },
                     target_parameter_index: u32::try_from(target_index).ok()?,
                 });
+            }
+            mark(SuccessorGuard::LoanTransfer);
+            // An authored `&place` / `&mut place` argument loans the named
+            // subtree into the borrowed target parameter: the successor
+            // argument keeps the source's rooted place and walks the
+            // projection path below it, so the loan names the same storage
+            // the borrow does rather than a fresh establishment. This arm
+            // must run before the positional parameter transfer: a borrowed
+            // argument that happens to share its target's type and access
+            // would otherwise forward whatever parameter occupies the
+            // matching position instead of the storage the borrow names.
+            if target.multiplicity == Multiplicity::Unrestricted
+                && let ExpressionNode::Borrow(borrow) =
+                    program.expression_table.expression(expression)
+            {
+                let expected_access = match borrow.access {
+                    language_core::ReferenceAccess::Shared => {
+                        CheckedStructuralAccess::SharedBorrow
+                    }
+                    language_core::ReferenceAccess::Mutable => {
+                        CheckedStructuralAccess::MutableBorrow
+                    }
+                    language_core::ReferenceAccess::WriteOnly => return None,
+                };
+                if target.access == expected_access
+                    && let Some(place) = crate::flow::canonical_place_from_expression_in_state(
+                        program,
+                        source.symbol,
+                        ordinal as usize,
+                        borrow.target,
+                    )
+                    && let facts::PlaceRoot::Symbol(root_symbol) = place.root
+                {
+                    // The root names either a source parameter — the authored
+                    // `self.field` spelling roots at `self`'s own symbol while
+                    // the implicit receiver roots at the machine — or the one
+                    // earlier result binding a local published.
+                    let parameter_subject = crate::semantic::calls::find_state(
+                        program,
+                        source.symbol,
+                    )
+                    .and_then(|typed_state| {
+                        program
+                            .state_parameters(typed_state)
+                            .iter()
+                            .enumerate()
+                            .find(|(_, parameter)| {
+                                super::types::parameter_root_symbol(machine.symbol, parameter)
+                                    == root_symbol
+                                    || parameter.symbol == root_symbol
+                            })
+                            .and_then(|(position, typed_parameter)| {
+                                source_structural
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, candidate)| {
+                                        candidate.position as usize == position
+                                    })
+                                    .map(|(index, structural)| {
+                                        (index, structural, typed_parameter)
+                                    })
+                            })
+                    });
+                    let result_subject = |local_index: usize| {
+                        let mut matches = operations.iter().filter_map(|operation| match operation {
+                            CheckedUnitEffectOperationPlan::StructuralCall { result, discard_result_on_return: false, .. }
+                            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, discard_result_on_return: false, .. }
+                            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { result, discard_result_on_return: false, .. }
+                            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { result, .. }
+                            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { result, .. } => Some(result),
+                            _ => None,
+                        }).filter(|result| result.statement_index == local_index as u32);
+                        let result = matches.next()?;
+                        if matches.next().is_some() {
+                            return None;
+                        }
+                        Some(result)
+                    };
+                    let local_subject = || {
+                        program
+                            .statement_table
+                            .statements(source.statement_nodes)
+                            .iter()
+                            .enumerate()
+                            .find_map(|(index, statement)| match statement {
+                                StatementNode::LocalData(local)
+                                    if local.symbol == root_symbol =>
+                                {
+                                    Some((local, result_subject(index)?))
+                                }
+                                _ => None,
+                            })
+                    };
+                    let mutable_loan_permitted = match expected_access {
+                        CheckedStructuralAccess::MutableBorrow => {
+                            |root_access| {
+                                matches!(
+                                    root_access,
+                                    CheckedStructuralAccess::Owned
+                                        | CheckedStructuralAccess::MutableBorrow
+                                )
+                            }
+                        }
+                        _ => |_| true,
+                    };
+                    if let Some((source_index, source_parameter, typed_parameter)) =
+                        parameter_subject
+                    {
+                        if mutable_loan_permitted(source_parameter.access)
+                            && source_parameter.access != CheckedStructuralAccess::WriteOnlyBorrow
+                            && let Some((projected_type, path)) =
+                                calls::projected_borrowed_path(
+                                    program,
+                                    machine.symbol,
+                                    source.symbol,
+                                    ordinal as usize,
+                                    &place,
+                                )
+                            // A continuation edge refuses an argument bound
+                            // to a reference-bearing place, and a path below
+                            // the root names projected reference custody the
+                            // verifier does not yet admit — both live in the
+                            // sibling-owned terminal verifier, so a loan that
+                            // would need them declines at this arm instead of
+                            // emitting an invalid edge.
+                            && path.is_empty()
+                            && program
+                                .normalized_type_identity(projected_type)
+                                .into_string()
+                                == target.type_identity
+                            && {
+                                let declared = match source_parameter.access {
+                                    CheckedStructuralAccess::SharedBorrow
+                                    | CheckedStructuralAccess::MutableBorrow => shapes
+                                        .add_reference_type(typed_parameter.type_reference, &[]),
+                                    _ => Some(source_parameter.type_identity.clone()),
+                                };
+                                declared.is_some_and(|identity| {
+                                    !declared_contains_reference(shapes, &identity)
+                                })
+                            }
+                        {
+                            return Some(CheckedStructuralControlTransferPlan {
+                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                                    subject: CheckedUnitStructuralArgumentPlan {
+                                        source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                                            parameter_index: u32::try_from(source_index).ok()?,
+                                        },
+                                        path,
+                                        type_identity: target.type_identity.clone(),
+                                        access: expected_access,
+                                    },
+                                    carrier_identity: String::new(),
+                                },
+                                target_parameter_index: u32::try_from(target_index).ok()?,
+                            });
+                        }
+                    } else if let Some((local, result)) = local_subject() {
+                        let mutable_local_loan = expected_access
+                            != CheckedStructuralAccess::MutableBorrow
+                            || (local.is_mutable
+                                && matches!(
+                                    result.multiplicity,
+                                    Multiplicity::Affine | Multiplicity::Unrestricted
+                                )
+                                && validation::has_plain_owned_contents_with_numeric_constraints(
+                                    program,
+                                    local.type_reference,
+                                )
+                                && !super::types::type_graph_requires_nominal_drop(
+                                    program,
+                                    local.type_reference,
+                                ));
+                        if mutable_local_loan
+                            && let Some((projected_type, path)) =
+                                calls::projected_borrowed_path(
+                                    program,
+                                    machine.symbol,
+                                    source.symbol,
+                                    ordinal as usize,
+                                    &place,
+                                )
+                            && path.iter().all(|segment| {
+                                matches!(
+                                    segment,
+                                    CheckedUnitStructuralPathSegment::Field(_)
+                                        | CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                )
+                            })
+                            && path.is_empty()
+                            && program
+                                .normalized_type_identity(projected_type)
+                                .into_string()
+                                == target.type_identity
+                            && !declared_contains_reference(shapes, &result.type_identity)
+                        {
+                            return Some(CheckedStructuralControlTransferPlan {
+                                source: checked_trees::CheckedStructuralControlTransferSourcePlan::ProjectedLoan {
+                                    subject: CheckedUnitStructuralArgumentPlan {
+                                        source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                                            binding_ordinal: result.binding_ordinal,
+                                        },
+                                        path,
+                                        type_identity: target.type_identity.clone(),
+                                        access: expected_access,
+                                    },
+                                    carrier_identity: String::new(),
+                                },
+                                target_parameter_index: u32::try_from(target_index).ok()?,
+                            });
+                        }
+                    }
+                }
             }
             mark(SuccessorGuard::ParameterTransfer);
             let source_position = source_position(target.position)?;

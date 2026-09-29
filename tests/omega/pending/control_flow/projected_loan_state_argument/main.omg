@@ -1,0 +1,26 @@
+// PENDING canary: `&self.<field>` names projected reference custody — the
+// loan's root place is the `&mut self` receiver, whose declared `&'a mut`
+// type is reference-bearing. The loan-transfer arm declines projected
+// roots today: continuation edges refuse reference-bearing argument
+// places, and EstablishReference source paths below the root are the
+// terminal verifier's projected-custody frontier. The arm emits the
+// EstablishReference carrier the moment that verifier admits it.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Pair [copy] { a: i32; }
+
+data Main {
+    pair: Pair;
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.pair = Pair { a: 11 };
+    transition { _ -> inspect(&self.pair) }
+
+    state inspect(&mut self, view: &Pair) {
+        self.console.exit_process(view.a);
+    }
+}
