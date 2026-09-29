@@ -14,7 +14,6 @@ use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::machine::Machine;
 use checked_trees::signature::StateParameter;
 use checked_trees::state::State;
-use checked_trees::statement::StatementNode;
 use checked_trees::types::TypeReferenceNode;
 use checked_trees::{
     BorrowCallFact, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralArgumentPlan,
@@ -107,26 +106,14 @@ pub(super) fn validate(
             {
                 return unsupported("record operand substituted its local owner");
             }
-            let mut locals = checked
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-                .filter_map(|(ordinal, statement)| match statement {
-                    StatementNode::LocalData(local) if local.symbol == symbol => {
-                        Some((ordinal, local))
-                    }
-                    _ => None,
-                });
-            let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
+            let local = super::preceding_local(
+                checked,
+                state,
+                symbol,
+                statement as usize,
                 "record operand lost its local declaration",
-            ))?;
-            if locals.next().is_some()
-                || ordinal >= statement as usize
-                || !table.expression_is_valid(local.initial_value)
-            {
-                return unsupported("record operand has no exact prior establishment");
-            }
+                "record operand has no exact prior establishment",
+            )?;
             // The loan rejoins the current original backing, not an immutable
             // snapshot of the initializer's scalar fields. An established
             // shared-borrow local carries that loan itself, so the carrier the
@@ -156,24 +143,18 @@ pub(super) fn validate(
             }
         }
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let source = parameters
-                .iter()
-                .filter(|parameter| {
-                    // An `[erased]` binding occupies no position in this namespace.
-                    !parameter.relevance.is_erased()
-                        && checked
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .nth(parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "record operand lost its structural parameter",
-                ))?;
-            if source.is_const || source.symbol != root
-                || parameters.iter().filter(|parameter| parameter.symbol == root).count() != 1
-                || checked.statement_table.statements(state.statement_nodes).iter().any(|statement|
-                    matches!(statement, StatementNode::LocalData(local) if local.symbol == root))
-            { return unsupported("record operand substituted its source parameter"); }
+            let source = super::structural_parameter_at(
+                checked,
+                parameters,
+                parameter_index,
+                "record operand lost its structural parameter",
+            )?;
+            if source.is_const
+                || source.symbol != root
+                || !super::parameter_binding_is_unique(checked, state, root)
+            {
+                return unsupported("record operand substituted its source parameter");
+            }
             let reference = match checked
                 .type_reference_table
                 .type_reference(source.type_reference)

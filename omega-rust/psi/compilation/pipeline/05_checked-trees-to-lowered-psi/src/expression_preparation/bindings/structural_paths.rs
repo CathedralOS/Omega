@@ -1,9 +1,21 @@
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::lowering_error::LoweringError;
-use checked_trees::CheckedUnitStructuralPathSegment;
+use checked_trees::{CheckedStructuralAccess, CheckedUnitStructuralPathSegment};
 use semantic_vocabulary::{ScalarType, ValueId};
-use terminal_psi::StructuralPathSegment;
 use terminal_psi::ValueDeclaration;
+use terminal_psi::{StructuralAccess, StructuralPathSegment};
+
+/// The Terminal access a checked structural access lowers to: the two
+/// vocabularies correspond one to one. A lane that admits only some
+/// accesses matches the checked access itself.
+pub(crate) fn terminal_access(access: CheckedStructuralAccess) -> StructuralAccess {
+    match access {
+        CheckedStructuralAccess::Owned => StructuralAccess::Owned,
+        CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+        CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+        CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
+    }
+}
 
 /// Lower a checked static projection. A `RuntimeIndex` has no context-free
 /// lowering: its Terminal segment names the evaluated index value and an

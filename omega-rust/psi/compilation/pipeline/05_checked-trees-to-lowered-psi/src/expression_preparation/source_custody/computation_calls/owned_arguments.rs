@@ -2,7 +2,6 @@
 
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use checked_trees::state::State;
-use checked_trees::statement::StatementNode;
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use checked_trees::{
     BorrowCallFact, CheckedStructuralAccess, CheckedTrees, CheckedUnitStructuralArgumentPlan,
@@ -43,19 +42,12 @@ pub(super) fn validate(
         return unsupported("computed owned argument requires an authored parameter name");
     };
     let parameters = checked.state_parameters(state);
-    let source = parameters
-        .iter()
-        .filter(|parameter| {
-            // An `[erased]` binding occupies no position in this namespace.
-            !parameter.relevance.is_erased()
-                && checked
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_none()
-        })
-        .nth(parameter_index as usize)
-        .ok_or(LoweringError::Unsupported(
-            "computed owned argument has no source parameter",
-        ))?;
+    let source = super::structural_parameter_at(
+        checked,
+        parameters,
+        parameter_index,
+        "computed owned argument has no source parameter",
+    )?;
     if !checked.expression_table.expression_is_valid(expression)
         || !name.symbol.is_valid()
         || name.symbol != name.head_symbol
@@ -174,22 +166,15 @@ fn validate_copy_local(
     {
         return unsupported("computed owned copy local substituted its source or access");
     }
-    let mut locals = checked
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .enumerate()
-        .filter_map(|(ordinal, statement)| match statement {
-            StatementNode::LocalData(local) if local.symbol == symbol => Some((ordinal, local)),
-            _ => None,
-        });
-    let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
+    let local = super::preceding_local(
+        checked,
+        state,
+        symbol,
+        call.statement_index,
         "computed owned copy argument has no authored local",
-    ))?;
-    if locals.next().is_some()
-        || ordinal >= call.statement_index
-        || local.is_mutable
-        || !table.expression_is_valid(local.initial_value)
+        "computed owned copy local changed its declaration, order, or type",
+    )?;
+    if local.is_mutable
         || [local.type_reference, target_type].iter().any(|reference| {
             !checked
                 .type_reference_table

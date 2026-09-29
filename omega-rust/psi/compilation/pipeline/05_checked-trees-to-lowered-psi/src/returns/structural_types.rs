@@ -8,6 +8,8 @@ use super::{
     TerminalModule, allocate_dense, dense_identity, lookup_type_id, structural_field_id,
     structural_type_id, terminal_scalar_type, unsupported,
 };
+use crate::expression_preparation::bindings::structural_paths::terminal_access;
+
 fn reference_access(
     access: checked_trees::CheckedStructuralAccess,
 ) -> Result<StructuralAccess, LoweringError> {
@@ -38,38 +40,12 @@ pub(crate) fn terminal_byte_sequence_carrier(
         // left the verifier unable to check a byte store's authority.
         checked_trees::CheckedByteSequenceCarrier::BorrowedView { access } => {
             ByteSequenceCarrier::BorrowedView {
-                access: access.map(|access| match access {
-                    checked_trees::CheckedStructuralAccess::Owned => {
-                        terminal_psi::StructuralAccess::Owned
-                    }
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                        terminal_psi::StructuralAccess::SharedBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                        terminal_psi::StructuralAccess::MutableBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-                        terminal_psi::StructuralAccess::WriteOnlyBorrow
-                    }
-                }),
+                access: access.map(terminal_access),
             }
         }
         checked_trees::CheckedByteSequenceCarrier::BoundedView { access, capacity } => {
             ByteSequenceCarrier::BoundedView {
-                access: access.map(|access| match access {
-                    checked_trees::CheckedStructuralAccess::Owned => {
-                        terminal_psi::StructuralAccess::Owned
-                    }
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                        terminal_psi::StructuralAccess::SharedBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                        terminal_psi::StructuralAccess::MutableBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-                        terminal_psi::StructuralAccess::WriteOnlyBorrow
-                    }
-                }),
+                access: access.map(terminal_access),
                 capacity,
             }
         }

@@ -54,24 +54,16 @@ pub(crate) fn validate(
     let parameters = checked.state_parameters(state);
     let source_referent = match argument.source {
         CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-            let source = parameters
-                .iter()
-                .filter(|parameter| {
-                    // An `[erased]` binding occupies no position in this namespace.
-                    !parameter.relevance.is_erased()
-                        && checked
-                            .primitive_type_reference(parameter.type_reference)
-                            .is_none()
-                })
-                .nth(parameter_index as usize)
-                .ok_or(LoweringError::Unsupported(
-                    "computed primitive argument has no source structural parameter",
-                ))?;
-            if source.is_self || source.is_const || source.symbol != name.symbol
-                || parameters.iter().filter(|parameter| parameter.symbol == name.symbol).count() != 1
-                || checked.statement_table.statements(state.statement_nodes).iter().any(|statement| {
-                    matches!(statement, StatementNode::LocalData(local) if local.symbol == name.symbol)
-                })
+            let source = super::structural_parameter_at(
+                checked,
+                parameters,
+                parameter_index,
+                "computed primitive argument has no source structural parameter",
+            )?;
+            if source.is_self
+                || source.is_const
+                || source.symbol != name.symbol
+                || !super::parameter_binding_is_unique(checked, state, name.symbol)
             {
                 return unsupported("computed primitive argument substituted its source parameter");
             }
@@ -107,25 +99,15 @@ pub(crate) fn validate(
             {
                 return unsupported("computed primitive argument substituted its local borrow");
             }
-            let mut locals = checked
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-                .filter_map(|(ordinal, statement)| match statement {
-                    StatementNode::LocalData(local) if local.symbol == symbol => {
-                        Some((ordinal, local))
-                    }
-                    _ => None,
-                });
-            let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
+            let local = super::preceding_local(
+                checked,
+                state,
+                symbol,
+                statement as usize,
                 "computed primitive argument has no authored local",
-            ))?;
-            if locals.next().is_some()
-                || ordinal >= statement as usize
-                || !local.is_mutable
-                || !table.expression_is_valid(local.initial_value)
-            {
+                "computed primitive argument has no preceding initialized mutable local",
+            )?;
+            if !local.is_mutable {
                 return unsupported(
                     "computed primitive argument has no preceding initialized mutable local",
                 );
@@ -145,28 +127,14 @@ pub(crate) fn validate(
             {
                 return unsupported("computed primitive argument substituted its local carrier");
             }
-            let mut locals = checked
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .enumerate()
-                .filter_map(|(ordinal, statement)| match statement {
-                    StatementNode::LocalData(local) if local.symbol == symbol => {
-                        Some((ordinal, local))
-                    }
-                    _ => None,
-                });
-            let (ordinal, local) = locals.next().ok_or(LoweringError::Unsupported(
+            let local = super::preceding_local(
+                checked,
+                state,
+                symbol,
+                statement as usize,
                 "computed primitive argument has no authored local carrier",
-            ))?;
-            if locals.next().is_some()
-                || ordinal >= statement as usize
-                || !table.expression_is_valid(local.initial_value)
-            {
-                return unsupported(
-                    "computed primitive argument has no preceding established carrier",
-                );
-            }
+                "computed primitive argument has no preceding established carrier",
+            )?;
             let (referent, declared_access) = primitive_reference(checked, local.type_reference)?;
             // The declared carrier's access bounds the forwarded loan exactly
             // as it does for a source parameter; the target cannot widen it.

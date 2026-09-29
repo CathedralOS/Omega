@@ -21,7 +21,7 @@ use crate::emission::operation_emission::expressions::{
 };
 use crate::expression_preparation::bindings::StructuralScalarFieldBinding;
 use crate::expression_preparation::bindings::structural_paths::{
-    lower_argument_path, lower_structural_path,
+    lower_argument_path, lower_structural_path, terminal_access,
 };
 use semantic_vocabulary::ValueId;
 mod service_forward;
@@ -372,18 +372,7 @@ pub(crate) fn lower_unit_parameters(
                     Multiplicity::Affine => StructuralMultiplicity::Affine,
                     Multiplicity::Linear => StructuralMultiplicity::Linear,
                 },
-                access: match parameter.access {
-                    checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                        StructuralAccess::SharedBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                        StructuralAccess::MutableBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-                        StructuralAccess::WriteOnlyBorrow
-                    }
-                },
+                access: terminal_access(parameter.access),
                 qualifications,
                 projected_qualifications: lower_projected_qualifications(
                     &parameter.projected_qualifications,
@@ -1276,6 +1265,7 @@ pub(crate) fn lower_structural_arguments(
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::PrimitiveLocal { symbol } = argument.source {
                 let local = super::primitive_locals::find(primitive_locals, symbol)?;
                 if !argument.path.is_empty() { return unsupported("primitive local borrow has a projection"); }
+                // Not `terminal_access`: a primitive local lends no owned custody.
                 let access = match argument.access {
                     checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
                     checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
@@ -1296,20 +1286,7 @@ pub(crate) fn lower_structural_arguments(
                 return Ok(StructuralArgument {
                     place,
                     path: Vec::new(),
-                    access: match argument.access {
-                        checked_trees::CheckedStructuralAccess::Owned => {
-                            StructuralAccess::Owned
-                        }
-                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                            StructuralAccess::SharedBorrow
-                        }
-                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                            StructuralAccess::MutableBorrow
-                        }
-                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-                            StructuralAccess::WriteOnlyBorrow
-                        }
-                    },
+                    access: terminal_access(argument.access),
                 });
             }
             if let Some(declaration_ordinal) = argument.source_local_declaration_ordinal() {
@@ -1341,12 +1318,7 @@ pub(crate) fn lower_structural_arguments(
                 return Ok(StructuralArgument {
                     place: source.id,
                     path: lower_argument_path(&argument.path, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
-                    access: match argument.access {
-                        checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
-                        checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
-                        checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => StructuralAccess::WriteOnlyBorrow,
-                    },
+                    access: terminal_access(argument.access),
                 });
             }
             let source_parameter_index =
@@ -1365,18 +1337,7 @@ pub(crate) fn lower_structural_arguments(
             Ok(StructuralArgument {
                 place: parameter.place,
                 path: lower_argument_path(&argument.path, caller_scalar_values, &mut *selector_values, calls.as_deref_mut())?,
-                access: match argument.access {
-                    checked_trees::CheckedStructuralAccess::Owned => StructuralAccess::Owned,
-                    checked_trees::CheckedStructuralAccess::SharedBorrow => {
-                        StructuralAccess::SharedBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::MutableBorrow => {
-                        StructuralAccess::MutableBorrow
-                    }
-                    checked_trees::CheckedStructuralAccess::WriteOnlyBorrow => {
-                        StructuralAccess::WriteOnlyBorrow
-                    }
-                },
+                access: terminal_access(argument.access),
             })
         })
         .collect::<Result<Vec<_>, _>>()
