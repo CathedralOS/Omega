@@ -24,7 +24,7 @@ compiler numeric primitive.
 
 ## Evaluation Schedule
 
-Calls evaluate their receiver first, then arguments left to right. Strict
+Static calls evaluate their explicit arguments left to right. Strict
 binary operators evaluate left before right. Each evaluated child runs once.
 `&&` evaluates its right side only after a true left side; `||` does so only
 after a false left side. A transition evaluates its subject once and runs only
@@ -50,7 +50,7 @@ also covers indexing, ranges, short-circuit facts and legal reordering.
 Assignment writes into a place:
 
 ```omega
-self.health = self.health - damage;
+player.health = player.health - damage;
 ```
 
 The place must be writable and the value compatible with its type. The
@@ -61,9 +61,12 @@ the old contents automatically.
 ## Calls
 
 ```omega
-let command: Command = self.parser.resolve(&self.line);
-self.view.render_room(&self.room);
+let command: Command = Parser::resolve(&parser, &line);
+View::render_room(&mut view, &room);
 ```
+
+The qualified name selects the machine; context is an ordinary argument.
+Dot syntax projects a data field, not an implicit machine receiver.
 
 Calls whose known envelope permits suspension or worker blocking require exact
 acknowledgements:
@@ -88,9 +91,9 @@ before combining it:
 
 ```omega
 // Rejected: a partial expression would become hidden continuation state.
-let total: u64 = prefix + suspend source.next();
+let total: u64 = prefix + suspend Source::next(&mut source);
 
-let next: u64 = suspend source.next();
+let next: u64 = suspend Source::next(&mut source);
 let total: u64 = prefix + next;
 ```
 
@@ -115,22 +118,18 @@ The token is shorthand, not a second semantic system. Multiplication, division
 and remainder bind more tightly than addition and subtraction; each of these
 binary tiers associates left. Parentheses change grouping, not evaluation order.
 
-Token-bearing machines can have attached receivers or explicit operands. These
-are alternative declarations, not competing bindings to publish together:
+Token-bearing machines also use explicit parameters. Borrowing belongs to the
+operand's declared access mode:
 
 ```omega
-machine + Vec2::add(self, right: Vec2) -> Vec2 {
-    add_vectors(self, right)
-}
-
-machine == Vec2::equals(&self, other: &Vec2) -> bool {
-    equal_vectors(self, other)
+machine == Vec2::equals(left: &Vec2, right: &Vec2) -> bool {
+    equal_vectors(left, right)
 }
 ```
 
-The receiver occupies operand position zero with its ordinary ownership meaning.
 An operator grants no special permission to mutate. A path-qualified call such
-as `Token::ordered(left, right)` uses a static namespace, not a value receiver.
+as `Vec2::equals(&left, &right)` supplies both operands explicitly; qualification
+identifies the semantic owner without adding a receiver.
 
 A trait can publish an operator requirement:
 
@@ -189,7 +188,7 @@ existing byte carrier rather than introducing a separate text owner hierarchy:
 
 ```omega
 let fixed: [Item; 4];
-let view: &[Item] = fixed.as_slice();
+let view: &[Item] = Array::as_slice(&fixed);
 let text: [u8; 5] in Utf8 = "hello";
 let text_view: &[u8] in Utf8 = text;
 ```
@@ -207,17 +206,17 @@ encoding, and unique-borrow obligations.
 
 ## Indexing And Slices
 
-Indexing an attached machine borrows its receiver just like a method call:
+Indexing supplies the collection to a static machine's first parameter:
 
 ```omega
 data Buffer {
     bytes: [u8; 4];
 }
 
-machine [] Buffer::at(&self, index: u64) -> u8
+machine [] Buffer::at(buffer: &Buffer, index: u64) -> u8
 requires index < 4
 {
-    self.bytes[index]
+    buffer.bytes[index]
 }
 
 machine first(buffer: &Buffer) -> u8 {
@@ -225,13 +224,14 @@ machine first(buffer: &Buffer) -> u8 {
 }
 ```
 
-`buffer[0]` supplies the same shared receiver as `buffer.at(0)`; no
-`(&buffer)[0]` spelling is required. An operation needing `&mut self` requires
-exclusive access and forms the corresponding receiver loan. Conflicting loans
-still reject. The index itself follows its parameter's ordinary ownership rules.
+`buffer[0]` supplies the shared collection loan required by `Buffer::at`;
+no `(&buffer)[0]` spelling is required. A mutable collection parameter requires
+exclusive access and forms the corresponding loan. Conflicting loans still
+reject. The index itself follows its parameter's ordinary ownership rules.
 
-This is receiver borrowing, not automatic borrowing of every operator operand.
-A first ordinary parameter is not a receiver just because it comes first.
+This is token-specific collection adaptation for `[]` and `[..]`, not receiver
+syntax or automatic borrowing of every operator operand. The named call remains
+`Buffer::at(&buffer, 0)`; a mutable named call requires an explicit `&mut` argument.
 Index machines may return computed values, as above, or borrowed views; a
 value-returning getter does not by itself provide an assignable indexed place.
 
@@ -571,7 +571,7 @@ separates current provider support, image replay and native execution evidence.
 ## Temporaries
 
 ```omega
-self.view.render_line(RoomFormatter::title(&room));
+View::render_line(&mut view, RoomFormatter::title(&room));
 ```
 
 Temporary storage must outlive its derived borrows and receive ordinary
@@ -585,20 +585,21 @@ A block groups straight-line work and introduces local scope and cleanup edges:
 
 ```omega
 {
-    let room: Room;
-    self.lookup.find_room(self.level, self.current_cell, &mut room);
-    self.view.render_room(&room);
+    let mut room: Room;
+    Lookup::find_room(&lookup, level, current_cell, &mut room);
+    View::render_room(&mut view, &room);
 }
 ```
 
-It does not create a state or machine.
+It does not create a state or machine. `room` belongs to this block's work;
+it need not become a field of the lookup, view, or surrounding context.
 
 ## Terminal Expressions
 
 A terminal value completes the current invocation:
 
 ```omega
-state shutdown(&mut self) {
+machine shutdown() -> i32 {
     0
 }
 ```

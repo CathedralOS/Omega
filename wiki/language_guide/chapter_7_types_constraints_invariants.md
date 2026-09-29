@@ -29,15 +29,15 @@ data Body {
     mass: i32;
 }
 
-machine Body::set_mass(&mut self, mass: i32)
+machine Body::set_mass(body: &mut Body, mass: i32)
     requires mass in 1..=100
-    ensures self.mass in 1..=100
+    ensures body.mass in 1..=100
 {
-    self.mass = mass;
+    body.mass = mass;
 }
 ```
 
-The caller supplies the range fact. The assignment transports it to `self.mass`,
+The caller supplies the range fact. The assignment transports it to `body.mass`,
 which proves the postcondition. A missing proof normally produces a diagnostic;
 an author does not get a runtime check merely by writing `requires`.
 [State contracts](../spec/language/state_contracts.md) owns fact transport and
@@ -56,24 +56,24 @@ where
     health: i32;
 }
 
-machine Player::take_damage(&mut self, amount: i32)
+machine Player::take_damage(player: &mut Player, amount: i32)
     requires amount in 0..=100
-    ensures self.health in 0..=100
+    ensures player.health in 0..=100
 {
-    let next: i32 = self.health - amount;
+    let next: i32 = player.health - amount;
     transition next < 0 {
-        true -> floored()
-        false -> settle(next)
+        true -> floored(&mut player)
+        false -> settle(&mut player, next)
     }
 
-    state floored(&mut self) {
-        self.health = 0;
+    state floored(player: &mut Player) {
+        player.health = 0;
     }
 
-    state settle(&mut self, next: i32)
+    state settle(player: &mut Player, next: i32)
     requires next in 0..=100
     {
-        self.health = next;
+        player.health = next;
     }
 }
 ```
@@ -81,6 +81,8 @@ machine Player::take_damage(&mut self, amount: i32)
 Both operands lie in `0..=100`, so subtraction fits `i32`. The false arm adds
 `next >= 0`; the existing upper bound gives `next <= 100`. Each state can
 therefore establish the field's range and the machine's postcondition.
+`next` is invocation-local scratch, passed only to the state that needs it;
+it is not a persistent `Player` field. Both transitions pass `player` explicitly.
 
 Facts describe exact values or storage at particular program points. A copied
 scalar keeps its captured value even if the source changes later. A reference
