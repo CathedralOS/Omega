@@ -28,176 +28,158 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
     fs: Filesystem;
-    open_result: OpenResult;
-    io_result: IoResult;
-    unit_result: UnitResult;
-    meta_result: MetadataResult;
     time: Time;
-    modified: SystemTime;
-    now_keep: SystemTime;
-    diff: SystemTimeDifference;
-    file_fd: i32;
-    close_rc: i32;
-    present: bool;
-    // Step tally 0..=14 (`in Wrapping` discharges the exact-arith obligation on
-    // `+ 1`; the value never nears the i32 range).
-    passed: i32 in Wrapping;
-    back: [u8; 64];
-    scratch: [u8; 64];
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(context: &mut Main) reaches Console {
+    let passed: i32 in Wrapping = 0;
     // 1. The vault lives in a DEEP directory (create_dir_all's dispatched
     // mkall walkers).
-    self.unit_result = self.fs.create_dir_all("omega_vault/notes/current");
-    transition self.unit_result { UnitResult::Ok -> vault_file() _ -> done() }
+    let unit_result: UnitResult = context.fs.create_dir_all("omega_vault/notes/current");
+    transition unit_result { UnitResult::Ok -> vault_file(context, passed) _ -> done(context, passed) }
 
-    state vault_file(&mut self) {
-        self.passed = self.passed + 1;
+    state vault_file(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 2. Exclusive create: the vault file must not already exist.
-        self.open_result = self.fs.create_new("omega_vault/notes/current/vault.txt");
-        transition self.open_result { OpenResult::Ok { file } -> header(file) _ -> done() }
+        let open_result: OpenResult = context.fs.create_new("omega_vault/notes/current/vault.txt");
+        transition open_result { OpenResult::Ok { file } -> header(context, next_passed, file) _ -> done(context, next_passed) }
     }
 
-    state header(&mut self, file: File) {
-        self.passed = self.passed + 1;
-        self.file_fd = file.fd;
+    state header(context: &mut Main, passed: i32 in Wrapping, file: File) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 2. Header line.
-        self.io_result = self.fs.write(File { fd: self.file_fd }, "vault v1\n");
-        self.close_rc = self.fs.close(File { fd: self.file_fd });
-        transition self.io_result { IoResult::Ok { count } -> note1() _ -> done() }
+        let io_result: IoResult = context.fs.write(file, "vault v1\n");
+        let close_rc: i32 = context.fs.close(file);
+        transition io_result { IoResult::Ok { count } -> note1(context, next_passed) _ -> done(context, next_passed) }
     }
 
-    state note1(&mut self) {
-        self.passed = self.passed + 1;
+    state note1(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 3. First note appends at EOF.
-        self.open_result = self.fs.append("omega_vault/notes/current/vault.txt");
-        transition self.open_result { OpenResult::Ok { file } -> note1_write(file) _ -> done() }
+        let open_result: OpenResult = context.fs.append("omega_vault/notes/current/vault.txt");
+        transition open_result { OpenResult::Ok { file } -> note1_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
-    state note1_write(&mut self, file: File) {
-        self.file_fd = file.fd;
-        self.io_result = self.fs.write(File { fd: self.file_fd }, "note: alpha\n");
-        self.close_rc = self.fs.close(File { fd: self.file_fd });
-        transition self.io_result { IoResult::Ok { count } -> note2() _ -> done() }
+    state note1_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
+        let io_result: IoResult = context.fs.write(file, "note: alpha\n");
+        let close_rc: i32 = context.fs.close(file);
+        transition io_result { IoResult::Ok { count } -> note2(context, passed) _ -> done(context, passed) }
     }
 
-    state note2(&mut self) {
-        self.passed = self.passed + 1;
+    state note2(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 4. Second note.
-        self.open_result = self.fs.append("omega_vault/notes/current/vault.txt");
-        transition self.open_result { OpenResult::Ok { file } -> note2_write(file) _ -> done() }
+        let open_result: OpenResult = context.fs.append("omega_vault/notes/current/vault.txt");
+        transition open_result { OpenResult::Ok { file } -> note2_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
-    state note2_write(&mut self, file: File) {
-        self.file_fd = file.fd;
-        self.io_result = self.fs.write(File { fd: self.file_fd }, "note: beta\n");
-        self.close_rc = self.fs.close(File { fd: self.file_fd });
-        transition self.io_result { IoResult::Ok { count } -> audit() _ -> done() }
+    state note2_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
+        let io_result: IoResult = context.fs.write(file, "note: beta\n");
+        let close_rc: i32 = context.fs.close(file);
+        transition io_result { IoResult::Ok { count } -> audit(context, passed) _ -> done(context, passed) }
     }
 
-    state audit(&mut self) {
-        self.passed = self.passed + 1;
+    state audit(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 5. The vault's length is the three lines: 9 + 12 + 11 = 32.
-        self.meta_result = self.fs.metadata_path("omega_vault/notes/current/vault.txt");
-        transition self.meta_result { MetadataResult::Ok { meta } -> audit_len(meta) _ -> done() }
+        let meta_result: MetadataResult = context.fs.metadata_path("omega_vault/notes/current/vault.txt");
+        transition meta_result { MetadataResult::Ok { meta } -> audit_len(context, next_passed, meta) _ -> done(context, next_passed) }
     }
-    state audit_len(&mut self, meta: Metadata) {
-        transition meta.len == 32 { true -> audit_time(meta) _ -> done() }
+    state audit_len(context: &mut Main, passed: i32 in Wrapping, meta: Metadata) {
+        transition meta.len == 32 { true -> audit_time(context, passed, meta) _ -> done(context, passed) }
     }
 
-    state audit_time(&mut self, meta: Metadata) {
-        self.passed = self.passed + 1;
+    state audit_time(context: &mut Main, passed: i32 in Wrapping, meta: Metadata) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 8. The vault's modified time BRIDGES into std::time: a just-written
         // file is never in the future, so duration_since(now) must be Ok.
-        self.modified = SystemTime::from_unix_seconds(meta.modified_secs);
-        self.now_keep = self.time.system_time_now();
-        // Direct call on the non-first SystemTime field (per-instance
-        // receivers, 2026-07-10t).
-        self.diff = self.now_keep.duration_since(self.modified);
-        transition self.diff {
-            SystemTimeDifference::Ok { duration } -> audit_time_gap(duration)
-            _ -> done()
+        let modified: SystemTime = SystemTime::from_unix_seconds(meta.modified_secs);
+        let now_keep: SystemTime = Time::system_time_now(&mut context.time);
+        let diff: SystemTimeDifference = SystemTime::duration_since(&now_keep, modified);
+        transition diff {
+            SystemTimeDifference::Ok { duration } -> audit_time_gap(context, next_passed, duration)
+            _ -> done(context, next_passed)
         }
     }
-    state audit_time_gap(&mut self, duration: Duration) {
-        self.passed = self.passed + 1;
+    state audit_time_gap(context: &mut Main, passed: i32 in Wrapping, duration: Duration) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 9. The gap is sane on BOTH engines: native ~0s (just written);
         // interp ~767M s (virtual 2001 mtime vs virtual 2026 clock). A
         // garbage decode blows the 10^9 bound.
-        transition duration.seconds < 1000000000 { true -> readback() _ -> done() }
+        transition duration.seconds < 1000000000 { true -> readback(context, next_passed) _ -> done(context, next_passed) }
     }
 
-    state readback(&mut self) {
-        self.passed = self.passed + 1;
+    state readback(context: &mut Main, passed: i32 in Wrapping) {
+        let mut back: [u8; 64];
+        let next_passed: i32 in Wrapping = passed + 1;
         // 8. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
-        self.io_result = self.fs.read_all("omega_vault/notes/current/vault.txt", &mut self.back, 64);
-        transition self.io_result { IoResult::Ok { count } -> readback_ck(count) _ -> done() }
+        let io_result: IoResult = context.fs.read_all("omega_vault/notes/current/vault.txt", &mut back, 64);
+        transition io_result { IoResult::Ok { count } -> readback_ck(context, next_passed, count, back[0]) _ -> done(context, next_passed) }
     }
-    state readback_ck(&mut self, count: u64) {
-        transition count == 32 { true -> readback_head() _ -> done() }
+    state readback_ck(context: &mut Main, passed: i32 in Wrapping, count: u64, head: u8) {
+        transition count == 32 { true -> readback_head(context, passed, head) _ -> done(context, passed) }
     }
-    state readback_head(&mut self) {
-        transition self.back[0] == 118 { true -> compact() _ -> done() }
+    state readback_head(context: &mut Main, passed: i32 in Wrapping, head: u8) {
+        transition head == 118 { true -> compact(context, passed) _ -> done(context, passed) }
     }
 
-    state compact(&mut self) {
-        self.passed = self.passed + 1;
+    state compact(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 9. Compact: truncate-rewrite keeps only the header (open_with's
         // composed write+truncate word).
         let opts: OpenOptions = OpenOptions { write: true, truncate: true };
-        self.open_result = self.fs.open_with("omega_vault/notes/current/vault.txt", opts);
-        transition self.open_result { OpenResult::Ok { file } -> compact_write(file) _ -> done() }
+        let open_result: OpenResult = context.fs.open_with("omega_vault/notes/current/vault.txt", opts);
+        transition open_result { OpenResult::Ok { file } -> compact_write(context, next_passed, file) _ -> done(context, next_passed) }
     }
-    state compact_write(&mut self, file: File) {
-        self.file_fd = file.fd;
-        self.io_result = self.fs.write(File { fd: self.file_fd }, "vault v1\n");
-        self.close_rc = self.fs.close(File { fd: self.file_fd });
-        self.meta_result = self.fs.metadata_path("omega_vault/notes/current/vault.txt");
-        transition self.meta_result { MetadataResult::Ok { meta } -> compact_ck(meta) _ -> done() }
+    state compact_write(context: &mut Main, passed: i32 in Wrapping, file: File) {
+        let io_result: IoResult = context.fs.write(file, "vault v1\n");
+        let close_rc: i32 = context.fs.close(file);
+        let meta_result: MetadataResult = context.fs.metadata_path("omega_vault/notes/current/vault.txt");
+        transition meta_result { MetadataResult::Ok { meta } -> compact_ck(context, passed, meta) _ -> done(context, passed) }
     }
-    state compact_ck(&mut self, meta: Metadata) {
-        transition meta.len == 9 { true -> backup() _ -> done() }
+    state compact_ck(context: &mut Main, passed: i32 in Wrapping, meta: Metadata) {
+        transition meta.len == 9 { true -> backup(context, passed) _ -> done(context, passed) }
     }
 
-    state backup(&mut self) {
-        self.passed = self.passed + 1;
+    state backup(context: &mut Main, passed: i32 in Wrapping) {
+        let mut scratch: [u8; 64];
+        let next_passed: i32 in Wrapping = passed + 1;
         // 10. Snapshot the compacted vault.
-        self.io_result = self.fs.copy("omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut self.scratch, 64);
-        transition self.io_result { IoResult::Ok { count } -> backup_ck(count) _ -> done() }
+        let io_result: IoResult = context.fs.copy("omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut scratch, 64);
+        transition io_result { IoResult::Ok { count } -> backup_ck(context, next_passed, count) _ -> done(context, next_passed) }
     }
-    state backup_ck(&mut self, count: u64) {
-        transition count == 9 { true -> cleanup() _ -> done() }
+    state backup_ck(context: &mut Main, passed: i32 in Wrapping, count: u64) {
+        transition count == 9 { true -> cleanup(context, passed) _ -> done(context, passed) }
     }
 
-    state cleanup(&mut self) {
-        self.passed = self.passed + 1;
+    state cleanup(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 12. Audit the vault directory: exactly the file + its backup.
-        self.io_result = self.fs.read_dir_count("omega_vault/notes/current");
-        transition self.io_result { IoResult::Ok { count } -> audit_dir(count) _ -> done() }
+        let io_result: IoResult = context.fs.read_dir_count("omega_vault/notes/current");
+        transition io_result { IoResult::Ok { count } -> audit_dir(context, next_passed, count) _ -> done(context, next_passed) }
     }
-    state audit_dir(&mut self, count: u64) {
-        transition count == 2 { true -> remove_one() _ -> done() }
+    state audit_dir(context: &mut Main, passed: i32 in Wrapping, count: u64) {
+        transition count == 2 { true -> remove_one(context, passed) _ -> done(context, passed) }
     }
-    state remove_one(&mut self) {
-        self.passed = self.passed + 1;
+    state remove_one(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 13. Remove one file the precise way...
-        self.unit_result = self.fs.remove("omega_vault/notes/current/vault.txt");
-        transition self.unit_result { UnitResult::Ok -> teardown() _ -> done() }
+        let unit_result: UnitResult = context.fs.remove("omega_vault/notes/current/vault.txt");
+        transition unit_result { UnitResult::Ok -> teardown(context, next_passed) _ -> done(context, next_passed) }
     }
-    state teardown(&mut self) {
-        self.passed = self.passed + 1;
+    state teardown(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
         // 14. ...and drain the whole tree the sweeping way (the iterative
         // dirfd-stack remove_dir_all), backup and directories included.
-        self.unit_result = self.fs.remove_dir_all("omega_vault");
-        transition self.unit_result { UnitResult::Ok -> ck_gone() _ -> done() }
+        let unit_result: UnitResult = context.fs.remove_dir_all("omega_vault");
+        transition unit_result { UnitResult::Ok -> ck_gone(context, next_passed) _ -> done(context, next_passed) }
     }
-    state ck_gone(&mut self) {
-        self.present = self.fs.exists("omega_vault");
-        transition self.present { true -> done() _ -> finish() }
+    state ck_gone(context: &mut Main, passed: i32 in Wrapping) {
+        let present: bool = context.fs.exists("omega_vault");
+        transition present { true -> done(context, passed) _ -> finish(context, passed) }
     }
-    state finish(&mut self) {
-        self.passed = self.passed + 1;
-        transition true { true -> done() _ -> done() }
+    state finish(context: &mut Main, passed: i32 in Wrapping) {
+        let next_passed: i32 in Wrapping = passed + 1;
+        transition true { true -> done(context, next_passed) _ -> done(context, next_passed) }
     }
 
-    state done(&mut self) { self.console.exit_process(self.passed as i32); }
+    state done(context: &mut Main, passed: i32 in Wrapping) { context.console.exit_process(passed as i32); }
 }
