@@ -194,6 +194,11 @@ fn map_integer_affine_bound_with_remainder_policy(
             CheckedIntegerEndpointStep::BitwiseAndMask(mask) => {
                 Some(if current_is_lower { 0 } else { *mask })
             }
+            // A bounded mask maps the same image with the axiom-proven
+            // upper bound in place of the literal.
+            CheckedIntegerEndpointStep::BitwiseAndBoundedMask { upper, .. } => {
+                Some(if current_is_lower { 0 } else { *upper })
+            }
             // For `c > 0`, `v = (x + c) mod 2^w` never exceeds `x + c`, so an
             // upper bound on `x` maps unconditionally; a lower bound survives
             // only when the same definition proves `x <= maximum - c`, so the

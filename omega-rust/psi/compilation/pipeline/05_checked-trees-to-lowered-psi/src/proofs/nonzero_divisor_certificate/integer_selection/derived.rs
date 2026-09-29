@@ -743,6 +743,7 @@ fn affine_definition_bounds(
         } if *value_type == integer_type => vec![(value.as_ref(), count.as_ref())],
         _ => Vec::new(),
     };
+    let bitwise = matches!(expression, ScalarTerm::IntegerBitwiseAnd { .. });
     for (root, sibling) in pairs {
         if !matches!(root, ScalarTerm::Value { .. }) {
             continue;
@@ -750,7 +751,7 @@ fn affine_definition_bounds(
         let literal_axiom = if sibling.integer_value().is_some() {
             None
         } else {
-            let Some(index) = semantic_axioms[..definition_axiom]
+            let index = semantic_axioms[..definition_axiom]
                 .iter()
                 .enumerate()
                 .rev()
@@ -762,11 +763,15 @@ fn affine_definition_bounds(
                         Some(index)
                     }
                     _ => None,
-                })
-            else {
-                continue;
-            };
-            Some(index)
+                });
+            match index {
+                Some(index) => Some(index),
+                // A non-literal bitwise mask can still admit from its own
+                // bound axioms: the kernel resolves them without a cited
+                // landing, so emit the candidate and let checking gate it.
+                None if bitwise => None,
+                None => continue,
+            }
         };
         let witness = IntegerAffineWitness {
             root: root.clone(),

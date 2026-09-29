@@ -110,6 +110,13 @@ pub fn integer_affine_truth_bounds(
                 maximum = *mask;
                 saw_total_image = true;
             }
+            // The bounded-mask reading keeps the same total image with the
+            // axiom-proven upper bound in place of a literal mask.
+            CheckedIntegerEndpointStep::BitwiseAndBoundedMask { upper, .. } => {
+                minimum = 0;
+                maximum = *upper;
+                saw_total_image = true;
+            }
             // A wrapping step has no total endpoint image: its reduced result
             // is not a monotone function of a quantified root range.
             CheckedIntegerEndpointStep::WrappingAdd { .. }

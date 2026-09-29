@@ -136,6 +136,107 @@ fn bitwise_and_mask_bounds_reach_the_aliased_result() {
 }
 
 #[test]
+fn bitwise_and_bounded_mask_bounds_reach_the_result() {
+    // `v3 = v1 & v2` where `v2` is not a literal but carries an
+    // axiomatic upper bound: on an unsigned carrier the mask is
+    // non-negative by type, so `v2 <= 15` alone gives the image
+    // `[0, 15]` exactly like a literal mask.
+    let mut semantic_axioms = bitwise_and_axioms(&value(2));
+    semantic_axioms.insert(0, Proposition::LessOrEqual(value(2), literal(15)));
+    for goal in [
+        Proposition::LessOrEqual(value(3), literal(15)),
+        Proposition::LessOrEqual(literal(0), value(3)),
+        Proposition::LessOrEqual(value(4), literal(15)),
+    ] {
+        let proof = prove(&context(), &goal, &[], &semantic_axioms)
+            .expect("the bounded mask image reaches the result");
+        check_certificate(&context(), &goal, &[], &semantic_axioms, &proof).unwrap();
+    }
+
+    // The bound pair may live on a term an `Equal` axiom aliases the
+    // mask operand to; the image still reaches the result.
+    let mut aliased = bitwise_and_axioms(&value(2));
+    aliased.splice(
+        0..0,
+        [
+            Proposition::Equal(value(2), value(5)),
+            Proposition::LessOrEqual(value(5), literal(15)),
+        ],
+    );
+    for goal in [
+        Proposition::LessOrEqual(value(3), literal(15)),
+        Proposition::LessOrEqual(literal(0), value(3)),
+    ] {
+        let proof = prove(&context(), &goal, &[], &aliased)
+            .expect("the aliased mask's bound image reaches the result");
+        check_certificate(&context(), &goal, &[], &aliased, &proof).unwrap();
+    }
+
+    // With no bound axioms on the mask or any alias, nothing proves.
+    let unbounded = bitwise_and_axioms(&value(2));
+    for goal in [
+        Proposition::LessOrEqual(value(3), literal(15)),
+        Proposition::LessOrEqual(literal(0), value(3)),
+    ] {
+        assert!(prove(&context(), &goal, &[], &unbounded).is_none());
+    }
+}
+
+#[test]
+fn bitwise_and_signed_bounded_mask_needs_nonnegativity() {
+    let signed_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let signed_value = |identity: u64| {
+        ScalarTerm::value(
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(signed_type),
+        )
+    };
+    let signed_literal =
+        |number: i128| ScalarTerm::integer(signed_type, IntegerValue::Signed(number)).unwrap();
+    let context = PropositionContext::from_value_types((1..=3).map(|identity| {
+        (
+            ValueId::new(identity).unwrap(),
+            ScalarType::Integer(signed_type),
+        )
+    }))
+    .unwrap();
+    // `v3 = v1 & v2` on a signed carrier: an upper bound alone leaves the
+    // sign bit reachable, so `v2 <= 15` without `0 <= v2` admits nothing.
+    let definition = Proposition::Equal(
+        signed_value(3),
+        ScalarTerm::IntegerBitwiseAnd {
+            scalar_type: signed_type,
+            left: Box::new(signed_value(1)),
+            right: Box::new(signed_value(2)),
+        },
+    );
+    let semantic_axioms = vec![
+        Proposition::LessOrEqual(signed_value(2), signed_literal(15)),
+        definition.clone(),
+    ];
+    for goal in [
+        Proposition::LessOrEqual(signed_value(3), signed_literal(15)),
+        Proposition::LessOrEqual(signed_literal(0), signed_value(3)),
+    ] {
+        assert!(prove(&context, &goal, &[], &semantic_axioms).is_none());
+    }
+    // Once `0 <= v2` is axiomatic the image `[0, 15]` proves.
+    let mut bounded = semantic_axioms.clone();
+    bounded.insert(
+        1,
+        Proposition::LessOrEqual(signed_literal(0), signed_value(2)),
+    );
+    for goal in [
+        Proposition::LessOrEqual(signed_value(3), signed_literal(15)),
+        Proposition::LessOrEqual(signed_literal(0), signed_value(3)),
+    ] {
+        let proof = prove(&context, &goal, &[], &bounded)
+            .expect("the signed bounded mask image reaches the result");
+        check_certificate(&context, &goal, &[], &bounded, &proof).unwrap();
+    }
+}
+
+#[test]
 fn bitwise_and_negative_signed_mask_never_proves() {
     let signed_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
     let signed_value = |identity: u64| {

@@ -52,6 +52,15 @@ pub(crate) enum CheckedIntegerEndpointStep {
     /// operand carried. A negative signed mask leaves the sign bit reachable
     /// and the step is rejected while the witness is checked.
     BitwiseAndMask(i128),
+    /// The same reading when the mask operand is not a literal: an AND
+    /// still keeps only mask bits, so once prior axioms prove
+    /// `0 <= mask` and `mask <= upper` — on the operand itself or on a
+    /// term an `Equal` axiom aliases it to — the result image is
+    /// `[0, upper]` whatever range the operand carried.
+    BitwiseAndBoundedMask {
+        mask: ScalarTerm,
+        upper: i128,
+    },
     CorrelatedAddLower,
     CorrelatedAddUpper,
     CorrelatedSubtractLower,
@@ -327,6 +336,7 @@ pub fn check_integer_affine_witness(
             coefficient,
             offset,
             landed.as_ref(),
+            &semantic_axioms[..index],
         );
         let reverse = apply_definition(
             right,
@@ -336,6 +346,7 @@ pub fn check_integer_affine_witness(
             coefficient,
             offset,
             landed.as_ref(),
+            &semantic_axioms[..index],
         );
         let shift_forward =
             apply_shift_definition(left, right, &current, integer_type, landed.as_ref(), index);
@@ -692,6 +703,7 @@ fn apply_definition(
     coefficient: i128,
     offset: i128,
     landed: Option<&LandedInteger>,
+    prior_axioms: &[Proposition],
 ) -> Option<
     Result<(ScalarTerm, i128, i128, bool, CheckedIntegerEndpointStep), IntegerAffineWitnessError>,
 > {
@@ -807,32 +819,56 @@ fn apply_definition(
             left,
             right,
         } if *scalar_type == integer_type && left.as_ref() == current => {
-            let (mask, used_landing) = signed_literal(right, integer_type, landed)?;
-            if mask < 0 {
-                return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
+            if let Some((mask, used_landing)) = signed_literal(right, integer_type, landed) {
+                if mask < 0 {
+                    return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
+                }
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    used_landing,
+                    CheckedIntegerEndpointStep::BitwiseAndMask(mask),
+                )
+            } else {
+                let (mask, upper) = bounded_and_mask(right, integer_type, prior_axioms)?;
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    false,
+                    CheckedIntegerEndpointStep::BitwiseAndBoundedMask {
+                        mask: mask.clone(),
+                        upper,
+                    },
+                )
             }
-            (
-                Some(coefficient),
-                Some(offset),
-                used_landing,
-                CheckedIntegerEndpointStep::BitwiseAndMask(mask),
-            )
         }
         ScalarTerm::IntegerBitwiseAnd {
             scalar_type,
             left,
             right,
         } if *scalar_type == integer_type && right.as_ref() == current => {
-            let (mask, used_landing) = signed_literal(left, integer_type, landed)?;
-            if mask < 0 {
-                return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
+            if let Some((mask, used_landing)) = signed_literal(left, integer_type, landed) {
+                if mask < 0 {
+                    return Some(Err(IntegerAffineWitnessError::NegativeBitwiseAndMask));
+                }
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    used_landing,
+                    CheckedIntegerEndpointStep::BitwiseAndMask(mask),
+                )
+            } else {
+                let (mask, upper) = bounded_and_mask(left, integer_type, prior_axioms)?;
+                (
+                    Some(coefficient),
+                    Some(offset),
+                    false,
+                    CheckedIntegerEndpointStep::BitwiseAndBoundedMask {
+                        mask: mask.clone(),
+                        upper,
+                    },
+                )
             }
-            (
-                Some(coefficient),
-                Some(offset),
-                used_landing,
-                CheckedIntegerEndpointStep::BitwiseAndMask(mask),
-            )
         }
         // A wrapping sum is the exact sum except where it crosses the carrier
         // bound the addend's sign faces, so bound mapping demands no-wrap
@@ -985,6 +1021,67 @@ fn landed_integer(
     Err(IntegerAffineWitnessError::LiteralAxiomShapeMismatch(
         literal_index,
     ))
+}
+
+/// Resolve a bitwise-and sibling that is not a literal. `x & mask` keeps
+/// only mask bits, so the step's image is `[0, upper]` once prior axioms
+/// prove `0 <= mask` and `mask <= upper`. The bounds may be stated on
+/// the operand itself or on any term an earlier `Equal` axiom aliases it
+/// to; a mask of unsigned carrier already proves its own non-negativity.
+fn bounded_and_mask<'a>(
+    operand: &'a ScalarTerm,
+    integer_type: IntegerType,
+    prior_axioms: &'a [Proposition],
+) -> Option<(&'a ScalarTerm, i128)> {
+    let mut masks = vec![operand];
+    for proposition in prior_axioms {
+        let Proposition::Equal(left, right) = proposition else {
+            continue;
+        };
+        if left == operand {
+            masks.push(right);
+        } else if right == operand {
+            masks.push(left);
+        }
+    }
+    for mask in masks {
+        let Some(upper) = prior_axioms.iter().find_map(|proposition| {
+            let Proposition::LessOrEqual(left, right) = proposition else {
+                return None;
+            };
+            if left != mask {
+                return None;
+            }
+            let (value_type, value) = right.integer_value()?;
+            let upper = match value {
+                IntegerValue::Signed(value) => value,
+                IntegerValue::Unsigned(value) => i128::try_from(value).ok()?,
+            };
+            (value_type == integer_type && upper >= 0).then_some(upper)
+        }) else {
+            continue;
+        };
+        let nonnegative = matches!(
+            mask.scalar_type(),
+            ScalarType::Integer(kind) if kind.sign() == IntegerSign::Unsigned
+        ) || prior_axioms.iter().any(|proposition| {
+            let Proposition::LessOrEqual(left, right) = proposition else {
+                return false;
+            };
+            right == mask
+                && left.integer_value().is_some_and(|(value_type, value)| {
+                    value_type == integer_type
+                        && match value {
+                            IntegerValue::Signed(value) => value == 0,
+                            IntegerValue::Unsigned(value) => value == 0,
+                        }
+                })
+        });
+        if nonnegative {
+            return Some((mask, upper));
+        }
+    }
+    None
 }
 
 fn apply_shift_definition(
