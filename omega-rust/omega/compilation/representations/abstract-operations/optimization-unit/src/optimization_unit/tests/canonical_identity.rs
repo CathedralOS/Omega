@@ -662,6 +662,191 @@ fn descriptor_call_identity_bytes_are_stable() {
     }
 }
 
+/// The callee-side interface a forwarded descriptor argument binds.
+fn descriptor_argument_target(ordinal: u32) -> terminal_psi::TerminalDynamicDescriptorParameter {
+    terminal_psi::TerminalDynamicDescriptorParameter {
+        owner: id(2, MachineId::new),
+        ordinal,
+        source_position: ordinal + 1,
+        trait_identity: "test::Scanner".to_owned(),
+        access: terminal_psi::StructuralAccess::SharedBorrow,
+        requirements: vec![terminal_psi::TerminalDynamicRequirement {
+            slot: 0,
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec!["named(integer-const(8))".to_owned()],
+            result: terminal_psi::ClosedConformanceCallableResult::I32,
+        }],
+    }
+}
+
+/// One forwarded descriptor per source arm: a caller selection, a rebound
+/// descriptor whose initializer and latest applications differ, and a
+/// caller descriptor parameter.
+fn forwarded_descriptor_arguments() -> Vec<abstract_operations::AbstractDynamicDescriptorArgument> {
+    let scalar = terminal_psi::ClosedConformanceCallableResult::I32;
+    let argument = |parameter_ordinal, source| terminal_psi::TerminalDynamicDescriptorArgument {
+        owner: id(1, MachineId::new),
+        operation: id(1, OperationId::new),
+        parameter_ordinal,
+        source,
+    };
+    let rebound = rebound_descriptor_dispatch(scalar);
+    let caller_parameter = parameter_descriptor_dispatch(scalar).parameter;
+    vec![
+        abstract_operations::AbstractDynamicDescriptorArgument {
+            argument: argument(
+                0,
+                terminal_psi::TerminalDynamicDescriptorSource::Selection { ordinal: 0 },
+            ),
+            target: descriptor_argument_target(0),
+            source: abstract_operations::AbstractDynamicDescriptorSource::Selection {
+                selection: descriptor_selection(0),
+                application: descriptor_application("Selected", scalar),
+            },
+        },
+        abstract_operations::AbstractDynamicDescriptorArgument {
+            argument: argument(
+                1,
+                terminal_psi::TerminalDynamicDescriptorSource::ReboundDescriptor { ordinal: 3 },
+            ),
+            target: descriptor_argument_target(1),
+            source: abstract_operations::AbstractDynamicDescriptorSource::Rebound {
+                initial: rebound.initial,
+                rebound: rebound.rebound,
+                descriptor: rebound.descriptor,
+                initial_application: rebound.initial_application,
+                application: rebound.application,
+            },
+        },
+        abstract_operations::AbstractDynamicDescriptorArgument {
+            argument: argument(
+                2,
+                terminal_psi::TerminalDynamicDescriptorSource::Parameter { ordinal: 0 },
+            ),
+            target: descriptor_argument_target(2),
+            source: abstract_operations::AbstractDynamicDescriptorSource::Parameter(
+                caller_parameter,
+            ),
+        },
+    ]
+}
+
+/// Pins the complete unit identity of the ordinary Unit and scalar-result
+/// calls, with and without forwarded descriptor arguments. Every roster is
+/// nonempty so the digest binds the tag, the result position, the argument
+/// rows and the tail order of each call row.
+#[test]
+fn descriptor_argument_call_identity_bytes_are_stable() {
+    let baseline =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let result = abstract_operations::AbstractResult {
+        value: id(4, ValueId::new),
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+    };
+    let structural_arguments = || {
+        vec![terminal_psi::StructuralArgument {
+            place: id(11, PlaceId::new),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            path: Vec::new(),
+        }]
+    };
+    let claim_transfers = || {
+        vec![terminal_psi::ClaimTransfer {
+            claim: id(5, ClaimId::new),
+            argument_index: 0,
+        }]
+    };
+    let obligations = || vec![id(8, ObligationId::new)];
+    let crashes = || {
+        vec![CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }]
+    };
+    let fixtures = [
+        (
+            "unit (tag 3)",
+            AbstractOperation::CallUnit {
+                psi_operation: id(1, OperationId::new),
+                callee: id(2, MachineId::new),
+                arguments: vec![id(3, ValueId::new)],
+                structural_arguments: structural_arguments(),
+                claim_transfers: claim_transfers(),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                41, 124, 164, 42, 44, 226, 192, 16, 35, 2, 243, 30, 36, 90, 105, 45, 49, 222, 229,
+                209, 189, 2, 33, 197, 97, 89, 238, 110, 49, 67, 254, 17,
+            ],
+        ),
+        (
+            "unit with descriptor arguments (tag 59)",
+            AbstractOperation::CallUnitWithDynamicArguments {
+                psi_operation: id(1, OperationId::new),
+                callee: id(2, MachineId::new),
+                structural_arguments: structural_arguments(),
+                dynamic_arguments: forwarded_descriptor_arguments(),
+                claim_transfers: claim_transfers(),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                129, 170, 49, 216, 47, 101, 194, 5, 48, 197, 75, 64, 132, 231, 112, 10, 28, 26,
+                162, 26, 138, 36, 213, 95, 83, 2, 206, 87, 66, 253, 230, 215,
+            ],
+        ),
+        (
+            "scalar (tag 4)",
+            AbstractOperation::CallStructuralScalar {
+                psi_operation: id(1, OperationId::new),
+                result,
+                callee: id(2, MachineId::new),
+                arguments: vec![id(3, ValueId::new)],
+                structural_arguments: structural_arguments(),
+                claim_transfers: claim_transfers(),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                135, 245, 116, 5, 75, 137, 233, 71, 150, 78, 247, 149, 123, 177, 229, 45, 222, 43,
+                33, 164, 236, 153, 78, 98, 191, 225, 115, 36, 92, 3, 254, 179,
+            ],
+        ),
+        (
+            "scalar with descriptor arguments (tag 54)",
+            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+                psi_operation: id(1, OperationId::new),
+                result,
+                callee: id(2, MachineId::new),
+                structural_arguments: structural_arguments(),
+                dynamic_arguments: forwarded_descriptor_arguments(),
+                claim_transfers: claim_transfers(),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                58, 184, 220, 19, 173, 3, 122, 246, 207, 148, 35, 42, 137, 130, 187, 157, 106, 16,
+                193, 26, 2, 136, 76, 195, 216, 81, 245, 136, 31, 143, 231, 47,
+            ],
+        ),
+    ];
+    for (shape, operation, expected) in fixtures {
+        let mut changed = baseline.clone();
+        changed.functions[0].blocks[0].nodes[0].operation = operation;
+        let identity = recompute_psi_optimization_unit_identity(&changed);
+        let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&changed);
+        assert_eq!(
+            OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+            identity,
+            "{shape}"
+        );
+        assert_eq!(identity.bytes(), expected, "{shape}");
+    }
+}
+
 #[test]
 fn rebuild_is_deterministic_and_keeps_distinct_fuel_sites() {
     let schedule = FuelScheduleIdentity::new(1).expect("nonzero schedule");
