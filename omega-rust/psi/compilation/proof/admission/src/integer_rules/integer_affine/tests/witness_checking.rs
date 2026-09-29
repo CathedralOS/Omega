@@ -130,7 +130,7 @@ fn direct_remainder_rejects_zero_divisors_and_unbound_or_mismatched_terms() {
 }
 
 #[test]
-fn unsigned_wrapping_remainder_retains_landed_divisor_and_bound_evidence() {
+fn wrapping_remainder_retains_landed_divisor_and_carrier_specific_bounds() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
     let root = value(1, integer_type);
     let divisor = value(2, integer_type);
@@ -218,19 +218,50 @@ fn unsigned_wrapping_remainder_retains_landed_divisor_and_bound_evidence() {
         ScalarTerm::wrapping_integer_remainder(signed, value(1, signed), literal(signed, 10))
             .unwrap(),
     );
+    let signed_witness = IntegerAffineWitness {
+        root: value(1, signed),
+        target: value(3, signed),
+        definition_axioms: vec![0],
+        literal_axioms: vec![None],
+    };
+    let signed_axioms = [signed_axiom];
+    let signed_form =
+        check_integer_affine_witness(&signed_context, &signed_axioms, &signed_witness).unwrap();
+    let premise = Proposition::LessOrEqual(literal(signed, -100), value(1, signed));
+    let goal = Proposition::LessOrEqual(literal(signed, -9), value(3, signed));
+    assert_eq!(
+        map_integer_affine_bound(&signed_form, &premise),
+        Ok(goal.clone())
+    );
+    let mut proof = ProofNode {
+        conclusion: goal.clone(),
+        rule: ProofRule::IntegerAffineBound {
+            root_bound: Box::new(ProofNode {
+                conclusion: premise.clone(),
+                rule: ProofRule::Assumption { index: 0 },
+            }),
+            witness: signed_witness,
+        },
+    };
+    check_certificate(
+        &signed_context,
+        &goal,
+        std::slice::from_ref(&premise),
+        &signed_axioms,
+        &proof,
+    )
+    .unwrap();
+    proof.conclusion = Proposition::LessOrEqual(literal(signed, 0), value(3, signed));
     assert!(
-        check_integer_affine_witness(
+        check_certificate(
             &signed_context,
-            &[signed_axiom],
-            &IntegerAffineWitness {
-                root: value(1, signed),
-                target: value(3, signed),
-                definition_axioms: vec![0],
-                literal_axioms: vec![None],
-            },
+            &proof.conclusion,
+            &[premise],
+            &signed_axioms,
+            &proof
         )
         .is_err(),
-        "signed wrapping semantics are not silently shared"
+        "a signed remainder cannot inherit the unsigned nonnegative image"
     );
 }
 

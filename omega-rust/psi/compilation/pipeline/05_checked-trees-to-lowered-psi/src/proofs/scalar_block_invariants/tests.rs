@@ -191,6 +191,91 @@ fn lower_field_loop(source: &str, machine: &str) -> lowered_psi::LoweredPsi {
     lowered
 }
 
+#[test]
+fn nested_loop_preserves_field_bounds_for_a_computed_joined_byte() {
+    let source = "
+        domain [u8; 4]::Utf8 requires valid_utf8(self);
+        machine narrow(value: i32) -> u8 {
+            (value as u8 in Trapping) as u8
+        }
+        data Nested {
+            values: [u8; 4] in Utf8;
+            i: i32 in Wrapping;
+            remaining: i32 in Wrapping;
+            slot: i32 in Wrapping;
+            chosen: u8;
+        }
+        machine Nested::run(&mut self) {
+            self.values = \"    \";
+            self.i = 2;
+            transition { _ -> outer() }
+            state outer(&mut self) {
+                transition 0 <= self.i && self.i < 40 { true -> prepare() _ -> done() }
+            }
+            state prepare(&mut self) {
+                self.remaining = 2;
+                transition { _ -> inner() }
+            }
+            state inner(&mut self) {
+                transition self.remaining > 0 { true -> step() _ -> select() }
+            }
+            state step(&mut self) {
+                self.remaining = self.remaining - 1;
+                transition { _ -> inner() }
+            }
+            state select(&mut self) {
+                self.slot = self.i / 10;
+                transition self.slot > 0 { true -> high() _ -> low() }
+            }
+            state high(&mut self) {
+                self.chosen = narrow((self.slot + 48) as i32);
+                transition { _ -> store() }
+            }
+            state low(&mut self) {
+                self.chosen = 32;
+                transition { _ -> store() }
+            }
+            state store(&mut self) {
+                self.remaining = 1;
+                transition 0 <= self.remaining && self.remaining < 4 {
+                    true -> write()
+                    _ -> done()
+                }
+            }
+            state write(&mut self) {
+                self.values[self.remaining] = self.chosen;
+                self.i = self.i + 1;
+                transition { _ -> outer() }
+            }
+            state done(&mut self) { }
+        }";
+    let lowered = lower_field_loop(source, "Nested::run");
+
+    // Rebuild all evidence against changed Terminal semantics. A weaker loop
+    // guard or an unsafe alternative cannot inherit the original byte bound.
+    use semantic_vocabulary::IntegerValue::{Signed, Unsigned};
+    for (original, replacement) in [(Signed(40), Signed(900)), (Unsigned(32), Unsigned(128))] {
+        let mut changed = lowered.clone();
+        changed.semantic_module.scalar_block_invariants.clear();
+        changed.proof_bundle = terminal_verifier::ProofBundle::default();
+        let value = changed
+            .semantic_module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                terminal_psi::OperationKind::IntegerConstant { value } if *value == original => {
+                    Some(value)
+                }
+                _ => None,
+            })
+            .expect("the guard or alternative has its own literal");
+        *value = replacement;
+        assert!(crate::proofs::operation_proofs::finalize_operation_proofs(&mut changed).is_err());
+    }
+}
+
 /// Replace the loop's stored start value and drop every proposal and proof,
 /// so the header invariant must be rediscovered against the changed entry.
 fn restart_field_loop(lowered: &lowered_psi::LoweredPsi, start: i128, changed_start: i128) {

@@ -168,7 +168,7 @@ fn wrapping_add_backward_lands_a_sibling_literal_and_rejects_ambiguity() {
 }
 
 #[test]
-fn wrapping_divide_maps_both_directions_and_rejects_zero_or_signed() {
+fn wrapping_divide_maps_both_directions_and_rejects_zero() {
     let integer_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let root = value(1, integer_type);
     let target = value(2, integer_type);
@@ -236,6 +236,139 @@ fn wrapping_divide_maps_both_directions_and_rejects_zero_or_signed() {
         check_integer_affine_witness(&context, &zero_divisor, &witness),
         Err(IntegerAffineWitnessError::ZeroDivisionLiteral),
     );
+}
+
+#[test]
+fn signed_wrapping_division_maps_truncating_bounds_except_overflow() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let root = value(1, integer_type);
+    let target = value(2, integer_type);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+    ])
+    .unwrap();
+    let witness = IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: vec![0],
+        literal_axioms: vec![None],
+    };
+    for divisor in [-128, -3, -1, 0, 1, 3, 127] {
+        let axioms = [Proposition::Equal(
+            target.clone(),
+            ScalarTerm::wrapping_integer_divide(
+                integer_type,
+                root.clone(),
+                literal(integer_type, divisor),
+            )
+            .unwrap(),
+        )];
+        let checked = check_integer_affine_witness(&context, &axioms, &witness);
+        if matches!(divisor, -1 | 0) {
+            assert!(
+                checked.is_err(),
+                "zero and the MIN/-1 discontinuity are not monotone division"
+            );
+            continue;
+        }
+        let checked = checked.unwrap();
+        for bound in -128..=127 {
+            for lower in [false, true] {
+                let endpoint = literal(integer_type, bound);
+                let premise = if lower {
+                    Proposition::LessOrEqual(endpoint, root.clone())
+                } else {
+                    Proposition::LessOrEqual(root.clone(), endpoint)
+                };
+                let mapped = literal(integer_type, bound / divisor);
+                let expected = if lower == (divisor > 0) {
+                    Proposition::LessOrEqual(mapped, target.clone())
+                } else {
+                    Proposition::LessOrEqual(target.clone(), mapped)
+                };
+                assert_eq!(map_integer_affine_bound(&checked, &premise), Ok(expected));
+                for operand in -128..=127 {
+                    if (lower && operand >= bound) || (!lower && operand <= bound) {
+                        assert!(if lower == (divisor > 0) {
+                            operand / divisor >= bound / divisor
+                        } else {
+                            operand / divisor <= bound / divisor
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn signed_wrapping_remainder_bounds_include_minimum_by_negative_one() {
+    let integer_type = IntegerType::new(IntegerSign::Signed, 8).unwrap();
+    let root = value(1, integer_type);
+    let target = value(2, integer_type);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(integer_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(integer_type)),
+    ])
+    .unwrap();
+    let witness = IntegerAffineWitness {
+        root: root.clone(),
+        target: target.clone(),
+        definition_axioms: vec![0],
+        literal_axioms: vec![None],
+    };
+    for divisor in [-128_i128, -3, -1, 0, 1, 3, 127] {
+        let axioms = [Proposition::Equal(
+            target.clone(),
+            ScalarTerm::wrapping_integer_remainder(
+                integer_type,
+                root.clone(),
+                literal(integer_type, divisor),
+            )
+            .unwrap(),
+        )];
+        let checked = check_integer_affine_witness(&context, &axioms, &witness);
+        if divisor == 0 {
+            assert_eq!(checked, Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
+            continue;
+        }
+        let checked = checked.unwrap();
+        for bound in -128..=127 {
+            for lower in [false, true] {
+                let premise = if lower {
+                    Proposition::LessOrEqual(literal(integer_type, bound), root.clone())
+                } else {
+                    Proposition::LessOrEqual(root.clone(), literal(integer_type, bound))
+                };
+                let endpoint = if lower {
+                    if bound >= 0 { 0 } else { 1 - divisor.abs() }
+                } else if bound <= 0 {
+                    0
+                } else {
+                    divisor.abs() - 1
+                };
+                let expected = if lower {
+                    Proposition::LessOrEqual(literal(integer_type, endpoint), target.clone())
+                } else {
+                    Proposition::LessOrEqual(target.clone(), literal(integer_type, endpoint))
+                };
+                assert_eq!(map_integer_affine_bound(&checked, &premise), Ok(expected));
+                for operand in -128..=127 {
+                    if (lower && operand >= bound) || (!lower && operand <= bound) {
+                        // i128 arithmetic also computes the selected i8
+                        // Wrapping MIN % -1 result (zero) without host overflow.
+                        let remainder = operand % divisor;
+                        assert!(if lower {
+                            remainder >= endpoint
+                        } else {
+                            remainder <= endpoint
+                        });
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// One signed wrapping sum `target = operand + addend (mod 2^8)` checked as a

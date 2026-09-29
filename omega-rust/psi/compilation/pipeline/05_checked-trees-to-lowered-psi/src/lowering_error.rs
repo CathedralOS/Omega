@@ -57,7 +57,10 @@ impl ProofSearchCapacity {
     pub const fn limit(self) -> u64 {
         match self {
             Self::ScalarInvariantRosterRounds => 128,
-            Self::ScalarInvariantCandidateWork => 4096,
+            // Nested-loop byte stores exhaust 4096 candidate transports even
+            // after duplicate arrival proposals are removed. This provisions
+            // discovery only; every retained predicate still needs evidence.
+            Self::ScalarInvariantCandidateWork => 16_384,
             Self::CyclicGuaranteeCandidateWork => 4096,
             Self::ScalarResultGuaranteeWork => 4096,
             Self::TerminalObligationIdentities => u64::MAX,

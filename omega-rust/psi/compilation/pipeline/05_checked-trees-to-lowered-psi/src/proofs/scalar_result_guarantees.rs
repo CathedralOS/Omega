@@ -125,6 +125,7 @@ fn demanded_callees(
     let mut demanded = BTreeSet::new();
     for machine in &lowered.semantic_module.machines {
         let mut calls = BTreeMap::new();
+        let mut stores = Vec::new();
         for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
             if !charge(remaining, 1) {
                 return demanded;
@@ -135,10 +136,22 @@ fn demanded_callees(
             {
                 calls.insert(result.id, callee);
             }
+            if let OperationKind::StructuralScalarFieldStore {
+                destination,
+                field,
+                value,
+                ..
+            } = operation.kind
+            {
+                stores.push((destination, field, value));
+            }
         }
         if calls.is_empty() {
             continue;
         }
+        let Some(forwarded) = forwarded_parameter_equations(machine, remaining) else {
+            return demanded;
+        };
         for site in original.obligations().iter().filter(|site| {
             site.owner.machine() == machine.id && !supplied.contains(&site.obligation.id)
         }) {
@@ -155,6 +168,7 @@ fn demanded_callees(
             // Index it once rather than rescan the whole roster per dependency.
             let mut definitions: BTreeMap<ValueId, Vec<&Proposition>> = BTreeMap::new();
             let mut field_definitions: BTreeMap<&ScalarTerm, Vec<&Proposition>> = BTreeMap::new();
+            let mut field_dependencies = BTreeMap::new();
             for equation in &site.semantic_axioms {
                 if !charge(remaining, 1) {
                     return demanded;
@@ -187,6 +201,51 @@ fn demanded_callees(
                     definitions.entry(*id).or_default().extend(stores);
                 }
             }
+            // A join deliberately discards branch-specific store equations.
+            // Demand discovery must still reach a callee whose result one of
+            // those branches stores. These are possible dependencies, NOT
+            // equalities: matching root and leaf field conservatively includes
+            // stores through different intermediate projections. No such store
+            // becomes an axiom. Callee guarantees and every joined bound still
+            // need their independently reconstructed proofs.
+            for equation in &site.semantic_axioms {
+                let Proposition::Equal(
+                    ScalarTerm::Value { id, .. },
+                    observed @ (ScalarTerm::IntegerField { root, path, .. }
+                    | ScalarTerm::BooleanField { root, path }),
+                ) = equation
+                else {
+                    continue;
+                };
+                // A surviving exact store already answers this dependency;
+                // do not reselect calls whose results were overwritten.
+                if field_definitions.contains_key(observed) {
+                    continue;
+                }
+                let Some(semantic_vocabulary::CanonicalStructuralPathSegment::Field(field)) =
+                    path.last()
+                else {
+                    continue;
+                };
+                if !charge(remaining, stores.len()) {
+                    return demanded;
+                }
+                for (destination, stored_field, value) in &stores {
+                    if destination == root && stored_field == field {
+                        // Attach the dependency only when this observation is
+                        // demanded, rather than selecting every scalar callee.
+                        field_dependencies
+                            .entry(*id)
+                            .or_insert_with(Vec::new)
+                            .push(*value);
+                    }
+                }
+            }
+            for equation in &forwarded {
+                if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation {
+                    definitions.entry(*id).or_default().push(equation);
+                }
+            }
             let mut visited = BTreeSet::new();
             while let Some(value) = pending.pop() {
                 if !charge(remaining, 1) {
@@ -199,6 +258,13 @@ fn demanded_callees(
                     demanded.insert(*callee);
                     continue;
                 }
+                pending.extend(
+                    field_dependencies
+                        .get(&value)
+                        .into_iter()
+                        .flatten()
+                        .copied(),
+                );
                 for equation in definitions.get(&value).into_iter().flatten() {
                     if equation
                         .visit_value_ids_bounded(remaining, |dependency| {

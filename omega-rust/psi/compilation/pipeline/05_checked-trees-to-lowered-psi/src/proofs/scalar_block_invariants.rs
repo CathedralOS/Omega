@@ -249,7 +249,16 @@ fn retain_provable_roster_bounded(
             }
             break;
         };
-        candidates = joins::candidates(module, &questions, &mut remaining, declines);
+        // Nested feedback cuts need retained storage bounds as well as scalar
+        // join demands. Revisit only the arrivals of demanded headers: rerunning
+        // operation proposals would repeatedly wrap their expanding guard sets.
+        candidates = field_bounds::arrival_bounds(module, &questions, &mut remaining, declines);
+        candidates.extend(joins::candidates(
+            module,
+            &questions,
+            &mut remaining,
+            declines,
+        ));
         if remaining == 0 {
             declines.record(ProofSearchCapacity::ScalarInvariantCandidateWork);
         }
@@ -429,15 +438,15 @@ fn retain_provable_roster_bounded(
             // The surviving members are new proposals: prove every arrival again.
             continue;
         }
-        // A failed strengthening must not erase a useful original assertion.
-        // Restore the whole seed transaction: another seed can depend on this
-        // one and already have failed in the same round. The snapshot contains
-        // proposals, not authority; every arrival is proved again below.
-        if seeds.as_ref().is_some_and(|seeds| {
-            seeds
-                .iter()
-                .any(|seed| rejected.contains(&(seed.machine, seed.header)))
-        }) && restore_seeds(&mut module.scalar_block_invariants, &mut seeds)
+        // Keep independently surviving headers: one rejected outer-loop guess
+        // must not erase discovered inner-loop bounds. Reconstructing below
+        // rechecks survivors without the removed hypotheses. Retry the original
+        // seed group only when the expanded group has no surviving header.
+        if module
+            .scalar_block_invariants
+            .iter()
+            .all(|candidate| rejected.contains(&(candidate.machine, candidate.header)))
+            && restore_seeds(&mut module.scalar_block_invariants, &mut seeds)
         {
             continue;
         }

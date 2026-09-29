@@ -1,6 +1,6 @@
 //! Producer-local landed affine-sibling step selection.
 
-use semantic_vocabulary::{IntegerSign, ScalarTerm, ScalarType};
+use semantic_vocabulary::{ScalarTerm, ScalarType};
 
 /// Every `(next, sibling)` reading one definition side admits for `current`.
 /// A forward reading resumes at `target` and cites the other operand as the
@@ -31,10 +31,6 @@ fn forward_sibling<'a>(
     current: &ScalarTerm,
     expected: ScalarType,
 ) -> Option<&'a ScalarTerm> {
-    let unsigned = matches!(
-        expected,
-        ScalarType::Integer(integer_type) if integer_type.sign() == IntegerSign::Unsigned
-    );
     let (left, right, subtraction) = match expression {
         // A bitwise and reads like a commutative operand pair: the current
         // value resumes at either side and the other side is the sibling
@@ -45,17 +41,15 @@ fn forward_sibling<'a>(
             (left.as_ref(), right.as_ref(), false)
         }
         // The kernel traverses a wrapping add on either carrier sign and
-        // demands no-wrap evidence on the side the addend faces; wrapping
-        // division stays unsigned there.
+        // demands no-wrap evidence on the side the addend faces.
         ScalarTerm::WrappingIntegerAdd { left, right, .. } => {
             (left.as_ref(), right.as_ref(), false)
         }
         ScalarTerm::ExactIntegerDivide { left, right, .. }
+        | ScalarTerm::WrappingIntegerDivide { left, right, .. }
         | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+        | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
         | ScalarTerm::ExactIntegerSubtract { left, right, .. } => {
-            (left.as_ref(), right.as_ref(), true)
-        }
-        ScalarTerm::WrappingIntegerDivide { left, right, .. } if unsigned => {
             (left.as_ref(), right.as_ref(), true)
         }
         _ => return None,
