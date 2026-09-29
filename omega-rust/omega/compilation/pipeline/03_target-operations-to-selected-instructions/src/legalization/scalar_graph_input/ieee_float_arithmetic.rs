@@ -4,10 +4,10 @@
 //! float-arithmetic builtin as one `NearestIeeeFloatArithmetic` row instead
 //! of a call. Legalization accepts that row only when it rejoins the abstract
 //! `BoundaryCall` it replaced: the same Terminal operation and boundary, the
-//! unique declaration `(format, format) -> format` with no structural,
-//! claim or authority rows, the builtin execution that pairs with this
-//! realization, a supporting target, and both argument sources available in
-//! authored order. The projected instruction then carries only the
+//! unique declaration with exactly the operation's signature at its result
+//! format and no structural, claim or authority rows, the builtin execution
+//! that pairs with this realization, a supporting target, and every argument
+//! source (one or two, by the operation) available in authored order. The projected instruction then carries only the
 //! operation, format and SSA operands; nothing else can reach selection.
 
 use super::LegalizationError;
@@ -83,9 +83,6 @@ pub(in crate::legalization) fn validate(
     else {
         return Err(LegalizationError::custody());
     };
-    let [expected_left, expected_right] = arguments.as_slice() else {
-        return Err(LegalizationError::custody());
-    };
     let mut declarations = plan
         .boundary_machines
         .iter()
@@ -103,6 +100,7 @@ pub(in crate::legalization) fn validate(
         return Err(LegalizationError::custody());
     }
     let scalar = ScalarType::IeeeFloat(realization.format);
+    let operand = realization.operation.operand_type(realization.format);
     let expected_execution = BoundaryExecutionBinding::CompilerBuiltin(
         CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
             operation: realization.operation,
@@ -122,7 +120,7 @@ pub(in crate::legalization) fn validate(
         || *execution != expected_execution
         || !NearestIeeeFloatArithmeticRealization::supports_target(native)
         || declaration.attachment.is_some()
-        || declaration.scalar_parameters != [scalar, scalar]
+        || !realization.signature_matches(&declaration.scalar_parameters, scalar)
         || !declaration.structural_parameters.is_empty()
         || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
         || !declaration.requires.is_empty()
@@ -136,10 +134,14 @@ pub(in crate::legalization) fn validate(
         || result_home.source_value != result.value
         || result_home.scalar_type != scalar
         || Some(result_home.shape) != super::scalar_shape(scalar)
-        || left.scalar_type() != scalar
-        || right.scalar_type() != scalar
-        || !exactly_available(expected_left, left)
-        || !exactly_available(expected_right, right)
+        || arguments.len() != realization.operation.operand_count()
+        || !arguments
+            .iter()
+            .zip(std::iter::once(left).chain(right))
+            .all(|(expected, source)| {
+                source.scalar_type() == operand && exactly_available(expected, source)
+            })
+        || arguments.len() != 1 + usize::from(right.is_some())
     {
         return Err(LegalizationError::custody());
     }

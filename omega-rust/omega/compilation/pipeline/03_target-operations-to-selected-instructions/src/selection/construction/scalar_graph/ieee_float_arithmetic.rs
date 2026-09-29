@@ -1,6 +1,7 @@
-//! One selected compiler float-arithmetic call as one nearest-even IEEE form.
-//! Operands and result stay raw payloads in general registers; the target
-//! form owns its scratch floating registers through its constraint row.
+//! One selected compiler float call as one nearest-even IEEE form.
+//! Operands (one or two, by the operation; IEEE payloads or integers) and the
+//! result stay in general registers; the binary or unary constraint row gives
+//! the target form its scratch floating registers.
 use super::{
     Builder, LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
     SelectedInstructionProvenance, VirtualRegisterId,
@@ -25,34 +26,42 @@ pub(super) fn emit(
     else {
         return Err(SelectedInstructionError::custody());
     };
-    let (_, left_register, _, left_type) = state
-        .resolve(left)
-        .ok_or_else(SelectedInstructionError::custody)?;
-    let (_, right_register, _, right_type) = state
-        .resolve(right)
-        .ok_or_else(SelectedInstructionError::custody)?;
+    let form = IeeeFloatArithmeticForm {
+        operation: arithmetic,
+        format,
+    };
     let scalar = ScalarType::IeeeFloat(format);
-    if result.scalar_type != scalar || left_type != scalar || right_type != scalar {
+    let operand = arithmetic.operand_type(format);
+    let values = std::iter::once(left).chain(right).collect::<Vec<_>>();
+    if result.scalar_type != scalar || values.len() != form.operand_count() {
         return Err(SelectedInstructionError::custody());
     }
-    let key = state
-        .constraints
-        .keys
-        .ieee_float_arithmetic
-        .ok_or_else(SelectedInstructionError::custody)?;
+    let mut registers = Vec::with_capacity(values.len() + 1);
+    for value in &values {
+        let (_, register, _, value_type) = state
+            .resolve(*value)
+            .ok_or_else(SelectedInstructionError::custody)?;
+        if value_type != operand {
+            return Err(SelectedInstructionError::custody());
+        }
+        registers.push(register);
+    }
+    let keys = &state.constraints.keys;
+    let key = if form.operand_count() == 2 {
+        keys.ieee_float_arithmetic
+    } else {
+        keys.ieee_float_unary
+    }
+    .ok_or_else(SelectedInstructionError::custody)?;
     let output = state.register(result.value, result.definition_site, scalar)?;
+    registers.push(output);
     state.emit(
-        SelectedInstructionKind::NearestIeeeFloatArithmetic {
-            form: IeeeFloatArithmeticForm {
-                operation: arithmetic,
-                format,
-            },
-        },
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form },
         key,
-        &[left_register, right_register, output],
+        &registers,
         SelectedInstructionProvenance {
             operations: vec![operation.operation],
-            values: vec![left, right, result.value],
+            values: values.into_iter().chain([result.value]).collect(),
             fuel: operation.fuel.clone(),
             ..Default::default()
         },

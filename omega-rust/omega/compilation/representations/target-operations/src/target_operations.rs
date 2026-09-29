@@ -49,10 +49,11 @@ pub use boundary::{
     BoundaryScalarArgument, BoundarySettlementBinding, BoundarySettlementRealization,
     ClaimCompletionOnlyRealization, CompilerBuiltinExecution, DirectPortReadU8Realization,
     HostedExitProcessI32Realization, HostedReadByteRealization, HostedWriteByteI32Realization,
-    IeeeFloatArithmeticOperation, LinuxWriteLineRealization, MetadataOnlyPortRealization,
-    NearestIeeeFloatArithmeticRealization, NormalizedForeignCallBinding,
-    NormalizedForeignScalarArgument, NormalizedForeignStructuralArgument, ProviderExecutionBinding,
-    ProviderPlanReportIdentity, TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
+    IeeeFloatArithmeticOperation, IeeeFloatIntegerSource, LinuxWriteLineRealization,
+    MetadataOnlyPortRealization, NearestIeeeFloatArithmeticRealization,
+    NormalizedForeignCallBinding, NormalizedForeignScalarArgument,
+    NormalizedForeignStructuralArgument, ProviderExecutionBinding, ProviderPlanReportIdentity,
+    TargetIeeeFloatFmaOperand, TargetX86ScalarFmaSettlement,
 };
 pub mod operations;
 pub use operations::{NativeCallOrigin, TargetStructuralRuntimeIndex, TargetUnitOperation};

@@ -1,0 +1,168 @@
+// Runtime conversions into binary64 and binary32 through the selected named
+// float providers (exit 70): `F64`/`F32::from_i32`, `from_i64`, `from_u32`,
+// and `F64::from_f32` / `F32::from_f64`.
+//
+// Each conversion is one flat local initializer over field reads, so it
+// executes at run time. Every conversion is total and rounds to nearest,
+// ties to even; each inexact case below differs from truncation:
+//   i32 -7 and 2^24 + 1 are exact in binary64;
+//   2^24 + 3 ties between 2^24 + 2 and 2^24 + 4 in binary32 and lands on the
+//   even 2^24 + 4 (truncation keeps 2^24 + 2);
+//   i64 2^53 + 3 lands on 2^53 + 4 in binary64, and -(2^53 + 3) on
+//   -(2^53 + 4);
+//   u32 3000000000 stays positive (a signed reading would be negative), and
+//   u32::MAX rounds up to 2^32 in binary32;
+//   binary32 0.1 widens exactly, binary64 1 + 3*2^-25 narrows to 1 + 2^-23
+//   (truncation gives 1), binary64 1e300 overflows to binary32 infinity, and
+//   a NaN stays NaN in both directions.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    negative_seven: i32;
+    exact_i32: i32;
+    tie_i32: i32;
+    tie_i64: i64;
+    negative_tie_i64: i64;
+    large_u32: u32;
+    maximum_u32: u32;
+    tenth32: f32;
+    zero32: f32;
+    one32: f32;
+    near_one64: f64;
+    huge64: f64;
+    zero64: f64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.negative_seven = -7;
+    self.exact_i32 = 16777217;
+    self.tie_i32 = 16777219;
+    self.tie_i64 = 9007199254740995;
+    self.negative_tie_i64 = -9007199254740995;
+    self.large_u32 = 3000000000;
+    self.maximum_u32 = 4294967295;
+    self.tenth32 = 0.1f32;
+    self.zero32 = 0.0f32;
+    self.one32 = 1.0f32;
+    self.near_one64 = 1.0000000894069671630859375;
+    self.huge64 = 1e300;
+    self.zero64 = 0.0;
+    let converted: f64 = F64::from_i32(self.negative_seven);
+    transition converted == -7.0 {
+        true -> exact_i32_64()
+        _ -> fail(71)
+    }
+
+    state exact_i32_64(&mut self) {
+        let converted: f64 = F64::from_i32(self.exact_i32);
+        transition converted == 16777217.0 {
+            true -> tie_i32_32()
+            _ -> fail(72)
+        }
+    }
+
+    state tie_i32_32(&mut self) {
+        let converted: f32 = F32::from_i32(self.tie_i32);
+        transition converted == 16777220.0f32 {
+            true -> tie_i64_64()
+            _ -> fail(73)
+        }
+    }
+
+    state tie_i64_64(&mut self) {
+        let converted: f64 = F64::from_i64(self.tie_i64);
+        transition converted == 9007199254740996.0 {
+            true -> negative_tie_i64_64()
+            _ -> fail(74)
+        }
+    }
+
+    state negative_tie_i64_64(&mut self) {
+        let converted: f64 = F64::from_i64(self.negative_tie_i64);
+        transition converted == -9007199254740996.0 {
+            true -> tie_i64_32()
+            _ -> fail(75)
+        }
+    }
+
+    state tie_i64_32(&mut self) {
+        let converted: f32 = F32::from_i64(self.tie_i64);
+        transition converted == 9007199254740992.0f32 {
+            true -> large_u32_64()
+            _ -> fail(76)
+        }
+    }
+
+    state large_u32_64(&mut self) {
+        let converted: f64 = F64::from_u32(self.large_u32);
+        transition converted == 3000000000.0 {
+            true -> maximum_u32_32()
+            _ -> fail(77)
+        }
+    }
+
+    state maximum_u32_32(&mut self) {
+        let converted: f32 = F32::from_u32(self.maximum_u32);
+        transition converted == 4294967296.0f32 {
+            true -> maximum_u32_64()
+            _ -> fail(78)
+        }
+    }
+
+    state maximum_u32_64(&mut self) {
+        let converted: f64 = F64::from_u32(self.maximum_u32);
+        transition converted == 4294967295.0 {
+            true -> widen()
+            _ -> fail(79)
+        }
+    }
+
+    state widen(&mut self) {
+        let converted: f64 = F64::from_f32(self.tenth32);
+        transition converted == 0.100000001490116119384765625 {
+            true -> widen_nan()
+            _ -> fail(80)
+        }
+    }
+
+    state widen_nan(&mut self) {
+        let nan32: f32 = self.zero32 / self.zero32;
+        let converted: f64 = F64::from_f32(nan32);
+        transition converted != converted {
+            true -> narrow()
+            _ -> fail(81)
+        }
+    }
+
+    state narrow(&mut self) {
+        let converted: f32 = F32::from_f64(self.near_one64);
+        transition converted == 1.00000011920928955078125f32 {
+            true -> narrow_overflow()
+            _ -> fail(82)
+        }
+    }
+
+    state narrow_overflow(&mut self) {
+        let converted: f32 = F32::from_f64(self.huge64);
+        let infinity32: f32 = self.one32 / self.zero32;
+        transition converted == infinity32 {
+            true -> narrow_nan()
+            _ -> fail(83)
+        }
+    }
+
+    state narrow_nan(&mut self) {
+        let nan64: f64 = self.zero64 / self.zero64;
+        let converted: f32 = F32::from_f64(nan64);
+        transition converted != converted {
+            true -> pass()
+            _ -> fail(84)
+        }
+    }
+
+    state pass(&self) { self.console.exit_process(70); }
+    state fail(&self, code: i32) { self.console.exit_process(code); }
+}

@@ -1,15 +1,21 @@
-//! Nearest-even IEEE arithmetic forms: one operation at one interchange format.
+//! Nearest-even IEEE forms: one operation whose result has one interchange
+//! format.
 //!
 //! Scalar graphs hold IEEE values as raw payloads in general registers, the
-//! same carrier IEEE comparison and field storage use. A form therefore reads
-//! two general registers and defines one: its encoding moves both payloads
-//! into fixed scratch floating registers, performs one scalar operation under
-//! Omega's canonical floating controls (round to nearest, ties to even; no
-//! trap unmasking; no flush to zero), and moves the result payload back. The
-//! scratch registers and the sticky status register are declared clobbers.
+//! same carrier IEEE comparison and field storage use, and integers in
+//! general registers too. A form therefore reads one or two general registers
+//! (its operation's operand count) and defines one: its encoding moves or
+//! converts the operands into fixed scratch floating registers, performs the
+//! operation under Omega's canonical floating controls (round to nearest,
+//! ties to even; no trap unmasking; no flush to zero), and moves the result
+//! payload back. The scratch registers are declared clobbers.
+//!
+//! Tags: 230 plus the dense ordinal, so the 24 forms occupy 230 through 253
+//! of the one-byte machine-tag space. Only 254 and 255 remain; a further
+//! family (for example float-to-integer conversion) needs a wider tag.
 
 pub use semantic_vocabulary::IeeeFloatFormat;
-pub use target_operations::IeeeFloatArithmeticOperation;
+pub use target_operations::{IeeeFloatArithmeticOperation, IeeeFloatIntegerSource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct IeeeFloatArithmeticForm {
@@ -18,7 +24,7 @@ pub struct IeeeFloatArithmeticForm {
 }
 
 impl IeeeFloatArithmeticForm {
-    pub const COUNT: usize = 8;
+    pub const COUNT: usize = IeeeFloatArithmeticOperation::ALL.len() * 2;
     pub const ALL: [Self; Self::COUNT] = {
         let formats = [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64];
         let mut forms = [Self {
@@ -42,12 +48,7 @@ impl IeeeFloatArithmeticForm {
 
     /// Dense ordinal: operation-major, binary32 before binary64.
     pub const fn ordinal(self) -> u8 {
-        let operation = match self.operation {
-            IeeeFloatArithmeticOperation::Add => 0,
-            IeeeFloatArithmeticOperation::Subtract => 1,
-            IeeeFloatArithmeticOperation::Multiply => 2,
-            IeeeFloatArithmeticOperation::Divide => 3,
-        };
+        let operation = self.operation.ordinal();
         let format = match self.format {
             IeeeFloatFormat::Binary32 => 0,
             IeeeFloatFormat::Binary64 => 1,
@@ -56,7 +57,7 @@ impl IeeeFloatArithmeticForm {
     }
 
     /// The one machine-semantic and alternative-family tag of each form:
-    /// 230 plus its dense ordinal (230 through 237), above every fixed,
+    /// 230 plus its dense ordinal (230 through 253), above every fixed,
     /// saturating, Trapping and atomic tag. Forms are appended, never
     /// renumbered.
     pub const fn machine_tag(self) -> u8 {
@@ -71,9 +72,14 @@ impl IeeeFloatArithmeticForm {
         }
     }
 
-    /// Whether the operation is binary32 (single-precision) arithmetic.
+    /// Whether the result is binary32 (single precision).
     pub const fn is_binary32(self) -> bool {
         matches!(self.format, IeeeFloatFormat::Binary32)
+    }
+
+    /// The general registers the form reads before its one result.
+    pub const fn operand_count(self) -> usize {
+        self.operation.operand_count()
     }
 }
 
@@ -91,6 +97,7 @@ mod tests {
             );
         }
         assert_eq!(IeeeFloatArithmeticForm::from_machine_tag(229), None);
-        assert_eq!(IeeeFloatArithmeticForm::from_machine_tag(238), None);
+        assert_eq!(IeeeFloatArithmeticForm::from_machine_tag(254), None);
+        assert_eq!(IeeeFloatArithmeticForm::ALL.len(), 24);
     }
 }

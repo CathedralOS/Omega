@@ -40,11 +40,18 @@ pub const AARCH64_RESTORE_FLOATING_CONTROL: RegisterConstraintKey = RegisterCons
     variant: 754,
 };
 
-/// Nearest-even IEEE arithmetic on general-register payloads: two inputs and
-/// one result, with FPCR read and scratch `v16`/`v17` clobbered.
+/// Nearest-even IEEE operations on general-register payloads: two inputs and
+/// one result, with FPCR read and scratch `v16`..`v18` clobbered.
 pub const AARCH64_IEEE_FLOAT_ARITHMETIC: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 785,
+};
+
+/// The same IEEE forms with one general-register input (negation, square
+/// root and conversions) and one result.
+pub const AARCH64_IEEE_FLOAT_UNARY: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 786,
 };
 
 pub const AARCH64_COPY_BYTES: RegisterConstraintKey = RegisterConstraintKey {
@@ -374,7 +381,7 @@ pub const AARCH64_FRAME_ADDRESS: RegisterConstraintKey = RegisterConstraintKey {
 /// Closed baseline constraint inventory owned by the AArch64 target.
 /// Includes scalar control, arithmetic, calls, and pointer loads; other
 /// ordinary and feature-specific instruction rows remain absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 103] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 104] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_CALL_I64_PAIR_TO_I64,
@@ -583,4 +590,5 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 103] = 
     AARCH64_ATOMIC_UPDATE,
     AARCH64_ATOMIC_COMPARE_EXCHANGE,
     AARCH64_IEEE_FLOAT_ARITHMETIC,
+    AARCH64_IEEE_FLOAT_UNARY,
 ];

@@ -45,7 +45,7 @@ fn family_and_operand_count(
         // Float arithmetic owns its request, encoding and decoding.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => (
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-            3,
+            form.operand_count() + 1,
             0..=0,
         ),
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0, 0..=0),

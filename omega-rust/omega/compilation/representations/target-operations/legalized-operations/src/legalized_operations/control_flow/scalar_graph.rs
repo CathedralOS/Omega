@@ -237,9 +237,11 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::BitwiseOr { left, right }
             | LegalizedScalarInstructionKind::BitwiseXor { left, right }
             | LegalizedScalarInstructionKind::Compare { left, right, .. }
-            | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. }
-            | LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { left, right, .. } => {
+            | LegalizedScalarInstructionKind::IeeeFloatCompare { left, right, .. } => {
                 [*left, *right].into_iter().for_each(visit)
+            }
+            LegalizedScalarInstructionKind::NearestIeeeFloatArithmetic { left, right, .. } => {
+                std::iter::once(*left).chain(*right).for_each(visit)
             }
         }
     }
@@ -262,15 +264,16 @@ pub enum LegalizedScalarInstructionKind {
         left: ValueId,
         right: ValueId,
     },
-    /// One selected compiler float-arithmetic boundary call realized
-    /// inline: the exact nearest-even IEEE operation of `format` on the
-    /// call's two arguments. `boundary` keeps the call's Terminal identity.
+    /// One selected compiler float boundary call realized inline: the
+    /// exact nearest-even IEEE operation whose result has `format`, on the
+    /// call's arguments in authored order. `right` is present exactly when
+    /// the operation is binary. `boundary` keeps the call's Terminal identity.
     NearestIeeeFloatArithmetic {
         boundary: semantic_vocabulary::BoundaryMachineId,
         operation: target_operations::IeeeFloatArithmeticOperation,
         format: semantic_vocabulary::IeeeFloatFormat,
         left: ValueId,
-        right: ValueId,
+        right: Option<ValueId>,
     },
     EstablishByteSequenceConcatenation {
         result: terminal_psi::StructuralOperationResult,

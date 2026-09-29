@@ -97,7 +97,7 @@ fn family_and_operand_count(
         ),
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => (
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),
-            3,
+            form.operand_count() + 1,
         ),
         SelectedInstructionKind::Crash => (MachineAlternativeFamily::Crash, 0),
         SelectedInstructionKind::TrappingInteger { form } => (

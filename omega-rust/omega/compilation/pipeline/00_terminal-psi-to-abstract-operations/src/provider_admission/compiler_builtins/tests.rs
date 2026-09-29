@@ -1,5 +1,5 @@
-//! Target-catalog admission of selected float arithmetic against the exact
-//! Terminal boundary signature.
+//! Target-catalog admission of selected float operations against the exact
+//! Terminal boundary signature of each operation and result format.
 use super::{NearestIeeeFloatArithmeticRealization, float_arithmetic_realization};
 use semantic_vocabulary::{
     BoundaryMachineId, IeeeFloatFormat, IntegerSign, IntegerType, ScalarType,
@@ -42,6 +42,15 @@ fn forms() -> impl Iterator<Item = NearestIeeeFloatArithmeticRealization> {
         })
 }
 
+/// The exact boundary signature of one realization: its operation's operand
+/// count and operand type, and one result of its format.
+fn exact_signature(realization: NearestIeeeFloatArithmeticRealization) -> Vec<ScalarType> {
+    vec![
+        realization.operation.operand_type(realization.format);
+        realization.operation.operand_count()
+    ]
+}
+
 #[test]
 fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
     for target in [
@@ -52,13 +61,17 @@ fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
     ] {
         for realization in forms() {
             let scalar = ScalarType::IeeeFloat(realization.format);
-            let exact = boundary(vec![scalar, scalar], BoundaryMachineResult::Scalar(scalar));
+            let exact = boundary(
+                exact_signature(realization),
+                BoundaryMachineResult::Scalar(scalar),
+            );
             assert_eq!(
                 float_arithmetic_realization(realization, target, &exact),
                 Ok(realization)
             );
         }
     }
+    assert_eq!(forms().count(), 24);
 }
 
 #[test]
@@ -66,24 +79,44 @@ fn a_substituted_format_or_shape_cannot_realize_the_boundary() {
     let target = target::NativeTarget::macos_arm64();
     let binary32 = ScalarType::IeeeFloat(IeeeFloatFormat::Binary32);
     let binary64 = ScalarType::IeeeFloat(IeeeFloatFormat::Binary64);
-    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let signed64 = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 64).unwrap());
+    let unsigned32 = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    let signed16 = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 16).unwrap());
     for realization in forms() {
         let (own, other) = match realization.format {
             IeeeFloatFormat::Binary32 => (binary32, binary64),
             IeeeFloatFormat::Binary64 => (binary64, binary32),
         };
-        for substituted in [
-            // A row selected for the other format.
-            boundary(vec![other, other], BoundaryMachineResult::Scalar(other)),
-            // Mixed operand or result formats.
-            boundary(vec![own, other], BoundaryMachineResult::Scalar(own)),
-            boundary(vec![own, own], BoundaryMachineResult::Scalar(other)),
-            // Another operand count, an integer lane, or no scalar result.
-            boundary(vec![own], BoundaryMachineResult::Scalar(own)),
-            boundary(vec![own, own, own], BoundaryMachineResult::Scalar(own)),
-            boundary(vec![own, integer], BoundaryMachineResult::Scalar(own)),
-            boundary(vec![own, own], BoundaryMachineResult::Unit),
-        ] {
+        let exact = exact_signature(realization);
+        let operand = exact[0];
+        let mut substituted = vec![
+            // A result of the other format, or no scalar result.
+            boundary(exact.clone(), BoundaryMachineResult::Scalar(other)),
+            boundary(exact.clone(), BoundaryMachineResult::Unit),
+            // One operand fewer or more.
+            boundary(exact[1..].to_vec(), BoundaryMachineResult::Scalar(own)),
+            boundary(
+                [exact.as_slice(), &[operand]].concat(),
+                BoundaryMachineResult::Scalar(own),
+            ),
+        ];
+        // Every operand replaced by another float format or integer carrier.
+        for replacement in [binary32, binary64, signed64, unsigned32, signed16] {
+            if replacement != operand {
+                substituted.push(boundary(
+                    vec![replacement; exact.len()],
+                    BoundaryMachineResult::Scalar(own),
+                ));
+            }
+        }
+        // A mixed pair for the binary operations.
+        if exact.len() == 2 {
+            substituted.push(boundary(
+                vec![own, other],
+                BoundaryMachineResult::Scalar(own),
+            ));
+        }
+        for substituted in substituted {
             assert_eq!(
                 float_arithmetic_realization(realization, target, &substituted),
                 Err("does not match its Terminal boundary signature".to_owned()),

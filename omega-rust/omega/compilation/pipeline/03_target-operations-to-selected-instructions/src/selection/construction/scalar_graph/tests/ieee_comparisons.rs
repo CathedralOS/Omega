@@ -113,8 +113,12 @@ pub(super) fn execute(selected: &SelectedFunction) -> u64 {
                 values[operands[1]] = values[operands[0]] & 0xff
             }
             SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
-                values[operands[2]] =
-                    super::ieee_arithmetic::host(form, values[operands[0]], values[operands[1]])
+                let inputs = form.operand_count();
+                let arguments = operands[..inputs]
+                    .iter()
+                    .map(|operand| values[*operand])
+                    .collect::<Vec<_>>();
+                values[operands[inputs]] = super::ieee_arithmetic::host(form, &arguments)
             }
             SelectedInstructionKind::ReturnScalar => return values[operands[0]],
             other => panic!("unexpected comparison instruction {other:?}"),

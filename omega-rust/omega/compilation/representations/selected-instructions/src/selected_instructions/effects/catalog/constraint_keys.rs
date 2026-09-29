@@ -31,6 +31,7 @@ impl SelectedConstraintKeys {
             self.bits_to_float32,
             self.bits_to_float64,
             self.ieee_float_arithmetic,
+            self.ieee_float_unary,
         ]
         .into_iter()
         .flatten()
@@ -91,8 +92,12 @@ impl SelectedConstraintKeys {
                     _ => self.atomic_update,
                 };
             }
-            MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
-                return self.ieee_float_arithmetic;
+            MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
+                return if form.operand_count() == 2 {
+                    self.ieee_float_arithmetic
+                } else {
+                    self.ieee_float_unary
+                };
             }
             MachineSemanticKind::CopyBytes => return self.copy_bytes,
             MachineSemanticKind::Float32ToBits => return self.float32_to_bits,

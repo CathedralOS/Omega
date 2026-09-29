@@ -176,6 +176,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         bits_to_float32: None,
         bits_to_float64: None,
         ieee_float_arithmetic: None,
+        ieee_float_unary: None,
         add_i64: instruction_key(6),
         add_i64_immediate: instruction_key(7),
         subtract_i64: instruction_key(8),
@@ -351,6 +352,7 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
             bits_to_float32: None,
             bits_to_float64: None,
             ieee_float_arithmetic: None,
+            ieee_float_unary: None,
             ..keys.clone()
         },
         TargetRegisterEnvironmentConstraintKeys {

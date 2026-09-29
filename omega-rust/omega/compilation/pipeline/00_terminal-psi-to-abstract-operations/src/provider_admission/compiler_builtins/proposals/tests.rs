@@ -3,7 +3,7 @@ use super::{
     derive_selected_intrinsic_settlement_proposals,
 };
 use effects::provider_plan::{ProviderBinding, ProviderPlanRow};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone)]
 struct RetainedPlan {
@@ -86,6 +86,7 @@ fn called_intrinsics_keep_original_plan_indices_and_execution_identity() {
         &plans,
         provenance(&retained),
         &demands(&["zeta", "middle", "alpha", "missing"]),
+        &BTreeMap::new(),
     )
     .expect("called catalog rows project in lexical demand order");
     assert_eq!(
@@ -119,7 +120,8 @@ fn called_intrinsics_keep_original_plan_indices_and_execution_identity() {
         derive_selected_intrinsic_settlement_proposals(
             &plans,
             provenance(&retained),
-            &BTreeSet::new()
+            &BTreeSet::new(),
+            &BTreeMap::new(),
         )
         .expect("undemanded rows need no executable identity")
         .is_empty()
@@ -128,14 +130,17 @@ fn called_intrinsics_keep_original_plan_indices_and_execution_identity() {
 
 #[test]
 fn duplicate_missing_and_unsupported_executions_keep_lexical_diagnostics() {
-    use CompilerIntrinsicExecutionIdentity::{HostedReadByte, NamedFloatNegation};
+    use CompilerIntrinsicExecutionIdentity::{HostedReadByte, NamedFloatConversion};
+    // Float-to-integer conversion has no native realization yet.
+    let saturating = NamedFloatConversion {
+        source: effects::CompilerNumericType::F64,
+        target: effects::CompilerNumericType::I32,
+        domain: numerics::arithmetic::ArithmeticDomain::Saturating,
+    };
     let (first, first_retained) = selected_plan(
         "first",
         &[
-            (
-                "zeta",
-                Some(NamedFloatNegation(numerics::literals::FloatFormat::F32)),
-            ),
+            ("zeta", Some(saturating)),
             ("beta", None),
             ("alpha", Some(HostedReadByte)),
             ("alpha", None),
@@ -146,6 +151,7 @@ fn duplicate_missing_and_unsupported_executions_keep_lexical_diagnostics() {
         &[first, second],
         provenance(&[first_retained, second_retained]),
         &demands(&["zeta", "missing", "alpha", "beta"]),
+        &BTreeMap::new(),
     )
     .expect_err("duplicates must not choose a row or hide later diagnostics");
     let messages = diagnostics
@@ -170,6 +176,7 @@ fn undemanded_plans_still_require_complete_aligned_provenance() {
             std::slice::from_ref(&plan),
             provenance(&[]),
             &demanded,
+            &BTreeMap::new(),
         )
         .expect_err("missing retained plan rejects even without demand");
         assert!(diagnostics[0].message.contains("plans are not aligned"));
@@ -184,6 +191,7 @@ fn undemanded_plans_still_require_complete_aligned_provenance() {
                 std::slice::from_ref(&plan),
                 provenance(&[malformed]),
                 &demanded,
+                &BTreeMap::new(),
             )
             .expect_err("all retained plan and execution alignments are checked");
             assert_eq!(
@@ -226,6 +234,7 @@ fn float_arithmetic_rows_project_exact_executions_and_comparisons_do_not() {
         std::slice::from_ref(&plan),
         provenance(std::slice::from_ref(&retained)),
         &demands(&["a_add32", "b_subtract64", "c_multiply32", "d_divide64"]),
+        &BTreeMap::new(),
     )
     .expect("every arithmetic operation and format has a native realization");
     let expected = [
@@ -262,6 +271,7 @@ fn float_arithmetic_rows_project_exact_executions_and_comparisons_do_not() {
         std::slice::from_ref(&plan),
         provenance(std::slice::from_ref(&retained)),
         &demands(&["equal", "twice"]),
+        &BTreeMap::new(),
     )
     .expect_err("comparison and duplicate rows reject");
     assert_eq!(
@@ -274,4 +284,149 @@ fn float_arithmetic_rows_project_exact_executions_and_comparisons_do_not() {
             "Terminal boundary `twice` resolves to 2 selected compiler-intrinsic rows",
         ]
     );
+}
+
+#[test]
+fn named_float_rows_project_exact_executions_and_other_conversions_do_not() {
+    use effects::CompilerNumericType as Numeric;
+    use numerics::arithmetic::ArithmeticDomain;
+    use numerics::literals::FloatFormat;
+    use semantic_vocabulary::IeeeFloatFormat::{Binary32, Binary64};
+    use target_operations::{
+        CompilerBuiltinExecution, IeeeFloatArithmeticOperation as Arithmetic,
+        IeeeFloatIntegerSource as Integer,
+    };
+    let conversion =
+        |source, target, domain| CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        };
+    let exact = ArithmeticDomain::Exact;
+    let builtin = CompilerIntrinsicExecutionIdentity::BuiltinFunction;
+    let (plan, retained) = selected_plan(
+        "named",
+        &[
+            ("a_min32", Some(builtin(symbols::BuiltinFunction::Min))),
+            ("b_max64", Some(builtin(symbols::BuiltinFunction::Max))),
+            ("c_sqrt64", Some(builtin(symbols::BuiltinFunction::Sqrt))),
+            (
+                "d_negate32",
+                Some(CompilerIntrinsicExecutionIdentity::NamedFloatNegation(
+                    FloatFormat::F32,
+                )),
+            ),
+            (
+                "e_widen",
+                Some(conversion(Numeric::F32, Numeric::F64, exact)),
+            ),
+            (
+                "f_narrow",
+                Some(conversion(Numeric::F64, Numeric::F32, exact)),
+            ),
+            ("g_i32", Some(conversion(Numeric::I32, Numeric::F64, exact))),
+            ("h_i64", Some(conversion(Numeric::I64, Numeric::F32, exact))),
+            ("i_u32", Some(conversion(Numeric::U32, Numeric::F64, exact))),
+        ],
+    );
+    let float_results = [
+        ("a_min32", Binary32),
+        ("b_max64", Binary64),
+        ("c_sqrt64", Binary64),
+    ]
+    .map(|(identity, format)| (identity.to_owned(), format))
+    .into_iter()
+    .collect::<BTreeMap<_, _>>();
+    let proposals = derive_selected_intrinsic_settlement_proposals(
+        std::slice::from_ref(&plan),
+        provenance(std::slice::from_ref(&retained)),
+        &demands(&[
+            "a_min32",
+            "b_max64",
+            "c_sqrt64",
+            "d_negate32",
+            "e_widen",
+            "f_narrow",
+            "g_i32",
+            "h_i64",
+            "i_u32",
+        ]),
+        &float_results,
+    )
+    .expect("every named operation and exact conversion has a native realization");
+    let expected = [
+        (Arithmetic::Minimum, Binary32),
+        (Arithmetic::Maximum, Binary64),
+        (Arithmetic::SquareRoot, Binary64),
+        (Arithmetic::Negate, Binary32),
+        (Arithmetic::ConvertFormat, Binary64),
+        (Arithmetic::ConvertFormat, Binary32),
+        (Arithmetic::FromInteger(Integer::I32), Binary64),
+        (Arithmetic::FromInteger(Integer::I64), Binary32),
+        (Arithmetic::FromInteger(Integer::U32), Binary64),
+    ];
+    assert_eq!(
+        proposals
+            .iter()
+            .map(|proposal| proposal.execution)
+            .collect::<Vec<_>>(),
+        expected.map(
+            |(operation, format)| CompilerBuiltinExecution::NearestIeeeFloatArithmetic {
+                operation,
+                format
+            }
+        )
+    );
+
+    // Float-to-integer conversions in every domain, carriers without a
+    // one-instruction conversion on both architectures, a same-format
+    // conversion, and a format-free builtin whose boundary has no float
+    // result all stay unrealized.
+    let (plan, retained) = selected_plan(
+        "named",
+        &[
+            (
+                "saturating",
+                Some(conversion(
+                    Numeric::F64,
+                    Numeric::I32,
+                    ArithmeticDomain::Saturating,
+                )),
+            ),
+            (
+                "to_i32",
+                Some(conversion(Numeric::F64, Numeric::I32, exact)),
+            ),
+            (
+                "from_u64",
+                Some(conversion(Numeric::U64, Numeric::F64, exact)),
+            ),
+            (
+                "from_i8",
+                Some(conversion(Numeric::I8, Numeric::F32, exact)),
+            ),
+            ("same", Some(conversion(Numeric::F64, Numeric::F64, exact))),
+            ("unformatted", Some(builtin(symbols::BuiltinFunction::Min))),
+        ],
+    );
+    let diagnostics = derive_selected_intrinsic_settlement_proposals(
+        std::slice::from_ref(&plan),
+        provenance(std::slice::from_ref(&retained)),
+        &demands(&[
+            "saturating",
+            "to_i32",
+            "from_u64",
+            "from_i8",
+            "same",
+            "unformatted",
+        ]),
+        &BTreeMap::new(),
+    )
+    .expect_err("unrealized conversions reject");
+    assert_eq!(diagnostics.len(), 6);
+    assert!(diagnostics.iter().all(|diagnostic| {
+        diagnostic
+            .message
+            .ends_with("has no native boundary realization")
+    }));
 }

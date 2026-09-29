@@ -323,6 +323,7 @@ fn selected_keys(
         float32_to_bits: Some(crate::AARCH64_FLOAT32_TO_BITS),
         float64_to_bits: Some(crate::AARCH64_FLOAT64_TO_BITS),
         ieee_float_arithmetic: Some(crate::AARCH64_IEEE_FLOAT_ARITHMETIC),
+        ieee_float_unary: Some(crate::AARCH64_IEEE_FLOAT_UNARY),
         bits_to_float32: Some(crate::AARCH64_BITS_TO_FLOAT32),
         bits_to_float64: Some(crate::AARCH64_BITS_TO_FLOAT64),
         add_i64: AARCH64_ADD_I64,
@@ -458,8 +459,8 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         MachineSemanticKind::AtomicAccess(form) => {
             return crate::selected_form_encoding::atomic::effects(form);
         }
-        MachineSemanticKind::NearestIeeeFloatArithmetic(_) => {
-            return crate::selected_form_encoding::ieee_float_arithmetic::effects();
+        MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
+            return crate::selected_form_encoding::ieee_float_arithmetic::effects(form);
         }
         MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
         MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),

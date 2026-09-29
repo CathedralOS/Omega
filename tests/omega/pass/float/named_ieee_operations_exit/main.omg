@@ -1,0 +1,243 @@
+// Runtime binary64 and binary32 negate, minimum, maximum and square root
+// through the selected named float providers (exit 70).
+//
+// Each operation is one flat local initializer over field reads, so it
+// executes at run time rather than folding. The cases pin the declared
+// contracts:
+//   negate flips the sign of zero: 1 / negate(0) is negative;
+//   minimum(left, right) is `left` only when `left < right`, otherwise
+//   `right`: minimum(NaN, 1) is 1, minimum(1, NaN) is NaN, and
+//   minimum(0, -0) is -0 (the second operand of an equal pair);
+//   maximum likewise with `>`: maximum(NaN, 1) is 1, maximum(1, NaN) is NaN,
+//   maximum(-0, 0) is 0 and maximum(0, -0) is -0;
+//   square root rounds to nearest, ties to even: sqrt(2) is
+//   1.4142135623730951 (binary64) and 1.41421353816986083984375 (binary32),
+//   each above its truncation, and sqrt(-1) is NaN.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    zero64: f64;
+    one64: f64;
+    two64: f64;
+    zero32: f32;
+    one32: f32;
+    two32: f32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.zero64 = 0.0;
+    self.one64 = 1.0;
+    self.two64 = 2.0;
+    self.zero32 = 0.0f32;
+    self.one32 = 1.0f32;
+    self.two32 = 2.0f32;
+    let negated64: f64 = F64::negate(self.two64);
+    transition negated64 < 0.0 {
+        true -> negate_value64()
+        _ -> fail(71)
+    }
+
+    state negate_value64(&mut self) {
+        let negated64: f64 = F64::negate(self.two64);
+        let sum64: f64 = negated64 + self.two64;
+        transition sum64 == 0.0 {
+            true -> negate_zero64()
+            _ -> fail(72)
+        }
+    }
+
+    state negate_zero64(&mut self) {
+        let negative_zero64: f64 = F64::negate(self.zero64);
+        let reciprocal64: f64 = self.one64 / negative_zero64;
+        transition reciprocal64 < 0.0 {
+            true -> minimum_nan_first64()
+            _ -> fail(73)
+        }
+    }
+
+    state minimum_nan_first64(&mut self) {
+        let nan64: f64 = self.zero64 / self.zero64;
+        let minimum64: f64 = F64::minimum(nan64, self.one64);
+        transition minimum64 == 1.0 {
+            true -> minimum_nan_second64()
+            _ -> fail(74)
+        }
+    }
+
+    state minimum_nan_second64(&mut self) {
+        let nan64: f64 = self.zero64 / self.zero64;
+        let minimum64: f64 = F64::minimum(self.one64, nan64);
+        transition minimum64 != minimum64 {
+            true -> minimum_zeros64()
+            _ -> fail(75)
+        }
+    }
+
+    state minimum_zeros64(&mut self) {
+        let negative_zero64: f64 = F64::negate(self.zero64);
+        let minimum64: f64 = F64::minimum(self.zero64, negative_zero64);
+        let reciprocal64: f64 = self.one64 / minimum64;
+        transition reciprocal64 < 0.0 {
+            true -> minimum_ordered64()
+            _ -> fail(76)
+        }
+    }
+
+    state minimum_ordered64(&mut self) {
+        let minimum64: f64 = F64::minimum(self.two64, self.one64);
+        transition minimum64 == 1.0 {
+            true -> maximum_nan_first64()
+            _ -> fail(77)
+        }
+    }
+
+    state maximum_nan_first64(&mut self) {
+        let nan64: f64 = self.zero64 / self.zero64;
+        let maximum64: f64 = F64::maximum(nan64, self.one64);
+        transition maximum64 == 1.0 {
+            true -> maximum_nan_second64()
+            _ -> fail(78)
+        }
+    }
+
+    state maximum_nan_second64(&mut self) {
+        let nan64: f64 = self.zero64 / self.zero64;
+        let maximum64: f64 = F64::maximum(self.one64, nan64);
+        transition maximum64 != maximum64 {
+            true -> maximum_zeros64()
+            _ -> fail(79)
+        }
+    }
+
+    state maximum_zeros64(&mut self) {
+        let negative_zero64: f64 = F64::negate(self.zero64);
+        let maximum64: f64 = F64::maximum(negative_zero64, self.zero64);
+        let reciprocal64: f64 = self.one64 / maximum64;
+        transition reciprocal64 > 0.0 {
+            true -> maximum_zeros_second64()
+            _ -> fail(80)
+        }
+    }
+
+    state maximum_zeros_second64(&mut self) {
+        let negative_zero64: f64 = F64::negate(self.zero64);
+        let maximum64: f64 = F64::maximum(self.zero64, negative_zero64);
+        let reciprocal64: f64 = self.one64 / maximum64;
+        transition reciprocal64 < 0.0 {
+            true -> maximum_ordered64()
+            _ -> fail(81)
+        }
+    }
+
+    state maximum_ordered64(&mut self) {
+        let maximum64: f64 = F64::maximum(self.one64, self.two64);
+        transition maximum64 == 2.0 {
+            true -> square_root64()
+            _ -> fail(82)
+        }
+    }
+
+    state square_root64(&mut self) {
+        let root64: f64 = F64::square_root(self.two64);
+        transition root64 == 1.4142135623730951454746218587388284504413604736328125 {
+            true -> square_root_negative64()
+            _ -> fail(83)
+        }
+    }
+
+    state square_root_negative64(&mut self) {
+        let negative_one64: f64 = F64::negate(self.one64);
+        let root64: f64 = F64::square_root(negative_one64);
+        transition root64 != root64 {
+            true -> negate32()
+            _ -> fail(84)
+        }
+    }
+
+    state negate32(&mut self) {
+        let negated32: f32 = F32::negate(self.two32);
+        let sum32: f32 = negated32 + self.two32;
+        transition sum32 == 0.0f32 {
+            true -> negate_zero32()
+            _ -> fail(85)
+        }
+    }
+
+    state negate_zero32(&mut self) {
+        let negative_zero32: f32 = F32::negate(self.zero32);
+        let reciprocal32: f32 = self.one32 / negative_zero32;
+        transition reciprocal32 < 0.0f32 {
+            true -> minimum_nan_first32()
+            _ -> fail(86)
+        }
+    }
+
+    state minimum_nan_first32(&mut self) {
+        let nan32: f32 = self.zero32 / self.zero32;
+        let minimum32: f32 = F32::minimum(nan32, self.one32);
+        transition minimum32 == 1.0f32 {
+            true -> minimum_nan_second32()
+            _ -> fail(87)
+        }
+    }
+
+    state minimum_nan_second32(&mut self) {
+        let nan32: f32 = self.zero32 / self.zero32;
+        let minimum32: f32 = F32::minimum(self.one32, nan32);
+        transition minimum32 != minimum32 {
+            true -> minimum_zeros32()
+            _ -> fail(88)
+        }
+    }
+
+    state minimum_zeros32(&mut self) {
+        let negative_zero32: f32 = F32::negate(self.zero32);
+        let minimum32: f32 = F32::minimum(self.zero32, negative_zero32);
+        let reciprocal32: f32 = self.one32 / minimum32;
+        transition reciprocal32 < 0.0f32 {
+            true -> maximum_nan_first32()
+            _ -> fail(89)
+        }
+    }
+
+    state maximum_nan_first32(&mut self) {
+        let nan32: f32 = self.zero32 / self.zero32;
+        let maximum32: f32 = F32::maximum(nan32, self.one32);
+        transition maximum32 == 1.0f32 {
+            true -> maximum_zeros32()
+            _ -> fail(90)
+        }
+    }
+
+    state maximum_zeros32(&mut self) {
+        let negative_zero32: f32 = F32::negate(self.zero32);
+        let maximum32: f32 = F32::maximum(self.zero32, negative_zero32);
+        let reciprocal32: f32 = self.one32 / maximum32;
+        transition reciprocal32 < 0.0f32 {
+            true -> maximum_ordered32()
+            _ -> fail(91)
+        }
+    }
+
+    state maximum_ordered32(&mut self) {
+        let maximum32: f32 = F32::maximum(self.one32, self.two32);
+        transition maximum32 == 2.0f32 {
+            true -> square_root32()
+            _ -> fail(92)
+        }
+    }
+
+    state square_root32(&mut self) {
+        let root32: f32 = F32::square_root(self.two32);
+        transition root32 == 1.41421353816986083984375f32 {
+            true -> pass()
+            _ -> fail(93)
+        }
+    }
+
+    state pass(&self) { self.console.exit_process(70); }
+    state fail(&self, code: i32) { self.console.exit_process(code); }
+}

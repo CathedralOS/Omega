@@ -894,27 +894,32 @@ pub fn x86_64_register_constraint_catalog(
             clobbers: Vec::new(),
         });
     }
-    // Scalar IEEE arithmetic reads MXCSR's rounding controls and clobbers its
+    // Scalar IEEE operations read MXCSR's rounding controls and clobber their
     // scratch vectors; the effect declaration in
-    // `selected_form_encoding::ieee_float_arithmetic` restates this row.
-    constraints.push(RegisterInstructionConstraint {
-        id: RegisterConstraintId(0),
-        key: crate::X86_64_IEEE_FLOAT_ARITHMETIC,
-        operands: vec![
-            allocatable(0, RegisterOperandAccess::Use, GPR64),
-            allocatable(1, RegisterOperandAccess::Use, GPR64),
-            allocatable(2, RegisterOperandAccess::Def, GPR64),
-        ],
-        implicit_uses: sorted_units(view("mxcsr").units.iter().copied()),
-        implicit_defs: Vec::new(),
-        clobbers: sorted_units(
-            view("xmm4")
-                .units
-                .iter()
-                .chain(&view("xmm5").units)
-                .copied(),
-        ),
-    });
+    // `selected_form_encoding::ieee_float_arithmetic` restates both rows.
+    for (key, inputs) in [
+        (crate::X86_64_IEEE_FLOAT_ARITHMETIC, 2),
+        (crate::X86_64_IEEE_FLOAT_UNARY, 1),
+    ] {
+        let mut operands = (0..inputs)
+            .map(|index| allocatable(index, RegisterOperandAccess::Use, GPR64))
+            .collect::<Vec<_>>();
+        operands.push(allocatable(inputs, RegisterOperandAccess::Def, GPR64));
+        constraints.push(RegisterInstructionConstraint {
+            id: RegisterConstraintId(0),
+            key,
+            operands,
+            implicit_uses: sorted_units(view("mxcsr").units.iter().copied()),
+            implicit_defs: Vec::new(),
+            clobbers: sorted_units(
+                view("xmm4")
+                    .units
+                    .iter()
+                    .chain(&view("xmm5").units)
+                    .copied(),
+            ),
+        });
+    }
     mixed_calls::append_constraints(&mut constraints, model);
     mixed_calls::append_normalized_foreign_constraints(&mut constraints, model);
     float_scalar_calls::append_constraints(&mut constraints, model);
