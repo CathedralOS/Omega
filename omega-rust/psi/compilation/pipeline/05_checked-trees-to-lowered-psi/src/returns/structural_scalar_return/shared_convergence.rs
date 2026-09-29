@@ -60,6 +60,7 @@ pub(crate) fn shared_boolean_runtime_parameters(
         | LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
         | LoweredBooleanReturnExpression::PrimitiveRead { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::Equal { .. } => None,
     }
@@ -147,6 +148,7 @@ fn shared_integer_runtime_parameters(
         LoweredDirectExpression::IeeeFloatLiteral { .. }
         | LoweredDirectExpression::PrimitiveRead { .. }
         | LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::ByteCarrierFieldRead { .. }
         | LoweredDirectExpression::ByteSequenceRead { .. }
         | LoweredDirectExpression::ByteSequenceFieldRead { .. }
         | LoweredDirectExpression::IndexedPrimitiveRead { .. }

@@ -227,6 +227,7 @@ pub(crate) fn lower_boolean_value_decision(
         | LoweredBooleanReturnExpression::Local { .. }
         | LoweredBooleanReturnExpression::UnresolvedStructuralParameterField { .. }
         | LoweredBooleanReturnExpression::StructuralField { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. }
         | LoweredBooleanReturnExpression::IntegerComparison { .. } => {
             unreachable!("non-short-circuit expressions return above")
         }
@@ -984,6 +985,7 @@ pub(crate) fn build_scalar_conditional_target(
             | LoweredDirectExpression::ByteSequenceFieldRead { .. }
             | LoweredDirectExpression::IndexedPrimitiveRead { .. }
             | LoweredDirectExpression::IndexedElementFieldRead { .. }
+            | LoweredDirectExpression::ByteCarrierFieldRead { .. }
             | LoweredDirectExpression::ElementViewLength { .. }
             | LoweredDirectExpression::ElementViewRead { .. }
             | LoweredDirectExpression::IeeeFloatLiteral { .. }

@@ -74,6 +74,8 @@ pass/borrows/borrow_domain_window_write_and_call checked 340ms
 pass/borrows/borrow_guarded_window_write_and_call checked 334ms
 pass/borrows/borrow_returned_window_write_and_call checked 352ms
 pass/borrows/borrow_stated_index_disequality_mut checked 350ms
+pass/borrows/shared_recast_loan_member_read rejected 8810ms
+	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy(OperationId(6)))
 pass/build/conditional_root_binding checked 446ms
 pass/build/described_runner_entry_left_exit checked 1480ms
 pass/build/described_runner_entry_right_exit checked 1460ms

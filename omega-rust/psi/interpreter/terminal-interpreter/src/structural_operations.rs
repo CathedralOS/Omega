@@ -1213,7 +1213,11 @@ impl TerminalExecution {
             _ => return Err(invalid()),
         };
         if leaf.structural_type != result.structural_type {
-            return Err(invalid());
+            // A record leaf copy out of a byte carrier mints fresh storage:
+            // the resolved `u8` element is where the region starts and the
+            // record's scalar leaves decode little-endian out of the
+            // consecutive bytes the source recast judgment proved fit.
+            return self.byte_carrier_leaf_copy(&leaf, result);
         }
         let copied = TerminalStructuralValue {
             opaque_identity: self.local_structural_identities.allocate()?,
@@ -1225,6 +1229,102 @@ impl TerminalExecution {
             &StructuralRuntimePlace::from(&leaf),
             &StructuralRuntimePlace::from(&copied),
         );
+        self.structural_values.insert(result.place, copied);
+        Ok(OperationFlow::Advance)
+    }
+
+    /// Mint the copied record a byte-carrier leaf copy names: the resolved
+    /// leaf is the `u8` element where the overlaid region starts, and each
+    /// scalar leaf of the record's fixed layout decodes little-endian out of
+    /// the consecutive bytes the recast judgment proved it occupies. The
+    /// verifier admits this shape only for a literal index inside a `u8`
+    /// fixed array with the layout's extent proven against the declared
+    /// length, so a miss on any byte is a malformed module, never a partial
+    /// record.
+    fn byte_carrier_leaf_copy(
+        &mut self,
+        leaf: &TerminalStructuralValue,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> Result<OperationFlow, TerminalInterpretError> {
+        let invalid = || TerminalInterpretError::VerifiedOperationMalformed;
+        let Some((StructuralPathSegment::FixedIndex(index), parent_path)) = leaf.path.split_last()
+        else {
+            return Err(invalid());
+        };
+        let array = StructuralRuntimePlace {
+            opaque_identity: leaf.opaque_identity,
+            path: parent_path.to_vec(),
+        };
+        let bytes = self
+            .structural_byte_arrays
+            .get(&array)
+            .ok_or_else(invalid)?;
+        let layout = terminal_semantics::byte_carrier_scalar_layout(
+            self.program.structural_types.values(),
+            result.structural_type,
+        )
+        .ok_or_else(invalid)?;
+        let index = usize::try_from(*index).map_err(|_| invalid())?;
+        let mut leaves = Vec::with_capacity(layout.leaves.len());
+        for member in &layout.leaves {
+            let offset = index
+                .checked_add(usize::try_from(member.offset).map_err(|_| invalid())?)
+                .ok_or_else(invalid)?;
+            let size = usize::try_from(match member.scalar_type {
+                ScalarType::Boolean => 1u16,
+                ScalarType::Integer(integer) => integer.bits() / 8,
+                _ => return Err(invalid()),
+            })
+            .map_err(|_| invalid())?;
+            let bytes = bytes
+                .bytes()
+                .get(offset..offset.checked_add(size).ok_or_else(invalid)?)
+                .ok_or_else(invalid)?;
+            let mut value = 0u128;
+            for (position, byte) in bytes.iter().enumerate() {
+                value |= u128::from(*byte) << (8 * position);
+            }
+            let scalar = match member.scalar_type {
+                ScalarType::Boolean => match value {
+                    0 => TerminalScalarValue::Boolean(false),
+                    1 => TerminalScalarValue::Boolean(true),
+                    _ => return Err(invalid()),
+                },
+                ScalarType::Integer(scalar_type) => {
+                    let value = match scalar_type.sign() {
+                        semantic_vocabulary::IntegerSign::Signed => {
+                            let bits = u32::from(scalar_type.bits());
+                            let signed = if bits < 128 && (value >> (bits - 1)) & 1 == 1 {
+                                (value | (!0u128 << bits)) as i128
+                            } else {
+                                value as i128
+                            };
+                            IntegerValue::Signed(signed)
+                        }
+                        semantic_vocabulary::IntegerSign::Unsigned => IntegerValue::Unsigned(value),
+                    };
+                    TerminalScalarValue::Integer { scalar_type, value }
+                }
+                _ => return Err(invalid()),
+            };
+            leaves.push((member.field, scalar));
+        }
+        let copied = TerminalStructuralValue {
+            opaque_identity: self.local_structural_identities.allocate()?,
+            structural_type: result.structural_type,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        let parent = StructuralRuntimePlace::from(&copied);
+        for (field, scalar) in leaves {
+            self.structural_scalar_fields.insert(
+                StructuralScalarRuntimeField {
+                    parent: parent.clone(),
+                    field,
+                },
+                scalar,
+            );
+        }
         self.structural_values.insert(result.place, copied);
         Ok(OperationFlow::Advance)
     }

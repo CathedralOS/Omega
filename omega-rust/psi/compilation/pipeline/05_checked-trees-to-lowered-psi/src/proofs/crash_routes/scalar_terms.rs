@@ -150,7 +150,8 @@ pub(crate) fn lowered_direct_scalar_term(
                 "primitive storage read requires an occurrence-bound crash predicate",
             );
         }
-        LoweredDirectExpression::StructuralField { .. } => {
+        LoweredDirectExpression::StructuralField { .. }
+        | LoweredDirectExpression::ByteCarrierFieldRead { .. } => {
             return unsupported("runtime field read requires an occurrence-bound crash predicate");
         }
         LoweredDirectExpression::ByteSequenceLength {
@@ -446,7 +447,8 @@ fn checked_boolean_scalar_term_from_lowered(
     match expression {
         LoweredBooleanReturnExpression::StructuralCaseMembership { .. }
         | LoweredBooleanReturnExpression::IndexedCaseMembership { .. }
-        | LoweredBooleanReturnExpression::PrimitiveRead { .. } => {
+        | LoweredBooleanReturnExpression::PrimitiveRead { .. }
+        | LoweredBooleanReturnExpression::ByteCarrierFieldRead { .. } => {
             unsupported("storage observation requires an occurrence-bound crash predicate")
         }
         LoweredBooleanReturnExpression::Constant { value } => Ok(ScalarTerm::boolean(*value)),

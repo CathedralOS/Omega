@@ -15,9 +15,10 @@
 //! checked.
 
 use crate::validation::{
-    BTreeSet, CanonicalStructuralPathSegment, ModuleError, OperationKind, PlaceId,
-    StructuralAccess, StructuralFieldType, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule, resolve_leaf_copy_path,
+    BTreeSet, CanonicalStructuralPathSegment, IntegerSign, IntegerType, ModuleError, OperationKind,
+    PlaceId, ScalarType, StructuralAccess, StructuralFieldType, StructuralMultiplicity,
+    StructuralPathSegment, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    resolve_leaf_copy_path,
 };
 
 pub(in crate::validation) fn validate(
@@ -82,10 +83,62 @@ pub(in crate::validation) fn validate(
             _ => None,
         })
         .unwrap_or(result.structural_type);
-    if selected_type != expected_type {
+    if selected_type != expected_type
+        && !byte_carrier_leaf_copy(module, signature.structural_type, path, expected_type)
+    {
         return Err(invalid());
     }
     Ok(())
+}
+
+/// Whether a leaf copy mints a record out of a byte carrier: `path` ends at a
+/// literal index inside a `u8` fixed array, and `expected` is a plain record
+/// whose fixed scalar layout fits the elements remaining at that index. The
+/// source recast judgment proved the representation; this re-checks the
+/// static shape independently so a malformed module cannot mint a record the
+/// region cannot host. A runtime-selected index keeps `index < length` only
+/// — it cannot prove the wider `index + extent` bound, so it stays outside
+/// this arm.
+fn byte_carrier_leaf_copy(
+    module: &TerminalModule,
+    root: StructuralTypeId,
+    path: &[StructuralPathSegment],
+    expected: StructuralTypeId,
+) -> bool {
+    let Some((StructuralPathSegment::FixedIndex(index), prefix)) = path.split_last() else {
+        return false;
+    };
+    let Some(parent) =
+        crate::validation::foundation::resolve_runtime_projection(module, root, prefix)
+    else {
+        return false;
+    };
+    let Some(declaration) = module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parent)
+    else {
+        return false;
+    };
+    let StructuralTypeShape::FixedArray { element, length } = &declaration.shape else {
+        return false;
+    };
+    let byte_type =
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).expect("u8 is valid"));
+    if !module.structural_types.iter().any(|declaration| {
+        declaration.id == *element
+            && declaration.shape == StructuralTypeShape::PrimitiveScalar(byte_type)
+    }) {
+        return false;
+    }
+    let Some(layout) =
+        terminal_semantics::byte_carrier_scalar_layout(module.structural_types.iter(), expected)
+    else {
+        return false;
+    };
+    index
+        .checked_add(layout.size)
+        .is_some_and(|end| end <= *length)
 }
 
 /// The case-qualified sibling of `validate`: the canonical path descends

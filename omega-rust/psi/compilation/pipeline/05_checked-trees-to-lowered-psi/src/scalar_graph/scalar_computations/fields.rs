@@ -29,6 +29,14 @@ pub(crate) struct Binding {
     /// own. The captured place supplies the source and the canonical prefix
     /// already leads `path`; `None` for ordinary established-local subjects.
     loan_source: Option<LoanedSource>,
+    /// `Some(record)` when the loan's captured prefix ends on a `u8` element
+    /// and `record` is the referee declaration the region overlays; the read
+    /// then emits a byte-carrier field read instead of a canonical
+    /// `StructuralField` path.
+    byte_overlay: Option<StructuralTypeId>,
+    /// `path` respelled in the runtime segment vocabulary, populated only for
+    /// a byte-carrier loan read.
+    carrier_path: Vec<terminal_psi::StructuralPathSegment>,
     path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
     field: StructuralFieldId,
     scalar_type: ScalarType,
@@ -97,26 +105,32 @@ fn captured_subject_path(
     }
 }
 
+/// The established place a record-loan local borrows from: the captured
+/// root join, the canonical prefix to the referent, the referee's
+/// structural declaration at that prefix, and — when the prefix ends on a
+/// `u8` element (`&self.buf[0] as &T`) — the referee record the byte region
+/// overlays.
+struct RecordLoanSubject {
+    source: LoanedSource,
+    path: Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+    carrier_path: Vec<terminal_psi::StructuralPathSegment>,
+    terminal: StructuralTypeId,
+    byte_overlay: Option<StructuralTypeId>,
+}
+
 /// A record-loan local is a silent loan marker: it mints no established
 /// place of its own, so a member read through it must resolve the structural
 /// parameter the loan captured plus the canonical path from that root to the
 /// referee. `None` means the local is not such a loan; `Some` carries the
-/// dense structural-parameter index, the canonical prefix, and the declared
-/// type the prefix ends on so the ordinary subject walk can continue there.
+/// captured source join, the canonical prefix, and the declared type the
+/// prefix ends on so the ordinary subject walk can continue there.
 fn record_loan_subject(
     checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
     symbol: symbols::SymbolHandle,
     types: &[StructuralTypeDeclaration],
-) -> Result<
-    Option<(
-        LoanedSource,
-        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        StructuralTypeId,
-    )>,
-    LoweringError,
-> {
+) -> Result<Option<RecordLoanSubject>, LoweringError> {
     let (source_machine, source_state) =
         crate::expression_preparation::source_custody::authored_state(checked, state)?;
     if source_machine.symbol != machine {
@@ -241,6 +255,11 @@ fn record_loan_subject(
             "record loan's captured root has no structural namespace",
         ))?;
     let mut path = Vec::new();
+    let mut carrier_path = Vec::new();
+    // The last literal index step and the array extent it selected inside —
+    // set only when that index ends the prefix (`a[i]` cannot extend into a
+    // `u8` element's members, so a byte-carrier prefix always ends there).
+    let mut tail = None;
     for segment in segments {
         match segment {
             LoanedPathSegment::Field(identity) => {
@@ -260,6 +279,10 @@ fn record_loan_subject(
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::Field(
                     selected.id,
                 ));
+                carrier_path.push(terminal_psi::StructuralPathSegment::Field(
+                    selected.identity.clone(),
+                ));
+                tail = None;
                 declaration = types
                     .iter()
                     .find(|declaration| declaration.id == nested)
@@ -275,6 +298,8 @@ fn record_loan_subject(
                     return unsupported("record loan's captured index is out of bounds");
                 }
                 path.push(semantic_vocabulary::CanonicalStructuralPathSegment::FixedIndex(index));
+                carrier_path.push(terminal_psi::StructuralPathSegment::FixedIndex(index));
+                tail = Some((index, *length));
                 declaration = types
                     .iter()
                     .find(|declaration| declaration.id == *element)
@@ -284,7 +309,54 @@ fn record_loan_subject(
             }
         }
     }
-    Ok(Some((source, path, declaration.id)))
+    // `&self.buf[0] as &T` loans a record referee whose leaves sit on the
+    // byte array's elements. When the walk ends on a `u8` element and the
+    // referee declares a record whose fixed scalar layout fits the elements
+    // remaining at that index, the loan's terminal is that record
+    // declaration overlaying the region — the `u8` element the canonical
+    // path walked to is the carrier, not the type the member read names.
+    let mut terminal = declaration.id;
+    let mut byte_overlay = None;
+    if let Some((index, length)) = tail
+        && matches!(
+            &declaration.shape,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && integer.bits() == 8
+        )
+    {
+        // The referee's authored type names the machine itself under the
+        // same remap the captured root already applied.
+        let referee_identity = match checked.type_reference_table.type_reference(*referee) {
+            TypeReferenceNode::Named {
+                symbol: named_symbol,
+                ..
+            } if *named_symbol == source_machine.symbol => format!(
+                "named(name({}))",
+                checked.symbols.name(source_machine.attached_data_symbol)
+            ),
+            _ => checked.normalized_type_identity(*referee).into_string(),
+        };
+        if let Some(overlay) = types.iter().find(|candidate| {
+            candidate.identity == referee_identity
+                && matches!(candidate.shape, StructuralTypeShape::Record { .. })
+        }) && let Some(layout) =
+            terminal_semantics::byte_carrier_scalar_layout(types.iter(), overlay.id)
+            && index
+                .checked_add(layout.size)
+                .is_some_and(|end| end <= length)
+        {
+            terminal = overlay.id;
+            byte_overlay = Some(overlay.id);
+        }
+    }
+    Ok(Some(RecordLoanSubject {
+        source,
+        path,
+        carrier_path,
+        terminal,
+        byte_overlay,
+    }))
 }
 
 pub(crate) fn prepare(
@@ -354,13 +426,15 @@ pub(crate) fn prepare(
                 } => record_loan_subject(checked, machine, root.state, symbol, types)?,
                 _ => None,
             };
-            let (loan_source, mut path, mut declaration) = match loan {
-                Some((source, prefix, terminal)) => (
-                    Some(source),
-                    prefix,
+            let (loan_source, byte_overlay, carrier_path, mut path, mut declaration) = match loan {
+                Some(subject) => (
+                    Some(subject.source),
+                    subject.byte_overlay,
+                    subject.carrier_path,
+                    subject.path,
                     types
                         .iter()
-                        .find(|declaration| declaration.id == terminal)
+                        .find(|declaration| declaration.id == subject.terminal)
                         .ok_or(LoweringError::Unsupported(
                             "record read's loaned carrier type is absent",
                         ))?,
@@ -376,7 +450,7 @@ pub(crate) fn prepare(
                     if declarations.next().is_some() {
                         return unsupported("record read has ambiguous structural namespaces");
                     }
-                    (None, Vec::new(), declaration)
+                    (None, None, Vec::new(), Vec::new(), declaration)
                 }
             };
             for segment in &subject.path {
@@ -432,6 +506,8 @@ pub(crate) fn prepare(
                 symbol: *field,
                 subject: subject.clone(),
                 loan_source,
+                byte_overlay,
+                carrier_path,
                 path,
                 field: retained.id,
                 scalar_type,
@@ -546,6 +622,28 @@ pub(super) fn observation(
                 .place
         }
     };
+    if let Some(element) = binding.byte_overlay {
+        // A byte-carrier read mints the record on a hoisted place — the
+        // canonical `StructuralField` arm below cannot spell it, since the
+        // captured path ends on the `u8` element the region starts at.
+        return Ok(match scalar_type {
+            ScalarType::Boolean => LoweredDirectExpression::Boolean {
+                expression: Box::new(LoweredBooleanReturnExpression::ByteCarrierFieldRead {
+                    source,
+                    path: binding.carrier_path.clone(),
+                    element,
+                    field: binding.field,
+                }),
+            },
+            _ => LoweredDirectExpression::ByteCarrierFieldRead {
+                source,
+                path: binding.carrier_path.clone(),
+                element,
+                field: binding.field,
+                scalar_type,
+            },
+        });
+    }
     Ok(match scalar_type {
         ScalarType::Boolean => LoweredDirectExpression::Boolean {
             expression: Box::new(LoweredBooleanReturnExpression::StructuralField {
