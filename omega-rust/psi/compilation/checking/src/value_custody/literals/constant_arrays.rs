@@ -12,14 +12,14 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-/// The closed primitive array type a whole array literal stored into a place
-/// of `reference` lands at. An arithmetic-policy shell around the whole array
-/// (`[i32; 6] in Wrapping`) qualifies arithmetic on its elements, not their
-/// storage, so it is peeled; any other constraint keeps its own owner.
-pub fn closed_array_store_type(
+/// Peel arithmetic-policy shells from `reference`. `i32 in Wrapping`
+/// qualifies arithmetic on the value, never its storage shape, so a
+/// policy-constrained layer or element is still a closed primitive carrier;
+/// any other constraint keeps its own owner and stops the peel.
+pub fn peel_arithmetic_policy(
     program: &TypedTrees,
     mut reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
+) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained {
         base_type,
         constraints,
@@ -36,11 +36,23 @@ pub fn closed_array_store_type(
                 )
             })
         {
-            return None;
+            break;
         }
         reference = *base_type;
     }
-    is_closed_primitive_array_type(program, reference).then_some(reference)
+    reference
+}
+
+/// The closed primitive array type a whole array literal stored into a place
+/// of `reference` lands at. An arithmetic-policy shell around the whole array
+/// (`[i32; 6] in Wrapping`) qualifies arithmetic on its elements, not their
+/// storage, so it is peeled; any other constraint keeps its own owner.
+pub fn closed_array_store_type(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    let peeled = peel_arithmetic_policy(program, reference);
+    is_closed_primitive_array_type(program, peeled).then_some(peeled)
 }
 
 /// A concrete primitive array type has no qualifications or ownership authority.
@@ -53,7 +65,8 @@ pub fn is_closed_primitive_array_type(
 ) -> bool {
     let mut array = false;
     for _ in 0..program.type_reference_table.type_reference_count() {
-        match program.type_reference_table.type_reference(reference) {
+        let peeled = peel_arithmetic_policy(program, reference);
+        match program.type_reference_table.type_reference(peeled) {
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: typed_trees::types::FixedArrayLength::Literal(_),
@@ -64,7 +77,7 @@ pub fn is_closed_primitive_array_type(
             TypeReferenceNode::Named { .. } => {
                 return array
                     && matches!(
-                        program.primitive_type_reference(reference),
+                        program.primitive_type_reference(peeled),
                         Some(
                             typed_trees::types::PrimitiveType::Bool
                                 | typed_trees::types::PrimitiveType::I8
@@ -205,7 +218,8 @@ pub fn scalar_array_elements(
         }
         active.push(expression);
         pending.push((expression, reference, true));
-        match program.type_reference_table.type_reference(reference) {
+        let peeled = peel_arithmetic_policy(program, reference);
+        match program.type_reference_table.type_reference(peeled) {
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: typed_trees::types::FixedArrayLength::Literal(length),
