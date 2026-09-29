@@ -90,6 +90,7 @@ mod retained_borrow_custody;
 mod scalar_array_source;
 mod scalar_boundary_arguments;
 mod scalar_call_crash_substitution;
+mod scalar_control_contracts;
 mod scalar_empty_contract_custody;
 mod scalar_graph_byte_view_parameter;
 mod scalar_local_borrows;
