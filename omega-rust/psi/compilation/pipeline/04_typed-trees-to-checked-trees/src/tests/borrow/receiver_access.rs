@@ -70,6 +70,51 @@ fn machine_named(checked: &checked_trees::CheckedTrees, name: &str) -> symbols::
         .symbol
 }
 
+/// Structural arguments of every runtime call in one Unit plan. A call whose
+/// result is its own operation keeps them on its `ScalarCall`; a call whose
+/// result lands at a scalar destination (a local or the machine's result) is
+/// the `Call` node of that destination's ordered computation.
+fn call_structural_arguments(
+    checked: &checked_trees::CheckedTrees,
+    plan: &checked_trees::CheckedUnitEffectMachinePlan,
+) -> Vec<checked_trees::CheckedUnitStructuralArgumentPlan> {
+    let computations = &checked.facts.values.scalar_computations;
+    let mut arguments = Vec::new();
+    for operation in &plan.operations {
+        match operation {
+            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
+                structural_arguments,
+                ..
+            } => arguments.extend(structural_arguments.iter().cloned()),
+            checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarLocal {
+                value: checked_trees::CheckedCallScalarArgument::Computation(root),
+                ..
+            } => {
+                if let checked_trees::CheckedScalarComputationKind::Call {
+                    structural_arguments,
+                    ..
+                } = &computations.nodes.get(*root).kind
+                {
+                    arguments.extend(
+                        computations
+                            .structural_arguments
+                            .span_or_empty(*structural_arguments)
+                            .iter()
+                            .map(|argument| {
+                                argument
+                                    .as_place()
+                                    .expect("a borrowed place argument")
+                                    .clone()
+                            }),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+    arguments
+}
+
 #[test]
 fn dynamic_indexed_parameter_receiver_can_supply_shared_receiver() {
     let checked = checked_program_result(
@@ -85,18 +130,7 @@ fn dynamic_indexed_parameter_receiver_can_supply_shared_receiver() {
         .terminal_unit_effects
         .for_machine(run)
         .unwrap_or_else(|| panic!("the caller keeps a Unit plan for a runtime-indexed receiver"));
-    let calls = plan
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            } => Some(structural_arguments),
-            _ => None,
-        })
-        .flatten()
-        .collect::<Vec<_>>();
+    let calls = call_structural_arguments(&checked, plan);
     let [receiver] = calls.as_slice() else {
         panic!(
             "the runtime-indexed receiver call passes exactly one structural argument: {calls:#?}"
@@ -143,18 +177,7 @@ fn explicit_shared_dynamic_indexed_argument_lends_the_element_in_call_operation(
                     .omission_for_machine(run)
             )
         });
-    let calls = plan
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            checked_trees::CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            } => Some(structural_arguments),
-            _ => None,
-        })
-        .flatten()
-        .collect::<Vec<_>>();
+    let calls = call_structural_arguments(&checked, plan);
     let [argument] = calls.as_slice() else {
         panic!("the indexed element call passes one structural argument: {calls:#?}")
     };
