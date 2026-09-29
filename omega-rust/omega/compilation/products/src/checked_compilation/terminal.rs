@@ -107,6 +107,7 @@ impl CheckedCompilation {
         )
         .and_then(|report| report.with_terminal_optimization_rollback(rollback))
         .and_then(|report| report.with_pcc_context(self.build().config.settings.pcc, profile))
+        .map(|report| report.with_timings(self.timings().phases().to_vec()))
         .map_err(|message| vec![Diagnostic::error(message)])
     }
 }

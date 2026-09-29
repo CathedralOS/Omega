@@ -66,7 +66,7 @@ impl CheckedCompilation {
                 &application,
             )
             .map_err(diagnostics)?;
-        Ok(report)
+        Ok(report.with_timings(self.timings().phases().to_vec()))
     }
 
     /// Construct a check-only report under the same evaluated-Build admission
@@ -167,6 +167,14 @@ impl CheckedCompilation {
 }
 
 impl CompileReportSettlement {
+    /// Production legs that extend the checked record's ladder after this
+    /// settlement's snapshot replace it, so the finished report carries the
+    /// post-production row set.
+    pub fn with_timings(mut self, timings: Vec<artifacts::compile_timings::PhaseTiming>) -> Self {
+        self.timings = timings;
+        self
+    }
+
     /// Rejoin companions only after the admitted primary product succeeds.
     /// Existing report constructors and attachment replay still validate all
     /// artifact, rollback, proof-product and build-observation custody.
@@ -179,9 +187,14 @@ impl CompileReportSettlement {
         report
             .with_build_outputs(self.build_outputs, self.build_observation)
             .map(|report| {
+                let timings = if report.timings().is_empty() {
+                    self.timings
+                } else {
+                    report.timings().to_vec()
+                };
                 report
                     .with_trust_admission_settlement(self.trust)
-                    .with_timings(self.timings)
+                    .with_timings(timings)
             })
             .map_err(diagnostics)
     }

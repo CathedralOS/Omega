@@ -220,11 +220,12 @@ pub fn realize_accepted_native_report(
             let pcc_context = (checked_root.build().config.settings.pcc, profile.clone());
             let source_count = checked_root.source_file_count();
             let subject = checked_root.production_subject()?;
-            let retained = compiler::retained_terminal_artifact_from_checked_package(
-                checked_root,
-                profile.clone(),
-                optimization_rollback.clone(),
-            )?;
+            let (retained, production_timings) =
+                compiler::retained_terminal_artifact_from_checked_package(
+                    checked_root,
+                    profile.clone(),
+                    optimization_rollback.clone(),
+                )?;
             let report = compiler::CompileReport::from_retained_terminal_artifact(
                 root_path,
                 source_count,
@@ -238,7 +239,7 @@ pub fn realize_accepted_native_report(
                 rollback_receipt,
                 compiler::TrustAdmissionSettlement::default(),
                 pcc_context,
-                Some(settlement),
+                Some(settlement.with_timings(production_timings.phases().to_vec())),
                 Some(reviews),
             )
         }
