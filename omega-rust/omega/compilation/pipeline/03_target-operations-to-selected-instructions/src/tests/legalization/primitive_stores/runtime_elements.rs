@@ -691,3 +691,283 @@ fn a_runtime_element_field_read_loads_the_declared_field_through_every_replay() 
         })
     );
 }
+
+/// The same unit observing `root.colors[i] is Color::White`: a case
+/// membership whose path selects the element at run time. `colors` is a
+/// `[Color; 3]` of payload-free four-byte tags after 4 bytes of padding,
+/// 48 bytes of grid and 16 bytes of entities.
+fn element_case_source() -> abstract_operations::AbstractOperationPlan {
+    let mut source = source();
+    let root = StructuralTypeId::new(1).unwrap();
+    let color = StructuralTypeId::new(7).unwrap();
+    let colors = StructuralTypeId::new(8).unwrap();
+    let case = |id, identity: &str| terminal_psi::StructuralCaseDeclaration {
+        id: semantic_vocabulary::StructuralCaseId::new(id).unwrap(),
+        identity: identity.into(),
+        fields: Vec::new(),
+    };
+    let mut types = source.structural_types.to_vec();
+    let StructuralTypeShape::Record { fields } = &mut types[0].shape else {
+        unreachable!("root record")
+    };
+    fields.push(StructuralFieldDeclaration {
+        id: StructuralFieldId::new(6).unwrap(),
+        identity: "colors".into(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Structural(colors),
+    });
+    types.push(StructuralTypeDeclaration {
+        id: color,
+        identity: "Color".into(),
+        shape: StructuralTypeShape::Sum {
+            cases: vec![case(1, "Red"), case(2, "White"), case(3, "Blue")],
+        },
+    });
+    types.push(StructuralTypeDeclaration {
+        id: colors,
+        identity: "Colors".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: color,
+            length: 3,
+        },
+    });
+    assert_eq!(types[0].id, root);
+    source.structural_types = types.into();
+    let observed = AbstractResult {
+        value: value(13),
+        scalar_type: ScalarType::Boolean,
+    };
+    let function = &mut source.functions[0];
+    function.result = AbstractFunctionResult::Scalar(observed);
+    let place = function.structural_parameters[0].place;
+    function.operations[2] = AbstractOperation::StructuralCaseMembership {
+        psi_operation: operation(READ),
+        result: observed,
+        source: place,
+        path: vec![Segment::Field("colors".into()), runtime(10, 4)],
+        case: semantic_vocabulary::StructuralCaseId::new(2).unwrap(),
+    };
+    let AbstractOperation::Return {
+        value: returned,
+        scalar_type,
+        result,
+        ..
+    } = &mut function.operations[3]
+    else {
+        unreachable!("the return")
+    };
+    *returned = observed.value;
+    *result = observed.value;
+    *scalar_type = ScalarType::Boolean;
+    source
+}
+
+fn membership_row(
+    plan: &mut legalized_operations::LegalizedOperationPlan,
+) -> &mut LegalizedScalarInstructionKind {
+    &mut plan.scalar_functions[0].blocks[0].instructions[2].kind
+}
+
+/// Every stage rebuilds the observed tag from declarations: `colors` sits at
+/// byte 68, each tag is 4 bytes, and `White` is tag 1. Target lowering
+/// retains the selector and stride; legalization refuses a substituted target
+/// stride or case; legalization replay refuses a substituted legalized stride
+/// or case; selection replay refuses a tag load at another offset; unit
+/// validation refuses a case of another sum.
+#[test]
+fn a_runtime_element_case_membership_reads_the_declared_tag_through_every_replay() {
+    let u64_type = integer(IntegerSign::Unsigned, 64);
+    for native in [
+        NativeTarget::linux_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_x64(),
+    ] {
+        let source = element_case_source();
+        let target = abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+        )
+        .unwrap_or_else(|error| panic!("{native:?} lowers the element membership: {error:?}"));
+        let membership = |target: &target_operations::TargetOperationPlan| {
+            target.functions[0]
+                .graph
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::StructuralCaseMembership {
+                        tag_byte_offset,
+                        case_tag,
+                        indices,
+                        ..
+                    } => Some((
+                        *tag_byte_offset,
+                        *case_tag,
+                        indices
+                            .iter()
+                            .map(|index| (index.operand.source_value(), index.stride))
+                            .collect::<Vec<_>>(),
+                    )),
+                    _ => None,
+                })
+                .expect("one runtime-element membership")
+        };
+        assert_eq!(membership(&target), (68, 1, vec![(value(10), 4)]));
+        let seed = optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        optimization_unit_semantics::validate_psi_optimization_unit(&seed)
+            .expect("the element membership keeps canonical custody");
+        let unit = accept_referenced_obligations(seed);
+        for substitution in 0..2 {
+            let mut changed = target.clone();
+            let row = changed.functions[0]
+                .graph
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find_map(|operation| match operation {
+                    TargetUnitOperation::StructuralCaseMembership {
+                        case_tag, indices, ..
+                    } => Some((case_tag, indices)),
+                    _ => None,
+                })
+                .expect("membership row");
+            match substitution {
+                0 => row.1[0].stride = 8,
+                _ => *row.0 = 2,
+            }
+            assert!(
+                legalize_target_operations(&changed, &source, &unit).is_err(),
+                "{native:?} target substitution {substitution}"
+            );
+        }
+        let legalized = legalize_target_operations(&target, &source, &unit)
+            .unwrap_or_else(|error| panic!("{native:?} legalizes the membership: {error:?}"));
+        validate_legalized_operations(&target, &source, &unit, legalized.plan().clone())
+            .unwrap_or_else(|error| panic!("{native:?} replays the membership: {error:?}"));
+        let mut plan = legalized.plan().clone();
+        let LegalizedScalarInstructionKind::StructuralCaseMembership { indices, .. } =
+            membership_row(&mut plan)
+        else {
+            panic!("membership row")
+        };
+        assert_eq!(
+            *indices,
+            [runtime_operand(
+                &unit,
+                operation(READ),
+                AbstractResult {
+                    value: value(10),
+                    scalar_type: u64_type,
+                },
+                4,
+                3,
+                obligation(4)
+            )]
+        );
+        for substitution in 0..3 {
+            let mut changed = legalized.plan().clone();
+            let LegalizedScalarInstructionKind::StructuralCaseMembership {
+                indices, case_tag, ..
+            } = membership_row(&mut changed)
+            else {
+                panic!("membership row")
+            };
+            match substitution {
+                0 => indices[0].stride = 1,
+                1 => indices[0].stride = 8,
+                _ => *case_tag = 0,
+            }
+            assert!(
+                validate_legalized_operations(&target, &source, &unit, changed).is_err(),
+                "{native:?} legalized substitution {substitution}"
+            );
+        }
+
+        let environment =
+            register_environment::baseline_target_register_environment(native).unwrap();
+        let constraints = crate::selection_constraints(&legalized, &environment);
+        let selected = crate::select_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+        )
+        .unwrap_or_else(|error| panic!("{native:?} selects the membership: {error:?}"));
+        crate::validate_selected_instructions(
+            &legalized,
+            &constraints,
+            environment.physical(),
+            environment.constraints(),
+            selected.plan().clone(),
+        )
+        .unwrap_or_else(|error| panic!("{native:?} validates the membership: {error:?}"));
+        let position = selected.plan().functions[0]
+            .memory_accesses
+            .iter()
+            .position(|access| {
+                access.origin
+                    == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation(
+                        READ,
+                    ))
+            })
+            .expect("the tag read's footprint");
+        let access = &selected.plan().functions[0].memory_accesses[position];
+        assert_eq!((access.byte_offset, access.byte_count), (68, 4));
+        assert!(matches!(
+            access.role,
+            SelectedMemoryAccessRole::ReadIndexedPrimitive {
+                stride: 4,
+                extent: 3,
+                ..
+            }
+        ));
+        for offset in [64, 72] {
+            let mut changed = selected.plan().clone();
+            changed.functions[0].memory_accesses[position].byte_offset = offset;
+            assert!(
+                crate::validate_selected_instructions(
+                    &legalized,
+                    &constraints,
+                    environment.physical(),
+                    environment.constraints(),
+                    changed,
+                )
+                .is_err(),
+                "{native:?} tag load at {offset}"
+            );
+        }
+    }
+
+    // A case of no declared sum names nothing: target lowering and unit
+    // validation both refuse it.
+    let mut source = element_case_source();
+    let AbstractOperation::StructuralCaseMembership { case, .. } =
+        &mut source.functions[0].operations[2]
+    else {
+        unreachable!("the membership")
+    };
+    *case = semantic_vocabulary::StructuralCaseId::new(9).unwrap();
+    assert!(
+        abstract_operations_to_target_operations::lower_to_target_operations(
+            &source,
+            abstract_operations_to_target_operations::TargetLoweringRequest::new(
+                NativeTarget::macos_arm64()
+            ),
+        )
+        .is_err()
+    );
+    assert!(
+        optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &source,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .map_or(true, |seed| {
+            optimization_unit_semantics::validate_psi_optimization_unit(&seed).is_err()
+        })
+    );
+}

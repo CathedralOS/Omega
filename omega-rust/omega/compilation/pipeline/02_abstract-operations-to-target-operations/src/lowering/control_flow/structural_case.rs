@@ -41,10 +41,17 @@ pub(super) fn observe(
             .ok_or_else(invalid)?
             .structural_type
     };
-    let (tag_byte_offset, case_tag) = case_projection(identity, path, *case, types)?;
+    let (tag_byte_offset, case_tag, runs) = case_projection(identity, path, *case, types)?;
     if result.scalar_type != ScalarType::Boolean {
         return Err(invalid());
     }
+    // Each runtime element scales its selector's exact dominating source by
+    // the array stride; its bound is the path segment's verified obligation.
+    let indices = super::scalar_sources::runtime_indices(
+        runs,
+        function,
+        &super::scalar_sources::ScalarSources::from(&*live),
+    )?;
     super::primitive_storage::retain_result(*psi_operation, *result, live)?;
     operations.push(TargetUnitOperation::StructuralCaseMembership {
         psi_operation: *psi_operation,
@@ -54,6 +61,7 @@ pub(super) fn observe(
         tag_byte_offset,
         case: *case,
         case_tag,
+        indices,
     });
     provenance.operations.push(*psi_operation);
     Ok(())
@@ -138,16 +146,21 @@ fn case_source(
     })
 }
 
+/// The observed sum's tag offset, the case's tag, and the runtime elements
+/// the path selects through. A path through a runtime element (`items[i]`)
+/// resolves like any runtime projection: the static offset is the carrier's,
+/// and each selector scales by its element stride, rebuilt from declarations.
+#[allow(clippy::type_complexity)]
 fn case_projection(
     identity: StructuralTypeId,
     path: &[StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
     types: &StructuralTypeLookup<'_>,
-) -> Result<(u32, u32), LoweringError> {
+) -> Result<(u32, u32, Vec<(semantic_vocabulary::ValueId, u32)>), LoweringError> {
     let invalid = || LoweringError::UnknownStructuralType(identity);
-    let (identity, tag_byte_offset) = if path.is_empty() {
-        (identity, 0)
-    } else {
+    let (identity, tag_byte_offset, runs) = if path.is_empty() {
+        (identity, 0, Vec::new())
+    } else if terminal_psi::is_static_structural_path(path) {
         let (endpoint, _, offset) =
             crate::lowering::structural_layout::resolve_structural_projection_path(
                 identity,
@@ -156,7 +169,16 @@ fn case_projection(
                 &mut BTreeMap::new(),
                 &mut BTreeSet::new(),
             )?;
-        (endpoint, offset)
+        (endpoint, offset, Vec::new())
+    } else {
+        let (endpoint, _, offset, runs) = crate::lowering::structural_layout::runtime_projection(
+            identity,
+            path,
+            types,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )?;
+        (endpoint, offset, runs)
     };
     let declaration = types.get(&identity).ok_or_else(invalid)?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
@@ -167,7 +189,7 @@ fn case_projection(
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
         .ok_or_else(invalid)?;
-    Ok((tag_byte_offset, case_tag))
+    Ok((tag_byte_offset, case_tag, runs))
 }
 
 pub(super) fn lower(
@@ -353,12 +375,42 @@ mod tests {
         // A one-byte prefix is followed by four-byte aligned tags: second tag is at 8.
         assert_eq!(
             case_projection(record, &path, blue, &types).unwrap(),
-            (8, 1)
+            (8, 1, Vec::new())
         );
-        assert_eq!(case_projection(sum, &[], red, &types).unwrap(), (0, 0));
+        assert_eq!(
+            case_projection(sum, &[], red, &types).unwrap(),
+            (0, 0, Vec::new())
+        );
         assert_eq!(
             case_projection(array, &[StructuralPathSegment::FixedIndex(0)], blue, &types).unwrap(),
-            (0, 1)
+            (0, 1, Vec::new())
+        );
+        // A runtime element keeps the carrier's static offset (the array at
+        // 4) and scales its selector by the declared four-byte tag stride.
+        let selector = semantic_vocabulary::ValueId::new(7).unwrap();
+        let runtime = vec![
+            StructuralPathSegment::Field("colors".into()),
+            StructuralPathSegment::RuntimeIndex {
+                index: selector,
+                obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+            },
+        ];
+        assert_eq!(
+            case_projection(record, &runtime, blue, &types).unwrap(),
+            (4, 1, vec![(selector, 4)])
+        );
+        assert!(
+            case_projection(
+                record,
+                &[StructuralPathSegment::RuntimeIndex {
+                    index: selector,
+                    obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+                }],
+                blue,
+                &types
+            )
+            .is_err(),
+            "a runtime element of a record"
         );
         for invalid in [
             vec![

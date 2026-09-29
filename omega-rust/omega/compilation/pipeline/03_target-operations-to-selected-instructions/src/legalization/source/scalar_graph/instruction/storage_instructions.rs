@@ -12,13 +12,14 @@ pub(super) fn project_structural_case_membership(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,
     plan: &AbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
 ) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
     let AbstractOperation::StructuralCaseMembership {
+        psi_operation,
         source,
         path,
         case,
         result,
-        ..
     } = &node.operation
     else {
         unreachable!("dispatched project_structural_case_membership")
@@ -27,8 +28,17 @@ pub(super) fn project_structural_case_membership(
         if result.scalar_type != ScalarType::Boolean {
             return Err(Error::custody());
         }
-        let (case_tag, tag_byte_offset) = scalar_graph_input::structural_case::membership_layout(
-            optimized, *source, path, *case, plan,
+        let (case_tag, tag_byte_offset, elements) =
+            scalar_graph_input::structural_case::membership_layout(
+                optimized, *source, path, *case, plan,
+            )?;
+        // A runtime element joins its selector and certificate, as a
+        // primitive read's does.
+        let indices = crate::legalization::runtime_indices::operands(
+            optimized,
+            unit,
+            *psi_operation,
+            &elements,
         )?;
         LegalizedScalarInstructionKind::StructuralCaseMembership {
             source: *source,
@@ -36,6 +46,7 @@ pub(super) fn project_structural_case_membership(
             case: *case,
             case_tag,
             tag_byte_offset,
+            indices,
         }
     };
     Ok(kind)

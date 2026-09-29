@@ -225,6 +225,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     case,
                     case_tag,
                     tag_byte_offset,
+                    indices,
                 } => {
                     bytes.push(24);
                     bytes.extend_from_slice(&source.get().to_le_bytes());
@@ -232,6 +233,7 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                     bytes.extend_from_slice(&case.get().to_le_bytes());
                     bytes.extend_from_slice(&case_tag.to_le_bytes());
                     bytes.extend_from_slice(&tag_byte_offset.to_le_bytes());
+                    encode_runtime_indices(bytes, indices);
                 }
                 LegalizedScalarInstructionKind::StructuralLeafCopy {
                     result,

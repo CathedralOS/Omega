@@ -65,14 +65,22 @@ the complete product bar; focused successes below do not establish that baseline
 
   - **Runtime-selected record fields and typed observations.** Integer
     element-field reads (`self.cells[self.i].hp`) lower as a
-    `PrimitiveScalarRead` ending at the field
-    ([structural access](wiki/spec/terminal-psi/structural_access.md#store-vocabulary));
-    `entity_list` exits 35. Remaining: `bouncing_particles` checks its reads
-    and stops at `selected ProgramEntry Binding field Main::clock requires a
-    selected Fused provider`, the Clock-bearing samples' gap; runtime case
-    selection in `dutch_flag`, pinned by
-    `pending/control_flow/runtime_indexed_case_dispatch`; Boolean element
-    fields, which Terminal and Omega admit but stage 04's
+    `PrimitiveScalarRead` ending at the field and runtime case dispatch
+    (`transition self.items[self.w] { Color::Red -> .. }`) as a
+    `StructuralCaseMembership` whose path carries the runtime element
+    ([structural access](wiki/spec/terminal-psi/structural_access.md#case-observation));
+    `entity_list` exits 35 and
+    `pass/control_flow/runtime_indexed_case_dispatch_exit` exits 2 on macOS
+    arm64. Remaining: `bouncing_particles` checks its reads and stops at
+    `selected ProgramEntry Binding field Main::clock requires a selected Fused
+    provider`, the Clock-bearing samples' gap; `dutch_flag` now checks and
+    stops in Terminal verification at `ControlCycleIneligible { block:
+    BlockId(2), reason: BlockOperation { block: BlockId(1), operation:
+    OperationId(3) } }`: `unranked_cycles::cycle_operation_eligible` admits
+    an `EstablishScalarCase` only as a block's return or dispatch source, not
+    the unrestricted `Color::White` that `self.items[0] = Color::White` stores
+    in a looping machine (its swaps through runtime indexes are next behind
+    it); Boolean element fields, which Terminal and Omega admit but stage 04's
     `view_element_field_read` does not produce; bounded and IEEE element
     fields.
 
@@ -535,7 +543,7 @@ the complete product bar; focused successes below do not establish that baseline
   | Customer group | Capability owner and remaining acceptance |
   | --- | --- |
   | `arithmetic/dual_float`, `basics/unit_converter`, `simulation/particle_sim`; `arithmetic/{sensor_min_max,vector_distance,fibonacci_golden}`; `basics/temperature_convert`, `rendering/{bouncing_ball_2d,mandelbrot,mandelbrot_zoom}` | **OPERATOR-BOUNDARY-CALLS**: executable float comparisons/arithmetic, nested value calls, and selected `F64::{minimum,maximum,from_i32}` respectively. Conversion is a separate operation from binary arithmetic. Retain `pending/arithmetic/float_computation_no_route`; adding `core::float_operations` only changes where the missing route is exposed. |
-  | `collections/entity_list`, `rendering/bouncing_particles`, `algorithms/dutch_flag` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pending/collections/runtime_indexed_record_field_store` and `pending/control_flow/runtime_indexed_case_dispatch`. `dutch_flag` must construct, read and swap the actual Color array, interact with Console and exit 70; integer substitutes are not acceptance. |
+  | `collections/entity_list`, `rendering/bouncing_particles`, `algorithms/dutch_flag` | **STATE-LOCAL-VALUE-FRONTIER** and **MATCH-SELECTIVE-LOWERING**: runtime-indexed record-field reads and case selection, pinned by `pass/collections/runtime_indexed_record_field_read_exit` and `pass/control_flow/runtime_indexed_case_dispatch_exit`; `dutch_flag` stops at the cyclic `EstablishScalarCase` fence named in the item. `dutch_flag` must construct, read and swap the actual Color array, interact with Console and exit 70; integer substitutes are not acceptance. |
   | `systems/descriptor_walk`, `systems/elapsed_timer` | **REFERENCE-LOCAL-BINDING-ROUTES** / **RECAST-SOURCE-POSITIONS** for the borrowed local recast; **PASS-TIER-GUARDS-OWED** for the copy projection from a borrowed receiver, also a product-compiler customer. Rerun complete samples after the focused operation is repaired. |
   | `collections/matrix_multiply`, `rendering/dungeon_render`, `systems/wire_protocol`, `probes/value_call_in_expr`, `systems/vending_machine` | **MEMBER-POLICY-REMOVES-COMPOSITE-ROWS**, **RECORD-LITERAL-ARRAY-FIELD**, **VALUE-CALL-SUBEXPRESSION**, and both **COMPOSITE-TRANSITION-ARGUMENT** / **VALUE-CALL-TRANSITION-ARGUMENT** own the respective operations. Retain `dungeon_render`'s field/glyph evidence under **NOMINAL-FIELD-FLOW** while verifying its complete program; transition transport is already implemented. |
   | `gui/{image_viewer,window_app,window_demo}` | At `635cf2c9ebc` on macOS ARM64, reviewed `omega run --target macos_arm64 samples/gui/window_demo/main.omg` passes the former by-value array argument failure and rejects native production because `DemoGuiProvider::window_create` applies `F64::from_i32` without a requirement-level selected-provider route. **OPERATOR-BOUNDARY-CALLS** owns that next producer/realization dependency. **BOUNDARY-PRIMITIVE-ARRAY-PARAMETER** retains the full argument/result matrix; its copied-field provider fixture executes with exit **70**. Acceptance remains the complete native GUI run with authored class/title signatures and exact provider selection. |

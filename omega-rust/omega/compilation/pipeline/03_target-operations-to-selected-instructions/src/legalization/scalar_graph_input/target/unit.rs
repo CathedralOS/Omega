@@ -157,6 +157,7 @@ pub(super) fn validate_operation(
                 case,
                 case_tag,
                 tag_byte_offset,
+                indices,
             },
             AbstractOperation::StructuralCaseMembership {
                 psi_operation: expected_operation,
@@ -170,16 +171,23 @@ pub(super) fn validate_operation(
             && source == expected_source
             && path == expected_path
             && case == expected_case
-            && result.scalar_type == ScalarType::Boolean
-            && (*case_tag, *tag_byte_offset)
-                == super::super::structural_case::membership_layout(
+            && result.scalar_type == ScalarType::Boolean =>
+        {
+            // The tag, its static offset and every runtime element's stride
+            // are rebuilt from declarations; the row supplies none of them.
+            let (expected_tag, expected_offset, elements) =
+                super::super::structural_case::membership_layout(
                     optimized,
                     *expected_source,
                     expected_path,
                     *expected_case,
                     plan,
-                )? =>
-        {
+                )?;
+            if (*case_tag, *tag_byte_offset) != (expected_tag, expected_offset)
+                || !runtime_indices_rejoin(indices, &elements, sources)
+            {
+                return Err(LegalizationError::custody());
+            }
             sources.push((
                 result.value,
                 Source::Home(target_operations::TargetUnitScalarHomeRequirement {

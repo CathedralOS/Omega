@@ -166,7 +166,7 @@ pub(super) fn project(
             value: *value,
         },
         AbstractOperation::StructuralCaseMembership { .. } => {
-            storage_instructions::project_structural_case_membership(node, optimized, plan)?
+            storage_instructions::project_structural_case_membership(node, optimized, plan, unit)?
         }
         AbstractOperation::StructuralLeafCopy { .. } => {
             storage_instructions::project_structural_leaf_copy(node, optimized, plan, unit)?

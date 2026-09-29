@@ -336,6 +336,7 @@ fn nested_sum_borrow_fixture(native: target::NativeTarget) -> LegalizedScalarFun
                 case,
                 case_tag: 0,
                 tag_byte_offset: 0,
+                indices: Vec::new(),
             },
             fuel: vec![optimization_unit::FuelSettlement {
                 site: optimization_unit::PsiProvenance::Operation(observation),
