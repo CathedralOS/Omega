@@ -56,9 +56,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .collect(),
             index_proofs: Default::default(),
             receiver_lengths: None,
-            storage_upper_bounds: None,
-            storage_non_negatives: None,
-            storage_minimum_lengths: None,
+            storage: None,
         });
         collected
             .last_mut()
@@ -136,9 +134,7 @@ pub(super) fn collect_state_argument_facts_for_call(
                 .collect()
         };
     let storage_rows = facts.storage_sub_places(program, machine, state, &argument_storages);
-    let mut incoming_upper_bounds = Vec::new();
-    let mut incoming_non_negatives = Vec::new();
-    let mut incoming_minimum_lengths = Vec::new();
+    let mut incoming_storage = Vec::new();
     for (source_label, expression, destination_place) in &storage_rows {
         let destination_label = facts::canonical_place_label_from_parts(
             program,
@@ -153,34 +149,25 @@ pub(super) fn collect_state_argument_facts_for_call(
                 length,
             ));
         }
-        if let Some(bound) = facts.proven_index_upper_bound(source_label) {
-            incoming_upper_bounds.push((destination_label.clone(), bound));
-        }
-        if facts.non_negative_is_proven(source_label) {
-            incoming_non_negatives.push(destination_label.clone());
-        }
-        if let Some(minimum) = facts.minimum_length(source_label) {
-            incoming_minimum_lengths.push((destination_label, minimum));
-        }
-    }
-    super::merge_storage_rows(
-        &mut entry.storage_upper_bounds,
-        &Some(incoming_upper_bounds),
-        |a, b| a.max(b),
-    );
-    super::merge_storage_rows(
-        &mut entry.storage_minimum_lengths,
-        &Some(incoming_minimum_lengths),
-        |a, b| a.min(b),
-    );
-    {
-        let incoming = Some(incoming_non_negatives);
-        if let Some(existing) = &mut entry.storage_non_negatives {
-            existing.retain(|label| incoming.as_ref().is_some_and(|rows| rows.contains(label)));
-        } else {
-            entry.storage_non_negatives = incoming;
+        let upper_bound = facts.proven_index_upper_bound(source_label);
+        let non_negative = facts.non_negative_is_proven(source_label);
+        let minimum_length = facts.minimum_length(source_label);
+        if (upper_bound.is_some() || non_negative || minimum_length.is_some())
+            && !incoming_storage
+                .iter()
+                .any(|row: &super::StorageFacts| row.place == *destination_place)
+        {
+            incoming_storage.push(super::StorageFacts {
+                expression: *expression,
+                place: destination_place.clone(),
+                label: destination_label,
+                upper_bound,
+                non_negative,
+                minimum_length,
+            });
         }
     }
+    super::merge_storage_rows(&mut entry.storage, &Some(incoming_storage));
     if let Some(existing) = &mut entry.receiver_lengths {
         existing.retain(|length| {
             incoming_lengths

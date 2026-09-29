@@ -271,16 +271,36 @@ impl<'field> RangeFacts<'field> {
     ) {
         for length in lengths {
             self.prove_exact_length(length.label.clone(), length.length);
-            self.recorded_expressions
-                .insert((length.expression, machine, state));
-            self.expression_dependencies.push(ExpressionDependencies {
-                expression: length.expression,
-                label: length.label.clone(),
+            self.seed_storage_dependency(
                 machine,
                 state,
-                reads: Some(vec![length.place.clone()]),
-            });
+                length.expression,
+                &length.label,
+                &length.place,
+            );
         }
+    }
+
+    /// Rebind a transported fact's read dependency to destination storage.
+    /// The original expression identifies the observation, not a source-state
+    /// expression to reevaluate. Mutation and later edges use the exact place.
+    pub(in crate::checks::ranges) fn seed_storage_dependency(
+        &mut self,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        expression: ExpressionHandle,
+        label: &str,
+        place: &CanonicalPlace,
+    ) {
+        self.recorded_expressions
+            .insert((expression, machine, state));
+        self.expression_dependencies.push(ExpressionDependencies {
+            expression,
+            label: label.to_owned(),
+            machine,
+            state,
+            reads: Some(vec![place.clone()]),
+        });
     }
 
     pub(in crate::checks::ranges) fn record_scalar_binding_dependency(

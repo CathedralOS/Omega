@@ -64,9 +64,20 @@ pub(super) struct StateArgumentFacts {
     /// `param.i`'s bound). `None` is "not yet collected"; an edge that
     /// supplies no row for a label drops it, exactly like the receiver
     /// lengths above.
-    storage_upper_bounds: Option<Vec<(String, i64)>>,
-    storage_non_negatives: Option<Vec<String>>,
-    storage_minimum_lengths: Option<Vec<(String, i64)>>,
+    storage: Option<Vec<StorageFacts>>,
+}
+
+/// Carry the dependency with its bounds. A label alone cannot survive a
+/// renamed parameter or an intermediate state that never reads the field;
+/// the canonical place also lets ordinary mutation invalidate the fact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct StorageFacts {
+    expression: typed_trees::expression::ExpressionHandle,
+    place: crate::flow::CanonicalPlace,
+    label: String,
+    upper_bound: Option<i64>,
+    non_negative: bool,
+    minimum_length: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -347,41 +358,34 @@ fn merge_contribution(collected: &mut Vec<StateArgumentFacts>, incoming: &StateA
             existing.receiver_lengths = Some(incoming.clone());
         }
     }
-    merge_storage_rows(
-        &mut existing.storage_upper_bounds,
-        &incoming.storage_upper_bounds,
-        |a, b| a.max(b),
-    );
-    merge_storage_rows(
-        &mut existing.storage_minimum_lengths,
-        &incoming.storage_minimum_lengths,
-        |a, b| a.min(b),
-    );
-    if let Some(incoming) = &incoming.storage_non_negatives {
-        if let Some(existing) = &mut existing.storage_non_negatives {
-            existing.retain(|label| incoming.contains(label));
-        } else {
-            existing.storage_non_negatives = Some(incoming.clone());
-        }
-    }
+    merge_storage_rows(&mut existing.storage, &incoming.storage);
 }
 
-/// Meet an `Option<Vec<(label, bound)>>` storage table: rows must arrive on
-/// every edge, and the bound keeps `combine` of the two proofs (max for an
-/// exclusive upper bound, min for a length floor).
+/// Meet by destination storage identity, not by the source expression or
+/// spelling. Each retained property must hold on every incoming edge.
 fn merge_storage_rows(
-    existing: &mut Option<Vec<(String, i64)>>,
-    incoming: &Option<Vec<(String, i64)>>,
-    combine: fn(i64, i64) -> i64,
+    existing: &mut Option<Vec<StorageFacts>>,
+    incoming: &Option<Vec<StorageFacts>>,
 ) {
     let Some(incoming) = incoming else {
         return;
     };
     if let Some(existing) = existing {
-        existing.retain_mut(|(label, bound)| {
-            if let Some((_, incoming)) = incoming.iter().find(|(candidate, _)| candidate == label) {
-                *bound = combine(*bound, *incoming);
-                true
+        existing.retain_mut(|row| {
+            if let Some(incoming) = incoming
+                .iter()
+                .find(|candidate| candidate.place == row.place)
+            {
+                row.upper_bound = row
+                    .upper_bound
+                    .zip(incoming.upper_bound)
+                    .map(|(a, b)| a.max(b));
+                row.minimum_length = row
+                    .minimum_length
+                    .zip(incoming.minimum_length)
+                    .map(|(a, b)| a.min(b));
+                row.non_negative &= incoming.non_negative;
+                row.upper_bound.is_some() || row.minimum_length.is_some() || row.non_negative
             } else {
                 false
             }
@@ -524,18 +528,23 @@ pub(super) fn seed_state_argument_facts(
         }
     }
 
-    for (label, bound) in state_facts.storage_upper_bounds.as_deref().unwrap_or(&[]) {
-        facts.prove_index_upper_bound(label.clone(), *bound);
-    }
-    for label in state_facts.storage_non_negatives.as_deref().unwrap_or(&[]) {
-        facts.prove_non_negative(label.clone());
-    }
-    for (label, minimum) in state_facts
-        .storage_minimum_lengths
-        .as_deref()
-        .unwrap_or(&[])
-    {
-        facts.prove_minimum_length(label.clone(), *minimum);
+    for row in state_facts.storage.as_deref().unwrap_or(&[]) {
+        facts.seed_storage_dependency(
+            state_facts.machine,
+            state.symbol,
+            row.expression,
+            &row.label,
+            &row.place,
+        );
+        if let Some(bound) = row.upper_bound {
+            facts.prove_index_upper_bound(row.label.clone(), bound);
+        }
+        if row.non_negative {
+            facts.prove_non_negative(row.label.clone());
+        }
+        if let Some(minimum) = row.minimum_length {
+            facts.prove_minimum_length(row.label.clone(), minimum);
+        }
     }
 
     for proof in state_facts.index_proofs.get() {

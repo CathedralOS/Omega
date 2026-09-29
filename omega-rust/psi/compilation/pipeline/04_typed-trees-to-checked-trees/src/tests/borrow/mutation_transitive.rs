@@ -4,6 +4,76 @@ use crate::tests::call_mutated_places;
 use crate::tests::front_end::typed_program;
 
 #[test]
+fn observation_loan_ends_before_explicit_context_state_handoff() {
+    let source = "data Color [copy] { case Red; case Blue; }
+        data Context { items: [Color; 3]; cursor: u64; }
+        machine update(context: &mut Context) {
+            transition context.cursor < 3 {
+                true -> classify(context)
+                _ -> stop()
+            }
+            state classify(context: &mut Context) {
+                transition context.items[context.cursor] {
+                    Color::Red -> write(context)
+                    _ -> stop()
+                }
+            }
+            state write(context: &mut Context) { context.items[0] = Color::Blue; }
+            state stop() { }
+        }";
+    let mut checked = crate::tests::front_end::checked_program_result(source)
+        .expect("the observation closes before the named successor executes");
+    let resource = checked
+        .facts
+        .borrow
+        .direct_loan_resources
+        .iter()
+        .next()
+        .expect("retained observation closure")
+        .0;
+    checked
+        .facts
+        .borrow
+        .direct_loan_resources
+        .get_mut(resource)
+        .weakening_source = checked_trees::FlowInvalidationSource::Statement { statement_index: 0 };
+    let diagnostics =
+        crate::checks::check_checked_facts_recording(&checked.typed, &mut checked.facts)
+            .expect_err("substituted closure boundaries must not authorize the successor");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("resource closure drifted")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
+fn state_handoff_does_not_retire_a_carried_observation() {
+    let source = "data Context { item: u64; }
+        machine update(context: &mut Context) {
+            let held: &u64 = &context.item;
+            transition held == 0 {
+                true -> write(context, held)
+                _ -> stop()
+            }
+            state write(context: &mut Context, held: &u64) {
+                context.item = 1;
+                let observed: u64 = held;
+            }
+            state stop() { }
+        }";
+    let diagnostics = crate::tests::front_end::checked_program_result(source)
+        .expect_err("a carried loan remains live during the successor's mutation");
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic
+            .message
+            .contains("while local borrow `held` is still active")),
+        "{diagnostics:?}"
+    );
+}
+
+#[test]
 fn direct_unknown_alias_store_does_not_become_an_empty_caller_frame() {
     assert_direct_alias_store_frame(
         "let alias: &mut u64 = opaque(&mut pair.left); alias = 7;",

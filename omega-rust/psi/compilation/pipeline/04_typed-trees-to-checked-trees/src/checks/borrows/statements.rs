@@ -444,7 +444,7 @@ fn check_call_mutation_borrows<'p>(
         let stated_premises = available_premises.as_slice();
 
         let exiting_source =
-            source_exiting_without_carried_borrows(program, state_flow, borrow_call);
+            source_exiting_without_local_loan_carriers(program, state_flow, borrow_call);
 
         // The loans live *at* the call are the entry constraints of the flow
         // statement the call belongs to.
@@ -505,7 +505,7 @@ fn check_call_mutation_borrows<'p>(
 /// A named jump enters another state only after the caller's local scope ends.
 /// Calls in its guard or arguments are ordinary pre-exit calls. Keep carried
 /// loans out of this judgment: their successor use needs its own correspondence.
-fn source_exiting_without_carried_borrows<'program>(
+fn source_exiting_without_local_loan_carriers<'program>(
     program: &'program typed_trees::TypedTrees,
     flow: &FlowStateFact,
     call: &checked_trees::BorrowCallFact,
@@ -535,10 +535,38 @@ fn source_exiting_without_carried_borrows<'program>(
         let parameter = positional.next()?;
         let actual =
             validation::expression_result_type_reference(program, machine, source, *argument)?;
-        for reference in [parameter.type_reference, actual] {
-            // Use the closed lifetime frontier, not the discovery-only owner
-            // paths query: an unknown type is not evidence of absent loans.
-            if !crate::borrow::view_link::substituted_result_is_view_free(program, reference, &[]) {
+        if [parameter.type_reference, actual]
+            .into_iter()
+            .all(|reference| {
+                crate::borrow::view_link::substituted_result_is_view_free(program, reference, &[])
+            })
+        {
+            continue;
+        }
+        // Passing caller-backed storage is not carrying a state-local
+        // observation of it. Resolve the argument's provenance, then require
+        // an incoming reference whose referent cannot store another view.
+        // Local aliases, aggregates carrying loans, and unknown frontiers
+        // cannot establish this fact. Their retained loan transport must be
+        // checked instead of treating state exit as permission to end them.
+        let place = crate::borrow::argument_borrow_loan_place(
+            program,
+            source.symbol,
+            call.statement_index,
+            machine.symbol,
+            *argument,
+        )?;
+        let incoming = program
+            .state_parameters(source)
+            .iter()
+            .find(|candidate| candidate.symbol == place.root_symbol)?;
+        for reference in [incoming.type_reference, parameter.type_reference, actual] {
+            let typed_trees::types::TypeReferenceNode::Reference { referee, .. } =
+                program.type_reference_table.type_reference(reference)
+            else {
+                return None;
+            };
+            if !crate::borrow::view_link::substituted_result_is_view_free(program, *referee, &[]) {
                 return None;
             }
         }
@@ -610,8 +638,10 @@ fn local_loan_ends_before_successor(
     {
         return false;
     }
-    // Resource replay precedes this check. Match its exact state-exit closure,
-    // not merely a syntactic reference local or a guessed last-use index.
+    // Resource replay precedes this check. A non-carried local observation
+    // is closed before successor execution whether the source's ledger ends
+    // it at scope exit or earlier last-use expiry. Reassignment is different:
+    // ending displaced custody requires evaluating its replacement first.
     facts
         .borrow
         .direct_loan_resources
@@ -621,10 +651,16 @@ fn local_loan_ends_before_successor(
                 && resource.machine_symbol == flow.machine_symbol
                 && resource.state_symbol == flow.state_symbol
                 && resource.parent_lifetime.root_symbol == loan.root_symbol
-                && resource.weakening_reason == checked_trees::FlowBorrowWeakeningReason::StateExit
-                && resource.weakening_source
-                    == checked_trees::FlowInvalidationSource::Statement {
-                        statement_index: source.statement_nodes.count() as usize,
-                    }
+                && match (resource.weakening_reason, resource.weakening_source) {
+                    (
+                        checked_trees::FlowBorrowWeakeningReason::StateExit,
+                        checked_trees::FlowInvalidationSource::Statement { statement_index },
+                    ) => statement_index == source.statement_nodes.count() as usize,
+                    (
+                        checked_trees::FlowBorrowWeakeningReason::LastUseExpired,
+                        checked_trees::FlowInvalidationSource::Statement { statement_index },
+                    ) => statement_index <= source.statement_nodes.count() as usize,
+                    _ => false,
+                }
         })
 }
