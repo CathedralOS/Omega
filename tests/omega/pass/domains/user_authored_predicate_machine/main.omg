@@ -20,6 +20,6 @@ machine consume(reading: Reading in Calibrated) {}
 
 data Main {}
 
-machine Main::main(&mut self, reading: Reading in Calibrated) {
+machine main(reading: Reading in Calibrated) {
     consume(reading);
 }

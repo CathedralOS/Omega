@@ -9,4 +9,4 @@ machine Walker::walk(position: u64) -> u64 {
     }
 }
 data Main {}
-machine Main::main(&self) -> u64 { Walker::walk(0) }
+machine main() -> u64 { Walker::walk(0) }
