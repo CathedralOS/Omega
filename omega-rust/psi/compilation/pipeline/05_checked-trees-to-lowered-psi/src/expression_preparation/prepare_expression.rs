@@ -264,6 +264,23 @@ pub(crate) fn lower_checked_scalar_expression_with_parameters(
             primitive_type,
         } => {
             let scalar_type = terminal_scalar_type(*primitive_type)?;
+            // Float fields are storage observations, not integer field
+            // operations or proof-only IEEE equality. Preserve the canonical
+            // leaf path so replay checks the same root, access and carrier.
+            if matches!(scalar_type, ScalarType::IeeeFloat(_)) {
+                let (source, path) =
+                    crate::expression_preparation::bindings::structural_fields::resolve_primitive(
+                        structural_fields,
+                        *parameter_position,
+                        path,
+                        scalar_type,
+                    )?;
+                return Ok(LoweredDirectExpression::PrimitiveRead {
+                    source,
+                    path,
+                    scalar_type,
+                });
+            }
             if !matches!(scalar_type, ScalarType::Integer(_)) {
                 return unsupported("runtime scalar field observation requires an integer field");
             }

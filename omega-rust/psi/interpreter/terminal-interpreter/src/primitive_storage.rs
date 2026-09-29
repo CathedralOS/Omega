@@ -213,7 +213,7 @@ impl TerminalExecution {
         }
         let mut projected = view.clone();
         let mut carrier = structural_type;
-        for segment in path {
+        for (position, segment) in path.iter().enumerate() {
             let declaration = self
                 .program
                 .structural_types
@@ -228,6 +228,22 @@ impl TerminalExecution {
                         .iter()
                         .find(|field| field.id == *identity && !field.relevance.is_erased())
                         .ok_or_else(invalid)?;
+                    if position + 1 == path.len()
+                        && matches!(
+                            field.field_type,
+                            terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
+                                | terminal_psi::StructuralFieldType::IeeeFloat(_)
+                        )
+                        && field.field_type.scalar_type() == Some(scalar_type)
+                    {
+                        return Ok((
+                            PrimitiveStorage::ScalarField(StructuralScalarRuntimeField {
+                                parent: StructuralRuntimePlace::from(&projected),
+                                field: field.id,
+                            }),
+                            scalar_type,
+                        ));
+                    }
                     let terminal_psi::StructuralFieldType::Structural(child) = field.field_type
                     else {
                         return Err(invalid());

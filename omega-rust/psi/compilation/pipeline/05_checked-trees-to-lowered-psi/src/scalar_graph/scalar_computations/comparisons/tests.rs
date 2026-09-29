@@ -10,6 +10,113 @@ fn checked(source: &str) -> CheckedTrees {
 }
 
 #[test]
+fn selected_float_comparisons_read_record_fields() {
+    let source = "boundary operator != Float::not_equal(left: f64, right: f64) -> bool;
+        data Pair { left: f64; right: f64; }
+        machine choose(pair: &Pair) -> bool { pair.left != pair.right }";
+    let checked = checked(source);
+    let _produced = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name("choose"),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .expect("selected comparison reads float fields through checked storage");
+    let lowered = crate::lower_machine(&checked, TerminalMachineSelection::Name("choose")).unwrap();
+    let module = &lowered.semantic_module;
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .unwrap();
+    let root = entry.structural_parameters[0].structural_type;
+    let terminal_psi::StructuralTypeShape::Record { fields } = &module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == root)
+        .unwrap()
+        .shape
+    else {
+        panic!("record input");
+    };
+    let semantics = terminal_codec::encode_module(module).unwrap();
+    let proof = terminal_codec::encode_proof_section(module, &lowered.proof_bundle).unwrap();
+    for (value, expected) in [(f64::NAN.to_bits(), true), (5.0_f64.to_bits(), false)] {
+        let arguments = [terminal_interpreter::TerminalStructuralValue {
+            opaque_identity: 1,
+            structural_type: root,
+            qualifications: Vec::new(),
+            path: Vec::new(),
+        }];
+        let scalar_fields = fields
+            .iter()
+            .map(
+                |field| terminal_interpreter::TerminalStructuralScalarFieldValue {
+                    argument_index: 0,
+                    path: Vec::new(),
+                    field: field.id,
+                    value: terminal_interpreter::TerminalScalarValue::IeeeFloat(
+                        semantic_vocabulary::IeeeFloatValue::Binary64(value),
+                    ),
+                },
+            )
+            .collect::<Vec<_>>();
+        let result = terminal_interpreter::interpret_terminal_artifact_measured(
+            &semantics,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+            &[],
+            terminal_interpreter::TerminalStructuralInputs {
+                arguments: &arguments,
+                scalar_fields: &scalar_fields,
+                ..Default::default()
+            },
+            &mut terminal_interpreter::AcceptTerminalEffects,
+        )
+        .expect("independent reload and float-field execution");
+        assert_eq!(
+            result.value(),
+            terminal_interpreter::TerminalExecutionResult::Scalar(
+                terminal_interpreter::TerminalScalarValue::Boolean(expected)
+            )
+        );
+    }
+    for write_only in [false, true] {
+        let mut invalid = module.clone();
+        let entry = invalid
+            .machines
+            .iter_mut()
+            .find(|machine| machine.id == invalid.entry)
+            .unwrap();
+        if write_only {
+            entry.structural_parameters[0].access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
+        } else {
+            let read = entry
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.operations)
+                .find(|operation| {
+                    matches!(operation.kind, OperationKind::PrimitiveScalarRead { .. })
+                })
+                .unwrap();
+            let OperationKind::PrimitiveScalarRead { path, .. } = &mut read.kind else {
+                unreachable!()
+            };
+            path.push(terminal_psi::StructuralPathSegment::Field("missing".into()));
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &invalid,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default()
+            )
+            .is_err()
+        );
+    }
+}
+
+#[test]
 fn ordinary_selected_float_comparisons_emit_one_exact_operation() {
     for (token, name) in [
         ("==", "equal"),

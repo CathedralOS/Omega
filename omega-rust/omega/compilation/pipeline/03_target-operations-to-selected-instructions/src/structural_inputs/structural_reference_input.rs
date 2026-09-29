@@ -136,6 +136,32 @@ pub(crate) fn primitive_geometry(
     scalar: ScalarType,
     declarations: &[StructuralTypeDeclaration],
 ) -> Option<(u32, u8, Vec<RuntimeElement>)> {
+    if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
+        let (carrier, _, _) = runtime_projection(root, carrier_path, declarations)?;
+        if let StructuralTypeShape::Record { fields } = &declarations
+            .iter()
+            .find(|declaration| declaration.id == carrier)?
+            .shape
+        {
+            let field = fields
+                .iter()
+                .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+            if matches!(
+                field.field_type,
+                StructuralFieldType::Scalar(ScalarType::IeeeFloat(_))
+                    | StructuralFieldType::IeeeFloat(_)
+            ) {
+                return scalar_field_geometry(
+                    root,
+                    carrier_path,
+                    field.id,
+                    scalar,
+                    declarations,
+                    false,
+                );
+            }
+        }
+    }
     let (leaf, offset, elements) = runtime_projection(root, path, declarations)?;
     let mut matches = declarations
         .iter()

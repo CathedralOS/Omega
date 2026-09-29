@@ -16,6 +16,31 @@ pub(super) fn primitive_leaf_projection(
     path: &[StructuralPathSegment],
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
+    if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
+        let (carrier, _, offset, runs) = runtime_projection(
+            root,
+            carrier_path,
+            declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        )
+        .ok()?;
+        if let StructuralTypeShape::Record { fields } = &declarations.get(&carrier)?.shape {
+            let field = fields
+                .iter()
+                .find(|field| field.identity == *identity && !field.relevance.is_erased())?;
+            let scalar = match field.field_type {
+                StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => Some(scalar),
+                StructuralFieldType::IeeeFloat(format) => Some(ScalarType::IeeeFloat(format)),
+                _ => None,
+            };
+            if let Some(scalar) = scalar {
+                let field_offset =
+                    direct_scalar_field_offset(carrier, field.id, scalar, declarations).ok()?;
+                return Some((scalar, offset.checked_add(field_offset)?, runs));
+            }
+        }
+    }
     let (leaf, _, byte_offset, runs) = runtime_projection(
         root,
         path,
