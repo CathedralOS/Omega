@@ -356,6 +356,11 @@ pub(super) fn retain_available(
                     CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
                     | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                    // A write through a borrowed view names no callee: the
+                    // destination is a loan inside this frame and the index
+                    // and element scalars are dense, exactly as the byte-
+                    // sequence and field-store siblings above.
+                    | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
                     | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
                     | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
                     | CheckedUnitEffectOperationPlan::AtomicAccess(_)
