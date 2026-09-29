@@ -10,6 +10,7 @@ mod front_end;
 mod anonymous_array_landing;
 mod anonymous_integer_landing;
 mod anonymous_window_landing;
+mod atomic_results;
 mod borrowed_restoration;
 mod borrowed_subslices;
 mod build_arguments;
