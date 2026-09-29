@@ -138,3 +138,155 @@ fn boundary_array_copies_require_exact_shape_readable_custody_and_dominance() {
     result.structural_type = structural_type_id(2);
     assert!(validate_module(&wrong_result).is_err());
 }
+
+fn boundary_array_loan(access: StructuralAccess, view: bool) -> TerminalModule {
+    let mut module = boundary_array_call(&[2], false);
+    let formal_type = if view {
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: structural_type_id(3),
+            identity: "bool_view".into(),
+            shape: StructuralTypeShape::ElementView {
+                element: structural_type_id(2),
+            },
+        });
+        structural_type_id(3)
+    } else {
+        structural_type_id(1)
+    };
+    let boundary = &mut module.boundary_machines[0];
+    boundary.parameter_order.truncate(1);
+    boundary.structural_parameters.truncate(1);
+    boundary.structural_parameters[0].structural_type = formal_type;
+    boundary.structural_parameters[0].access = access;
+    let OperationKind::BoundaryCall {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].operations[2].kind
+    else {
+        unreachable!()
+    };
+    structural_arguments.truncate(1);
+    structural_arguments[0].access = access;
+    module
+}
+
+#[test]
+fn boundary_array_result_loans_preserve_type_aliasing_and_availability() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        for view in [false, true] {
+            let valid = boundary_array_loan(access, view);
+            verify_module(
+                &valid,
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            )
+            .unwrap_or_else(|error| panic!("{access:?}, view={view}: {error:?}"));
+            let mut early = valid.clone();
+            early.machines[0].blocks[0].operations.swap(1, 2);
+            assert!(matches!(
+                validate_module(&early),
+                Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation { .. })
+            ));
+
+            let mut overlap = valid.clone();
+            let mut second = overlap.boundary_machines[0].structural_parameters[0].clone();
+            second.position = 1;
+            second.place = place_id(4);
+            overlap.boundary_machines[0]
+                .structural_parameters
+                .push(second);
+            overlap.boundary_machines[0]
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            let OperationKind::BoundaryCall {
+                structural_arguments,
+                ..
+            } = &mut overlap.machines[0].blocks[0].operations[2].kind
+            else {
+                unreachable!()
+            };
+            structural_arguments.push(structural_arguments[0].clone());
+            if access == StructuralAccess::MutableBorrow {
+                assert!(matches!(
+                    validate_module(&overlap),
+                    Err(ModuleError::OverlappingExclusiveStructuralArguments { .. })
+                ));
+            } else {
+                validate_module(&overlap).expect("shared whole-array observations may coexist");
+            }
+
+            let mut wrong_type = valid.clone();
+            wrong_type.boundary_machines[0].structural_parameters[0].structural_type =
+                structural_type_id(2);
+            assert!(validate_module(&wrong_type).is_err());
+            let mut wrong_extent = valid;
+            wrong_extent
+                .structural_types
+                .push(StructuralTypeDeclaration {
+                    id: structural_type_id(4),
+                    identity: "three_bools".into(),
+                    shape: StructuralTypeShape::FixedArray {
+                        element: structural_type_id(2),
+                        length: 3,
+                    },
+                });
+            wrong_extent.boundary_machines[0].structural_parameters[0].structural_type =
+                structural_type_id(4);
+            assert!(validate_module(&wrong_extent).is_err());
+        }
+    }
+}
+
+#[test]
+fn zeroed_array_result_loans_require_establishment_and_plain_custody() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        for view in [false, true] {
+            let mut valid = boundary_array_loan(access, view);
+            valid.machines[0].blocks[0].operations[1].kind =
+                OperationKind::EstablishZeroedStructural {};
+            verify_module(
+                &valid,
+                &ProofBundle::default(),
+                &AdmissionProfile::default(),
+            )
+            .unwrap_or_else(|error| panic!("zeroed {access:?}, view={view}: {error:?}"));
+            let mut early = valid.clone();
+            early.machines[0].blocks[0].operations.swap(1, 2);
+            assert!(matches!(
+                validate_module(&early),
+                Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation { .. })
+            ));
+            for mutation in ["qualification", "claim", "multiplicity"] {
+                let mut changed = valid.clone();
+                let OperationResult::Structural(result) =
+                    &mut changed.machines[0].blocks[0].operations[1].result
+                else {
+                    unreachable!()
+                };
+                match mutation {
+                    "qualification" => result
+                        .qualifications
+                        .push(semantic_vocabulary::StructuralDomainId::new(1).unwrap()),
+                    "claim" => result
+                        .claims
+                        .push(terminal_psi::StructuralResultClaimBinding {
+                            claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+                            path: Vec::new(),
+                        }),
+                    "multiplicity" => result.multiplicity = StructuralMultiplicity::Linear,
+                    _ => unreachable!(),
+                }
+                assert!(
+                    validate_module(&changed).is_err(),
+                    "zeroed {access:?}, view={view}: {mutation}"
+                );
+            }
+        }
+    }
+}

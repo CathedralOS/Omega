@@ -429,7 +429,14 @@ pub(crate) fn validate_operation(
         return unsupported("call operands disagree with their authored call site or signature");
     }
     literal_arguments::validate(checked, caller_machine, &call, operation)?;
-    boundary_buffers::validate(checked, caller_state, caller_parameters, &call, operation)?;
+    boundary_buffers::validate(
+        checked,
+        caller_state,
+        caller_parameters,
+        *coordinate,
+        &call,
+        operation,
+    )?;
     validate_owned_parameter_arguments(checked, caller_state, caller_parameters, &call, operation)?;
     // Authored scalar operands include the erased positions; the checked plan
     // splits them onto the proof-only erased lane in erased-formal order.

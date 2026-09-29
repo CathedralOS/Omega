@@ -140,11 +140,23 @@ pub(super) fn argument(
     // stays live after the call. The loan evidence comes from the borrow
     // record below rather than from an owned-projection permission, so this
     // lane is separate from `allow_projection`: no custody moves.
-    let projected_borrow = projected
-        && matches!(
-            access,
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-        );
+    let exclusive_borrow = matches!(
+        access,
+        CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
+    );
+    let projected_borrow = projected && exclusive_borrow;
+    let local_type = receiver_local_type(program, source_state, place, result);
+    // A local array lends the same element view as an array parameter or
+    // field. The local keeps its backing identity; the call presents only
+    // the checked view, with its exact loan replayed below.
+    let array_view = access != CheckedStructuralAccess::Owned
+        && local_type.is_some_and(|source| {
+            super::boundary_admission::fixed_array_slice_view_is_admitted(
+                program,
+                source,
+                parameter.type_reference,
+            )
+        });
     // A projected owned-record operand carries its subtree's captured leaves
     // into the call; the same resolved path both proves that custody and
     // names the argument's projected edge below. A projected exclusive
@@ -350,13 +362,26 @@ pub(super) fn argument(
         // A shared borrow views the binding's own storage: the formal's
         // referent — not its `&` shell — carries the closed/plain-content
         // obligation, and the borrow arm below proves the loan itself.
-        let storage = match access {
-            CheckedStructuralAccess::Owned => Some(parameter.type_reference),
-            CheckedStructuralAccess::SharedBorrow => {
-                shared_closed_referent(program, parameter.type_reference)
-            }
-            CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
-                None
+        let storage = if array_view {
+            local_type
+        } else {
+            match access {
+                CheckedStructuralAccess::Owned => Some(parameter.type_reference),
+                CheckedStructuralAccess::SharedBorrow => {
+                    shared_closed_referent(program, parameter.type_reference)
+                }
+                CheckedStructuralAccess::MutableBorrow
+                | CheckedStructuralAccess::WriteOnlyBorrow => {
+                    match program
+                        .type_reference_table
+                        .type_reference(parameter.type_reference)
+                    {
+                        typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                            Some(*referee)
+                        }
+                        _ => None,
+                    }
+                }
             }
         };
         if projected
@@ -385,7 +410,8 @@ pub(super) fn argument(
         CheckedStructuralAccess::Owned => (expression, formal_type),
         CheckedStructuralAccess::SharedBorrow => {
             let referee = shared_plain_affine_referent(program, parameter.type_reference)
-                .or_else(|| shared_closed_referent(program, parameter.type_reference))?;
+                .or_else(|| shared_closed_referent(program, parameter.type_reference))
+                .or(if array_view { local_type } else { None })?;
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
             else {
                 return None;
@@ -412,12 +438,8 @@ pub(super) fn argument(
             (borrow.target, referee)
         }
         CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow => {
-            // Only a projected subtree of a live result binding can be lent
-            // here: whole-place borrows still travel the parameter and alias
-            // routes that own their own custody checks.
-            if !projected_borrow {
-                return None;
-            }
+            // Whole locals and projected subtrees retain their owner. Both
+            // must rejoin the authored borrow and its captured access.
             let expected_access = match access {
                 CheckedStructuralAccess::MutableBorrow => {
                     language_semantics::ReferenceAccess::Mutable
@@ -456,10 +478,23 @@ pub(super) fn argument(
             {
                 return None;
             }
-            (borrow.target, *referee)
+            (
+                borrow.target,
+                if array_view { local_type? } else { *referee },
+            )
         }
     };
-    if (!projected && result.type_identity != target_identity)
+    // The result owns the referent; a bounded byte view may retain its
+    // reference shell in the call presentation identity. Compare storage
+    // against storage, while preserving that presentation on the argument.
+    let storage_identity_matches = projected
+        || array_view
+        || if access == CheckedStructuralAccess::Owned {
+            result.type_identity == target_identity
+        } else {
+            base_type_identity(program, referent, &[])? == result.type_identity
+        };
+    if !storage_identity_matches
         || program.type_multiplicity(referent) != result.multiplicity
         || (!unrestricted
             && !linear
@@ -481,7 +516,7 @@ pub(super) fn argument(
             {
                 return None;
             }
-            if access == CheckedStructuralAccess::SharedBorrow
+            if access != CheckedStructuralAccess::Owned
                 || projected
                 || unrestricted
                 || linear
@@ -499,7 +534,7 @@ pub(super) fn argument(
                 // captured shared loan observes either binding mode without
                 // moving its owner; owned moves retain the immutable fence.
                 if (access != CheckedStructuralAccess::SharedBorrow
-                    && local.is_mutable != projected_borrow)
+                    && local.is_mutable != exclusive_borrow)
                     || local.symbol != symbol
                     || (!unrestricted
                         && !linear
@@ -666,7 +701,7 @@ pub(super) fn argument(
         }
         _ => return None,
     }
-    if access == CheckedStructuralAccess::SharedBorrow || unrestricted {
+    if access != CheckedStructuralAccess::Owned || unrestricted {
         return Some(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                 binding_ordinal: result.binding_ordinal,

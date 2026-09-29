@@ -89,6 +89,12 @@ pub(in crate::validation) fn plain_return_source(
                     OperationKind::EstablishScalarArray { .. } => {
                         shape(module, machine, operation).is_ok()
                     }
+                    OperationKind::EstablishZeroedStructural { .. } => {
+                        crate::validation::structural::operations::validate_establish_zeroed_structural(
+                            module, machine, operation,
+                        )
+                        .is_ok()
+                    }
                     OperationKind::StructuralLeafCopy { source, path } => {
                         crate::validation::structural::leaf_copy::validate(
                             module, machine, operation, *source, path,

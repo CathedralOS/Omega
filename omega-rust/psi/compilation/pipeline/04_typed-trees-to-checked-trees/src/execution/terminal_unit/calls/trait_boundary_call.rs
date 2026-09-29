@@ -314,12 +314,8 @@ pub(super) fn build(
             .iter()
             .find(|(_, root)| *root == place.root)
         {
-            if result.multiplicity == Multiplicity::Unrestricted
-                && !validation::is_closed_primitive_array_type(program, formal)
-                && !crate::execution::terminal_unit::types::borrowed_slice_view(program, formal)
-            {
-                return None;
-            }
+            // Result operands own type/presentation and loan admission. A
+            // borrowed formal need not itself be the local's owned array type.
             structural_arguments.push(result_arguments::argument(
                 program,
                 facts,

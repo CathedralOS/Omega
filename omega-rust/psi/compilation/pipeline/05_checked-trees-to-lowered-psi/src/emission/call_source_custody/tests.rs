@@ -19,6 +19,118 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn boundary_local_buffer_preserves_backing_and_loan() {
+    for (formal, borrow) in [
+        ("&mut [u8]", "&mut"),
+        ("&[u8]", "&"),
+        ("&mut [u8; 4]", "&mut"),
+    ] {
+        let checked = crate::front_end::checked_program(&format!(
+            "boundary trait Input {{ machine fill(buffer: {formal}) reaches Input; }}
+             machine run() reaches Input {{
+                 let mut buffer: [u8; 4];
+                 let mut other: [u8; 4];
+                 Input::fill({borrow} buffer);
+                 Input::fill({borrow} buffer);
+             }}"
+        ));
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("run"))
+            .unwrap_or_else(|error| panic!("{formal}: {error:?}"));
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("local buffer loans retain independently checked custody");
+
+        for mutation in ["binding", "path", "access", "captured root", "mutability"] {
+            if mutation == "mutability" && borrow == "&" {
+                continue;
+            }
+            let mut changed = checked.clone();
+            match mutation {
+                "binding" | "path" | "access" => {
+                    let other_binding = changed.facts.flow.terminal_unit_effects.machines.iter()
+                        .flat_map(|machine| &machine.operations)
+                        .find_map(|operation| match operation {
+                            checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue { result, .. }
+                            | checked_trees::CheckedUnitEffectOperationPlan::EstablishScalarArray { result, .. }
+                                if result.statement_index == 1 => Some(result.binding_ordinal),
+                            _ => None,
+                        }).expect("same-typed other buffer producer");
+                    let argument = changed
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .machines
+                        .iter_mut()
+                        .flat_map(|machine| &mut machine.operations)
+                        .find_map(|operation| match operation {
+                            checked_trees::CheckedUnitEffectOperationPlan::BoundaryCall {
+                                structural_arguments,
+                                ..
+                            } => structural_arguments.first_mut(),
+                            _ => None,
+                        })
+                        .expect("local buffer boundary argument");
+                    if mutation == "binding" {
+                        argument.source = checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult { binding_ordinal: other_binding };
+                    } else if mutation == "path" {
+                        argument
+                            .path
+                            .push(checked_trees::CheckedUnitStructuralPathSegment::Referent);
+                    } else {
+                        argument.access = checked_trees::CheckedStructuralAccess::Owned;
+                    }
+                }
+                "captured root" => {
+                    let access_handle = changed
+                        .facts
+                        .borrow
+                        .argument_accesses
+                        .iter()
+                        .next()
+                        .expect("captured buffer access")
+                        .0;
+                    changed
+                        .facts
+                        .borrow
+                        .argument_accesses
+                        .get_mut(access_handle)
+                        .root_symbol = symbols::SymbolHandle::invalid();
+                }
+                "mutability" => {
+                    let machine = changed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.name.as_str() == "run")
+                        .expect("run machine");
+                    let statements = changed.machine_states(machine)[0].statement_nodes;
+                    let local = changed
+                        .typed
+                        .statement_table
+                        .statements_mut(statements)
+                        .iter_mut()
+                        .find_map(|node| match node {
+                            checked_trees::statement::StatementNode::LocalData(local) => {
+                                Some(local)
+                            }
+                            _ => None,
+                        })
+                        .expect("buffer declaration");
+                    local.is_mutable = false;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                lower_machine(&changed, TerminalMachineSelection::Name("run")).is_err(),
+                "{formal}: forged {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn boundary_record_result_can_replace_a_field() {
     let checked = crate::front_end::checked_program(
         r#"
