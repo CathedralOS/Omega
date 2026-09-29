@@ -206,8 +206,20 @@ pub(crate) fn resolve_typed(
         {
             // One literal fixed-array index may end the carrier, mirroring
             // the bounded store projection grammar: the leaf field still
-            // belongs to the element's own record declaration.
-            if ordinal + 2 != path.len() {
+            // belongs to the element's own record declaration. The element
+            // may instead be a sum, in which case the ordinary `Case` arm
+            // below resolves its payload leaf — the same `case_hops`
+            // authority rules apply to the read.
+            let tail_is_leaf = matches!(
+                &path[ordinal + 1..],
+                [checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                    _
+                )] | [
+                    checked_trees::CheckedStructuralPredicatePathSegment::Case(_),
+                    checked_trees::CheckedStructuralPredicatePathSegment::Field(_),
+                ]
+            );
+            if !tail_is_leaf {
                 return unsupported(
                     "runtime field observation requires a field leaf after its index",
                 );
