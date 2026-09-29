@@ -207,20 +207,20 @@ pub machine Duration::is_zero(duration: &Duration) -> bool {
     duration.seconds == 0 && duration.subsecond_nanoseconds == 0
 }
 
-// self + other; `Overflow` when the true sum exceeds the representable range.
-pub machine Duration::checked_add(&self, other: Duration) -> DurationResult {
+// duration + other; `Overflow` when the true sum exceeds the representable range.
+pub machine Duration::checked_add(duration: &Duration, other: Duration) -> DurationResult {
     // EXACT-provable straight from the field ranges:
     // [0..=999_999_999] + [0..=999_999_999] = [0..=1_999_999_998] fits u32.
-    let nanoseconds_total: u32 = self.subsecond_nanoseconds + other.subsecond_nanoseconds;
+    let nanoseconds_total: u32 = duration.subsecond_nanoseconds + other.subsecond_nanoseconds;
     let seconds_sum: u64 in Wrapping =
-        (self.seconds as u64 in Wrapping) + (other.seconds as u64 in Wrapping);
-    let seconds_wrapped: bool = seconds_sum < self.seconds;
+        (duration.seconds as u64 in Wrapping) + (other.seconds as u64 in Wrapping);
+    let seconds_wrapped: bool = seconds_sum < duration.seconds;
     transition nanoseconds_total >= 1000000000 {
         true -> add_carried(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
         false -> add_flat(nanoseconds_total, seconds_sum as u64, seconds_wrapped)
     }
 
-    state add_carried(&self, nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
+    state add_carried(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
         let seconds_carried: u64 in Wrapping = (seconds_sum as u64 in Wrapping) + 1;
         let carry_wrapped: bool = seconds_carried < seconds_sum;
         let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
@@ -229,25 +229,25 @@ pub machine Duration::checked_add(&self, other: Duration) -> DurationResult {
             false -> add_carry_gate(nanoseconds_reduced as u32, seconds_carried as u64, carry_wrapped)
         }
     }
-    state add_carry_gate(&self, nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> DurationResult {
+    state add_carry_gate(nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> DurationResult {
         transition carry_wrapped {
             true -> add_overflow()
             false -> add_gate(seconds_carried, nanoseconds_reduced)
         }
     }
-    state add_flat(&self, nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
+    state add_flat(nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> DurationResult {
         transition seconds_wrapped {
             true -> add_overflow()
             false -> add_gate(seconds_sum, nanoseconds_total)
         }
     }
-    state add_gate(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    state add_gate(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         transition nanoseconds_final <= 999999999 {
             true -> add_emit(seconds_final, nanoseconds_final)
             false -> add_overflow()
         }
     }
-    state add_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    state add_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         // `% 1000000000` INLINE in the field value: construction checks are
         // flow-insensitive, and modulo bounds by the divisor, so the ranged
         // store proves right here; the gate already ensured the mod is an
@@ -259,55 +259,48 @@ pub machine Duration::checked_add(&self, other: Duration) -> DurationResult {
             },
         }
     }
-    state add_overflow(&self) -> DurationResult {
+    state add_overflow() -> DurationResult {
         DurationResult::Overflow
     }
 }
 
-// self - other; `Overflow` (underflow) when other exceeds self.
-//
-// AUTHORING RULE (native face, 2026-07-07): in an inlined VALUE-machine body,
-// `self.field`/`other.field` reads in POST-ENTRY states resolve against the
-// CALLER's frame (receiver substitution reaches only the entry) -- a silent
-// wrong-read. Parked repro:
-// tests/omega/pending/time/value_machine_receiver_field_postentry. Until the
-// backend lowers (or fences) it, every machine here reads fields ONLY in its
-// entry and threads scalars/booleans; post-entry states consume params only.
-pub machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
-    let seconds_bigger: bool = self.seconds > other.seconds;
-    let seconds_equal: bool = self.seconds == other.seconds;
-    let nanoseconds_fit: bool = self.subsecond_nanoseconds >= other.subsecond_nanoseconds;
+// duration - other; `Overflow` (underflow) when other exceeds duration.
+// Later states carry the arithmetic values they need, not either input borrow.
+pub machine Duration::checked_subtract(duration: &Duration, other: Duration) -> DurationResult {
+    let seconds_bigger: bool = duration.seconds > other.seconds;
+    let seconds_equal: bool = duration.seconds == other.seconds;
+    let nanoseconds_fit: bool = duration.subsecond_nanoseconds >= other.subsecond_nanoseconds;
     let seconds_direct: u64 in Wrapping =
-        (self.seconds as u64 in Wrapping) - (other.seconds as u64 in Wrapping);
+        (duration.seconds as u64 in Wrapping) - (other.seconds as u64 in Wrapping);
     let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
     // The final `as u32` re-domains each wrapped result to Exact IN THE LET:
     // a payload field value of shape `(cast) % literal` is silently dropped by
     // the parallel write cascade (known landmine, filed in TASKS.md), so the
     // emit states must see a BARE param (`nanoseconds_final % 1000000000`).
-    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
+    let nanoseconds_direct: u32 = ((duration.subsecond_nanoseconds as u32 in Wrapping)
         - (other.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
         - (other.subsecond_nanoseconds as u32 in Wrapping))
-        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+        + (duration.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
         true -> subtract_bigger(nanoseconds_fit, seconds_direct as u64, seconds_borrowed as u64, nanoseconds_direct, nanoseconds_borrowed)
         false -> subtract_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct as u64, nanoseconds_direct)
     }
 
-    state subtract_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
+    state subtract_bigger(nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
         // Seconds strictly bigger: a nanosecond borrow cannot underflow.
         transition nanoseconds_fit {
             true -> subtract_emit(seconds_direct, nanoseconds_direct)
             false -> subtract_emit(seconds_borrowed, nanoseconds_borrowed)
         }
     }
-    state subtract_equal_or_less(&self, seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> DurationResult {
+    state subtract_equal_or_less(seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> DurationResult {
         transition seconds_equal && nanoseconds_fit {
             true -> subtract_emit(seconds_direct, nanoseconds_direct)
             false -> subtract_underflow()
         }
     }
-    state subtract_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    state subtract_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         // Inline `%` bounds the ranged store flow-insensitively; the guarded
         // arms above ensured it is an identity at runtime.
         DurationResult::Ok {
@@ -317,19 +310,19 @@ pub machine Duration::checked_subtract(&self, other: Duration) -> DurationResult
             },
         }
     }
-    state subtract_underflow(&self) -> DurationResult {
+    state subtract_underflow() -> DurationResult {
         DurationResult::Overflow
     }
 }
 
-// self * factor; `Overflow` when the true product exceeds the range.
-pub machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
+// duration * factor; `Overflow` when the true product exceeds the range.
+pub machine Duration::checked_multiply(duration: &Duration, factor: u32) -> DurationResult {
     let factor_wide: u64 = widen_u32_to_u64(factor);
     // Subsecond product fits u64 by math ([0..=999_999_999] * [0..=u32::MAX])
     // but the interval fold cannot multiply variable bounds -- Wrapping
     // spelling, correctness carried by the bounds themselves.
     let nano_product_wrapped: u64 in Wrapping =
-        (widen_u32_to_u64(self.subsecond_nanoseconds) as u64 in Wrapping)
+        (widen_u32_to_u64(duration.subsecond_nanoseconds) as u64 in Wrapping)
         * (factor_wide as u64 in Wrapping);
     let nano_product: u64 = nano_product_wrapped as u64;
     let extra_seconds: u64 = nano_product / 1000000000;
@@ -340,8 +333,8 @@ pub machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
     // taught unsignedness; shifts and adds need no such care):
     // seconds = hi<<32 | lo. Overflow iff hi*factor exceeds 32 bits or a
     // carry wraps (wrapped-compare idiom).
-    let seconds_high: u64 = self.seconds >> 32;
-    let seconds_low: u64 = self.seconds & 4294967295;
+    let seconds_high: u64 = duration.seconds >> 32;
+    let seconds_low: u64 = duration.seconds & 4294967295;
     let high_product_wrapped: u64 in Wrapping =
         (seconds_high as u64 in Wrapping) * (factor_wide as u64 in Wrapping);
     let high_product: u64 = high_product_wrapped as u64;
@@ -360,19 +353,19 @@ pub machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
         true -> multiply_carry_gate(product_wrapped, final_wrapped, final_seconds as u64, nano_remainder)
         false -> multiply_overflow()
     }
-    state multiply_carry_gate(&self, product_wrapped: bool, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
+    state multiply_carry_gate(product_wrapped: bool, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
         transition product_wrapped {
             true -> multiply_overflow()
             false -> multiply_final_gate(final_wrapped, final_seconds, nano_remainder)
         }
     }
-    state multiply_final_gate(&self, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
+    state multiply_final_gate(final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
         transition final_wrapped {
             true -> multiply_overflow()
             false -> multiply_emit(final_seconds, nano_remainder)
         }
     }
-    state multiply_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    state multiply_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         DurationResult::Ok {
             duration: Duration {
                 seconds: seconds_final,
@@ -380,28 +373,28 @@ pub machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
             },
         }
     }
-    state multiply_overflow(&self) -> DurationResult {
+    state multiply_overflow() -> DurationResult {
         DurationResult::Overflow
     }
 }
 
-// self / divisor; the `Overflow` case doubles as the divisor-0 signal (a
+// duration / divisor; the `Overflow` case doubles as the divisor-0 signal (a
 // guard, never a runtime fault -- per the settled surface). The subsecond
 // remainder of the seconds division redistributes into the nanoseconds.
-pub machine Duration::divide(&self, divisor: u32) -> DurationResult {
+pub machine Duration::divide(duration: &Duration, divisor: u32) -> DurationResult {
     // ENTRY-ONLY discipline: entry lets evaluate eagerly, so a zero divisor
     // is clamped to 1 and the real zero case routes to the Overflow arm,
     // ignoring the harmlessly-computed values.
     let divisor_is_zero: bool = divisor == 0;
     let safe_divisor_narrow: u32 = clamp(divisor, 1, 4294967295);
     let safe_divisor: u64 = widen_u32_to_u64(safe_divisor_narrow);
-    let seconds_quotient: u64 = self.seconds / safe_divisor;
-    let seconds_remainder: u64 = self.seconds % safe_divisor;
+    let seconds_quotient: u64 = duration.seconds / safe_divisor;
+    let seconds_remainder: u64 = duration.seconds % safe_divisor;
     // remainder < divisor <= u32::MAX, so this fits u64 by math; Wrapping
     // spelling because the fold cannot multiply variable bounds.
     let total_wrapped: u64 in Wrapping = ((seconds_remainder as u64 in Wrapping)
         * 1000000000)
-        + (widen_u32_to_u64(self.subsecond_nanoseconds) as u64 in Wrapping);
+        + (widen_u32_to_u64(duration.subsecond_nanoseconds) as u64 in Wrapping);
     let total_subnanoseconds: u64 = total_wrapped as u64;
     let sub_quotient_wide: u64 = total_subnanoseconds / safe_divisor;
     let sub_quotient_bounded: u64 [0..=999999999] =
@@ -411,7 +404,7 @@ pub machine Duration::divide(&self, divisor: u32) -> DurationResult {
         true -> divide_by_zero()
         false -> divide_emit(seconds_quotient, sub_quotient)
     }
-    state divide_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+    state divide_emit(seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
         DurationResult::Ok {
             duration: Duration {
                 seconds: seconds_final,
@@ -419,87 +412,86 @@ pub machine Duration::divide(&self, divisor: u32) -> DurationResult {
             },
         }
     }
-    state divide_by_zero(&self) -> DurationResult {
+    state divide_by_zero() -> DurationResult {
         DurationResult::Overflow
     }
 }
 
-// self + other, clamping at MAX instead of reporting overflow (total).
-pub machine Duration::saturating_add(&self, other: Duration) -> Duration {
-    let sum: DurationResult = self.checked_add(other);
+// duration + other, clamping at MAX instead of reporting overflow (total).
+pub machine Duration::saturating_add(duration: &Duration, other: Duration) -> Duration {
+    let sum: DurationResult = Duration::checked_add(duration, other);
     transition sum {
         DurationResult::Ok { duration } -> saturate_add_value(duration)
         DurationResult::Overflow -> saturate_add_max()
     }
-    state saturate_add_value(&self, duration: Duration) -> Duration { duration }
-    state saturate_add_max(&self) -> Duration { Duration::MAX }
+    state saturate_add_value(duration: Duration) -> Duration { duration }
+    state saturate_add_max() -> Duration { Duration::MAX }
 }
 
-// self - other, clamping at ZERO instead of reporting underflow (total, the
+// duration - other, clamping at ZERO instead of reporting underflow (total, the
 // ZII-friendly default the wrapper types lean on).
-pub machine Duration::saturating_subtract(&self, other: Duration) -> Duration {
-    let difference: DurationResult = self.checked_subtract(other);
+pub machine Duration::saturating_subtract(duration: &Duration, other: Duration) -> Duration {
+    let difference: DurationResult = Duration::checked_subtract(duration, other);
     transition difference {
         DurationResult::Ok { duration } -> saturate_value(duration)
         DurationResult::Overflow -> saturate_zero()
     }
-    state saturate_value(&self, duration: Duration) -> Duration { duration }
-    state saturate_zero(&self) -> Duration { Duration::ZERO }
+    state saturate_value(duration: Duration) -> Duration { duration }
+    state saturate_zero() -> Duration { Duration::ZERO }
 }
 
-pub machine Duration::compare(&self, other: Duration) -> Ordering {
-    // Entry-only field reads (see checked_subtract's authoring rule).
-    let seconds_greater: bool = self.seconds > other.seconds;
-    let seconds_less: bool = self.seconds < other.seconds;
-    let nanoseconds_greater: bool = self.subsecond_nanoseconds > other.subsecond_nanoseconds;
-    let nanoseconds_less: bool = self.subsecond_nanoseconds < other.subsecond_nanoseconds;
+pub machine Duration::compare(duration: &Duration, other: Duration) -> Ordering {
+    let seconds_greater: bool = duration.seconds > other.seconds;
+    let seconds_less: bool = duration.seconds < other.seconds;
+    let nanoseconds_greater: bool = duration.subsecond_nanoseconds > other.subsecond_nanoseconds;
+    let nanoseconds_less: bool = duration.subsecond_nanoseconds < other.subsecond_nanoseconds;
     transition seconds_greater {
         true -> compare_greater()
         false -> compare_seconds_rest(seconds_less, nanoseconds_greater, nanoseconds_less)
     }
-    state compare_seconds_rest(&self, seconds_less: bool, nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
+    state compare_seconds_rest(seconds_less: bool, nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
         transition seconds_less {
             true -> compare_less()
             false -> compare_nanoseconds(nanoseconds_greater, nanoseconds_less)
         }
     }
-    state compare_nanoseconds(&self, nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
+    state compare_nanoseconds(nanoseconds_greater: bool, nanoseconds_less: bool) -> Ordering {
         transition nanoseconds_greater {
             true -> compare_greater()
             false -> compare_nanoseconds_rest(nanoseconds_less)
         }
     }
-    state compare_nanoseconds_rest(&self, nanoseconds_less: bool) -> Ordering {
+    state compare_nanoseconds_rest(nanoseconds_less: bool) -> Ordering {
         transition nanoseconds_less {
             true -> compare_less()
             false -> compare_equal()
         }
     }
-    state compare_less(&self) -> Ordering { Ordering::Less }
-    state compare_equal(&self) -> Ordering { Ordering::Equal }
-    state compare_greater(&self) -> Ordering { Ordering::Greater }
+    state compare_less() -> Ordering { Ordering::Less }
+    state compare_equal() -> Ordering { Ordering::Equal }
+    state compare_greater() -> Ordering { Ordering::Greater }
 }
 
-pub machine Duration::is_less_than(&self, other: Duration) -> bool {
-    let order: Ordering = self.compare(other);
+pub machine Duration::is_less_than(duration: &Duration, other: Duration) -> bool {
+    let order: Ordering = Duration::compare(duration, other);
     transition order {
         Ordering::Less -> less_yes()
         Ordering::Equal -> less_no()
         Ordering::Greater -> less_no()
     }
-    state less_yes(&self) -> bool { true }
-    state less_no(&self) -> bool { false }
+    state less_yes() -> bool { true }
+    state less_no() -> bool { false }
 }
 
-pub machine Duration::is_greater_than(&self, other: Duration) -> bool {
-    let order: Ordering = self.compare(other);
+pub machine Duration::is_greater_than(duration: &Duration, other: Duration) -> bool {
+    let order: Ordering = Duration::compare(duration, other);
     transition order {
         Ordering::Greater -> greater_yes()
         Ordering::Less -> greater_no()
         Ordering::Equal -> greater_no()
     }
-    state greater_yes(&self) -> bool { true }
-    state greater_no(&self) -> bool { false }
+    state greater_yes() -> bool { true }
+    state greater_no() -> bool { false }
 }
 
 // A point on the MONOTONIC clock, normalized at `now()` (D6): whole seconds +
