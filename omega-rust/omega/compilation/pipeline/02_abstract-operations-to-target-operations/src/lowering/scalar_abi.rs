@@ -29,16 +29,11 @@ pub(super) fn derive_mixed_structural_scalar_function_abi(
     let Some(result) = function.result.scalar() else {
         return Ok(None);
     };
-    let result_supported = match result.scalar_type {
-        ScalarType::Boolean => true,
-        ScalarType::Integer(integer) => fixed_native_integer_shape(integer).is_some(),
-        ScalarType::IeeeFloat(_) => false,
-    };
-    if !result_supported {
+    if fixed_native_scalar_shape(result.scalar_type).is_none() {
         return Ok(None);
     }
-    // Ordinary signature preparation owns parameter support and placement.
-    // A structural neighbor does not change a scalar argument's carrier.
+    // Native scalar eligibility and ordinary signature placement do not
+    // change when structural parameters appear beside the scalar lanes.
     let Ok(prepared) =
         super::function_signature::prepare_function_signature(function, target, structural_types)
     else {
@@ -263,8 +258,20 @@ mod tests {
     }
 
     #[test]
-    fn mixed_abi_preserves_float_arguments_in_registers_and_on_stack() {
-        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+    fn mixed_abi_preserves_float_arguments_and_results() {
+        let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
+        for (format, result_type) in [
+            (IeeeFloatFormat::Binary32, integer),
+            (IeeeFloatFormat::Binary64, integer),
+            (
+                IeeeFloatFormat::Binary32,
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+            ),
+            (
+                IeeeFloatFormat::Binary64,
+                ScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+            ),
+        ] {
             let scalar_type = ScalarType::IeeeFloat(format);
             let width = match format {
                 IeeeFloatFormat::Binary32 => 4,
@@ -273,9 +280,7 @@ mod tests {
             let mut mixed = function();
             mixed.result = AbstractFunctionResult::Scalar(AbstractResult {
                 value: ValueId::new(11).unwrap(),
-                scalar_type: ScalarType::Integer(
-                    IntegerType::new(IntegerSign::Signed, 32).unwrap(),
-                ),
+                scalar_type: result_type,
             });
             mixed.parameters = (1..=10)
                 .map(|ordinal| AbstractParameter {
@@ -340,7 +345,10 @@ mod tests {
                     abi.result.scalar_type,
                     mixed.result.scalar().unwrap().scalar_type
                 );
-                assert_eq!(abi.result.placement.shape, ValueShape::integer(4, 4));
+                assert_eq!(
+                    Some(abi.result.placement.shape),
+                    super::fixed_native_scalar_shape(result_type)
+                );
             }
         }
     }

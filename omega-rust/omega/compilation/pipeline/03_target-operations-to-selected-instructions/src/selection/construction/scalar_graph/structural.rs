@@ -176,13 +176,11 @@ pub(super) fn call_pointer(
         || matches!(call.source, target_operations::NativeCallOrigin::Authored)
             && !matches!(row.ownership.as_slice(),
                 [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
-        || row.result.is_some_and(|result| {
-            !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
-                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
-        })
     {
         return Err(invalid());
     }
+    // The call emitter checks result type and placement independently. A
+    // borrowed argument transports the same pointer for every result bank.
     place_pointer(builder, row, place, byte_offset)
 }
 
