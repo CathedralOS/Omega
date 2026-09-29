@@ -6,11 +6,9 @@
 //! type: `unwrapped_type_reference` strips the `&`, so a
 //! lifetime-parameterized record arrives as a `Generic` node whose
 //! `base_symbol` names the same data declaration the `Named` route resolves
-//! — `walk_exact_place` admits it, and the integer-member clone produces
-//! and verifies. An `f32` member leaf advances past the same admission but
-//! declines deeper: runtime scalar field observation still requires an
-//! integer field. A literal that nests calls inside its tail fields instead
-//! declines at the statement-sequence call-ordering roster.
+//! — `walk_exact_place` admits it, and both integer and `f32` member clones
+//! produce and independently verify. A literal that nests calls inside its
+//! tail fields instead declines at the statement-sequence call-ordering roster.
 // `TerminalMachineSelection` must come through `terminal_production`'s
 // re-export, not `crate::`: in the lib test target `crate` is the test
 // instance of this crate while `terminal_production` holds the library
@@ -46,10 +44,10 @@ fn produce(source: &str, machine: &str) -> Result<(), String> {
 
 /// The sweep-ledger clone shape: shared view members plus an `f32` member
 /// read through a `&'a` parameter. The `Generic` receiver resolves its
-/// member walk against `base_symbol`, but the float member then declines
-/// where runtime scalar observation supports integer fields only.
+/// member walk against `base_symbol`; the float member retains its primitive
+/// format while the adjacent views retain their borrowed custody.
 #[test]
-fn clone_literal_on_borrowed_generic_receiver_declines_at_float_leaf() {
+fn clone_literal_on_borrowed_generic_receiver_verifies_with_float_leaf() {
     let outcome = produce(
         r#"
         pub data TrackableTaskHandle<'a> {
@@ -63,11 +61,7 @@ fn clone_literal_on_borrowed_generic_receiver_declines_at_float_leaf() {
         "#,
         "TrackableTaskHandle::clone",
     );
-    let error = outcome.expect_err("a float member leaf must decline at scalar observation");
-    assert!(
-        error.contains("runtime scalar field observation requires an integer field"),
-        "expected the integer-only scalar observation wall, got {error}"
-    );
+    outcome.expect("a borrowed generic clone with an f32 member must produce and verify");
 }
 
 /// The admission is not float-specific: an integer-member clone on a
