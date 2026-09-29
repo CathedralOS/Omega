@@ -1,0 +1,32 @@
+// A negated transition arm carries the complement of its guard as contract
+// evidence: `check` requires `v < 100`, and the `_ ->` continuation of
+// `v >= 100` proves exactly that bound, so the requires discharges without a
+// restated premise. The argument is a call result, not a literal, so no
+// constant folding can stand in for the entailment.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine check(v: u64)
+requires v < 100u64
+{}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::opaque(&mut self) -> u64 {
+    transition { _ -> (7u64) }
+}
+
+machine Main::main(&mut self) reaches Console {
+    let v: u64 = self.opaque();
+    transition v >= 100u64 {
+        true -> bad()
+        _ -> then(v)
+    }
+    state then(&mut self, v: u64) {
+        check(v);
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
