@@ -1,0 +1,42 @@
+// Closed array literals stored into primitive arrays under every arithmetic
+// policy placement: a bare `[u8; 3]`, a Wrapping and a Saturating element
+// (`[i32 in Wrapping; 3]`), a policy on the whole array (`[i32; 3] in
+// Wrapping`), and one runtime row of a nested Wrapping array. Each literal is
+// one primitive store per element; the policy qualifies arithmetic on the
+// stored values, never their storage. One element of each reads back: exit 52.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Main
+where
+    i <= 1,
+{
+    console: Binding<Console>;
+    bare: [u8; 3];
+    wrapped: [i32 in Wrapping; 3];
+    saturated: [i32 in Saturating; 3];
+    whole: [i32; 3] in Wrapping;
+    rows: [[i32 in Wrapping; 3]; 2];
+    i: u64;
+}
+machine Main::main(&mut self) reaches Console {
+    self.bare = [1, 2, 3];
+    self.wrapped = [4, 5, 6];
+    self.saturated = [7, 8, 9];
+    self.whole = [10, 11, 12];
+    self.i = 1;
+    self.rows[self.i] = [13, 14, 15];
+    transition { _ -> check() }
+    state check(&mut self) {
+        transition self.bare[2] == 3
+            && self.wrapped[1] == 5
+            && self.saturated[0] == 7
+            && self.whole[2] == 12
+            && self.rows[1][1] == 14 {
+            true -> finish(52)
+            _ -> finish(1)
+        }
+    }
+    state finish(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

@@ -345,4 +345,10 @@ pub enum CheckedRuntimeIndex {
     /// its value; the leaf's scalar type resolves from the field's declared
     /// type, so it is not restated here.
     StructuralField(crate::checked_trees::CheckedStructuralParameterField),
+    /// An immutable integer scalar local of the calling state, at the dense
+    /// position after its scalar parameters -- the coordinate
+    /// `CheckedScalarExpression::Local` uses. Symbol resolution hoists a
+    /// computed selector (`grid[r * 6 + c]`) into such a local; Terminal
+    /// lowering selects with the local's established value.
+    Local { position: u32 },
 }

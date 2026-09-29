@@ -41,6 +41,7 @@ mod integer_comparison_replay;
 mod lifetime_machine_binders;
 mod linear_local_consumers;
 mod local_record_reads;
+mod local_selector_case_observations;
 mod lowered_machine_provenance;
 mod operation_crash_contracts;
 mod owned_projected_selection;

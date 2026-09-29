@@ -594,6 +594,9 @@ fn spell_place(
                 checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
             ) => spelling.push_str(&format!("[index#{depth}]")),
             CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::Local { position },
+            ) => spelling.push_str(&format!("[local#{position}]")),
+            CheckedUnitStructuralPathSegment::RuntimeIndex(
                 checked_trees::CheckedRuntimeIndex::StructuralField(field),
             ) => {
                 spelling.push_str(&format!(

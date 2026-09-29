@@ -215,7 +215,7 @@ pub(crate) fn projected_argument_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    projected_argument_path_impl(program, state_symbol, statement_index, place, None)
+    projected_argument_path_impl(program, state_symbol, statement_index, place, None, None)
 }
 
 /// `projected_argument_path` with runtime-index admission for the borrowed
@@ -237,7 +237,42 @@ pub(crate) fn projected_borrowed_path(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
 )> {
-    projected_argument_path_impl(program, state_symbol, statement_index, place, Some(machine))
+    projected_argument_path_impl(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        Some(machine),
+        None,
+    )
+}
+
+/// `projected_borrowed_path` for a case observation of a runtime-selected
+/// element, whose selector may also be an immutable scalar local:
+/// `local_selector` resolves one selector expression to its `Local` position
+/// in the observing computation's own scalar namespace. Only the observation
+/// owner holds that namespace, so no other lane admits local selectors.
+pub(crate) fn projected_observed_path(
+    program: &TypedTrees,
+    machine: SymbolHandle,
+    state_symbol: SymbolHandle,
+    statement_index: usize,
+    place: &crate::flow::CanonicalPlace,
+    local_selector: &dyn Fn(
+        typed_trees::expression::ExpressionHandle,
+    ) -> Option<checked_trees::CheckedRuntimeIndex>,
+) -> Option<(
+    typed_trees::types::TypeReferenceHandle,
+    Vec<CheckedUnitStructuralPathSegment>,
+)> {
+    projected_argument_path_impl(
+        program,
+        state_symbol,
+        statement_index,
+        place,
+        Some(machine),
+        Some(local_selector),
+    )
 }
 
 fn projected_argument_path_impl(
@@ -246,6 +281,11 @@ fn projected_argument_path_impl(
     statement_index: usize,
     place: &crate::flow::CanonicalPlace,
     runtime_index_machine: Option<SymbolHandle>,
+    local_selector: Option<
+        &dyn Fn(
+            typed_trees::expression::ExpressionHandle,
+        ) -> Option<checked_trees::CheckedRuntimeIndex>,
+    >,
 ) -> Option<(
     typed_trees::types::TypeReferenceHandle,
     Vec<CheckedUnitStructuralPathSegment>,
@@ -314,7 +354,8 @@ fn projected_argument_path_impl(
                                 statement_index,
                                 *expression,
                             )
-                        })?;
+                        })
+                        .or_else(|| local_selector.and_then(|resolve| resolve(*expression)))?;
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(
                     runtime_index,
                 ));

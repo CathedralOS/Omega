@@ -29,6 +29,7 @@ pub(crate) use affine_locals::{
 };
 pub(crate) use argument_paths::{
     byte_sequence_literal_argument, projected_argument_path, projected_borrowed_path,
+    projected_observed_path,
 };
 pub(crate) use boundary_admission::{
     provider_attachment_receiver_field, provider_attachment_receiver_matches,
