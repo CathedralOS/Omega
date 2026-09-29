@@ -44,6 +44,12 @@ pub(super) fn terminal_named_call(
         return None;
     };
     let target = if let Some(owner) = program.machine_by_symbol(path.symbol) {
+        // Naming the enclosing machine re-enters its entry state with the
+        // current arguments. That edge stays on the state-graph route, like
+        // an internal state destination, rather than a nested call.
+        if owner.symbol == machine.symbol {
+            return None;
+        }
         program.machine_states(owner).first()?
     } else {
         let (owner, target) =
