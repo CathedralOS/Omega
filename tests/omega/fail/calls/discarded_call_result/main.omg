@@ -24,7 +24,7 @@ machine Main::main(&mut self) -> i32 {
         }
     }
 
-    state shutdown(&mut self) {
+    state shutdown() {
         0
     }
 }
