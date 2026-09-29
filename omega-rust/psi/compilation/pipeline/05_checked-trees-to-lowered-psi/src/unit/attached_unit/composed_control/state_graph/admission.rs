@@ -880,15 +880,14 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 )?;
             }
         }
-        // Only signature-directed boundary plans (machine == state) are
-        // provider obligations; a boundary-declaration plan's machine-directed
-        // calls settle through that machine's own retained boundary seam.
+        // Attachment admission resolves authored ownership from the complete
+        // roster, not from equality of the machine and state coordinates.
         let called = boundaries
             .iter()
-            .filter(|(boundary, _)| boundary.machine == boundary.state)
             .map(|(boundary, _)| boundary.machine)
             .collect::<Vec<_>>();
         crate::unit::attached_unit::provider_attachments::validate_provider_attachment_requirements(
+            checked,
             attachment,
             &plan.provider_attachment_requirements,
             &called,

@@ -262,6 +262,7 @@ fn provider_module(
 ) -> TerminalModule {
     let mut module = bare_module();
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         id: BoundaryMachineId::new(1).expect("boundary identity"),
         identity: requirement_identity.to_owned(),
@@ -333,6 +334,7 @@ fn bounded_provider_module(
     });
     let bounded_boundary = BoundaryMachineId::new(2).expect("boundary identity");
     module.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         id: bounded_boundary,
         identity: "MachineControl::mask".to_owned(),

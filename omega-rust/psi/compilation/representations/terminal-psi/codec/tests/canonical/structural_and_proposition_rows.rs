@@ -739,6 +739,7 @@ fn boundary_inline_byte_module(
     let mut module = unit_fixture();
     module.structural_types = inline_byte_carrier_types(carrier);
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         crash_routes: Vec::new(),

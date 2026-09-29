@@ -49,6 +49,11 @@ pub(super) fn validate_boundary_machine(
     module: &TerminalModule,
     boundary: &BoundaryMachineDeclaration,
 ) -> Result<(), CodecError> {
+    if boundary.kind != terminal_psi::BoundaryRequirementKind::Machine
+        && boundary.attachment.is_some()
+    {
+        return malformed("boundary requirement kind has an invalid nominal attachment");
+    }
     if boundary
         .attachment
         .is_some_and(|attachment| !has_structural_type(module, attachment))

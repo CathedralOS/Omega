@@ -55,12 +55,15 @@ pub(super) fn find_call_site_in_expression<'program>(
         ExpressionNode::Call(call) => {
             let (receiver_symbol, receiver_path) =
                 call_receiver_parts(traversal.program, call.receiver);
+            let boundary_operator =
+                typed_trees::operator::resolve_named_expression_call(traversal.program, call)
+                    .filter(|operator| operator.is_boundary);
             let is_machine_call = resolve_state_call_target(
                 traversal.program,
                 traversal.machine,
                 traversal.state,
                 receiver_symbol,
-                call.target_symbol,
+                boundary_operator.map_or(call.target_symbol, |operator| operator.symbol),
                 receiver_path.as_deref(),
                 &call.target,
             )

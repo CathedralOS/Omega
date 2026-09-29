@@ -126,6 +126,7 @@ fn validate_retained_borrow_custody(
         retained_borrow_signature_matches(module, boundary, custody)
     };
     boundary.identity == custody.callable_identity
+        && boundary.kind == terminal_psi::BoundaryRequirementKind::Trait
         && boundary.attachment.is_none()
         && signature
         && exact_source

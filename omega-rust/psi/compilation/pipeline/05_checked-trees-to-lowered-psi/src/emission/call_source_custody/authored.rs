@@ -411,6 +411,19 @@ pub(crate) fn target_signature(
             state: state.symbol,
         });
     }
+    if let Some(operator) = program
+        .operators()
+        .iter()
+        .find(|operator| operator.is_boundary && operator.symbol == source_target)
+    {
+        return Ok(TargetSignature {
+            parameters: program.operator_parameters(operator),
+            return_type: operator.return_type,
+            boundary: true,
+            machine: operator.symbol,
+            state: operator.symbol,
+        });
+    }
     let requirement = if let Some((requirement, _)) = external_leaf {
         requirement
     } else if let Some((owner, signature)) = program.machine_parameter_signature(source_target) {

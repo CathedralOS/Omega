@@ -160,6 +160,7 @@ fn qualified_boundary_consumer() -> (PsiOptimizationUnit, StructuralDomainId, St
     let boundary = id(4_712, BoundaryMachineId::new);
     unit.boundary_machines
         .push(terminal_psi::BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,

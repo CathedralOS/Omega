@@ -929,6 +929,7 @@ mod tests {
         }];
         module.root_service_reach.concrete = vec![service];
         module.boundary_machines = vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             crash_routes: Vec::new(),

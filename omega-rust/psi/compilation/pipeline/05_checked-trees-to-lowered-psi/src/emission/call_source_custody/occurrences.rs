@@ -18,6 +18,21 @@ pub(crate) fn validate(
     let ExpressionNode::Call(authored) = checked.expression_table.expression(expression) else {
         return unsupported("computed result initializer has no authored call");
     };
+    // An operator namespace is not a runtime receiver. Reconstruct the
+    // declaration's operand count independently of the checked call row,
+    // retaining both the exact target and the authored namespace stamp.
+    let operator = typed_trees::operator::resolve_named_expression_call(&checked.typed, authored)
+        .filter(|operator| operator.is_boundary);
+    let target = operator.map_or(authored.target_symbol, |operator| operator.symbol);
+    let has_receiver = authored.receiver.is_valid()
+        && operator.is_none_or(|operator| {
+            checked.operator_parameters(operator).len()
+                == checked
+                    .expression_table
+                    .expression_handles(authored.arguments)
+                    .len()
+                    + 1
+        });
     let receiver = if authored.receiver.is_valid() {
         if !checked
             .expression_table
@@ -71,8 +86,8 @@ pub(crate) fn validate(
     ))?;
     if calls.next().is_some()
         || call.authored_expression != expression
-        || call.target_symbol != authored.target_symbol
-        || call.has_receiver != authored.receiver.is_valid()
+        || call.target_symbol != target
+        || call.has_receiver != has_receiver
         || call.receiver_symbol != receiver
     {
         return unsupported(

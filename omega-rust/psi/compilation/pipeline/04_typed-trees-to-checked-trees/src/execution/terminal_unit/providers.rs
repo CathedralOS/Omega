@@ -173,8 +173,9 @@ pub(super) fn checked_provider_attachment_requirements(
             // A direct call to a bodyless external leaf likewise names its
             // realization, not a field: the operation targets the leaf's
             // exact satisfied requirement and the leaf's own selected row
-            // settles it.
-            let targets_machine = match operation {
+            // settles it. A legacy operator likewise names its own requirement;
+            // an unrelated console field must not turn it into a receiver use.
+            let has_independent_requirement = match operation {
                 CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. }
                 | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
@@ -184,6 +185,10 @@ pub(super) fn checked_provider_attachment_requirements(
                         .machines()
                         .iter()
                         .any(|candidate| candidate.symbol == *target_machine)
+                        || (call.target_symbol == *target_machine
+                            && program.operators().iter().any(|operator| {
+                                operator.is_boundary && operator.symbol == *target_machine
+                            }))
                         || validation::exact_external_leaf_boundary_requirement(
                             program,
                             call.target_symbol,
@@ -192,7 +197,7 @@ pub(super) fn checked_provider_attachment_requirements(
                 }
                 _ => false,
             };
-            if targets_machine {
+            if has_independent_requirement {
                 continue;
             }
             return None;

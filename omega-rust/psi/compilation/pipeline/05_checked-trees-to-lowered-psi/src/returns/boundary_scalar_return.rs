@@ -36,6 +36,7 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     plan: &CheckedBoundaryScalarReturnMachinePlan,
 ) -> Result<SourceMappedLowered, LoweringError> {
     let boundary = validate_boundary_scalar_return(checked, plan)?;
+    crate::unit::attached_unit::validate_requirement_kind(checked, boundary)?;
     let plans = &checked.facts.flow.terminal_boundary_scalar_returns;
     let CheckedUnitEffectOperationPlan::BoundaryCall {
         service_reach,
@@ -83,6 +84,7 @@ pub(crate) fn lower_boundary_scalar_return_machine(
     requires.dedup();
     let boundary_id = boundary_machine_id(1);
     let boundary_declaration = BoundaryMachineDeclaration {
+        kind: boundary.kind,
         scalar_requires: Vec::new(),
         parameter_order: crate::unit::attached_unit::lower_boundary_parameter_order(
             &boundary.scalar_parameters,

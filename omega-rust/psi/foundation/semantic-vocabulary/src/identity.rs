@@ -7,6 +7,18 @@ use std::fmt;
 use std::num::NonZeroU32;
 use std::num::NonZeroU64;
 
+/// Authored owner of a bodyless requirement. Absence of a nominal attachment
+/// does not identify a trait: an operator also has no service receiver.
+/// This role travels with the declaration, independently of provider selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BoundaryRequirementKind {
+    /// Includes token-bearing machines and explicit top-level requirements.
+    /// Their application custody remains independent of declaration kind.
+    Machine,
+    Trait,
+    Operator,
+}
+
 /// Opaque commitment to a canonical package name and source lineage.
 ///
 /// Construction of the commitment belongs to the package layer. Psi carries

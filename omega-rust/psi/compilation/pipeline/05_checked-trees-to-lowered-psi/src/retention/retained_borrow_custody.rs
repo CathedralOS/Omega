@@ -228,6 +228,9 @@ pub(crate) fn retain_foreign_borrow_custodies(
             .iter_mut()
             .find(|boundary| boundary.identity == row.callable_identity)
         {
+            if boundary.kind != terminal_psi::BoundaryRequirementKind::Trait {
+                return unsupported("retained-borrow custody does not name a trait requirement");
+            }
             boundary
                 .content_guarantees
                 .push(BoundaryContentGuarantee::RetainedBorrow(row));
@@ -243,6 +246,7 @@ pub(crate) fn retain_foreign_borrow_custodies(
                 "retained-borrow boundary identity space is exhausted",
             ))?;
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             parameter_order: Vec::new(),
             fixed_service_reach: Vec::new(),
@@ -399,6 +403,7 @@ mod tests {
             reborrow_restored_call_uses: Vec::new(),
             boundary_machines: vec![
                 BoundaryMachineDeclaration {
+                    kind: terminal_psi::BoundaryRequirementKind::Trait,
                     scalar_requires: Vec::new(),
                     id: submit,
                     identity: custody.callable_identity.clone(),
@@ -431,6 +436,7 @@ mod tests {
                     published_service_ceiling: Vec::new(),
                 },
                 BoundaryMachineDeclaration {
+                    kind: terminal_psi::BoundaryRequirementKind::Trait,
                     scalar_requires: Vec::new(),
                     id: reclaim,
                     identity: "Reader::reclaim".to_owned(),

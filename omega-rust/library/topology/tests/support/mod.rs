@@ -151,6 +151,7 @@ pub fn component_module(calls: &[&str], provides: &[(&str, &str, &str)]) -> Term
 
 fn boundary_machine(id: BoundaryMachineId, requirement: &str) -> BoundaryMachineDeclaration {
     BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         id,
         identity: requirement.to_owned(),

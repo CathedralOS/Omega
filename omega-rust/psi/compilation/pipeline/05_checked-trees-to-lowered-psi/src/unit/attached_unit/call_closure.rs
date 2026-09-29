@@ -190,6 +190,16 @@ pub(crate) fn checked_unit_boundary_identity(
                 "top-level boundary has no normalized machine overload identity",
             ));
     }
+    if let Some(operator) = checked
+        .typed
+        .operators()
+        .iter()
+        .find(|operator| operator.is_boundary && operator.symbol == symbol)
+    {
+        return Ok(
+            typed_trees::operator::boundary_operator_requirement_identity(&checked.typed, operator),
+        );
+    }
     checked_terminal_machine_name(checked, symbol).map(str::to_owned)
 }
 

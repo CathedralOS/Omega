@@ -165,14 +165,15 @@ fn validate_provider_attachment_foundation(
                         .boundary_machines
                         .iter()
                         .find(|declaration| declaration.id == *boundary)
-                        .is_none_or(|declaration| declaration.attachment.is_some())
+                        .is_none_or(|declaration| {
+                            declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
+                        })
             })
     {
         return malformed("provider-backed attachment specialization is incomplete");
     }
-    // Only a call to a signature boundary (its declaration has no attachment)
-    // consumes a provider field; a call to a boundary-declaration machine
-    // settles through that machine's own seam, as the Terminal verifier rules.
+    // The retained declaration kind, not an absent nominal attachment,
+    // determines whether the call consumes a provider field.
     let called = machine
         .blocks
         .iter()
@@ -186,7 +187,9 @@ fn validate_provider_attachment_foundation(
                 .boundary_machines
                 .iter()
                 .find(|declaration| declaration.id == *boundary)
-                .is_some_and(|declaration| declaration.attachment.is_none())
+                .is_some_and(|declaration| {
+                    declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
+                })
         })
         .collect::<BTreeSet<_>>();
     if called != boundaries {

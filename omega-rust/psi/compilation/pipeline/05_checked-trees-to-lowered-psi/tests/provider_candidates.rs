@@ -355,15 +355,11 @@ fn closed_operator_applications_execute_the_installed_provider_body() {
     }
 }
 
-/// A legacy named `boundary operator` application is retained as a checked
-/// demand but its applying machine never earns a requirement-level call plan:
-/// lowering the caller refuses at local construction, so the application never
-/// reaches a Terminal artifact or Omega stage 00 settlement. This pins the
-/// frontier the requirement-call route must close; when named applications
-/// lower, this test is replaced by execution coverage beside
-/// `closed_operator_applications_execute_the_installed_provider_body`.
+/// A named operator uses the same requirement call and checked-provider
+/// installation as a machine. Its result remains usable by ordinary arithmetic
+/// after checked source custody is dropped.
 #[test]
-fn named_boundary_operator_application_dies_before_a_terminal_route() {
+fn named_boundary_operator_executes_through_the_ordinary_requirement_route() {
     let checked = crate::front_end::checked_program(
         r#"
         data CheckedMath {}
@@ -376,28 +372,145 @@ fn named_boundary_operator_application_dies_before_a_terminal_route() {
         requires input == input
         ensures result == input + 0 && input == input
         { transition { _ -> (input + 0) } }
-        machine run(value: i32) -> i32 { CheckedMath::offset_zero(value) }
+        machine run() -> i32 {
+            let result: i32 = CheckedMath::offset_zero(70);
+            result ^ 1
+        }
+        boundary trait Host { machine mark(value: u64) reaches Host; }
+        data UnitRoot<'s> { host: &'s mut Host; }
+        machine UnitRoot::unit_run(&mut self) reaches Host {
+            self.host.mark(1);
+            let result: i32 = CheckedMath::offset_zero(70);
+            self.host.mark(2);
+        }
     "#,
     );
     assert_eq!(
         checked.facts.operators.boundary_applications.len(),
-        1,
+        2,
         "the named operator application survives checking as an exact demand"
     );
-    let error = checked_trees_to_lowered_psi::lower_machine(
+    let attached = checked_trees_to_lowered_psi::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("UnitRoot::unit_run"),
+    )
+    .expect("a Unit caller retains the operator between its other effects");
+    let attached_bytes =
+        encode_module(&attached.semantic_module).expect("mixed boundary kinds encode");
+    let attached_module = decode_module(&attached_bytes).expect("mixed boundary kinds decode");
+    assert_eq!(attached.semantic_module, attached_module);
+    let mut forged = checked.clone();
+    forged
+        .facts
+        .flow
+        .terminal_unit_effects
+        .boundary_machines
+        .iter_mut()
+        .find(|declaration| declaration.kind == terminal_psi::BoundaryRequirementKind::Operator)
+        .expect("checked operator declaration")
+        .kind = terminal_psi::BoundaryRequirementKind::Trait;
+    assert!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &forged,
+            TerminalMachineSelection::Name("UnitRoot::unit_run")
+        )
+        .is_err(),
+        "a checked plan cannot substitute the authored requirement kind"
+    );
+    drop(forged);
+    for kind in [
+        terminal_psi::BoundaryRequirementKind::Trait,
+        terminal_psi::BoundaryRequirementKind::Operator,
+    ] {
+        let mut substituted = attached_module.clone();
+        let declaration = substituted
+            .boundary_machines
+            .iter_mut()
+            .find(|declaration| declaration.kind == kind)
+            .expect("both requirement kinds");
+        declaration.kind = match kind {
+            terminal_psi::BoundaryRequirementKind::Trait => {
+                terminal_psi::BoundaryRequirementKind::Operator
+            }
+            _ => terminal_psi::BoundaryRequirementKind::Trait,
+        };
+        assert!(
+            encode_module(&substituted).is_err(),
+            "substituted role cannot remove a required provider root or invent an operator root"
+        );
+    }
+    let produced = terminal_production::TerminalProductionRequest::new(
         &checked,
         TerminalMachineSelection::Name("run"),
     )
-    .expect_err("the applying machine has no requirement-level plan");
+    .produce(TerminalProductionCustody {
+        retain_unoptimized: true,
+        ..TerminalProductionCustody::artifact_only(&mut TerminalProductionTimings::default())
+    })
+    .expect("named requirement call produces an artifact");
+    assert_eq!(
+        produced.boundary_operator_scope().occurrences().len(),
+        1,
+        "the published call retains one exact application occurrence"
+    );
+    let lowered = produced.unoptimized().expect("retained source join");
+    lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+        &checked,
+        produced.artifact(),
+        lowered,
+    )
+    .expect("independent replay joins the same source occurrence");
+    for mutation in 0..4 {
+        let mut substituted = lowered.clone();
+        match mutation {
+            0 => substituted.source_call_occurrences.clear(),
+            1 => {
+                let duplicate = substituted.source_call_occurrences[0].clone();
+                substituted.source_call_occurrences.push(duplicate);
+            }
+            2 => {
+                substituted.source_call_occurrences[0].source_target =
+                    symbols::SymbolHandle::invalid()
+            }
+            _ => substituted.source_call_occurrences[0].call_ordinal += 1,
+        }
+        assert!(
+            lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+                &checked,
+                produced.artifact(),
+                &substituted,
+            )
+            .is_err(),
+            "source-call mutation {mutation} must not publish coverage"
+        );
+    }
+    let mut substituted = checked.clone();
+    substituted.facts.operators.boundary_applications.clear();
     assert!(
-        matches!(
-            error,
-            checked_trees_to_lowered_psi::LoweringError::InvalidUnitMachinePlan {
-                ref machine,
-                ..
-            } if machine.as_str() == "run"
-        ),
-        "{error:?}"
+        lowered_psi_to_terminal_psi::checked_boundary_operator_scope(
+            &substituted,
+            produced.artifact(),
+            lowered,
+        )
+        .is_err(),
+        "a missing application is not canonical empty application custody"
+    );
+    drop(substituted);
+    let artifact = produced.into_artifact();
+    drop(checked);
+    let module = decode_module(artifact.semantic_bytes()).unwrap();
+    assert_eq!(module.provider_candidates.len(), 1);
+    let TerminalExecutionResult::Scalar(terminal_interpreter::TerminalScalarValue::Integer {
+        value,
+        ..
+    }) = run_artifact_with_provider(&artifact, &module, "CheckedMathProvider", &[])
+    else {
+        panic!("the installed provider returns an integer");
+    };
+    assert_eq!(
+        value,
+        semantic_vocabulary::IntegerValue::Signed(71),
+        "the caller consumes the selected provider's result",
     );
 }
 

@@ -301,23 +301,16 @@ pub(super) fn admit_call_targets<'a>(
         validate_claim_free_boundary(boundary)?;
     }
     let internal_targets = unit_targets(checked, machine, call_states)?;
-    // Only signature-directed boundary calls are provider obligations; a
-    // boundary-declaration call (`target_machine != target_state`) settles
-    // through the called machine's own boundary seam.
+    // The shared attachment admission resolves each requirement's authored
+    // owner; operation handle shape cannot distinguish operators from traits.
     let called_boundaries = call_states
         .iter()
         .flat_map(|state| &state.operations)
         .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                target_machine,
-                target_state,
-                ..
+            CheckedUnitEffectOperationPlan::BoundaryCall { target_machine, .. }
+            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { target_machine, .. } => {
+                Some(*target_machine)
             }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                target_machine,
-                target_state,
-                ..
-            } => (target_machine == target_state).then_some(*target_machine),
             _ => None,
         })
         .collect::<Vec<_>>();
@@ -334,6 +327,7 @@ pub(super) fn admit_call_targets<'a>(
             }
         }
         super::super::provider_attachments::validate_provider_attachment_requirements(
+            checked,
             attachment,
             provider_attachment_requirements,
             &called_boundaries,

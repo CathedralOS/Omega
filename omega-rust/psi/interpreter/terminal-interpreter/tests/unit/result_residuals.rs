@@ -160,6 +160,7 @@ fn produced_partial_module(ordinary: bool, nested: bool) -> TerminalModule {
     } else {
         module.machines[0].structural_parameters.clear();
         module.boundary_machines.push(BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary_id(1),

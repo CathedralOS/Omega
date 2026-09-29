@@ -23,6 +23,7 @@ fn routes(value: u64) -> Vec<CrashRouteBucket> {
 fn boundary_fixture() -> TerminalModule {
     let mut module = fixture();
     module.boundary_machines = vec![BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary_machine_id(1),

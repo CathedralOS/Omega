@@ -1656,21 +1656,25 @@ crash and native exit behavior. Use affected check/native corpus slices under
   Finish requirement-level calls and Omega stage 00 installation for legacy
   named operators and compiler-known float realizations under
   [boundary applications](wiki/spec/terminal-psi/boundary_calls.md#operator-applications-and-physical-children).
-  Token-bearing machines already enter the ordinary call route.
-  `05_checked-trees-to-lowered-psi/tests/provider_candidates.rs` checks one
-  artifact across two providers and two const tuples, drops checked custody,
-  then installs and executes both applications in the Terminal interpreter.
-  That is not native execution or coverage of the legacy operator path.
+  Token-bearing machines and nongeneric legacy named operators enter the
+  ordinary requirement-call route. At `71254d80532` plus this change on macOS
+  ARM64, `python3 tools/corpus_gate.py --native --filter
+  providers/checked_boundary_operator_physical_custody,providers/checked_fixed_operator_dispatch_exit,providers/token_machine_family_override_exit,float/named_provider_negate_is_nan_exit`
+  executes the named customer and both controls with exit **70**; the float
+  customer remains rejected. The named customer's source is unchanged.
+  `05_checked-trees-to-lowered-psi/tests/provider_candidates.rs` also executes
+  a consumed named-call result as **71** after dropping checked custody.
+  Declaration kind distinguishes provider-field roots from independent
+  operator calls; stage 07 rejoins the named occurrence and canonical empty
+  application. Missing, substituted and duplicate source custody rejects.
 
   Remaining work:
 
-  - Replace the early named-operator return in
-    `checking/src/machine_calls/calls/expression_scanning.rs` with ordinary
-    requirement-call facts and boundary plans. Legacy `boundary operator`
-    declarations still miss that route; the selected-dispatch
-    `uninstalled.rs` machinery reports the omission. After replacement,
-    remove `UninstalledOperator` and its retired operator-adapter /
-    float-intrinsic resolution machinery rather than extend those rewrites.
+  - Complete ordinary call composition for nested legacy operator results
+    and the remaining float/receiver signatures. Remove `UninstalledOperator`
+    and the retired selected-dispatch operator-adapter / float-intrinsic
+    omission scanners rather than extend those rewrites. They remain
+    diagnostic-only machinery, not an execution route.
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
     through selected-plan settlement and physical-child replay. Reuse stage

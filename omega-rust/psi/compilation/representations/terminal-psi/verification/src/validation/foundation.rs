@@ -506,7 +506,7 @@ fn validate_provider_attachment_specialization(
             || !provider_fields
                 .iter()
                 .any(|provider_field| provider_field.id == *field)
-            || boundary_declaration.attachment.is_some()
+            || boundary_declaration.kind != terminal_psi::BoundaryRequirementKind::Trait
             || !specialized_boundaries.insert(*boundary)
         {
             return Err(invalid());
@@ -521,16 +521,16 @@ fn validate_provider_attachment_specialization(
                 structural_arguments,
                 ..
             } => {
-                // A call to a boundary-declaration machine — its declaration
-                // retains an attachment — settles through that machine's own
-                // boundary seam and consumes no provider field. Only a call to
-                // a signature boundary (attachment absent) is an obligation the
-                // specialization must cover.
+                // Only trait requirements consume provider fields. Machines and
+                // operators settle through their own requirement, including
+                // receiverless operators whose attachment is also absent.
                 if module
                     .boundary_machines
                     .iter()
                     .find(|declaration| declaration.id == *boundary)
-                    .is_some_and(|declaration| declaration.attachment.is_none())
+                    .is_some_and(|declaration| {
+                        declaration.kind == terminal_psi::BoundaryRequirementKind::Trait
+                    })
                 {
                     called_boundaries.insert(*boundary);
                 }

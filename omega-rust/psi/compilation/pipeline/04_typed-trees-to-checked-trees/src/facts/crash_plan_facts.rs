@@ -163,6 +163,29 @@ pub(crate) fn build_crash_contract_capsules(
             )
         })
         .collect::<Vec<_>>();
+    // Legacy declarations own their entire callable contract. Token-bearing
+    // machine signature views are deliberately absent: those keep the ordinary
+    // machine contract and its authored operational interfaces.
+    capsules.extend(
+        program
+            .operators()
+            .iter()
+            .chain(
+                program
+                    .domain_definitions()
+                    .iter()
+                    .flat_map(|domain| program.domain_operators(domain)),
+            )
+            .filter(|operator| operator.is_boundary)
+            .map(|operator| {
+                build_operator_crash_contract_capsule(
+                    program,
+                    operator,
+                    content_conservation,
+                    operators,
+                )
+            }),
+    );
     capsules.sort_by_key(|capsule| {
         (
             capsule.target_machine().arena_index(),
@@ -173,6 +196,84 @@ pub(crate) fn build_crash_contract_capsules(
     });
     capsules.dedup();
     capsules
+}
+
+fn build_operator_crash_contract_capsule(
+    program: &TypedTrees,
+    operator: &typed_trees::operator::OperatorDefinition,
+    content_conservation: &[validation::ContentConservationSourcePlan],
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> checked_trees::CrashContractCapsule {
+    let parameters = program.operator_parameters(operator);
+    let parameter_names = parameters
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_owned())
+        .collect::<Vec<_>>();
+    let generic_binders = program
+        .operator_type_parameters(operator)
+        .iter()
+        .enumerate()
+        .map(|(position, parameter)| (parameter.name.as_str().to_owned(), format!("$G{position}")))
+        .collect::<Vec<_>>();
+    let mut callable_shape = vec![0xa0];
+    for parameter in parameters {
+        callable_shape.push(u8::from(parameter.is_self));
+        callable_shape.push(u8::from(parameter.is_mutable));
+        callable_shape.push(u8::from(parameter.is_const));
+        encode_type_spelling(
+            &program.display_type_reference(parameter.type_reference),
+            &generic_binders,
+            &mut callable_shape,
+        );
+    }
+    callable_shape.push(0xaf);
+    encode_type_spelling(
+        &program.display_type_reference(operator.return_type),
+        &generic_binders,
+        &mut callable_shape,
+    );
+    for contract in encode_contract_set_canonical(
+        program,
+        program.operator_contracts(operator),
+        &parameter_names,
+        content_conservation,
+        &[0xae],
+        true,
+        false,
+    ) {
+        callable_shape.extend(contract);
+        callable_shape.push(0xad);
+    }
+    let published =
+        derive_authored_operator_crash_buckets(program, operator, operators, content_conservation);
+    let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
+
+    // Legacy operator syntax has requires/ensures/crashes, but no services,
+    // invokes, suspends, blocks or terminates clauses. Its existing admission
+    // contract (provider-planning::service_schema::from_typed_operator) gives
+    // realizations empty effect ceilings and no termination guarantee. Retain
+    // that declaration envelope; neither a selected provider nor an arithmetic
+    // spelling can donate effects or a termination proof to the requirement.
+    let termination = language_semantics::TerminationGuarantee::NoGuarantee;
+    let identity = checked_trees::contract_identity(
+        language_semantics::MachineSupplyMode::Requirement,
+        &[],
+        language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+        &[],
+        language_semantics::SuspensionInterface::PublishedMaySuspend(false),
+        language_semantics::BlockingInterface::PublishedMayBlock(false),
+        &crash,
+        &language_semantics::TerminationInterface::Published(termination.clone()),
+        &[callable_shape],
+    );
+    checked_trees::CrashContractCapsule::new_with_commitment(
+        operator.symbol,
+        operator.symbol,
+        identity.report_fingerprint,
+        identity.commitment,
+        published,
+    )
+    .with_operational_envelope(Vec::new(), Vec::new(), false, false, termination)
 }
 
 pub(crate) fn encode_signature_contract_kind(
@@ -612,4 +713,157 @@ pub(crate) fn canonical_crash_operand_identity(
         &mut bytes,
     );
     checked_trees::CrashPredicateIdentity::from_canonical_bytes(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_crash_contract_capsules;
+    use crate::tests::front_end::typed_program;
+    use checked_trees::{CheckedOperatorFacts, CrashContractCapsule};
+
+    fn capsules(program: &typed_trees::TypedTrees) -> Vec<CrashContractCapsule> {
+        build_crash_contract_capsules(
+            program,
+            &validation::content_conservation_plans(program),
+            &CheckedOperatorFacts::default(),
+        )
+    }
+
+    fn operator_capsule(source: &str) -> CrashContractCapsule {
+        let program = typed_program(source);
+        let published = capsules(&program);
+        let [capsule] = published.as_slice() else {
+            panic!("one boundary operator capsule: {published:#?}");
+        };
+        capsule.clone()
+    }
+
+    #[test]
+    fn operator_capsule_uses_exact_owner_and_dense_scalar_crash_formals() {
+        let program = typed_program(
+            "data Payload { value: i32 }
+             boundary operator Ops::probe(payload: &Payload, failed: bool) -> bool
+             requires failed
+             crashes Trap failed;",
+        );
+        assert!(program.machines().is_empty());
+        let published = capsules(&program);
+        let [capsule] = published.as_slice() else {
+            panic!("one legacy operator owns one capsule: {published:#?}");
+        };
+        let operator = &program.operators()[0];
+        assert_eq!(capsule.target_machine(), operator.symbol);
+        assert_eq!(capsule.target_state(), operator.symbol);
+        assert_ne!(
+            capsule.target_contract_commitment(),
+            checked_trees::MachineContractCommitment::from_digest([0; 32]),
+        );
+        assert!(capsule.published_service_reach().is_empty());
+        assert!(capsule.published_synchronous_invocations().is_empty());
+        assert!(!capsule.published_may_suspend());
+        assert!(!capsule.published_may_block());
+        assert_eq!(
+            capsule.published_termination(),
+            &language_semantics::TerminationGuarantee::NoGuarantee,
+        );
+        let [bucket] = capsule.published_buckets() else {
+            panic!("one authored crash bucket");
+        };
+        assert_eq!(bucket.cause(), checked_trees::CrashCause::Trap);
+        let [checked_trees::CrashRouteGuard::Predicate(predicate)] = bucket.alternative_guards()
+        else {
+            panic!("one guarded crash route");
+        };
+        assert_eq!(
+            predicate.scalar_expression(),
+            Some(&checked_trees::CheckedBooleanExpression::Parameter { position: 0 }),
+        );
+    }
+
+    #[test]
+    fn operator_capsule_commitment_tracks_requires_crashes_and_signature_mutations() {
+        let source = "boundary operator Ops::probe(value: i32, failed: bool) -> i32
+                      requires failed
+                      ensures result == value
+                      crashes Trap failed;";
+        let original = operator_capsule(source);
+        for (before, after) in [
+            ("requires failed", "requires true"),
+            ("ensures result == value", "ensures result == 1"),
+            ("crashes Trap failed", "crashes Abort failed"),
+            ("crashes Trap failed", "crashes Trap true"),
+            ("value: i32", "value: i64"),
+            ("value: i32", "mut value: i32"),
+            ("-> i32", "-> i64"),
+        ] {
+            let mutated = operator_capsule(&source.replace(before, after));
+            assert_ne!(
+                original.target_contract_commitment(),
+                mutated.target_contract_commitment(),
+                "contract mutation must change authority: {before} -> {after}",
+            );
+            assert_ne!(
+                original.target_contract_report_fingerprint(),
+                mutated.target_contract_report_fingerprint(),
+                "contract mutation must change report identity: {before} -> {after}",
+            );
+        }
+    }
+
+    #[test]
+    fn operator_capsule_identity_normalizes_formal_names_and_crash_duplicates() {
+        let source = "boundary operator Ops::probe(value: i32, failed: bool) -> i32
+                      requires failed
+                      ensures result == value
+                      crashes Trap failed;";
+        let original = operator_capsule(source);
+        let renamed = operator_capsule(
+            &source
+                .replace("value", "operand")
+                .replace("failed", "faulted")
+                .replace(
+                    "crashes Trap faulted;",
+                    "crashes Trap faulted crashes Trap faulted;",
+                ),
+        );
+        assert_eq!(
+            original.target_contract_commitment(),
+            renamed.target_contract_commitment(),
+        );
+        assert_eq!(
+            original.target_contract_report_fingerprint(),
+            renamed.target_contract_report_fingerprint(),
+        );
+    }
+
+    #[test]
+    fn operator_capsules_preserve_signatures_and_exclude_machine_views() {
+        let mut program = typed_program(
+            "boundary trait Device { machine probe(failed: bool) -> bool
+             crashes Trap failed; }
+             operator Ops::ordinary(value: i32) -> i32;
+             boundary machine + Ops::add(left: i32, right: i32) -> i32;
+             boundary operator Ops::probe(failed: bool) -> bool crashes Trap failed;",
+        );
+        let extended = capsules(&program);
+        assert_eq!(extended.len(), 2);
+        // Keep the same symbol arena when checking the signature-only output;
+        // reparsing a shorter source may legitimately renumber declarations.
+        program.roots.operators = arena::HandleSpan::empty();
+        let original = capsules(&program);
+        assert_eq!(original.len(), 1);
+        assert_eq!(
+            extended
+                .iter()
+                .find(|capsule| capsule.target_state() == original[0].target_state()),
+            Some(&original[0]),
+            "adding an operator must leave the existing signature capsule unchanged",
+        );
+        assert!(extended.iter().all(|capsule| {
+            program
+                .machine_token_bindings()
+                .iter()
+                .all(|binding| binding.symbol != capsule.target_machine())
+        }));
+    }
 }

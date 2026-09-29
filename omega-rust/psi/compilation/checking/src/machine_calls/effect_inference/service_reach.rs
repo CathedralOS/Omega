@@ -600,7 +600,17 @@ pub fn fixed_installation_boundary_service_reach(
                     .any(|state| state.symbol == target)
         })
         .map(|machine| machine.service_reach_is_installation_bound);
-    let mut requirements = trait_requirements.chain(machine_requirements);
+    // Legacy operators publish an empty concrete ceiling: their declaration
+    // syntax has no installation-bound service row. Recognize the exact
+    // requirement here so every consumer uses the same authored envelope.
+    let operator_requirements = program
+        .operators()
+        .iter()
+        .filter(|operator| operator.is_boundary && operator.symbol == target)
+        .map(|_| false);
+    let mut requirements = trait_requirements
+        .chain(machine_requirements)
+        .chain(operator_requirements);
     let installation_bound = requirements.next()?;
     if requirements.next().is_some() {
         return None;

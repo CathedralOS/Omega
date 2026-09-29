@@ -12,6 +12,7 @@ mod source;
 pub(super) use source::validate_call_source;
 
 pub(super) fn validate_provider_attachment_requirements(
+    checked: &checked_trees::CheckedTrees,
     attachment: &CheckedUnitStructuralTypePlan,
     requirements: &[checked_trees::CheckedProviderAttachmentRequirementPlan],
     called_boundaries: &[symbols::SymbolHandle],
@@ -63,7 +64,23 @@ pub(super) fn validate_provider_attachment_requirements(
                 "provider-backed attachment requirements are not in canonical field and boundary order",
             );
         }
-        let mut called = called_boundaries.to_vec();
+        // Requirement ownership, not equality of machine/state handles,
+        // determines attachment custody. Legacy operators use one symbol for
+        // both coordinates but own no service receiver. Resolve the authored
+        // boundary-trait signatures once here for all Unit plan families.
+        let mut called = called_boundaries
+            .iter()
+            .copied()
+            .filter(|boundary| {
+                checked.traits().iter().any(|definition| {
+                    definition.is_boundary
+                        && checked
+                            .trait_machine_signatures(definition)
+                            .iter()
+                            .any(|signature| signature.symbol == *boundary)
+                })
+            })
+            .collect::<Vec<_>>();
         called.sort_by_key(|boundary| (boundary.arena_index(), boundary.generation()));
         called.dedup();
         let mut specialized = requirements

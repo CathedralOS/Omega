@@ -119,6 +119,7 @@ fn installed_provider_plan() -> (
         }]
         .into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,
@@ -252,6 +253,7 @@ fn installed_scalar_provider_plan() -> (
         entry: caller,
         structural_types: Vec::new().into(),
         boundary_machines: vec![BoundaryMachineDeclaration {
+            kind: terminal_psi::BoundaryRequirementKind::Trait,
             scalar_requires: Vec::new(),
             fixed_service_reach: Vec::new(),
             id: boundary,

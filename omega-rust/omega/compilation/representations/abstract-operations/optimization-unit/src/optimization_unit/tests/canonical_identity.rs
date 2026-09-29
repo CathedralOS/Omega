@@ -101,6 +101,7 @@ fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceil
             .unwrap();
     let service = id(1, ServiceId::new);
     unit.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Trait,
         scalar_requires: Vec::new(),
         id: id(1, BoundaryMachineId::new),
         identity: "Installer::step".into(),
@@ -118,6 +119,13 @@ fn boundary_fixed_service_reach_changes_identity_without_changing_published_ceil
     });
     let original = recompute_psi_optimization_unit_identity(&unit);
     let published = unit.boundary_machines[0].published_service_ceiling.clone();
+    unit.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Operator;
+    assert_ne!(
+        original,
+        recompute_psi_optimization_unit_identity(&unit),
+        "equal signatures and attachment absence do not erase the requirement kind"
+    );
+    unit.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Trait;
     unit.boundary_machines[0].fixed_service_reach.push(service);
     assert_eq!(
         unit.boundary_machines[0].published_service_ceiling,
@@ -378,28 +386,26 @@ fn canonical_operation_identity_bytes_are_stable() {
     .unwrap();
     for unit in [&scalar, &structural] {
         let bytes = crate::optimization_unit::identity::collect_unit_canonical_bytes(unit);
-        let prefix = b"omega.psi-optimization-unit-content.v30\0";
+        let prefix = b"omega.psi-optimization-unit-content.v31\0";
         assert_eq!(&bytes[..prefix.len()], prefix);
         assert_eq!(
             &bytes[prefix.len()..prefix.len() + 2],
-            &111_u16.to_le_bytes()
+            &112_u16.to_le_bytes()
         );
     }
     assert_eq!(
-        scalar.identity.bytes(),
-        [
-            114, 224, 187, 121, 217, 10, 166, 147, 25, 134, 209, 31, 97, 239, 109, 146, 146, 151,
-            106, 38, 149, 146, 217, 96, 0, 49, 12, 5, 216, 213, 122, 146,
-        ],
-        "identity binds vocabulary 111 and unit schema 30",
-    );
-    assert_eq!(
-        structural.identity.bytes(),
-        [
-            182, 9, 90, 31, 62, 134, 7, 5, 123, 163, 10, 31, 26, 242, 189, 90, 235, 210, 224, 87,
-            206, 19, 14, 175, 18, 20, 188, 233, 131, 143, 218, 88,
-        ],
-        "identity binds vocabulary 111 and unit schema 30 alongside unchanged storage and return tags",
+        (scalar.identity.bytes(), structural.identity.bytes()),
+        (
+            [
+                240, 161, 3, 159, 153, 175, 135, 156, 129, 223, 78, 132, 144, 230, 217, 118, 231,
+                158, 174, 22, 16, 36, 226, 31, 146, 217, 248, 34, 145, 10, 219, 182,
+            ],
+            [
+                118, 174, 238, 226, 94, 38, 8, 29, 98, 75, 129, 84, 171, 30, 230, 16, 218, 235,
+                128, 229, 102, 245, 64, 210, 0, 151, 237, 52, 125, 65, 120, 77,
+            ]
+        ),
+        "identities bind vocabulary 112 and unit schema 31 alongside unchanged operation tags",
     );
 }
 
@@ -561,6 +567,7 @@ fn canonical_identity_binds_every_retained_field_class() {
     mutations.push(("root installation service reach", unit));
     let mut unit = baseline.clone();
     unit.boundary_machines.push(BoundaryMachineDeclaration {
+        kind: terminal_psi::BoundaryRequirementKind::Machine,
         scalar_requires: Vec::new(),
         fixed_service_reach: Vec::new(),
         id: boundary,

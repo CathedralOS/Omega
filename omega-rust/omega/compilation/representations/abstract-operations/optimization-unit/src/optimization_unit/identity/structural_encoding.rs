@@ -99,6 +99,11 @@ pub(super) fn encode_boundary_machine(
 ) {
     bytes.id(declaration.id);
     bytes.string(&declaration.identity);
+    bytes.u8(match declaration.kind {
+        terminal_psi::BoundaryRequirementKind::Machine => 0,
+        terminal_psi::BoundaryRequirementKind::Trait => 1,
+        terminal_psi::BoundaryRequirementKind::Operator => 2,
+    });
     encode_optional(
         bytes,
         declaration.attachment.as_ref(),
