@@ -122,13 +122,12 @@ pass/calls/runtime_dispatch_float_terminal_exit rejected 2364ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: terminator: conditional successors: guard expression` (state 0)
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit rejected 772ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
-pass/calls/runtime_dispatch_result_enum_case_exit rejected 750ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/calls/runtime_dispatch_result_enum_case_exit checked 750ms
 pass/calls/runtime_dispatch_slice_element_terminal_exit rejected 738ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 823ms
 pass/calls/runtime_enum_self_method_exit rejected 814ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)
+	native artifact ProgramEntry receiver provisioning failed: hosted receiver requires a checked ZII-valid value with no executable nominal cleanup
 pass/calls/runtime_explicit_discard_executes_exit checked 860ms
 pass/calls/runtime_guard_call_vs_call_exit checked 1168ms
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 1192ms @df0288f59fd+wt
@@ -206,7 +205,7 @@ pass/collections/array_local_control checked 291ms
 pass/collections/owned_array_scalar_comparisons checked 307ms
 pass/collections/runtime_argmax_index_exit checked 1039ms
 pass/collections/runtime_case_array_element_write_exit rejected 986ms
-	native-artifact Terminal production failed: Lowering(Unsupported("scalar read differs from its authored binding or mutable place"))
+	terminal-artifact production failed: Lowering(Unsupported("runtime field observation requires a field leaf after its index"))
 pass/collections/runtime_computed_index_direct_exit checked 1109ms
 pass/collections/runtime_declared_range_index_write_exit checked 820ms
 pass/collections/runtime_double_indexed_rmw_exit rejected 768ms
@@ -315,8 +314,7 @@ pass/data/opaque_copy_selected checked 170ms
 pass/data/payload_less_case_equality checked 304ms
 pass/data/property_carry_declared checked 299ms
 pass/data/record_pattern_let_exit checked 1828ms
-pass/data/runtime_case_reassignment_exit rejected 851ms
-	native-artifact Terminal production failed: Lowering(Unsupported("runtime field observation requires a record-only field path"))
+pass/data/runtime_case_reassignment_exit checked 851ms
 pass/data/runtime_data_properties_exit checked 944ms
 pass/data/runtime_mixed_shape_exit rejected 912ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `structural field store: case field type` (state 0, statement 0)

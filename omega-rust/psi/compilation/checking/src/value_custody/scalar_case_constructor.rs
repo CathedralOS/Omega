@@ -122,6 +122,7 @@ pub fn scalar_case_value_source(
 fn case_constructor_parts(
     program: &TypedTrees,
     expression: ExpressionHandle,
+    erased_member_owner: bool,
 ) -> Option<(
     TypeReferenceHandle,
     SymbolHandle,
@@ -149,12 +150,24 @@ fn case_constructor_parts(
     let reference = program
         .type_reference_table
         .find_named_type_reference(owner.symbol)?;
+    // A scalar construction needs numeric-owned contents throughout; the
+    // structural route may stand a union whose only non-variant members are
+    // `[erased]` -- cleanup-owned contents admit them because they never
+    // produce runtime storage (storage_contents.rs).
+    let contents = if erased_member_owner {
+        crate::has_cleanup_owned_contents(program, reference)
+    } else {
+        crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+    };
     if !owner.type_parameters.is_empty()
-        || !crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
+        || !contents
         || program
             .data_members(owner)
             .iter()
-            .any(|member| matches!(member, DataMember::Field(_)))
+            .any(|member| match member {
+                DataMember::Field(field) => !(erased_member_owner && field.relevance.is_erased()),
+                DataMember::Variant(_) => false,
+            })
         || program.symbols.get(selected).parent != owner.symbol
     {
         return None;
@@ -167,12 +180,24 @@ fn case_constructor_parts(
             _ => None,
         })?;
     let declarations = program.data_payload_fields(case);
-    if declarations.len() != fields.len() {
-        return None;
-    }
     let mut operands: Vec<(SymbolHandle, ExpressionHandle, TypeReferenceHandle, bool)> =
         Vec::with_capacity(fields.len());
     for field in fields {
+        // An erased owner member authored beside the case is declared-level
+        // content: it never produces runtime storage, so it is consumed
+        // rather than matched against the case's payload declarations.
+        let erased_owner_member = erased_member_owner
+            && program.data_members(owner).iter().any(|member| {
+                matches!(member, DataMember::Field(owner_field)
+                    if owner_field.symbol == field.field_symbol
+                        && owner_field.relevance.is_erased())
+            });
+        if erased_owner_member {
+            if !program.expression_table.expression_is_valid(field.value) {
+                return None;
+            }
+            continue;
+        }
         let declaration = declarations
             .iter()
             .find(|declaration| declaration.symbol == field.field_symbol)?;
@@ -191,14 +216,18 @@ fn case_constructor_parts(
             declaration.relevance.is_erased(),
         ));
     }
-    Some((reference, selected, operands))
+    // The payload declarations keep their authored-exactly-once shape: every
+    // declaration answered one operand and erased owner members never enter
+    // the count.
+    (operands.len() == declarations.len()).then_some((reference, selected, operands))
 }
 
 pub fn scalar_case_constructor(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<ScalarCaseConstructor> {
-    let (reference, selected, operands) = case_constructor_parts(program, expression)?;
+    let (reference, selected, operands) =
+        case_constructor_parts(program, expression, false)?;
     let mut fields = Vec::with_capacity(operands.len());
     for (symbol, value, declared, ..) in operands {
         fields.push((symbol, value, program.primitive_type_reference(declared)?));
@@ -212,12 +241,14 @@ pub fn scalar_case_constructor(
 
 /// The same closed-constructor recognition without the scalar-payload
 /// constraint. Erased members keep semantic content but no runtime storage, so
-/// a runtime construction cannot establish them.
+/// a runtime construction cannot establish them; declaration-level `[erased]`
+/// members are admitted instead -- constructing a case writes its tag and
+/// runtime fields, the erased members never materialize.
 pub fn structural_case_constructor(
     program: &TypedTrees,
     expression: ExpressionHandle,
 ) -> Option<StructuralCaseConstructor> {
-    let (reference, selected, operands) = case_constructor_parts(program, expression)?;
+    let (reference, selected, operands) = case_constructor_parts(program, expression, true)?;
     let mut fields = Vec::with_capacity(operands.len());
     for (symbol, value, declared, erased) in operands {
         if erased {

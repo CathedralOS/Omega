@@ -195,7 +195,8 @@ pub(crate) fn checked_structural_result_type(
             && (!(validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 result_type,
-            ) || validation::is_closed_primitive_array_type(program, result_type)
+            ) || validation::has_cleanup_owned_contents(program, result_type)
+                || validation::is_closed_primitive_array_type(program, result_type)
                 || validation::reference_result_custody::is_reference_record(
                     program,
                     result_type,

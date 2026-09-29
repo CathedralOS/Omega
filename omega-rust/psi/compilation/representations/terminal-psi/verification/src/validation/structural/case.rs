@@ -63,12 +63,25 @@ pub(crate) fn fields<'a>(
         .iter()
         .find(|item| item.id == result.structural_type)
         .ok_or_else(failure)?;
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return Err(ModuleError::StructuralCaseRequiresSum {
-            operation: operation.id,
-            structural_type: result.structural_type,
-            result_case: *result_case,
-        });
+    let cases = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => cases,
+        // Erased owner members keep the union's mixed declaration shape
+        // without a runtime field list: a case establishment writes the tag
+        // and the case's payload alone, the same as a closed sum.
+        StructuralTypeShape::Mixed { fields, cases }
+            if fields.iter().all(|field| {
+                matches!(field.field_type, StructuralFieldType::Erased { .. })
+            }) =>
+        {
+            cases
+        }
+        _ => {
+            return Err(ModuleError::StructuralCaseRequiresSum {
+                operation: operation.id,
+                structural_type: result.structural_type,
+                result_case: *result_case,
+            });
+        }
     };
     let member_failure = || ModuleError::StructuralCaseFieldMismatch {
         operation: operation.id,

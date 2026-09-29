@@ -142,8 +142,19 @@ pub(super) fn validate_establish_structural_case(
     else {
         return malformed("structural case establishment has an unknown structural type");
     };
-    let StructuralTypeShape::Sum { cases } = &declaration.shape else {
-        return malformed("structural case establishment requires a sum type");
+    let cases = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => cases,
+        // Erased owner members keep the union's mixed declaration shape
+        // without a runtime field list: a case establishment writes the tag
+        // and the case's payload alone, the same as a closed sum.
+        StructuralTypeShape::Mixed { fields, cases }
+            if fields.iter().all(|field| {
+                matches!(field.field_type, StructuralFieldType::Erased { .. })
+            }) =>
+        {
+            cases
+        }
+        _ => return malformed("structural case establishment requires a sum type"),
     };
     let Some(selected) = cases.iter().find(|case| case.id == *result_case) else {
         return malformed("structural case establishment requires an exact member");
