@@ -266,3 +266,39 @@ one change, with the Psi fact first. Landing one or two of them leaves the
 compiler half-migrated with no customer able to use it and a worse error for
 anyone who tries.
 
+
+## `source/library` is blocked on the same syntax removal
+
+The bundled library is the third corpus the migration names, and all 22 of its
+files carrying a receiver fall into two kinds, neither of which is a
+customer-side rewrite.
+
+**Boundary requirements.** `core/interrupt.omg`'s
+`machine save_and_mask(&mut self) -> InterruptMaskGuard in Active`,
+`core/task.omg`'s `pub boundary requirement Task::request_cancel<T>(&self)`,
+`core/layout.omg`'s `PlacedField` surface. Changing these changes the boundary
+contract every implementor and provider satisfies, not one file.
+
+**The method-call surface itself.** `core/vec.omg` declares
+
+```
+// Method-call surface used by borrow/lifetime analysis. Runtime lowering may
+// still choose the boundary operator below; this state-shaped declaration lets
+// `items.push(value)` participate in ordinary receiver mutation checks.
+machine Vec::as_slice<T>(&self) -> &[T] { }
+machine Vec::push<T>(&mut self, value: T) { }
+```
+
+These exist so the receiver call spelling participates in borrow analysis.
+They are removed **with** that spelling, not migrated ahead of it: rewriting
+them now breaks 82 call sites (25 `.push(`, 57 `.as_slice(`) and removes the
+surface the borrow checker reads, with nothing to replace it until the
+receiver call syntax itself goes.
+
+Two files' matches are prose, not code: `core/fixed_vec.omg` and
+`core/drop.omg` mention `Cell::touch_count(&self)` and `T::drop(&mut self)` in
+comments describing the hooks.
+
+So the library waits on the same step as the receiver-as-subject fixtures --
+the removal of the accepted receiver syntax, which the board sequences after
+customer migration.
