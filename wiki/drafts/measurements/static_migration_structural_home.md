@@ -302,3 +302,37 @@ comments describing the hooks.
 So the library waits on the same step as the receiver-as-subject fixtures --
 the removal of the accepted receiver syntax, which the board sequences after
 customer migration.
+
+## Why operation migration stops where it does
+
+An operation can be migrated even when its entry cannot: the entry keeps its
+receiver and the operation takes its data as a parameter. That is how 25
+receiver-ignoring and 11 receiver-reading operations landed. The limit is the
+call site, and it is blocker 1 again.
+
+`pass/calls/nested_machine_continuation` is the clean demonstration. Migrating
+`Banner::entry(&mut self)` to `Banner::entry(banner: &mut Banner)` requires its
+caller to spell the argument:
+
+```
+machine Main::main(&mut self) reaches Console {
+    Banner::entry(&mut self.banner);
+    ...
+}
+```
+
+`&mut self.banner` is a structural projection handed to a machine, so it fails
+exactly as `&dash.engine` and `&mut score` do:
+
+```
+selected ProgramEntry establishment rejoins 0 Terminal attachment identities
+```
+
+The entry still has its receiver here, so this is not the entry-shape blocker.
+It is the same missing transport.
+
+So the operation seam is bounded precisely: an operation migrates when its
+call sites pass **no structural argument** -- no call site at all, or scalar
+arguments only. Every operation whose caller must hand it a record, a
+projection or a carrier waits on the structural-argument transport, alongside
+the 119 samples.
