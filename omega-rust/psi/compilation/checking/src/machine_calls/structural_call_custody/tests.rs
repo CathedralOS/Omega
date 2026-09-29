@@ -1,6 +1,31 @@
 use super::{StateScalarContractRow, structural_state_contract_scalar_predicates};
 
 #[test]
+fn scalar_state_contract_retains_declared_parameter_ranges() {
+    for (spelling, minimum, maximum) in [
+        ("i32 [-3..=4]", -3, 4_u64),
+        ("u64 [0..4]", 0, 3),
+        ("u64 [0..=18446744073709551615]", 0, u64::MAX),
+    ] {
+        let program = crate::front_end::typed_program(&format!(
+            "machine bounded() {{ transition {{ _ -> next(0) }}
+             state next(value: {spelling}) {{ }} }}"
+        ));
+        let state = &program.machine_states(&program.machines()[0])[1];
+        let parameter = program.state_parameters(state)[0].symbol;
+        assert_eq!(
+            structural_state_contract_scalar_predicates(&program, state),
+            Some(vec![StateScalarContractRow::Interval {
+                parameter,
+                minimum: numerics::bignum::BigInt::from_i64(minimum),
+                maximum: numerics::bignum::BigInt::from_u64(maximum),
+            }]),
+            "the declared range is an arrival contract: {spelling}"
+        );
+    }
+}
+
+#[test]
 fn scalar_state_contract_retains_every_fact_in_an_authored_clause() {
     let program = crate::front_end::typed_program(
         "machine bounded() -> u64 { transition { _ -> next(1, 2) }

@@ -8,6 +8,56 @@ use crate::TerminalMachineSelection;
 use crate::terminal_identities::block_id;
 
 #[test]
+fn declared_loop_parameter_ranges_prove_composed_arithmetic() {
+    let checked = crate::front_end::checked_program(
+        "data Main { result: i32; }
+         machine Main::run(&mut self) {
+             transition { _ -> step(0) }
+             state step(&mut self, index: u64 [0..=3]) {
+                 let tag: i32 = 100 + (index as i32);
+                 self.result = tag;
+                 let next: u64 = index + 1;
+                 transition next < 4 { true -> step(next) false -> {} }
+             }
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("declared ranges reach arithmetic through the ordinary arrival contract");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("every initial and cyclic arrival is independently proved");
+
+    let mut changed = lowered.semantic_module.clone();
+    let limit = changed
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::IntegerConstant { value }
+                if *value == semantic_vocabulary::IntegerValue::Unsigned(4) =>
+            {
+                Some(value)
+            }
+            _ => None,
+        })
+        .expect("the backedge guard has an explicit limit");
+    *limit = semantic_vocabulary::IntegerValue::Unsigned(5);
+    assert!(
+        terminal_verifier::verify_module(
+            &changed,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "an arrival outside the declared range cannot reuse the original evidence"
+    );
+}
+
+#[test]
 fn guarded_nested_fields_prove_composed_exact_arithmetic() {
     let source = "data Inner { value: i32; bonus: i32; }
          data Outer { inner: Inner; count: i32; multiplier: i32; }

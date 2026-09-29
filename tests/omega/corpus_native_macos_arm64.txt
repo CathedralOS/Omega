@@ -91,8 +91,7 @@ pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
 pass/calls/runtime_cross_machine_substate_name_exit built 771ms exit:70
-pass/calls/runtime_dispatch_binary_call_argument_exit rejected 691ms
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Builder::build`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 1, statement 4)
+pass/calls/runtime_dispatch_binary_call_argument_exit built 551ms exit:70 @f711d1b640be
 pass/calls/runtime_dispatch_float_terminal_exit built 2925ms exit:70 @fb2178def922
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit rejected 513ms
 	native-artifact Terminal production failed: Lowering(InvalidTerminalModule(OverlappingExclusiveStructuralArguments { operation: OperationId(11), first_argument: 0, second_argument: 1 }))
