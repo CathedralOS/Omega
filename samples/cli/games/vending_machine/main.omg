@@ -113,13 +113,13 @@ machine Main::price_of(&mut self, slot: i32 in Saturating) -> i32 in Saturating 
         _ -> zero()
     }
 
-    state seventy_five(&mut self) -> i32 in Saturating {
+    state seventy_five() -> i32 in Saturating {
         transition {
             _ -> 75
         }
     }
 
-    state zero(&mut self) -> i32 in Saturating {
+    state zero() -> i32 in Saturating {
         transition {
             _ -> 0
         }

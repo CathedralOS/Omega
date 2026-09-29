@@ -31,10 +31,10 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
     }
 
     state do_trigger(&mut self) { self.fire_count = self.fire_count + 1; }
-    state do_dismiss(&mut self) {}
-    state do_cancel(&mut self) {}
-    state do_set(&mut self, hour: i32 in Saturating, minute: i32 in Saturating) {}
-    state do_snooze(&mut self, minutes: i32 in Saturating) {}
+    state do_dismiss() {}
+    state do_cancel() {}
+    state do_set(hour: i32 in Saturating, minute: i32 in Saturating) {}
+    state do_snooze(minutes: i32 in Saturating) {}
     state done(&mut self) {}
 }
 

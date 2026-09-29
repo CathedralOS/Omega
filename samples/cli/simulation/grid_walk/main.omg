@@ -31,7 +31,7 @@ data Main {
 }
 
 // Dispatch on the direction, returning the unit step as a struct literal per arm.
-machine Main::delta(&self, d: Dir) -> Vec2 {
+machine delta(d: Dir) -> Vec2 {
     transition d {
         Dir::N -> Vec2 { dx: 0, dy: 0 - 1 }
         Dir::S -> Vec2 { dx: 0, dy: 1 }
@@ -42,7 +42,7 @@ machine Main::delta(&self, d: Dir) -> Vec2 {
 
 // Apply one move: read the step vector into a local, fold it into the position.
 machine Main::step(&mut self, d: Dir) {
-    let v: Vec2 = self.delta(d);
+    let v: Vec2 = delta(d);
     self.px = self.px + v.dx;
     self.py = self.py + v.dy;
 }
