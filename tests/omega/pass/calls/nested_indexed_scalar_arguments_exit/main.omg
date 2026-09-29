@@ -1,0 +1,25 @@
+// An indexed call result is an ordinary scalar actual beside a shared loan.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: u64 in Wrapping; }
+data Main { console: Binding<Console>; cells: [Cell; 4]; position: u64[0..4]; }
+
+machine Cell::read(&self) -> u64 in Wrapping { self.value }
+machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }
+machine combine(cell: &Cell, value: u64 in Wrapping) -> u64 in Wrapping {
+    cell.value + value
+}
+machine Main::main(&mut self) reaches Console {
+    self.cells[0].value = 20;
+    self.cells[2].value = 50;
+    self.position = 2;
+    let explicit: u64 in Wrapping = combine(&self.cells[0], read_cell(&self.cells[self.position]));
+    let receiver: u64 in Wrapping = combine(&self.cells[0], self.cells[self.position].read());
+    transition explicit == 70 && receiver == 70 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
