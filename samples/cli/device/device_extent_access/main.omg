@@ -77,22 +77,22 @@ data DmaHarness {
     device: Binding<DeviceLoanProvider>;
 }
 
-machine DmaHarness::stage_dma_read(&self, root: Extent) -> Extent
+machine DmaHarness::stage_dma_read(dma_harness: &DmaHarness, root: Extent) -> Extent
 reaches ExtentRootProvider, DeviceLoanProvider
 {
-    let granted: Extent = self.roots.grant(root);
-    let loan: DeviceLoan = self.device.lend_for_read(granted);
+    let granted: Extent = dma_harness.roots.grant(root);
+    let loan: DeviceLoan = dma_harness.device.lend_for_read(granted);
     let consumed: DeviceLoan = consume_read_loan(loan);
-    transition { _ -> (self.device.complete(consumed) as Extent) }
+    transition { _ -> (dma_harness.device.complete(consumed) as Extent) }
 }
 
-machine DmaHarness::stage_dma_write(&self, root: Extent) -> Extent
+machine DmaHarness::stage_dma_write(dma_harness: &DmaHarness, root: Extent) -> Extent
 reaches ExtentRootProvider, DeviceLoanProvider
 {
-    let granted: Extent = self.roots.grant(root);
-    let loan: DeviceLoan = self.device.lend_for_write(granted);
+    let granted: Extent = dma_harness.roots.grant(root);
+    let loan: DeviceLoan = dma_harness.device.lend_for_write(granted);
     let consumed: DeviceLoan = consume_write_loan(loan);
-    transition { _ -> (self.device.complete(consumed) as Extent) }
+    transition { _ -> (dma_harness.device.complete(consumed) as Extent) }
 }
 
 data Main {}
