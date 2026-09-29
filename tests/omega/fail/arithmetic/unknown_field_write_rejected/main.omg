@@ -13,10 +13,10 @@ data Main {
     count: i32 in Wrapping;
 }
 
-machine Main::main(&mut self) {
-    self.cont = 5; // typo -- the field is `count`
-    transition { _ -> done() }
-    state done(&mut self) {
-        self.console.exit_process(self.count);
+machine Main::main(main: &mut Main) {
+    main.cont = 5; // typo -- the field is `count`
+    transition { _ -> done(main) }
+    state done(main: &mut Main) {
+        main.console.exit_process(main.count);
     }
 }

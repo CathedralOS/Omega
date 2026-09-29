@@ -9,16 +9,16 @@ data Main {
     console: Binding<Console>;
     vals: [i32; 3];
 }
-machine Main::main(&mut self) {
-    self.vals[2] = 30;
-    transition { _ -> self.pick(self.vals, 2) }
+machine Main::main(main: &mut Main) {
+    main.vals[2] = 30;
+    transition { _ -> Main::pick(main, main.vals, 2) }
 }
-machine Main::pick(&mut self, vals: [i32; 3], k: u64 [0..=2]) {
+machine Main::pick(main: &mut Main, vals: [i32; 3], k: u64 [0..=2]) {
     let v: i32 in Wrapping = vals[k] + 100;
     transition v == 130 {
-        true -> yes()
-        false -> no()
+        true -> yes(main)
+        false -> no(main)
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(main: &mut Main) { main.console.exit_process(1); }
+    state no(main: &mut Main) { main.console.exit_process(2); }
 }

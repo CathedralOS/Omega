@@ -6,12 +6,12 @@ data Main {
     bytes: [u8; 7];
 }
 
-machine Main::main(&mut self) {
-    let words: &[u16] = &self.bytes as &[u16];
+machine Main::main(main: &mut Main) {
+    let words: &[u16] = &main.bytes as &[u16];
     transition words.len == 3 {
-        true -> done()
-        false -> done()
+        true -> done(main)
+        false -> done(main)
     }
 
-    state done(&mut self) { self.console.exit_process(0); }
+    state done(main: &mut Main) { main.console.exit_process(0); }
 }

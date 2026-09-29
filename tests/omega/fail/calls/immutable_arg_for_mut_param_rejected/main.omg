@@ -23,10 +23,10 @@ use omega::language::core::binding;
 data Counter { n: i32 in Wrapping; }
 data Main { console: Binding<Console>; c: Counter; }
 
-machine Main::main(&mut self) {
-    transition { _ -> handle(&self.c) } // &self.c (immutable) for a `&mut Counter` param
-    state handle(&mut self, c: &mut Counter) {
+machine Main::main(main: &mut Main) {
+    transition { _ -> handle(main, &main.c) } // &main.c (immutable) for a `&mut Counter` param
+    state handle(main: &mut Main, c: &mut Counter) {
         c.n = c.n + 1; // would mutate through a borrow the caller lent immutably
-        self.console.exit_process(c.n);
+        main.console.exit_process(c.n);
     }
 }

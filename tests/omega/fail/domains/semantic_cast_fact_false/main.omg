@@ -7,9 +7,9 @@ data Main { console: Binding<Console>; }
 domain i64::Km
 requires
     self >= 10;
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let distance: i64 = 5 as i64 in Km;
-    transition distance == 5 { true -> good() _ -> bad() }
-    state good(&mut self) { self.console.exit_process(70); }
-    state bad(&mut self) { self.console.exit_process(1); }
+    transition distance == 5 { true -> good(main) _ -> bad(main) }
+    state good(main: &mut Main) { main.console.exit_process(70); }
+    state bad(main: &mut Main) { main.console.exit_process(1); }
 }

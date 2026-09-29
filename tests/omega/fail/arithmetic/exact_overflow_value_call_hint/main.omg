@@ -19,11 +19,11 @@ machine triple(x: i32 in Wrapping) -> i32 {
     transition { _ -> (t as i32) }
 }
 
-machine Main::main(&mut self) reaches Console {
+machine Main::main(main: &mut Main) reaches Console {
     // `triple(4)` returns an unconstrained `i32`; `+ 100` is Exact -> unprovable.
-    self.s = triple(4) + 100;
-    transition { _ -> done() }
-    state done(&mut self) {
-        self.console.exit_process(self.s as i32);
+    main.s = triple(4) + 100;
+    transition { _ -> done(main) }
+    state done(main: &mut Main) {
+        main.console.exit_process(main.s as i32);
     }
 }

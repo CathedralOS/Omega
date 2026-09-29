@@ -6,12 +6,12 @@ data Main {
 }
 machine Main::get() -> i32 {
 }
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let r: i32 = Main::get();
     transition r == 0 {
-        true -> yes()
-        false -> no()
+        true -> yes(main)
+        false -> no(main)
     }
-    state yes(&mut self) { self.console.exit_process(1); }
-    state no(&mut self) { self.console.exit_process(2); }
+    state yes(main: &mut Main) { main.console.exit_process(1); }
+    state no(main: &mut Main) { main.console.exit_process(2); }
 }

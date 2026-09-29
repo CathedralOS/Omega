@@ -9,9 +9,9 @@ use omega::language::core::binding;
 data Color { case Red; case Green; }
 data Direction { case North; case South; }
 data Main { console: Binding<Console>; c: Color; }
-machine Main::main(&mut self) {
-    self.c = Color::Red;
-    transition self.c in Direction::North { true -> hit() _ -> miss() }
-    state hit(&mut self) { self.console.exit_process(1); }
-    state miss(&mut self) { self.console.exit_process(2); }
+machine Main::main(main: &mut Main) {
+    main.c = Color::Red;
+    transition main.c in Direction::North { true -> hit(main) _ -> miss(main) }
+    state hit(main: &mut Main) { main.console.exit_process(1); }
+    state miss(main: &mut Main) { main.console.exit_process(2); }
 }
