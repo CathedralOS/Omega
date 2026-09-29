@@ -194,10 +194,13 @@ pub(super) fn build(
                 return true;
             }
             (argument.source_parameter_index().is_some()
-                // The argument planner already rejoined this shared loan
+                // The argument planner already rejoined this loan
                 // to its exact earlier result and captured call access.
                 // Borrowing that live storage does not transfer its owner.
-                || (argument.access == CheckedStructuralAccess::SharedBorrow
+                || (matches!(
+                    argument.access,
+                    CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+                )
                     && argument
                         .source_structural_result_binding_ordinal()
                         .is_some())

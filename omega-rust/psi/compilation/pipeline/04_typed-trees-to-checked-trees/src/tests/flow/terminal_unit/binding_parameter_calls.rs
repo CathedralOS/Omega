@@ -20,6 +20,42 @@ fn binding_field_of_explicit_parameter_keeps_boundary_calls() {
 }
 
 #[test]
+fn structural_result_call_borrows_local_scratch_mutably() {
+    let checked = checked_with_service(
+        r#"
+pub boundary trait Host { machine mark(value: u64); }
+pub data Context { host: Binding<Host>; }
+pub data FillReport [copy] { value: u64; }
+machine fill(bytes: &mut [u8; 4]) -> FillReport {
+    bytes[0] = 7;
+    FillReport { value: 7 }
+}
+machine run(context: &mut Context) reaches Host {
+    let mut bytes: [u8; 4];
+    let result: FillReport = fill(&mut bytes);
+    context.host.mark(result.value);
+}
+"#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plans = &checked.facts.flow.terminal_unit_effects;
+    let plan = plans.for_machine(machine).unwrap_or_else(|| {
+        panic!(
+            "local scratch call lost: {:?}",
+            plans.omission_for_machine(machine)
+        )
+    });
+    assert!(plan.attachment_type_identity.is_none());
+    assert_eq!(
+        plan.operations
+            .iter()
+            .filter(|operation| operation.call().is_some())
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn binding_field_after_local_array_keeps_boundary_arguments() {
     let checked = checked_with_service(
         r#"
