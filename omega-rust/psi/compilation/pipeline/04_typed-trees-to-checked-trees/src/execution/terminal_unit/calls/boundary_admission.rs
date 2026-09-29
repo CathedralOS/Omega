@@ -13,6 +13,64 @@ use crate::execution::terminal_unit::{
     is_reference,
 };
 
+/// A Fused binding projected from an ordinary parameter retains its exact
+/// requirement and compiler-issued erasure authorization. It is not a dynamic
+/// provider attachment, and carrier qualification does not supply a receiver.
+pub(super) fn parameter_binding_receiver_matches(
+    program: &TypedTrees,
+    state: &typed_trees::state::State,
+    statement_index: usize,
+    parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
+    call_site: &crate::semantic::calls::CallSite<'_>,
+    requirement: SymbolHandle,
+) -> bool {
+    let place = match call_site {
+        crate::semantic::calls::CallSite::Expression { call, .. } => {
+            crate::flow::canonical_place_from_expression_in_state(
+                program,
+                state.symbol,
+                statement_index,
+                call.receiver,
+            )
+        }
+        crate::semantic::calls::CallSite::Statement(call) => {
+            crate::lookup::projected_statement_receiver_place(program, state, statement_index, call)
+                .map(|(root, segments)| crate::flow::CanonicalPlace {
+                    root: facts::PlaceRoot::Symbol(root),
+                    segments,
+                })
+        }
+        crate::semantic::calls::CallSite::TransitionNamed { .. } => None,
+    };
+    let Some(place) = place else {
+        return false;
+    };
+    let facts::PlaceRoot::Symbol(root) = place.root else {
+        return false;
+    };
+    if place.segments.is_empty()
+        || !parameters.iter().any(|parameter| {
+            !parameter.is_self
+                && program
+                    .state_parameters(state)
+                    .get(parameter.position as usize)
+                    .is_some_and(|source| source.symbol == root && !source.relevance.is_erased())
+        })
+    {
+        return false;
+    }
+    let Some((reference, _)) = super::argument_paths::projected_argument_path(
+        program,
+        state.symbol,
+        statement_index,
+        &place,
+    ) else {
+        return false;
+    };
+    typed_trees::service::exact_bound_service_requirement(program, reference) == Some(requirement)
+        && program.fused_service_erasure(requirement).is_some()
+}
+
 /// `substitutions` carries the call edge's admitted specialization: a
 /// generic requirement's `Type` result formal resolves to its derived actual
 /// before shape evidence is replayed, and a compound result such as
