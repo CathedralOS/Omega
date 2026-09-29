@@ -447,3 +447,59 @@ The count to watch is receiver OCCURRENCES, not files. A file leaves the
 partial migrations that are possible today are invisible to a file count:
 `samples/cli/simulation/elevator` is migrated and still holds 16. At this
 writing the corpus holds 3,078 occurrences in samples and 4,327 in canaries.
+
+## Rewrite rules the gate taught, 2026-09-29
+
+Four rules separate a receiver that can go from one that cannot. Each was
+learned from a rejection, and each was wrong in an earlier attempt.
+
+**A `pub machine` is still a machine.** A declaration scanner anchored on
+`machine` or `state` at a line start misses every `pub`-qualified machine, and
+with it the enclosing machine of any state nested inside one. This is silent:
+the states are still found, so they are rewritten without their owner. Fixing
+the anchor took one threading pass over the same corpus from 39 fixtures to
+138.
+
+**An empty body is a declaration stub, not dead spelling.** `core::Vec`'s
+`as_slice` and `push` have no body; the receiver is the method-call surface
+that lets `items.push(value)` participate in receiver mutation checks.
+
+**A conditional transition transfers the receiver to all successors at once.**
+A state may drop its receiver only when every state of the enclosing machine
+can. `Vec::open4` reaches `verify`, `opened` and `closed`; `opened` writes
+three fields, so none of the three may drop. Violating this reports `state
+graph: terminator: conditional successors: receiver transfer`.
+
+**An operation called method-style from another file keeps its receiver.** A
+call site cannot be requalified by name: the same name may belong to a
+boundary the package never declares. Rewriting `self.console.write_byte(...)`
+to `ParserHarness::write_byte(&mut self.console, ...)` type-checked into an
+implicit i32-to-u8 store.
+
+Threading adds two more. A state needs the data when it *reads* it, declared
+receiver or not — an undeclared reader used to see the machine's implicit
+receiver. And a state that only forwards still has to carry it, so the
+receiving set closes over the state graph.
+
+## What each seam yields
+
+| Seam | Attempted | Held | Where the rest goes |
+| --- | --- | --- | --- |
+| Name the data, machine-only files | 73 | 20 | diagnostics quote the receiver; hosted entry |
+| Drop unread receivers, canaries | 42+200 | 118 | same |
+| Drop unread receivers, samples | 54+26 | 18 | same |
+| Drop unread receivers, library | 12 | 7 | filesystem fixtures move |
+| Thread data through states, canaries | 486+734+532 | 164 | hosted entry; golden text |
+| Thread data through states, samples | 150 ×2 | 0 | the entry's routed `Binding` |
+| Thread data through states, psi lexer | 8 | 1 file, 317 decls | five cross-file operations |
+
+Samples are the flat case and the reason is single: threading state data
+through all 150 sample files with machine receivers takes `sample_gate` from
+137/149 to 19/149, and skipping program entries recovers it only to 105/149.
+The `Binding` a sample's entry routes is the obstacle, which is what
+`STATIC-ENTRY-CONTEXT-*` owns.
+
+## Census after this pass
+
+`tests/omega` 698 files / 3571 declarations, `samples` 150 / 2201,
+`source/psi` 8 / 334, `source/omega` 1 / 9, `source/library` 18 / 1697.
