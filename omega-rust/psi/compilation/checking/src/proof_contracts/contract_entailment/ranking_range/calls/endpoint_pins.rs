@@ -13,7 +13,8 @@ use super::{
     BinaryOperator, Engine, ExpressionHandle, ExpressionNode, Machine, Polynomial,
     RankingRangeCallMember, State, TypedTrees, collect_guard, entry_comparisons,
     exact_integer_parameter, field_coordinates, fields, integer_bindings, lengths, meanings,
-    parameter_comparisons, projections, scalar_entry, telescoped_bindings, validate_mapping,
+    parameter_comparisons, projections, saved_arguments, scalar_entry, telescoped_bindings,
+    validate_mapping,
 };
 pub(crate) struct RankingRangeCallEdge<'program> {
     pub source: usize,
@@ -455,6 +456,11 @@ fn argument_sources<'program>(
         &mut engine,
         &expressions,
     )?;
+    // Saved caller observations ride the same site scope: an admitted local
+    // denotes the exact value its initializer produced at binding time, so
+    // an endpoint equality naming the local normalizes to the bound
+    // polynomial rather than an unknown atom.
+    saved_arguments::install(program, caller.machine, site, &length_bindings, &mut engine);
     let mut comparisons = if at_entry {
         entry_comparisons(program, caller.machine, site, &mut engine, &bindings)?
     } else {

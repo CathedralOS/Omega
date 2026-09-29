@@ -528,3 +528,212 @@ mod moved_record_copy {
         assert!(cycle_edge(&divergent, &discovered[1]).is_none());
     }
 }
+
+mod saved_locals {
+    //! A state-local immutable `let` nothing writes or exclusively borrows
+    //! denotes the exact value its initializer produced at binding time: the
+    //! edge judgment binds the local to that initializer polynomial, so the
+    //! saved name can carry the rank actual or an endpoint operand through an
+    //! arrival. Anything that could leave the name stale -- a later write, an
+    //! exclusive borrow rooted at a carrier, a carrier the state writes --
+    //! binds nothing and the strict engine fails closed on the unknown atom.
+    use super::super::{
+        RankingRangeEdgeProof, RankingRangeMeasure, RankingRangePremises, prove_ranking_range_edge,
+        prove_ranking_range_entry,
+    };
+    use typed_trees::TypedTrees;
+    use typed_trees::machine::Machine;
+    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
+
+    /// `kept_cap`/`kept_step` carry the endpoint operands and `spare_seen`
+    /// saves the runtime remainder itself: every actual at the self-arrival
+    /// names a saved local except the decreasing `remaining - 1`.
+    const SAVED: &str = r#"
+        machine dive(remaining: u64 [0..=5], cap: u64 [0..=20], step: u64 [1..=5], spare: u64)
+        terminates by remaining in 0..(cap % step + 6);
+        -> u64 {
+            let kept_cap: u64 = cap;
+            let kept_step: u64 = step;
+            let spare_seen: u64 = cap % step;
+            transition remaining > 0 && step > 0 && step <= 5 {
+                true -> dive(remaining - 1, kept_cap, kept_step, spare_seen)
+                false -> remaining
+            }
+        }
+    "#;
+
+    fn edge(program: &TypedTrees, premises: RankingRangePremises) -> Option<RankingRangeEdgeProof> {
+        let machine: &Machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        let range = custody.rank_range.expect("range");
+        let transition = program
+            .statement_table
+            .statements(root.statement_nodes)
+            .iter()
+            .find_map(|statement| match statement {
+                StatementNode::Transition(transition) => Some(transition),
+                _ => None,
+            })
+            .expect("one transition");
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            panic!("guarded transition");
+        };
+        let TransitionTargetNode::Named { arguments, .. } =
+            program.statement_table.transition_target(transition.target)
+        else {
+            panic!("named self edge");
+        };
+        prove_ranking_range_edge(
+            program,
+            machine,
+            root,
+            range,
+            RankingRangeMeasure::Single(custody.subjects[0]),
+            premises,
+            &[(guard, true)],
+            &[],
+            program.statement_table.expression_handles(*arguments),
+        )
+    }
+
+    fn entry(program: &TypedTrees) -> bool {
+        let machine: &Machine = &program.machines()[0];
+        let root = &program.machine_states(machine)[0];
+        let custody = program
+            .ranking_expression_custody_for(machine.symbol)
+            .expect("custody");
+        let range = custody.rank_range.expect("range");
+        prove_ranking_range_entry(
+            program,
+            machine,
+            root,
+            range,
+            RankingRangeMeasure::Single(custody.subjects[0]),
+        )
+    }
+
+    #[test]
+    fn saved_locals_transport_rank_and_endpoint_operands() {
+        let program = crate::front_end::typed_program(SAVED);
+        assert!(entry(&program));
+        for premises in [
+            RankingRangePremises::RankInvariant,
+            RankingRangePremises::EntryInvariant,
+        ] {
+            let proof = edge(&program, premises).expect("saved actuals transport");
+            assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        }
+        // A saved name inside the actual's arithmetic substitutes the same
+        // way: `next` is `remaining`, so `next - 1` keeps the strict step.
+        let nested = crate::front_end::typed_program(
+            &SAVED
+                .replace(
+                    "let kept_cap: u64 = cap;",
+                    "let next: u64 = remaining; let kept_cap: u64 = cap;",
+                )
+                .replace("dive(remaining - 1,", "dive(next - 1,"),
+        );
+        for premises in [
+            RankingRangePremises::RankInvariant,
+            RankingRangePremises::EntryInvariant,
+        ] {
+            let proof = edge(&nested, premises).expect("saved actual inside arithmetic");
+            assert!(proof.membership_and_pinning && proof.strictly_decreases);
+        }
+    }
+
+    #[test]
+    fn a_saved_copy_of_the_rank_is_not_a_decrease() {
+        // `next` binds exactly `remaining`: membership and pinning still
+        // prove, but a preserved rank is not a strict step.
+        let preserved = crate::front_end::typed_program(
+            &SAVED.replace("dive(remaining - 1,", "dive(next,").replace(
+                "let kept_cap: u64 = cap;",
+                "let next: u64 = remaining; let kept_cap: u64 = cap;",
+            ),
+        );
+        let proof = edge(&preserved, RankingRangePremises::RankInvariant)
+            .expect("preserved edge still proves membership");
+        assert!(proof.membership_and_pinning && !proof.strictly_decreases);
+    }
+
+    #[test]
+    fn a_written_local_binds_no_saved_value() {
+        // The name denotes its current binding, not the entry observation:
+        // once the state writes `kept_step`, no saved value reaches the
+        // endpoint operand and pinning fails on the unknown atom.
+        let written = crate::front_end::typed_program(&SAVED.replace(
+            "let kept_step: u64 = step;",
+            "let mut kept_step: u64 = step; kept_step = step;",
+        ));
+        assert!(edge(&written, RankingRangePremises::RankInvariant).is_none());
+        assert!(edge(&written, RankingRangePremises::EntryInvariant).is_none());
+    }
+
+    #[test]
+    fn a_local_reading_a_written_carrier_saves_nothing() {
+        // `snap` reads `remaining` at binding time while the state writes the
+        // carrier afterward; the observation would go stale against the entry
+        // atoms, so the actual is unproven rather than approximated.
+        let stale = crate::front_end::typed_program(
+            &SAVED
+                .replace(
+                    "machine dive(remaining: u64",
+                    "machine dive(mut remaining: u64",
+                )
+                .replace(
+                    "let kept_cap: u64 = cap;",
+                    "let snap: u64 = remaining; remaining = 0; let kept_cap: u64 = cap;",
+                )
+                .replace("dive(remaining - 1,", "dive(snap,"),
+        );
+        assert!(edge(&stale, RankingRangePremises::RankInvariant).is_none());
+    }
+
+    #[test]
+    fn an_exclusively_exposed_carrier_saves_nothing() {
+        // `alias` roots an exclusive borrow at `remaining`: a read of the
+        // carrier could already be stale, so `next` binds nothing.
+        let exposed = crate::front_end::typed_program(
+            &SAVED
+                .replace("machine dive(remaining: u64", "machine dive(mut remaining: u64")
+                .replace(
+                    "let kept_cap: u64 = cap;",
+                    "let alias: &mut u64 = &mut remaining; let next: u64 = remaining; let kept_cap: u64 = cap;",
+                )
+                .replace("dive(remaining - 1,", "dive(next - 1,"),
+        );
+        assert!(edge(&exposed, RankingRangePremises::RankInvariant).is_none());
+        assert!(edge(&exposed, RankingRangePremises::EntryInvariant).is_none());
+    }
+
+    #[test]
+    fn a_saved_value_cannot_move_the_endpoint() {
+        // `shifted` binds `cap - 1`, a real polynomial but a different
+        // endpoint operand: `(cap - 1) % step` is not `cap % step`.
+        let shifted = crate::front_end::typed_program(
+            &SAVED.replace("let kept_cap: u64 = cap;", "let kept_cap: u64 = cap - 1;"),
+        );
+        assert!(edge(&shifted, RankingRangePremises::RankInvariant).is_none());
+        assert!(edge(&shifted, RankingRangePremises::EntryInvariant).is_none());
+    }
+
+    #[test]
+    fn a_local_outside_the_strict_language_binds_nothing() {
+        // `pair` keeps a stable binding but its record initializer leaves the
+        // arithmetic language; naming its field projection as the rank actual
+        // finds no polynomial for the local itself.
+        let structured = crate::front_end::typed_program(
+            &SAVED
+                .replace("machine dive", "data Pair { value: u64; } machine dive")
+                .replace(
+                    "let kept_cap: u64 = cap;",
+                    "let pair: Pair = Pair { value: cap }; let kept_cap: u64 = pair.value;",
+                ),
+        );
+        assert!(edge(&structured, RankingRangePremises::RankInvariant).is_none());
+    }
+}

@@ -1,7 +1,7 @@
 //! The existing declaration/custody owner, not token spelling, admits arithmetic.
 use super::{
     BinaryOperator, ExpressionHandle, ExpressionNode, Machine, PrimitiveType, State, TypedTrees,
-    fields, lengths,
+    fields, lengths, saved_arguments,
 };
 use language_core::operator_spelling::OperatorSpelling;
 use typed_trees::expression::UnaryOperator;
@@ -30,14 +30,27 @@ pub(super) fn builtin(
         ),
         ExpressionNode::Boolean(_) => Some(None),
         ExpressionNode::Name(path) if path.symbol.is_valid() && path.head_symbol == path.symbol => {
-            let parameter = program
+            if let Some(parameter) = program
                 .state_parameters(state)
                 .iter()
-                .find(|parameter| parameter.symbol == path.symbol)?;
-            // Meaning is independent of binding stability. State and call
-            // edge owners separately establish exact prefix preservation,
-            // including for mutable parameters.
-            (!parameter.is_self && !parameter.is_const).then_some(Some(parameter.type_reference))
+                .find(|parameter| parameter.symbol == path.symbol)
+            {
+                // Meaning is independent of binding stability. State and call
+                // edge owners separately establish exact prefix preservation,
+                // including for mutable parameters.
+                return (!parameter.is_self && !parameter.is_const)
+                    .then_some(Some(parameter.type_reference));
+            }
+            // A state-local `let` the saved-observation owner admits denotes
+            // the exact value its initializer produced at binding time: one
+            // binding for the symbol, never written, never the root of an
+            // exclusive borrow, over carriers that stay stable for the whole
+            // state. Meaning admission stops there; the saved-binding pass
+            // still owns normalizing the initializer, so a local whose
+            // initializer leaves the strict language or a moved carrier
+            // keeps no usable meaning downstream and fails closed.
+            saved_arguments::saved(program, state, path.symbol)
+                .map(|local| Some(local.type_reference))
         }
         ExpressionNode::Atomic(atomic) => builtin(program, machine, state, atomic.value, depth + 1),
         ExpressionNode::Member(_) => {
