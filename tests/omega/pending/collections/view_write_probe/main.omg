@@ -77,12 +77,12 @@ requires
     raw_value
 }
 
-machine FixedVecI32x4::get(&self, index: u64 in Wrapping) -> i32
+machine FixedVecI32x4::get(fixed_vec_i32x4: &FixedVecI32x4, index: u64 in Wrapping) -> i32
 requires
-    self.length > index;
-    index < self.items.len
+    fixed_vec_i32x4.length > index;
+    index < fixed_vec_i32x4.items.len
 {
-    let slots: &[i32] = self.items.as_slice();
+    let slots: &[i32] = fixed_vec_i32x4.items.as_slice();
     slots[index]
 }
 
@@ -94,11 +94,11 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.vec.clear();
     self.vec.push(7);
-    let first: i32 in Wrapping = self.vec.get(0);
+    let first: i32 in Wrapping = FixedVecI32x4::get(&self.vec, 0);
     let popped: i32 in Wrapping = self.vec.pop();
     self.vec.clear();
     self.vec.push(9);
-    let second: i32 in Wrapping = self.vec.get(0);
+    let second: i32 in Wrapping = FixedVecI32x4::get(&self.vec, 0);
 
     transition first == 7 {
         true -> check_popped(popped, second)
