@@ -117,6 +117,11 @@ pub(super) fn admit(
             // An atomic event's root authority and operands rejoined at
             // mint; its observed prior is an ordinary dense scalar local.
             | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+            // A view write observes through the view's own loan: the
+            // destination borrows the slice rather than owning it, and the
+            // index and element scalars rejoined dense at mint. The edge
+            // carries the loan; the write claims no root of its own.
+            | CheckedUnitEffectOperationPlan::ElementViewWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the displaced field value and the exact restoration

@@ -183,6 +183,22 @@ fn reconcile_operands(
             })
             .chain(composed.iter().filter_map(|plan| {
                 let entry = plan.states.first()?;
+                // The builder overlap below drops a Unit-result graph whose
+                // result-free ordinary sibling covers the same entry state;
+                // a graph that cannot survive may not decide the receiver
+                // roster either — the emitted signature follows the ordinary
+                // plan then, and it keeps no borrowed-self slot.
+                if matches!(plan.result, checked_trees::CheckedControlResultPlan::Unit)
+                    && candidates.iter().any(|ordinary| {
+                        ordinary.machine == plan.machine
+                            && entry.state == ordinary.state
+                            && ordinary.structural_result.is_none()
+                            && ordinary.scalar_result.is_none()
+                            && ordinary.scalar_control.is_none()
+                    })
+                {
+                    return None;
+                }
                 let (index, receiver) =
                     entry
                         .structural_parameters
