@@ -13,13 +13,13 @@ use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
 
-machine Main::inc(&mut self, x: i32) -> i32
+machine inc(x: i32) -> i32
     requires x < 99
 {
     (x + 1) + 1
 }
 
 machine Main::main(&mut self) reaches Console {
-    let result: i32 = self.inc(40);
+    let result: i32 = inc(40);
     self.console.exit_process(result);
 }

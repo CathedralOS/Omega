@@ -8,12 +8,12 @@ use omega::language::core::binding;
 // build.omg root (pinned by tests/build_config_granted.rs).
 data Build { flag: i32 in Wrapping; }
 data Maker { count: i32 in Wrapping; }
-machine Maker::build(&mut self, b: &mut Build) {
+machine build(b: &mut Build) {
     b.flag = 7;
 }
 data Main { console: Binding<Console>; maker: Maker; b: Build; }
 machine Main::main(&mut self) reaches Console {
-    self.maker.build(&mut self.b);
+    build(&mut self.b);
     transition self.b.flag == 7 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }

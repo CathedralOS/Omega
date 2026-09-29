@@ -17,7 +17,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.fill(&mut self.bag);
+    fill(&mut self.bag);
     self.sow();
 
     transition self.bag.cells[2] == 7 {
@@ -34,7 +34,7 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::fill(&mut self, bag: &mut Bag) {
+machine fill(bag: &mut Bag) {
     let cells: &mut [i32] = bag.cells.as_mut_slice();
     cells[2] = 7;
 }

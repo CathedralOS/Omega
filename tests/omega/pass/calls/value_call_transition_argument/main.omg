@@ -4,9 +4,9 @@
 // `transition self.a == 35 { true -> report(self.make_change(100, 55), 17) ... }`
 // and whose header calls the line "value calls as transition arguments".
 //
-//   transition { _ -> handle(self.amount()) }        OMITTED (this fixture)
-//   transition true { true -> handle(self.amount()) } OMITTED
-//   let t: i32 = self.amount(); handle(t)            checks
+//   transition { _ -> handle(amount()) }        OMITTED (this fixture)
+//   transition true { true -> handle(amount()) } OMITTED
+//   let t: i32 = amount(); handle(t)            checks
 //   handle(self.n + 1)   (arithmetic, no call)       checks
 //
 // at `state graph: terminator: jump successor: scalar arguments`. The callee
@@ -28,13 +28,13 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::amount(&self) -> i32 {
+machine amount() -> i32 {
     transition { _ -> out() }
     state out() -> i32 { 1 }
 }
 
 machine Main::main(&mut self) reaches Console {
-    transition { _ -> handle(self.amount()) }
+    transition { _ -> handle(amount()) }
 
     state handle(&mut self, amount: i32) {
         self.console.exit_process(0);

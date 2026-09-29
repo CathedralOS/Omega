@@ -21,7 +21,7 @@ data Main {
 machine Main::main(&mut self) reaches Console {
     self.cell.value = 70;
     let message: Msg = Msg { body: &self.cell };
-    let code: i32 = self.read_cell(message.body);
+    let code: i32 = read_cell(message.body);
     transition code == 70 {
         true -> good()
         _ -> bad()
@@ -30,7 +30,7 @@ machine Main::main(&mut self) reaches Console {
     state bad(&mut self) { self.console.exit_process(71); }
 }
 
-machine Main::read_cell(&mut self, item: &Cell) -> i32 {
+machine read_cell(item: &Cell) -> i32 {
     transition {
         _ -> item.value
     }

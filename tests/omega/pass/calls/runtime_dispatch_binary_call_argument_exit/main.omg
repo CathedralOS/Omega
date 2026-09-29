@@ -25,12 +25,12 @@ machine Builder::build(&mut self, level: &mut Level) {
     transition { _ -> carve_at(level, 0) }
     state carve_at(&mut self, level: &mut Level, index: u64 [0..=3]) {
         let tag: i32 = 100 + (index as i32);
-        self.carve(level, tag);
+        carve(level, tag);
         let next: u64 = index + 1;
         transition next < 4 { true -> carve_at(level, next) false -> {} }
     }
 }
-machine Builder::carve(&mut self, level: &mut Level, tag: i32) {
+machine carve(level: &mut Level, tag: i32) {
     let rooms: &mut [Room] = level.rooms.as_mut_slice();
     rooms[2].tag = tag;
 }

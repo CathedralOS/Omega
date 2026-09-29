@@ -13,7 +13,7 @@ data Item {
 data Store {
 }
 
-machine Store::find(&mut self, key: i32, out: &mut Item) {
+machine find(key: i32, out: &mut Item) {
     out.key = key;
     out.val = 5;
 }
@@ -25,7 +25,7 @@ data Main {
 
 machine Main::main(&mut self) reaches Console {
     let found: Item = Item { key: 0, val: 0 };
-    self.store.find(2, &mut found);
+    find(2, &mut found);
 
     transition found.val == 5 {
         true -> check_key(found)

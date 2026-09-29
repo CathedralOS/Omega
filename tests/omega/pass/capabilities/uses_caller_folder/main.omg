@@ -16,7 +16,7 @@ pub boundary trait Folder {
 data Librarian {
 }
 
-machine Librarian::archive(&self, folder: Binding<Folder>) reaches Folder {
+machine archive(folder: Binding<Folder>) reaches Folder {
     folder.write_line("archive entry");
 }
 
@@ -25,5 +25,5 @@ data Main {
 }
 
 machine Main::main(&mut self, folder: Binding<Folder>) {
-    self.librarian.archive(folder);
+    archive(folder);
 }
