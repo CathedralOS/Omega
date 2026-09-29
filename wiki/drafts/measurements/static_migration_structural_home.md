@@ -367,3 +367,20 @@ establishment rejoins 0 Terminal attachment identities`. The sample checks
 today, so this was reverted. Hoisting a scalar is safe; hoisting a sum-typed
 value that a transition dispatches on is not, and the two need separating
 before any bulk pass.
+
+## An unread state receiver is usually still load-bearing
+
+208 states across 122 canaries declare `&mut self` and never mention it. That
+reads as pure ceremony, and for a few it is. For most it is not.
+
+Dropping the receiver from every such state moves **73 of 115** fixtures --
+32 regressed, 36 moved a diagnostic, and only 24 stayed checked. A first batch
+of 20 files was clean, which is exactly how this looks safe before it is
+measured at scale.
+
+The receiver carries the entry's storage across the state edge. A body that
+names nothing from it still arrives with it, so removing the declaration
+changes what the edge transports even when the source text does not read it.
+
+Six files were landed after gating individually. The rest wait for the same
+step every other receiver does.
