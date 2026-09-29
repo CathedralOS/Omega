@@ -139,8 +139,5 @@ ensures
 
 // ---------------------------------------------------------------------------
 // Proof machines emit no runtime code; the entrypoint is intentionally inert.
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }
