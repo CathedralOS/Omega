@@ -1392,24 +1392,18 @@ crash and native exit behavior. Use affected check/native corpus slices under
   normalized type equality must not erase the original storage's obligations.
   **STATE-LOCAL-VALUE-FRONTIER** owns integration with the composed caller.
 
-- **DEFERRED-LOCAL-INITIALIZATION.** Carry storage declared without an
-  initializer through later establishment and observation. Complete non-`mut`
-  record member-fill and mutable scalar assignment; retain mutable-record and
-  initialized controls, and the diagnostic for non-`mut` whole-scalar assignment.
-  `checking/src/value_custody/places.rs` deliberately distinguishes whole-local
-  rebinding from member/index fill; removing the mutability diagnostic is not
-  the missing capability. The pending fixture
-  `tests/omega/pending/control_flow/deferred_local_initialization` contains only
-  `let mut total: i32; total = 1;` (exit 1); materialize the other controls.
+- **DEFERRED-LOCAL-INITIALIZATION.** Complete partial local storage whose
+  fields cannot be established by whole-shape zero construction. Retain the
+  declaration's exact identity through field establishment, subsequent reads,
+  borrowing and cleanup. Whole-local rebinding permission is independent of
+  member writes: preserve the diagnostic for non-`mut` whole-scalar assignment,
+  not a blanket mutable-local requirement on record storage.
 
-  Stage 04 `control/statement_sequence/local_data.rs` and
-  `values/scalar/computations.rs` admit initializer-free storage only through
-  mutable zero-constructible declarations. Store destination discovery carries
-  the same restriction. The primitive-local branch additionally demands an
-  actual `StorageInitializer`, and `structural_scalar_store/primitive.rs`
-  requires a valid initializer to rediscover the local. Repair establishment,
-  its exact declaration identity and subsequent reads/writes together; preserve
-  existing source-custody and borrow-event rejection checks.
+  Stage 04 `control/statement_sequence/local_data.rs`,
+  `values/scalar/computations.rs` and the structural store owners must carry
+  partial establishment into stage 05's source-custody and stored-loan replay.
+  Reuse declaration-backed zero construction only for types that qualify;
+  removing its eligibility check cannot supply a missing reference or domain.
 
   The real customer `pass/wire/runtime_wire_utf8_edge_verdicts_exit` fills
   `LabelSample { count, label: &[u8] in Utf8 }` before borrowing it for decode.
@@ -1419,8 +1413,10 @@ crash and native exit behavior. Use affected check/native corpus slices under
   and [ownership establishment](wiki/spec/language/ownership.md#establishment-and-erasure);
   reject premature observation and do not mint linear obligations from zero.
   Acceptance uses the actual Build entries and ordinary corpus execution:
-  promote the pending fixture with exit 1, retain `uninit_record_member_store`
-  exit 77, and execute the wire customer with interpreter/native exit 70.
+  retain `structs/runtime_declared_record_member_fill_exit` exit 70 and
+  `structs/uninit_record_member_store` exit 77; restore an executable
+  `let mut total: i32; total = 1;` control with exit 1 (the former pending
+  fixture is absent). Execute the wire customer with interpreter/native exit 70.
   Euro must decode successfully; overlong, surrogate, out-of-range and truncated
   UTF-8 must fail. Clearing an omission phase alone does not close the task.
 

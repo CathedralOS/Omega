@@ -890,9 +890,10 @@ pub(super) fn state_exit_result_locals(
         };
         if local.symbol != symbol
             || program.type_multiplicity(local.type_reference) != Multiplicity::Affine
-            || !program
+            || !(program
                 .expression_table
                 .expression_is_valid(local.initial_value)
+                || validation::zeroed_structural_parts(program, local.type_reference))
             || !validation::has_plain_owned_contents_with_numeric_constraints(
                 program,
                 local.type_reference,

@@ -263,9 +263,9 @@ fn owned_local_root<'a>(
     let (local_ordinal, local) = program.state_local_declaration(state, root_symbol)?;
     // A declared-zeroed local has no initializer but owns its zeroed shape:
     // the declaration established the affine root, so the store resolves its
-    // live home place the same way an initialized owned local does.
-    let declared_zeroed = local.is_mutable
-        && !local.initial_value.is_valid()
+    // live home place the same way an initialized owned local does. `mut`
+    // grants whole-binding replacement; member writes do not rebind that root.
+    let declared_zeroed = !local.initial_value.is_valid()
         && matches!(
             program
                 .type_reference_table

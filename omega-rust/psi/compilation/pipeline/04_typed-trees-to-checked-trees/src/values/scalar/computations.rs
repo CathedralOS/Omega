@@ -222,13 +222,13 @@ pub(crate) fn build_checked_value_computation_plans(
                             root,
                         });
                 }
-                // An uninitialized `let mut` local of a zero-constructible
+                // An uninitialized local of a zero-constructible
                 // type mints its establishment here: the whole declared
                 // shape begins zero and later element or field stores write
                 // it. The root keys on the invalid initializer handle, which
-                // the local plan arm matches by equality.
+                // the local plan arm matches by equality. Whole-local
+                // rebinding permission does not govern member establishment.
                 if let StatementNode::LocalData(local) = statement
-                    && local.is_mutable
                     && program
                         .primitive_type_reference(local.type_reference)
                         .is_none()

@@ -92,14 +92,13 @@ pub(super) fn plan(
         trace.statement(Some(statement_index));
     };
     local_phase("statement sequence: local data: initializer expression");
-    // A mutable local with no initializer survives when its declared type
+    // A local with no initializer survives when its declared type
     // is zero-constructible. Structural values have a whole-shape zeroed
     // establishment root; plain primitives have a declaration-bound scalar
     // zero initializer. Both use their ordinary storage establishment below.
-    let uninit_zeroed = local.is_mutable
-        && !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
+    let uninit_zeroed = !program
+        .expression_table
+        .expression_is_valid(local.initial_value)
         && validation::zeroed_structural_parts(program, local.type_reference);
     if !program
         .expression_table

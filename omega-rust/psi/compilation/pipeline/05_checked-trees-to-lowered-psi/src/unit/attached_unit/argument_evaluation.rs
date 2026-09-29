@@ -313,12 +313,12 @@ impl Evaluation {
             // exactly as a `&` view's is: `let slots: &mut [Cell] = ..` binds
             // the `[Cell]` view — and `&mut Cell` binds the `Cell` record —
             // the same peel `add_type` applied recording the result identity.
-            let carrier = match shared_borrow
-                .or(crate::expression_preparation::source_custody::structural::mutable_view_carrier(
+            let carrier = match shared_borrow.or(
+                crate::expression_preparation::source_custody::structural::mutable_view_carrier(
                     checked,
                     local.type_reference,
-                ))
-            {
+                ),
+            ) {
                 Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
                 None => super::parameters::structural_carrier_type(checked, local.type_reference)?,
             };
@@ -331,7 +331,7 @@ impl Evaluation {
                 || !(checked
                     .expression_table
                     .expression_is_valid(local.initial_value)
-                    || local.is_mutable)
+                    || validation::zeroed_structural_parts(checked, local.type_reference))
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity
                 || expected_multiplicity != result.multiplicity
                 || self
