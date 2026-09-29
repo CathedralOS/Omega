@@ -11,7 +11,9 @@ use semantic_vocabulary::{
 use std::collections::BTreeMap;
 use target_operations::TargetByteView;
 use target_operations::{TargetIntegerExpression, TargetStructuralParameter};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeShape};
+use terminal_psi::{
+    StructuralAccess, StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape,
+};
 
 pub(in crate::lowering) fn block_source(
     function: &AbstractFunction,
@@ -385,6 +387,40 @@ pub(in crate::lowering) fn view_for_place(
         return Ok(TargetByteView::Literal {
             psi_operation: *psi_operation, place, structural_type: structural_type.id,
         });
+    }
+    let call_result = |result: &StructuralOperationResult, psi_operation: &OperationId| {
+        (result.place == place
+            && result.multiplicity == StructuralMultiplicity::Unrestricted
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && structural_types
+                .get(&result.structural_type)
+                .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view()))
+        .then_some(TargetByteView::StructuralResult {
+            psi_operation: *psi_operation,
+            place,
+            structural_type: result.structural_type,
+        })
+    };
+    if let Some(view) = function
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            AbstractOperation::CallStructural {
+                psi_operation,
+                result,
+                ..
+            } => call_result(result, psi_operation),
+            AbstractOperation::BoundaryCall {
+                psi_operation,
+                result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                ..
+            } => call_result(result, psi_operation),
+            _ => None,
+        })
+    {
+        return Ok(view);
     }
     if let Some((entry, parameter)) = function.block_entries.iter().find_map(|entry| {
         entry

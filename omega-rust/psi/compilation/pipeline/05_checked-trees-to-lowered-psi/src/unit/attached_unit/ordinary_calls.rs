@@ -350,7 +350,7 @@ pub(super) fn emit_structural(
     register_binding: bool,
     next_place: &mut u64,
     operations: &mut OperationBuffer,
-) -> Result<StructuralPlaceDeclaration, LoweringError> {
+) -> Result<(StructuralPlaceDeclaration, StructuralMultiplicity), LoweringError> {
     let CheckedUnitEffectOperationPlan::StructuralCall {
         coordinate,
         source_site,
@@ -376,11 +376,25 @@ pub(super) fn emit_structural(
         id,
         *target_state,
     )?;
+    // The operation's result mirrors the callee's declared signature, not the
+    // caller-side binding role: a shared-view call binds its result affine
+    // while the callee still declares the borrowed surface Unrestricted.
+    let callee_result = match UnitBody::find(
+        UnitPlans::published(&checked.facts.flow.terminal_unit_effects),
+        *target_machine,
+    )?
+    .result()?
+    {
+        checked_trees::CheckedControlResultPlan::Structural(result) => result,
+        _ => {
+            return unsupported("structural call target declares no structural result");
+        }
+    };
     let returned = StructuralOperationResult {
         qualification_establishments: Vec::new(),
         place,
         structural_type,
-        multiplicity: match result.multiplicity {
+        multiplicity: match callee_result.multiplicity {
             Multiplicity::Affine => StructuralMultiplicity::Affine,
             Multiplicity::Unrestricted => StructuralMultiplicity::Unrestricted,
             Multiplicity::Linear => StructuralMultiplicity::Linear,
@@ -467,11 +481,19 @@ pub(super) fn emit_structural(
     // not different ownership rules. Keep the scalar-free encoding unchanged;
     // mixed calls retain the same checked claim and content correspondence.
     // `CallStructural` owns no erased lane; a proof-only actual selects the
-    // scalar-argument shape even when every runtime operand is empty.
-    let kind = if result.multiplicity == Multiplicity::Linear
+    // scalar-argument shape even when every runtime operand is empty. An
+    // unrestricted-result call carrying no operands at all also belongs to the
+    // scalar-free shape: the scalar-argument encoding is reserved for the
+    // borrowed-forwarding contract, which an operand-free call cannot satisfy.
+    let kind = if (result.multiplicity == Multiplicity::Linear
         && arguments.is_empty()
         && erased_arguments.is_empty()
-        && erased_proof_arguments.is_empty()
+        && erased_proof_arguments.is_empty())
+        || (returned.multiplicity == StructuralMultiplicity::Unrestricted
+            && arguments.is_empty()
+            && erased_arguments.is_empty()
+            && erased_proof_arguments.is_empty()
+            && structural_arguments.is_empty())
     {
         OperationKind::CallStructural {
             callee,
@@ -495,6 +517,7 @@ pub(super) fn emit_structural(
             crash_continuations,
         }
     };
+    let emitted_multiplicity = returned.multiplicity;
     operations.push(Operation {
         static_reach_binding: None,
         suspension_crossing: None,
@@ -515,11 +538,14 @@ pub(super) fn emit_structural(
             .structural_values
             .push((result.binding_ordinal, returned.into()));
     }
-    Ok(StructuralPlaceDeclaration {
-        id: place,
-        kind: StructuralPlaceKind::OperationResult {
-            producer: id,
-            structural_type,
+    Ok((
+        StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::OperationResult {
+                producer: id,
+                structural_type,
+            },
         },
-    })
+        emitted_multiplicity,
+    ))
 }

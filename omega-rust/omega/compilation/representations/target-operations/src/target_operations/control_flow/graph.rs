@@ -84,6 +84,13 @@ pub enum TargetControlTerminator {
 pub enum TargetStructuralReturnSource {
     Home(crate::TargetStructuralHomeRequirement),
     Parameter(TargetStructuralParameter),
+    /// A machine-established byte-sequence literal place: machine-static
+    /// storage whose descriptor prefix the return ABI reads. `operation`
+    /// names the establishing `EstablishByteSequenceLiteral`.
+    Literal {
+        operation: semantic_vocabulary::OperationId,
+        declaration: terminal_psi::StructuralPlaceDeclaration,
+    },
 }
 
 /// The inspected sum: an activation-local home, or the function's own owned

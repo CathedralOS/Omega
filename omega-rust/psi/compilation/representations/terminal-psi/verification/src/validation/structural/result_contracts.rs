@@ -2,7 +2,8 @@
 
 use crate::validation::{
     BTreeSet, OperationKind, PlaceId, StructuralDomainId, StructuralFieldType,
-    StructuralMultiplicity, StructuralTypeId, StructuralTypeShape, TerminalMachine, TerminalModule,
+    StructuralMultiplicity, StructuralPlaceKind, StructuralTypeId, StructuralTypeShape,
+    TerminalMachine, TerminalModule,
 };
 #[derive(Clone, Copy)]
 pub(in crate::validation) struct StructuralResultSignature<'a> {
@@ -48,6 +49,25 @@ pub(in crate::validation) fn source_signature(
                     operation.result.structural().and_then(|result| {
                         (result.place == source).then(|| operation_signature(result))
                     })
+                })
+        })
+        .or_else(|| {
+            // A byte-sequence literal place is machine-owned immutable
+            // storage: the declaration carries its own signature, which the
+            // `&[u8]` surface already expresses as unrestricted.
+            machine
+                .structural_places
+                .iter()
+                .find_map(|place| match place.kind {
+                    StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type, ..
+                    } if place.id == source => Some(StructuralResultSignature {
+                        structural_type,
+                        multiplicity: StructuralMultiplicity::Unrestricted,
+                        qualifications: &[],
+                        projected_qualifications: &[],
+                    }),
+                    _ => None,
                 })
         })
 }

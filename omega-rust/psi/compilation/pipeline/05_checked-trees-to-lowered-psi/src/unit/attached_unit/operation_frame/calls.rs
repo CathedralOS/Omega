@@ -23,9 +23,9 @@ use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::scalar_graph::scalar_call_closure::callee::CheckedScalarCallee;
 use crate::unit::{
     CheckedUnitEffectOperationPlan, LoweringError, Operation, OperationKind, OperationResult,
-    PlaceId, StructuralPlaceDeclaration, StructuralPlaceKind, ValueDeclaration, allocate_dense,
-    lookup_machine_id, lower_checked_crash_route_buckets, terminal_scalar_type, unsupported,
-    value_id,
+    PlaceId, StructuralMultiplicity, StructuralPlaceDeclaration, StructuralPlaceKind,
+    ValueDeclaration, allocate_dense, lookup_machine_id, lower_checked_crash_route_buckets,
+    terminal_scalar_type, unsupported, value_id,
 };
 
 /// The completed operands one call hands the frame. Each route evaluates
@@ -129,14 +129,28 @@ impl OperationFrame<'_, '_> {
         declaration: StructuralPlaceDeclaration,
         discard_on_return: bool,
     ) -> Result<(), LoweringError> {
-        self.results.push(declaration, discard_on_return);
+        self.results.push(declaration.clone(), discard_on_return);
         if matches!(self.results, StructuralResults::Dense(_)) {
-            return structural_values::bind_local(
+            let structural_type = match declaration.kind {
+                StructuralPlaceKind::OperationResult {
+                    structural_type, ..
+                }
+                | StructuralPlaceKind::ByteSequenceLiteral {
+                    structural_type, ..
+                } => structural_type,
+                _ => {
+                    return unsupported("structural call result published no structural place kind");
+                }
+            };
+            return structural_values::bind_local_with_view(
                 self.checked,
                 self.state,
                 operation,
                 declaration.id,
+                Some(structural_type),
                 &mut self.evaluation.structural_locals,
+                Some(&mut self.evaluation.view_locals),
+                self.structural_types.declarations(),
             );
         }
         let StructuralPlaceKind::OperationResult { producer, .. } = declaration.kind else {
@@ -275,7 +289,7 @@ impl OperationFrame<'_, '_> {
             // The dense route registers the value as the call emits it; a
             // composed state registers it, with its local, when publishing.
             let register = matches!(self.results, StructuralResults::Dense(_));
-            let declaration = ordinary_calls::emit_structural(
+            let (declaration, emitted_multiplicity) = ordinary_calls::emit_structural(
                 checked,
                 self.state,
                 operation,
@@ -288,7 +302,14 @@ impl OperationFrame<'_, '_> {
                 self.next_place,
                 self.operations,
             )?;
-            return self.publish_result(operation, result, declaration, *discard_result_on_return);
+            // The return-discard custody belongs to affine-owned operation
+            // results only. A shared-view call's checked binding records the
+            // affine role while the emitted result carries the callee's
+            // unrestricted signature, and the return roster must follow the
+            // emitted custody, not the binding role.
+            let discard = *discard_result_on_return
+                && matches!(emitted_multiplicity, StructuralMultiplicity::Affine);
+            return self.publish_result(operation, result, declaration, discard);
         }
         let ordinary_calls::PreparedCall {
             arguments,
@@ -445,7 +466,7 @@ impl OperationFrame<'_, '_> {
                 output,
             )?;
             drop(earlier);
-            let declaration = ordinary_calls::emit_structural(
+            let (declaration, _) = ordinary_calls::emit_structural(
                 checked,
                 state,
                 operand,

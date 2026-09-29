@@ -344,6 +344,22 @@ pub(super) fn call(
     {
         return Err(invalid());
     }
+    // A returned borrowed view observes through the view roster the same way
+    // an in-activation establishment does: its result home is the descriptor
+    // byte and element reads name.
+    let borrowed_view_result = result.multiplicity
+        == terminal_psi::StructuralMultiplicity::Unrestricted
+        && types
+            .get(&result.structural_type)
+            .is_some_and(|declaration| declaration.shape.is_borrowed_byte_view());
+    if borrowed_view_result
+        && live
+            .views
+            .insert(result.place, (*psi_operation, result.structural_type))
+            .is_some()
+    {
+        return Err(invalid());
+    }
     operations.push(TargetUnitOperation::Call {
         origin: target_operations::NativeCallOrigin::Authored,
         psi_operation: *psi_operation,

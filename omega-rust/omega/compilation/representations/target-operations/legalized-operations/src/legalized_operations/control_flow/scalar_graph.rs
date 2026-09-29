@@ -809,12 +809,20 @@ pub enum LegalizedStructuralCaseSource {
     BorrowedParameter {
         declaration: terminal_psi::StructuralParameterDeclaration,
     },
+    /// A machine-established byte-sequence literal place. Its local slot is
+    /// `Structural { operation, place }` — the borrowed-view descriptor the
+    /// return ABI reads occupies the first 16 bytes ahead of the payload.
+    Literal {
+        operation: OperationId,
+        declaration: terminal_psi::StructuralPlaceDeclaration,
+    },
 }
 
 impl LegalizedStructuralCaseSource {
     pub fn place(&self) -> semantic_vocabulary::PlaceId {
         match self {
             Self::OperationResult { result, .. } => result.place,
+            Self::Literal { declaration, .. } => declaration.id,
             Self::BlockParameter { declaration, .. }
             | Self::Parameter { declaration }
             | Self::BorrowedParameter { declaration } => declaration.place,
@@ -823,6 +831,13 @@ impl LegalizedStructuralCaseSource {
     pub fn structural_type(&self) -> StructuralTypeId {
         match self {
             Self::OperationResult { result, .. } => result.structural_type,
+            Self::Literal { declaration, .. } => match declaration.kind {
+                semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                    structural_type,
+                    ..
+                } => structural_type,
+                _ => panic!("a literal case source declares a byte-sequence literal place"),
+            },
             Self::BlockParameter { declaration, .. }
             | Self::Parameter { declaration }
             | Self::BorrowedParameter { declaration } => declaration.structural_type,

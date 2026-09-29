@@ -102,6 +102,31 @@ pub(in crate::legalization) fn source_owner(
             },
         );
     }
+    // A literal place is its own establishment: machine-static storage whose
+    // descriptor prefix the return ABI reads like any owned home's.
+    let mut literals = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            AbstractOperation::EstablishByteSequenceLiteral {
+                psi_operation,
+                place: declaration,
+                ..
+            } if declaration.id == place => Some((*psi_operation, declaration)),
+            _ => None,
+        });
+    if let Some((operation, declaration)) = literals.next() {
+        if literals.next().is_some() {
+            return Err(LegalizationError::custody());
+        }
+        return Ok(
+            legalized_operations::LegalizedStructuralCaseSource::Literal {
+                operation,
+                declaration: declaration.clone(),
+            },
+        );
+    }
     let mut parameters = function.blocks.iter().flat_map(|block| {
         block
             .structural_parameters

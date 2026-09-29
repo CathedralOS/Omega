@@ -63,6 +63,7 @@ pub(super) fn validate_body_result(
             coordinate,
             result,
             target_machine,
+            target_state,
             target_contract_commitment,
             custody,
             ..
@@ -77,11 +78,37 @@ pub(super) fn validate_body_result(
                 .ok_or(LoweringError::Unsupported(
                     "structural call contract missing",
                 ))?;
+            // The authored `& T` surface reads unrestricted while its
+            // materialized view carrier carries affine custody — the same
+            // pair the callee-side reconstruction accepts for shared place
+            // loans.
+            let multiplicities_agree = result.multiplicity == signature.multiplicity
+                || (result.multiplicity == Multiplicity::Affine
+                    && signature.multiplicity == Multiplicity::Unrestricted
+                    && checked
+                        .typed
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.symbol == *target_machine)
+                        .and_then(|machine| {
+                            checked
+                                .typed
+                                .machine_states(machine)
+                                .iter()
+                                .find(|state| state.symbol == *target_state)
+                        })
+                        .is_some_and(|state| {
+                            validation::reference_result_custody::shared_place_borrowed_parts(
+                                &checked.typed,
+                                state.return_type,
+                            )
+                            .is_some()
+                        }));
             if target_contract_commitment.is_zero()
                 || *target_contract_commitment != contract.commitment
                 || result.statement_index != coordinate.statement_index
                 || result.type_identity != signature.type_identity
-                || result.multiplicity != signature.multiplicity
+                || !multiplicities_agree
                 || signature.qualifications != custody.result_qualifications
             {
                 return unsupported("structural call result or commitment disagrees with its body");

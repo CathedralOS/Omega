@@ -65,6 +65,17 @@ pub(super) fn build(
                 place: declaration.place,
             },
         },
+        // A literal source keeps its establishment slot: descriptor prefix,
+        // then payload — the same slot family an operation result names.
+        legalized_operations::LegalizedStructuralCaseSource::Literal {
+            operation,
+            declaration,
+        } => selected_instructions::SelectedCaseDispatchSource::Local {
+            slot: LocalStorageSlotId::Structural {
+                operation: *operation,
+                place: declaration.id,
+            },
+        },
         // The entry retains an owned parameter's value copy in its own slot.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { declaration } => {
             selected_instructions::SelectedCaseDispatchSource::Local {

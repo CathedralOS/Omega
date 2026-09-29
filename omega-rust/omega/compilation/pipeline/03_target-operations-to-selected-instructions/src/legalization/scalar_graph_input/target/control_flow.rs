@@ -256,6 +256,32 @@ pub(super) fn validate(
                                     *expected_source,
                                 )
                         }
+                        target_operations::TargetStructuralReturnSource::Literal {
+                            operation,
+                            declaration,
+                        } => {
+                            optimized.blocks.iter().flat_map(|candidate| {
+                                candidate.nodes.iter()
+                            }).any(|node| matches!(&node.operation,
+                                AbstractOperation::EstablishByteSequenceLiteral {
+                                    psi_operation, place,
+                                    structural_type: literal_type,
+                                    ..
+                                } if psi_operation == operation
+                                    && place == declaration
+                                    && declaration.id == *expected_source
+                                    && matches!(declaration.kind,
+                                        semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                                            structural_type,
+                                            ..
+                                        } if structural_type == literal_type.id
+                                            && optimized.result.structural().is_some_and(|result| {
+                                                result.structural_type == structural_type
+                                                    && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                                                    && result.qualifications.is_empty()
+                                                    && result.projected_qualifications.is_empty()
+                                            }))))
+                        }
                     }
             }
             (

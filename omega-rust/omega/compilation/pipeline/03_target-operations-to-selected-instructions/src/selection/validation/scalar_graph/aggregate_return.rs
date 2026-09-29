@@ -39,6 +39,15 @@ pub(super) fn validate(
             Some(slot),
         )
     };
+    // A literal source's establishment slot is its descriptor prefix plus the
+    // payload bytes; the return ABI reads only the prefix, so the home may
+    // legitimately exceed the result placement.
+    let literal_source = matches!(
+        returned.value,
+        legalized_operations::LegalizedScalarReturnValue::Structural {
+            source: legalized_operations::LegalizedStructuralCaseSource::Literal { .. },
+        }
+    );
     let empty_return = crate::selection::scalar_call_abi::empty_aggregate_placement(placement);
     let slot = slot.filter(|_| !empty_return);
     if slot.is_some_and(|slot| {
@@ -48,7 +57,8 @@ pub(super) fn validate(
             .iter()
             .filter(|home| {
                 home.id == slot
-                    && home.byte_size == placement.shape.byte_size
+                    && (home.byte_size == placement.shape.byte_size
+                        || (literal_source && home.byte_size > placement.shape.byte_size))
                     && home.alignment == placement.shape.alignment
             })
             .count()

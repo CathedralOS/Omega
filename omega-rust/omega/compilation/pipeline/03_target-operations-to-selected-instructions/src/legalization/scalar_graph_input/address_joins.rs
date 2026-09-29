@@ -240,7 +240,8 @@ fn root_type(
                     .then_some(declaration.structural_type);
             }
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::Literal { .. } => {
                 return None;
             }
         }

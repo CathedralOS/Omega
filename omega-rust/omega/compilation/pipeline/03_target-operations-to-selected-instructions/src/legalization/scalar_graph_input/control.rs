@@ -54,6 +54,19 @@ pub(super) fn validate(
                         declaration,
                         ..
                     } => (declaration.structural_type, declaration.multiplicity),
+                    legalized_operations::LegalizedStructuralCaseSource::Literal {
+                        declaration,
+                        ..
+                    } => (
+                        match declaration.kind {
+                            semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                                structural_type,
+                                ..
+                            } => structural_type,
+                            _ => return Err(LegalizationError::custody()),
+                        },
+                        terminal_psi::StructuralMultiplicity::Unrestricted,
+                    ),
                     // `source_owner` never resolves a function parameter.
                     legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
                     | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter {

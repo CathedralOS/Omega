@@ -105,8 +105,8 @@ fn unsupported_family_surfaces_as_named_diagnostic() {
             }),
         ],
     };
-    let error =
-        validate(&block, &optimized).expect_err("an unlisted family must refuse, not validate");
+    let error = validate(&block, &optimized, &[])
+        .expect_err("an unlisted family must refuse, not validate");
     let LegalizationError::UnsupportedScalarOperation {
         machine: reported,
         operation,
