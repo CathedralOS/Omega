@@ -19,18 +19,18 @@ machine Worker::run(job: Job) -> i32 reaches DiskIo {
     value
 }
 
-machine Task::settle<T>(self) -> TaskOutcome<T> {
-    suspend block self.finish()
+machine Task::settle<T>(task: &Task) -> TaskOutcome<T> {
+    suspend block task.finish()
 }
 
 data Main {
     runtime: &TaskRuntime;
 }
 
-machine Main::probe(&mut self) {
+machine Main::probe(main: &mut Main) {
     let job: Job = Job { value: 7 };
-    let task: Task<i32> = self.runtime.start<Worker::run>(job);
+    let task: Task<i32> = main.runtime.start<Worker::run>(job);
     _ = suspend block Task::settle(task);
 }
 
-machine Main::main(&mut self) { }
+machine Main::main(main: &mut Main) { }

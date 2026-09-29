@@ -1,5 +1,5 @@
 data Main { wide: u32; narrow: u8; }
 
-machine Main::combine(&self) -> u32 {
-    self.wide | self.narrow
+machine Main::combine(main: &Main) -> u32 {
+    main.wide | main.narrow
 }

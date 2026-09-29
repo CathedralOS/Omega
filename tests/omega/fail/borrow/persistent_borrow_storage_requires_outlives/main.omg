@@ -2,12 +2,11 @@ data Main<'storage> {
     stored: &'storage mut i32;
 }
 
-machine Main::store(
-    &mut self,
+machine Main::store<'storage>(main: &mut Main<'storage>,
     source: &'storage mut i32
 ) {
-    self.stored = source;
+    main.stored = source;
 }
 
-machine Main::main(&mut self) {
+machine Main::main<'storage>(main: &mut Main<'storage>) {
 }

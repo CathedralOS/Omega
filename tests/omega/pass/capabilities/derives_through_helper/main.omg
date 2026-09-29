@@ -30,18 +30,18 @@ data Worker {
     fs: Binding<Filesystem>;
 }
 
-machine Worker::open_log(&mut self, folder: Folder) -> File
+machine Worker::open_log(worker: &mut Worker, folder: Folder) -> File
 reaches
     Filesystem
 {
-    self.fs.open(folder, "log.txt")
+    worker.fs.open(folder, "log.txt")
 }
 
-machine Worker::open_main_log(&mut self, folder: Folder) -> File
+machine Worker::open_main_log(worker: &mut Worker, folder: Folder) -> File
 reaches
     Filesystem
 {
-    self.open_log(folder)
+    Worker::open_log(worker, folder)
 }
 
 data Main {

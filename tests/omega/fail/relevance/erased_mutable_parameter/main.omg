@@ -5,10 +5,10 @@
 data Main {
 }
 
-machine Main::main(&mut self) {
-    self.record(3, 4);
+machine Main::main(main: &mut Main) {
+    Main::record(main, 3, 4);
 }
 
-machine Main::record(&mut self, mut x [erased]: i32, y: i32) {
+machine Main::record(main: &mut Main, mut x [erased]: i32, y: i32) {
     let mut value: i32 = y;
 }

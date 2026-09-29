@@ -87,17 +87,17 @@ data Main {
     sink: Binding<RegionSink>;
 }
 
-machine Main::partition_and_retain(&mut self, whole: Region in Owned) -> Region in Owned
+machine Main::partition_and_retain(main: &mut Main, whole: Region in Owned) -> Region in Owned
 reaches RegionSplit, RegionSink
 {
-    let split: SplitResult = self.partition.split(whole);
+    let split: SplitResult = main.partition.split(whole);
     let { left, right } = split;
-    self.sink.accept(left);
+    main.sink.accept(left);
     right
 }
 
 machine Main::main(&mut self) reaches RegionSplit, RegionSink {
     let whole: Region in Owned = Region { remaining: 8 };
-    let retained: Region in Owned = self.partition_and_retain(whole);
+    let retained: Region in Owned = Main::partition_and_retain(self, whole);
     self.sink.accept(retained);
 }
