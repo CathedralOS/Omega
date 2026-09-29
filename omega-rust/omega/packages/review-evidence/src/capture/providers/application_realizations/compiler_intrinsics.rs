@@ -31,6 +31,18 @@ pub(super) fn project(
         if !application.arguments.is_empty() {
             continue;
         }
+        // A specialized machine instance is projected by the specialized
+        // checked-body path — its plan binds the authored template slot and
+        // its token selections resolve to the instance, both of which the
+        // exact intrinsic join cannot see.
+        if compilation
+            .typed
+            .symbols
+            .authored_origin(application.requirement_symbol)
+            != application.requirement_symbol
+        {
+            continue;
+        }
         let expression = match application.site {
             checked_trees::CheckedBoundaryOperatorApplicationUseSite::Expression {
                 expression,
@@ -68,6 +80,17 @@ pub(super) fn project(
             }
             selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
                 application.requirement_symbol
+            }
+        };
+        // A token use on a specialized machine member retains an `Operator`
+        // selection resolved to the machine instance, not the member.
+        let alternate_target = match actual_use.kind {
+            selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken(_) => {
+                specialized_machine_of_member(compilation, application.requirement_symbol)
+                    .unwrap_or_default()
+            }
+            selected_dispatch::CheckedOperatorAuthoredUseKind::Named => {
+                symbols::SymbolHandle::default()
             }
         };
         let implicit_source_span = match application.site {
@@ -135,6 +158,7 @@ pub(super) fn project(
                 expression,
                 actual_use.kind,
                 selection_target,
+                alternate_target,
                 package,
             )?
         {
@@ -163,6 +187,7 @@ pub(super) fn project(
                     expression,
                     actual_use.kind,
                     selection_target,
+                    alternate_target,
                 )?
             },
             PackageReviewSourceLocationRole::BoundaryApplicationUse,
@@ -170,13 +195,29 @@ pub(super) fn project(
         if location.owner != PackageReviewSourceLocationOwner::Package(package) {
             continue;
         }
-        // The selected plan joins the use by requirement identity.
+        // The selected plan joins the use by requirement identity. A
+        // specialized machine instance binds the same slot its authored
+        // template requirement binds — the instance carries no own schema.
         let joined = provider_planning::selected_use_plan(
             compilation.program,
             selected_plans,
             application.requirement_symbol,
             actual_use.origin,
         )
+        .or_else(|| {
+            let origin = compilation
+                .typed
+                .symbols
+                .authored_origin(application.requirement_symbol);
+            (origin != application.requirement_symbol).then(|| {
+                provider_planning::selected_use_plan(
+                    compilation.program,
+                    selected_plans,
+                    origin,
+                    actual_use.origin,
+                )
+            })?
+        })
         .and_then(|(index, plan)| {
             provenance
                 .get(index)
@@ -251,6 +292,13 @@ pub(super) fn project(
             &compilation.typed,
             application.requirement_symbol,
         )
+        .or_else(|| {
+            let origin = compilation
+                .typed
+                .symbols
+                .authored_origin(application.requirement_symbol);
+            provider_planning::IntrinsicRequirement::by_symbol(&compilation.typed, origin)
+        })
         .map(|requirement| requirement.requirement_identity)
         .ok_or_else(|| {
             vec![Diagnostic::error(
@@ -293,8 +341,41 @@ fn authored_use_kind(
     expression: typed_trees::expression::ExpressionHandle,
     requirement: symbols::SymbolHandle,
 ) -> selected_dispatch::CheckedOperatorAuthoredUseKind {
-    token_authored_use_kind(compilation, expression, requirement)
-        .unwrap_or(selected_dispatch::CheckedOperatorAuthoredUseKind::Named)
+    token_authored_use_kind(
+        compilation,
+        expression,
+        requirement,
+        compilation.typed.symbols.authored_origin(requirement),
+    )
+    .or_else(|| {
+        // A requirement member of a specialized machine instance: the token's
+        // `Operator` selection resolves to the instance itself and its token
+        // spelling lives on the authored template.
+        let machine = specialized_machine_of_member(compilation, requirement)?;
+        token_authored_use_kind(
+            compilation,
+            expression,
+            machine,
+            compilation.typed.symbols.authored_origin(machine),
+        )
+    })
+    .unwrap_or(selected_dispatch::CheckedOperatorAuthoredUseKind::Named)
+}
+
+/// When `requirement` is a member generated inside a specialized machine
+/// instance, returns that instance: the symbol a token-authored `Operator`
+/// selection resolves to. Named uses and declared (non-generated) parents
+/// return `None` so ordinary custody stays exact.
+fn specialized_machine_of_member(
+    compilation: &PackageReviewInput<'_>,
+    requirement: symbols::SymbolHandle,
+) -> Option<symbols::SymbolHandle> {
+    let parent = compilation.typed.symbols.get(requirement).parent;
+    if parent.is_valid() && compilation.typed.symbols.authored_origin(parent) != parent {
+        Some(parent)
+    } else {
+        None
+    }
 }
 
 fn exact_application_uses(

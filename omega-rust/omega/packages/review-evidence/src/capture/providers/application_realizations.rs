@@ -54,6 +54,7 @@ pub(crate) fn project_boundary_application_realizations(
             expression,
             realization.authored_use_kind,
             realization.requirement_operator,
+            symbols::SymbolHandle::default(),
             package,
         )? {
             continue;
@@ -65,6 +66,7 @@ pub(crate) fn project_boundary_application_realizations(
                 expression,
                 realization.authored_use_kind,
                 realization.requirement_operator,
+                symbols::SymbolHandle::default(),
             )?,
             PackageReviewSourceLocationRole::BoundaryApplicationUse,
         )?;
@@ -138,11 +140,25 @@ fn project_specialized_checked_body_applications(
                 "specialized boundary application realization has no expression use site",
             )]);
         };
+        // A specialized clone carries two authored levels: a token-authored
+        // use resolves its Operator selection to the specialized machine
+        // instance, named calls resolve to the requirement member, and the
+        // token spelling binds on the declared template. Custody therefore
+        // matches the requirement member with the instance as the alternate
+        // exact target; the realization's own symbols stay specialized.
+        let use_kind = token_authored_use_kind(
+            compilation,
+            expression,
+            realization.realization_machine,
+            realization.realization_template,
+        )
+        .unwrap_or(realization.authored_use_kind);
         if !expression_is_owned_by_package(
             compilation,
             expression,
-            realization.authored_use_kind,
+            use_kind,
             realization.requirement_operator,
+            realization.realization_machine,
             package,
         )? {
             continue;
@@ -152,8 +168,9 @@ fn project_specialized_checked_body_applications(
             authored_application_source_span(
                 compilation,
                 expression,
-                realization.authored_use_kind,
+                use_kind,
                 realization.requirement_operator,
+                realization.realization_machine,
             )?,
             PackageReviewSourceLocationRole::BoundaryApplicationUse,
         )?;
@@ -282,6 +299,7 @@ fn expression_is_owned_by_package(
     expression: typed_trees::expression::ExpressionHandle,
     use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
     requirement_operator: symbols::SymbolHandle,
+    alternate_requirement: symbols::SymbolHandle,
     package: PackageKeyIdentity,
 ) -> Result<bool, Vec<Diagnostic>> {
     let span = compilation.typed.expression_table.source_span(expression);
@@ -307,7 +325,13 @@ fn expression_is_owned_by_package(
         if !has_authored_selection {
             return Ok(false);
         }
-        authored_application_source_span(compilation, expression, use_kind, requirement_operator)?
+        authored_application_source_span(
+            compilation,
+            expression,
+            use_kind,
+            requirement_operator,
+            alternate_requirement,
+        )?
     } else {
         span
     };
@@ -359,11 +383,17 @@ pub(super) fn stage_realization(
     Ok(())
 }
 
+/// `requirement_operator` is the declaration an authored selection must
+/// resolve to; `alternate_requirement` is a second accepted target (an invalid
+/// handle means the requirement alone is exact). Specialized applications
+/// supply their machine instance there because a token-authored use resolves
+/// its Operator selection to the instance rather than the requirement member.
 pub(super) fn authored_application_source_span(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
     use_kind: selected_dispatch::CheckedOperatorAuthoredUseKind,
     requirement_operator: symbols::SymbolHandle,
+    alternate_requirement: symbols::SymbolHandle,
 ) -> Result<source::SourceSpan, Vec<Diagnostic>> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionTarget,
@@ -404,6 +434,8 @@ pub(super) fn authored_application_source_span(
         selection.target(),
         AuthoredDeclarationSelectionTarget::Resolved(target)
             if target.selected_symbol() == requirement_operator
+                || (alternate_requirement.is_valid()
+                    && target.selected_symbol() == alternate_requirement)
     );
     if selection.exposure() != AuthoredDeclarationSelectionExposure::PrivateImplementation
         || !target_is_exact
@@ -439,10 +471,15 @@ fn authored_application_selection_kind(
 /// declaration the token selected, not the authored surface, so when the site
 /// retains an `Operator` selection resolved to the requirement the use
 /// classifies `FixedToken` under the token binding's spelling instead.
+/// `selection_symbol` is the declaration the retained `Operator` selection
+/// resolves to; `spelling_symbol` is a fallback symbol the token spelling may
+/// bind on (an invalid handle disables it). A specialized machine instance
+/// resolves the selection while its declared template holds the spelling.
 pub(super) fn token_authored_use_kind(
     compilation: &PackageReviewInput<'_>,
     expression: typed_trees::expression::ExpressionHandle,
-    requirement: symbols::SymbolHandle,
+    selection_symbol: symbols::SymbolHandle,
+    spelling_symbol: symbols::SymbolHandle,
 ) -> Option<selected_dispatch::CheckedOperatorAuthoredUseKind> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
@@ -463,7 +500,7 @@ pub(super) fn token_authored_use_kind(
                 && matches!(
                     selection.target(),
                     AuthoredDeclarationSelectionTarget::Resolved(target)
-                        if target.selected_symbol() == requirement
+                        if target.selected_symbol() == selection_symbol
                 )
         });
     if !authored_token {
@@ -474,7 +511,15 @@ pub(super) fn token_authored_use_kind(
         .machine_token_bindings()
         .iter()
         .chain(compilation.typed.operators())
-        .find(|operator| operator.symbol == requirement)
+        .find(|operator| operator.symbol == selection_symbol)
+        .or_else(|| {
+            compilation
+                .typed
+                .machine_token_bindings()
+                .iter()
+                .chain(compilation.typed.operators())
+                .find(|operator| spelling_symbol.is_valid() && operator.symbol == spelling_symbol)
+        })
         .and_then(|operator| operator.spelling)
         .map(selected_dispatch::CheckedOperatorAuthoredUseKind::FixedToken)
 }
