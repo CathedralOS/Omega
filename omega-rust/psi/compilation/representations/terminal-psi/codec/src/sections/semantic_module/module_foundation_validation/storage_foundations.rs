@@ -964,32 +964,42 @@ pub(super) fn validate_store_structural_field(
 }
 
 /// The declared type of the root storage a window operation may name: either
-/// a mutable-borrowed machine parameter or an owned home place an earlier
-/// operation completed -- the same admission the ordered verifier's
-/// `borrowed_window_root` applies, so a local's established home can carry a
-/// restoration window beside a borrowed parameter's.
+/// a declared mutable-borrowed machine/block parameter or a completed owned
+/// home. Block bindings retain the same declared storage shape; reconstructing
+/// their incoming authority, alias interference, and exact restoration debt
+/// belongs to ordered verification, not this serialization foundation check.
 fn borrowed_field_store_root_type(
     machine: &TerminalMachine,
     place: semantic_vocabulary::PlaceId,
 ) -> Option<semantic_vocabulary::StructuralTypeId> {
-    if let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
-        parameter.place == place
-            && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-            && matches!(
-                parameter.multiplicity,
-                StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
-            )
-            && parameter.qualifications.is_empty()
-            && parameter.projected_qualifications.is_empty()
-            && !machine
-                .entry_claims
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .chain(
+            machine
+                .blocks
                 .iter()
-                .any(|claim| claim.input == place)
-            && !machine
-                .content_entry_claims
-                .iter()
-                .any(|claim| claim.input.root == place)
-    }) {
+                .flat_map(|block| &block.structural_parameters),
+        )
+        .find(|parameter| {
+            parameter.place == place
+                && parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                && matches!(
+                    parameter.multiplicity,
+                    StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+                )
+                && parameter.qualifications.is_empty()
+                && parameter.projected_qualifications.is_empty()
+                && !machine
+                    .entry_claims
+                    .iter()
+                    .any(|claim| claim.input == place)
+                && !machine
+                    .content_entry_claims
+                    .iter()
+                    .any(|claim| claim.input.root == place)
+        })
+    {
         return Some(parameter.structural_type);
     }
     machine

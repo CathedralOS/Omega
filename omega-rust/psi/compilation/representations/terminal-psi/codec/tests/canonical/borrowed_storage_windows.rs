@@ -170,6 +170,57 @@ fn move_and_store_structural_field_round_trip() {
 }
 
 #[test]
+fn borrowed_block_window_round_trips_and_retains_access_checks() {
+    let mut module = window_module();
+    let machine = &mut module.machines[0];
+    let mut body = machine.blocks[0].clone();
+    body.id = semantic_vocabulary::BlockId::new(901).unwrap();
+    let mut parameter = machine.structural_parameters[0].clone();
+    parameter.place = place_id(4);
+    body.structural_parameters.push(parameter);
+    for operation in &mut body.operations {
+        match &mut operation.kind {
+            OperationKind::MoveStructuralField { source, .. } => *source = place_id(4),
+            OperationKind::StoreStructuralField { destination, .. } => *destination = place_id(4),
+            _ => {}
+        }
+    }
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place_id(4),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: body.id,
+            position: 0,
+        },
+    });
+    machine.blocks[0].operations.clear();
+    machine.blocks[0].terminator = terminal_psi::Terminator::Jump {
+        edge: semantic_vocabulary::EdgeId::new(899).unwrap(),
+        target: body.id,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place: place_id(1),
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        }],
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    machine.blocks.push(body);
+    terminal_verifier::validate_module(&module).expect("independently verified block window");
+    let bytes = encode_module(&module).expect("block-carried borrowed window encodes");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    module.machines[0].blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    assert_eq!(
+        encode_module(&module),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural field move requires a mutable-borrowed parameter",
+        ))
+    );
+}
+
+#[test]
 fn move_and_store_structural_field_in_owned_home_round_trip() {
     let mut module = window_module();
     let machine = &mut module.machines[0];
