@@ -12,10 +12,7 @@ data P {
 machine P::touch(self) {
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     let p [erased]: P = P::Z {};
     p.touch();
 }

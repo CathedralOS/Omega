@@ -11,9 +11,6 @@ where
     text: &[u8];
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     let message: Message = Message { text: "omega" };
 }
