@@ -106,6 +106,7 @@ pass/calls/named_target_payload_dispatch checked 1934ms
 pass/calls/nested_call_init_transition checked 1482ms
 pass/calls/nested_call_runtime_index_arg_exit checked 985ms
 pass/calls/nested_call_tail_roots_exit checked 5981ms
+pass/calls/nested_indexed_scalar_arguments_exit checked 640ms @ec06d9821c1c+wt
 pass/calls/nested_machine_continuation checked 1719ms
 pass/calls/nested_value_call_arg_compile checked 1385ms
 pass/calls/ordered_field_selector_calls_exit checked 925ms @e3012d6c0627+wt

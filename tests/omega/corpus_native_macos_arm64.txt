@@ -82,6 +82,7 @@ pass/calls/mutable_receiver_scalar_destinations_exit built 1203ms exit:70 @1501c
 pass/calls/mutual_cycle_tail_admitted_exit built 732ms exit:70
 pass/calls/nested_call_tail_roots_exit rejected 456ms
 	native-artifact Terminal production failed: Lowering(Unsupported("nested structural arguments contain unsupported syntax"))
+pass/calls/nested_indexed_scalar_arguments_exit built 747ms exit:70 @ec06d9821c1c+wt
 pass/calls/nested_machine_continuation built 704ms
 pass/calls/nested_value_call_arg_compile rejected 457ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `outer calls: unconsumed nested call in a local initializer` (state 0, statement 0)

@@ -141,16 +141,18 @@ pub(crate) fn rejoin(
                 ExpressionNode::Indexed(indexed)
                     if is_array_value_projection(checked, indexed.collection) =>
                 {
-                    // The borrow collector cannot form a place rooted in an
-                    // array literal (including substituted constant values).
-                    // Its only observation is the selector. Array source replay
-                    // separately validates every projection and closed sibling.
+                    // Admitted array-value projections have only closed literal
+                    // leaves, so the collection contributes no observations.
+                    // Array source replay independently validates every sibling;
+                    // only the selector contributes reads here.
                     children.push(indexed.index);
                     (None, BorrowAccessKind::Read)
                 }
-                ExpressionNode::Indexed(indexed)
-                    if matches!(table.expression(indexed.index), ExpressionNode::Range(_)) =>
-                {
+                ExpressionNode::Indexed(indexed) => {
+                    // The captured place is one observation, followed by this
+                    // selector's reads (or range endpoints). Its full path
+                    // already includes nested collection projections, so do
+                    // not invent extra reads by walking that collection again.
                     children.push(indexed.index);
                     (Some(expression), BorrowAccessKind::Read)
                 }
@@ -168,11 +170,6 @@ pub(crate) fn rejoin(
                 | ExpressionNode::Float(_)
                 | ExpressionNode::String(_)
                 | ExpressionNode::ZeroValue(_) => (None, BorrowAccessKind::Read),
-                _ => {
-                    return unsupported(
-                        "computed shared borrow requires whole named scalar observations",
-                    );
-                }
             };
             if let Some(named) = named {
                 if !table.expression_is_valid(named) {

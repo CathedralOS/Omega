@@ -309,6 +309,122 @@ fn field_indexed_scalar_calls_reject_substituted_selector_sources() {
     }
 }
 
+const NESTED_INDEXED_CALLS: &str = r#"
+    data Cell { value: u64 in Wrapping; }
+    data Holder { cells: [Cell; 4]; position: u64[0..4]; }
+    machine Cell::read(&self) -> u64 in Wrapping { self.value }
+    machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }
+    machine combine(cell: &Cell, value: u64 in Wrapping) -> u64 in Wrapping {
+        cell.value + value
+    }
+    machine Holder::probe(&self) -> bool {
+        let explicit: u64 in Wrapping = combine(&self.cells[0], read_cell(&self.cells[self.position]));
+        let receiver: u64 in Wrapping = combine(&self.cells[0], self.cells[self.position].read());
+        explicit == 70 && receiver == 70
+    }
+"#;
+
+#[test]
+fn nested_indexed_calls_rejoin_place_and_selector_observations() {
+    for source in [
+        NESTED_INDEXED_CALLS.to_owned(),
+        NESTED_INDEXED_CALLS.replace("[self.position]", "[2]"),
+        NESTED_INDEXED_CALLS
+            .replace("data Holder { cells: [Cell; 4]; position: u64[0..4]; }",
+                "data Row { cells: [Cell; 4]; } data Holder { rows: [Row; 2]; row: u64[0..2]; position: u64[0..4]; }")
+            .replace("self.cells[0]", "self.rows[0].cells[0]")
+            .replace("self.cells[self.position]", "self.rows[self.row].cells[self.position]"),
+        NESTED_INDEXED_CALLS
+            .replace(
+                "Holder::probe(&self)",
+                "Holder::probe(&self, position: u64[0..4])",
+            )
+            .replace("[self.position]", "[position]"),
+    ] {
+        let checked = checked_source_with_core_service(&source);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Holder::probe"))
+            .expect("indexed calls are ordinary scalar operands beside structural actuals");
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("nested indexed calls retain their bounds and borrowed places");
+    }
+}
+
+#[test]
+fn nested_indexed_calls_require_the_exact_ordered_observation_roster() {
+    let original = checked_source_with_core_service(NESTED_INDEXED_CALLS);
+    lower_machine(&original, TerminalMachineSelection::Name("Holder::probe"))
+        .expect("authentic nested calls lower");
+    let calls = original
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .filter_map(|(_, node)| {
+            let checked_trees::CheckedScalarComputationKind::Call {
+                source_call,
+                arguments,
+                ..
+            } = node.kind
+            else {
+                return None;
+            };
+            let plans = &original.facts.values.scalar_computations;
+            plans
+                .operands
+                .span(arguments)?
+                .iter()
+                .any(|argument| {
+                    matches!(
+                        plans.nodes.get(*argument).kind,
+                        checked_trees::CheckedScalarComputationKind::Call { .. }
+                    )
+                })
+                .then(|| original.facts.flow.control.calls.get(source_call).accesses)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        calls.len(),
+        2,
+        "both outer calls observe their nested invocation"
+    );
+    for accesses in calls {
+        assert_eq!(
+            original
+                .facts
+                .borrow
+                .argument_accesses
+                .span_or_empty(accesses)
+                .len(),
+            3,
+            "direct borrow, nested indexed place, then selector field"
+        );
+        for mutation in 0..4 {
+            let mut changed = original.clone();
+            let rows = changed
+                .facts
+                .borrow
+                .argument_accesses
+                .span_mut_or_empty(accesses);
+            match mutation {
+                0 => rows.swap(1, 2),
+                1 => rows[2] = rows[1].clone(),
+                2 => rows[1].segments = rows[0].segments,
+                3 => rows[2].kind = checked_trees::BorrowAccessKind::Mutable,
+                _ => unreachable!(),
+            }
+            assert!(
+                lower_machine(&changed, TerminalMachineSelection::Name("Holder::probe")).is_err(),
+                "substituted, missing, reordered or exclusive read evidence must reject"
+            );
+        }
+    }
+}
+
 /// A multi-state caller calls a value method on its whole receiver and
 /// dispatches on the result.
 const WHOLE_RECEIVER: &str = r#"
