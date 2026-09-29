@@ -1,0 +1,37 @@
+// A literal-indexed read of an owned float array field keeps its place
+// (exit 70).
+//
+// `self.low = self.readings[1]` reads one `f64` element at a fixed index.
+// The checked read retains that element as a projected field leaf, exactly as
+// it does for an integer array; source custody has to name the same leaf on
+// the authored side for a float carrier too, or native production refuses
+// the store. Element 1 is 18.0 and element 0 is 20.5, so a read of the wrong
+// element or a lost store exits 71.
+use omega::language::core::float_operations;
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    readings: [f64; 3];
+    low: f64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.readings[0] = 20.5;
+    self.readings[1] = 18.0;
+    self.readings[2] = 24.5;
+    self.low = self.readings[1];
+    transition self.low == 18.0 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
