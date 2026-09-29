@@ -345,9 +345,7 @@ pub(crate) fn lower_structural_field_steps<'a>(
                 )));
                 element
             }
-            CheckedUnitStructuralPathSegment::RuntimeIndex(
-                checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth },
-            ) if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) => {
+            CheckedUnitStructuralPathSegment::RuntimeIndex(runtime) => {
                 let element = match &field_owner.shape {
                     StructuralTypeShape::FixedArray { element, .. } => *element,
                     // A view's extent is its own stored runtime length: the
@@ -359,7 +357,25 @@ pub(crate) fn lower_structural_field_steps<'a>(
                         return unsupported("structural scalar store carrier is not a fixed array");
                     }
                 };
-                steps.push(ProjectionStep::AssignmentIndex { depth: *depth });
+                match runtime {
+                    checked_trees::CheckedRuntimeIndex::AssignmentIndex { depth }
+                        if !steps.contains(&ProjectionStep::AssignmentIndex { depth: *depth }) =>
+                    {
+                        steps.push(ProjectionStep::AssignmentIndex { depth: *depth });
+                    }
+                    // A borrow-mirrored index names the calling state's own
+                    // scalar parameter — `&mut cells[at]` injects the store
+                    // coordinate `at` — which the scalar source frame reads
+                    // directly rather than a bound selector row.
+                    checked_trees::CheckedRuntimeIndex::Parameter { position } => {
+                        steps.push(ProjectionStep::RuntimeIndexParameter {
+                            position: *position,
+                        });
+                    }
+                    _ => {
+                        return unsupported("structural scalar store carrier path is unsupported");
+                    }
+                }
                 element
             }
             _ => return unsupported("structural scalar store carrier path is unsupported"),
