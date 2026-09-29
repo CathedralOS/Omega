@@ -588,6 +588,13 @@ pub(crate) fn call_target_return_type(
     if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
         return Some(signature.return_type);
     }
+    // Requirement calls retain the operator declaration, not a selected
+    // provider body. Its result type belongs to Psi even before realization.
+    if let Some(operator) =
+        typed_trees::operator::declaration_by_symbol(program, target_state_symbol)
+    {
+        return Some(operator.return_type);
+    }
     if let Some(reference) = asm_intrinsic_result_type(program, target_state_symbol) {
         return Some(reference);
     }

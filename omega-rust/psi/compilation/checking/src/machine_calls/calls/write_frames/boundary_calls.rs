@@ -674,7 +674,37 @@ pub(super) fn signature_state_call_written_paths(
     {
         return None;
     }
-    let parameters = program.state_parameters(callee_state);
+    signature_parameters_written_paths(
+        program,
+        current_machine,
+        machine_symbols,
+        symbols,
+        program.state_parameters(callee_state),
+        callee_machine.attached_data.is_some(),
+        receiver,
+        receiver_origins,
+        arguments,
+        inference,
+    )
+}
+
+/// Project a closed callable signature into caller storage. Machine and legacy
+/// operator declarations have the same parameter ownership ceiling; neither a
+/// static declaration qualifier nor a copied scalar gives the callee storage.
+/// Generic binding and exact declaration selection belong to the caller.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn signature_parameters_written_paths(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    parameters: &[StateParameter],
+    has_implicit_self: bool,
+    receiver: &[String],
+    receiver_origins: &[FramePlaceOrigin],
+    arguments: &[ExpressionHandle],
+    inference: &mut FrameInference,
+) -> Option<Vec<String>> {
     // A declaration-qualified call (`Receipt::ack(v)`) supplies `self` as an
     // ordinary argument; a receiver call (`v.ack()`) does not. Arity alone
     // separates the two forms: the declared parameter list and the non-self
@@ -702,7 +732,7 @@ pub(super) fn signature_state_call_written_paths(
         if receiver_origins.is_empty() {
             if !receiver.is_empty() {
                 written.push(receiver.join("."));
-            } else if callee_machine.attached_data.is_some() {
+            } else if has_implicit_self {
                 written.push("self".to_owned());
             }
         } else {

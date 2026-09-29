@@ -267,6 +267,40 @@ fn evaluated_binding_leaf_scalar_results_bind_as_boundary_results() {
     }
 }
 
+#[test]
+fn named_operator_results_use_declared_types_in_field_assignments() {
+    for primitive in ["f32", "f64", "i32"] {
+        let checked = checked(&format!(
+            "data Arithmetic {{}}
+             boundary operator Arithmetic::identity(value: {primitive}) -> {primitive};
+             data Counter {{ value: {primitive}; }}
+             machine Counter::inspect(&mut self) {{
+                 self.value = Arithmetic::identity(self.value);
+             }}"
+        ));
+        let operator = checked.typed.operators().first().unwrap();
+        assert_eq!(
+            crate::flow::call_target_return_type(&checked.typed, operator.symbol),
+            Some(operator.return_type),
+            "{primitive}: an operator requirement owns its result type"
+        );
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine_named(&checked, "Counter::inspect"))
+            .expect("the ordinary assignment consumes the named requirement result");
+        assert!(matches!(
+            plan.operations.as_slice(),
+            [
+                CheckedUnitEffectOperationPlan::BoundaryScalarCall { target_machine, .. },
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_),
+                CheckedUnitEffectOperationPlan::Complete { .. },
+            ] if *target_machine == operator.symbol
+        ));
+    }
+}
+
 fn boundary_requirement(
     checked: &checked_trees::CheckedTrees,
     trait_name: &str,
