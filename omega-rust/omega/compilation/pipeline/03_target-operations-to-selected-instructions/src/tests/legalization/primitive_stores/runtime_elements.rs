@@ -339,7 +339,7 @@ fn runtime_elements_scale_reads_stores_and_field_stores_through_every_replay() {
             };
             match mutation {
                 0 => indices[1].stride = 8,
-                1 => indices[0].extent = 4,
+                1 => indices[0].extent = Some(4),
                 2 => indices.swap(0, 1),
                 _ => indices[0].obligation = obligation(2),
             }
@@ -431,7 +431,7 @@ fn runtime_elements_scale_reads_stores_and_field_stores_through_every_replay() {
                 4,
                 SelectedMemoryAccessRole::WriteIndexedPrimitive {
                     stride: 8,
-                    extent: 2,
+                    extent: Some(2),
                     ..
                 }
             )]
@@ -443,7 +443,7 @@ fn runtime_elements_scale_reads_stores_and_field_stores_through_every_replay() {
                 4,
                 SelectedMemoryAccessRole::ReadIndexedPrimitive {
                     stride: 4,
-                    extent: 4,
+                    extent: Some(4),
                     ..
                 }
             )]
@@ -625,7 +625,7 @@ fn a_runtime_element_field_read_loads_the_declared_field_through_every_replay() 
             access.role,
             SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 stride: 8,
-                extent: 2,
+                extent: Some(2),
                 ..
             }
         ));
@@ -920,7 +920,7 @@ fn a_runtime_element_case_membership_reads_the_declared_tag_through_every_replay
             access.role,
             SelectedMemoryAccessRole::ReadIndexedPrimitive {
                 stride: 4,
-                extent: 3,
+                extent: Some(3),
                 ..
             }
         ));

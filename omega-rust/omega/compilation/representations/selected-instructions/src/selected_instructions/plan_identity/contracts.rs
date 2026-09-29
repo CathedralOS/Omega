@@ -143,7 +143,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                     bytes.extend_from_slice(&identity.to_le_bytes());
                 }
                 bytes.extend_from_slice(&stride.to_le_bytes());
-                bytes.extend_from_slice(&extent.to_le_bytes());
+                match extent {
+                    Some(extent) => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&extent.to_le_bytes());
+                    }
+                    None => bytes.push(0),
+                }
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::WriteIndexedStructural {
@@ -158,7 +164,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                     bytes.extend_from_slice(&identity.to_le_bytes());
                 }
                 bytes.extend_from_slice(&stride.to_le_bytes());
-                bytes.extend_from_slice(&extent.to_le_bytes());
+                match extent {
+                    Some(extent) => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&extent.to_le_bytes());
+                    }
+                    None => bytes.push(0),
+                }
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::ReadIndexedPrimitive {
@@ -173,7 +185,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &SelectedFunction) {
                     bytes.extend_from_slice(&identity.to_le_bytes());
                 }
                 bytes.extend_from_slice(&stride.to_le_bytes());
-                bytes.extend_from_slice(&extent.to_le_bytes());
+                match extent {
+                    Some(extent) => {
+                        bytes.push(1);
+                        bytes.extend_from_slice(&extent.to_le_bytes());
+                    }
+                    None => bytes.push(0),
+                }
                 bytes.extend_from_slice(&accepted_fact.bytes());
             }
             SelectedMemoryAccessRole::ReadElementView {

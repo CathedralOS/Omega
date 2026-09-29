@@ -67,6 +67,16 @@ impl TerminalExecution {
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
                     ) => capacity,
+                    // A view's extent is its stored runtime length — the
+                    // live window the root's place carries, the same bound
+                    // an element-view write's `length` operand names.
+                    StructuralTypeShape::ElementView { .. } if position == 0 => u64::try_from(
+                        self.element_view_values
+                            .get(&root)
+                            .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(root))?
+                            .len(),
+                    )
+                    .map_err(|_| invalid())?,
                     _ => return Err(invalid()),
                 };
                 let element =

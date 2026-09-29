@@ -65,15 +65,17 @@ pub(crate) fn scalar_shape(scalar: ScalarType) -> Option<ValueShape> {
 
 /// One runtime-selected element of a structural projection: the selector
 /// value, the obligation the verified Terminal attached to the segment, the
-/// array's element `stride`, and its declared `extent`. The address model
-/// scales `index` by `stride`; the obligation, not this layout, is what
-/// proves `index < extent`.
+/// array's element `stride`, and its declared `extent` — absent when the
+/// carrier is an element view, whose extent is a live length observation
+/// the obligation certifies, not a declaration the layout can reach for.
+/// The address model scales `index` by `stride`; the obligation, not this
+/// layout, is what proves `index < extent`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RuntimeElement {
     pub(crate) index: semantic_vocabulary::ValueId,
     pub(crate) obligation: semantic_vocabulary::ObligationId,
     pub(crate) stride: u32,
-    pub(crate) extent: u64,
+    pub(crate) extent: Option<u64>,
 }
 
 /// Whether legalized runtime traversals are exactly a projection's runtime
@@ -98,7 +100,7 @@ pub(crate) fn runtime_indices_match(
 /// stays inside the root — not a bound on any selector.
 fn runtime_reach(elements: &[RuntimeElement]) -> Option<u64> {
     elements.iter().try_fold(0u64, |reach, element| {
-        reach.checked_add(u64::from(element.stride).checked_mul(element.extent.checked_sub(1)?)?)
+        reach.checked_add(u64::from(element.stride).checked_mul(element.extent?.checked_sub(1)?)?)
     })
 }
 
@@ -1061,22 +1063,27 @@ pub(crate) fn runtime_projection(
             container = selected;
             byte_offset = byte_offset.checked_add(run_offset)?;
         }
-        let StructuralTypeShape::FixedArray { element, length } = &declarations
+        let (element, extent) = match &declarations
             .iter()
             .find(|declaration| declaration.id == container)?
             .shape
-        else {
-            return None;
+        {
+            StructuralTypeShape::FixedArray { element, length } => (*element, Some(*length)),
+            // A view's extent is its own stored runtime length — the bound
+            // re-proves against the dominating length observation the
+            // obligation names, never against this layout.
+            StructuralTypeShape::ElementView { element } => (*element, None),
+            _ => return None,
         };
-        let element_shape = shape(*element, declarations)?;
+        let element_shape = shape(element, declarations)?;
         let stride = align(element_shape.byte_size, element_shape.alignment)?;
         elements.push(RuntimeElement {
             index: *index,
             obligation: *obligation,
             stride,
-            extent: *length,
+            extent,
         });
-        container = *element;
+        container = element;
         segment_start = position + 1;
     }
     let (endpoint, tail_offset) = project(container, &path[segment_start..], declarations)?;

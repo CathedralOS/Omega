@@ -10,8 +10,11 @@
 //!   static paths and would read a runtime segment as no place at all;
 //! - the selector is an integer scalar (not an address) defined before the
 //!   operation, like any other operand;
-//! - each segment's prefix resolves to a fixed array, whose declared extent
-//!   the reconstructed obligation bounds the selector by.
+//! - each segment's prefix resolves to a fixed array or bounded byte view,
+//!   whose declared extent the reconstructed obligation bounds the selector
+//!   by; a segment on an element view instead names the dominating
+//!   `ElementViewLength` observation of the view's place, its bound the same
+//!   `index < length` relation an element-view write carries as an operand.
 //!
 //! The obligation itself is reconstructed in
 //! `verification::reconstruction::operation_facts::runtime_index` from the
@@ -29,8 +32,21 @@ use semantic_vocabulary::{ObligationId, ValueId};
 pub(crate) struct RuntimeIndexSite {
     pub(crate) index: ValueId,
     pub(crate) obligation: ObligationId,
-    /// The declared element count of the fixed array the segment selects in.
-    pub(crate) extent: u64,
+    /// The extent the segment's reconstructed obligation bounds `index` by.
+    pub(crate) extent: RuntimeIndexExtent,
+}
+
+/// What a `RuntimeIndex` segment's bound names: a declared element count for
+/// a fixed array or bounded byte view, or the result of the dominating
+/// `ElementViewLength` observation for an element view — the extent a view
+/// carries is live, never a declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RuntimeIndexExtent {
+    /// The declared element count of the array the segment selects in.
+    Literal(u64),
+    /// The scalar result of the operation's dominating `ElementViewLength`
+    /// observation of the projection's root view.
+    ObservedLength(ValueId),
 }
 
 /// Operations whose validation resolves their projections through a runtime
@@ -134,11 +150,45 @@ pub(crate) fn runtime_index_sites(
                 .iter()
                 .find_map(|declaration| match declaration.shape {
                     StructuralTypeShape::FixedArray { length, .. } if declaration.id == array => {
-                        Some(length)
+                        Some(RuntimeIndexExtent::Literal(length))
                     }
                     StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. },
-                    ) if declaration.id == array => Some(capacity),
+                    ) if declaration.id == array => {
+                        Some(RuntimeIndexExtent::Literal(capacity))
+                    }
+                    // A view's extent is its stored runtime length: the
+                    // segment's bound names the operation's dominating
+                    // `ElementViewLength` observation of the projection's
+                    // root place — only a path position of zero resolves a
+                    // view at the root, where that observation is well-formed.
+                    StructuralTypeShape::ElementView { .. }
+                        if declaration.id == array && position == 0 =>
+                    {
+                        machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.operations)
+                            .find(|candidate| {
+                                candidate.result.scalar().is_some()
+                                    && matches!(
+                                        candidate.kind,
+                                        OperationKind::ElementViewLength { source }
+                                            if source == projection.root
+                                    )
+                                    && crate::validation::structural::byte_sequence_fields::view_length_is_current(
+                                        module,
+                                        machine,
+                                        candidate.id,
+                                        operation.id,
+                                        projection.root,
+                                    )
+                            })
+                            .and_then(|candidate| {
+                                candidate.result.scalar().map(|result| result.id)
+                            })
+                            .map(RuntimeIndexExtent::ObservedLength)
+                    }
                     _ => None,
                 })
                 .ok_or(invalid)?;

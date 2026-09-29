@@ -201,13 +201,24 @@ fn resolve_source(
                 .ok_or(LoweringError::Unsupported(
                     "store destination index has no declared collection",
                 ))?;
-                if !matches!(
-                    checked.type_reference_table.type_reference(reference),
+                // A slice's extent is live, not declared: the emitted
+                // RuntimeIndex segment's Terminal obligation re-proves the
+                // bound against the view's own length witness, exactly as the
+                // literal-length fixed array's does against its declared one.
+                // A byte element keeps its established `ByteSequence` carrier
+                // and byte-store vocabulary; only the non-byte view family
+                // resolves here.
+                if !match checked.type_reference_table.type_reference(reference) {
                     TypeReferenceNode::FixedArray {
                         length: checked_trees::types::FixedArrayLength::Literal(_),
                         ..
+                    } => true,
+                    TypeReferenceNode::Slice { element_type } => {
+                        checked.primitive_type_reference(*element_type)
+                            != Some(checked_trees::types::PrimitiveType::U8)
                     }
-                ) {
+                    _ => false,
+                } {
                     return unsupported("store destination index has no literal array length");
                 }
                 path.push(CheckedUnitStructuralPathSegment::RuntimeIndex(

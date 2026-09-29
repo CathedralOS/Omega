@@ -767,12 +767,14 @@ pub enum LegalizedScalarComparison {
 /// offset, in path order. `obligation` and `accepted_fact` carry the
 /// verifier's `operand < extent` certificate for this element, so selection
 /// scales an index the verified Terminal already bounded and never
-/// re-derives the bound.
+/// re-derives the bound. `extent` is the declared element count when the
+/// carrier declares one; an element view's extent is the live length
+/// observation the certificate names and never a layout constant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LegalizedRuntimeIndexOperand {
     pub operand: abstract_operations::AbstractResult,
     pub stride: u32,
-    pub extent: u64,
+    pub extent: Option<u64>,
     pub obligation: semantic_vocabulary::ObligationId,
     pub accepted_fact: optimization_core::AcceptedObligationFactIdentity,
 }

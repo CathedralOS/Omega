@@ -149,7 +149,7 @@ fn runtime_index(
             scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
         },
         stride,
-        extent: 3,
+        extent: Some(3),
         obligation: id(702),
         accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
             b"runtime-index",

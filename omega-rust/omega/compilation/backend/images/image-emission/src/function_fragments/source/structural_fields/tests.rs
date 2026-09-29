@@ -147,7 +147,7 @@ fn projected_primitive_publication_retains_path_and_requires_native_replay() {
         |index, obligation| selected_instructions::SelectedMemoryAccessRole::ReadIndexedPrimitive {
             index,
             stride: 1,
-            extent: 2,
+            extent: Some(2),
             obligation,
             accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
                 b"element",
