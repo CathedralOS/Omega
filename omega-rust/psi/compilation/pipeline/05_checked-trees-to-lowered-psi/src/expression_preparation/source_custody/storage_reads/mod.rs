@@ -580,7 +580,64 @@ fn authored_read_path(
                 _ => unsupported("indexed primitive read has an unsupported projection"),
             })
             .collect::<Result<Vec<_>, _>>()?;
+        // Place-custody paths keep traversal order, and so do retained paths
+        // for selectors reached through member positions (`x.cells[i].value`
+        // keeps `[cells, FixedIndex(i), value]`). Only a selector on the bare
+        // root collection retains after the members it reads into:
+        // `local[i].f` rejoins `[Field(f), FixedIndex(i)]`.
+        let mut path = path;
+        if matches!(path.first(), Some(Segment::FixedIndex(_))) && path.len() > 1 {
+            let selector = path.remove(0);
+            path.push(selector);
+        }
         return Ok(Some((source.root, path)));
+    }
+    match checked.expression_table.expression(expression) {
+        // A literal element of a local fixed carrier is a fixed projected
+        // read rooted at the local binding itself (`rooms[0].exit_count`):
+        // the checker's `StructuralParameterIndexedRead` retains exactly this
+        // occurrence on its `OwnedLocal` root, so the authored path must
+        // produce the same root and segments.
+        ExpressionNode::Indexed(indexed) => {
+            let Some((root, mut path)) = authored_read_path(
+                checked,
+                state,
+                scope,
+                machine,
+                indexed.collection,
+                depth + 1,
+            )?
+            else {
+                return Ok(None);
+            };
+            // Element reads root at a local fixed carrier: parameter roots
+            // keep their retained selector-only occurrences.
+            if fixed_carrier_local(checked, state, scope, root).is_none() {
+                return Ok(None);
+            }
+            let Some(index) = constant_index_u64(checked, indexed.index) else {
+                return Ok(None);
+            };
+            path.push(Segment::FixedIndex(index));
+            return Ok(Some((root, path)));
+        }
+        ExpressionNode::Name(name) => {
+            if !name.symbol.is_valid()
+                || name.symbol != name.head_symbol
+                || checked
+                    .expression_table
+                    .name_path_members(name.members)
+                    .len()
+                    != 1
+            {
+                return Ok(None);
+            }
+            let Some(symbol) = fixed_carrier_local(checked, state, scope, name.symbol) else {
+                return Ok(None);
+            };
+            return Ok(Some((symbol, Vec::new())));
+        }
+        _ => {}
     }
     let ExpressionNode::Member(member) = checked.expression_table.expression(expression) else {
         return Ok(None);
@@ -618,6 +675,15 @@ fn authored_read_path(
     .filter(|field| !field.relevance.is_erased()) else {
         return Ok(None);
     };
+    // A local element's selector retains after the member projections through
+    // it (`local[i].member` keeps `[member..., FixedIndex(i)]`), so a member
+    // read reaching into a fixed element inserts before the selector tail.
+    let mut insert_at = path.len();
+    if matches!(path.last(), Some(Segment::FixedIndex(_)))
+        && fixed_carrier_local(checked, state, scope, root).is_some()
+    {
+        insert_at -= 1;
+    }
     if let Some(case_name) = &member.case_variant {
         let Some(case) = checked
             .data_members(owner)
@@ -631,10 +697,60 @@ fn authored_read_path(
         else {
             return Ok(None);
         };
-        path.push(Segment::Case(case.path_identity()));
+        path.insert(insert_at, Segment::Case(case.path_identity()));
+        insert_at += 1;
     }
-    path.push(Segment::Field(field.path_identity()));
+    path.insert(insert_at, Segment::Field(field.path_identity()));
     Ok(Some((root, path)))
+}
+
+/// The constant ordinal a literal (or constant-folded) element read denotes,
+/// the same fold the checker applies to authored indices.
+fn constant_index_u64(checked: &CheckedTrees, index: ExpressionHandle) -> Option<u64> {
+    match checked.expression_table.expression(index) {
+        ExpressionNode::Integer(literal) => literal.value_bignum().and_then(|value| value.to_u64()),
+        _ => checked
+            .expression_table
+            .constant_integer_value(index)
+            .and_then(|value| u64::try_from(value).ok()),
+    }
+}
+
+/// A local binding whose declared carrier is a fixed or borrowed sequence:
+/// its own symbol roots element reads, unlike scalar locals which rejoin
+/// through `authored_storage_read`.
+fn fixed_carrier_local(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    scope: ReadScope,
+    symbol: symbols::SymbolHandle,
+) -> Option<symbols::SymbolHandle> {
+    let mut locals = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(scope.preceding_statements() as usize)
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+            _ => None,
+        });
+    let local = locals.next()?;
+    if locals.next().is_some() {
+        return None;
+    }
+    let mut reference = local.type_reference;
+    loop {
+        match checked.type_reference_table.type_reference(reference) {
+            checked_trees::types::TypeReferenceNode::Reference { referee, .. }
+            | checked_trees::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => reference = *referee,
+            checked_trees::types::TypeReferenceNode::FixedArray { .. }
+            | checked_trees::types::TypeReferenceNode::Slice { .. } => break,
+            _ => return None,
+        }
+    }
+    Some(local.symbol)
 }
 
 fn collect_owned_field(
