@@ -40,6 +40,35 @@ build authority, and artifact verification remain separate obligations.
 
 ## Immediate product closure
 
+- **STATIC-MACHINE-MIGRATION.** (new-scope) Eliminate machine/state `self`
+  receivers and implicit receiver calls under the
+  [static-machine contract](wiki/spec/language/machines.md#static-declarations-and-explicit-state).
+  This is an owner decision, not a feature proposal or optional compatibility mode.
+  - Rewrite the remaining spec/guide examples, bundled libraries, product sources,
+    canaries and samples to qualified static calls with explicit arguments. Keep
+    ownership, mutation, termination and output oracles; do not demote required
+    coverage merely because the explicit form exposes a compiler gap.
+  - Replace special receiver signatures, lookup, argument insertion, state carry
+    and evidence flags with ordinary parameter identities through both producers,
+    interpreters, Terminal verification and native lowering. Remove the retired
+    syntax/parser paths after customer migration; add rejection coverage for them.
+    Do not delete unrelated receiver-side artifact admission or mathematical
+    subject binders merely because prose uses the word receiver or `self`.
+  - Provision the exact ordinary mutable context parameter named by the
+    [entry shape](wiki/spec/build/entry_roots.md#entry-shape-and-arrival-bridge),
+    preserving ZII eligibility, selected bindings, root lineage, stack/storage
+    partitioning and cleanup. Remove attachment/`is_self` as authority inputs.
+  - Move scratch fields to ordinary locals/local records and pass only genuinely
+    live values across states. Repair local construction, loans and cleanup rather
+    than moving scratch back into context. Temporary-scoping language design is
+    deferred; it is not a prerequisite or permission to invent new scope rules.
+  Acceptance: static source customers execute with their authored exit/output;
+  migrated corpus/sample gates pass; no accepted machine/state receiver syntax,
+  implicit receiver argument or receiver-specific signature authority remains.
+  `slice_maximum` and `value_call_in_expr` already use static entries and local
+  buffers, but their Windows native runs still need the Console provider closure
+  tracked under process exit. Their checked success is not full migration acceptance.
+
 Prioritize unchanged customer programs reaching native execution over additional
 evidence carriers without an exercising program. The
 [Rust compiler completion plan](wiki/drafts/reference/rust_compiler_completion.md) defines

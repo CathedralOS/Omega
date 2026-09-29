@@ -310,12 +310,12 @@ initialization authority.
 
 An explicit finite disjunction of equalities in a generic `where` clause can
 define the supported specialization family. No separate roster keyword or
-reflection API is required. This example illustrates a runtime-capable method
+reflection API is required. This example illustrates a runtime-capable machine
 family with one common result shape:
 
 ```omega
 trait ByteScanner {
-    machine scan<Width: u32>(&self, bytes: &[u8]) -> u64
+    machine scan<Width: u32>(bytes: &[u8]) -> u64
     where
         Width == 16 || Width == 32 || Width == 64;
 }

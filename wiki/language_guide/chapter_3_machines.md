@@ -13,8 +13,10 @@ function-like call is one important use of a machine, not its definition.
 > separate machine species. See
 > [machines and contract refinement](../spec/language/machines.md).
 
-Machines may be attached to data, or free-standing when there is no natural
-owning data type.
+All machines are static: every input is an ordinary declared parameter. A
+qualified path such as `Player::take_damage` gives the operation a namespace
+and semantic owner; it does not supply a receiver. There is no special `self`
+parameter or receiver-style dot invocation.
 
 Contracts state logical conditions; ordinary machines establish their
 conclusions. Traits and named conformances bundle mathematical operations,
@@ -47,9 +49,10 @@ through the declared observation surface and only above the floor imposed by
 the caller. A machine cannot hide blocking, authority, failure, or another
 context-forbidden behavior merely by calling it unobservable.
 
-## Attached Machines
+## Data-Owned Operations
 
-Attached machines operate on a named data type.
+A data-owned operation names its data input explicitly, just like any other
+input. Borrowing and ownership come from that parameter's type.
 
 ```omega
 data Player {
@@ -57,18 +60,20 @@ data Player {
 }
 
 machine Player::take_damage(
-    &mut self,
+    player: &mut Player,
     amount: i32
 ) {
-    self.health = self.health - amount;
+    player.health = player.health - amount;
 }
 ```
 
-`self` is explicit. If the machine mutates the receiver, it takes `&mut self`.
+Call it as `Player::take_damage(&mut player, amount)`. The qualified name
+does not insert an argument or permit `player.take_damage(amount)`.
 
 ## Free-Standing Machines
 
-Free-standing machines are ordinary machines without a data receiver.
+Free-standing machines use an unqualified declaration name. Their parameter
+rules are identical to qualified machines.
 
 ```omega
 machine add_i32(
@@ -87,7 +92,7 @@ that are not naturally owned by one data type.
 `build.omg` binds a target-owned program-entry slot to one exact machine. The
 binding selects what the target bridge will call; it is not itself a call and
 does not pass arguments or allocate values. A free entry machine has no
-implicit state:
+implicit state, and naming a data-owned operation does not allocate that data:
 
 ```omega
 machine start() {
@@ -95,48 +100,43 @@ machine start() {
 }
 ```
 
-When the selected entry is attached and has one `&mut self` receiver, the
-receiver declaration requests exactly one program-lifetime receiver instance:
+Create application state explicitly and pass it to other machines. Temporary
+work belongs in ordinary local bindings, not fields added to the application's
+persistent data merely to make them reachable:
 
 ```omega
 data Application {
     total: i32;
 }
 
-machine Application::start(&mut self) {
-    self.total = add_i32(3, 4);
+machine Application::run(application: &mut Application) {
+    let increment: i32 = add_i32(3, 4);
+    application.total = increment;
 }
 
-machine build(builder: &mut Build) {
-    builder.roots.bind(
-        windows_x86_64::ProgramEntry,
-        Application::start
-    );
+machine start() {
+    let mut application: Application;
+    Application::run(&mut application);
 }
 ```
 
-The selected machine's receiver is the entire request: the generated target
-bridge provisions one ZII-valid `Application` beneath an entry-supplied storage
-root and lends the only reference as `&mut self`. No separate declaration says
-that the value is static. The value is not globally nameable and no `static`
-declaration exists. Its physical placement is target lowering: a hosted image
-may reserve it in writable image storage, while a freestanding target may
-partition initial storage. Either way, the artifact records the derived
-subextent and root lineage rather than minting a new storage root.
+The build binds the target's `ProgramEntry` slot to `start`.
 
-This provisions one value occurrence. `Application` remains an ordinary
-nominal type; the bridge's admitted storage root and derived subextent carry
-the authority and qualification for this receiver. Other `Application` values
-follow the ordinary construction and ownership rules.
+`Application` remains an ordinary nominal type. This example uses its ordinary
+zero initialization; a type whose invariant does not hold at zero needs an
+explicit construction establishing that invariant. The local's storage and
+cleanup follow ordinary machine rules. There is no implicit program-lifetime
+instance created from a machine's qualified name.
 
-If the receiver cannot be validly constructed through ZII, the binding rejects.
-Use a free entry machine and explicitly construct the required state from the
-resources that target schema exposes. The target schema also controls ordinary
-entry parameters: hosted entry normally exposes none, while freestanding entry
-may intentionally expose raw image or initial-storage extents.
+The target schema controls ordinary entry parameters: hosted entry normally
+exposes no physical arrival arguments, while freestanding entry may intentionally
+expose raw image or initial-storage extents. An entry shape may separately permit
+one explicit mutable context parameter and provision its valid fields and selected
+bindings. That permission belongs to the exact entry occurrence, not an arbitrary
+parameter or a qualified machine name. See the entry rules below.
 
 The machine name is not special. The build binding chooses the machine, its
-source signature states whether it needs a receiver or visible arguments, and
+source signature states its explicit arguments, and
 the target schema states how the launch environment supplies those needs.
 
 Physical arrival and the source signature are separate. For example, a UEFI
@@ -150,6 +150,8 @@ See [program-entry rules](../spec/build/entry_roots.md) and
 End-to-end physical entry support remains incomplete under
 [ENTRY-CONTENT-ROOTS](../../TASKS.md); selecting and checking an entry does not
 claim that its native bridge has been installed.
+The static-only source contract also does not claim that receiver removal is
+complete in the compiler, bundled libraries, or remaining samples.
 
 ## Parameters And Returns
 
@@ -159,7 +161,7 @@ outcome. The type alone is not a termination guarantee.
 
 ```omega
 machine Parser::resolve(
-    &self,
+    parser: &Parser,
     line: &[u8]
 ) -> Command {
     Command::Invalid
@@ -227,9 +229,9 @@ bounded reach clause, absence of a body, catalog lookup, `via`, nor a later
 build selection can manufacture this declaration kind. Its exact package,
 path, static telescope, signature, and contract form requirement identity.
 Checked and external machines may target it with the ordinary `satisfies`
-clause. A carrier-qualified requirement remains callable through its attached
-operation syntax; the declaration contributes interface identity, not runtime
-authority. Any authority comes from the receiver or arguments—for example, a
+clause. A carrier-qualified requirement is called by its qualified name with
+explicit arguments; the declaration contributes interface identity, not runtime
+authority. Any authority comes from the arguments—for example, a
 linear acknowledgement consumed by `complete`.
 
 An external realization binds an irreducible imported operation to a
@@ -284,9 +286,9 @@ Ordinary call syntax invokes a machine contract in the current activation. Its
 realization may need a call frame; a jump to a local state adds none.
 
 ```omega
-let command: Command = self.parser.resolve(&self.line);
-let guard: Guard = block mutex.lock();
-let event: Event = suspend inbox.take();
+let command: Command = Parser::resolve(&parser, &line);
+let guard: Guard = block Mutex::lock(&mut mutex);
+let event: Event = suspend Inbox::take(&mut inbox);
 ```
 
 Calls and state jumps are different. A transition arm may jump to a local state,
@@ -349,15 +351,15 @@ The [termination specification](../spec/language/termination.md) owns exact
 edge checks, progress-profile premises, and the remaining mutual-call syntax
 question.
 
-### Receiver subplaces
+### Borrowed subplaces
 
-For `compiler.parser.scan(...)`, the ordinary call borrows the parser field.
-Inside `scan`, that field is the whole receiver and remains the same referent
+For `Parser::scan(&mut compiler.parser, ...)`, the ordinary call borrows the
+parser field. Inside `scan`, the explicit parameter names the same referent
 across backedges and return. Writes affect the original field; conflicting
 parent access is unavailable while the loan is live. A changing traversal
 cursor can instead be an ordinary loop-carried reference parameter.
 
-This needs no receiver-rebinding syntax. General ranked-callee native composition
+This needs no special rebinding syntax. General ranked-callee native composition
 remains an [implementation gap](../../omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md#ranked-native-admission),
 not permission to copy the referent or omit the callee's ranking check.
 
@@ -374,11 +376,11 @@ See [compiler-owned stack storage](chapter_16_errors_traps_failure.md#compiler-o
 Machines may declare requirements and guarantees.
 
 ```omega
-machine Player::enter_combat(&mut self)
+machine Player::enter_combat(player: &mut Player)
 requires
-    self in Player::Alive
+    player in Player::Alive
 ensures
-    self in Player::InCombat
+    player in Player::InCombat
 {
 }
 ```
@@ -426,7 +428,10 @@ relation specific to this invocation or outcome.
 ## Machine Graph Compatibility
 
 Internal states participate in the machine's graph, but they are not public
-machine entries.
+machine entries. Values needed by a destination state are passed through its
+ordinary state parameters; a state has no implicit receiver. Use local `let`
+bindings for scratch work and explicit transition arguments for loop-carried
+work. None of this introduces another temporary-storage scope or lifetime rule.
 
 Working rules:
 

@@ -9,6 +9,48 @@ Machines use named declarations. Static callbacks select those declarations
 and pass ordinary explicit context data. Anonymous machine expressions and implicit
 capture-environment construction are not part of the source language.
 
+## Static declarations and explicit state
+
+All machines are static declarations. There is no special `self` parameter,
+implicit receiver, bound-method value, or receiver-inserting call syntax.
+`Counter::increment` may identify a carrier-qualified declaration; qualification
+retains its semantic owner and visibility but contributes no argument or storage.
+
+```omega
+data Counter { value: u64; }
+
+machine Counter::clear(counter: &mut Counter) {
+    counter.value = 0;
+}
+
+machine example() {
+    let mut counter: Counter;
+    Counter::clear(&mut counter);
+}
+```
+
+Every argument, including context and capabilities, is ordinary and explicit.
+Owned, shared, mutable and write-only access retain their normal contracts;
+removing receiver syntax removes no ownership, invariant, effect or proof check.
+Trait requirements and satisfiers use the same explicit parameter correspondence.
+Named states likewise receive explicit arguments on every incoming transition.
+
+Invocation scratch belongs in ordinary local bindings or local data instances.
+Pass values needed by another state as state arguments; retain data in a record
+only when that record actually owns the required state or resource lifetime.
+This introduces no machine-scoped temporary storage, implicit capture, or new
+local lifetime rule. Implementations must support the ordinary local-storage and
+borrow path instead of requiring authors to put temporary buffers in a persistent
+context record. [Entry provisioning](../build/entry_roots.md#entry-shape-and-arrival-bridge)
+is an explicit root-parameter obligation, not a receiver exception.
+
+This is the source contract. Remaining receiver-based compiler paths, samples
+and documentation examples are migration debt, not an alternative accepted form.
+The `STATIC-MACHINE-MIGRATION` item in [the execution board](../../../TASKS.md)
+tracks their removal and end-to-end validation.
+
+## Declaration forms
+
 A fixed operator token after `machine`, as in `machine + Vec2::add(...)`, binds
 expression syntax to the same named machine. This is not a separate executable
 species or an alternate contract system. [Operator declarations](expressions.md#operator-declarations)

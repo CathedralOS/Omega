@@ -38,17 +38,18 @@ same shape, portable demands, target supply, authority, and lifecycle.
 
 ## Source selection is not invocation
 
-```omega
-machine build(builder: &mut Build) {
-    builder.application("entry_example");
-    builder.roots.bind(windows_x86_64::ProgramEntry, Application::start);
-    builder.select_provider<windows_x86_64::Console, TestConsole>();
-}
-```
+For an application named `entry_example`, Build selects
+`windows_x86_64::ProgramEntry` with machine argument `Application::start`, and
+may separately select `TestConsole` for the exact Console requirement. Neither
+selection invokes application code. The Build operations themselves follow the
+ordinary static-machine argument rules; they have no receiver-syntax exemption.
 
-The entry selection identifies an exact free machine or, when the entry shape
-allows it, a machine with one `&mut self` receiver. Build supplies neither that
-receiver nor invocation arguments. The provider selection names a nominal type;
+The entry selection identifies an exact static machine. When the entry shape
+permits provisioning, it designates one ordinary mutable context parameter,
+for example `machine Application::start(context: &mut Application)`. The
+qualified declaration path does not supply or imply that parameter. Build
+selects the declaration, not a context value or invocation arguments; the arrival
+bridge supplies the schema-declared arguments. The provider selection names a nominal type;
 its ordinary satisfiers determine the derived plan. A leaf needs `via` only for
 payload not derivable from its exact declaration and target.
 
@@ -65,7 +66,7 @@ harness name override carries no slot, signature, calling-plan, or storage
 authority.
 
 [Build-time test roots](testing.md#entry-contracts-and-ordinary-calls) reuse the
-free-entry or provisioned-receiver rules below. Their runner roots are separate
+unprovisioned-entry or provisioned-context rules below. Their runner roots are separate
 from application target slots; registration does not install them in the
 application or make their checked bodies trusted boundary declarations.
 A native test harness instead binds an ordinary executable entry normally.
@@ -75,13 +76,18 @@ A native test harness instead binds an ordinary executable entry normally.
 An entry shape names distinct physical and semantic arrival requirements, the
 boundary schema and physical contract package that own its generated arrival
 bridge and physical result map, visible parameters, semantic result, and a
-receiver provisioning mode (the catalogued `NoneOrProvisionedZii` admits a free
-machine or one provisioned `&mut self` receiver). For example, a hosted Windows
+context provisioning mode. `NoneOrProvisionedZii` admits an entry without a
+context or with one ordinary `context: &mut Context` parameter; `context` and
+`Context` are illustrative names, not reserved identities. The entry shape
+identifies its exact parameter occurrence separately from physical arrival
+arguments. No receiver flag or declaration attachment participates in that
+selection. For example, a hosted Windows
 `ProgramEntry` joins the `WindowsProcessEntry::enter` process arrival under the
 `WindowsX86_64CallingPolicy` calling policy to the `ProgramStorageEntry::enter`
 semantic continuation through the `WindowsX86_64Application` boundary schema's
 generated bridge; the authored contract's `u32` return maps to the process
-exit code, and no ordinary parameters are exposed to source.
+exit code, and no physical arrival parameters are exposed to source. An admitted
+provisioned context parameter is supplied by the bridge, not by the operating system.
 
 The platform calling plan validates the generated physical shell; the target's
 entry shape validates the selected source signature. Resolve the slot first,
@@ -97,24 +103,26 @@ The compiler does not invent meanings for platform handles. The combined bridge
 derives crash, reach, write, work, stack/state, introduction, provisioning, and
 provenance contracts and composes them with the application closure.
 
-A free entry receives no implicit state. An attached entry gets one receiver
-derived beneath an admitted root and borrowed for that activation. Ordinary
+A nonprovisioned entry receives no implicit state. A provisioned entry receives
+its explicitly declared context argument, derived beneath an admitted root and
+borrowed for that activation. The parameter's declared referent type, not the
+machine's qualified name, determines the record. Ordinary
 fields must be ZII-valid; compiler-provisioned service fields must have their
-binding established before the receiver is exposed to the entry. An erased
+binding established before the context is exposed to the entry. An erased
 field on a record-field route whose term a unique accessible nullary
 constructor determines needs neither: provisioning supplies that term as
 construction supplies an omitted
 [erased binding](../proofs/contracts.md#explicit-erased-bindings), and the
 checked receipt names it so the bridge never mistakes it for an unestablished
-service. Any other erased field rejects. The receiver
+service. Any other erased field rejects. The context
 is not globally nameable. Provisioning is occurrence-local: the nominal data
-type acquires no root authority or storage class. Storage used for the receiver
+type acquires no root authority or storage class. Storage used for the context
 or active stack cannot also be forwarded whole; retain the partition and pass
 only the exact disjoint residual. Generated bridge code remains subject to
 portable demand checking. A freestanding schema may deliberately expose image
 and initial-storage roots as parameters; hosted source sees neither by default.
 
-The bridge runs ordinary receiver cleanup on normal return. A crash retains its
+The bridge runs ordinary context cleanup on normal return. A crash retains its
 crash frontier; a canonical [process exit](../language/process_exit.md) instead
 retains the distinct external terminal outcome and abandonment contract.
 Returning from the entry does not establish that other activations were settled:
@@ -127,10 +135,10 @@ handlers obtain access only through explicit ordinary capability transfer,
 borrowing, or synchronized sharing.
 Hosted writable-image placement and freestanding storage partitioning must
 preserve the same occurrence, root lineage, backing, and initial exclusive borrow.
-Knowing the receiver's size never creates a new physical root.
+Knowing the context's size never creates a new physical root.
 
-Each direct `Binding<R>` receiver field requires occurrence evidence binding
-source signature/slot, receiver/attachment/field, exact carrier application,
+Each direct `Binding<R>` context field requires occurrence evidence binding
+source signature/slot, exact parameter occurrence and field, exact carrier application,
 service schema, and selected plan digest. Establishment is intrinsic to
 [service validity](component_publication.md#bindings-and-era-entry), not
 an authored domain qualification. A missing or incompatible selected provider
@@ -143,6 +151,10 @@ field and plan. ZII bytes alone cannot satisfy that join. This establishes the
 provisioned occurrence, not a runtime-published slot, era handle, or Independent
 execution. Other records obtain services by ordinary transfer of established
 values, not automatic injection merely because their field type is `Binding<R>`.
+
+Calling the same machine ordinarily supplies that context explicitly and gains
+no provisioning authority. Provisioning is specific to the admitted entry
+occurrence, not a constructor implicitly attached to every call.
 
 ## Authority, identity, and resources
 

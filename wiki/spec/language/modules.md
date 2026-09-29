@@ -13,10 +13,11 @@ module_decl := "module" name_path ";"
 import_decl := "use" name_path ";"
 ```
 
-`::` selects a static name; `.` selects a field or callable through a value.
+`::` selects a static name; `.` selects a field through a value. A field
+projection does not select a machine or insert a receiver argument.
 Imports select logical names, never filesystem paths, and do not execute code.
 External selection requires a requester-local direct dependency and the target
-declaration's visibility. Fully qualified spelling and inferred receivers obey
+declaration's visibility. Fully qualified spelling and explicit arguments obey
 the same rule. Tooling may discover an enclosing package; source cannot walk
 parent directories to gain undeclared reach.
 
@@ -90,13 +91,13 @@ Name resolution considers, in order:
 1. Local bindings.
 2. State parameters.
 3. Machine parameters.
-4. Receiver fields through the explicit `self` receiver.
-5. Imported names.
-6. Fully qualified package/module paths within the occurrence's declared dependency scope.
+4. Imported names.
+5. Fully qualified package/module paths within the occurrence's declared dependency scope.
 
 Ambiguous imported declarations reject. Compiler traversal order cannot select
-between them. An explicit receiver field projection is not an implicit bare-name
-alias for that field.
+between them. A field is selected through an explicit value such as
+`context.field`; neither a machine's qualified name nor a parameter's type
+introduces bare aliases for its fields.
 
 Case members are not an additional bare-name resolution step. Value position
 requires the carrier-qualified `Type::Case` path even when an expected type or

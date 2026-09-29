@@ -127,20 +127,20 @@ automatically proved; such uses need exact element/extent establishment evidence
 Proof propositions and proof-only values with no runtime representation acquire
 neither ZII nor layout obligations.
 
-### Mutable receivers and declared field domains
+<a id="mutable-receivers-and-declared-field-domains"></a>
+### Mutable arguments and declared field domains
 
-`&mut self` is receiver syntax for an ordinary `&mut T` argument, where `T`
-is the attached type. It has the same declared field/default-domain obligations
-at call, entry, and return (`mutable-self-receiver-declared-field-rows`). The
+An ordinary `value: &mut T` argument carries the declared field/default-domain
+obligations of `T` at call, entry, and return. The
 caller establishes them, the callee assumes them, and returning execution
 restores them under the ordinary invariant-window rules. Whether zero satisfies
 those domains is irrelevant to an already established incoming value.
 
-Receiver contracts may state `requires self in Domain` and corresponding
-`ensures`, just as contracts on named arguments may. An additional input domain
+Contracts may state `requires value in Domain` and corresponding
+`ensures`. An additional input domain
 need not survive a call unless the ordinary contract guarantees it. Zeroed or
 partially established storage still needs establishment before a readable borrow;
-receiver syntax grants no construction or validity exception.
+a qualified machine name grants no construction or validity exception.
 
 ## Invariant windows
 
