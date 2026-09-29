@@ -379,50 +379,23 @@ impl Context<'_> {
         operation: &checked_trees::CheckedUnitEffectOperationPlan,
         views: &mut Vec<ExpressionHandle>,
     ) {
-        use checked_trees::CheckedUnitEffectOperationPlan as Plan;
-        let (coordinate, arguments) = match operation {
-            Plan::CallUnit {
-                coordinate,
-                structural_arguments,
-                ..
+        if let checked_trees::CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            calls,
+            ..
+        } = operation
+        {
+            for call in calls {
+                self.operation_subslice_views(call.operation(), views);
             }
-            | Plan::ScalarCall {
-                coordinate,
-                structural_arguments,
-                ..
-            }
-            | Plan::StructuralCall {
-                coordinate,
-                structural_arguments,
-                ..
-            }
-            | Plan::BoundaryCall {
-                coordinate,
-                structural_arguments,
-                ..
-            }
-            | Plan::BoundaryScalarCall {
-                coordinate,
-                structural_arguments,
-                ..
-            }
-            | Plan::BoundaryStructuralCall {
-                coordinate,
-                structural_arguments,
-                ..
-            } => (coordinate.statement_index, structural_arguments),
-            Plan::EstablishStructuralValue { calls, .. } => {
-                for call in calls {
-                    self.operation_subslice_views(call.operation(), views);
-                }
-                return;
-            }
-            _ => return,
-        };
-        if coordinate != self.statement {
             return;
         }
-        for argument in arguments {
+        let Some(call) = operation.call() else {
+            return;
+        };
+        if call.coordinate().statement_index != self.statement {
+            return;
+        }
+        for argument in call.structural_arguments() {
             if let checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceSubslice {
                 expression,
                 ..

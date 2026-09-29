@@ -213,31 +213,15 @@ impl OperationFrame<'_, '_> {
         operation: &CheckedUnitEffectOperationPlan,
         inputs: &CallInputs<'_>,
     ) -> Result<BoundaryOperands, LoweringError> {
-        let (CheckedUnitEffectOperationPlan::BoundaryCall {
-            target_machine,
-            scalar_arguments,
-            structural_arguments,
-            completion_receipts,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            target_machine,
-            scalar_arguments,
-            structural_arguments,
-            completion_receipts,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            target_machine,
-            scalar_arguments,
-            structural_arguments,
-            completion_receipts,
-            ..
-        }) = operation
-        else {
+        let Some(call) = operation.call().filter(|call| call.is_boundary()) else {
             return unsupported("boundary call custody drifted before emission");
         };
-        let target = unique_unit_boundary(self.callees.plans, *target_machine)?;
+        let target_machine = call.target_machine();
+        let scalar_arguments = call.scalar_arguments();
+        let structural_arguments = call.structural_arguments();
+        // A boundary call's claim transfers are its completion receipts.
+        let completion_receipts = call.claim_transfers();
+        let target = unique_unit_boundary(self.callees.plans, target_machine)?;
         let expected_claim_arguments = self.expected_claim_arguments(structural_arguments)?;
         let earlier = self
             .results
@@ -271,7 +255,7 @@ impl OperationFrame<'_, '_> {
             .callees
             .boundaries
             .iter()
-            .find(|boundary| boundary.source == *target_machine)
+            .find(|boundary| boundary.source == target_machine)
             .ok_or(LoweringError::Unsupported(
                 "boundary call target is absent from the lowered closure",
             ))?;

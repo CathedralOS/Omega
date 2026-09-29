@@ -4,6 +4,7 @@ use super::{
     CheckedScalarExpressionRole, CheckedTrees, CheckedUnitEffectMachinePlan,
     CheckedUnitEffectOperationPlan, LoweringError, terminal_scalar_type, unsupported,
 };
+use checked_trees::CheckedUnitCallResult;
 pub(crate) mod authored;
 mod boundary_buffers;
 pub(crate) mod initializers;
@@ -207,30 +208,24 @@ pub(crate) fn validate_operation(
     operation: &CheckedUnitEffectOperationPlan,
     caller_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
-    if let CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        coordinate, result, ..
-    }
-    | CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate, result, ..
-    } = operation
-    {
+    // Selected operators retain their own exact provider application;
+    // they are not authored calls with positional argument facts.
+    let Some(planned) = operation.call() else {
+        return Ok(());
+    };
+    let coordinate = planned.coordinate();
+    if let CheckedUnitCallResult::Structural(result) = planned.result() {
         initializers::validate_structural(
             checked,
             caller_machine,
             caller_state,
-            *coordinate,
+            coordinate,
             result,
         )?;
     }
-    if let CheckedUnitEffectOperationPlan::ScalarCall {
-        coordinate, result, ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-        coordinate, result, ..
-    } = operation
-    {
-        if initializers::discards_result(checked, caller_state, *coordinate)? {
-            let call = authored::locate_source(checked, caller_state, *coordinate)?;
+    if let CheckedUnitCallResult::Scalar(result) = planned.result() {
+        if initializers::discards_result(checked, caller_state, coordinate)? {
+            let call = authored::locate_source(checked, caller_state, coordinate)?;
             let target = authored::target_signature(checked, caller_machine, call.source_target)?;
             if result.statement_index != coordinate.statement_index
                 || checked.primitive_type_reference(target.return_type)
@@ -255,7 +250,7 @@ pub(crate) fn validate_operation(
                 // lane rejoins the value by dense scalar position. The authored
                 // assignment's right-hand side is this call, so its exact
                 // signature still pins the stored result.
-                let call = authored::locate_source(checked, caller_state, *coordinate)?;
+                let call = authored::locate_source(checked, caller_state, coordinate)?;
                 let target =
                     authored::target_signature(checked, caller_machine, call.source_target)?;
                 if result.statement_index != coordinate.statement_index
@@ -301,22 +296,19 @@ pub(crate) fn validate_operation(
             }
         }
     }
-    // Selected operators retain their own exact provider application;
-    // they are not authored calls with positional argument facts.
-    let Some(planned) = operation.call() else {
-        return Ok(());
-    };
-    let coordinate = planned.coordinate();
     let arguments = planned.scalar_arguments();
     // A boundary call retains no erased lane.
     let erased_arguments = planned.erased_scalar_arguments().unwrap_or_default();
     let boundary = planned.is_boundary();
-    if matches!(
-        operation,
-        CheckedUnitEffectOperationPlan::ScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-    ) && coordinate.call_ordinal == 0
+    // Only scalar calls and boundary structural calls rejoin their
+    // initializer computations here.
+    let initializer_owner = match planned.result() {
+        CheckedUnitCallResult::Unit => false,
+        CheckedUnitCallResult::Scalar(_) => true,
+        CheckedUnitCallResult::Structural(_) => boundary,
+    };
+    if initializer_owner
+        && coordinate.call_ordinal == 0
         && arguments.iter().any(|argument| {
             matches!(
                 argument,

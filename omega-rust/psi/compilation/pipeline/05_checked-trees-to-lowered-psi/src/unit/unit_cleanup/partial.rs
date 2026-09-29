@@ -402,93 +402,56 @@ fn lower_general_partial_affine_unit_cleanup_machine(
         .iter()
         .flat_map(|operation| operation.with_value_calls())
     {
-        match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                coordinate,
-                ..
+        if let Some(call) = operation.call() {
+            let coordinate = call.coordinate();
+            if !call_coordinates.insert((coordinate.statement_index, coordinate.call_ordinal)) {
+                return unsupported("partial affine Unit cleanup signature or coordinates drifted");
             }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                coordinate,
-                ..
-            } => {
-                if !call_coordinates.insert((coordinate.statement_index, coordinate.call_ordinal)) {
+            for argument in call.structural_arguments() {
+                if argument.access != CheckedStructuralAccess::Owned {
+                    continue;
+                }
+                if let Some(index) = argument.source_parameter_index() {
+                    if argument.path.is_empty() {
+                        if parameter_index == Some(index) {
+                            // A residual root also passed whole is fully
+                            // consumed and cannot owe a complement.
+                            return unsupported("general partial affine residual root moved whole");
+                        }
+                    } else if parameter_index == Some(index) {
+                        if overlaps_an_earlier_move(&moved_paths, &argument.path) {
+                            return unsupported(
+                                "partial affine Unit cleanup signature or coordinates drifted",
+                            );
+                        }
+                        moved_paths
+                            .push((argument.path.as_slice(), argument.type_identity.as_str()));
+                    } else {
+                        let sibling = other_root_moves.entry(index).or_default();
+                        if overlaps_an_earlier_move(sibling, &argument.path) {
+                            return unsupported(
+                                "partial affine Unit cleanup signature or coordinates drifted",
+                            );
+                        }
+                        sibling.push((argument.path.as_slice(), argument.type_identity.as_str()));
+                    }
+                } else if !argument.path.is_empty()
+                    && argument
+                        .source_structural_result_binding_ordinal()
+                        .is_none()
+                {
                     return unsupported(
-                        "partial affine Unit cleanup signature or coordinates drifted",
+                        "general partial affine projected argument has no residual lane",
                     );
                 }
-                for argument in structural_arguments {
-                    if argument.access != CheckedStructuralAccess::Owned {
-                        continue;
-                    }
-                    if let Some(index) = argument.source_parameter_index() {
-                        if argument.path.is_empty() {
-                            if parameter_index == Some(index) {
-                                // A residual root also passed whole is fully
-                                // consumed and cannot owe a complement.
-                                return unsupported(
-                                    "general partial affine residual root moved whole",
-                                );
-                            }
-                        } else if parameter_index == Some(index) {
-                            if overlaps_an_earlier_move(&moved_paths, &argument.path) {
-                                return unsupported(
-                                    "partial affine Unit cleanup signature or coordinates drifted",
-                                );
-                            }
-                            moved_paths
-                                .push((argument.path.as_slice(), argument.type_identity.as_str()));
-                        } else {
-                            let sibling = other_root_moves.entry(index).or_default();
-                            if overlaps_an_earlier_move(sibling, &argument.path) {
-                                return unsupported(
-                                    "partial affine Unit cleanup signature or coordinates drifted",
-                                );
-                            }
-                            sibling
-                                .push((argument.path.as_slice(), argument.type_identity.as_str()));
-                        }
-                    } else if !argument.path.is_empty()
-                        && argument
-                            .source_structural_result_binding_ordinal()
-                            .is_none()
-                    {
-                        return unsupported(
-                            "general partial affine projected argument has no residual lane",
-                        );
-                    }
-                }
             }
-            CheckedUnitEffectOperationPlan::EstablishReference { source, .. }
-                if !source.path.is_empty()
-                    && parameter_index == source.source_parameter_index() =>
-            {
-                return unsupported(
-                    "general partial affine residual root moved whole through a reference",
-                );
-            }
-            _ => {}
+        } else if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
+            && !source.path.is_empty()
+            && parameter_index == source.source_parameter_index()
+        {
+            return unsupported(
+                "general partial affine residual root moved whole through a reference",
+            );
         }
     }
     let partial_plans = &checked

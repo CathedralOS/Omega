@@ -113,11 +113,14 @@ fn retired_in_body(
         })
         .filter(|ordinal| {
             state.operations.iter().any(|operation| {
-                call_arguments(operation).iter().any(|argument| {
-                    argument.source_structural_result_binding_ordinal() == Some(*ordinal)
-                        && argument.access == checked_trees::CheckedStructuralAccess::Owned
-                        && argument.path.is_empty()
-                })
+                operation
+                    .call_structural_arguments()
+                    .iter()
+                    .any(|argument| {
+                        argument.source_structural_result_binding_ordinal() == Some(*ordinal)
+                            && argument.access == checked_trees::CheckedStructuralAccess::Owned
+                            && argument.path.is_empty()
+                    })
             })
         });
     let mut retired = state
@@ -161,7 +164,8 @@ fn retired_in_body(
             .iter()
             .enumerate()
             .flat_map(|(index, operation)| {
-                call_arguments(operation)
+                operation
+                    .call_structural_arguments()
                     .iter()
                     .filter(move |argument| {
                         argument.source_structural_result_binding_ordinal()
@@ -189,13 +193,11 @@ fn retired_in_body(
         {
             return unsupported("Unit graph call retirement duplicates or precedes its owner");
         }
-        let coordinate = match consumer {
-            CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. } => *coordinate,
-            // Boundary settlement retains its own completion receipts.
-            _ => continue,
+        // Boundary settlement retains its own completion receipts.
+        let Some(call) = consumer.call().filter(|call| !call.is_boundary()) else {
+            continue;
         };
+        let coordinate = call.coordinate();
         let statements = checked.statement_table.statements(source.statement_nodes);
         let Some(StatementNode::LocalData(local)) = statements.get(result.statement_index as usize)
         else {
@@ -273,39 +275,6 @@ fn retired_in_body(
         retired.push(result.binding_ordinal);
     }
     Ok(retired)
-}
-
-/// The structural arguments an operation passes to the call it performs.
-fn call_arguments(
-    operation: &CheckedUnitEffectOperationPlan,
-) -> &[checked_trees::CheckedUnitStructuralArgumentPlan] {
-    match operation {
-        CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::ScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => &[],
-    }
 }
 
 /// A `&[T]` local: shared reference (through constraint shells) to a slice —

@@ -7,6 +7,7 @@ use super::{
     CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, UnitBody, structural_calls,
     unsupported,
 };
+use checked_trees::CheckedUnitCallResult;
 pub(crate) fn checked_unit_call_closure_including(
     checked: &CheckedTrees,
     plans: UnitPlans<'_>,
@@ -642,23 +643,12 @@ pub(super) fn validate_unit_operation_sequence(
             continue;
         }
         let key = (coordinate.statement_index, coordinate.call_ordinal);
-        let nested = matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-        ) && coordinate.call_ordinal != 0;
+        let call_result = operation.call().map(|call| call.result());
+        let structural_call = matches!(call_result, Some(CheckedUnitCallResult::Structural(_)));
+        let nested = structural_call && coordinate.call_ordinal != 0;
         let same_statement = previous.is_some_and(|previous: (u32, u32)| previous.0 == key.0);
-        let nested_consumer = matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::StructuralCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-        ) || matches!(
-            operation,
-            CheckedUnitEffectOperationPlan::CallUnit { .. }
-                | CheckedUnitEffectOperationPlan::ScalarCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-        ) && coordinate.call_ordinal == 0;
+        let nested_consumer =
+            structural_call || (call_result.is_some() && coordinate.call_ordinal == 0);
         // A whole-record replacement decomposes into one ordered field store
         // per member, and a whole array-literal replacement into one
         // primitive store per element. Each store keeps the statement's own

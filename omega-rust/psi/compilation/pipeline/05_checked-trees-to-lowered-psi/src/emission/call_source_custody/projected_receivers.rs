@@ -648,25 +648,13 @@ pub(crate) fn validate(
     operation: &CheckedUnitEffectOperationPlan,
     target_parameters: &[checked_trees::CheckedUnitStructuralParameterPlan],
 ) -> Result<(), LoweringError> {
-    let (CheckedUnitEffectOperationPlan::CallUnit {
-        coordinate,
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::StructuralCall {
-        coordinate,
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::ScalarCall {
-        coordinate,
-        structural_arguments,
-        ..
-    }) = operation
-    else {
+    // Only ordinary calls rejoin a projected receiver here.
+    let Some(planned) = operation.call().filter(|planned| !planned.is_boundary()) else {
         return Ok(());
     };
-    let authored = super::authored::locate_source(checked, caller_state, *coordinate)?;
+    let coordinate = planned.coordinate();
+    let structural_arguments = planned.structural_arguments();
+    let authored = super::authored::locate_source(checked, caller_state, coordinate)?;
     let mut targets = target_parameters
         .iter()
         .enumerate()
@@ -766,7 +754,7 @@ pub(crate) fn validate(
             caller_machine,
             caller_state,
             caller_operations,
-            *coordinate,
+            coordinate,
             authored.source_target,
             target,
             argument,

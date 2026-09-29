@@ -5,6 +5,7 @@ use super::super::super::{
     collect_installation_machine_contract_services, collect_service_summary, unsupported,
 };
 use super::super::{CheckedTrees, LoweringError};
+use checked_trees::CheckedUnitCallResult;
 
 use crate::unit::attached_unit::bodies::UnitBody;
 use crate::unit::attached_unit::shared_closure::ExternalUnitRoots;
@@ -34,25 +35,29 @@ pub(in crate::unit::attached_unit::composed_control) fn lower(
         .flat_map(|state| state.operation_dependencies())
         .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
     {
-        let reach = match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::StructuralCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::ScalarCall { service_reach, .. }
-            | CheckedUnitEffectOperationPlan::CallUnit { service_reach, .. } => *service_reach,
-            CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
-            | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
-            | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
-            | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
-            | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
-            | CheckedUnitEffectOperationPlan::AtomicAccess(_)
-            | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
-            | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
-            | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
-            | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => continue,
-            _ => return unsupported("composed root retained a non-call operation"),
+        // A boundary scalar call falls to the refusal with non-call operations.
+        let Some(call) = operation.call().filter(|call| {
+            !(call.is_boundary() && matches!(call.result(), CheckedUnitCallResult::Scalar(_)))
+        }) else {
+            match operation {
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
+                | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                | CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_)
+                | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                | CheckedUnitEffectOperationPlan::AtomicAccess(_)
+                | CheckedUnitEffectOperationPlan::EstablishStructuralValue { .. }
+                | CheckedUnitEffectOperationPlan::EstablishByteSequenceLiteral { .. }
+                | CheckedUnitEffectOperationPlan::EstablishViewSubslice { .. }
+                | CheckedUnitEffectOperationPlan::EstablishScalarLocal { .. } => continue,
+                _ => return unsupported("composed root retained a non-call operation"),
+            }
         };
-        collect_service_summary(&checked.facts.service_reaches.rows, reach, &mut services)?;
+        collect_service_summary(
+            &checked.facts.service_reaches.rows,
+            call.service_reach(),
+            &mut services,
+        )?;
     }
     let mut type_roots = attachment_type_identity
         .map(str::to_owned)

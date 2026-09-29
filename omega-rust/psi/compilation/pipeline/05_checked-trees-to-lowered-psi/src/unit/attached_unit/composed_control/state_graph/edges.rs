@@ -1102,34 +1102,8 @@ pub(super) fn return_discards(
     // order, before publication.
     let mut consumed = Vec::new();
     for operation in &state.operations {
-        let arguments = match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                ..
-            } => structural_arguments.as_slice(),
-            _ => &[],
-        };
-        for argument in arguments
+        for argument in operation
+            .call_structural_arguments()
             .iter()
             .filter(|argument| argument.access == checked_trees::CheckedStructuralAccess::Owned)
         {

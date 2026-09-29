@@ -63,16 +63,11 @@ pub(super) fn build(
         };
         let start = index;
         let root = (start..operations.len())
-            .find(|index| match &operations[*index] {
-                CheckedUnitEffectOperationPlan::StructuralCall { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::CallUnit { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::ScalarCall { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryCall { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall { coordinate, .. }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { coordinate, .. } => {
+            .find(|index| {
+                operations[*index].call().is_some_and(|call| {
+                    let coordinate = call.coordinate();
                     coordinate.statement_index == statement && coordinate.call_ordinal == 0
-                }
-                _ => false,
+                })
             })
             .ok_or(LoweringError::Unsupported(
                 "nested argument schedule has no enclosing call",
@@ -120,45 +115,14 @@ fn append(
         steps.push(Step::Constructor(index));
         return Ok(());
     }
-    let (coordinate, scalar_arguments, structural_arguments) = match &plan.operations[index] {
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            scalar_arguments,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            scalar_arguments,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::ScalarCall {
-            coordinate,
-            scalar_arguments,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            scalar_arguments,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            scalar_arguments,
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            scalar_arguments,
-            structural_arguments,
-            ..
-        } => (*coordinate, scalar_arguments, structural_arguments),
-        _ => return unsupported("nested argument schedule requires an ordinary or boundary call"),
+    let Some(call) = plan.operations[index].call() else {
+        return unsupported("nested argument schedule requires an ordinary or boundary call");
     };
+    let (coordinate, scalar_arguments, structural_arguments) = (
+        call.coordinate(),
+        call.scalar_arguments(),
+        call.structural_arguments(),
+    );
     let authored = crate::emission::call_source_custody::authored::locate_source(
         checked, plan.state, coordinate,
     )?;

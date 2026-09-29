@@ -784,39 +784,14 @@ impl Evaluation {
             .with_structural_locals(&self.structural_locals)
             .with_view_locals(&self.view_locals)
             .with_element_views(&self.element_views);
-        let (coordinate, arguments, boundary) = match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                coordinate,
-                scalar_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                coordinate,
-                scalar_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                coordinate,
-                scalar_arguments,
-                ..
-            } => (*coordinate, scalar_arguments, false),
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                coordinate,
-                scalar_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate,
-                scalar_arguments,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                coordinate,
-                scalar_arguments,
-                ..
-            } => (*coordinate, scalar_arguments, true),
-            _ => return Ok(None),
+        let Some(call) = operation.call() else {
+            return Ok(None);
         };
+        let (coordinate, arguments, boundary) = (
+            call.coordinate(),
+            call.scalar_arguments(),
+            call.is_boundary(),
+        );
         let (arguments, argument_ordinal_start) = match argument_ordinal {
             Some(ordinal) => {
                 let argument = arguments.get(ordinal).ok_or(LoweringError::Unsupported(
@@ -824,7 +799,7 @@ impl Evaluation {
                 ))?;
                 (std::slice::from_ref(argument), ordinal)
             }
-            None => (arguments.as_slice(), 0),
+            None => (arguments, 0),
         };
         let qualifications = prepare_shared_qualifications(checked, machine, values)?;
         let source_types = values
