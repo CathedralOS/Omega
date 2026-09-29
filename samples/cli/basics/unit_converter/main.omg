@@ -1,7 +1,7 @@
-// Unit converter. Exercises f32 and f64 scalar conversions:
+// Unit converter. Exercises f64 scalar conversions:
 // temperature (Celsius ↔ Fahrenheit ↔ Kelvin), distance (km ↔ miles),
-// and mass (kg ↔ lbs). Stresses f32 parameter passing, f64 arithmetic
-// chains, and cross-width casts.
+// and mass (kg ↔ lbs). Stresses f64 parameter passing, arithmetic
+// chains, and field-based tolerance checks.
 //
 // Conversion checks:
 //   100°C  → 212.0°F           (should be 212.0 ± 0.1)
@@ -14,6 +14,7 @@
 //
 // Expected exit: 70.
 
+use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
 

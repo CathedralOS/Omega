@@ -9,7 +9,7 @@
 //! call the author could have written by hand -- `left + right` becomes a
 //! `Call` on `Wrapped::add`'s entry state with the operands as its arguments,
 //! in operand order, evaluated once each.
-//! A bodyless boundary token machine has the same call shape but retains
+//! An ordinary bodyless boundary token machine has the same call shape but retains
 //! requirement supply: Psi emits its requirement call and Omega installs the
 //! selected provider. Its operator view never creates a second executable slot.
 //!
@@ -36,9 +36,11 @@
 //! collection place as the call receiver when the entry state's first
 //! parameter is `self`, matching the loan a named `collection.at(index)`
 //! forms; a token binding whose first operand is an ordinary parameter keeps
-//! the operands as ordinary arguments. Floating match equality already has an
-//! arm-local selected-comparison route: a bodyless requirement keeps that
-//! occurrence instead of becoming a call that would reevaluate its subject.
+//! the operands as ordinary arguments. Canonical floating comparisons already
+//! have a selected-comparison route, including arm-local match equality. A
+//! bodyless requirement keeps its exact occurrence and operands on that route:
+//! rewriting it to a bodyless call would erase the comparison computation,
+//! while reconstructing a match call would reevaluate its saved subject.
 //! Its provider still needs independent selection and realization. Body-bearing
 //! machines cannot use that route in place of executing their body. Open-ended
 //! range uses (`a[start..]`, `a[..]`) and other unsupported selections reject:
@@ -60,8 +62,8 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 use super::expression_type_reference_for_origin;
 
-/// Rewrite every resolved binary use of a token-bearing machine into an
-/// ordinary call on that machine's entry state.
+/// Bind resolved token-bearing machines to calls, retaining canonical bodyless
+/// float requirements on their selected-comparison route.
 pub(crate) fn bind_token_bound_machine_calls(
     program: &mut TypedTrees,
 ) -> Result<usize, Vec<Diagnostic>> {
@@ -92,13 +94,11 @@ pub(crate) fn bind_token_bound_machine_calls(
         {
             continue;
         }
-        // Match owns the saved subject and reached pattern. Its existing
-        // selected-comparison plan retains this exact arm and requirement;
-        // it is not a builtin-equality fallback or a machine-body execution.
-        if matches!(
-            operator_use.occurrence,
-            CheckedOperatorOccurrence::MatchEquality { .. }
-        ) && crate::lookup::machine_by_symbol(program, selected).is_some_and(|machine| {
+        // This classifier rejoins the exact selected declaration, signature,
+        // operands and occurrence, not merely the operator token. Preserve its
+        // computation and boundary application for independent provider replay;
+        // classification grants neither provider authority nor body execution.
+        if crate::lookup::machine_by_symbol(program, selected).is_some_and(|machine| {
             machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
                 && !machine.body_is_present
         }) && facts

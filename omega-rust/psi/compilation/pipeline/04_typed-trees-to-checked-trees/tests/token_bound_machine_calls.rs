@@ -32,6 +32,162 @@ const WRAPPED_ADD: &str = "data Wrapped { value: u8; }
     machine by_token(left: Wrapped, right: Wrapped) -> u64 { left + right }";
 
 #[test]
+fn free_boundary_token_requirements_retain_scalar_signatures_without_attachment() {
+    for attachment in ["", "data Float {}"] {
+        let checked = check(&format!(
+            "{attachment}
+             boundary machine * Float::multiply(left: f64, right: f64) -> f64;
+             machine convert(value: f64) -> f64 {{ value * 2.0 }}",
+        ))
+        .expect("a free requirement is legal source");
+        let requirement = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.spelling.is_some())
+            .unwrap();
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .boundary_machines
+            .iter()
+            .find(|plan| plan.machine == requirement.symbol)
+            .expect("a free boundary has a requirement plan without manufacturing attached data");
+        assert_eq!(
+            plan.attachment_type_identity.is_none(),
+            attachment.is_empty()
+        );
+        assert!(plan.structural_parameters.is_empty());
+        assert_eq!(plan.scalar_parameters.len(), 2);
+        assert!(plan.scalar_parameters.iter().all(|parameter|
+            parameter.primitive_type == typed_trees::types::PrimitiveType::F64
+        ));
+        assert_eq!(
+            plan.result.scalar(),
+            Some(typed_trees::types::PrimitiveType::F64)
+        );
+    }
+}
+
+#[test]
+fn canonical_float_comparisons_retain_exact_requirement_and_operand_identity() {
+    for format in ["f32", "f64"] {
+        for (token, name) in [
+            ("==", "equal"),
+            ("!=", "not_equal"),
+            ("<", "less"),
+            ("<=", "less_or_equal"),
+            (">", "greater"),
+            (">=", "greater_or_equal"),
+        ] {
+            let checked = check(&format!(
+                "boundary machine {token} Float::{name}(left: {format}, right: {format}) -> bool;
+                 machine compare(left: {format}, right: {format}) -> bool {{ left {token} right }}"
+            ))
+            .expect("selected bodyless comparison retains its computation");
+            let requirement = checked
+                .machines()
+                .iter()
+                .find(|machine| machine.name.as_str() == format!("Float::{name}"))
+                .expect("declared requirement");
+            let selected = checked
+                .facts
+                .operators
+                .uses
+                .iter()
+                .filter(|(_, selected)| selected.selected_operator_symbol == requirement.symbol)
+                .collect::<Vec<_>>();
+            assert_eq!(selected.len(), 1, "{format} {token}");
+            let (handle, selected) = selected[0];
+            assert!(
+                checked
+                    .facts
+                    .operators
+                    .selected_float_comparison(&checked.typed, handle)
+                    .is_some()
+            );
+            let ExpressionNode::Binary(binary) =
+                checked.expression_table.expression(selected.expression)
+            else {
+                panic!("a selected comparison must not become a bodyless call");
+            };
+            assert_eq!(
+                selected.operands(&checked.typed).unwrap(),
+                [binary.left, binary.right]
+            );
+            assert!(
+                checked
+                    .facts
+                    .operators
+                    .boundary_applications
+                    .iter()
+                    .any(
+                        |application| application.site == selected.application_site()
+                            && application.requirement_symbol == requirement.symbol
+                    )
+            );
+        }
+    }
+}
+
+#[test]
+fn noncanonical_boundary_float_tokens_remain_calls() {
+    for declaration in [
+        "boundary machine > Other::greater(left: f64, right: f64) -> bool;",
+        "boundary machine > Float::different(left: f64, right: f64) -> bool;",
+    ] {
+        let checked = check(&format!(
+            "{declaration}
+             machine compare(left: f64, right: f64) -> bool {{ left > right }}"
+        ))
+        .expect("ordinary token supply");
+        let requirement = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.spelling.is_some())
+            .expect("token declaration");
+        let entry = checked.machine_states(requirement)[0].symbol;
+        assert!(checked.expression_table.iter_expressions().any(|(_, expression)|
+            matches!(expression, ExpressionNode::Call(call) if call.target_symbol == entry)
+        ), "{declaration}");
+        assert!(checked.facts.operators.uses.iter().all(|(handle, _)| {
+            checked
+                .facts
+                .operators
+                .selected_float_comparison(&checked.typed, handle)
+                .is_none()
+        }));
+    }
+}
+
+#[test]
+fn retained_float_comparisons_still_owe_requirements_and_unique_selection() {
+    for (declarations, expected) in [
+        (
+            "boundary machine > Float::greater(left: f64, right: f64) -> bool requires false;",
+            "requires",
+        ),
+        (
+            "boundary machine > Float::greater(left: f64, right: f64) -> bool;
+          boundary machine > Other::greater(left: f64, right: f64) -> bool;",
+            "ambiguous",
+        ),
+    ] {
+        let diagnostics = check(&format!(
+            "{declarations}
+             machine compare(left: f64, right: f64) -> bool {{ left > right }}"
+        ))
+        .expect_err("retaining a comparison cannot bypass admission");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains(expected)),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn binary_token_use_becomes_an_ordinary_call_on_the_declaration_entry() {
     let checked = check(WRAPPED_ADD).expect("the token use binds the declaration body");
     let add = checked

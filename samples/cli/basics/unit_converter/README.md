@@ -12,7 +12,18 @@ Conversion checks verified at runtime:
 | 10 km | miles | ~6.21 |
 | 5 kg | lbs | ~11.02 |
 
-All checks pass via guard ladders and the program exits 70.
+The guard ladders require every conversion to fall within its authored tolerance;
+success exits 70 and a failed check exits 71–80.
+
+Run the complete program after reviewing its package inputs:
+
+```sh
+omega run samples/cli/basics/unit_converter/main.omg
+```
+
+Native compilation currently stops at nested boundary-call composition in
+`celsius_to_fahrenheit`. Ordinary float arithmetic also needs native builtin
+installation; a successful checked comparison alone does not close this sample.
 
 ## What it tests
 
