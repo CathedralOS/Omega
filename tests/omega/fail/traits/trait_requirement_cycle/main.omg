@@ -24,5 +24,5 @@ machine Thing::b(&mut self) satisfies B::b {
     self.value = 2;
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
 }

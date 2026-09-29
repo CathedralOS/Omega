@@ -2,6 +2,6 @@
 // code may realize checked machine returns, but a user block must expose every
 // edge through Omega control flow.
 data Main {}
-machine Main::main(&mut self) {
+machine Main::main() {
     asm { ret }
 }

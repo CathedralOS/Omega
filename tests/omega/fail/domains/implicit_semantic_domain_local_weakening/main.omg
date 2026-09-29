@@ -7,7 +7,7 @@ machine + i32::Degrees::add(left: i32, right: i32) -> i32 {
 data Main {
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
     let degrees: i32 in Degrees = 90 as i32 in Degrees;
     let raw: i32 = degrees;
 }

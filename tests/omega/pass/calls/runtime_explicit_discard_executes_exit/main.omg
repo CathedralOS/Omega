@@ -17,7 +17,6 @@ data Main {
 }
 
 machine Main::roll(
-    &mut self,
     tally: &mut Tally
     ) -> bool {
     tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
@@ -36,7 +35,7 @@ machine Main::main(&mut self) reaches Console {
     }
 
     state discard_call(&mut self) {
-        _ = self.roll(&mut self.tally);
+        _ = Main::roll(&mut self.tally);
 
         transition {
             _ -> report()

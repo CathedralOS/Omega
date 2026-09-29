@@ -137,7 +137,7 @@ boundary requirement Submission::release(self);
 // request asks for a transition, it is not proof the worker stopped and it
 // discharges nothing (Task::request_cancel's shape). The linear claim must
 // still be settled exactly once after this call.
-machine Ticket::request_cancel(&self) { }
+machine Ticket::request_cancel() { }
 
 // The hung-worker recovery boundary: a provider satisfying this contract
 // runs workers under process isolation — forcible termination and fault
@@ -193,7 +193,7 @@ machine submit(submission: Submission, claim: Ticket, executor_open: bool) -> Su
         SubmitOutcome::Accepted { ticket: claim }
     }
 
-    state refuse(&mut self, submission: Submission, claim: Ticket) {
+    state refuse(submission: Submission, claim: Ticket) {
         Ticket::release(claim);
         SubmitOutcome::Rejected {
             submission: submission,
@@ -228,7 +228,7 @@ machine Main::probe(&mut self) reaches WorkerProvider suspends; blocks; {
     let ticket: Ticket = Ticket { executor: 0, slot: 0 };
     // Cancel-request borrows the claim and retains it: the claim still
     // discharges exactly once at `settle` below.
-    ticket.request_cancel();
+    Ticket::request_cancel();
     let settled: ExecutorOutcome =
         suspend block ticket.settle(self.executor.wait_word);
     ExecutorOutcome::release(settled);
@@ -248,4 +248,4 @@ machine Main::probe(&mut self) reaches WorkerProvider suspends; blocks; {
     SubmitOutcome::release(submitted);
 }
 
-machine Main::main(&mut self) { }
+machine Main::main() { }

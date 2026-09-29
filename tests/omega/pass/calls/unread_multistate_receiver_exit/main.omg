@@ -9,7 +9,7 @@ data Main {
 
 machine Cell::get(&self) -> i32 {
     transition { _ -> done() }
-    state done(&self) -> i32 { 70 }
+    state done() -> i32 { 70 }
 }
 
 machine Main::main(&mut self) reaches Console {

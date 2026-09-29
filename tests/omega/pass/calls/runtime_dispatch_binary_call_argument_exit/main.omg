@@ -12,7 +12,7 @@ data Builder { }
 data Main { console: Binding<Console>; builder: Builder; level: Level; }
 
 machine Main::main(&mut self) reaches Console {
-    self.builder.build(&mut self.level);
+    Builder::build(&mut self.level);
     transition self.level.rooms[2].tag == 103 {
         true -> good()
         _ -> bad()
@@ -20,7 +20,7 @@ machine Main::main(&mut self) reaches Console {
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }
 }
-machine Builder::build(&mut self, level: &mut Level) {
+machine Builder::build(level: &mut Level) {
     level.room_count = 4;
     transition { _ -> carve_at(level, 0) }
     state carve_at(level: &mut Level, index: u64 [0..=3]) {

@@ -8,7 +8,7 @@ data Counter {
     n: u64;
 }
 
-machine Counter::count(&mut self, step: u64) -> u64
+machine Counter::count(step: u64) -> u64
     requires step < 100
 {
     transition {
@@ -18,6 +18,6 @@ machine Counter::count(&mut self, step: u64) -> u64
 
 machine Counter::run(counter: &mut Counter) -> u64 {
     transition {
-        _ -> counter.count(5)
+        _ -> Counter::count(5)
     }
 }

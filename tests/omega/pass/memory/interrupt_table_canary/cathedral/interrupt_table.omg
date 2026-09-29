@@ -60,7 +60,7 @@ pub data InterruptGate {
 // scalar's declared source width exactly.
 pub data InterruptGateLayout {
 }
-machine InterruptGateLayout::plan(&mut self, schema: Schema) -> Plan {
+machine InterruptGateLayout::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     // `entry` (fields[0], u64): the sealed offset, split across the wire's
     // three disjoint destination containers.
@@ -161,14 +161,14 @@ terminates by fuel;
     let entries: [FieldEntry; 64];
     transition { _ -> fill(schema, entries, fuel, 0) }
 
-    state fill(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
+    state fill(schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
         transition fuel > 1 && index < 33 {
             true -> place(schema, entries, fuel - 1, index)
             _ -> done(schema, entries)
         }
     }
 
-    state place(&mut self, schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
+    state place(schema: Schema, entries: [FieldEntry; 64], fuel: u64 [1..=128], index: u64 in Wrapping) {
         let mut updated: [FieldEntry; 64] = entries;
         updated[index] = FieldEntry {
             key: schema.fields[0].key,
@@ -180,7 +180,7 @@ terminates by fuel;
         }
     }
 
-    state done(&mut self, schema: Schema, entries: [FieldEntry; 64]) -> Plan {
+    state done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {
             entries: entries,
             entry_count: 33,

@@ -26,7 +26,7 @@ machine Transition::equals(&self, other: &Transition) -> bool {
             Transition::Second -> (false)
         }
     }
-    state second(&self, other: &Transition) -> bool {
+    state second(other: &Transition) -> bool {
         transition other {
             Transition::Second -> (true)
             Transition::First -> (false)

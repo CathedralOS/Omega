@@ -26,7 +26,7 @@ machine Wrap::get_count(&self) -> u64 {
         Wrap::Has { list } -> at(list)
         _ -> (0)
     }
-    state at(&self, list: ItemList) -> u64 {
+    state at(list: ItemList) -> u64 {
         list.get_count()
     }
 }

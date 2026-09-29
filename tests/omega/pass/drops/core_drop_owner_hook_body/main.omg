@@ -38,7 +38,7 @@ data Carrier {
 data Main {
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
     let g: Guard = Guard { handle: 7 };
     let c: Carrier = Carrier { payload: 1 };
     drop(g);

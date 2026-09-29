@@ -24,7 +24,7 @@ data Helper { seed: i32; }
 
 uefi_x86_64 machine Helper::record_paradigm_event(&mut self) {
     transition { _ -> done() }
-    state done(&mut self) { }
+    state done() { }
 }
 
 data Main { console: Binding<Console>; helper: Helper; }

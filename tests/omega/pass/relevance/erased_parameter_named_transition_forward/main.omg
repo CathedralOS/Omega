@@ -17,7 +17,7 @@ requires
     n < bound
 {
     transition { _ -> store(n, bound) }
-    state store(&mut self, n: i32, bound [erased]: i32)
+    state store(n: i32, bound [erased]: i32)
     requires
         n < bound
     {

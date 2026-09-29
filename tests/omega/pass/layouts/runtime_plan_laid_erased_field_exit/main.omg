@@ -55,7 +55,7 @@ terminates by fuel;
         self.index = self.index + 1;
         transition fuel > 1 { true -> fill(schema, fuel - 1, updated) _ -> done(schema, updated) }
     }
-    state done(&mut self, schema: Schema, entries: [FieldEntry; 64]) -> Plan {
+    state done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {
             entries: entries,
             entry_count: schema.field_count,

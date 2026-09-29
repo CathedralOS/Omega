@@ -37,7 +37,7 @@ machine Loader::run(
         transition { _ -> retain(image, storage) }
     }
 
-    state retain(&mut self, image: Extent, storage: Extent) {
+    state retain(image: Extent, storage: Extent) {
         transition { _ -> retain(image, storage) }
     }
 }

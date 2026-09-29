@@ -1,4 +1,4 @@
-// `let v = self.next(&mut state)` where the callee mutates the state and
+// `let v = Main::next(&mut state)` where the callee mutates the state and
 // returns the NEW value must deliver the POST-mutation value (interpreter
 // semantics). Pre-fix the native backend emitted the call-result value
 // selection at the StateCall body operation, BEFORE the splice's flattened
@@ -20,7 +20,6 @@ data Main {
 }
 
 machine Main::next(
-    &mut self,
     tally: &mut Tally
     ) -> u32 {
     tally.calls = ((tally.calls as u64 in Wrapping) + 1) as u64;
@@ -33,7 +32,7 @@ machine Main::next(
 machine Main::main(&mut self) reaches Console {
     self.tally.calls = 40;
     self.tally.pad = 0;
-    let v: u32 = self.next(&mut self.tally);
+    let v: u32 = Main::next(&mut self.tally);
 
     transition {
         v == 41 -> exit_post()

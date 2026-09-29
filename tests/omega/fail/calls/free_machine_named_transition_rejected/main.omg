@@ -9,7 +9,7 @@ machine scan(value: u64) {
 data Main {
 }
 
-machine Main::main(&mut self) {
+machine Main::main() {
     transition {
         _ -> scan(1)
     }

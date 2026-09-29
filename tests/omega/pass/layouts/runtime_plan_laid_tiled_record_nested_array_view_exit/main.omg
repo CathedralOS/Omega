@@ -8,7 +8,7 @@ use omega::language::core::binding;
 
 data TiledRecordNestedArray { }
 
-machine TiledRecordNestedArray::plan(&mut self, schema: Schema) -> Plan {
+machine TiledRecordNestedArray::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,

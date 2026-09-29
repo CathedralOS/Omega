@@ -15,7 +15,7 @@ WrongLayoutSlot:
 data Spread {
 }
 
-machine Spread::plan(&mut self, schema: Schema) -> Plan {
+machine Spread::plan(schema: Schema) -> Plan {
     let mut entries: [FieldEntry; 64];
     entries[0] = FieldEntry {
         key: schema.fields[0].key,
@@ -33,4 +33,4 @@ machine Spread::plan(&mut self, schema: Schema) -> Plan {
 
 data ForeignRecord { payload: u64; }
 data Main { value: Spread<ForeignRecord>; }
-machine Main::main(&mut self) { }
+machine Main::main() { }

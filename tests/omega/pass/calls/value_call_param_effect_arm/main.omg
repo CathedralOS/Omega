@@ -19,7 +19,7 @@ machine Picker::pick(&self, x: i32, tally: &mut Tally) -> i32 {
         tally.count = tally.count + 1;
         100
     }
-    state lo(&self, tally: &mut Tally) -> i32 {
+    state lo(tally: &mut Tally) -> i32 {
         tally.count = tally.count + 10;
         200
     }

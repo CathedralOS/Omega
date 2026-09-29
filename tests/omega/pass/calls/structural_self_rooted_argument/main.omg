@@ -15,4 +15,4 @@ machine Filter::cloned_count(filter: &Filter) -> u64 {
     cloned.count
 }
 
-machine Main::main(&mut self) { }
+machine Main::main() { }

@@ -5,6 +5,6 @@ use omega::language::core::assembly;
 
 data Main {}
 
-machine Main::main(&mut self) reaches MachineControl {
+machine Main::main() reaches MachineControl {
     asm { cli }
 }

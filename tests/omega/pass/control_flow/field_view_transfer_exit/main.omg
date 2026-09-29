@@ -48,7 +48,7 @@ machine Store::probe<'ext>(&mut self) -> u64 {
         transition { _ -> (70) }
     }
 
-    state missed(&mut self) -> u64 {
+    state missed() -> u64 {
         transition { _ -> (9) }
     }
 }

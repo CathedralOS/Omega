@@ -13,4 +13,4 @@ machine Counter::bump(&self) {
 
 data Main {}
 
-machine Main::main(&mut self) {}
+machine Main::main() {}

@@ -11,7 +11,7 @@ data Main {
     items: [Item; 2];
 }
 
-machine Main::mark_valid(&mut self, item: &mut Item)
+machine Main::mark_valid(item: &mut Item)
 ensures
     item in Item::Valid
 {
@@ -24,13 +24,13 @@ requires
 {
 }
 
-machine Main::identity_index(&mut self, index: u64) -> u64 {
+machine Main::identity_index(index: u64) -> u64 {
     index
 }
 
 machine Main::main(&mut self) {
-    let index: u64 = self.identity_index(1);
-    self.mark_valid(&mut self.items[0]);
+    let index: u64 = Main::identity_index(1);
+    Main::mark_valid(&mut self.items[0]);
     self.items[index].value = 0;
     self.accept(self.items[0]);
 }

@@ -38,7 +38,6 @@ machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
     transition { _ -> place_status(schema, access, entries) }
 
     state place_status(
-        &mut self,
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]
@@ -58,7 +57,6 @@ machine RegPlacement::plan(&mut self, schema: Schema) -> PlacementPlan {
     }
 
     state place_transmit(
-        &mut self,
         schema: Schema,
         access: AccessPlan,
         entries: [FieldEntry; 64]

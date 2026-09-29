@@ -24,7 +24,7 @@ machine Main::main(&mut self, yv_in: i32) reaches Console {
         let w: i32 = self.yv;
         transition { _ -> store(w) }
     }
-    state store(&mut self, v: i32) requires v >= 0 && v <= 9 {
+    state store(v: i32) requires v >= 0 && v <= 9 {
         let mut y: i32 = v;
         transition y == 7 { true -> m() false -> m() }
     }

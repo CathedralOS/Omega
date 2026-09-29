@@ -40,7 +40,7 @@ machine Streamy::plan(&mut self, schema: Schema) -> Plan {
     entries[1] = FieldEntry { key: schema.fields[1].key, placement: FieldPlan::At { offset: 4 } };
     transition { _ -> done(schema, entries) }
 
-    state done(&mut self, schema: Schema, entries: [FieldEntry; 64]) -> Plan {
+    state done(schema: Schema, entries: [FieldEntry; 64]) -> Plan {
         Plan {
             entries: entries,
             entry_count: schema.field_count,

@@ -5,7 +5,7 @@ data Main {
     value: i32;
 }
 
-machine Main::roll(&mut self) -> bool {
+machine Main::roll() -> bool {
     transition {
         _ -> true
     }
@@ -17,7 +17,7 @@ machine Main::main(&mut self) -> i32 {
     }
 
     state drop_result(&mut self) {
-        self.roll();
+        Main::roll();
 
         transition {
             _ -> shutdown()

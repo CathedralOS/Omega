@@ -25,4 +25,4 @@ machine Main::probe(&mut self) reaches TaskRuntime {
     _ = suspend block Task::settle(task);
 }
 
-machine Main::main(&mut self) { }
+machine Main::main() { }

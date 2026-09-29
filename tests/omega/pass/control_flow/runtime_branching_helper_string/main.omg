@@ -1,4 +1,4 @@
-// Respelled from the retired nested self-call shape (`self.out = self.pick(flag)`);
+// Respelled from the retired nested self-call shape (`self.out = Main::pick(flag)`);
 // the direct let-call root is the admitted surface. Both spellings must reach one
 // verdict: `pick` returns only string literals, so the loan outlives every state
 // and the persistent-field store is admitted whether the call is written inline or
@@ -12,11 +12,11 @@ data Main {
 
 machine Main::main(&mut self) {
     let flag: bool = true;
-    let picked: &[u8] in Utf8 = self.pick(flag);
+    let picked: &[u8] in Utf8 = Main::pick(flag);
     self.out = picked;
 }
 
-machine Main::pick(&mut self, flag: bool) -> &[u8] in Utf8 {
+machine Main::pick(flag: bool) -> &[u8] in Utf8 {
     transition flag {
         true -> "Gate"
         false -> "Branch Room"

@@ -19,7 +19,6 @@ data Main {
 }
 
 machine Main::main<'left, 'right>(
-    &mut self,
     first: &'left mut i32,
     second: &'right mut i32
 ) {

@@ -2,7 +2,6 @@ data Main {
 }
 
 machine Main::main(
-    &mut self,
     out: &mut i32
 ) {
     let a: i32 = 2;

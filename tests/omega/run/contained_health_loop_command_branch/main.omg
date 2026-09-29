@@ -78,7 +78,7 @@ machine Game::run(&mut self) reaches Console {
         transition { _ -> prompt() }
     }
 
-    state finished(&mut self) {
+    state finished() {
     }
 }
 

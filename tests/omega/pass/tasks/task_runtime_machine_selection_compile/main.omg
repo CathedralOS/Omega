@@ -67,4 +67,4 @@ machine Main::probe(&mut self) reaches TokenIssuer + TaskRuntime {
     _ = suspend block Task::settle(retry_task);
 }
 
-machine Main::main(&mut self) { }
+machine Main::main() { }

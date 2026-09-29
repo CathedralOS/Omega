@@ -2,6 +2,6 @@ machine accept(value: f64[0.0..1.5]) -> f64 { value }
 
 data Main {}
 
-machine Main::main(&mut self) {
+machine Main::main() {
     _ = accept(1.5);
 }
