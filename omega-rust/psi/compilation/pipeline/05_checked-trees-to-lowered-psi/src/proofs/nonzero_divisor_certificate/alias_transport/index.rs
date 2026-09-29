@@ -3,8 +3,12 @@
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
 mod bounds;
+mod equalities;
+mod relations;
 
 pub(super) use bounds::indexed_bounds;
+pub(super) use equalities::indexed_equalities;
+pub(super) use relations::indexed_relations;
 
 pub(super) fn distinct_same_carrier_subjects(left: &ScalarTerm, right: &ScalarTerm) -> bool {
     // Two fresh reads can share a still-current field observation. Only cited
