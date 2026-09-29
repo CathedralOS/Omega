@@ -459,7 +459,7 @@ static FACT_INTEGER_FIELD_READ_RANGE: TrustedSurfaceEntry = TrustedSurfaceEntry 
     id: "fact:integer-structural-field-read-range",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an integer structural field read over a referent whose declared field interval is valid, including a bounded payload field of a proved-active case",
+    premises: "an integer structural field read over a referent whose declared field interval is valid, including a bounded payload field of a proved-active case and a mixed shape's common field",
     conclusion: "the read's SSA value carries the declared interval as LessOrEqual bounds, surviving later writes",
     dependencies: &["fact:scalar-carrier-bounds"],
     implementation: &[

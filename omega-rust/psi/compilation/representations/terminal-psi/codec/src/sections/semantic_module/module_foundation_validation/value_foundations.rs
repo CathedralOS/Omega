@@ -142,27 +142,34 @@ pub(super) fn validate_establish_structural_case(
     else {
         return malformed("structural case establishment has an unknown structural type");
     };
-    let cases = match &declaration.shape {
-        StructuralTypeShape::Sum { cases } => cases,
-        // Erased owner members keep the union's mixed declaration shape
-        // without a runtime field list: a case establishment writes the tag
-        // and the case's payload alone, the same as a closed sum.
+    // A mixed case binds its runtime common fields in declaration order, then
+    // the selected payload; erased common members take no roster position,
+    // so an all-erased union binds the payload alone as a closed sum does.
+    // Runtime common fields must be relevant scalars, matching verification.
+    let (common, cases) = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => (&[][..], cases),
         StructuralTypeShape::Mixed { fields, cases }
-            if fields
-                .iter()
-                .all(|field| matches!(field.field_type, StructuralFieldType::Erased { .. })) =>
+            if fields.iter().all(|field| {
+                matches!(field.field_type, StructuralFieldType::Erased { .. })
+                    || (!field.relevance.is_erased() && field.field_type.scalar_type().is_some())
+            }) =>
         {
-            cases
+            (fields.as_slice(), cases)
         }
         _ => return malformed("structural case establishment requires a sum type"),
     };
     let Some(selected) = cases.iter().find(|case| case.id == *result_case) else {
         return malformed("structural case establishment requires an exact member");
     };
-    if selected.fields.len() != fields.len() {
+    let roster = common
+        .iter()
+        .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
+        .chain(&selected.fields)
+        .collect::<Vec<_>>();
+    if roster.len() != fields.len() {
         return malformed("structural case establishment requires every selected field");
     }
-    for (declaration, field) in selected.fields.iter().zip(fields) {
+    for (declaration, field) in roster.into_iter().zip(fields) {
         if declaration.id != field.field || declaration.relevance.is_erased() {
             return malformed("structural case establishment has an invalid field binding");
         }

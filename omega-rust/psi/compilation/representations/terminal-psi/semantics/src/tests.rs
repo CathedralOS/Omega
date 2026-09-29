@@ -229,3 +229,67 @@ fn constant_leaf_evaluates_comparisons_and_rejects_nonleaf_rows() {
         None
     );
 }
+
+/// A mixed shape's common field is observed directly on its carrier, and a
+/// payload field only beneath its `Case` step. Both use field id 1 here, so the
+/// path alone decides which namespace the observation reads.
+#[test]
+fn a_mixed_common_field_is_observed_without_a_case_step() {
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, StructuralCaseId, StructuralFieldId, StructuralTypeId,
+    };
+    use terminal_psi::{
+        BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
+        StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
+    };
+    let field = |id, identity: &str, scalar_type| StructuralFieldDeclaration {
+        id: StructuralFieldId::new(id).expect("field id"),
+        identity: identity.to_owned(),
+        relevance: BindingRelevance::Relevant,
+        field_type: StructuralFieldType::Scalar(scalar_type),
+    };
+    let root = StructuralTypeId::new(1).expect("root");
+    let event = StructuralTypeId::new(2).expect("event");
+    let treasure = StructuralCaseId::new(1).expect("treasure");
+    let types = [
+        StructuralTypeDeclaration {
+            id: root,
+            identity: "Main".to_owned(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).expect("event field"),
+                    identity: "event".to_owned(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Structural(event),
+                }],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: event,
+            identity: "Event".to_owned(),
+            shape: StructuralTypeShape::Mixed {
+                fields: vec![field(1, "consumed", ScalarType::Boolean)],
+                cases: vec![StructuralCaseDeclaration {
+                    id: treasure,
+                    identity: "Treasure".to_owned(),
+                    fields: vec![field(1, "gold", i8_type())],
+                }],
+            },
+        },
+    ];
+    let carrier = CanonicalStructuralPathSegment::Field(StructuralFieldId::new(1).expect("event"));
+    let id = StructuralFieldId::new(1).expect("field id");
+    let common = crate::observed_field_declaration(types.iter(), root, &[carrier.clone()], id)
+        .expect("the common field resolves on the mixed carrier");
+    assert_eq!(common.identity, "consumed");
+    let payload = crate::observed_field_declaration(
+        types.iter(),
+        root,
+        &[carrier.clone(), CanonicalStructuralPathSegment::Case(treasure)],
+        id,
+    )
+    .expect("the payload field resolves beneath its case");
+    assert_eq!(payload.identity, "gold");
+    let record = crate::record_field_carrier(types.iter(), root, &[carrier]).expect("carrier");
+    assert_eq!(record.structural_type, event);
+}
