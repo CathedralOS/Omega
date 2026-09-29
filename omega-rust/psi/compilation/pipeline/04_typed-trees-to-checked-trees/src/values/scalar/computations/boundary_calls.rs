@@ -25,9 +25,11 @@ impl Builder<'_, '_> {
     /// Destinations whose statement already owns a whole-value boundary call
     /// as its result operation. Building a node there would sequence the same
     /// occurrence twice: once by the statement and once by the computation.
-    /// Parentheses and casts around the call (`(x as i32 in Saturating) as
-    /// i32`) leave it the statement's value; the statement route applies the
-    /// cast to the bound result.
+    /// Parentheses and payload-preserving casts around the call leave it the
+    /// statement's value. An explicit erasure of the call's arithmetic policy
+    /// (`I32::from_f64(x) as i32`, including the conversion a
+    /// `(x as i32 in Saturating) as i32` cast binds to) is instead a
+    /// computation: see [`Self::policy_erased_boundary_call`].
     pub(super) fn statement_owns_boundary_call(
         &self,
         role: CheckedScalarExpressionRole,
@@ -54,6 +56,9 @@ impl Builder<'_, '_> {
             }
             match self.program.expression_table.expression(expression) {
                 ExpressionNode::Atomic(atomic) => expression = atomic.value,
+                ExpressionNode::Cast(_) if self.policy_erasure_operand(expression).is_some() => {
+                    return false;
+                }
                 ExpressionNode::Cast(cast) => expression = cast.value,
                 ExpressionNode::Call(call) => break call,
                 _ => return false,
@@ -64,6 +69,65 @@ impl Builder<'_, '_> {
                 .is_some_and(|(machine, _)| {
                     machine.supply_mode.is_boundary_declaration() && !machine.body_is_present
                 })
+    }
+
+    /// `I32::from_f64(x) as i32`: an Exact, same-carrier cast that erases only
+    /// the arithmetic policy of a boundary application's result
+    /// (`i32 in Saturating`). Policy qualification changes later arithmetic,
+    /// never the stored payload
+    /// ([exact coercion](../../../../../../../../wiki/spec/language/domains.md#exact-coercion-and-erasure)),
+    /// so the erasure adds no operation: the application node is the value
+    /// and its result feeds the consumer directly. Stage 05 rejoins the
+    /// application's occurrence through the cast, which carries no semantic
+    /// atom. A cast that erases a declared domain, changes carrier or adds a
+    /// policy keeps its own route.
+    pub(super) fn policy_erased_boundary_call(
+        &mut self,
+        expression: ExpressionHandle,
+        expected_type: PrimitiveType,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let operand = self.policy_erasure_operand(expression)?;
+        if self.program.primitive_type_reference(
+            match self.program.expression_table.expression(expression) {
+                ExpressionNode::Cast(cast) => cast.target_type,
+                _ => return None,
+            },
+        ) != Some(expected_type)
+        {
+            return None;
+        }
+        self.expression(operand, expected_type)
+    }
+
+    /// The operand of `expression` when it is an Exact cast whose operand is a
+    /// bodyless boundary application returning the cast's carrier under an
+    /// arithmetic policy and no declared domain.
+    pub(super) fn policy_erasure_operand(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ExpressionHandle> {
+        let ExpressionNode::Cast(cast) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        if cast.form.is_recast()
+            || !cast.semantic_domain.is_empty()
+            || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+            || !self.is_bodyless_boundary_call(cast.value)
+        {
+            return None;
+        }
+        let target = self.program.primitive_type_reference(cast.target_type)?;
+        let operand_type =
+            super::semantic_casts::result_type(self.program, self.state, cast.value)?;
+        (self
+            .program
+            .type_reference_table
+            .arithmetic_domain(operand_type)
+            != numerics::arithmetic::ArithmeticDomain::Exact
+            && !super::semantic_casts::has_declared_domains(self.program, operand_type)
+            && policy_carrier(self.program, operand_type) == Some(target))
+        .then_some(cast.value)
     }
 
     /// A nested application of a bodyless `boundary machine` declaration.
@@ -149,7 +213,9 @@ impl Builder<'_, '_> {
         operands: &[ExpressionHandle],
         expected_type: PrimitiveType,
     ) -> Option<CheckedScalarComputationHandle> {
-        if self.program.primitive_type_reference(return_type)? != expected_type
+        // A policy-qualified result (`i32 in Saturating`) reaches this node only
+        // through its explicit erasure; the carrier is the executed value.
+        if policy_carrier(self.program, return_type)? != expected_type
             || operands.len() != parameters.len()
         {
             return None;
@@ -199,4 +265,34 @@ pub(super) fn boundary_operator(
         .operators()
         .iter()
         .find(|operator| operator.symbol == target && operator.is_boundary)
+}
+
+/// The primitive carrier of a type that is bare or qualified only by an
+/// arithmetic policy. Declared domains and ranges keep their own custody.
+fn policy_carrier(
+    program: &typed_trees::TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<PrimitiveType> {
+    if let Some(primitive) = program.primitive_type_reference(reference) {
+        return Some(primitive);
+    }
+    let typed_trees::types::TypeReferenceNode::Constrained {
+        base_type,
+        constraints,
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    program
+        .type_reference_table
+        .constraints(*constraints)
+        .iter()
+        .all(|constraint| {
+            matches!(
+                constraint,
+                typed_trees::types::TypeConstraintNode::ArithmeticDomain(_)
+            )
+        })
+        .then(|| program.primitive_type_reference(*base_type))
+        .flatten()
 }

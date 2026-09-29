@@ -955,6 +955,9 @@ impl Builder<'_, '_> {
             return (field.primitive_type == expected_type)
                 .then(|| self.structural_field(expression, field));
         }
+        if let Some(application) = self.policy_erased_boundary_call(expression, expected_type) {
+            return Some(application);
+        }
         if let ExpressionNode::Cast(cast) =
             self.program.expression_table.expression(expression).clone()
             && cast.semantic_domain.is_empty()
