@@ -1,0 +1,34 @@
+// Both receiver and explicit argument loans select the runtime array element.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cell { value: u64 in Wrapping; }
+data Main { console: Binding<Console>; cells: [Cell; 4]; }
+
+machine Cell::read(&self) -> u64 in Wrapping { self.value }
+machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }
+
+machine Main::probe(&self, position: u64) -> bool {
+    transition position < 4 {
+        true -> read(position)
+        false -> (false)
+    }
+    state read(&self, position: u64) -> bool {
+        let receiver: u64 in Wrapping = self.cells[position].read() + 1;
+        let argument: u64 in Wrapping = read_cell(&self.cells[position]) + 1;
+        receiver == 70 && argument == 70
+    }
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.cells[2].value = 69;
+    let selected: bool = self.probe(2);
+    let other: bool = self.probe(1);
+    let outside: bool = self.probe(4);
+    transition selected && !other && !outside {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

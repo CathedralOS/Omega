@@ -130,6 +130,7 @@ pass/calls/runtime_enum_self_method_exit rejected 814ms
 pass/calls/runtime_explicit_discard_executes_exit checked 860ms
 pass/calls/runtime_guard_call_vs_call_exit checked 1168ms
 pass/calls/runtime_guarded_effectful_transition_argument_exit checked 1192ms @df0288f59fd+wt
+pass/calls/runtime_indexed_scalar_calls_exit checked 899ms @68f254e61364+wt
 pass/calls/runtime_let_mut_reassign_exit checked 809ms
 pass/calls/runtime_lifetime_only_constructor_result_exit checked 854ms
 pass/calls/runtime_loop_rotation_exit checked 860ms

@@ -86,7 +86,7 @@ impl ScalarBindings {
     /// The place half of `shared_structural_argument`: the custody checks and
     /// source-to-place resolution, without the path lower. Callers whose
     /// checked path carries a `RuntimeIndex` lower it through
-    /// `parameters::lower_argument_path` instead of `lower_structural_path`.
+    /// `structural_paths::lower_argument_path` instead of `lower_structural_path`.
     pub(crate) fn shared_structural_place(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -102,7 +102,7 @@ impl ScalarBindings {
     /// Resolve an established home under the requested loan. Source replay owns
     /// the authored permission; this join independently bounds it by the access
     /// retained on the emitted storage itself.
-    fn borrowed_structural_place(
+    pub(crate) fn borrowed_structural_place(
         &self,
         argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
         machine: &checked_trees::machine::Machine,

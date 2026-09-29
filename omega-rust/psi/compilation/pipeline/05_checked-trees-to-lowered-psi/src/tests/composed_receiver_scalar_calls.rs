@@ -1,5 +1,5 @@
-//! A composed state's scalar call through a receiver formal (`self.m()` or
-//! `self.field.m()`): admission binds the receiver formal to the call's
+//! A composed state's scalar call through a whole or projected receiver,
+//! including a runtime array element: admission binds the receiver formal to the call's
 //! receiver expression, which the authored argument list never holds
 //! (`AuthoredCall::structural_argument`), and requires a parameter operand to
 //! name that exact place (`composed_control/admission.rs`). The call then
@@ -10,6 +10,143 @@
 
 use super::{checked_source_with_core_service, lower_machine};
 use crate::TerminalMachineSelection;
+
+const INDEXED_CALLS: &str = r#"
+    data Cell { value: u64 in Wrapping; }
+    data Holder { cells: [Cell; 4]; }
+    machine Cell::read(&self) -> u64 in Wrapping { self.value }
+    machine read_cell(cell: &Cell) -> u64 in Wrapping { cell.value }
+    machine Holder::probe(&self, position: u64) -> bool {
+        transition position < 4 {
+            true -> read(position)
+            false -> (false)
+        }
+        state read(&self, position: u64) -> bool {
+            let receiver: u64 in Wrapping = self.cells[position].read() + 1;
+            let argument: u64 in Wrapping = read_cell(&self.cells[position]) + 1;
+            receiver == 70 && argument == 70
+        }
+    }
+"#;
+
+#[test]
+fn indexed_receiver_and_explicit_borrow_compose_with_scalar_arithmetic() {
+    let checked = checked_source_with_core_service(INDEXED_CALLS);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Holder::probe"))
+        .expect("both projected loans retain their checked index and bound");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("runtime call paths carry independently verified bounds");
+    let sites = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::CallStructuralScalar {
+                structural_arguments,
+                ..
+            } => Some(structural_arguments),
+            _ => None,
+        })
+        .flatten()
+        .filter(|argument| {
+            argument
+                .path
+                .iter()
+                .any(|segment| segment.runtime_index().is_some())
+        })
+        .count();
+    assert_eq!(sites, 2, "both authored calls carry runtime projections");
+    let mut shrunk = lowered.semantic_module;
+    let mut arrays = 0;
+    for declaration in &mut shrunk.structural_types {
+        if let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut declaration.shape
+            && *length == 4
+        {
+            *length = 1;
+            arrays += 1;
+        }
+    }
+    assert_eq!(arrays, 1);
+    terminal_verifier::validate_module(&shrunk)
+        .expect("shrinking keeps the path structurally valid");
+    assert!(
+        terminal_verifier::verify_module(
+            &shrunk,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "the old bound cannot authorize a smaller array"
+    );
+}
+
+#[test]
+fn indexed_scalar_calls_retain_bounds_and_source_access_requirements() {
+    for source in [
+        INDEXED_CALLS.replace("position < 4", "position < 5"),
+        INDEXED_CALLS.replace("position: u64", "position: i64"),
+        INDEXED_CALLS.replace("Cell::read(&self)", "Cell::read(&mut self)"),
+    ] {
+        let Ok(checked) = crate::front_end::checked_program_result(&source) else {
+            continue;
+        };
+        let Ok(lowered) = lower_machine(&checked, TerminalMachineSelection::Name("Holder::probe"))
+        else {
+            continue;
+        };
+        assert!(
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "an invalid bound or mutable loan from shared storage must reject"
+        );
+    }
+}
+
+#[test]
+fn indexed_scalar_call_rejects_a_substituted_selector() {
+    let mut checked = checked_source_with_core_service(INDEXED_CALLS);
+    let mut substituted = false;
+    let arguments = checked
+        .facts
+        .values
+        .scalar_computations
+        .structural_arguments
+        .iter()
+        .map(|(handle, _)| handle)
+        .collect::<Vec<_>>();
+    for handle in arguments {
+        let argument = checked
+            .facts
+            .values
+            .scalar_computations
+            .structural_arguments
+            .get_mut(handle);
+        let Some(argument) = argument.as_place_mut() else {
+            continue;
+        };
+        for segment in &mut argument.path {
+            if let checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(
+                checked_trees::CheckedRuntimeIndex::Parameter { position },
+            ) = segment
+            {
+                *position = 99;
+                substituted = true;
+            }
+        }
+    }
+    assert!(substituted, "fixture contains checked runtime selectors");
+    assert!(lower_machine(&checked, TerminalMachineSelection::Name("Holder::probe")).is_err());
+}
 
 /// A multi-state caller calls a value method on its whole receiver and
 /// dispatches on the result.

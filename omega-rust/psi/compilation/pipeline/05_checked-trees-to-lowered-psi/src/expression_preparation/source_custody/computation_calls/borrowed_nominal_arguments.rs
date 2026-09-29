@@ -72,7 +72,9 @@ pub(super) fn validate(
     let table = &checked.expression_table;
     let named = match table.expression(expression) {
         ExpressionNode::Borrow(borrow) if borrow.access == *target_access => borrow.target,
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) => expression,
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+            expression
+        }
         _ => return unsupported("record operand has no named or projected source"),
     };
     let (caller, _) = super::authored_state(checked, state.symbol)?;
@@ -86,14 +88,7 @@ pub(super) fn validate(
                 statement as usize,
                 named,
             )?;
-            if source.path != argument.path
-                || argument.path.iter().any(|segment| {
-                    !matches!(
-                        segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                    )
-                })
-            {
+            if source.path != argument.path {
                 return unsupported("record operand substituted its projected path");
             }
             source
@@ -302,7 +297,10 @@ pub(super) fn validate(
             && *self_symbol != target_owner.attached_data_symbol)
             || *symbol != target_owner.attached_data_symbol
             || !call.has_receiver
-            || call.receiver_symbol != endpoint
+            // An indexed receiver has no terminal member symbol. Its call
+            // occurrence retains the absent stamp; the reconstructed root,
+            // full path and endpoint type above establish its storage identity.
+            || call.receiver_symbol != source.stamp
         {
             return unsupported("record receiver disagrees with its resolved attachment");
         }

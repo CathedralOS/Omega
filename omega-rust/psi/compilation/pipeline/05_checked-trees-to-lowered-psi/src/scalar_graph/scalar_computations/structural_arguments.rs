@@ -2,9 +2,10 @@
 
 use super::super::{Multiplicity, StructuralAccess, terminal_scalar_type};
 use super::{
-    CheckedTrees, LoweringError, StructuralArgument, arrays, cases, literals, storage, subslices,
-    unsupported,
+    CheckedTrees, LoweringError, arrays, cases, literals, storage, subslices, unsupported,
 };
+use crate::emission::operation_emission::calls::PreparedStructuralArgument;
+
 pub(super) fn lower(
     checked: &CheckedTrees,
     source_call: arena::Handle<checked_trees::FlowCallFact>,
@@ -17,7 +18,7 @@ pub(super) fn lower(
     cases: &[cases::Slot],
     subslices: &[subslices::Slot],
     literals: &[literals::Slot],
-) -> Result<Vec<StructuralArgument>, LoweringError> {
+) -> Result<Vec<PreparedStructuralArgument>, LoweringError> {
     if arguments.is_empty() {
         return Ok(Vec::new());
     }
@@ -77,7 +78,7 @@ pub(super) fn lower(
                     {
                         return unsupported("computed case differs from its exact owned formal");
                     }
-                    return Ok(StructuralArgument {
+                    return Ok(PreparedStructuralArgument {
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
@@ -138,7 +139,7 @@ pub(super) fn lower(
                             );
                         }
                     }
-                    return Ok(StructuralArgument {
+                    return Ok(PreparedStructuralArgument {
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::Owned,
@@ -189,7 +190,9 @@ pub(super) fn lower(
                 {
                     return unsupported("computed owned operand differs from its callee signature");
                 }
-                return bindings.owned_argument(argument);
+                return bindings
+                    .owned_argument(argument)
+                    .and_then(PreparedStructuralArgument::from_static);
             }
             let checked_trees::types::TypeReferenceNode::Reference { referee, .. } = checked
                 .type_reference_table
@@ -210,7 +213,7 @@ pub(super) fn lower(
                     if !argument.path.is_empty() {
                         return unsupported("computed range cannot project its descriptor");
                     }
-                    return Ok(StructuralArgument {
+                    return Ok(PreparedStructuralArgument {
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::SharedBorrow,
@@ -232,17 +235,33 @@ pub(super) fn lower(
                     if !argument.path.is_empty() {
                         return unsupported("computed literal cannot project its view");
                     }
-                    return Ok(StructuralArgument {
+                    return Ok(PreparedStructuralArgument {
                         place: slot.place,
                         path: Vec::new(),
                         access: StructuralAccess::SharedBorrow,
                     });
                 }
-                return bindings.borrowed_structural_argument(
-                    argument,
-                    caller_machine,
-                    caller_parameters,
-                );
+                return Ok(PreparedStructuralArgument {
+                    place: bindings.borrowed_structural_place(
+                        argument,
+                        caller_machine,
+                        caller_parameters,
+                    )?,
+                    path: argument.path.clone(),
+                    access: match argument.access {
+                        checked_trees::CheckedStructuralAccess::SharedBorrow => {
+                            StructuralAccess::SharedBorrow
+                        }
+                        checked_trees::CheckedStructuralAccess::MutableBorrow => {
+                            StructuralAccess::MutableBorrow
+                        }
+                        _ => {
+                            return unsupported(
+                                "computed argument requires readable borrowed access",
+                            );
+                        }
+                    },
+                });
             }
             if !matches!(
                 checked.type_reference_table.type_reference(*referee),
@@ -256,7 +275,9 @@ pub(super) fn lower(
                     .ok_or(LoweringError::Unsupported(
                         "computed borrow referent is not primitive",
                     ))?;
-            bindings.primitive_borrow(argument, terminal_scalar_type(primitive)?)
+            bindings
+                .primitive_borrow(argument, terminal_scalar_type(primitive)?)
+                .and_then(PreparedStructuralArgument::from_static)
         })
         .collect()
 }

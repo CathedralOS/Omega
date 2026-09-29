@@ -23,7 +23,7 @@ use crate::execution::terminal_unit::TypeReferenceHandle;
 use crate::execution::terminal_unit::TypeReferenceNode;
 use crate::execution::terminal_unit::TypedTrees;
 
-use crate::execution::terminal_unit::calls::projected_argument_path;
+use crate::execution::terminal_unit::calls::projected_borrowed_path;
 use crate::execution::terminal_unit::calls::structural_arguments::exact_structural_borrow_access;
 
 #[cfg(test)]
@@ -356,19 +356,6 @@ fn borrowed_nominal_argument(
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    // A literal subscript canonicalizes to `FixedIndex`, which names an exact
-    // element the checked path can carry. A runtime subscript canonicalizes to
-    // `Index { expression }`, which has no `CheckedUnitStructuralPathSegment`
-    // counterpart at all, so leaving it out of this pattern is what keeps the
-    // dynamic form rejecting -- no separate guard states that.
-    if !place.segments.iter().all(|segment| {
-        matches!(
-            segment,
-            facts::PlaceSegment::Field { .. } | facts::PlaceSegment::FixedIndex { .. }
-        )
-    }) {
-        return None;
-    }
     // A receiver argument binds `self` to `self` across machines: both sides'
     // receiver referees are machine-keyed `Named { machine, "Self" }` nodes,
     // so nominal identity can never join them. The join key is the shared
@@ -603,7 +590,7 @@ fn borrowed_nominal_argument(
     let (reference, path) = if place.segments.is_empty() {
         (reference, Vec::new())
     } else {
-        projected_argument_path(program, state.symbol, call.statement_index, place)?
+        projected_borrowed_path(program, machine, state.symbol, call.statement_index, place)?
     };
     // Eligibility belongs to the borrowed endpoint, not its unrelated siblings.
     // Root membership/access and the exact authored receiver loan are retained
