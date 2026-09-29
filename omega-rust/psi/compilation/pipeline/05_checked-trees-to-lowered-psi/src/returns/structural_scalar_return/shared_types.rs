@@ -8,11 +8,15 @@ use super::{
     BTreeSet, CheckedStructuralScalarReturnMachinePlan, LoweringError, StructuralScalarReturnTypes,
     StructuralTypeDeclaration, lookup_type_id, terminal_scalar_type, unsupported,
 };
-pub(super) fn validate(
+
+#[cfg(test)]
+mod tests;
+
+pub(super) fn reconstruct(
     plans: StructuralScalarReturnTypes<'_>,
     shared: &[StructuralTypeDeclaration],
     callee: &CheckedStructuralScalarReturnMachinePlan,
-) -> Result<(), LoweringError> {
+) -> Result<Vec<StructuralTypeDeclaration>, LoweringError> {
     let mut pending = callee
         .attachment_type_identity
         .iter()
@@ -141,7 +145,14 @@ pub(super) fn validate(
             );
         }
     }
-    Ok(())
+    // The temporary callee module has no custody of the caller's unrelated
+    // provider attachments. Retain only its validated dependency closure,
+    // preserving shared IDs and declaration order for later module assembly.
+    Ok(shared
+        .iter()
+        .filter(|declaration| visited.contains(declaration.identity.as_str()))
+        .cloned()
+        .collect())
 }
 
 fn retain_fields<'plan>(
