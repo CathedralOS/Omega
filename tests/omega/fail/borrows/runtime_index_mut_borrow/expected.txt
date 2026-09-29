@@ -1,0 +1,1 @@
+cannot prove index `self.off` is within length 48
