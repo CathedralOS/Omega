@@ -8,10 +8,10 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    let value: u64 = self.weaken(3);
+    let value: u64 = weaken(3);
 }
 
-machine Main::weaken(&mut self, power: u64)
+machine weaken(power: u64)
 terminates by power -> Card::PowerOrder;
 -> u64
 {

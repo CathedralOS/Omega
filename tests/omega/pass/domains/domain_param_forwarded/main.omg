@@ -17,16 +17,16 @@ data Main {
     blob: Blob;
 }
 
-machine Main::inspect(&self, item: Blob in Scanned) {
+machine inspect(item: Blob in Scanned) {
 }
 
-machine Main::consume(&self, item: Blob in Scanned) {
-    self.inspect(item);
+machine consume(item: Blob in Scanned) {
+    inspect(item);
 }
 
 machine Main::main(&mut self)
 requires
     self.blob in Blob::Scanned
 {
-    self.consume(self.blob);
+    consume(self.blob);
 }

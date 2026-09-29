@@ -12,7 +12,7 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::compute(&mut self, amount: i32) -> i32
+machine compute(amount: i32) -> i32
 requires
     amount >= 0
 requires
@@ -23,7 +23,7 @@ requires
 }
 
 machine Main::main(&mut self) reaches Console {
-    let result: i32 = self.compute(35);   // 35 in [0,100]; 35 + 35 = 70
+    let result: i32 = compute(35);   // 35 in [0,100]; 35 + 35 = 70
     transition result == 70 {
         true -> good()
         _ -> bad()

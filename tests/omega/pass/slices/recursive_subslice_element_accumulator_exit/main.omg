@@ -22,7 +22,7 @@ data Main {
     summer: Summer;
 }
 
-machine Summer::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping
+machine sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
@@ -37,7 +37,7 @@ machine Main::main(&mut self) reaches Console {
     self.arr[2] = 15;
     self.arr[3] = 20;
     let s: &[i32 in Wrapping] = self.arr.as_slice();
-    let total: i32 in Wrapping = self.summer.sum(s, 0);
+    let total: i32 in Wrapping = sum(s, 0);
     transition total == 50 {
         true -> good()
         _ -> bad()

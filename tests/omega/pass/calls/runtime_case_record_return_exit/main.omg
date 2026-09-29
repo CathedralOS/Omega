@@ -8,7 +8,7 @@ data Spare { value: u64; }
 data Output [copy] { value: u64; }
 data Main { console: Binding<Console>; total: u64 in Saturating; }
 
-machine Main::make(&self, first: Spare, direction: Direction, last: Spare) -> Output {
+machine make(first: Spare, direction: Direction, last: Spare) -> Output {
     transition direction {
         Direction::Left -> Output { value: 20 }
         Direction::Right -> Output { value: 50 }
@@ -17,7 +17,7 @@ machine Main::make(&self, first: Spare, direction: Direction, last: Spare) -> Ou
     }
 }
 
-machine Main::delta(&self, direction: Direction) -> Output {
+machine delta(direction: Direction) -> Output {
     transition direction {
         Direction::Left -> Output { value: 1 }
         Direction::Right -> Output { value: 2 }
@@ -27,14 +27,14 @@ machine Main::delta(&self, direction: Direction) -> Output {
 }
 
 machine Main::direct(&mut self, direction: Direction) {
-    let output: Output = self.delta(direction);
+    let output: Output = delta(direction);
     self.total = self.total + (output.value as u64 in Saturating);
 }
 
 machine Main::step(&mut self, direction: Direction) {
     let first: Spare = Spare { value: 1 };
     let last: Spare = Spare { value: 2 };
-    let output: Output = self.make(first, direction, last);
+    let output: Output = make(first, direction, last);
     self.total = self.total + (output.value as u64 in Saturating);
 }
 

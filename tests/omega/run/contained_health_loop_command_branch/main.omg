@@ -24,7 +24,7 @@ data Command {
 data Parser {
 }
 
-machine Parser::resolve(&mut self, line: &[u8] in LineUtf8) -> Command {
+machine resolve(line: &[u8] in LineUtf8) -> Command {
     transition {
         line == "look" -> Command::Look
         line == "quit" -> Command::Quit
@@ -54,7 +54,7 @@ machine Game::run(&mut self) reaches Console {
 
     state read_command(&mut self) {
         self.console.read_line(&mut self.line);
-        self.command = self.parser.resolve(&self.line);
+        self.command = resolve(&self.line);
 
         transition self.command {
             Command::Look -> look()

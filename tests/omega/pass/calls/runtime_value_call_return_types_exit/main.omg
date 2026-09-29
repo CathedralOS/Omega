@@ -30,26 +30,26 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::add(&self, a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
+machine add(a: i32 in Wrapping, b: i32 in Wrapping) -> i32 in Wrapping {
     a + b
 }
-machine Main::mk_point(&self) -> Point {
+machine mk_point() -> Point {
     Point { x: 30, y: 12 }
 }
-machine Main::mk_tag(&self) -> Tag {
+machine mk_tag() -> Tag {
     Tag::Found { v: 28 }
 }
-machine Main::positive(&self, x: i32 in Trapping) -> bool {
+machine positive(x: i32 in Trapping) -> bool {
     x > 0
 }
 
 machine Main::main(&mut self) reaches Console {
-    let s: i32 in Wrapping = self.add(30, 40);
-    let p: Point = self.mk_point();
-    let t: Tag = self.mk_tag();
-    let b: bool = self.positive(5);
-    let inner: i32 in Wrapping = self.add(1, 2);
-    let nested: i32 in Wrapping = self.add(inner, 3);
+    let s: i32 in Wrapping = add(30, 40);
+    let p: Point = mk_point();
+    let t: Tag = mk_tag();
+    let b: bool = positive(5);
+    let inner: i32 in Wrapping = add(1, 2);
+    let nested: i32 in Wrapping = add(inner, 3);
 
     transition s == 70 { true -> check_point(p, t, b, nested) _ -> bad(71) }
 

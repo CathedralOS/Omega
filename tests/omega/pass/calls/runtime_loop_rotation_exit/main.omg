@@ -6,7 +6,7 @@ use omega::language::core::binding;
 data Main {
     console: Binding<Console>;
 }
-machine Main::rot(&mut self, k: u64, a: u64, b: u64, c: u64)
+machine rot(k: u64, a: u64, b: u64, c: u64)
 terminates by k;
 -> u64
 {
@@ -16,7 +16,7 @@ terminates by k;
     }
 }
 machine Main::main(&mut self) reaches Console {
-    let r: u64 = self.rot(3, 1, 2, 3);
+    let r: u64 = rot(3, 1, 2, 3);
     transition r == 1 {
         true -> yes()
         false -> no()

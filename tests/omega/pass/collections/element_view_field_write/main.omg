@@ -21,7 +21,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.fill(&mut self.bag);
+    fill(&mut self.bag);
 
     transition self.bag.cells[2].value == 7 {
         true -> good()
@@ -44,7 +44,7 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::fill(&mut self, bag: &mut Bag) {
+machine fill(bag: &mut Bag) {
     let cells: &mut [Cell] = bag.cells.as_mut_slice();
     cells[2].value = 7;
     cells[2].tag = 9;

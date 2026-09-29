@@ -24,7 +24,7 @@ data Main {
 }
 
 // a function that returns an Option -- the callee's arms construct the enum result
-machine Main::classify(&self, x: i32 in Wrapping) -> Opt {
+machine classify(x: i32 in Wrapping) -> Opt {
     transition x > 0 { true -> Opt::Some { value: x } _ -> Opt::None }
 }
 
@@ -41,7 +41,7 @@ machine Main::main(&mut self) reaches Console {
     state call(&mut self) {
         self.x = self.vals[self.i] as i32 in Wrapping;
         // call the Option-returning function, bind, and match the result
-        let r: Opt = self.classify(self.x);
+        let r: Opt = classify(self.x);
         transition r {
             Opt::Some { value } -> got(value)
             Opt::None -> nada()

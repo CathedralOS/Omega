@@ -3,10 +3,10 @@ use omega::language::core::assembly;
 
 data Main {}
 
-machine Main::helper(&mut self) reaches MachineControl {
+machine helper() reaches MachineControl {
     asm { hlt }
 }
 
 machine Main::main(&mut self) {
-    self.helper();
+    helper();
 }

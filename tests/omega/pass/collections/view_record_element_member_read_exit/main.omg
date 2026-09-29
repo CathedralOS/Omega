@@ -23,7 +23,7 @@ data Main {
     walker: Walker;
 }
 
-machine Walker::sum_entries(&mut self, s: &[Entry], acc: i32 in Wrapping) -> i32
+machine sum_entries(s: &[Entry], acc: i32 in Wrapping) -> i32
 terminates by s -> Slice::Length;
 {
     transition s.len > 0 {
@@ -41,7 +41,7 @@ machine Main::main(&mut self) reaches Console {
     self.entries[5].value = 10;
     self.entries[6].value = 10;
     let se: &[Entry] = self.entries.as_slice();
-    let total: i32 = self.walker.sum_entries(se, 0);
+    let total: i32 = sum_entries(se, 0);
     transition total == 70 {
         true -> good()
         _ -> bad()

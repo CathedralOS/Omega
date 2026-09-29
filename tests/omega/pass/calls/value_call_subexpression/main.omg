@@ -2,16 +2,16 @@
 // of the expression its construction site lowers. Every parented shape that
 // once dropped the call now checks and executes:
 //
-//   let r: i32 = self.twelve();            checks   (call is the whole thing)
-//   let r: i32 = (self.twelve());          checks   (parens are transparent)
-//   let r: i32 = self.twelve() + 0;        checks   (this fixture)
-//   let r: i64 = self.twelve() as i64;     checks   (a CAST parent)
-//   let f: bool = self.twelve() == 12;     checks
-//   let r: i32 = 0 - self.twelve();        checks
-//   let r: i32 = self.add(self.twelve(), self.twelve());        checks
-//   self.base = self.add(self.twelve(), 0);                    checks
-//   transition { _ -> good(self.twelve() + 0) }                checks
-//   _ = self.add(self.twelve(), 1);                            checks
+//   let r: i32 = twelve();            checks   (call is the whole thing)
+//   let r: i32 = (twelve());          checks   (parens are transparent)
+//   let r: i32 = twelve() + 0;        checks   (this fixture)
+//   let r: i64 = twelve() as i64;     checks   (a CAST parent)
+//   let f: bool = twelve() == 12;     checks
+//   let r: i32 = 0 - twelve();        checks
+//   let r: i32 = self.add(twelve(), twelve());        checks
+//   self.base = self.add(twelve(), 0);                    checks
+//   transition { _ -> good(twelve() + 0) }                checks
+//   _ = self.add(twelve(), 1);                            checks
 //
 // Each shape was verified end-to-end natively on 2026-09-29: the inner calls
 // execute and their results reach the outer expression (exit codes carry the
@@ -25,7 +25,7 @@ data Main {
     base: i32;
 }
 
-machine Main::twelve(&mut self) -> i32 {
+machine twelve() -> i32 {
     transition { _ -> (12) }
 }
 
@@ -34,7 +34,7 @@ machine Main::main(&mut self) reaches Console {
     transition { _ -> check() }
 
     state check(&mut self) {
-        let result: i32 = self.twelve() + 0;
+        let result: i32 = twelve() + 0;
         transition { _ -> good() }
     }
 

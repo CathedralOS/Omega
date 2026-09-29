@@ -17,7 +17,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.release(&mut self.bag);
+    release(&mut self.bag);
 
     transition {
         _ -> good()
@@ -28,7 +28,7 @@ machine Main::main(&mut self) reaches Console {
     }
 }
 
-machine Main::release(&mut self, bag: &mut Bag) {
+machine release(bag: &mut Bag) {
     let cells: &mut [i32] = bag.cells.as_mut_slice();
     cells[2] = 7;
     transition {
