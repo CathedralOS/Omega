@@ -77,6 +77,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
+        | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. }
         | O::StructuralByteSequenceFieldLength { .. }
         | O::StructuralByteSequenceFieldRead { .. }

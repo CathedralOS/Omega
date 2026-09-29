@@ -339,6 +339,9 @@ pub(super) fn project(
         AbstractOperation::ElementViewRead { .. } => {
             storage_instructions::project_element_view_read(node, optimized, unit)?
         }
+        AbstractOperation::ElementViewWrite { .. } => {
+            storage_instructions::project_element_view_write(node, optimized, unit)?
+        }
         AbstractOperation::ElementViewSubslice { .. } => {
             storage_instructions::project_element_view_subslice(node, optimized, unit)?
         }

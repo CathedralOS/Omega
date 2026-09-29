@@ -512,6 +512,52 @@ pub(super) fn validate_structural_byte_sequence_field_store(
     Ok(())
 }
 
+pub(super) fn validate_element_view_write(
+    actual: &LegalizedScalarInstruction,
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+    operation: OperationId,
+) -> Result<(), LegalizationError> {
+    let (
+        LegalizedScalarInstructionKind::ElementViewWrite {
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+            accepted_fact,
+        },
+        AbstractOperation::ElementViewWrite {
+            destination: expected_destination,
+            index: expected_index,
+            value: expected_value,
+            length: expected_length,
+            obligation: expected_obligation,
+            ..
+        },
+    ) = (&actual.kind, &node.operation)
+    else {
+        unreachable!("dispatched validate_element_view_write")
+    };
+    let invalid = Error::NonCanonicalLegalizedPlan;
+    if destination != expected_destination
+        || index != expected_index
+        || value != expected_value
+        || length != expected_length
+        || obligation != expected_obligation
+        || !unit.accepted_obligation_facts.iter().any(|fact| {
+            fact.machine == optimized.machine
+                && fact.operation == operation
+                && fact.obligation == *obligation
+                && fact.identity == *accepted_fact
+        })
+    {
+        return Err(invalid);
+    }
+    Ok(())
+}
+
 pub(super) fn validate_byte_sequence_write(
     actual: &LegalizedScalarInstruction,
     node: &optimization_unit::OptimizationNode,

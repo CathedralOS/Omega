@@ -171,6 +171,22 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.id(*obligation);
             bytes.slice(path, encode_structural_path_segment);
         }
+        O::ElementViewWrite {
+            psi_operation,
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+        } => {
+            bytes.u8(88);
+            bytes.id(*psi_operation);
+            bytes.id(*destination);
+            bytes.id(*index);
+            bytes.id(*value);
+            bytes.id(*length);
+            bytes.id(*obligation);
+        }
         O::IntegerConstant {
             psi_operation,
             result,

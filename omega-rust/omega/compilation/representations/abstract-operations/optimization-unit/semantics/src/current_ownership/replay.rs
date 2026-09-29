@@ -444,6 +444,7 @@ pub(super) fn validate_current_ownership_cfg(
                 | O::EstablishRecord { result, .. }
                 | O::EstablishZeroedStructural { result, .. }
                 | O::EstablishReference { result, .. }
+                | O::EstablishElementView { result, .. }
                 // The moved subtree enters frame custody as an owned
                 // structural result; a later repair may consume it.
                 | O::MoveStructuralField { result, .. }

@@ -49,6 +49,7 @@ pub(crate) fn operation_scalar_types_match(
         O::EstablishElementView { .. }
         | O::ElementViewLength { .. }
         | O::ElementViewRead { .. }
+        | O::ElementViewWrite { .. }
         | O::ElementViewSubslice { .. } => element_views::types_match(operation, definitions),
         O::DynamicDescriptorParameter { parameter } => {
             parameter.owner == function.machine

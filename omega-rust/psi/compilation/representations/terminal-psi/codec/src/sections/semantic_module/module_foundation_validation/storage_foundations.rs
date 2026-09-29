@@ -343,15 +343,17 @@ fn place_structural_type(
 }
 
 /// The shared result-place shape for element-view producers: an exact
-/// unrestricted unqualified `ElementView` structural result owned by this
-/// operation.
+/// unqualified `ElementView` structural result owned by this operation,
+/// spelling the custody multiplicity its loan class declares (`Unrestricted`
+/// for shared views, `Affine` for the exclusive mutable loan).
 fn element_view_result_place(
     module: &TerminalModule,
     machine: &TerminalMachine,
     operation: &Operation,
     result: &terminal_psi::StructuralOperationResult,
+    multiplicity: StructuralMultiplicity,
 ) -> bool {
-    result.multiplicity == StructuralMultiplicity::Unrestricted
+    result.multiplicity == multiplicity
         && result.qualifications.is_empty()
         && result.projected_qualifications.is_empty()
         && result.claims.is_empty()
@@ -376,11 +378,45 @@ pub(super) fn validate_establish_element_view(
     let Some(result) = operation.result.structural() else {
         return malformed("element-view establishment requires a structural result");
     };
-    if !element_view_result_place(module, machine, operation, result) {
+    if !element_view_result_place(
+        module,
+        machine,
+        operation,
+        result,
+        StructuralMultiplicity::Unrestricted,
+    ) {
         return malformed("element-view establishment requires its exact borrowed result place");
     }
     // Full module validation independently checks source access, the
     // collection's declared element type, custody, and establishment order.
+    Ok(())
+}
+
+pub(super) fn validate_establish_mutable_element_view(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::EstablishMutableElementView { .. } = &operation.kind else {
+        unreachable!("dispatched validate_establish_mutable_element_view")
+    };
+    let Some(result) = operation.result.structural() else {
+        return malformed("mutable element-view establishment requires a structural result");
+    };
+    if !element_view_result_place(
+        module,
+        machine,
+        operation,
+        result,
+        StructuralMultiplicity::Affine,
+    ) {
+        return malformed(
+            "mutable element-view establishment requires its exact borrowed result place",
+        );
+    }
+    // Full module validation independently checks the mutable source access,
+    // the collection's declared element type, custody, and establishment
+    // order.
     Ok(())
 }
 
@@ -395,7 +431,13 @@ pub(super) fn validate_element_view_subslice(
     let Some(result) = operation.result.structural() else {
         return malformed("element-view subslice requires a structural result");
     };
-    if !element_view_result_place(module, machine, operation, result) {
+    if !element_view_result_place(
+        module,
+        machine,
+        operation,
+        result,
+        StructuralMultiplicity::Unrestricted,
+    ) {
         return malformed(
             "element-view subslice requires its exact immutable borrowed result place",
         );

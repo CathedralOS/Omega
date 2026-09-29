@@ -103,12 +103,10 @@ impl Builder<'_, '_> {
             .authored_parameters
             .iter()
             .filter(|parameter| {
-                !parameter.is_const
-                    && !parameter.relevance.is_erased()
-                    && self
-                        .program
-                        .primitive_type_reference(parameter.type_reference)
-                        .is_none()
+                crate::execution::terminal_unit::structural_parameter_candidate(
+                    self.program,
+                    parameter,
+                )
             })
             .enumerate()
             .find(|(_, parameter)| parameter.symbol == symbol)

@@ -545,6 +545,44 @@ pub(super) fn project_byte_sequence_read(
     Ok(kind)
 }
 
+pub(super) fn project_element_view_write(
+    node: &optimization_unit::OptimizationNode,
+    optimized: &optimization_unit::PsiOptimizationFunction,
+    unit: &PsiOptimizationUnit,
+) -> Result<LegalizedScalarInstructionKind, LegalizationError> {
+    let AbstractOperation::ElementViewWrite {
+        psi_operation,
+        destination,
+        index,
+        value,
+        length,
+        obligation,
+    } = &node.operation
+    else {
+        unreachable!("dispatched project_element_view_write")
+    };
+    let kind = {
+        let fact = unit
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| {
+                fact.machine == optimized.machine
+                    && fact.operation == *psi_operation
+                    && fact.obligation == *obligation
+            })
+            .ok_or(Error::custody())?;
+        LegalizedScalarInstructionKind::ElementViewWrite {
+            destination: *destination,
+            index: *index,
+            value: *value,
+            length: *length,
+            obligation: *obligation,
+            accepted_fact: fact.identity,
+        }
+    };
+    Ok(kind)
+}
+
 pub(super) fn project_element_view_read(
     node: &optimization_unit::OptimizationNode,
     optimized: &optimization_unit::PsiOptimizationFunction,

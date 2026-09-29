@@ -167,6 +167,7 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
         | AbstractOperation::DynamicDescriptorParameter { .. }
         | AbstractOperation::ElementViewLength { .. }
         | AbstractOperation::ElementViewRead { .. }
+        | AbstractOperation::ElementViewWrite { .. }
         | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::EstablishByteSequenceConcatenation { .. }
         | AbstractOperation::EstablishByteSequenceLiteral { .. }

@@ -883,6 +883,9 @@ fn scan_operation(
         O::ElementViewRead { source, path, .. } => {
             pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
         }
+        O::ElementViewWrite { destination, .. } => {
+            pending.attribute(context, *destination, Vec::new(), AccessKind::Write);
+        }
         O::StructuralByteSequenceFieldRead {
             source,
             path,

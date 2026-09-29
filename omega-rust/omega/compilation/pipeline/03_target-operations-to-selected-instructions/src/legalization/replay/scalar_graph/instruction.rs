@@ -709,6 +709,12 @@ pub(super) fn validate(
             actual, node, optimized, plan, unit, operation,
         )?,
         (
+            LegalizedScalarInstructionKind::ElementViewWrite { .. },
+            AbstractOperation::ElementViewWrite { .. },
+        ) => storage_instructions::validate_element_view_write(
+            actual, node, optimized, unit, operation,
+        )?,
+        (
             LegalizedScalarInstructionKind::ByteSequenceWrite { .. },
             AbstractOperation::ByteSequenceWrite { .. },
         ) => storage_instructions::validate_byte_sequence_write(

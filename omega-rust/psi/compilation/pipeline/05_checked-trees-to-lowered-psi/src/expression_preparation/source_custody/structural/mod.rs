@@ -144,16 +144,14 @@ pub(crate) fn validate(
     // A `&mut`-referee establishment joins affine loan custody of the
     // referent's storage; its borrow shell still spells `Unrestricted`, so
     // the expected multiplicity follows the referee lane, not the shell's.
-    let expected_multiplicity = if validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        reference,
-    )
-    .is_some()
-    {
-        language_semantics::Multiplicity::Affine
-    } else {
-        checked.type_multiplicity(reference)
-    };
+    let expected_multiplicity =
+        if validation::reference_result_custody::mutable_borrowed_parts(&checked.typed, reference)
+            .is_some()
+        {
+            language_semantics::Multiplicity::Affine
+        } else {
+            checked.type_multiplicity(reference)
+        };
     if owner.symbol != machine
         || root.machine != machine
         || root.state != state
@@ -1717,11 +1715,8 @@ pub(crate) fn validate_local_ownership(
     // establishes no owned receipt and owes no owned final disposition — the
     // event loop above already replayed (and rejected any stray owned
     // events on) the borrow axis its lifecycle lives in.
-    if validation::reference_result_custody::mutable_borrowed_parts(
-        &checked.typed,
-        type_reference,
-    )
-    .is_some()
+    if validation::reference_result_custody::mutable_borrowed_parts(&checked.typed, type_reference)
+        .is_some()
     {
         return Ok(());
     }

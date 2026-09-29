@@ -244,6 +244,20 @@ pub enum TargetUnitOperation {
         length: ValueId,
         obligation: semantic_vocabulary::ObligationId,
     },
+    /// Store one scalar element through the exact mutable element view.
+    /// `destination` is the view place: an `&mut [T]` parameter or a local
+    /// whose establishment lent the collection under `MutableBorrow`.
+    /// Scalar origins and the exact same-view element-length proof remain
+    /// independent.
+    ElementViewWrite {
+        psi_operation: OperationId,
+        destination: PlaceId,
+        view: crate::TargetElementView,
+        index: TargetUnitScalarArgumentSource,
+        value: TargetUnitScalarArgumentSource,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+    },
     /// Copy the two checked live extents into a fresh activation-owned result.
     /// The exact source paths survive target refinement for independent replay.
     EstablishByteSequenceConcatenation {

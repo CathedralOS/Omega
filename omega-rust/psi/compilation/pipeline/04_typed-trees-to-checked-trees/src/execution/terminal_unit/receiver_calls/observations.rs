@@ -289,6 +289,11 @@ pub(in crate::execution::terminal_unit) fn uses_receiver_storage(
         let expression = match statement {
             typed_trees::statement::StatementNode::Expression(expression) => *expression,
             typed_trees::statement::StatementNode::Assignment(assignment) => assignment.value,
+            // A `let` binding's initializer is the other statement shape
+            // evaluating a value expression in place: a receiver-rooted view
+            // loan or field read established there needs the same receiver.
+            typed_trees::statement::StatementNode::LocalData(data) => data.initial_value,
+            typed_trees::statement::StatementNode::AssemblyFact(fact) => fact.expression,
             _ => return false,
         };
         expression_reads_receiver_projection(program, state, index, expression, &receiver_roots)

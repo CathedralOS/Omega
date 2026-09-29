@@ -26,6 +26,12 @@ pub(super) fn types_match(operation: &O, definitions: &BTreeMap<ValueId, ValueDe
                 && u64_scalar(index)
                 && scalar(*index) == scalar(*length)
         }
+        O::ElementViewWrite {
+            index,
+            value,
+            length,
+            ..
+        } => u64_scalar(index) && scalar(*value).is_some() && scalar(*index) == scalar(*length),
         O::ElementViewLength { result, .. } => {
             matches!(result.scalar_type, ScalarType::Integer(integer)
                 if Ok(integer) == IntegerType::new(IntegerSign::Unsigned, 64))

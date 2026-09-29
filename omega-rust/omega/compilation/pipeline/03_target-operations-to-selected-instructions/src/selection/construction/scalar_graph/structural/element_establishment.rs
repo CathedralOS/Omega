@@ -28,11 +28,20 @@ pub(super) fn establish(
     };
     if row.result.is_some()
         || result.place != *destination
-        || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+        // A mutable loan's result carries the exclusive custody's affine
+        // multiplicity; the descriptor's 16-byte shape is custody-independent.
+        || !matches!(
+            result.multiplicity,
+            terminal_psi::StructuralMultiplicity::Unrestricted
+                | terminal_psi::StructuralMultiplicity::Affine
+        )
         || !result.qualifications.is_empty()
         || !result.projected_qualifications.is_empty()
         || !result.claims.is_empty()
-        || source.access != StructuralAccess::SharedBorrow
+        || !matches!(
+            source.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
         || source.path.is_empty()
         || builder
             .transport

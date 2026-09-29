@@ -104,6 +104,7 @@ pub(super) fn authority_edge(operation: &AbstractOperation) -> AuthorityEdge<'_>
         | AbstractOperation::EstablishElementView { .. }
         | AbstractOperation::ElementViewLength { .. }
         | AbstractOperation::ElementViewRead { .. }
+        | AbstractOperation::ElementViewWrite { .. }
         | AbstractOperation::ElementViewSubslice { .. }
         | AbstractOperation::StructuralByteSequenceFieldLength { .. }
         | AbstractOperation::StructuralByteSequenceFieldRead { .. }

@@ -337,12 +337,44 @@ pub(super) fn lower(
                 path: path.clone(),
             })
         }
-        OperationKind::EstablishMutableElementView { .. } => Err(
-            LoweringError::UnsupportedMutableElementViewEstablishment(operation.id),
-        ),
-        OperationKind::ElementViewWrite { .. } => {
-            Err(LoweringError::UnsupportedElementViewWrite(operation.id))
+        OperationKind::EstablishMutableElementView {
+            destination,
+            source,
+            element,
+        } => {
+            // A mutable establishment is the same descriptor derivation; the
+            // argument's `MutableBorrow` access keeps the exclusive-loan
+            // distinction consumers must see.
+            let result = operation
+                .result
+                .structural()
+                .cloned()
+                .ok_or(LoweringError::InvalidElementViewEstablishment(operation.id))?;
+            if result.place != *destination {
+                return Err(LoweringError::InvalidElementViewEstablishment(operation.id));
+            }
+            Ok(AbstractOperation::EstablishElementView {
+                psi_operation: operation.id,
+                result,
+                destination: *destination,
+                source: source.clone(),
+                element: *element,
+            })
         }
+        OperationKind::ElementViewWrite {
+            destination,
+            index,
+            value,
+            length,
+            obligation,
+        } => Ok(AbstractOperation::ElementViewWrite {
+            psi_operation: operation.id,
+            destination: *destination,
+            index: *index,
+            value: *value,
+            length: *length,
+            obligation: *obligation,
+        }),
         OperationKind::ElementViewSubslice {
             source,
             start,

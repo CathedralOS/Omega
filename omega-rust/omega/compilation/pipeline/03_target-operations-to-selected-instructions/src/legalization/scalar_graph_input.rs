@@ -433,6 +433,7 @@ pub(super) fn match_input(
             obligation,
             ..
         }
+        | AbstractOperation::ElementViewWrite { psi_operation, obligation, .. }
         | AbstractOperation::ElementViewSubslice {
             psi_operation,
             obligation,

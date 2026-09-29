@@ -105,22 +105,24 @@ pub(crate) fn validate_assignment(
     else {
         return unsupported("element-view write lost its authored index");
     };
-    let source = crate::emission::call_source_custody::projected_receivers::store_destination(
-        checked,
-        machine,
-        state_symbol,
-        None,
-        indexed.collection,
-    )?;
-    let destination_root = match write.destination {
+    let (destination_root, source_root, source_path_is_empty) = match write.destination {
         checked_trees::CheckedStructuralScalarFieldStoreDestination::Parameter { position } => {
-            checked
+            let parameter_symbol = checked
                 .state_parameters(state)
                 .get(position as usize)
                 .map(|parameter| parameter.symbol)
                 .ok_or(LoweringError::Unsupported(
                     "element-view write has no authored parameter",
-                ))?
+                ))?;
+            let source =
+                crate::emission::call_source_custody::projected_receivers::store_destination(
+                    checked,
+                    machine,
+                    state_symbol,
+                    None,
+                    indexed.collection,
+                )?;
+            (parameter_symbol, source.root, source.path.is_empty())
         }
         checked_trees::CheckedStructuralScalarFieldStoreDestination::Local { symbol } => {
             authored_view_local(
@@ -128,12 +130,32 @@ pub(crate) fn validate_assignment(
                 checked.statement_table.statements(state.statement_nodes),
                 symbol,
             )?;
-            symbol
+            // The view local is the destination's own carrier: the indexed
+            // collection must be its bare authored name, which the projected
+            // receiver walk has no arm for since it is neither owned storage
+            // nor a shared-borrow loan.
+            let ExpressionNode::Name(name) =
+                checked.expression_table.expression(indexed.collection)
+            else {
+                return unsupported("element-view write substituted its view local collection");
+            };
+            if !name.symbol.is_valid()
+                || name.head_symbol != name.symbol
+                || name.symbol != symbol
+                || checked
+                    .expression_table
+                    .name_path_members(name.members)
+                    .len()
+                    != 1
+            {
+                return unsupported("element-view write substituted its view local collection");
+            }
+            (symbol, symbol, true)
         }
     };
     if owner.symbol != machine
-        || source.root != destination_root
-        || !source.path.is_empty()
+        || source_root != destination_root
+        || !source_path_is_empty
         || !validation::place_has_builtin_coordinates(
             &checked.typed,
             owner,

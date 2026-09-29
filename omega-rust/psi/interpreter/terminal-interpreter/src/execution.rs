@@ -636,11 +636,7 @@ impl TerminalExecution {
                         self.execute_element_view_read(operation)?
                     }
                     OperationKind::ElementViewWrite { .. } => {
-                        // No producer mints a mutable element view yet, so a
-                        // verified module cannot carry this op. When mutable
-                        // element bindings land, wire the write to their
-                        // backing like `mutable_byte_sequence_storage`.
-                        return Err(TerminalInterpretError::VerifiedOperationMalformed);
+                        self.execute_element_view_write(operation)?
                     }
                     OperationKind::ElementViewSubslice { .. } => {
                         self.execute_element_view_subslice(operation)?;

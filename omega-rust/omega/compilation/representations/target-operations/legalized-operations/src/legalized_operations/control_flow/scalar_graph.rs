@@ -152,6 +152,12 @@ impl LegalizedScalarInstruction {
                 value,
                 length,
                 ..
+            }
+            | LegalizedScalarInstructionKind::ElementViewWrite {
+                index,
+                value,
+                length,
+                ..
             } => [*index, *value, *length].into_iter().for_each(visit),
             LegalizedScalarInstructionKind::ByteSequenceRead { index, length, .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead {
@@ -509,13 +515,24 @@ pub enum LegalizedScalarInstructionKind {
         source: semantic_vocabulary::PlaceId,
         length_byte_offset: u32,
     },
-    /// Establish one immutable element descriptor over a structural collection
-    /// projection; custody and extent were discharged before lowering.
+    /// Establish one borrowed element descriptor over a structural collection
+    /// projection; custody, access and extent were discharged before lowering.
     EstablishElementView {
         result: terminal_psi::StructuralOperationResult,
         destination: semantic_vocabulary::PlaceId,
         source: terminal_psi::StructuralArgument,
         element: semantic_vocabulary::StructuralTypeId,
+    },
+    /// Store one scalar element through the exact current exclusive element
+    /// view, retaining its bounds fact. `destination` is the view place: an
+    /// `&mut [T]` parameter or a mutable establishment result.
+    ElementViewWrite {
+        destination: semantic_vocabulary::PlaceId,
+        index: ValueId,
+        value: ValueId,
+        length: ValueId,
+        obligation: semantic_vocabulary::ObligationId,
+        accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
     ElementViewSubslice {
         result: terminal_psi::StructuralOperationResult,

@@ -1602,7 +1602,10 @@ impl Emission<'_, '_, '_> {
     /// Establish one mutably borrowed element view without a selection join:
     /// the mutable sibling of `direct_element_view`, publishing the fresh
     /// `EstablishMutableElementView` result directly as this binding's
-    /// completed operation result under `MutableBorrow` custody.
+    /// completed operation result under `MutableBorrow` custody. An
+    /// exclusive loan is affine custody, so the result carries this
+    /// binding's declared multiplicity rather than the shared sibling's
+    /// fixed `Unrestricted`.
     fn direct_mutable_element_view(
         &mut self,
         source: &checked_trees::CheckedUnitStructuralArgumentPlan,
@@ -1650,7 +1653,7 @@ impl Emission<'_, '_, '_> {
                 qualification_establishments: Vec::new(),
                 place,
                 structural_type: self.structural_type,
-                multiplicity: StructuralMultiplicity::Unrestricted,
+                multiplicity: self.multiplicity,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
                 claims: Vec::new(),

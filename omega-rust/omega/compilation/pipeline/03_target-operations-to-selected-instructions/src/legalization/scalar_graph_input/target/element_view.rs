@@ -12,6 +12,30 @@ impl Checker<'_> {
         source: PlaceId,
         aliases: &[(ValueId, ValueId)],
     ) -> bool {
+        self.element_view_access(view, source, aliases, |access| {
+            matches!(
+                access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
+        })
+    }
+
+    /// A mutable element view admits only the exclusive loan — an indexed
+    /// element store's destination may never name a shared descriptor.
+    pub(super) fn mutable_element_view(&self, view: &TargetElementView, source: PlaceId) -> bool {
+        self.element_view_access(view, source, &[], |access| {
+            access == terminal_psi::StructuralAccess::MutableBorrow
+        })
+    }
+
+    fn element_view_access(
+        &self,
+        view: &TargetElementView,
+        source: PlaceId,
+        aliases: &[(ValueId, ValueId)],
+        access: impl Fn(terminal_psi::StructuralAccess) -> bool,
+    ) -> bool {
         match view {
             TargetElementView::BlockParameter {
                 block,
@@ -25,8 +49,7 @@ impl Checker<'_> {
                             && owner.structural_parameters.iter().any(|parameter| {
                                 parameter.place == *place
                                     && parameter.structural_type == *structural_type
-                                    && parameter.access
-                                        == terminal_psi::StructuralAccess::SharedBorrow
+                                    && access(parameter.access)
                                     && parameter.multiplicity
                                         == terminal_psi::StructuralMultiplicity::Unrestricted
                                     && parameter.qualifications.is_empty()
@@ -40,8 +63,7 @@ impl Checker<'_> {
                         |parameters| {
                             parameters.iter().any(|parameter| {
                                 parameter.place == source
-                                    && parameter.access
-                                        == terminal_psi::StructuralAccess::SharedBorrow
+                                    && access(parameter.access)
                                     && &parameter.placement == placement
                             })
                         },
@@ -88,7 +110,7 @@ impl Checker<'_> {
                     return false;
                 };
                 *place == source
-                    && argument.access == terminal_psi::StructuralAccess::SharedBorrow
+                    && access(argument.access)
                     && argument.path.iter().all(|segment| {
                         matches!(segment, terminal_psi::StructuralPathSegment::Field(_))
                     })
