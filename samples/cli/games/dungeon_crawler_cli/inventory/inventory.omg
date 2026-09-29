@@ -163,7 +163,7 @@ machine InventorySystem::find_item_at(
         let found: bool = items[index].kind == kind;
         let next_index: u64 in Wrapping = index + 1;
 
-        match found {
+        transition found {
             true -> (index as u64)
             false -> scan_next(items, kind, next_index)
         }
