@@ -52,6 +52,36 @@ provider_settlement.rs:265 all-invalid assertion;
 settlements/source_imports.rs Import/Syscall-only admission;
 exact_checked_adapter identity requirements).
 
+Authored target leaves hit the same wall. std `Clock::sleep`
+(`source/library/std/clock.omg`) binds `nanosleep` on both linux targets as
+`ForeignBinding::Syscall` with the requirement's `(milliseconds: u32)`
+signature. `evaluate_syscall` places that integer in the request-pointer
+register, so the linux legs fail instead of sleeping; the header's former
+claim of compiler-owned timespec marshalling had no caller behind it.
+macos_arm64 needs `poll(NULL, 0, ms)`. A `MachODylibSymbol` `_poll` leaf with
+the requirement's signature compiles and runs, but calls `poll(fds=ms, ...)`
+and returns at once: a `sleep(2000)` probe exited after 0.11 s. A checked
+adapter over the existing `darwin_poll` leaf is refused: "does not refine
+`Clock::sleep`: its body reaches boundary service(s) [DarwinClock] outside
+the requirement's declared service ceiling [Clock]". [Foreign
+bindings](wiki/spec/build/foreign_bindings.md) keeps "foreign constants and
+offsets" in checked target code, and the [language
+guide](wiki/language_guide/chapter_19_capabilities_effects_boundaries.md) has
+the leaf state "the counterparty's actual shape" while "a checked adapter
+converts it". The service ceiling refuses exactly that adapter.
+`samples/cli/rendering/{bouncing_ball_2d,mandelbrot_zoom,bouncing_particles}`
+and `samples/gui/image_viewer` declare a package-local `Clock` that nothing
+provides; migrating them to std `clock` needs a leg that sleeps on the host.
+
+For authored leaves, two more settlements exist besides (a) and (b). One is a
+provider-private foreign leaf: a bodyless, target-scoped leaf on the
+provider's own nominal type in the same package, with no `satisfies`, whose
+reach counts as the satisfied requirement's service. That is a new language
+rule. The other is a compiler-owned hosted intrinsic for std `Clock::sleep`,
+built like Console's `write_byte` and `exit_process`. It needs no new
+surface but is large: a new intrinsic identity through review evidence,
+stages 00 to 07, both ISAs and image emission.
+
 Question numbers are mutable queue positions, not permanent decision identities.
 Code, canaries, and settled documentation must cite a stable named decision or
 the governing guide section rather than an owner-question number. A settled

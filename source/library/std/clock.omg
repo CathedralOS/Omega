@@ -14,21 +14,24 @@
 // (`time.omg` over the canonical toolchain-settled `TimeHost` seam), so this
 // boundary carries no clock-read constants it cannot honor.
 //
-// Each selected target contributes the irreducible native sleep leaf and its
-// provider default; target filtering keeps exactly one implementation
-// closure: `nanosleep` on both linux targets and kernel32 `Sleep` on windows.
-// On linux the leaf's `timespec*` argument marshalling is compiler-owned for
-// a `Clock`/`sleep` syscall binding (`uses_linux_timespec_argument`), so the
-// leaf carries only the reviewed syscall number.
+// Each selected target contributes its native sleep leaf and its provider
+// default; target filtering keeps exactly one implementation closure: kernel32
+// `Sleep` on windows, whose signature is the requirement's, and `nanosleep` on
+// both linux targets. The linux legs do not sleep yet: `nanosleep` takes a
+// `timespec*`, and nothing marshals the millisecond count into one (see the
+// linux `clock_impl.omg` files).
 //
 // Coverage stops at `linux_x86_64`, `linux_arm64`, and `windows_x86_64`:
 //
-// * `macos_arm64` needs the `Clock`/`sleep_poll` lowering arm that marshals
-//   `poll(NULL, 0, ms)` (`host_operations.rs`' `SleepPoll` row) or a checked
-//   adapter over the `darwin_poll` leaf. The adapter route requires the
-//   requirement to declare `invokes DarwinClock`, and that ceiling propagates
-//   into every consumer's `reaches` — leaking a darwin detail into a portable
-//   contract — so it is deliberately not used here.
+// * `macos_arm64` needs `poll(NULL, 0, ms)`, whose foreign signature differs
+//   from the requirement's. A leaf's calling plan comes from its own Omega
+//   signature, and the `SleepPoll` and `uses_linux_timespec_argument`
+//   predicates in `host_operations.rs` have no caller in the native pipeline,
+//   so no binding can supply the two leading zeros. A checked adapter over
+//   the `darwin_poll` leaf is rejected: its body reaches `DarwinClock`
+//   outside `Clock::sleep`'s service ceiling, and widening that ceiling would
+//   leak a darwin service into every consumer's `reaches`. Both this and the
+//   linux gap wait on the marshalled-syscall question in OWNER_QUESTIONS.md.
 // * `macos_x86_64` is bundled but unadmitted (console's family has no
 //   implementation for it either), and freestanding `uefi_x86_64` has no
 //   hosted clock at all.
