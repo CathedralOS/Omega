@@ -104,32 +104,22 @@ pub(super) fn validate_call_source(
             // order, whole-affine custody and absence of transferred claims.
             continue;
         }
-        let expression =
-            match authored.structural_argument(checked, parameter.position, parameter.is_self) {
-                Some(expression) => expression,
-                // A receiver formal spelled through the receiver channel
-                // (`self.callee(..)` in statement position) spells no argument
-                // slot: the authored call's subject is its own receiver. The
-                // roster entry is authored exactly when it names the caller's
-                // own `self` parameter outright, with no field or index path.
-                None if parameter.is_self
-                    && argument.path.is_empty()
-                    && matches!(
-                        argument.source,
-                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter {
-                            parameter_index
-                        } if caller
-                            .structural_parameters
-                            .get(usize::try_from(parameter_index).unwrap_or(usize::MAX))
-                            .is_some_and(|source| source.is_self)
-                    ) =>
-                {
-                    continue;
-                }
-                None => {
-                    return unsupported("scalar wrapper parameter has no exact authored argument");
-                }
-            };
+        let Some(expression) =
+            authored.structural_argument(checked, parameter.position, parameter.is_self)
+        else {
+            // A statement-position call (`_ = self.roll(..)`) spells its
+            // implicit receiver as a name path and keeps no expression for it.
+            validate_statement_receiver(
+                checked,
+                caller,
+                (source_machine, source_state),
+                *coordinate,
+                authored.source_site,
+                argument,
+                parameter,
+            )?;
+            continue;
+        };
         if primitive_locals::validate_argument_source(
             checked,
             caller,
@@ -254,6 +244,65 @@ pub(super) fn validate_call_source(
         })
     {
         return unsupported("scalar wrapper transfers lost their exact checked call events");
+    }
+    Ok(())
+}
+
+/// Rejoin a statement call's implicit receiver operand to the place the
+/// statement spells. The operand must name the caller formal at that authored
+/// root, with the same field path, and lend it with the callee's declared
+/// receiver access; there is no expression to carry an explicit borrow.
+fn validate_statement_receiver(
+    checked: &CheckedTrees,
+    caller: &CallerView<'_>,
+    (source_machine, source_state): (
+        &checked_trees::machine::Machine,
+        &checked_trees::state::State,
+    ),
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    source_site: Option<checked_trees::NominalMachineUseSite>,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    parameter: &checked_trees::CheckedUnitStructuralParameterPlan,
+) -> Result<(), LoweringError> {
+    let Some(checked_trees::NominalMachineUseSite::Statement(_)) = source_site else {
+        return unsupported("scalar wrapper parameter has no exact authored argument");
+    };
+    let Some(checked_trees::statement::StatementNode::Call(call)) = checked
+        .statement_table
+        .statements(source_state.statement_nodes)
+        .get(coordinate.statement_index as usize)
+    else {
+        return unsupported("scalar wrapper receiver lost its authored statement call");
+    };
+    if !parameter.is_self || call.receiver.is_empty() {
+        return unsupported("scalar wrapper parameter has no exact authored argument");
+    }
+    let (root, path) =
+        super::parameters::statement_receiver_path(checked, source_machine, source_state, call)?;
+    let source_index = argument
+        .source_parameter_index()
+        .ok_or(LoweringError::Unsupported(
+            "scalar wrapper receiver has no source parameter owner",
+        ))?;
+    let retained = caller
+        .structural_parameters
+        .get(source_index as usize)
+        .ok_or(LoweringError::Unsupported(
+            "scalar wrapper receiver has no source parameter",
+        ))?;
+    let source = checked
+        .state_parameters(source_state)
+        .get(retained.position as usize)
+        .ok_or(LoweringError::Unsupported(
+            "scalar wrapper receiver lost its authored position",
+        ))?;
+    if !source.symbol.is_valid()
+        || !(root == source.symbol || (source.is_self && root == caller.machine))
+        || retained.is_self != source.is_self
+        || path != argument.path
+        || argument.access != parameter.access
+    {
+        return unsupported("scalar wrapper receiver substituted its authored statement place");
     }
     Ok(())
 }

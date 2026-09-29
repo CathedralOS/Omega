@@ -68,6 +68,105 @@ pub(crate) fn source_path(
     Ok((symbol, path, access))
 }
 
+/// The receiver place a statement-position call spells as a name path
+/// (`_ = self.roll(..)`, `self.tally.bump()`). Statement calls keep no
+/// receiver expression, so this rejoins the authored root member, the lexical
+/// root symbol and each projected field against their declarations, the same
+/// exact field owners an expression receiver's `Member` chain resolves. The
+/// final field must be the call's captured endpoint. Lexical `self` resolves
+/// to the machine symbol; any other root must be a formal of `source_state`.
+pub(crate) fn statement_receiver_path(
+    checked: &CheckedTrees,
+    machine: &checked_trees::machine::Machine,
+    source_state: &checked_trees::state::State,
+    call: &checked_trees::statement::TableCall,
+) -> Result<
+    (
+        symbols::SymbolHandle,
+        Vec<checked_trees::CheckedUnitStructuralPathSegment>,
+    ),
+    LoweringError,
+> {
+    let members = checked.statement_table.name_path_members(call.receiver);
+    let root = call.receiver_root_symbol;
+    let Some(root_member) = members.first() else {
+        return unsupported("statement receiver has no authored root");
+    };
+    if members.len() != call.receiver.count() as usize || !root.is_valid() {
+        return unsupported("statement receiver has an invalid authored path");
+    }
+    let parameters = checked.state_parameters(source_state);
+    let root_parameter = if root == machine.symbol {
+        (root_member.as_str() == "self")
+            .then(|| parameters.iter().find(|parameter| parameter.is_self))
+            .flatten()
+    } else {
+        parameters.iter().find(|parameter| {
+            parameter.symbol == root && parameter.name.as_str() == root_member.as_str()
+        })
+    };
+    let Some(root_parameter) = root_parameter else {
+        return unsupported("statement receiver root is not a formal of its state");
+    };
+    let mut type_reference = root_parameter.type_reference;
+    let mut endpoint = root;
+    let mut path = Vec::new();
+    for (position, member) in members.iter().enumerate().skip(1) {
+        let nominal = validation::unwrapped_type_reference(&checked.typed, type_reference).ok_or(
+            LoweringError::Unsupported("statement receiver field lost its nominal type"),
+        )?;
+        let TypeReferenceNode::Named { symbol, .. } =
+            checked.type_reference_table.type_reference(nominal)
+        else {
+            return unsupported("statement receiver field has no declared record owner");
+        };
+        // Attached Self retains its machine symbol in the source type; only
+        // the receiver's own first projection rejoins the attachment record.
+        let owner = if *symbol == machine.symbol && position == 1 && root_parameter.is_self {
+            machine.attached_data_symbol
+        } else {
+            *symbol
+        };
+        let data = checked
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == owner)
+            .ok_or(LoweringError::Unsupported(
+                "statement receiver field owner is absent",
+            ))?;
+        // Intermediate field symbols are not retained by the statement call;
+        // the declared owner and unique field name select each one, and the
+        // last must also match the captured endpoint.
+        let retained = if position + 1 == members.len() {
+            call.receiver_symbol
+        } else {
+            symbols::SymbolHandle::invalid()
+        };
+        let field = validation::exact_data_member_field(
+            &checked.typed,
+            data,
+            retained,
+            member.as_str(),
+            None,
+        )
+        .ok_or(LoweringError::Unsupported(
+            "statement receiver field disagrees with its declaration",
+        ))?;
+        if field.relevance.is_erased() {
+            return unsupported("statement receiver cannot select an erased field");
+        }
+        path.push(checked_trees::CheckedUnitStructuralPathSegment::Field(
+            field.path_identity(),
+        ));
+        type_reference = field.type_reference;
+        endpoint = field.symbol;
+    }
+    if endpoint != call.receiver_symbol {
+        return unsupported("statement receiver changed its captured endpoint");
+    }
+    Ok((root, path))
+}
+
 pub(crate) fn source_place_path(
     checked: &CheckedTrees,
     machine: &checked_trees::machine::Machine,

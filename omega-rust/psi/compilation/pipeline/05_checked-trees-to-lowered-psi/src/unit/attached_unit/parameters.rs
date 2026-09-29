@@ -26,7 +26,9 @@ use crate::expression_preparation::bindings::structural_paths::{
 use semantic_vocabulary::ValueId;
 mod service_forward;
 mod source_path;
-pub(crate) use source_path::{expression_producer, source_path, source_place_path};
+pub(crate) use source_path::{
+    expression_producer, source_path, source_place_path, statement_receiver_path,
+};
 
 /// Qualifications have their own retained row; carrier comparisons preserve
 /// reference presentation rather than silently turning a view into ownership.
