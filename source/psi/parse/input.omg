@@ -16,7 +16,7 @@ machine Parser::load_current(&mut self, input: &TokenStream) {
         _ -> absent()
     }
 
-    state array_bound(&mut self, candidate: u64) {
+    state array_bound(candidate: u64) {
         transition candidate < 16384 {
             true -> present(candidate)
             _ -> absent()
@@ -69,5 +69,5 @@ machine Parser::skip_trivia(&mut self, input: &TokenStream) {
         }
     }
 
-    state done(&mut self) { }
+    state done() { }
 }
