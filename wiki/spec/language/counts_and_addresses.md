@@ -39,14 +39,15 @@ authority. Nonaddressable projections cannot acquire an address by this query.
 The static machine argument selects a declaration and its required arguments,
 including selected conformances and machine arguments, not merely a signature.
 Overloaded or unresolved application families reject. No ordinary arguments are
-supplied or evaluated, no body is invoked, and no receiver is captured. An
-attached machine still has its ordinary receiver contract. A static machine
-binder may supply the selected application under the same rule.
+supplied or evaluated, no body is invoked, and no context is captured. A
+carrier-qualified machine retains its ordinary explicit parameter contract;
+qualification supplies no context argument or storage. A static machine binder
+may supply the selected application under the same rule.
 
 This is a representation query, not a value conversion or size-compatible
 [representation recast](../layouts/recasts.md). `address_of` is a core name,
 not a reserved keyword. Its static machine form does not make a declaration a
-runtime value or capture an attached receiver. Ordinary machine calls still
+runtime value or retain context arguments. Ordinary machine calls still
 require their complete argument lists. Machine/reference `as addr` is not an
 alternate spelling; neither arbitrary value-to-address conversions nor the
 inverse address-to-borrow/callable conversion follow from these queries.
