@@ -15,6 +15,24 @@ pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
             self.out[position] = byte;
         }
     "#;
+    indexed_field_source_unit(source)
+}
+
+pub(crate) fn indexed_field_with_primitive_sibling_unit() -> PsiOptimizationUnit {
+    indexed_field_source_unit(
+        r#"
+        domain [u8;3]::Utf8 requires valid_utf8(self);
+        data Record { out: [u8;3] in Utf8; marked: [i32;3]; }
+        machine Record::replace(&mut self, position: u64 [0..=2], byte: u8 [0..=127]) {
+            self.out = "XXX";
+            self.marked[position] = 1;
+            self.out[position] = byte;
+        }
+        "#,
+    )
+}
+
+fn indexed_field_source_unit(source: &str) -> PsiOptimizationUnit {
     let tokens = source_files_to_tokens::Lexer::new(source)
         .tokenize()
         .unwrap();
@@ -60,6 +78,22 @@ pub(crate) fn indexed_field_unit() -> PsiOptimizationUnit {
     .unwrap()
     .into_parts()
     .1
+}
+
+#[test]
+fn indexed_byte_field_preserves_ascii_across_primitive_sibling_write() {
+    let unit = indexed_field_with_primitive_sibling_unit();
+    assert!(
+        unit.functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes)
+            .any(|node| matches!(
+                node.operation,
+                AbstractOperation::WriteOnlyPrimitiveStore { .. }
+            ))
+    );
+    validate_psi_optimization_unit(&unit).unwrap();
 }
 
 #[test]

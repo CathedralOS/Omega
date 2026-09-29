@@ -128,7 +128,17 @@ pub(super) fn changes_length(
                 && field_path(function, types, *destination, written, *field)
                     .is_none_or(|written| overlaps(path, &written))
         }
-        O::WriteOnlyPrimitiveStore { destination, .. } => destination.place == root,
+        O::WriteOnlyPrimitiveStore {
+            destination,
+            path: written,
+            ..
+        } => {
+            // Match Terminal freshness: a sibling primitive array write cannot
+            // invalidate this carrier's length or ASCII history. Prefixes and
+            // possibly aliasing runtime indices still overlap.
+            destination.place == root
+                && terminal_semantics::structural_paths_may_overlap(path, written)
+        }
         O::CallUnit {
             structural_arguments,
             ..

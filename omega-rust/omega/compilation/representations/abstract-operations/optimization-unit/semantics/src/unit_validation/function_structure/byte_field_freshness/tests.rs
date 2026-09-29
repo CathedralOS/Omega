@@ -9,6 +9,83 @@ use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralAccess;
 
 #[test]
+fn primitive_writes_invalidate_only_potentially_overlapping_projections() {
+    use crate::tests::indexed_byte_fields::indexed_field_with_primitive_sibling_unit;
+    use terminal_psi::StructuralPathSegment as S;
+
+    let unit = indexed_field_with_primitive_sibling_unit();
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == unit.entry)
+        .unwrap();
+    let types = unit
+        .structural_types
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+    let primitive = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .find(|node| matches!(node.operation, O::WriteOnlyPrimitiveStore { .. }))
+        .unwrap();
+    let O::WriteOnlyPrimitiveStore {
+        destination,
+        path: written,
+        ..
+    } = &primitive.operation
+    else {
+        unreachable!();
+    };
+    assert!(matches!(
+        written.as_slice(),
+        [S::Field(_), S::RuntimeIndex { .. }]
+    ));
+    let root = destination.place;
+    let field = written[0].clone();
+    let other_runtime = S::RuntimeIndex {
+        index: id(991, semantic_vocabulary::ValueId::new),
+        obligation: id(992, semantic_vocabulary::ObligationId::new),
+    };
+    // These isolate mutation classification; complete operation typing and
+    // runtime-index obligation checks remain the unit validator's job.
+    for (observed, invalidated) in [
+        (vec![S::Field("out".into())], false),
+        (vec![], true),
+        (vec![field.clone()], true),
+        (written.clone(), true),
+        (vec![field.clone(), S::FixedIndex(0)], true),
+        (vec![field, other_runtime], true),
+    ] {
+        assert_eq!(
+            super::changes_length(function, &types, root, &observed, &primitive.operation),
+            invalidated,
+            "observed projection: {observed:?}"
+        );
+    }
+    let mut whole_root = primitive.operation.clone();
+    let O::WriteOnlyPrimitiveStore { path, .. } = &mut whole_root else {
+        unreachable!()
+    };
+    path.clear();
+    assert!(super::changes_length(
+        function,
+        &types,
+        root,
+        &[S::Field("out".into())],
+        &whole_root
+    ));
+    assert!(!super::changes_length(
+        function,
+        &types,
+        id(999, semantic_vocabulary::PlaceId::new),
+        &[],
+        &whole_root
+    ));
+}
+
+#[test]
 fn indexed_byte_field_freshness_preserves_only_length_preserving_effects() {
     let unit = indexed_field_unit();
     let function = unit
