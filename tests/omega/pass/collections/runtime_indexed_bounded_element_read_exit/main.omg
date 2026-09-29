@@ -1,0 +1,28 @@
+// Runtime-indexed read of a BOUNDED element leaf: `cells[k].v` where `v: i32
+// [0..=9]` cannot emit a flat scalar read (the declared bound belongs to the
+// canonical field read), so emission hoists the element through a
+// `StructuralLeafCopy` at the runtime index and reads `v` canonically on the
+// fresh element place. Exit 70 only when the hoisted read carried the bound
+// and the authored value.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Cell {
+    hp: i32;
+    v: i32 [0..=9];
+}
+data Main {
+    console: Binding<Console>;
+    cells: [Cell; 4];
+    k: u64 [0..=3];
+}
+machine Main::main(&mut self) reaches Console {
+    self.cells[2].hp = 1;
+    self.cells[2].v = 7;
+    self.k = 2;
+    transition self.cells[self.k].v == 7 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(70); }
+    state no(&mut self) { self.console.exit_process(3); }
+}
