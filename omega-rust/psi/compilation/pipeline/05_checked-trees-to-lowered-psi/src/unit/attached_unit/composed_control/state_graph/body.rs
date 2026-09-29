@@ -1178,11 +1178,23 @@ fn statement_continuations(
     // one call statement. The call, and any further argument construction for
     // it, continue that statement instead of consuming the next.
     let mut began_with_argument = false;
+    // Whether the current statement began with a structural establishment of
+    // its own value: a whole array-literal replacement establishes every
+    // element before its first window pair, so each later element continues
+    // the statement the first began. The statement's replacement roster then
+    // rejoins the complete element order.
+    let mut began_with_establishment = false;
     operations
         .iter()
         .map(|operation| {
             let continued = continued_statement(operation);
             if continued.is_some() && continued == current {
+                return Ok(true);
+            }
+            if began_with_establishment
+                && authored_statement(operation) == current
+                && own_establishment(operation)
+            {
                 return Ok(true);
             }
             // A reference release is emitted at the head of its expiry
@@ -1219,9 +1231,22 @@ fn statement_continuations(
             }
             current = authored_statement(operation);
             began_with_argument = argument_construction(operation);
+            began_with_establishment = own_establishment(operation);
             Ok(false)
         })
         .collect()
+}
+
+/// A structural establishment of its statement's own value rather than of
+/// one of the statement's call arguments.
+fn own_establishment(operation: &CheckedUnitEffectOperationPlan) -> bool {
+    matches!(
+        operation,
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            operand_source: None,
+            ..
+        }
+    )
 }
 
 /// A structural construction authored as one of its statement's call
@@ -1265,6 +1290,23 @@ fn validate_displaced_field_replacement(
             authored_statement(operation).map(|index| index as usize) == Some(ordinal)
         })
         .collect::<Vec<_>>();
+    // A whole array literal of structural elements replaces its array one
+    // element window at a time; its roster has its own exact order.
+    if let Some(literal) = crate::unit::attached_unit::replaced_array_literal(
+        checked,
+        state.state,
+        ordinal,
+        assignment,
+    ) {
+        return crate::unit::attached_unit::validate_array_element_replacements(
+            checked,
+            state.state,
+            ordinal,
+            assignment,
+            &roster,
+            literal,
+        );
+    }
     // Argument values precede the call that replaces the field. Each has
     // already rejoined its own exact call/formal above; it is not the field's
     // replacing producer and must not shift the producer/window relationship.

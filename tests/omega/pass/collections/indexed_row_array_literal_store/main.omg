@@ -8,9 +8,9 @@
 //   self.grid[0] = [1, 2, 3]     checks (fixed index)
 //   self.grid[i] = [10, 20, 30]  checks under `requires i <= 1` (runtime)
 //
-// Rows of structural elements ([Cell; N]) still decline at
-// `structural field store: scalar field type`; that admission belongs to
-// the structural-value establishment owner, not this store route.
+// Rows of structural elements ([Cell; N]) take the structural-value route
+// instead: each element replaces its own window below the row's index
+// (`case_array_literal_row_store_exit`).
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main {

@@ -121,6 +121,26 @@ pub(crate) fn validate(
         .ok_or(LoweringError::Unsupported(
             "structural construction has no unique source root",
         ))?;
+    if root.machine != machine
+        || root.state != state
+        || root.expression != expression
+        || root.type_reference != reference
+    {
+        return unsupported("structural construction substituted its owner or result type");
+    }
+    // The established value is the root itself, or -- for a whole array
+    // literal assigned element by element -- one of its elements under that
+    // element's own authored occurrence and declared type.
+    let element = root.root != *value;
+    let (expression, reference) = if element {
+        replaced_array_element(checked, source, result.statement_index, root, *value)
+            .filter(|_| !is_call_argument)
+            .ok_or(LoweringError::Unsupported(
+                "structural construction substituted its value root",
+            ))?
+    } else {
+        (expression, reference)
+    };
     // A selection receipt belongs to the statement's destination, not to a
     // construction used as one of its call operands. The operand has already
     // rejoined its own authored expression and formal above.
@@ -134,6 +154,10 @@ pub(crate) fn validate(
             .owned_selection_at(state, result.statement_index)
             .map(|(_, receipt)| receipt)
     };
+    // A selected owner transfers one whole value; no element roster names it.
+    if element && selection.is_some() {
+        return unsupported("array element establishment carries a selection receipt");
+    }
     // A `&T` establishment keeps the authored reference type on its root but
     // joins the referent's structural carrier: the planned identity names the
     // record or the borrowed view's slice, not the borrow shell.
@@ -153,11 +177,6 @@ pub(crate) fn validate(
             checked.type_multiplicity(reference)
         };
     if owner.symbol != machine
-        || root.machine != machine
-        || root.state != state
-        || root.expression != expression
-        || root.type_reference != reference
-        || root.root != *value
         || checked.normalized_type_identity(carrier).as_str() != result.type_identity
         || expected_multiplicity != result.multiplicity
         || !(validation::has_plain_owned_contents_with_numeric_constraints(&checked.typed, carrier)
@@ -829,6 +848,38 @@ pub(crate) fn validate(
     Ok(())
 }
 
+/// The authored occurrence and declared element type of `value` when it is one
+/// leaf of the whole array literal `root` an assignment stores: the statement
+/// sequence establishes each leaf separately and replaces the array one
+/// element window at a time. The leaf's position in the retained roster must
+/// be its position in the authored literal.
+fn replaced_array_element(
+    checked: &CheckedTrees,
+    source: &checked_trees::state::State,
+    statement_index: u32,
+    root: &checked_trees::CheckedStructuralValueRoot,
+    value: CheckedStructuralValueHandle,
+) -> Option<(ExpressionHandle, TypeReferenceHandle)> {
+    let Some(StatementNode::Assignment(assignment)) = checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(statement_index as usize)
+    else {
+        return None;
+    };
+    if assignment.value != root.expression {
+        return None;
+    }
+    let leaves = crate::unit::attached_unit::array_literal_leaves(
+        checked,
+        root.root,
+        root.expression,
+        root.type_reference,
+    )?;
+    let leaf = leaves.iter().find(|leaf| leaf.value == value)?;
+    Some((leaf.expression, leaf.type_reference))
+}
+
 /// Rejoin the retained occurrence to its authored destination or exact call formal.
 fn authored_destination(
     checked: &CheckedTrees,
@@ -1404,6 +1455,21 @@ pub(crate) fn operand_source(
                     .iter()
                     .rev()
                     .map(|field| field.value),
+            );
+            continue;
+        }
+        // A structural array literal's elements are each their own
+        // constructor; their operands keep their own owner and ordinal.
+        if let ExpressionNode::ArrayLiteral(elements) =
+            checked.expression_table.expression(expression)
+        {
+            pending.extend(
+                checked
+                    .expression_table
+                    .expression_handles(*elements)
+                    .iter()
+                    .rev()
+                    .copied(),
             );
             continue;
         }

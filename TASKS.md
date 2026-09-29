@@ -1313,21 +1313,27 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `inner_indexes`, pinned by
   `tests/omega/pass/collections/nested_runtime_indexed_successor_argument_exit`.
 
-  Frontier (macOS ARM64, debug CLI, `omega --check`): dungeon stops at
-  `structural field store: scalar field type` (state 0, statement 1). Stage 04
-  `values/scalar/computations.rs` roots `is_fixed_array_value` literals only for
-  LocalData, so `self.grid = [Cell::Wall, ...]` has no structural value.
-  Rooting it for assignments reaches stage 05, which refuses `FixedArray`
-  establishment (`unit/attached_unit/structural_values/emission.rs`: Terminal
-  has no owned structural-array establishment). A single
-  `self.grid[2] = Cell::Door` already runs through the window pair, so the open
-  choice is per-element window replacement of the whole literal (stage 04
-  `statement_sequence/assignments.rs` plus stage 05
-  `validate_displaced_field_replacement` and `statement_continuations`) versus
-  a Terminal array establishment. The next stop after that is the computed
-  match subject `self.grid[self.r * 6 + self.c]`, which omits at `state graph:
-  terminator: guarded jump successors: roster`; `self.grid[self.k]` checks.
-  Keep the shared `constant_arrays.rs` predicate.
+  Structural-element arrays run natively (macOS ARM64): an array literal of
+  cases or records assigned to a whole field, a fixed or runtime row, or a
+  nested whole field establishes every leaf in row-major order, then replaces
+  each element through its own window pair (stage 04
+  `statement_sequence/assignments.rs::element_replacements`; stage 05
+  `field_replacement.rs::validate_array_element_replacements` for the
+  single-state body and the state graph). Executable controls in
+  `tests/omega/pass/collections/`: `case_array_literal_field_store_exit`,
+  `record_array_literal_field_store_exit`, `case_array_literal_row_store_exit`,
+  `case_array_literal_nested_store_exit`, `case_array_literal_callee_store_exit`.
+  Policy-array controls (Wrapping, Saturating, whole-array policy) remain
+  check-only.
+
+  Frontier: dungeon now stops at the computed match subject
+  `self.grid[self.r * 6 + self.c]` (`state graph: terminator: guarded jump
+  successors: roster`, state 5); `self.grid[self.k]` runs. Stage 02 hoists the
+  computed index into an immutable scalar local, and `CheckedRuntimeIndex` has
+  no selector for a local (only `Parameter`, `AssignmentIndex`,
+  `StructuralField`), so `runtime_element_case_subject` mints no
+  `CaseMembership` guard and no guarded tail is retained. Keep the shared
+  `constant_arrays.rs` predicate.
 
   Acceptance: executable controls for bare/whole-array-policy/element-policy
   arrays, Wrapping and Saturating, records and cases, whole and indexed-row

@@ -1,0 +1,42 @@
+// A whole array literal of payload-free cases stored into a fixed-array field
+// (`self.grid = [Cell::Water, ..]`, the `samples/cli/rendering/dungeon_render`
+// shape). Terminal has no whole structural-array establishment, so the literal
+// composes from the operations one `self.grid[k] = Cell::X` already uses:
+// every element is established first, then each replaces its own element
+// window. The second literal overwrites occupied elements, so every element's
+// displacement runs too; the arms read three elements back: exit 42.
+use omega_language_std::console;
+use omega::language::core::binding;
+data Cell {
+    case Wall;
+    case Floor;
+    case Door;
+    case Water;
+}
+data Main {
+    console: Binding<Console>;
+    grid: [Cell; 4];
+}
+machine Main::main(&mut self) reaches Console {
+    self.grid = [Cell::Wall, Cell::Wall, Cell::Wall, Cell::Wall];
+    self.grid = [Cell::Water, Cell::Door, Cell::Floor, Cell::Wall];
+    transition self.grid[0] {
+        Cell::Water -> second(40)
+        _ -> finish(1)
+    }
+    state second(&mut self, base: i32) {
+        transition self.grid[3] {
+            Cell::Wall -> third(base + 2)
+            _ -> finish(2)
+        }
+    }
+    state third(&mut self, total: i32) {
+        transition self.grid[1] {
+            Cell::Door -> finish(total)
+            _ -> finish(3)
+        }
+    }
+    state finish(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

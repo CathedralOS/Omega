@@ -462,7 +462,11 @@ pub(crate) fn build_checked_value_computation_plans(
                     // a case literal, or a copy of an `Unrestricted` place
                     // (`self.copy = self.items[0]` over a `[copy]` record), is
                     // established whole and replaces its field through the
-                    // statement sequence's window pair.
+                    // statement sequence's window pair. An array literal of
+                    // structural elements registers each element as its own
+                    // value node, as a `let` initializer does; the sequence
+                    // establishes the elements and replaces the array one
+                    // element window at a time.
                     if let Some(expected) = crate::flow::expression_type_reference_in_state(
                         program,
                         state.symbol,
@@ -485,6 +489,11 @@ pub(crate) fn build_checked_value_computation_plans(
                                 program,
                                 state.symbol,
                                 statement_index,
+                                assignment.value,
+                                expected,
+                            )
+                            || structural_values::is_fixed_array_value(
+                                program,
                                 assignment.value,
                                 expected,
                             ))

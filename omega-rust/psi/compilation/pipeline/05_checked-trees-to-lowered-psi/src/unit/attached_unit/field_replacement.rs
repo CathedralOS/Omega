@@ -5,8 +5,18 @@
 //! Every member after the producer continues the producer's
 //! statement; the destination and value are rejoined against the authored
 //! assignment by the store's own source custody.
+//!
+//! `place = [e0, e1, ..]` over a fixed array of structural elements has no
+//! whole-array establishment in Terminal, so it plans the same members once
+//! per element: every element's establishment first, in authored order, then
+//! each element's window pair at `place[k]`. `continues_array_elements` places
+//! those members in the canonical operation order and
+//! `validate_array_element_replacements` rejoins the roster to the authored
+//! literal and destination.
 
-use super::{CheckedUnitEffectOperationPlan, Multiplicity};
+use super::{
+    CheckedTrees, CheckedUnitEffectOperationPlan, LoweringError, Multiplicity, unsupported,
+};
 
 /// Whether this store (or its optional displacement) continues the same
 /// statement's producer. Hole state is independently reconstructed by the
@@ -156,4 +166,373 @@ pub(super) fn continues_with_cleanup(
                 == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
                     binding_ordinal: moved.binding_ordinal,
                 })
+}
+
+/// The authored statement a member of a field replacement roster names: an
+/// establishment of the statement's own value, a move-out, a store, or the
+/// continuation cleanup of a displaced value.
+fn roster_statement(operation: Option<&CheckedUnitEffectOperationPlan>) -> Option<u32> {
+    match operation? {
+        CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            operand_source: None,
+            ..
+        }
+        | CheckedUnitEffectOperationPlan::MoveStructuralField { result, .. } => {
+            Some(result.statement_index)
+        }
+        CheckedUnitEffectOperationPlan::StoreStructuralField {
+            statement_index, ..
+        } => Some(*statement_index),
+        CheckedUnitEffectOperationPlan::CallContinuationCleanup { coordinate, .. }
+            if coordinate.call_ordinal == 0 =>
+        {
+            Some(coordinate.statement_index)
+        }
+        _ => None,
+    }
+}
+
+/// Whether the operation at `index` continues a whole array-literal
+/// replacement its statement's first element establishment began: a later
+/// element's establishment, or one element's move-out, store or displaced
+/// cleanup. The statement's contiguous roster must be exactly the element
+/// establishments followed by one window pair per element, in element order,
+/// each store consuming its own element's binding. Destinations and element
+/// identities are rejoined by `validate_array_element_replacements`.
+pub(super) fn continues_array_elements(
+    operations: &[CheckedUnitEffectOperationPlan],
+    index: usize,
+) -> bool {
+    let Some(statement) = roster_statement(operations.get(index)) else {
+        return false;
+    };
+    let mut start = index;
+    while start > 0 && roster_statement(operations.get(start - 1)) == Some(statement) {
+        start -= 1;
+    }
+    let mut end = index + 1;
+    while roster_statement(operations.get(end)) == Some(statement) {
+        end += 1;
+    }
+    let roster = &operations[start..end];
+    let produced = roster
+        .iter()
+        .map_while(|operation| match operation {
+            CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+                result,
+                operand_source: None,
+                ..
+            } => Some(result),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    if produced.is_empty() {
+        return false;
+    }
+    let mut windows = roster[produced.len()..].iter().peekable();
+    for produced in produced {
+        let moved = match windows.peek() {
+            Some(CheckedUnitEffectOperationPlan::MoveStructuralField { result, source }) => {
+                windows.next();
+                Some((result, source))
+            }
+            _ => None,
+        };
+        let Some(CheckedUnitEffectOperationPlan::StoreStructuralField {
+            destination, value, ..
+        }) = windows.next()
+        else {
+            return false;
+        };
+        if !value.path.is_empty()
+            || value.access != checked_trees::CheckedStructuralAccess::Owned
+            || value.source_structural_result_binding_ordinal() != Some(produced.binding_ordinal)
+            || value.type_identity != produced.type_identity
+            || moved.is_some_and(|(moved, source)| {
+                source != destination
+                    || moved.type_identity != produced.type_identity
+                    || moved.multiplicity != produced.multiplicity
+            })
+        {
+            return false;
+        }
+        if let Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+            affine_discards,
+            ..
+        }) = windows.peek()
+        {
+            let Some((moved, _)) = moved else {
+                return false;
+            };
+            if moved.multiplicity != Multiplicity::Affine
+                || !matches!(affine_discards.as_slice(), [discard]
+                if discard.path.is_empty()
+                    && discard.type_identity == moved.type_identity
+                    && discard.source
+                        == checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: moved.binding_ordinal,
+                        })
+            {
+                return false;
+            }
+            windows.next();
+        }
+    }
+    windows.next().is_none() && index > start
+}
+
+/// The retained root of `assignment`'s value when it is a whole array literal
+/// of structural elements rooted at this statement.
+pub(crate) fn replaced_array_literal(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    ordinal: usize,
+    assignment: &checked_trees::statement::TableAssignment,
+) -> Option<checked_trees::CheckedStructuralValueHandle> {
+    let plans = &checked.facts.values.structural_values;
+    let root = plans.root_for_expression(state, u32::try_from(ordinal).ok()?, assignment.value)?;
+    matches!(
+        plans.nodes.get(root.root).kind,
+        checked_trees::CheckedStructuralValueKind::FixedArray { .. }
+    )
+    .then_some(root.root)
+}
+
+/// One non-array element of a whole structural array literal: its literal
+/// indices below the destination, its retained value node, its authored
+/// occurrence and its declared type.
+pub(crate) struct ArrayLiteralLeaf {
+    pub(crate) indices: Vec<u64>,
+    pub(crate) value: checked_trees::CheckedStructuralValueHandle,
+    pub(crate) expression: checked_trees::expression::ExpressionHandle,
+    pub(crate) type_reference: checked_trees::types::TypeReferenceHandle,
+}
+
+/// The leaves of the retained array literal `value` in row-major order,
+/// rejoined to the authored literal `expression` and to `declared`, which
+/// must be an exact literal extent at every nested level. A nested literal
+/// contributes its own leaves under all of their indices.
+pub(crate) fn array_literal_leaves(
+    checked: &CheckedTrees,
+    value: checked_trees::CheckedStructuralValueHandle,
+    expression: checked_trees::expression::ExpressionHandle,
+    declared: checked_trees::types::TypeReferenceHandle,
+) -> Option<Vec<ArrayLiteralLeaf>> {
+    fn collect(
+        checked: &CheckedTrees,
+        value: checked_trees::CheckedStructuralValueHandle,
+        expression: checked_trees::expression::ExpressionHandle,
+        declared: checked_trees::types::TypeReferenceHandle,
+        indices: &mut Vec<u64>,
+        leaves: &mut Vec<ArrayLiteralLeaf>,
+    ) -> Option<()> {
+        let plans = &checked.facts.values.structural_values;
+        let node = plans.nodes.get(value);
+        let checked_trees::CheckedStructuralValueKind::FixedArray { elements } = &node.kind else {
+            return None;
+        };
+        let checked_trees::expression::ExpressionNode::ArrayLiteral(literal) =
+            checked.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let checked_trees::types::TypeReferenceNode::FixedArray {
+            element_type,
+            length: checked_trees::types::FixedArrayLength::Literal(length),
+        } = checked.type_reference_table.type_reference(declared)
+        else {
+            return None;
+        };
+        let authored = checked.expression_table.expression_handles(*literal);
+        if node.expression != expression
+            || authored.len() != elements.len()
+            || *length != elements.len()
+        {
+            return None;
+        }
+        for (ordinal, (&element, &authored)) in elements.iter().zip(authored).enumerate() {
+            indices.push(u64::try_from(ordinal).ok()?);
+            if matches!(
+                plans.nodes.get(element).kind,
+                checked_trees::CheckedStructuralValueKind::FixedArray { .. }
+            ) {
+                collect(checked, element, authored, *element_type, indices, leaves)?;
+            } else {
+                leaves.push(ArrayLiteralLeaf {
+                    indices: indices.clone(),
+                    value: element,
+                    expression: authored,
+                    type_reference: *element_type,
+                });
+            }
+            indices.pop();
+        }
+        Some(())
+    }
+    let mut leaves = Vec::new();
+    collect(
+        checked,
+        value,
+        expression,
+        declared,
+        &mut Vec::new(),
+        &mut leaves,
+    )?;
+    Some(leaves)
+}
+
+/// Rejoin `place = [e0, e1, ..]` where `place` is a fixed array of structural
+/// elements beneath an exclusive borrowed parameter. Terminal has no whole
+/// structural-array establishment, so the checked sequencer plans the literal
+/// as its leaves' own replacements, in this order: every leaf's establishment
+/// in authored row-major order, binding the replacing values; then, per leaf,
+/// `MoveStructuralField` binding the displaced old element and opening the
+/// window at `place[i]..[k]` (absent when that element's hole is already
+/// open), `StoreStructuralField` closing it with the leaf's value, and for a
+/// displaced affine element the continuation discarding it. Every leaf is
+/// evaluated before the first replacement, and no leaf may be dropped,
+/// repeated or stored elsewhere.
+pub(crate) fn validate_array_element_replacements(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    ordinal: usize,
+    assignment: &checked_trees::statement::TableAssignment,
+    roster: &[&CheckedUnitEffectOperationPlan],
+    literal: checked_trees::CheckedStructuralValueHandle,
+) -> Result<(), LoweringError> {
+    let (owner, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    // The destination is the literal's exact declared array: every dimension a
+    // literal extent matching the roster, with no qualification the element
+    // stores could not carry.
+    let declared =
+        validation::declared_place_type_raw(&checked.typed, owner, Some(source), assignment.target)
+            .ok_or(LoweringError::Unsupported(
+                "array replacement lost its declared destination",
+            ))?;
+    let leaves = array_literal_leaves(checked, literal, assignment.value, declared).ok_or(
+        LoweringError::Unsupported("array replacement is not an exact fixed array literal"),
+    )?;
+    let (producers, windows) = roster.split_at(leaves.len().min(roster.len()));
+    let mut produced = Vec::with_capacity(leaves.len());
+    for (producer, leaf) in producers.iter().zip(&leaves) {
+        let CheckedUnitEffectOperationPlan::EstablishStructuralValue {
+            result,
+            value,
+            discard_result_on_return: false,
+            operand_source: None,
+            ..
+        } = producer
+        else {
+            return unsupported("array replacement has no element producer");
+        };
+        if *value != leaf.value
+            || result.statement_index as usize != ordinal
+            || result.type_identity
+                != checked
+                    .normalized_type_identity(leaf.type_reference)
+                    .as_str()
+        {
+            return unsupported("array replacement reordered its elements");
+        }
+        produced.push(result);
+    }
+    if produced.len() != leaves.len() {
+        return unsupported("array replacement dropped an element");
+    }
+    let target = crate::emission::call_source_custody::projected_receivers::store_destination(
+        checked,
+        owner.symbol,
+        state,
+        Some(ordinal),
+        assignment.target,
+    )?;
+    let mut windows = windows.iter().peekable();
+    for (leaf, produced) in leaves.iter().zip(produced) {
+        let moved = match windows.peek() {
+            Some(CheckedUnitEffectOperationPlan::MoveStructuralField { result, source }) => {
+                windows.next();
+                Some((result, source))
+            }
+            _ => None,
+        };
+        let Some(CheckedUnitEffectOperationPlan::StoreStructuralField {
+            destination, value, ..
+        }) = windows.next()
+        else {
+            return unsupported("array replacement lost an element store");
+        };
+        let mut expected_path = target.path.clone();
+        expected_path.extend(
+            leaf.indices
+                .iter()
+                .map(|index| checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(*index)),
+        );
+        let root = destination
+            .source_parameter_index()
+            .and_then(|position| checked.state_parameters(source).get(position as usize))
+            .ok_or(LoweringError::Unsupported(
+                "array replacement has no authored parameter root",
+            ))?;
+        if destination.access != checked_trees::CheckedStructuralAccess::Owned
+            || destination.type_identity != produced.type_identity
+            || target.root != root.symbol
+            || destination.path != expected_path
+            || moved.is_some_and(|(moved, place)| {
+                place != destination
+                    || moved.type_identity != produced.type_identity
+                    || moved.multiplicity != produced.multiplicity
+                    || moved.statement_index != produced.statement_index
+            })
+        {
+            return unsupported("array replacement window names another element");
+        }
+        if value.source
+            != (checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                binding_ordinal: produced.binding_ordinal,
+            })
+            || !value.path.is_empty()
+            || value.access != checked_trees::CheckedStructuralAccess::Owned
+            || value.type_identity != produced.type_identity
+        {
+            return unsupported("array replacement stores another element");
+        }
+        // The displaced value is disposed exactly as the checked plan retires
+        // it: an affine value dies whole on the statement's continuation; a
+        // copy value has no disposal obligation and no continuation.
+        match moved.map(|(moved, _)| moved) {
+            Some(moved) if moved.multiplicity == Multiplicity::Affine => {
+                let displaced = checked_trees::CheckedUnitPartialAffineDiscardPlan {
+                    source:
+                        checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
+                            binding_ordinal: moved.binding_ordinal,
+                        },
+                    path: Vec::new(),
+                    type_identity: produced.type_identity.clone(),
+                };
+                let Some(CheckedUnitEffectOperationPlan::CallContinuationCleanup {
+                    coordinate,
+                    affine_discards,
+                }) = windows.next()
+                else {
+                    return unsupported("array replacement lost a displaced element's disposal");
+                };
+                if coordinate.statement_index != produced.statement_index
+                    || coordinate.call_ordinal != 0
+                    || affine_discards.as_slice() != std::slice::from_ref(&displaced)
+                {
+                    return unsupported("array replacement lost a displaced element's disposal");
+                }
+            }
+            Some(moved) if moved.multiplicity != Multiplicity::Unrestricted => {
+                return unsupported("array replacement displaces a linear element");
+            }
+            _ => {}
+        }
+    }
+    if windows.next().is_some() {
+        return unsupported("array replacement added an operation");
+    }
+    Ok(())
 }

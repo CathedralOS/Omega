@@ -59,6 +59,7 @@ mod scalar_graph;
 mod service_reach_contracts;
 mod source_selection;
 mod store_lowering;
+mod structural_array_literal_stores;
 mod structural_byte_sequence_index_store;
 mod structural_byte_sequence_store;
 mod structural_case_returns;
