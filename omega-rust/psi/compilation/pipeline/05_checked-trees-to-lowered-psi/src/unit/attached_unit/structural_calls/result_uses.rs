@@ -1583,39 +1583,38 @@ pub(crate) fn validate_consumer(
             }
             continue;
         }
-        // A live result binding may lend one of its record's leaves through
-        // an exclusive borrow: the binding is not consumed, the projected
-        // field path is already rejoined against the authored operand above,
-        // and the borrowed formal carries no claims.
-        let scalar_leaf_borrow =
+        // A live result binding may lend one of its record's leaves — or its
+        // whole extent — through an exclusive borrow: the binding is not
+        // consumed, the projected field path (empty for a whole-place loan)
+        // is already rejoined against the authored operand above, and the
+        // borrowed formal carries no claims.
+        let scalar_leaf_borrow = matches!(
+            result.multiplicity,
+            Multiplicity::Affine | Multiplicity::Unrestricted
+        ) && matches!(
+            operation,
+            CheckedUnitEffectOperationPlan::CallUnit { .. }
+        ) && argument.path.iter().all(|segment| {
             matches!(
-                result.multiplicity,
-                Multiplicity::Affine | Multiplicity::Unrestricted
-            ) && matches!(operation, CheckedUnitEffectOperationPlan::CallUnit { .. })
-                && !argument.path.is_empty()
-                && argument.path.iter().all(|segment| {
-                    matches!(
-                        segment,
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                    )
-                })
-                && matches!(
-                    argument.access,
-                    checked_trees::CheckedStructuralAccess::MutableBorrow
-                        | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
-                )
-                && argument.access == parameter.access
-                && !parameter.is_self
-                && parameter.type_identity == argument.type_identity
-                && parameter.multiplicity == Multiplicity::Unrestricted
-                && parameter.qualifications.is_empty()
-                && parameter.fused_service_erasure.is_none()
-                && target_entry_claims
-                    .iter()
-                    .all(|claim| claim.parameter_index as usize != parameter_index)
-                && claim_transfers
-                    .iter()
-                    .all(|transfer| transfer.argument_index as usize != index);
+                segment,
+                checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+            )
+        }) && matches!(
+            argument.access,
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+                | checked_trees::CheckedStructuralAccess::WriteOnlyBorrow
+        ) && argument.access == parameter.access
+            && !parameter.is_self
+            && parameter.type_identity == argument.type_identity
+            && parameter.multiplicity == Multiplicity::Unrestricted
+            && parameter.qualifications.is_empty()
+            && parameter.fused_service_erasure.is_none()
+            && target_entry_claims
+                .iter()
+                .all(|claim| claim.parameter_index as usize != parameter_index)
+            && claim_transfers
+                .iter()
+                .all(|transfer| transfer.argument_index as usize != index);
         if !linear_result_move
             && !scalar_leaf_borrow
             && (!matches!(

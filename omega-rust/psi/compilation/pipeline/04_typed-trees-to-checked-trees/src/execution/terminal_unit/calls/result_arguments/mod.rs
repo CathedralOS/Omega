@@ -701,6 +701,9 @@ pub(super) fn argument(
         }
         _ => return None,
     }
+    // Borrowed arguments loan the binding's storage into the callee: no
+    // owned custody moves at the edge, so the owned-move permission replay
+    // below does not apply to them.
     if access != CheckedStructuralAccess::Owned || unrestricted {
         return Some(CheckedUnitStructuralArgumentPlan {
             source: CheckedUnitStructuralArgumentSourcePlan::StructuralResult {
