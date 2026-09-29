@@ -78,6 +78,7 @@ pass/calls/guarded_value_call_arm_exit built 718ms exit:70
 pass/calls/machine_self_call_recursion_compile built 353ms
 pass/calls/mutable_output_host_call built 1130ms
 pass/calls/mutable_receiver_computation_exit built 794ms exit:70 @7886524fee80+wt
+pass/calls/mutable_receiver_scalar_destinations_exit built 1203ms exit:70 @1501ceb0073+wt
 pass/calls/mutual_cycle_tail_admitted_exit built 732ms exit:70
 pass/calls/nested_call_tail_roots_exit rejected 456ms
 	native-artifact Terminal production failed: Lowering(Unsupported("nested structural arguments contain unsupported syntax"))

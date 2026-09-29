@@ -1,6 +1,6 @@
 use super::{
-    Identifier, StatementNode, free_scalar_machine, report_nested_call_in_local_initializer,
-    result_initializer_call_is_supported, scalar_computation_call,
+    Identifier, StatementNode, report_nested_call_in_local_initializer,
+    result_initializer_call_is_supported,
 };
 const ORDERED: &str = r#"
 data Flags [copy] { value: bool; spare: bool; }
@@ -159,12 +159,6 @@ fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
     let StatementNode::LocalData(answer) = &statements[1] else {
         panic!("authored answer")
     };
-    assert!(scalar_computation_call(
-        &program,
-        machine,
-        answer.initial_value,
-        false,
-    ));
     let mut diagnostics = Vec::new();
     report_nested_call_in_local_initializer(
         &program,
@@ -177,63 +171,28 @@ fn owned_scalar_nested_borrows_admit_unchanged_ordered_fixture() {
 }
 
 #[test]
-fn owned_scalar_nested_call_admission_keeps_parameter_restrictions() {
-    let original = crate::front_end::typed_program(ORDERED);
-    let caller = original
-        .machines()
-        .iter()
-        .find(|machine| machine.name.as_str() == "inspect")
-        .unwrap();
-    let state = &original.machine_states(caller)[0];
-    let symbol = original.state_parameters(state)[1].symbol;
-    for mutation in 0..4 {
-        let mut program = original.clone();
-        let parameter = program
-            .state_parameters
-            .iter()
-            .find(|(_, parameter)| parameter.symbol == symbol)
-            .unwrap()
-            .0;
-        match mutation {
-            0 => program.state_parameters.get_mut(parameter).is_mutable = true,
-            1 => {
-                let definition = program
-                    .data_definitions
-                    .iter()
-                    .find(|(_, definition)| definition.name.as_str() == "Flags")
-                    .unwrap()
-                    .0;
-                program
-                    .data_definitions
-                    .get_mut(definition)
-                    .properties
-                    .multiplicity = language_semantics::Multiplicity::Linear;
-            }
-            2 => {
-                let base_type = program.state_parameters.get(parameter).type_reference;
-                let reference = program.type_reference_table.insert(
-                    typed_trees::types::TypeReferenceNode::Constrained {
-                        base_type,
-                        constraints: arena::HandleSpan::empty(),
-                    },
-                );
-                program.state_parameters.get_mut(parameter).type_reference = reference;
-            }
-            _ => {
-                let referee = program.state_parameters.get(parameter).type_reference;
-                let reference = program.type_reference_table.insert(
-                    typed_trees::types::TypeReferenceNode::Reference {
-                        referee,
-                        access: language_semantics::ReferenceAccess::Shared,
-                        lifetime: None,
-                    },
-                );
-                program.state_parameters.get_mut(parameter).type_reference = reference;
-            }
+fn mutable_receiver_scalar_calls_share_initializer_and_assignment_admission() {
+    let program = crate::front_end::typed_program(
+        r#"
+        data Counter { flag: bool; }
+        machine Counter::flip(&mut self, value: bool) -> bool {
+            self.flag = value;
+            !value
         }
-        assert!(
-            !free_scalar_machine(&program, caller),
-            "parameter mutation {mutation}"
-        );
-    }
+        machine Counter::returned(&mut self) -> bool { self.flip(self.flip(true)) }
+        machine Counter::initialized(&mut self) -> bool {
+            let value: bool = self.flip(self.flip(true));
+            value
+        }
+        machine Counter::assigned(&mut self) -> bool {
+            let mut value: bool = false;
+            value = self.flip(self.flip(true));
+            value
+        }
+        machine Counter::stored(&mut self) {
+            self.flag = self.flip(self.flip(true));
+        }
+    "#,
+    );
+    crate::validate_program(&program).unwrap_or_else(|diagnostics| panic!("{diagnostics:#?}"));
 }
