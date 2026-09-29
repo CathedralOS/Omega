@@ -20,16 +20,12 @@ data Box {
     tag: u64;
 }
 
-data Main {
-    console: Binding<Console>;
-}
-
 machine reseat(fresh: Fmt) {
     let mut boxed: Box = Box { fmt: Fmt::Decimal, tag: 4 };
     boxed.fmt = fresh;
 }
 
-machine Main::main(&mut self) reaches Console {
+machine main() reaches Console {
     reseat(Fmt::Octal);
-    self.console.exit_process(0);
+    Console::exit_process(0);
 }
