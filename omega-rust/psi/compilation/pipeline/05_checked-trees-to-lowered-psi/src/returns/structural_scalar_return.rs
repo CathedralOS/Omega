@@ -438,8 +438,76 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
     }
     let (structural_types, type_ids) = if let Some(shared) = shared_structural_types {
         shared_types::validate(types, shared, plan)?;
+        // The callee's own module declares only the types reachable from its
+        // attachment and parameters: the shared caller catalog keeps the whole
+        // closure, but provider fields inside unrelated caller records are
+        // legal there only because that record is a machine's attachment.
+        let mut reachable = BTreeSet::new();
+        let mut pending: Vec<String> = plan
+            .attachment_type_identity
+            .iter()
+            .cloned()
+            .chain(
+                plan.structural_parameters
+                    .iter()
+                    .map(|parameter| parameter.type_identity.clone()),
+            )
+            .collect();
+        while let Some(identity) = pending.pop() {
+            if !reachable.insert(identity.clone()) {
+                continue;
+            }
+            let Some(plan) = types
+                .published
+                .iter()
+                .find(|plan| plan.identity == identity)
+            else {
+                continue;
+            };
+            let mut retain_fields = |fields: &[checked_trees::CheckedUnitStructuralFieldPlan]| {
+                pending.extend(fields.iter().filter_map(|field| match &field.field_type {
+                    checked_trees::CheckedUnitStructuralFieldType::Structural { type_identity } => {
+                        Some(type_identity.clone())
+                    }
+                    _ => None,
+                }));
+            };
+            match &plan.shape {
+                checked_trees::CheckedUnitStructuralTypeShape::Reference {
+                    referent_identity,
+                    ..
+                } => pending.push(referent_identity.clone()),
+                checked_trees::CheckedUnitStructuralTypeShape::BorrowedSliceView {
+                    element_type_identity,
+                }
+                | checked_trees::CheckedUnitStructuralTypeShape::FixedArray {
+                    element_type_identity,
+                    ..
+                } => pending.push(element_type_identity.clone()),
+                checked_trees::CheckedUnitStructuralTypeShape::Record { fields } => {
+                    retain_fields(fields);
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::Sum { cases } => {
+                    for case in cases {
+                        retain_fields(&case.fields);
+                    }
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::Mixed { fields, cases } => {
+                    retain_fields(fields);
+                    for case in cases {
+                        retain_fields(&case.fields);
+                    }
+                }
+                checked_trees::CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
+                | checked_trees::CheckedUnitStructuralTypeShape::ByteSequence(_) => {}
+            }
+        }
         (
-            shared.to_vec(),
+            shared
+                .iter()
+                .filter(|declaration| reachable.contains(&declaration.identity))
+                .cloned()
+                .collect(),
             shared
                 .iter()
                 .map(|declaration| (declaration.identity.clone(), declaration.id))
@@ -479,12 +547,45 @@ pub(crate) fn lower_structural_scalar_return_machine_in_namespace(
         .ok_or(LoweringError::Unsupported(
             "structural scalar return parameter count exceeds usize",
         ))?;
+    // A borrowed receiver the machine leaves ambient on its attachment
+    // carrier owns no forwarded formal; the retained source positions
+    // partition the authored positions around that one gap.
+    let ambient_position =
+        crate::expression_preparation::source_custody::authored_state(checked, plan.state)
+            .ok()
+            .and_then(|(_, callee_state)| {
+                checked
+                    .state_parameters(callee_state)
+                    .iter()
+                    .position(|parameter| {
+                        parameter.is_self
+                            && matches!(
+                                checked
+                                    .type_reference_table
+                                    .type_reference(parameter.type_reference),
+                                checked_trees::types::TypeReferenceNode::Reference { .. }
+                            )
+                    })
+            })
+            .filter(|_| {
+                !plan
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.is_self)
+            })
+            // A roster that forwards self unflagged still maps its position — only a
+            // position the map actually excluded counts as the ambient gap.
+            .filter(|position| !positions.contains(&u32::try_from(*position).unwrap_or(u32::MAX)));
     if positions.len() != parameter_count
         || positions
             .iter()
             .copied()
             .enumerate()
-            .any(|(index, position)| u32::try_from(index).ok() != Some(position))
+            .any(|(index, position)| {
+                u32::try_from(index + usize::from(ambient_position.is_some_and(|gap| index >= gap)))
+                    .ok()
+                    != Some(position)
+            })
     {
         return unsupported(
             "structural scalar return parameter maps do not partition source positions",
