@@ -18,6 +18,8 @@
 
 mod multiplication;
 
+use std::rc::Rc;
+
 use proof_admission::{
     IntegerAffineWitness, PrimitiveJudgment, ProofNode, ProofRule, check_integer_affine_witness,
     map_integer_affine_bound,
@@ -87,7 +89,15 @@ pub(super) fn operand_endpoints(
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
 ) -> Vec<ProofNode> {
-    memoized_closure(context, integer_type, assumptions, semantic_axioms)
+    endpoints(
+        &memoized_closure(context, integer_type, assumptions, semantic_axioms),
+        operand,
+        lower,
+    )
+}
+
+fn endpoints(closure: &[ProofNode], operand: &ScalarTerm, lower: bool) -> Vec<ProofNode> {
+    closure
         .iter()
         .filter(|proof| match &proof.conclusion {
             Proposition::LessOrEqual(left, right) if lower => {
@@ -110,14 +120,116 @@ fn memoized_closure(
     integer_type: IntegerType,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
-) -> std::rc::Rc<[ProofNode]> {
+) -> Rc<[ProofNode]> {
     let mut definitions = DefinitionIndex::new(context, assumptions, semantic_axioms);
     if let Some(closure) = definitions.cached_derived_closure(integer_type) {
         return closure;
     }
-    let derived: std::rc::Rc<[ProofNode]> =
-        closure(context, integer_type, assumptions, semantic_axioms).into();
+    let mut prefixes = PrefixClosures::adopt(context, assumptions, semantic_axioms);
+    let derived: Rc<[ProofNode]> = closure(
+        context,
+        integer_type,
+        assumptions,
+        semantic_axioms,
+        &mut prefixes,
+    )
+    .into();
+    prefixes.release();
     definitions.cache_derived_closure(integer_type, derived.clone());
+    derived
+}
+
+/// Closures derived for prefixes of one axiom roster under one context and
+/// assumption roster. A cast image asks for its source's closure over the
+/// axioms before the cast, and that source closure asks the same of its own
+/// casts, so one derivation visits every cast prefix of its roster; the
+/// prefix length and integer type name each closure. Successive obligations
+/// of one machine derive under the same context and assumptions over rosters
+/// that extend one another, so they share every prefix before the point where
+/// their rosters diverge.
+///
+/// These closures do not go through `DefinitionIndex`'s scope store: that
+/// store is a bounded most-recently-used window with fewer slots than a long
+/// roster has cast prefixes. Cycling the prefixes through it evicted each one
+/// before its reuse, and a scope's own entry while its sources were derived,
+/// so every query re-derived every shorter prefix again: exponential in the
+/// number of cast prefixes.
+struct PrefixClosures {
+    context: PropositionContext,
+    assumptions: Vec<Proposition>,
+    /// Every stored prefix length names a prefix of this roster.
+    roster: Vec<Proposition>,
+    derived: Vec<(usize, IntegerType, Rc<[ProofNode]>)>,
+}
+
+thread_local! {
+    /// The prefix closures the most recent outer derivation on this thread
+    /// left behind, one scope family at a time.
+    static PREFIX_CLOSURES: std::cell::RefCell<Option<PrefixClosures>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+impl PrefixClosures {
+    /// The stored closures still valid for a derivation over `roster`: the
+    /// same context and assumptions, restricted to the prefixes both rosters
+    /// share. Any other scope starts a fresh family.
+    fn adopt(
+        context: &PropositionContext,
+        assumptions: &[Proposition],
+        roster: &[Proposition],
+    ) -> Self {
+        let previous = PREFIX_CLOSURES.with(|cell| cell.borrow_mut().take());
+        match previous {
+            Some(mut prefixes)
+                if prefixes.assumptions == assumptions && prefixes.context == *context =>
+            {
+                let shared = prefixes
+                    .roster
+                    .iter()
+                    .zip(roster)
+                    .take_while(|(stored, current)| stored == current)
+                    .count();
+                if shared < roster.len() {
+                    prefixes.derived.retain(|(length, _, _)| *length <= shared);
+                    prefixes.roster = roster.to_vec();
+                }
+                prefixes
+            }
+            _ => Self {
+                context: context.clone(),
+                assumptions: assumptions.to_vec(),
+                roster: roster.to_vec(),
+                derived: Vec::new(),
+            },
+        }
+    }
+
+    fn release(self) {
+        PREFIX_CLOSURES.with(|cell| *cell.borrow_mut() = Some(self));
+    }
+}
+
+/// The closure over `prefix`, a prefix of the roster `prefixes` covers,
+/// derived at most once per scope family.
+fn prefix_closure(
+    context: &PropositionContext,
+    integer_type: IntegerType,
+    assumptions: &[Proposition],
+    prefix: &[Proposition],
+    prefixes: &mut PrefixClosures,
+) -> Rc<[ProofNode]> {
+    if let Some((_, _, derived)) = prefixes
+        .derived
+        .iter()
+        .find(|(length, derived_type, _)| *length == prefix.len() && *derived_type == integer_type)
+    {
+        return derived.clone();
+    }
+    let derived: Rc<[ProofNode]> =
+        closure(context, integer_type, assumptions, prefix, prefixes).into();
+    prefixes
+        .derived
+        .push((prefix.len(), integer_type, derived.clone()));
     derived
 }
 
@@ -130,6 +242,7 @@ fn closure(
     integer_type: IntegerType,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    prefixes: &mut PrefixClosures,
 ) -> Vec<ProofNode> {
     let facts = projected_facts(assumptions, semantic_axioms);
     let mut equalities: Vec<ProofNode> = Vec::new();
@@ -201,7 +314,13 @@ fn closure(
     // An exact cast's output carries its source carrier's image: `v as i64`
     // from an `i32` lies within the `i32` endpoints, which a later sum of
     // widened operands needs before its own definition bound applies.
-    for bound in cast_image_bounds(context, integer_type, assumptions, semantic_axioms) {
+    for bound in cast_image_bounds(
+        context,
+        integer_type,
+        assumptions,
+        semantic_axioms,
+        prefixes,
+    ) {
         push_new(&mut proofs, bound);
     }
     for _ in 0..MAX_ROUNDS {
@@ -856,6 +975,7 @@ fn cast_image_bounds(
     integer_type: IntegerType,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    prefixes: &mut PrefixClosures,
 ) -> Vec<ProofNode> {
     let mut bounds = Vec::new();
     for axiom in semantic_axioms {
@@ -900,6 +1020,7 @@ fn cast_image_bounds(
             &root,
             assumptions,
             &semantic_axioms[..first_cast],
+            prefixes,
         ));
         for root_bound in source_bounds {
             let Proposition::LessOrEqual(left, right) = &root_bound.conclusion else {
@@ -940,6 +1061,7 @@ fn cast_source_bounds(
     source: &ScalarTerm,
     assumptions: &[Proposition],
     semantic_axioms: &[Proposition],
+    prefixes: &mut PrefixClosures,
 ) -> Vec<ProofNode> {
     if matches!(source, ScalarTerm::Value { .. })
         && let ScalarType::Integer(integer_type) = source.scalar_type()
@@ -947,18 +1069,16 @@ fn cast_source_bounds(
         // A stored cast result needs the source's proved arithmetic range,
         // not just its carrier range. The caller cuts the axiom roster before
         // this cast, so recursive source closures cannot use their own result.
+        let derived = prefix_closure(
+            context,
+            integer_type,
+            assumptions,
+            semantic_axioms,
+            prefixes,
+        );
         return [false, true]
             .into_iter()
-            .flat_map(|lower| {
-                operand_endpoints(
-                    context,
-                    integer_type,
-                    source,
-                    lower,
-                    assumptions,
-                    semantic_axioms,
-                )
-            })
+            .flat_map(|lower| endpoints(&derived, source, lower))
             .collect();
     }
     let ScalarTerm::ExactIntegerRemainder {
@@ -978,16 +1098,16 @@ fn cast_source_bounds(
     let Ok(form) = check_integer_affine_witness(context, semantic_axioms, &witness) else {
         return Vec::new();
     };
+    let derived = prefix_closure(
+        context,
+        *integer_type,
+        assumptions,
+        semantic_axioms,
+        prefixes,
+    );
     let mut bounds = Vec::new();
     for lower in [true, false] {
-        for bound in operand_endpoints(
-            context,
-            *integer_type,
-            left,
-            lower,
-            assumptions,
-            semantic_axioms,
-        ) {
+        for bound in endpoints(&derived, left, lower) {
             let Ok(conclusion) = map_integer_affine_bound(&form, &bound.conclusion) else {
                 continue;
             };
