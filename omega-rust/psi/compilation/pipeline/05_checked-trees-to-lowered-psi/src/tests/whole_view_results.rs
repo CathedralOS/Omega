@@ -1,9 +1,12 @@
 //! A `collection[0..collection.len]` completion resolves to the carrier
 //! parameter itself — or the stored `&` field's referent leaf for member
 //! projections — so lowering emits the `EstablishReference` straight through to
-//! module validation. Its frontier is the structural-type roster that does not
-//! yet admit a shared `&[T]` result reference; partial subslices instead keep
-//! their derived-place source and its own provenance gate.
+//! module validation. The structural-type roster admits a shared `&[T]`
+//! result reference, so a parameter's whole view validates and verifies with
+//! its result naming the parameter's own storage. A member's whole view stops
+//! at reference custody, which does not yet count a stored `&` field's
+//! referent as an exact formal referent; partial subslices instead keep their
+//! derived-place source and its own provenance gate.
 use crate::{TerminalMachineSelection, lower_machine, lowering_error::LoweringError};
 
 #[test]
@@ -17,17 +20,49 @@ fn parameter_whole_view_result_reaches_module_validation() {
             }
         "#,
     );
-    let error = lower_machine(&checked, TerminalMachineSelection::Name("Nv::head_all"))
-        .expect_err("whole parameter views stop at the structural-type roster");
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Nv::head_all"))
+        .expect("whole parameter views pass module validation");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("whole parameter views verify");
+    let module = &lowered.semantic_module;
+    let machine = module
+        .machines
+        .iter()
+        .find(|machine| machine.id == module.entry)
+        .expect("entry machine");
+    let [parameter] = machine.structural_parameters.as_slice() else {
+        panic!("the view parameter is the only structural parameter");
+    };
+    let terminal_psi::TerminalMachineResult::Structural(result) = &machine.result else {
+        panic!("structural result");
+    };
+    let [source] = result.reference_sources.as_slice() else {
+        panic!("one reference source: {:?}", result.reference_sources);
+    };
+    assert_eq!(source.source.place, parameter.place);
     assert!(
-        matches!(
-            error,
-            LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::InvalidStructuralTypeIdentity(_)
-            )
-        ),
-        "unexpected outcome: {error:?}"
+        source.source.path.is_empty(),
+        "the whole view names the carrier parameter itself"
     );
+    // The roster is custody, not decoration: a result that names no source
+    // for its reference is rejected.
+    let mut unmapped = module.clone();
+    let entry = unmapped.entry;
+    let unmapped_machine = unmapped
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == entry)
+        .expect("entry machine");
+    let terminal_psi::TerminalMachineResult::Structural(result) = &mut unmapped_machine.result
+    else {
+        panic!("structural result");
+    };
+    result.reference_sources.clear();
+    assert!(terminal_verifier::validate_module(&unmapped).is_err());
 }
 
 #[test]
@@ -42,12 +77,12 @@ fn member_whole_view_result_reaches_module_validation() {
         "#,
     );
     let error = lower_machine(&checked, TerminalMachineSelection::Name("Wv::head_all"))
-        .expect_err("member whole views stop at the structural-type roster");
+        .expect_err("member whole views stop at reference custody");
     assert!(
         matches!(
             error,
             LoweringError::InvalidTerminalModule(
-                terminal_verifier::ModuleError::InvalidStructuralTypeIdentity(_)
+                terminal_verifier::ModuleError::InvalidReferenceCustody { .. }
             )
         ),
         "unexpected outcome: {error:?}"
