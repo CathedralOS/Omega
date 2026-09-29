@@ -243,7 +243,7 @@ machine Main::main(&mut self) reaches WindowRegistrar {
             value_byte_offset: 0,
             byte_size: signature.shapes[result].byte_size,
         };
-        accept(bound)
+        transition { _ -> accept(bound) }
     }
 
     state bind_callback("#,
