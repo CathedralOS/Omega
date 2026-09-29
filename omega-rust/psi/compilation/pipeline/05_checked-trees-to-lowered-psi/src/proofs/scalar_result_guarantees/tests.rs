@@ -142,6 +142,75 @@ fn variable_narrowing_result_preserves_the_proved_digit_bound() {
 }
 
 #[test]
+fn trapping_conversion_result_is_proved_before_the_caller_uses_it() {
+    let lowered = lowered(
+        r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        data Main { bytes: [u8; 3] in Utf8; byte: u8; value: i32; digit: i32; }
+        machine trap_if(invalid: bool) {
+            let invalid_value: u32 in Wrapping = invalid as u32 in Wrapping;
+            let count: u32 in Wrapping = invalid_value * 8;
+            let probe: u8 in Trapping =
+                (1 as u8 in Trapping) << (count as u32 in Trapping);
+        }
+        machine narrow(value: i32) -> u8 crashes Trap {
+            let below: bool = value < 0;
+            trap_if(below);
+            let above: bool = value > 255;
+            trap_if(above);
+            (value as u8 in Trapping) as u8
+        }
+        machine Main::run(&mut self) {
+            self.bytes = "XXX";
+            self.value = 25;
+            self.digit = self.value / 10;
+            self.digit = self.digit + 48;
+            self.byte = narrow(self.digit);
+            self.bytes[0] = self.byte;
+        }
+        "#,
+        "Main::run",
+    );
+    let profile = proof_admission::AdmissionProfile::default();
+    terminal_verifier::verify_module(&lowered.semantic_module, &lowered.proof_bundle, &profile)
+        .expect("a normal trapping result retains its independently proved exact relation");
+    let guarantee = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.contract.ensures)
+        .next()
+        .expect("the caller demands the conversion guarantee")
+        .obligation;
+    let mut missing = lowered.proof_bundle.clone();
+    missing
+        .evidence
+        .retain(|proof| proof.obligation != guarantee);
+    assert!(
+        terminal_verifier::verify_module(&lowered.semantic_module, &missing, &profile).is_err(),
+        "proposing an exact return relation cannot grant it without evidence"
+    );
+}
+
+#[test]
+fn trapping_return_candidate_retains_exact_not_wrapping_arithmetic() {
+    let lowered = lowered(
+        "machine root(value: u8 in Trapping) -> u8 { (value + 3) as u8 }",
+        "root",
+    );
+    let candidate = relation(&lowered).expect("the normal return has an exact relation");
+    let Proposition::Equal(_, ScalarTerm::ExactIntegerAdd { .. }) = candidate else {
+        panic!("normal Trapping addition is exact, never a wrapped candidate: {candidate:?}")
+    };
+    assert!(
+        lowered.semantic_module.machines[0]
+            .contract
+            .ensures
+            .is_empty()
+    );
+}
+
+#[test]
 fn non_ascii_narrowing_store_is_rejected_before_lowering() {
     let diagnostics = crate::front_end::checked_program_result(
         r#"

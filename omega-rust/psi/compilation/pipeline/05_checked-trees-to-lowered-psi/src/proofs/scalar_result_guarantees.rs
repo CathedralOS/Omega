@@ -13,7 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use lowered_psi::LoweredPsi;
 use proof_admission::{PredicateDenotationError, check_value_equality_denotation};
 use semantic_vocabulary::{
-    MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm, ScalarType, ValueId,
+    BlockId, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm, ScalarType,
+    ValueId,
 };
 use terminal_psi::{ContractClause, OperationKind, TerminalMachine, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
@@ -278,7 +279,7 @@ fn result_relation(
         )
         .map(|value| (value.id, value.scalar_type))
         .collect();
-    let mut equations = Vec::new();
+    let mut equations = forwarded_parameter_equations(machine, remaining)?;
     for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
         *remaining = remaining.checked_sub(1)?;
         if let Some(meaning) =
@@ -289,6 +290,17 @@ fn result_relation(
             terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, &value_types).ok()?
         {
             equations.push(meaning.result_equation().clone());
+        } else if let Some(equation) =
+            terminal_verifier::reconstruct_trapping_integer_normal_return_equation(
+                operation,
+                &value_types,
+            )
+            .ok()?
+        {
+            // A trap never reaches a normal return. Reuse its verifier-owned
+            // continuation equation as a candidate, not a caller assumption:
+            // every return still owes the ordinary ContractEnsures proof.
+            equations.push(equation);
         }
     }
     let mut common = None;
@@ -337,6 +349,75 @@ fn result_relation(
         common = Some(relation);
     }
     common
+}
+
+/// Continuation blocks can rename an input without changing its value. Follow
+/// a parameter only when every incoming edge supplies the same scalar identity;
+/// never pick one branch of a join or treat a case payload as an ordinary actual.
+/// These equations only expand a candidate. Independent ContractEnsures replay
+/// must still reconstruct the relation at every normal return.
+fn forwarded_parameter_equations<'machine>(
+    machine: &'machine TerminalMachine,
+    remaining: &mut usize,
+) -> Option<Vec<Proposition>> {
+    let mut incoming: BTreeMap<BlockId, Vec<Option<&[ValueId]>>> = BTreeMap::new();
+    for block in &machine.blocks {
+        let mut record = |target, arguments: Option<&'machine [ValueId]>| {
+            if !charge(remaining, 1 + arguments.map_or(0, <[ValueId]>::len)) {
+                return None;
+            }
+            incoming.entry(target).or_default().push(arguments);
+            Some(())
+        };
+        match &block.terminator {
+            Terminator::Jump {
+                target, arguments, ..
+            } => record(*target, Some(arguments))?,
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => {
+                record(when_true.target, Some(&when_true.arguments))?;
+                record(when_false.target, Some(&when_false.arguments))?;
+            }
+            Terminator::StructuralCase { cases, .. } => {
+                for successor in cases {
+                    record(successor.target, None)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut equations = Vec::new();
+    for block in &machine.blocks {
+        if block.id == machine.entry {
+            continue;
+        }
+        let Some(arrivals) = incoming.get(&block.id) else {
+            continue;
+        };
+        let Some(Some(first)) = arrivals.first() else {
+            continue;
+        };
+        for (position, parameter) in block.parameters.iter().enumerate() {
+            if !charge(remaining, arrivals.len()) {
+                return None;
+            }
+            let actual = *first.get(position)?;
+            if actual != parameter.id
+                && arrivals.iter().all(|arguments| {
+                    arguments.is_some_and(|arguments| arguments.get(position) == Some(&actual))
+                })
+            {
+                equations.push(Proposition::Equal(
+                    ScalarTerm::value(parameter.id, parameter.scalar_type),
+                    ScalarTerm::value(actual, parameter.scalar_type),
+                ));
+            }
+        }
+    }
+    Some(equations)
 }
 
 fn proves_and_preserves_evidence(

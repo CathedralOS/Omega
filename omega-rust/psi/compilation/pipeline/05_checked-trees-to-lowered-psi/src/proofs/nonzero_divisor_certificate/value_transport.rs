@@ -41,7 +41,7 @@ pub(super) fn prove(
             )
         });
         let Some(fact) = fact else { continue };
-        let Proposition::Equal(endpoint, _) = fact.proposition else {
+        let Proposition::Equal(endpoint, observed) = fact.proposition else {
             continue;
         };
         // A definition may stop at a field, while a prior guard relates that
@@ -55,6 +55,34 @@ pub(super) fn prove(
             assumptions,
             semantic_axioms,
         )
+        .or_else(|| {
+            // A live store may hold a computation rather than a literal.
+            // Rejoin read = field and field = stored value with explicit
+            // transitivity, then let the ordinary definition walk expand that
+            // value. Only reconstruction's surviving store facts participate;
+            // do not recover a write from source or another observation scope.
+            if !matches!(
+                observed,
+                ScalarTerm::IntegerField { .. } | ScalarTerm::BooleanField { .. }
+            ) {
+                return None;
+            }
+            let store = facts.iter().find(|store| {
+                matches!(store.proposition,
+                    Proposition::Equal(field, stored) if field == observed && stored != endpoint
+                )
+            })?;
+            let Proposition::Equal(_, stored) = store.proposition else {
+                return None;
+            };
+            Some(ProofNode {
+                conclusion: Proposition::Equal(endpoint.clone(), stored.clone()),
+                rule: ProofRule::EqualityTransitivity {
+                    left_equals_middle: Box::new(fact.proof()),
+                    middle_equals_right: Box::new(store.proof()),
+                },
+            })
+        })
         .unwrap_or_else(|| fact.proof());
         equality.conclusion.visit_value_ids(|dependency| {
             if dependency != value && !visited.contains(&dependency) {
@@ -89,4 +117,67 @@ pub(super) fn prove(
             equalities,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prove;
+    use semantic_vocabulary::{
+        CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, PlaceId,
+        Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralFieldId,
+        StructuralPlaceKind, ValueId,
+    };
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn computed_store_transport_requires_the_same_live_field_equation() {
+        let integer_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        let scalar_type = ScalarType::Integer(integer_type);
+        let context = PropositionContext::from_value_types_and_places(
+            (1..=3).map(|identity| (ValueId::new(identity).unwrap(), scalar_type)),
+            [(
+                PlaceId::new(1).unwrap(),
+                StructuralPlaceKind::Parameter {
+                    position: 0,
+                    is_self: false,
+                },
+            )],
+        )
+        .unwrap();
+        let value = |identity| ScalarTerm::value(ValueId::new(identity).unwrap(), scalar_type);
+        let literal =
+            |number| ScalarTerm::integer(integer_type, IntegerValue::Signed(number)).unwrap();
+        let field = |identity| {
+            ScalarTerm::integer_field_path(
+                PlaceId::new(1).unwrap(),
+                vec![CanonicalStructuralPathSegment::Field(
+                    StructuralFieldId::new(identity).unwrap(),
+                )],
+                integer_type,
+            )
+        };
+        let mut axioms = vec![
+            Proposition::Equal(value(1), literal(25)),
+            Proposition::Equal(
+                value(2),
+                ScalarTerm::exact_integer_divide(integer_type, value(1), literal(10)).unwrap(),
+            ),
+            Proposition::Equal(field(1), value(2)),
+            Proposition::Equal(value(3), field(1)),
+        ];
+        let goal = Proposition::LessOrEqual(value(3), literal(2));
+        let parameters = BTreeSet::new();
+        let proof = prove(&context, &goal, &[], &axioms, &parameters)
+            .expect("the computed quotient survives its store and read");
+        proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof).unwrap();
+
+        for replacement in [Proposition::Truth, Proposition::Equal(field(2), value(2))] {
+            axioms[2] = replacement;
+            assert!(prove(&context, &goal, &[], &axioms, &parameters).is_none());
+            assert!(
+                proof_admission::accept_certificate(&context, &goal, &[], &axioms, &proof).is_err(),
+                "a missing or different field store cannot replay the certificate"
+            );
+        }
+    }
 }
