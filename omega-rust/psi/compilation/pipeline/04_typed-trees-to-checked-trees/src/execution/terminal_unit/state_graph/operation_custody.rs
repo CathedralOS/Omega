@@ -100,7 +100,13 @@ pub(super) fn admit(
             // own loans and disposal carry its custody, not the op.
             | CheckedUnitEffectOperationPlan::EstablishScalarArray { .. }
             | CheckedUnitEffectOperationPlan::EstablishPrimitiveLocal { .. }
-            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. } => {}
+            | CheckedUnitEffectOperationPlan::EstablishTrivialAffineLocal { .. }
+            // A reference pair's custody is the loan's: the establishment is
+            // the authored production and the release the authored weakening
+            // boundary. Selected edges carry the loan itself; neither op
+            // claims a new root.
+            | CheckedUnitEffectOperationPlan::EstablishReference { .. }
+            | CheckedUnitEffectOperationPlan::ReleaseReference { .. } => {}
             CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
             | CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
             | CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)

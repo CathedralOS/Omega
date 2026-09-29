@@ -317,12 +317,32 @@ pub(super) fn account(
         } else {
             construction_count
         };
-        if usize::from(consumed || stored || copied_into_construction)
+        // A reference-loaned result's custody is the loan itself: its owner
+        // is the release at the authored weakening boundary, not a
+        // structural disposal.
+        let reference_releases = match operation {
+            CheckedUnitEffectOperationPlan::StructuralCall { custody, .. }
+                if custody.reference_loan.is_valid() =>
+            {
+                operations[producer_index + 1..]
+                    .iter()
+                    .filter(|operation| {
+                        matches!(
+                            operation,
+                            CheckedUnitEffectOperationPlan::ReleaseReference { loan, .. }
+                                if *loan == custody.reference_loan
+                        )
+                    })
+                    .count()
+            }
+            _ => 0,
+        };
+        let total = usize::from(consumed || stored || copied_into_construction)
             + call_transfers
             + cleanup_discards
             + construction_transfers
-            != 1
-        {
+            + reference_releases;
+        if total != 1 {
             return None;
         }
     }

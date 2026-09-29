@@ -296,15 +296,28 @@ impl Evaluation {
         if let Some(local) = local {
             // A `&T` local holds shared-borrow custody of the referent's
             // storage; its carrier identity is the record `T`, matching the
-            // structural type `add_type` recorded for the result.
+            // structural type `add_type` recorded for the result. A `&mut`
+            // view local joins the same referent carrier — the minted binding
+            // is affine loan custody even though the borrow shell's own type
+            // multiplicity spells Unrestricted.
             let shared_borrow =
                 crate::expression_preparation::source_custody::structural::shared_borrow_record_referent(
                     checked,
                     local.type_reference,
                 );
+            let mutable_borrow = validation::reference_result_custody::mutable_borrowed_parts(
+                &checked.typed,
+                local.type_reference,
+            )
+            .is_some();
             let carrier = match shared_borrow {
                 Some(referent) => super::parameters::structural_carrier_type(checked, referent)?,
                 None => super::parameters::structural_carrier_type(checked, local.type_reference)?,
+            };
+            let expected_multiplicity = if mutable_borrow {
+                Multiplicity::Affine
+            } else {
+                checked.type_multiplicity(local.type_reference)
             };
             if !local.symbol.is_valid()
                 || !(checked
@@ -312,7 +325,7 @@ impl Evaluation {
                     .expression_is_valid(local.initial_value)
                     || local.is_mutable)
                 || checked.normalized_type_identity(carrier).as_str() != result.type_identity
-                || checked.type_multiplicity(local.type_reference) != result.multiplicity
+                || expected_multiplicity != result.multiplicity
                 || self
                     .structural_locals
                     .iter()
@@ -339,6 +352,8 @@ impl Evaluation {
                     path: Vec::new(),
                     access: if shared_borrow.is_some() {
                         StructuralAccess::SharedBorrow
+                    } else if mutable_borrow {
+                        StructuralAccess::MutableBorrow
                     } else {
                         StructuralAccess::Owned
                     },

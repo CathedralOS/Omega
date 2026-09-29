@@ -1854,6 +1854,49 @@ impl<'program> ShapeCollector<'program> {
         Some(identity)
     }
 
+    /// A `&mut R`/`&mut [T]` exclusive view spells its own type reference for
+    /// the same reason the shared views do: the reference shell is the loan
+    /// custody the plan carries, so it is retained as a mutable `Reference`
+    /// shape over the peeled referee.
+    pub(super) fn add_mutable_view_type(
+        &mut self,
+        reference: TypeReferenceHandle,
+        binders: &[(SymbolHandle, String)],
+    ) -> Option<String> {
+        let Some((referee, CheckedStructuralAccess::MutableBorrow)) =
+            validation::reference_result_custody::mutable_borrowed_parts(
+                self.program,
+                reference,
+            )
+        else {
+            return None;
+        };
+        let referent_identity = self.add_type(referee, binders, &[])?;
+        let identity = self
+            .program
+            .type_identity(TypeIdentityRequest {
+                binders,
+                ..TypeIdentityRequest::ordinary(reference)
+            })
+            .into_string();
+        let plan = CheckedUnitStructuralTypePlan {
+            identity: identity.clone(),
+            shape: CheckedUnitStructuralTypeShape::Reference {
+                referent_identity,
+                access: CheckedStructuralAccess::MutableBorrow,
+            },
+        };
+        if self
+            .types
+            .get(&identity)
+            .is_some_and(|existing| existing != &plan)
+        {
+            return None;
+        }
+        self.types.insert(identity.clone(), plan);
+        Some(identity)
+    }
+
     /// A `&'a V` borrowed named view spells its own type reference: the
     /// reference shell is the custody the plan carries, so unlike `add_type`
     /// it is retained rather than peeled to the named referent.

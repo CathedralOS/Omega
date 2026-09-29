@@ -1,6 +1,7 @@
 //! A bare reference parameter reads its carrier without weakening its referent.
 use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::ExpressionNode;
+use typed_trees::statement::StatementNode;
 use crate::execution::terminal_unit::SymbolHandle;
 use crate::execution::terminal_unit::TypedTrees;
 use crate::execution::terminal_unit::types::structural_access_for_type_reference;
@@ -122,7 +123,9 @@ fn exact_mutable_referent(
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| access.root_symbol == source_symbol);
-    let access = accesses.next()?;
+    let Some(access) = accesses.next() else {
+        return None;
+    };
     if accesses.next().is_some()
         || !borrow.access_segments(access).is_empty()
         || access.kind != checked_trees::BorrowAccessKind::Read
@@ -132,20 +135,33 @@ fn exact_mutable_referent(
     // No restoration is inferred from the carrier type. Live descendant loans
     // still require the existing exact restoration certificates; those paths
     // are handled separately by the call-plan owner.
+    //
+    // The result binding's own loan — minted by this call on the statement's
+    // local — begins with this call's successful return. It is not a
+    // preexisting descendant blocking the ingress borrow that produces it,
+    // whether or not the checking-side result-loan custody reconstruction
+    // admits its release shape. Every other live loan is.
+    let result_owner = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(call.statement_index)
+        .and_then(|statement| match statement {
+            StatementNode::LocalData(local) => Some(local.symbol),
+            _ => None,
+        });
     if borrow
         .loans
         .iter()
         .filter(|(handle, _)| borrow.state_owns_loan(borrow_state, *handle))
         .any(|(handle, loan)| {
-            // The exact reconstructed result loan begins with this call's
-            // successful return. It is not a preexisting descendant blocking
-            // the ingress borrow that produces it. Every other live loan is.
             !returned_loans.contains(&handle)
                 && loan.statement_index <= call.statement_index
                 && loan.last_use_statement_index >= call.statement_index
                 && (loan.root_symbol == source_symbol
                     || loan.owner_symbol == source_symbol
                     || loan.source_owner_symbol == source_symbol)
+                && !(loan.statement_index == call.statement_index
+                    && Some(loan.owner_symbol) == result_owner)
         })
     {
         return None;

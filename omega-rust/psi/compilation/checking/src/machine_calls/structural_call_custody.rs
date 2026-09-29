@@ -589,21 +589,28 @@ pub fn reconstruct_structural_call_custody(
     {
         return Err("structural call result differs from the callee contract");
     }
-    let result_qualifications =
-        if crate::machine_calls::reference_result_custody::parts(program, destination.return_type)
-            .is_some()
-            || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
-                program,
-                destination.return_type,
-            )
-            .is_some()
-        {
-            // The reference carrier transports a loan, not owned referent claims.
-            // Exact ingress substitution and its weakening are reconstructed below.
-            Vec::new()
-        } else {
-            structural_result_qualifications(program, destination.return_type)?
-        };
+    let result_qualifications = if crate::machine_calls::reference_result_custody::parts(
+        program,
+        destination.return_type,
+    )
+    .is_some()
+        || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
+            program,
+            destination.return_type,
+        )
+        .is_some()
+        || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
+            program,
+            destination.return_type,
+        )
+        .is_some()
+    {
+        // The reference carrier transports a loan, not owned referent claims.
+        // Exact ingress substitution and its weakening are reconstructed below.
+        Vec::new()
+    } else {
+        structural_result_qualifications(program, destination.return_type)?
+    };
     let mut states = facts
         .flow
         .control
@@ -709,6 +716,11 @@ pub fn reconstruct_structural_call_custody(
             destination.return_type,
         )
         .is_some()
+            || crate::machine_calls::reference_result_custody::mutable_borrowed_parts(
+                program,
+                destination.return_type,
+            )
+            .is_some()
         {
             crate::machine_calls::reference_result_custody::result_loan(
                 program,

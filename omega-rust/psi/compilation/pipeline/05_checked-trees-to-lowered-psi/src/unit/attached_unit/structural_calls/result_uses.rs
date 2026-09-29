@@ -113,13 +113,21 @@ fn validate_linear_result_consumer(
     else {
         return unsupported("linear result operand has no authored local");
     };
+    // A `&mut` view local's qualifications are the referee's: the reference
+    // presentation is custody, not a domain shell.
+    let qualification_type = validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        local.type_reference,
+    )
+    .map(|(referee, _)| referee)
+    .unwrap_or(local.type_reference);
     if local.is_mutable
-        || validation::structural_result_qualifications(&checked.typed, local.type_reference)
+        || validation::structural_result_qualifications(&checked.typed, qualification_type)
             .map_err(LoweringError::Unsupported)?
             != produced.result_qualifications
         || validation::structural_result_projected_qualifications(
             &checked.typed,
-            local.type_reference,
+            qualification_type,
         )
         .map_err(LoweringError::Unsupported)?
             != projected_qualifications
@@ -2034,7 +2042,8 @@ fn validate_operand_producers(
             };
             // A `&T` producer keeps the authored reference on its local but
             // joins the referent's carrier: compare the slice/record the
-            // view names, not the borrow shell.
+            // view names, not the borrow shell. A `&mut` producer's carrier
+            // is its `ref-mut` type whole — the custody the result spells.
             let view_carrier = crate::expression_preparation::source_custody::structural::shared_slice_view_referent(
                 checked,
                 local.type_reference,

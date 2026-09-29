@@ -59,7 +59,8 @@ pub(in crate::execution::terminal_unit) fn signature(
     // `&'a V` named results are the same custody kind over a record carrier.
     let view_result =
         crate::execution::terminal_unit::types::borrowed_slice_view(program, reference)
-            || crate::execution::terminal_unit::types::borrowed_named_view(program, reference);
+            || crate::execution::terminal_unit::types::borrowed_named_view(program, reference)
+            || crate::execution::terminal_unit::types::mutable_borrowed_view(program, reference);
     if (is_reference(program, reference) && !view_result)
         || type_graph_requires_nominal_drop(program, reference)
         || (multiplicity != Multiplicity::Linear
@@ -79,6 +80,13 @@ pub(in crate::execution::terminal_unit) fn signature(
         if crate::execution::terminal_unit::types::borrowed_named_view(program, reference) {
             (
                 shapes.add_named_view_type(reference, &[])?,
+                Multiplicity::Affine,
+            )
+        } else if crate::execution::terminal_unit::types::mutable_borrowed_view(
+            program, reference,
+        ) {
+            (
+                shapes.add_mutable_view_type(reference, &[])?,
                 Multiplicity::Affine,
             )
         } else {
@@ -423,6 +431,20 @@ pub(super) fn return_value_operation(
         )
         .map(|operation| (operation, Vec::new()));
     }
+    if crate::execution::terminal_unit::types::mutable_borrowed_view(program, state.return_type) {
+        return mutable_view_result_operation(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            parameters,
+            count,
+            statement_ordinal,
+            expression,
+        )
+        .map(|operation| (operation, Vec::new()));
+    }
     let root = facts.values.structural_values.root_for_expression(
         state.symbol,
         statement_ordinal,
@@ -731,4 +753,145 @@ fn view_storage_element_matches(
         return false;
     };
     program.normalized_type_identity(*element) == program.normalized_type_identity(target)
+}
+
+/// The `EstablishReference` producer for one authored `&mut place` return
+/// target of an exclusive `&mut R`/`&mut [T]` view result: the denoted place
+/// resolves through the state's own minted view loans until it roots at a
+/// `&mut` parameter, the `*self` receiver, or a `self` member the loan
+/// publishes as the member's own root. The source argument names that owning
+/// parameter plus the projection the loans and the place spell together, and
+/// the storage the projection bottoms out in must be exactly the referee.
+#[allow(clippy::too_many_arguments)]
+fn mutable_view_result_operation(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    shapes: &mut ShapeCollector<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    parameters: &[CheckedUnitStructuralParameterPlan],
+    count: &mut usize,
+    statement_ordinal: u32,
+    expression: typed_trees::expression::ExpressionHandle,
+) -> Option<CheckedUnitEffectOperationPlan> {
+    let referee = crate::execution::terminal_unit::types::mutable_borrowed_view_referent(
+        program,
+        state.return_type,
+    )?;
+    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression) else {
+        return None;
+    };
+    if borrow.access != language_semantics::ReferenceAccess::Mutable {
+        return None;
+    }
+    let statement_index = usize::try_from(statement_ordinal).ok()?;
+    let mut place = crate::flow::canonical_place_from_expression_in_state(
+        program,
+        state.symbol,
+        statement_index,
+        borrow.target,
+    )?;
+    let authored = program.state_parameters(state);
+    for _ in 0..8 {
+        let facts::PlaceRoot::Symbol(symbol) = place.root else {
+            return None;
+        };
+        if authored.iter().any(|parameter| parameter.symbol == symbol)
+            || symbol == machine.symbol
+        {
+            break;
+        }
+        // A minted view loan over `self.<field>` publishes the member's own
+        // symbol as its root: resolve it back to the receiver with the field
+        // projection restored ahead of the segments the target added.
+        if let Some(member) =
+            crate::execution::terminal_unit::calls::view_self_member_symbol(
+                program,
+                state,
+                machine.symbol,
+                symbol,
+            )
+        {
+            let mut segments = Vec::with_capacity(place.segments.len() + 1);
+            segments.push(facts::PlaceSegment::Field { symbol: member });
+            segments.extend(place.segments);
+            place = crate::flow::CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(machine.symbol),
+                segments,
+            };
+            break;
+        }
+        let borrow_state = facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, candidate)| candidate)
+            .find(|candidate| {
+                candidate.machine_symbol == machine.symbol
+                    && candidate.state_symbol == state.symbol
+            })?;
+        let mut loans = facts.borrow.loans.iter().filter(|(handle, loan)| {
+            facts.borrow.state_owns_loan(borrow_state, *handle)
+                && loan.owner_symbol == symbol
+                && loan.kind == checked_trees::BorrowAccessKind::Mutable
+                && facts.borrow.loan_owner_path(loan).is_empty()
+        });
+        let (_, loan) = loans.next()?;
+        if loans.next().is_some() {
+            return None;
+        }
+        let mut segments = facts.borrow.loan_segments(loan).to_vec();
+        segments.extend(place.segments);
+        place = crate::flow::CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(loan.root_symbol),
+            segments,
+        };
+    }
+    let facts::PlaceRoot::Symbol(root) = place.root else {
+        return None;
+    };
+    let position = if root == machine.symbol {
+        authored.iter().position(|parameter| parameter.is_self)?
+    } else {
+        authored.iter().position(|parameter| parameter.symbol == root)?
+    };
+    if !crate::execution::terminal_unit::calls::view_source_parameter_is_mutable(
+        program,
+        &authored[position],
+    ) {
+        return None;
+    }
+    let (storage, path) = crate::execution::terminal_unit::calls::projected_borrowed_path(
+        program,
+        machine.symbol,
+        state.symbol,
+        statement_index,
+        &place,
+    )?;
+    if program.normalized_type_identity(storage) != program.normalized_type_identity(referee) {
+        return None;
+    }
+    let parameter_index = parameters
+        .iter()
+        .position(|parameter| parameter.position as usize == position)?;
+    let type_identity = shapes.add_mutable_view_type(state.return_type, &[])?;
+    let referent_identity = shapes.add_type(referee, &[], &[])?;
+    let result = CheckedUnitStructuralResultBindingPlan {
+        statement_index: statement_ordinal,
+        binding_ordinal: u32::try_from(*count).ok()?,
+        type_identity: type_identity.clone(),
+        multiplicity: Multiplicity::Affine,
+    };
+    *count = count.checked_add(1)?;
+    Some(CheckedUnitEffectOperationPlan::EstablishReference {
+        result,
+        source: CheckedUnitStructuralArgumentPlan {
+            source: CheckedUnitStructuralArgumentSourcePlan::Parameter {
+                parameter_index: u32::try_from(parameter_index).ok()?,
+            },
+            path,
+            type_identity: referent_identity,
+            access: CheckedStructuralAccess::MutableBorrow,
+        },
+    })
 }

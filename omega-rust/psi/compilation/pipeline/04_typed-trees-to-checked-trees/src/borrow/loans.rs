@@ -53,6 +53,7 @@ use owner_paths::{
 };
 
 mod aggregate;
+mod mutable_view_results;
 mod owner_paths;
 mod returned_carriers;
 pub(crate) mod types;
@@ -983,6 +984,20 @@ pub(crate) fn helper_call_borrow_loan_place(
     // track here always matches what the elision check accepted. Elision rules
     // 1/3 and stage-2 explicit lifetimes all flow through there; a generic
     // signature resolves the same relation under the call's closed bindings.
+    // `&mut` structural-view results mint their loan at the callee's own
+    // tail source — the structural custody model names the storage the
+    // returned view borrows where signature elision can only name the
+    // declared shape.
+    if let Some(place) = mutable_view_results::mutable_view_call_loan_place(
+        program,
+        state_symbol,
+        statement_index,
+        machine_symbol,
+        call,
+    ) {
+        return Some(place);
+    }
+
     match call_view_return_source_at(program, state_symbol, call) {
         ViewReturnSource::NotApplicable
         | ViewReturnSource::Ambiguous(_)
@@ -1134,7 +1149,7 @@ fn call_view_signature(
 /// borrows (elision rule 1). Handles arguments that are themselves
 /// view-producing calls (`bag.cells.as_mut_slice()`, or a nested one-ref-input
 /// machine call) by recursing into the call's own loan place.
-fn argument_borrow_loan_place(
+pub(crate) fn argument_borrow_loan_place(
     program: &typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,

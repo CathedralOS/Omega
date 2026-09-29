@@ -285,7 +285,18 @@ pub(crate) fn lower_structural_field_steps<'a>(
         .ok_or(LoweringError::Unsupported(
             "structural scalar store root type is absent",
         ))?;
-    let mut field_owner = declaration;
+    // A reference-rooted walk joins its referent: `cell.value = 7` through a
+    // `&mut Cell` local walks `Cell`'s members — the `ref-mut` shell is the
+    // loan custody, never the record that owns the field.
+    let mut field_owner = match &declaration.shape {
+        StructuralTypeShape::Reference { referent, .. } => structural_types
+            .iter()
+            .find(|candidate| candidate.id == *referent)
+            .ok_or(LoweringError::Unsupported(
+                "structural scalar store referent type is absent",
+            ))?,
+        _ => declaration,
+    };
     let mut steps = Vec::with_capacity(carrier_path.len());
     for segment in carrier_path {
         let nested = match segment {

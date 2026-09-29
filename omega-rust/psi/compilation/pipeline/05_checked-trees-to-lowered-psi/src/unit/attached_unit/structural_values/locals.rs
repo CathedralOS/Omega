@@ -46,8 +46,17 @@ pub(crate) fn bind_local(
     else {
         return Ok(());
     };
+    // A `&mut` view local carries the referent's storage as affine loan
+    // custody: its binding joins as a mutable borrow of the published place,
+    // the same registration the composed route gives `&mut` call results.
+    let mutable_view = validation::reference_result_custody::mutable_borrowed_parts(
+        &checked.typed,
+        local.type_reference,
+    )
+    .is_some();
     if expression.is_some_and(|expression| expression != local.initial_value)
-        || !(validation::is_closed_primitive_array_type(&checked.typed, local.type_reference)
+        || !(mutable_view
+            || validation::is_closed_primitive_array_type(&checked.typed, local.type_reference)
             || (expression.is_some()
                 && matches!(
                     checked
@@ -76,7 +85,11 @@ pub(crate) fn bind_local(
         local.symbol,
         terminal_psi::StructuralArgument {
             place,
-            access: terminal_psi::StructuralAccess::Owned,
+            access: if mutable_view {
+                terminal_psi::StructuralAccess::MutableBorrow
+            } else {
+                terminal_psi::StructuralAccess::Owned
+            },
             path: Vec::new(),
         },
     ));

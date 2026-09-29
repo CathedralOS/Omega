@@ -44,6 +44,9 @@ pub(crate) use signatures::{
     fused_service_scalar_signature, partial_affine_structural_signature,
     structural_scalar_signature, structural_scalar_signature_traced, structural_signature,
 };
+pub(crate) use structural_result_call::{
+    view_self_member_symbol, view_source_parameter_is_mutable,
+};
 pub(crate) use structural_arguments::call_claim_transfers;
 /// Rejoin a bodyless external leaf (a compiler intrinsic or an evaluated
 /// foreign binding) to the exact boundary-trait requirement whose call it
