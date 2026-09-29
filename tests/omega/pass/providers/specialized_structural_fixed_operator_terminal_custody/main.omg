@@ -30,6 +30,4 @@ machine exercise(items: Buffer<i32, 4>, position: Position) -> bool {
     items[position]
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

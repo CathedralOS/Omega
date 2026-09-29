@@ -14,6 +14,4 @@ machine keep(whole: Extent in Granted & Vacant) -> Extent
     held.e as Extent
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

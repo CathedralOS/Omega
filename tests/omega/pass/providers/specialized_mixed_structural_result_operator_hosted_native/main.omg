@@ -29,9 +29,7 @@ machine consume(items: Buffer<i32, 4>) {
     let selected: Buffer<i32, 4> = items[(11 as i32)];
 }
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
     let items: Buffer<i32, 4> = Buffer { value: 70 };
     consume(items);
 }

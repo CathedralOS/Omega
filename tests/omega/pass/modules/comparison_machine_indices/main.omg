@@ -5,5 +5,4 @@ machine keep(value: Flag<(LIMIT == 3)>) -> Flag<true> {
     let local: Flag<(LIMIT + 1 >= 4)> = value;
     local
 }
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

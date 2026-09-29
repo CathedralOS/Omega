@@ -63,8 +63,5 @@ machine admitted(value: EquivalenceClass) -> EquivalenceClass {
     Quotient::define<representative, representative_respects>(value)
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

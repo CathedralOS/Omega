@@ -5,8 +5,5 @@ data FixedBuffer<T, const N: u64> {
     items: [T; N];
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

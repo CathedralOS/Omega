@@ -3298,5 +3298,4 @@ machine terminal_unpublished_abort() -> i32 {
     crash Abort;
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

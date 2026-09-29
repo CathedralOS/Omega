@@ -124,8 +124,5 @@ ensures
     >(precision, left_index, middle_index, right_index);
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
 }

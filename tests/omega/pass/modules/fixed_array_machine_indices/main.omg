@@ -8,5 +8,4 @@ machine keep(value: Indexed<Sizes::SIZE>) -> Indexed<Sizes::SAME> {
     let Sizes: u64 = 0;
     local
 }
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

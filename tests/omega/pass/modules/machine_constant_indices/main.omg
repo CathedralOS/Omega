@@ -9,5 +9,4 @@ machine keep(value: Buffer<SIZE + 1>) -> Buffer<SIZE + 1> {
     local
 }
 
-data Main {}
-machine Main::main(&mut self) {}
+machine main() {}

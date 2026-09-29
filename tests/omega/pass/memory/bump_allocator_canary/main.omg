@@ -653,6 +653,4 @@ satisfies ExtentRootProvider::grant
     root
 }
 
-data Main {}
-
-machine Main::main(&mut self) {}
+machine main() {}

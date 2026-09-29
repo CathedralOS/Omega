@@ -36,10 +36,7 @@ ensures
 machine consume(value: i32) {
 }
 
-data Main {
-}
-
-machine Main::main(&mut self) {
+machine main() {
     let positive: i32 in Positive = 5 as i32 in Positive;
     let predicate_forgotten: i32 = positive;
 

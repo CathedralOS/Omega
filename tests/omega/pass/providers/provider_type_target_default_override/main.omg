@@ -28,5 +28,4 @@ macos_arm64 machine CanaryTargetProviders::provider_defaults(defaults: &mut Cana
     defaults.select_provider<Pick, FirstProvider>();
 }
 
-data Main { }
-machine Main::main(&mut self) { }
+machine main() { }
