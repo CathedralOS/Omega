@@ -602,6 +602,15 @@ fn authored_read_path(
         // keeps `[cells, FixedIndex(i), value]`). Only a selector on the bare
         // root collection retains after the members it reads into:
         // `local[i].f` rejoins `[Field(f), FixedIndex(i)]`.
+        // A view-typed local roots its element reads at the view its
+        // establishment published (`CheckedStorageRoot::ViewLocal`), whose
+        // retained form is selector-only on either access family: a view is
+        // a runtime-extent re-view, not an owned carrier, so no
+        // `IndexedPrimitive` leaf rejoins even though the mutable family's
+        // store-destination custody resolves here.
+        if view_typed_local(checked, state, scope, source.root) {
+            return Ok(None);
+        }
         let mut path = path;
         if matches!(path.first(), Some(Segment::FixedIndex(_))) && path.len() > 1 {
             let selector = path.remove(0);
@@ -803,6 +812,45 @@ fn fixed_carrier_local(
         checked_trees::types::TypeReferenceNode::FixedArray { .. }
     )
     .then_some(local.symbol)
+}
+
+/// A local binding declared as a borrowed slice view of either access
+/// family. Element reads through one root at the view's published place, so
+/// the projected-receiver walk's store-destination root never mints an
+/// owned-carrier leaf for them. Mirrors the checker's view-local root, which
+/// admits the shared and mutable families alike.
+fn view_typed_local(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    scope: ReadScope,
+    symbol: symbols::SymbolHandle,
+) -> bool {
+    let mut locals = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(scope.preceding_statements() as usize)
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == symbol => Some(local),
+            _ => None,
+        });
+    let Some(local) = locals.next() else {
+        return false;
+    };
+    if locals.next().is_some() {
+        return false;
+    }
+    let mut type_reference = local.type_reference;
+    loop {
+        match checked.type_reference_table.type_reference(type_reference) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. }
+            | checked_trees::types::TypeReferenceNode::Reference {
+                referee: base_type, ..
+            } => type_reference = *base_type,
+            checked_trees::types::TypeReferenceNode::Slice { .. } => return true,
+            _ => return false,
+        }
+    }
 }
 
 fn collect_owned_field(
