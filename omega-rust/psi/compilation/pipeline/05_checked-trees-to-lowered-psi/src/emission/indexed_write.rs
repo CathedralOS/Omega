@@ -31,9 +31,8 @@ use crate::expression_preparation::source_custody;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::TableAssignment;
 use checked_trees::{
-    CheckedByteSequenceStoreValue, CheckedByteSequenceWritePlan, CheckedElementViewWritePlan,
+    CheckedByteSequenceWritePlan, CheckedElementViewWritePlan, CheckedStoreValue,
     CheckedStructuralByteSequenceFieldByteStorePlan, CheckedStructuralScalarFieldStoreDestination,
-    CheckedStructuralScalarFieldStoreValue,
 };
 use symbols::SymbolHandle;
 
@@ -84,6 +83,11 @@ struct Wording {
     result_position: &'static str,
     result_not_established: &'static str,
     result_type: &'static str,
+    /// Replay's refusal of a computation value. The shared store vocabulary
+    /// can carry one for every leaf; none of these leaves lowers it.
+    kept_computation: &'static str,
+    /// Lowering's refusal of the same computation value.
+    keeps_computation: &'static str,
     /// Emission's operand rejection. The byte leaves' destination custody
     /// checks report it too.
     operands: &'static str,
@@ -99,6 +103,8 @@ const BYTE_VIEW: Wording = Wording {
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
     result_type: "byte store call result differs from its element type",
+    kept_computation: "byte-view write kept a computation value",
+    keeps_computation: "byte-view write keeps a computation value",
     operands: "byte-view write requires exact mutable byte custody and scalar operands",
 };
 
@@ -112,6 +118,8 @@ const BYTE_FIELD: Wording = Wording {
     result_position: "byte store call-result position exceeds usize",
     result_not_established: "byte store call result is not this statement's established scalar result",
     result_type: "byte store call result differs from its element type",
+    kept_computation: "byte replacement kept a computation value",
+    keeps_computation: "byte replacement keeps a computation value",
     operands: "byte replacement requires bounded bytes and exact branch-free operands",
 };
 
@@ -125,19 +133,10 @@ const ELEMENT_VIEW: Wording = Wording {
     result_position: "element-view store result position exceeds usize",
     result_not_established: "element-view store call result is not this statement's established scalar result",
     result_type: "element-view store call result differs from its element type",
+    kept_computation: "element-view write kept a computation value",
+    keeps_computation: "element-view write keeps a computation value",
     operands: "element-view write requires scalar operands",
 };
-
-/// A leaf's stored value in the vocabulary both plan families share.
-enum StoredValue<'a> {
-    Pure(&'a CheckedScalarExpression),
-    ScalarResult {
-        position: u32,
-    },
-    /// Only an element-view plan carries one; the plan mints it beside a
-    /// record field, and it has no direct lowering yet.
-    Computation,
-}
 
 impl<'a> IndexedWriteLeaf<'a> {
     pub(crate) fn statement_index(self) -> u32 {
@@ -156,32 +155,12 @@ impl<'a> IndexedWriteLeaf<'a> {
         }
     }
 
-    fn value(self) -> StoredValue<'a> {
+    /// Every leaf's value is the one shared store vocabulary.
+    fn value(self) -> &'a CheckedStoreValue {
         match self {
-            Self::ByteView(CheckedByteSequenceWritePlan { value, .. })
-            | Self::ByteField(CheckedStructuralByteSequenceFieldByteStorePlan { value, .. }) => {
-                match value {
-                    CheckedByteSequenceStoreValue::Pure(expression) => {
-                        StoredValue::Pure(expression)
-                    }
-                    CheckedByteSequenceStoreValue::ScalarResult { position } => {
-                        StoredValue::ScalarResult {
-                            position: *position,
-                        }
-                    }
-                }
-            }
-            Self::ElementView(write) => match &write.value {
-                CheckedStructuralScalarFieldStoreValue::Pure(expression) => {
-                    StoredValue::Pure(expression)
-                }
-                CheckedStructuralScalarFieldStoreValue::ScalarResult { position } => {
-                    StoredValue::ScalarResult {
-                        position: *position,
-                    }
-                }
-                CheckedStructuralScalarFieldStoreValue::Computation(_) => StoredValue::Computation,
-            },
+            Self::ByteView(write) => &write.value,
+            Self::ByteField(store) => &store.value,
+            Self::ElementView(write) => &write.value,
         }
     }
 
@@ -215,14 +194,14 @@ impl<'a> IndexedWriteLeaf<'a> {
     ) -> Result<LoweredDirectExpression, LoweringError> {
         let wording = self.wording();
         match self.value() {
-            StoredValue::Pure(_) => bindings.expression_at(
+            CheckedStoreValue::Pure(_) => bindings.expression_at(
                 checked,
                 state,
                 self.statement_index(),
                 CheckedScalarExpressionRole::AssignmentValue,
             ),
-            StoredValue::ScalarResult { position } => {
-                let position = usize::try_from(position)
+            CheckedStoreValue::ScalarResult { position } => {
+                let position = usize::try_from(*position)
                     .map_err(|_| LoweringError::Unsupported(wording.result_position))?;
                 if position.checked_add(1) != Some(values.len()) {
                     return unsupported(wording.result_not_established);
@@ -236,7 +215,7 @@ impl<'a> IndexedWriteLeaf<'a> {
                     scalar_type,
                 })
             }
-            StoredValue::Computation => unsupported("element-view write keeps a computation value"),
+            CheckedStoreValue::Computation(_) => unsupported(wording.keeps_computation),
         }
     }
 }
@@ -428,7 +407,7 @@ pub(crate) fn validate_assignment(
         // producing call is rejoined where the operation order and the value
         // are lowered; a selected expression here would mean the checked
         // stage chose a different source.
-        StoredValue::ScalarResult { .. } => {
+        CheckedStoreValue::ScalarResult { .. } => {
             if checked
                 .facts
                 .values
@@ -450,7 +429,7 @@ pub(crate) fn validate_assignment(
                 return unsupported(wording.result_without_call);
             }
         }
-        StoredValue::Pure(retained) => {
+        CheckedStoreValue::Pure(retained) => {
             let (binding, expression) = checked
                 .facts
                 .values
@@ -470,8 +449,8 @@ pub(crate) fn validate_assignment(
                 terminal_scalar_type(leaf.value_type())?,
             )?;
         }
-        StoredValue::Computation => {
-            return unsupported("element-view write kept a computation value");
+        CheckedStoreValue::Computation(_) => {
+            return unsupported(wording.kept_computation);
         }
     }
     Ok(())

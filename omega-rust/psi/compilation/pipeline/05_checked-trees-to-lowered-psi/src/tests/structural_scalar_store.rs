@@ -84,7 +84,7 @@ fn ieee_field_store_receiving_rejects_type_source_access_and_field_drift() {
                         }
                     }
                     1 => {
-                        let checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(
+                        let checked_trees::CheckedStoreValue::Pure(
                             CheckedScalarExpression::Parameter { position, .. },
                         ) = &mut store.value
                         else {

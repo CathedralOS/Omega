@@ -67,7 +67,7 @@ fn borrowed_fixed_array_element_store_retains_the_exact_index_hop() {
         assert_eq!(store.field_identity, "value");
         assert!(matches!(
             store.value,
-            checked_trees::CheckedStructuralScalarFieldStoreValue::Pure(_)
+            checked_trees::CheckedStoreValue::Pure(_)
         ));
         // Neither widening nor another literal index may replay this store.
         let mut shared = structural.clone();

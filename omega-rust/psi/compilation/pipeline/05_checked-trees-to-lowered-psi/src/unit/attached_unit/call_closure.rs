@@ -494,7 +494,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
                 if matches!(
                     store.value,
-                    checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                    checked_trees::CheckedStoreValue::ScalarResult { .. }
                 ) =>
             {
                 if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
@@ -525,7 +525,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store)
                 if matches!(
                     store.value,
-                    checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                    checked_trees::CheckedStoreValue::ScalarResult { .. }
                 ) =>
             {
                 if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
@@ -560,7 +560,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::ByteSequenceWrite(write)
                 if matches!(
                     write.value,
-                    checked_trees::CheckedByteSequenceStoreValue::ScalarResult { .. }
+                    checked_trees::CheckedStoreValue::ScalarResult { .. }
                 ) =>
             {
                 if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(
@@ -588,7 +588,7 @@ pub(super) fn validate_unit_operation_sequence(
             CheckedUnitEffectOperationPlan::ElementViewWrite(write)
                 if matches!(
                     write.value,
-                    checked_trees::CheckedStructuralScalarFieldStoreValue::ScalarResult { .. }
+                    checked_trees::CheckedStoreValue::ScalarResult { .. }
                 ) =>
             {
                 if !preceding_scalar_call(&machine.operations, operation_index).is_some_and(

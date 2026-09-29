@@ -236,17 +236,17 @@ fn joined_field_guards_preserve_the_stored_bytes_bound() {
     );
 }
 
+const REPLACE: &str = r#"
+    domain [u8;3]::Utf8 requires valid_utf8(self);
+    data Record { out: [u8;3] in Utf8; other: [u8;3] in Utf8; }
+    machine Record::replace(&mut self, position: u64 [0..=2], byte: u8 [0..=127]) {
+        self.out = "XXX"; self.out[position] = byte;
+    }
+"#;
+
 #[test]
 fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
-    let checked = crate::front_end::checked_program(
-        r#"
-        domain [u8;3]::Utf8 requires valid_utf8(self);
-        data Record { out: [u8;3] in Utf8; other: [u8;3] in Utf8; }
-        machine Record::replace(&mut self, position: u64 [0..=2], byte: u8 [0..=127]) {
-            self.out = "XXX"; self.out[position] = byte;
-        }
-    "#,
-    );
+    let checked = crate::front_end::checked_program(REPLACE);
     lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
         .expect("untampered indexed store");
     for mutation in 0..6 {
@@ -295,10 +295,7 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
                         .expect("authored store keeps a pure value")
                         .clone()
                 }
-                1 => {
-                    store.value =
-                        checked_trees::CheckedByteSequenceStoreValue::Pure(store.index.clone())
-                }
+                1 => store.value = checked_trees::CheckedStoreValue::Pure(store.index.clone()),
                 2 => store.field_identity = "Record::other".into(),
                 3 => store
                     .carrier_path
@@ -311,6 +308,38 @@ fn indexed_byte_store_rejoins_index_value_field_access_and_complete_roster() {
             "mutation {mutation}"
         );
     }
+}
+
+/// Byte leaves share the scalar store vocabulary but lower no computation:
+/// replay refuses an indexed byte replacement whose value names one, in the
+/// leaf's own wording, instead of treating it as a pure byte.
+#[test]
+fn indexed_byte_store_refuses_a_computation_value() {
+    let mut checked = crate::front_end::checked_program(REPLACE);
+    let store = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .machines
+        .iter_mut()
+        .flat_map(|plan| &mut plan.operations)
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
+                Some(store)
+            }
+            _ => None,
+        })
+        .expect("indexed byte store");
+    store.value = checked_trees::CheckedStoreValue::Computation(Default::default());
+    let error = lower_machine(&checked, TerminalMachineSelection::Name("Record::replace"))
+        .expect_err("a byte replacement has no computation lowering");
+    assert!(
+        matches!(
+            error,
+            super::LoweringError::Unsupported("byte replacement kept a computation value")
+        ),
+        "{error:?}"
+    );
 }
 
 /// The serialized artifact carries the domain-bearing store's evidence: the

@@ -42,10 +42,9 @@ pub use self::terminal::{
     CheckedAtomicReadModifyWrite, CheckedBoundaryMachinePlan, CheckedBoundaryMachineResultPlan,
     CheckedBoundaryScalarReturnMachinePlan, CheckedBoundaryScalarReturnPlans,
     CheckedByteSequenceCarrier, CheckedByteSequenceStoreDestination, CheckedByteSequenceStorePlan,
-    CheckedByteSequenceStoreValue, CheckedByteSequenceValue, CheckedByteSequenceValuePlan,
-    CheckedByteSequenceWritePlan, CheckedCallScalarArgument,
-    CheckedClaimFreeAffineStructuralReturnMachinePlan, CheckedClosedSumCaseOutcomePlan,
-    CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
+    CheckedByteSequenceValue, CheckedByteSequenceValuePlan, CheckedByteSequenceWritePlan,
+    CheckedCallScalarArgument, CheckedClaimFreeAffineStructuralReturnMachinePlan,
+    CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,
     CheckedComposedUnitControlMachinePlan, CheckedComposedUnitControlStatePlan,
     CheckedComposedUnitControlTerminatorPlan, CheckedConditionalReturnArm,
     CheckedControlResultPlan, CheckedElementViewWritePlan, CheckedFusedServiceErasureReceipt,
@@ -117,8 +116,8 @@ pub use dynamic_scalar_calls::{
     CheckedDynamicScalarCallOrigin, CheckedDynamicScalarCallPlan, CheckedDynamicScalarHelperPlan,
     CheckedDynamicSelectionPlan, CheckedDynamicStoredDescriptorPlan, CheckedDynamicUnitCallOrigin,
     CheckedDynamicUnitCallPlan, CheckedDynamicUnitContinuationPlan, CheckedDynamicUnitHelperPlan,
-    CheckedStructuralCaseFieldStorePlan, CheckedStructuralScalarFieldStoreDestination,
-    CheckedStructuralScalarFieldStorePlan, CheckedStructuralScalarFieldStoreValue,
+    CheckedStoreValue, CheckedStructuralCaseFieldStorePlan,
+    CheckedStructuralScalarFieldStoreDestination, CheckedStructuralScalarFieldStorePlan,
 };
 pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operator_operand::{FlowOperandReferent, FlowOperatorOperandFact};
