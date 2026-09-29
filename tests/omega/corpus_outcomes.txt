@@ -243,6 +243,7 @@ pass/control_flow/arm_pattern_rest_optout_exit rejected 801ms
 pass/control_flow/case_arm_payload_receiver_call rejected 1536ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/control_flow/case_arm_scalar_payload_arguments_exit checked 1282ms
+pass/control_flow/case_bound_payload_state_argument checked 1237ms @ae1f34b28aa3+wt
 pass/control_flow/case_pattern_rename_waive_exit rejected 775ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 287ms

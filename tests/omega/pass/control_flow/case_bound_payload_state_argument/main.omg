@@ -1,0 +1,52 @@
+// A payload bound by a case arm leaves the arm as a state argument when the
+// dispatched scrutinee is an owned PARAMETER.
+//
+//   machine M::dispatch(&mut self, m: Msg) {        // m: owned param
+//       transition m {
+//           Msg::A { cmd } -> hop(cmd)              // admitted
+//           Msg::B      -> done()
+//       }
+//   }
+//
+// `hop` reports the bound tag so a native run exits with 7.
+//
+// The subtree move `hop(cmd)` is rooted at the dispatch subject `m`: the
+// arm's case-payload transfer carries `cmd`, and `m`'s residual dies with
+// the subject's own arm consumption, so the source state's cleanup plan is
+// minted rather than withheld at `edge cleanup`.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cmd {
+    tag: u64 [0..=255];
+}
+
+data Msg {
+    case A(cmd: Cmd);
+    case B;
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let m: Msg = Msg::A { cmd: Cmd { tag: 7 } };
+    self.dispatch(m);
+}
+
+machine Main::dispatch(&mut self, m: Msg) reaches Console {
+    transition m {
+        Msg::A { cmd } -> hop(cmd)
+        Msg::B -> done()
+    }
+
+    state hop(&mut self, cmd: Cmd) {
+        self.console.exit_process(cmd.tag as i32);
+    }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}

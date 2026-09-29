@@ -584,7 +584,12 @@ fn build_state_plan(
             else {
                 continue;
             };
-            if !segments.span_or_empty(event.segments).is_empty() {
+            // A subtree move out of the arm's dispatch-consumed subject is the
+            // bound payload transfer; the subject's residual dies with the
+            // subject's own consumption rather than as a whole discard. Any
+            // other partial move keeps the edge fail-closed.
+            if !segments.span_or_empty(event.segments).is_empty() && Some(root) != consumed_subject
+            {
                 return None;
             }
             transferred.insert(*position);
@@ -953,6 +958,18 @@ pub(super) fn state_exit_result_locals(
                 path, arguments, ..
             } = program.statement_table.transition_target(transition.target)
             else {
+                // An expression arm cannot transfer the local to a named
+                // successor; the local is retained to the exit drop this row
+                // classifies. Any use of the local inside the expression
+                // surfaces as a transfer or borrow event the retained
+                // transfer count or the final ledger gate already rejects.
+                if matches!(
+                    program.statement_table.transition_target(transition.target),
+                    TransitionTargetNode::Value(_)
+                ) {
+                    edge_count += 1;
+                    continue;
+                }
                 return None;
             };
             let target_index = crate::checks::termination::named_transition_target_state_index(
