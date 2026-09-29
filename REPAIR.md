@@ -69,8 +69,6 @@ exists; admission declines or omits without diagnostic), not new-capability:
   any depth; `&mut` works only for a self-rooted direct name.
 - `RECORD-LITERAL-ARRAY-FIELD` — array-typed record-literal fields have no
   route.
-- `FIELD-SUBJECT-NAMED-ARM-CHAIN` — 3+ named case arms on a field subject
-  omit; two one-token rescues pinned.
 - `VALUE-CALL-SUBEXPRESSION` — value calls omit in any non-root expression
   position.
 - `BYTE-CARRIER-STORE-LITERAL-ONLY` — owned `[u8; N]` field store admits only
