@@ -123,6 +123,61 @@ fn scalar_record_cycle() -> TerminalModule {
     module
 }
 
+fn zeroed_record_array_cycle() -> TerminalModule {
+    let mut module = unranked_scalar_cycle();
+    let pair = declare_pair(&mut module);
+    let array = id(2, StructuralTypeId::new);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: array,
+        identity: "test::Pairs".into(),
+        shape: StructuralTypeShape::FixedArray {
+            element: pair,
+            length: 3,
+        },
+    });
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(record_place(5, 20, array));
+    let mut establishment = record_establishment(20, 5, array, Vec::new());
+    establishment.kind = OperationKind::EstablishZeroedStructural {};
+    machine.blocks[0].operations.push(establishment);
+    module
+}
+
+#[test]
+fn cyclic_plain_zero_initialization_needs_no_disposal_obligation() {
+    let mut module = zeroed_record_array_cycle();
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("zero-initialized plain storage may be re-established each iteration");
+    // The same operation also composes in an acyclic exit of a cyclic machine.
+    let establishment = module.machines[0].blocks[0].operations.pop().unwrap();
+    module.machines[0].blocks[1].operations.push(establishment);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a plain local in the exit inherits no loop disposal obligation");
+}
+
+#[test]
+fn cyclic_zero_initialization_does_not_erase_affine_disposal() {
+    let mut module = zeroed_record_array_cycle();
+    let OperationResult::Structural(result) =
+        &mut module.machines[0].blocks[0].operations[0].result
+    else {
+        unreachable!();
+    };
+    result.multiplicity = StructuralMultiplicity::Affine;
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::ControlCycleIneligible { .. })
+    ));
+}
+
 #[test]
 fn cyclic_scalar_record_establishment_is_valid_under_every_authority() {
     let module = scalar_record_cycle();
