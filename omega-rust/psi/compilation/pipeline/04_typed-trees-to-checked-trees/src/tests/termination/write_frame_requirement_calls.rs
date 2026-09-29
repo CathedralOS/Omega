@@ -48,8 +48,9 @@ fn generic_boundary_shadowed_method_binder_invalidates_written_facts() {
 /// proven origin plus every exclusive argument's origin: the retained
 /// `target_symbol` — or, on a nested receiver path the typer does not
 /// annotate, the leaf's declared `dyn` trait — selects the requirement
-/// signature, and an exclusive `self` writes that receiver place exactly.
-/// No implementor storage path is invented.
+/// signature, and an exclusive `self` writes that receiver place exactly
+/// (an indexed element coarsens to its collection). No implementor storage
+/// path is invented.
 #[test]
 fn requirement_receiver_calls_reach_checked_trees_with_exact_frames() {
     let cases = [
@@ -105,12 +106,15 @@ fn requirement_receiver_calls_reach_checked_trees_with_exact_frames() {
             Some(vec!["self.audit", "self.handler"]),
             false,
         ),
+        // The indexed element's frame coarsens to its collection, as an
+        // ordinary indexed receiver's does. Checked lowering separately does
+        // not yet resolve a requirement call through an indexed `dyn` element.
         (
             "indexed_receiver",
             "",
             "self.handlers[0].touch();",
-            None,
-            true,
+            Some(vec!["self.handlers"]),
+            false,
         ),
     ];
     let mut failures = Vec::new();

@@ -624,11 +624,21 @@ fn requirement_wrong_and_stale_targets_stay_consistent() {
     assert!(!frame(&stale).is_complete());
 }
 
+fn requirement_receiver_source(body: &str) -> TypedTrees {
+    crate::front_end::typed_program(&format!(
+        "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine spawn() -> &mut u64; }}
+         trait G<T> {{ machine gcode(&mut self) -> i32; }}
+         machine Main::make(&mut self) -> &mut dyn Shape {{ &mut self.handler }}
+         data Main {{ handler: dyn Shape; ghandler: dyn G; handlers: [dyn Shape; 2]; audit: u64; }}
+         machine Main::inspect(&mut self) {{ {body} }}"
+    ))
+}
+
 /// Requirement frames fail closed when the receiver or an argument names no
-/// proven caller storage: an indexed collection element, a computed receiver,
-/// a generic trait whose substitution cannot be closed at the call site, or
-/// an exclusive argument whose referent was never tracked all stay opaque
-/// rather than inventing a path.
+/// proven caller storage: a computed receiver, a generic trait whose
+/// substitution cannot be closed at the call site, or an exclusive argument
+/// whose referent was never tracked all stay opaque rather than inventing a
+/// path.
 #[test]
 fn requirement_calls_without_proven_storage_stay_opaque() {
     for (name, body) in [
@@ -636,20 +646,26 @@ fn requirement_calls_without_proven_storage_stay_opaque() {
             "unproven_result_argument",
             "let r: &mut u64 = Shape::spawn(); self.handler.apply(r);",
         ),
-        ("indexed_receiver", "self.handlers[0].code();"),
         ("call_receiver", "self.make().code();"),
         ("generic_trait_receiver", "self.ghandler.gcode();"),
         ("unrelated_requirement", "self.handler.nope();"),
     ] {
-        let program = crate::front_end::typed_program(&format!(
-            "trait Shape {{ machine code(&mut self) -> i32; machine apply(&mut self, value: &mut u64); machine spawn() -> &mut u64; }}
-             trait G<T> {{ machine gcode(&mut self) -> i32; }}
-             machine Main::make(&mut self) -> &mut dyn Shape {{ &mut self.handler }}
-             data Main {{ handler: dyn Shape; ghandler: dyn G; handlers: [dyn Shape; 2]; audit: u64; }}
-             machine Main::inspect(&mut self) {{ {body} }}"
-        ));
-        assert!(!frame(&program).is_complete(), "{name}");
+        assert!(
+            !frame(&requirement_receiver_source(body)).is_complete(),
+            "{name}"
+        );
     }
+}
+
+/// An indexed collection element is proven caller storage once typing binds
+/// the requirement target. Its write footprint coarsens to the collection,
+/// the same absorbing loss an ordinary indexed receiver call takes.
+#[test]
+fn indexed_requirement_receivers_coarsen_to_their_collection() {
+    assert_eq!(
+        frame(&requirement_receiver_source("self.handlers[0].code();")).complete_paths(),
+        Some(["self.handlers".to_owned()].as_slice())
+    );
 }
 
 #[test]
