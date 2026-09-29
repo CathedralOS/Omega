@@ -114,6 +114,79 @@ fn runtime_record_boolean_read_replays_its_field_and_index_bound() {
     );
 }
 
-// Terminal element reads take a u64 position. Any integer carrier may index
-// once its bounds are proven, so a signed or narrower index lands through an
-// exact cast whose obligation the dominating guard discharges.
+#[test]
+fn runtime_record_ieee_read_retains_format_path_and_bound() {
+    for (carrier, format) in [
+        ("f32", semantic_vocabulary::IeeeFloatFormat::Binary32),
+        ("f64", semantic_vocabulary::IeeeFloatFormat::Binary64),
+    ] {
+        let source = format!(
+            "data Cell {{ tag: u8; reading: {carrier}; }}
+            data Buffer {{ cells: [Cell; 4]; }}
+            machine Buffer::read(&self, index: u64) -> {carrier}
+            requires index < 4 {{ self.cells[index].reading }}"
+        );
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Buffer::read"))
+            .expect("IEEE fields compose with the shared runtime-indexed read");
+        let decoded = terminal_codec::decode_module(
+            &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
+        )
+        .unwrap();
+        terminal_verifier::verify_module(
+            &decoded,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .unwrap();
+        let read = decoded
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    terminal_psi::OperationKind::PrimitiveScalarRead { .. }
+                )
+            })
+            .expect("the read retains its storage operation");
+        assert_eq!(
+            read.result.scalar_ref().unwrap().scalar_type,
+            semantic_vocabulary::ScalarType::IeeeFloat(format)
+        );
+        let terminal_psi::OperationKind::PrimitiveScalarRead { path, .. } = &read.kind else {
+            unreachable!();
+        };
+        assert!(matches!(
+            path.as_slice(),
+            [
+                terminal_psi::StructuralPathSegment::Field(_),
+                terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                terminal_psi::StructuralPathSegment::Field(_)
+            ]
+        ));
+        rejected(&source.replace("index < 4", "index < 5"), "Buffer::read");
+        let mut wrong_field = decoded;
+        let path = wrong_field
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                terminal_psi::OperationKind::PrimitiveScalarRead { path, .. } => Some(path),
+                _ => None,
+            })
+            .unwrap();
+        *path.last_mut().unwrap() = terminal_psi::StructuralPathSegment::Field("tag".into());
+        assert!(
+            terminal_verifier::verify_module(
+                &wrong_field,
+                &lowered.proof_bundle,
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .is_err(),
+            "an integer field cannot supply IEEE bits"
+        );
+    }
+}

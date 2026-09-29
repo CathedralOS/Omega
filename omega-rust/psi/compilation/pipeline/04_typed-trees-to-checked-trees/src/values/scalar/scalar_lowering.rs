@@ -1293,7 +1293,13 @@ fn view_element_field_read(
     let (element_path, leaf) =
         structural_fields::element_field_path(program, selection.element_type, fields)?;
     let primitive_type = program.primitive_type_reference(leaf)?;
-    if (!is_integer(primitive_type) && primitive_type != PrimitiveType::Bool)
+    // Runtime indexing changes the path, not the scalar carrier. Preserve the
+    // exact IEEE format for the same primitive projection used by static reads.
+    if (!is_integer(primitive_type)
+        && !matches!(
+            primitive_type,
+            PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64
+        ))
         || primitive_type == PrimitiveType::Addr
     {
         return None;
