@@ -87,6 +87,39 @@ fn check_source(source: &str) -> Result<(), Vec<String>> {
         })
 }
 
+#[test]
+fn projected_bounds_cross_states_that_do_not_read_the_projection() {
+    for (statement, accepted) in [("", true), ("next.cursor = 4;", false)] {
+        let source = format!(
+            "data Context {{ items: [u8; 3]; cursor: u64; }}
+             machine read(context: &mut Context) -> u8 {{
+                 transition context.cursor < 3 {{
+                     true -> relay(context)
+                     _ -> (0)
+                 }}
+                 state relay(next: &mut Context) -> u8 {{
+                     {statement}
+                     transition {{ _ -> finish(next) }}
+                 }}
+                 state finish(last: &mut Context) -> u8 {{
+                     last.items[last.cursor]
+                 }}
+             }}"
+        );
+        let outcome = check_source(&source);
+        if accepted {
+            assert!(outcome.is_ok(), "{outcome:?}");
+        } else {
+            assert!(
+                outcome
+                    .unwrap_err()
+                    .iter()
+                    .any(|message| message.contains("cannot prove index"))
+            );
+        }
+    }
+}
+
 /// An ensured call result handed across a transition substitutes the callee's
 /// discharged exit proof for the destination parameter's bounds: the consumer
 /// reads the contract (`ensures result < K` bounds this occurrence below `K`)

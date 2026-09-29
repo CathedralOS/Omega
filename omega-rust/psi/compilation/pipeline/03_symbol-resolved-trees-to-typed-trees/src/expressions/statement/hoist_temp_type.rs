@@ -422,10 +422,13 @@ pub(super) fn infer_hoist_temp_type(
                 }
             }
             NestedStep::Field(field_name) => {
-                let TypeReference::Named { name, .. } = &element_type else {
+                // Field projection observes the record through references and
+                // constraints, just as an unhoisted member chain does. Keeping
+                // that rule shared prevents normalization from losing the type
+                // when an ordinary parameter supplies the collection.
+                let Some(data_name) = named_data_of(lowerer.source_trees, &element_type) else {
                     return Ok(None);
                 };
-                let data_name = name.clone();
                 let Some(field_type) =
                     attached_field_type(lowerer.source_trees, &data_name, field_name.as_str())
                 else {

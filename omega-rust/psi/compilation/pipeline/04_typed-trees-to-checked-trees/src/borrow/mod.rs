@@ -30,6 +30,7 @@ pub(crate) use last_uses::{
     place_is_used_after_statement, place_symbol_is_used_after_statement,
     place_symbol_is_used_in_state,
 };
+pub(crate) use loans::argument_borrow_loan_place;
 pub(crate) use loans::borrow_initializer_expressions;
 pub(crate) use loans::call_declares_direct_view_source;
 pub(crate) use loans::helper_call_borrow_loan_place;

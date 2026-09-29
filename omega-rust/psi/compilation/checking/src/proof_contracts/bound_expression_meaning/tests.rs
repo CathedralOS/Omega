@@ -4,6 +4,50 @@ use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 #[test]
+fn indexed_case_membership_retains_an_explicit_parameter_carrier() {
+    for (parameter, subject) in [
+        ("&Context", "context.items[context.cursor]"),
+        ("&mut Context", "context.items[context.cursor]"),
+        ("&Envelope", "context.inner.items[context.cursor]"),
+    ] {
+        for (case_owner, accepted) in [("Color", true), ("Other", false)] {
+            let program = crate::front_end::typed_program(&format!(
+                "data Color [copy] {{ case Red; case Blue; }}
+                 data Other [copy] {{ case Red; case Blue; }}
+                 data Context {{ items: [Color; 3]; cursor: u64; }}
+                 data Envelope {{ inner: Context; cursor: u64; }}
+                 machine classify(context: {parameter}) -> bool {{
+                     {subject} in {case_owner}::Red
+                 }}",
+            ));
+            let machine = &program.machines()[0];
+            let state = &program.machine_states(machine)[0];
+            let (expression, comparison) = program
+                .expression_table
+                .iter_expressions()
+                .find_map(|(handle, node)| {
+                    let ExpressionNode::Binary(binary) = node else {
+                        return None;
+                    };
+                    Some((handle, binary))
+                })
+                .expect("authored case membership");
+            assert_eq!(
+                has_exact_case_membership_meaning(
+                    &program,
+                    machine,
+                    Some(state),
+                    expression,
+                    comparison,
+                ),
+                accepted,
+                "{parameter}: {subject} in {case_owner}::Red",
+            );
+        }
+    }
+}
+
+#[test]
 fn float_call_guards_require_the_exact_sealed_declaration() {
     let text = "boundary machine < Float::less(left: f64, right: f64) -> bool;
                 machine compare(value: f64) -> bool { value < 100.0 }";
