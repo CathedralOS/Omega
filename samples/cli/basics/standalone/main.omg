@@ -8,9 +8,8 @@
 //
 // The empty body is deliberate: the subject measures the fixed cost of the
 // whole compile pipeline -- source to published native artifact -- for the
-// smallest deployable program.
+// smallest deployable program. With no state to carry, the entry declares no
+// parameters at all.
 
-data Main {}
-
-machine Main::main(&mut self) {
+machine main() {
 }
