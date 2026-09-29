@@ -21,3 +21,6 @@ language-semantics = { path = "../../../../../psi/foundation/language-semantics"
 numerics = { path = "../../../../../psi/foundation/numerics" }
 typed-trees = { path = "../../../../../psi/compilation/representations/typed-trees" }
 sha2 = "0.10.9"
+
+[dev-dependencies]
+optimization-core = { path = "../../../../foundation/optimization-core", features = ["test-support"] }

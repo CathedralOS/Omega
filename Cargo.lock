@@ -625,6 +625,7 @@ dependencies = [
  "language-core",
  "language-semantics",
  "numerics",
+ "optimization-core",
  "semantic-vocabulary",
  "sha2",
  "source",

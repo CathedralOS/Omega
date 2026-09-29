@@ -40,10 +40,12 @@ pub use provider_evidence::component_eras::component_era_entry_ledger::{
     ActiveComponentEraEntry, ComponentEraCandidate, ComponentEraEntryLedger,
     ComponentEraEntryReceipt, ComponentEraEntryState, ComponentEraLeaveReceipt,
     ComponentEraLedgerId, ComponentEraPublicationReceipt, ComponentEraQuiescenceReceipt,
-    ComponentEraRetirementReceipt, EraEntryError, EraLeaveError, EraPublicationError,
-    EraQuiescenceError, EraRetirementError, ProgramLocalRootEpochLease,
-    ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseId,
-    ProgramLocalRootEpochLeaseReleaseError,
+    ComponentEraRetirementReceipt, EraEntryError, EraEntryRejection, EraLeaveError,
+    EraLeaveRejection, EraPublicationError, EraPublicationRejection, EraQuiescenceError,
+    EraQuiescenceRejection, EraRetirementError, EraRetirementRejection, ProgramLocalRootEpochLease,
+    ProgramLocalRootEpochLeaseAcquisitionError, ProgramLocalRootEpochLeaseAcquisitionRejection,
+    ProgramLocalRootEpochLeaseId, ProgramLocalRootEpochLeaseReleaseError,
+    ProgramLocalRootEpochLeaseReleaseRejection, ProgramLocalRootEpochLeaseValidationRejection,
 };
 pub use provider_evidence::component_eras::component_progress_manifest::{
     CheckedComponentProgressDemand, ComponentBuildBoundProgressDemand, ComponentProgressManifest,
