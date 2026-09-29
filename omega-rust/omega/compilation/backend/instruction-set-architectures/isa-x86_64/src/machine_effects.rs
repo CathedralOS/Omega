@@ -333,6 +333,7 @@ fn selected_keys(
         bits_to_float32: Some(crate::X86_64_BITS_TO_FLOAT32),
         bits_to_float64: Some(crate::X86_64_BITS_TO_FLOAT64),
         ieee_float_arithmetic: Some(crate::X86_64_IEEE_FLOAT_ARITHMETIC),
+        ieee_float_unary: Some(crate::X86_64_IEEE_FLOAT_UNARY),
         add_i64: X86_64_ADD_I64,
         subtract_i64: X86_64_SUBTRACT_I64,
         multiply_i64: crate::X86_64_MULTIPLY_I64,
@@ -586,8 +587,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
     if let MachineSemanticKind::TrappingInteger(form) = semantic {
         return TrappingShape::of(form).encoded_effects();
     }
-    if let MachineSemanticKind::NearestIeeeFloatArithmetic(_) = semantic {
-        return crate::selected_form_encoding::ieee_float_arithmetic::effects();
+    if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
+        return crate::selected_form_encoding::ieee_float_arithmetic::effects(form);
     }
     let view = |name: &str| {
         physical

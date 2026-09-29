@@ -558,7 +558,10 @@ pub(super) fn validate(
                 ..
             },
         ) if boundary == expected
-            && arguments.as_slice() == [*left, *right]
+            && arguments
+                .iter()
+                .copied()
+                .eq(std::iter::once(*left).chain(*right))
             && matches!(
                 scalar_graph_input::ieee_float_arithmetic::row(native, optimized.machine, operation)?,
                 Some(target_operations::TargetUnitOperation::NearestIeeeFloatArithmetic {

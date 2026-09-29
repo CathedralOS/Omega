@@ -224,8 +224,12 @@ pub(super) fn project(
             else {
                 return Err(Error::custody());
             };
-            let [left, right] = arguments.as_slice() else {
-                return Err(Error::custody());
+            let (left, right) = match arguments.as_slice() {
+                [left] if realization.operation.operand_count() == 1 => (*left, None),
+                [left, right] if realization.operation.operand_count() == 2 => {
+                    (*left, Some(*right))
+                }
+                _ => return Err(Error::custody()),
             };
             if row_boundary != boundary {
                 return Err(Error::custody());
@@ -234,8 +238,8 @@ pub(super) fn project(
                 boundary: *boundary,
                 operation: realization.operation,
                 format: realization.format,
-                left: *left,
-                right: *right,
+                left,
+                right,
             }
         }
         AbstractOperation::BoundaryCall {

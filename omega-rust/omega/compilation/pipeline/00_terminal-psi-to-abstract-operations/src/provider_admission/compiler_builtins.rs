@@ -3,17 +3,20 @@
 //! Candidate projection lives in `proposals`; retained request construction
 //! and plan-index custody live in `retained`. Neither replaces admission.
 //!
-//! Hosted builtins settle as call-shaped rows. Selected primitive float
-//! arithmetic settles as `NearestIeeeFloatArithmetic`, which stage 02
-//! realizes inline as one IEEE operation: its admission additionally
-//! requires the boundary's exact `(format, format) -> format` signature, so
-//! a row selected for another format or shape cannot stand in.
+//! Hosted builtins settle as call-shaped rows. Selected float arithmetic,
+//! minimum, maximum, negation, square root and conversion into a float
+//! format settle as `NearestIeeeFloatArithmetic`, which stage 02 realizes
+//! inline as one IEEE operation: its admission additionally requires the
+//! boundary's exact signature for that operation and result format
+//! (`(format, format) -> format`, `(format) -> format`, `(other) -> format`
+//! or `(integer) -> format`), so a row selected for another format, carrier
+//! or shape cannot stand in.
 
 mod proposals;
 mod retained;
 
 pub use proposals::{
-    CompilerIntrinsicPlanProvenance, CompilerIntrinsicSettlementProposal,
+    CompilerIntrinsicPlanProvenance, CompilerIntrinsicSettlementProposal, boundary_float_results,
     demanded_boundary_identities, derive_selected_intrinsic_settlement_proposals,
 };
 pub use retained::{
@@ -169,11 +172,12 @@ pub(super) fn settle_compiler_builtins<'request>(
     Ok((admitted, mechanisms))
 }
 
-/// Admit one selected float-arithmetic execution through the receiving
-/// target catalog. The realization must denote exactly the Terminal
-/// boundary's signature: two scalar operands and one scalar result of the
-/// execution's own format, with no structural lane. A row selected for
-/// another format or operand shape cannot stand in for this boundary.
+/// Admit one selected float execution through the receiving target catalog.
+/// The realization must denote exactly the Terminal boundary's signature:
+/// the operation's operand count and operand type and one scalar result of
+/// the execution's own format, with no structural lane. A row selected for
+/// another format, integer carrier or operand shape cannot stand in for this
+/// boundary.
 fn float_arithmetic_realization(
     realization: NearestIeeeFloatArithmeticRealization,
     target: target::NativeTarget,
@@ -184,17 +188,18 @@ fn float_arithmetic_realization(
             "has no local target catalog realization on {target:?}"
         ));
     }
-    let scalar = semantic_vocabulary::ScalarType::IeeeFloat(realization.format);
-    if boundary.scalar_parameters != [scalar, scalar]
+    let terminal_psi::BoundaryMachineResult::Scalar(result) = boundary.result else {
+        return Err("does not match its Terminal boundary signature".to_owned());
+    };
+    if !realization.signature_matches(&boundary.scalar_parameters, result)
         || !boundary.structural_parameters.is_empty()
-        || boundary.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
     {
         return Err("does not match its Terminal boundary signature".to_owned());
     }
     Ok(realization)
 }
 
-const fn compiler_intrinsic_execution_identity(
+fn compiler_intrinsic_execution_identity(
     execution: CompilerBuiltinExecution,
 ) -> CompilerIntrinsicExecutionIdentity {
     match execution {
@@ -208,23 +213,47 @@ const fn compiler_intrinsic_execution_identity(
             CompilerIntrinsicExecutionIdentity::HostedReadByte
         }
         CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
+            use effects::CompilerNumericType as Numeric;
             use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
             use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
-            CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
-                operation: match operation {
-                    Arithmetic::Add => Primitive::Add,
-                    Arithmetic::Subtract => Primitive::Subtract,
-                    Arithmetic::Multiply => Primitive::Multiply,
-                    Arithmetic::Divide => Primitive::Divide,
-                },
-                format: match format {
-                    semantic_vocabulary::IeeeFloatFormat::Binary32 => {
-                        numerics::literals::FloatFormat::F32
-                    }
-                    semantic_vocabulary::IeeeFloatFormat::Binary64 => {
-                        numerics::literals::FloatFormat::F64
-                    }
-                },
+            use target_operations::IeeeFloatIntegerSource as Integer;
+            let (float_format, numeric, other) = match format {
+                semantic_vocabulary::IeeeFloatFormat::Binary32 => (
+                    numerics::literals::FloatFormat::F32,
+                    Numeric::F32,
+                    Numeric::F64,
+                ),
+                semantic_vocabulary::IeeeFloatFormat::Binary64 => (
+                    numerics::literals::FloatFormat::F64,
+                    Numeric::F64,
+                    Numeric::F32,
+                ),
+            };
+            let binary = |operation| CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary {
+                operation,
+                format: float_format,
+            };
+            let conversion = |source| CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                source,
+                target: numeric,
+                domain: numerics::arithmetic::ArithmeticDomain::Exact,
+            };
+            let builtin = CompilerIntrinsicExecutionIdentity::BuiltinFunction;
+            match operation {
+                Arithmetic::Add => binary(Primitive::Add),
+                Arithmetic::Subtract => binary(Primitive::Subtract),
+                Arithmetic::Multiply => binary(Primitive::Multiply),
+                Arithmetic::Divide => binary(Primitive::Divide),
+                Arithmetic::Minimum => builtin(symbols::BuiltinFunction::Min),
+                Arithmetic::Maximum => builtin(symbols::BuiltinFunction::Max),
+                Arithmetic::SquareRoot => builtin(symbols::BuiltinFunction::Sqrt),
+                Arithmetic::Negate => {
+                    CompilerIntrinsicExecutionIdentity::NamedFloatNegation(float_format)
+                }
+                Arithmetic::ConvertFormat => conversion(other),
+                Arithmetic::FromInteger(Integer::I32) => conversion(Numeric::I32),
+                Arithmetic::FromInteger(Integer::I64) => conversion(Numeric::I64),
+                Arithmetic::FromInteger(Integer::U32) => conversion(Numeric::U32),
             }
         }
     }

@@ -110,15 +110,13 @@ pub(super) fn encode(bytes: &mut Vec<u8>, function: &LegalizedScalarFunction) {
                 } => {
                     bytes.push(TAG_NEAREST_IEEE_FLOAT_ARITHMETIC);
                     bytes.extend_from_slice(&boundary.get().to_le_bytes());
-                    bytes.push(match operation {
-                        target_operations::IeeeFloatArithmeticOperation::Add => 0,
-                        target_operations::IeeeFloatArithmeticOperation::Subtract => 1,
-                        target_operations::IeeeFloatArithmeticOperation::Multiply => 2,
-                        target_operations::IeeeFloatArithmeticOperation::Divide => 3,
-                    });
+                    bytes.push(operation.ordinal());
                     encode_scalar_type(bytes, semantic_vocabulary::ScalarType::IeeeFloat(*format));
                     bytes.extend_from_slice(&left.get().to_le_bytes());
-                    bytes.extend_from_slice(&right.get().to_le_bytes());
+                    bytes.push(u8::from(right.is_some()));
+                    if let Some(right) = right {
+                        bytes.extend_from_slice(&right.get().to_le_bytes());
+                    }
                 }
                 LegalizedScalarInstructionKind::EstablishByteSequenceConcatenation {
                     result,

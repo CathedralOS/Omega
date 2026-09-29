@@ -1,8 +1,8 @@
-//! Selection and independent replay of inline nearest-even float arithmetic.
+//! Selection and independent replay of inline nearest-even float operations.
 //!
-//! Each case computes one operation on two IEEE constants and compares the
-//! result with the exact nearest-even payload, whose truncated alternative
-//! differs. The actual selected stream is executed (the arithmetic form by
+//! Each case computes one operation on one or two constants (IEEE payloads
+//! or integers) and compares the result with the exact nearest-even payload,
+//! whose truncated alternative differs for every rounding operation. The actual selected stream is executed (the arithmetic form by
 //! the host's own round-to-nearest-even operation), and replay rejects a
 //! substituted operation, format or operand order.
 use super::{
@@ -16,67 +16,156 @@ use semantic_vocabulary::{
     BoundaryMachineId, IeeeFloatComparisonOperation as Relation, IeeeFloatFormat, ValueId,
 };
 
-/// The host's own nearest-even operation on raw payloads.
-pub(super) fn host(form: IeeeFloatArithmeticForm, left: u64, right: u64) -> u64 {
-    use IeeeFloatArithmeticOperation::{Add, Divide, Multiply, Subtract};
+/// The host's own nearest-even operation on raw payloads: `operands` holds
+/// the operation's operand payloads (integers zero-extended to 64 bits).
+/// Minimum and maximum return the second operand unless the first is
+/// strictly smaller or greater, as `FloatSemantics::minimum`/`maximum` do.
+pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
+    use IeeeFloatArithmeticOperation::{
+        Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, Negate, SquareRoot,
+        Subtract,
+    };
+    use selected_instructions::IeeeFloatIntegerSource::{I32, I64, U32};
+    let left = operands[0];
+    let right = operands.get(1).copied().unwrap_or_default();
     match form.format {
         IeeeFloatFormat::Binary32 => {
-            let (left, right) = (f32::from_bits(left as u32), f32::from_bits(right as u32));
+            let (a, b) = (f32::from_bits(left as u32), f32::from_bits(right as u32));
             u64::from(
                 match form.operation {
-                    Add => left + right,
-                    Subtract => left - right,
-                    Multiply => left * right,
-                    Divide => left / right,
+                    Add => a + b,
+                    Subtract => a - b,
+                    Multiply => a * b,
+                    Divide => a / b,
+                    Minimum => {
+                        if a < b {
+                            a
+                        } else {
+                            b
+                        }
+                    }
+                    Maximum => {
+                        if a > b {
+                            a
+                        } else {
+                            b
+                        }
+                    }
+                    Negate => -a,
+                    SquareRoot => a.sqrt(),
+                    ConvertFormat => f64::from_bits(left) as f32,
+                    FromInteger(I32) => left as u32 as i32 as f32,
+                    FromInteger(I64) => left as i64 as f32,
+                    FromInteger(U32) => left as u32 as f32,
                 }
                 .to_bits(),
             )
         }
         IeeeFloatFormat::Binary64 => {
-            let (left, right) = (f64::from_bits(left), f64::from_bits(right));
+            let (a, b) = (f64::from_bits(left), f64::from_bits(right));
             match form.operation {
-                Add => left + right,
-                Subtract => left - right,
-                Multiply => left * right,
-                Divide => left / right,
+                Add => a + b,
+                Subtract => a - b,
+                Multiply => a * b,
+                Divide => a / b,
+                Minimum => {
+                    if a < b {
+                        a
+                    } else {
+                        b
+                    }
+                }
+                Maximum => {
+                    if a > b {
+                        a
+                    } else {
+                        b
+                    }
+                }
+                Negate => -a,
+                SquareRoot => a.sqrt(),
+                ConvertFormat => f64::from(f32::from_bits(left as u32)),
+                FromInteger(I32) => f64::from(left as u32 as i32),
+                FromInteger(I64) => left as i64 as f64,
+                FromInteger(U32) => f64::from(left as u32),
             }
             .to_bits()
         }
     }
 }
 
-/// `(left, right, nearest-even result)` per form; truncation differs in each.
+/// `(left, right, nearest-even result)` per form; `right` is unused by the
+/// one-operand forms. Truncation differs from each rounding result, and each
+/// minimum/maximum case has a NaN first operand, which yields the second.
 fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
-    use IeeeFloatArithmeticOperation::{Add, Divide, Multiply, Subtract};
+    use IeeeFloatArithmeticOperation::{
+        Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, Negate, SquareRoot,
+        Subtract,
+    };
+    use IeeeFloatFormat::{Binary32, Binary64};
+    use selected_instructions::IeeeFloatIntegerSource::{I32, I64, U32};
     match (form.format, form.operation) {
         // 1 + 3*2^-54 -> 1 + 2^-52
-        (IeeeFloatFormat::Binary64, Add) => [
+        (Binary64, Add) => [
             0x3ff0_0000_0000_0000,
             0x3ca8_0000_0000_0000,
             0x3ff0_0000_0000_0001,
         ],
         // 1 - 2^-55 -> 1
-        (IeeeFloatFormat::Binary64, Subtract) => [
+        (Binary64, Subtract) => [
             0x3ff0_0000_0000_0000,
             0x3c80_0000_0000_0000,
             0x3ff0_0000_0000_0000,
         ],
         // 0.1 * 3 -> 0.30000000000000004
-        (IeeeFloatFormat::Binary64, Multiply) => [
+        (Binary64, Multiply) => [
             0x3fb9_9999_9999_999a,
             0x4008_0000_0000_0000,
             0x3fd3_3333_3333_3334,
         ],
         // 10 / 3 -> 3.3333333333333335
-        (IeeeFloatFormat::Binary64, Divide) => [
+        (Binary64, Divide) => [
             0x4024_0000_0000_0000,
             0x4008_0000_0000_0000,
             0x400a_aaaa_aaaa_aaab,
         ],
-        (IeeeFloatFormat::Binary32, Add) => [0x3f80_0000, 0x33c0_0000, 0x3f80_0001],
-        (IeeeFloatFormat::Binary32, Subtract) => [0x3f80_0000, 0x3280_0000, 0x3f80_0000],
-        (IeeeFloatFormat::Binary32, Multiply) => [0x3dcc_cccd, 0x4040_0000, 0x3e99_999a],
-        (IeeeFloatFormat::Binary32, Divide) => [0x3f80_0000, 0x4040_0000, 0x3eaa_aaab],
+        // minimum(NaN, 1) -> 1; maximum(NaN, 2) -> 2
+        (Binary64, Minimum) => [
+            0x7ff8_0000_0000_0000,
+            0x3ff0_0000_0000_0000,
+            0x3ff0_0000_0000_0000,
+        ],
+        (Binary64, Maximum) => [
+            0x7ff8_0000_0000_0000,
+            0x4000_0000_0000_0000,
+            0x4000_0000_0000_0000,
+        ],
+        (Binary64, Negate) => [0x3ff0_0000_0000_0000, 0, 0xbff0_0000_0000_0000],
+        // sqrt(2) -> 1.4142135623730951
+        (Binary64, SquareRoot) => [0x4000_0000_0000_0000, 0, 0x3ff6_a09e_667f_3bcd],
+        // 0.1f32 widens exactly.
+        (Binary64, ConvertFormat) => [0x3dcc_cccd, 0, 0x3fb9_9999_a000_0000],
+        // 2^24 + 1 is exact in binary64.
+        (Binary64, FromInteger(I32)) => [16_777_217, 0, 0x4170_0000_1000_0000],
+        // 2^53 + 1 ties to the even 2^53.
+        (Binary64, FromInteger(I64)) => [9_007_199_254_740_993, 0, 0x4340_0000_0000_0000],
+        // u32::MAX is exact in binary64.
+        (Binary64, FromInteger(U32)) => [0xffff_ffff, 0, 0x41ef_ffff_ffe0_0000],
+        (Binary32, Add) => [0x3f80_0000, 0x33c0_0000, 0x3f80_0001],
+        (Binary32, Subtract) => [0x3f80_0000, 0x3280_0000, 0x3f80_0000],
+        (Binary32, Multiply) => [0x3dcc_cccd, 0x4040_0000, 0x3e99_999a],
+        (Binary32, Divide) => [0x3f80_0000, 0x4040_0000, 0x3eaa_aaab],
+        (Binary32, Minimum) => [0x7fc0_0000, 0x3f80_0000, 0x3f80_0000],
+        (Binary32, Maximum) => [0x7fc0_0000, 0x4000_0000, 0x4000_0000],
+        (Binary32, Negate) => [0x3f80_0000, 0, 0xbf80_0000],
+        (Binary32, SquareRoot) => [0x4000_0000, 0, 0x3fb5_04f3],
+        // 0.1 narrows to the nearest binary32, 0.1f32.
+        (Binary32, ConvertFormat) => [0x3fb9_9999_9999_999a, 0, 0x3dcc_cccd],
+        // 2^24 + 1 ties to the even 2^24.
+        (Binary32, FromInteger(I32)) => [16_777_217, 0, 0x4b80_0000],
+        (Binary32, FromInteger(I64)) => [9_007_199_254_740_993, 0, 0x5a00_0000],
+        // u32::MAX rounds up to 2^32.
+        (Binary32, FromInteger(U32)) => [0xffff_ffff, 0, 0x4f80_0000],
     }
 }
 
@@ -93,6 +182,9 @@ fn arithmetic_source(
     );
     let block_id = source.entry_block;
     let block = &mut source.blocks[0];
+    // A one-operand form reads only the first constant, of its operand type.
+    block.instructions[0].result.as_mut().unwrap().scalar_type =
+        form.operation.operand_type(form.format);
     let mut compare = block.instructions.pop().unwrap();
     let left_value = block.instructions[0].result.unwrap().value;
     let right_value = block.instructions[1].result.unwrap().value;
@@ -136,7 +228,7 @@ fn arithmetic_source(
             operation: form.operation,
             format: form.format,
             left: left_value,
-            right: right_value,
+            right: (form.operand_count() == 2).then_some(right_value),
         },
     );
     compare.result.as_mut().unwrap().definition_site = ValueDefinitionSite::Node {
@@ -174,10 +266,15 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
             keys: environment.selected_keys(),
             fixed_inputs: Vec::new(),
         };
-        let key = constraints.keys.ieee_float_arithmetic.unwrap();
         for form in IeeeFloatArithmeticForm::ALL {
             let [left, right, expected] = case(form);
-            assert_eq!(host(form, left, right), expected, "{form:?}");
+            let operands = &[left, right][..form.operand_count()];
+            assert_eq!(host(form, operands), expected, "{form:?}");
+            let key = if form.operand_count() == 2 {
+                constraints.keys.ieee_float_arithmetic.unwrap()
+            } else {
+                constraints.keys.ieee_float_unary.unwrap()
+            };
             let source = arithmetic_source(target, form);
             let selected = build(
                 0,
@@ -224,7 +321,7 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
                 SelectedInstructionKind::NearestIeeeFloatArithmetic { form }
             );
             assert_eq!(instruction.constraint, key);
-            assert_eq!(instruction.operands.len(), 3);
+            assert_eq!(instruction.operands.len(), form.operand_count() + 1);
             assert!(
                 !instruction.clobbers.is_empty(),
                 "scratch registers are declared"

@@ -1,11 +1,12 @@
-//! Inline realization of a selected compiler float-arithmetic builtin.
+//! Inline realization of a selected compiler float builtin.
 //!
 //! Stage 00 admitted this boundary's settlement only after rejoining the
 //! selected provider row, the Terminal demand and the local target catalog.
 //! The boundary call itself becomes one nearest-even IEEE operation on its
-//! two scalar arguments, exactly like an emitted IEEE comparison: there is no
-//! frame, argument transport or call, so the result is an ordinary scalar
-//! home. The row keeps the boundary and admitted execution so legalization can
+//! one or two scalar arguments (arithmetic, minimum/maximum, negation,
+//! square root, or conversion into the result format), exactly like an
+//! emitted IEEE comparison: there is no frame, argument transport or call, so
+//! the result is an ordinary scalar home. The row keeps the boundary and admitted execution so legalization can
 //! replay it against the abstract call and its declaration.
 
 use super::LiveDefinitions;
@@ -80,25 +81,34 @@ pub(super) fn lower(
         },
     );
     let scalar = ScalarType::IeeeFloat(realization.format);
-    let (AbstractBoundaryResult::Scalar(result), [left, right]) = (result, arguments.as_slice())
-    else {
+    let operand = realization.operation.operand_type(realization.format);
+    let AbstractBoundaryResult::Scalar(result) = result else {
         return Err(mismatch);
     };
     if binding.execution != execution
         || !NearestIeeeFloatArithmeticRealization::supports_target(target)
-        || declaration.scalar_parameters != [scalar, scalar]
+        || !realization.signature_matches(&declaration.scalar_parameters, scalar)
         || !declaration.structural_parameters.is_empty()
         || declaration.result != terminal_psi::BoundaryMachineResult::Scalar(scalar)
         || result.scalar_type != scalar
+        || arguments.len() != realization.operation.operand_count()
         || !structural_arguments.is_empty()
         || !completion_claim_sources.is_empty()
         || !completion_receipts.is_empty()
     {
         return Err(mismatch);
     }
-    let left = super::scalar_sources::source(*left, function, live)?;
-    let right = super::scalar_sources::source(*right, function, live)?;
-    if left.scalar_type() != scalar || right.scalar_type() != scalar {
+    let mut sources = arguments
+        .iter()
+        .map(|argument| super::scalar_sources::source(*argument, function, live));
+    let left = sources
+        .next()
+        .ok_or(LoweringError::BoundaryRealizationMismatch(*boundary))??;
+    let right = sources.next().transpose()?;
+    if std::iter::once(&left)
+        .chain(&right)
+        .any(|source| source.scalar_type() != operand)
+    {
         return Err(LoweringError::ValueTypeMismatch(result.value));
     }
     let shape = crate::lowering::scalar_abi::fixed_native_scalar_shape(scalar).ok_or(mismatch)?;

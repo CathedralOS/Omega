@@ -58,11 +58,12 @@ impl HostedWriteByteI32Realization {
     }
 }
 
-/// Inline nearest-even IEEE arithmetic for one selected primitive float
-/// provider. The call's two scalar arguments become the operation's operands
-/// and its scalar result the operation's result; no call, frame, or import
-/// exists. Both supported architectures carry scalar IEEE binary32/binary64
-/// arithmetic that honors the canonical floating controls.
+/// Inline nearest-even IEEE operation for one selected float provider whose
+/// result has `format`. The call's scalar arguments become the operation's
+/// operands in authored order and its scalar result the operation's result;
+/// no call, frame, or import exists. Both supported architectures carry
+/// scalar IEEE binary32/binary64 arithmetic, selection, square root and
+/// conversion that honor the canonical floating controls.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NearestIeeeFloatArithmeticRealization {
     pub operation: crate::IeeeFloatArithmeticOperation,
@@ -77,6 +78,17 @@ impl NearestIeeeFloatArithmeticRealization {
             target.architecture,
             target::Architecture::Aarch64 | target::Architecture::X86_64
         )
+    }
+
+    /// Whether a boundary with these scalar parameters and this scalar
+    /// result has exactly this realization's signature.
+    pub fn signature_matches(
+        &self,
+        parameters: &[semantic_vocabulary::ScalarType],
+        result: semantic_vocabulary::ScalarType,
+    ) -> bool {
+        self.operation
+            .signature_matches(self.format, parameters, result)
     }
 }
 

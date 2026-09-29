@@ -6,7 +6,7 @@
 mod execution;
 pub use execution::{
     BoundaryExecutionBinding, CompilerBuiltinExecution, IeeeFloatArithmeticOperation,
-    ProviderExecutionBinding, ProviderPlanReportIdentity,
+    IeeeFloatIntegerSource, ProviderExecutionBinding, ProviderPlanReportIdentity,
 };
 mod realizations;
 pub use realizations::{

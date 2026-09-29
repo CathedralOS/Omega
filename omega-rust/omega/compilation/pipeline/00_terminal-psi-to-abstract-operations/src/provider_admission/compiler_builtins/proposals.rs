@@ -9,7 +9,7 @@
 use diagnostics::Diagnostic;
 use effects::CompilerIntrinsicExecutionIdentity;
 use effects::provider_plan::ProviderPlan;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// The source-free part of one retained provider review. The complete plan is
 /// compared before its row-aligned execution identities can supply a proposal.
@@ -54,6 +54,26 @@ pub fn demanded_boundary_identities(
     Ok(demanded)
 }
 
+/// The IEEE result format of every declared boundary whose result is one
+/// float scalar, by requirement identity. Format-generic selected builtins
+/// (`BuiltinFunction` minimum, maximum and square root carry no format) take
+/// their executable format from the called boundary; admission then requires
+/// the boundary's complete signature again.
+pub fn boundary_float_results(
+    module: &terminal_psi::TerminalModule,
+) -> BTreeMap<String, semantic_vocabulary::IeeeFloatFormat> {
+    module
+        .boundary_machines
+        .iter()
+        .filter_map(|boundary| match boundary.result {
+            terminal_psi::BoundaryMachineResult::Scalar(
+                semantic_vocabulary::ScalarType::IeeeFloat(format),
+            ) => Some((boundary.identity.clone(), format)),
+            _ => None,
+        })
+        .collect()
+}
+
 struct SelectedIntrinsicRow<'a> {
     requirement_identity: &'a str,
     plan_index: usize,
@@ -68,6 +88,7 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     plans: &[ProviderPlan],
     provenance: impl ExactSizeIterator<Item = CompilerIntrinsicPlanProvenance<'a>>,
     demanded_boundaries: &BTreeSet<String>,
+    float_results: &BTreeMap<String, semantic_vocabulary::IeeeFloatFormat>,
 ) -> Result<Vec<CompilerIntrinsicSettlementProposal>, Vec<Diagnostic>> {
     if plans.len() != provenance.len() {
         return Err(vec![Diagnostic::error(
@@ -137,7 +158,9 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
             )));
             continue;
         };
-        let Some(execution) = compiler_builtin_execution(execution) else {
+        let Some(execution) =
+            compiler_builtin_execution(execution, float_results.get(requirement).copied())
+        else {
             diagnostics.push(Diagnostic::error(format!(
                 "selected compiler intrinsic `{}` for Terminal boundary `{requirement}` has no native boundary realization",
                 selected.plan_name,
@@ -157,25 +180,34 @@ pub fn derive_selected_intrinsic_settlement_proposals<'a>(
     }
 }
 
+/// The native realization of one selected intrinsic identity, if the local
+/// catalog has one. `result_format` is the called boundary's IEEE result
+/// format, which the format-free builtin identities need; admission rejoins
+/// the complete boundary signature independently.
 fn compiler_builtin_execution(
     identity: CompilerIntrinsicExecutionIdentity,
+    result_format: Option<semantic_vocabulary::IeeeFloatFormat>,
 ) -> Option<target_operations::CompilerBuiltinExecution> {
     use target_operations::CompilerBuiltinExecution;
-    match identity {
+    use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
+    let ieee_format = |format| match format {
+        numerics::literals::FloatFormat::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+        numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+    };
+    let (operation, format) = match identity {
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => {
-            Some(CompilerBuiltinExecution::HostedExitProcessI32)
+            return Some(CompilerBuiltinExecution::HostedExitProcessI32);
         }
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => {
-            Some(CompilerBuiltinExecution::HostedWriteByteI32)
+            return Some(CompilerBuiltinExecution::HostedWriteByteI32);
         }
         CompilerIntrinsicExecutionIdentity::HostedReadByte => {
-            Some(CompilerBuiltinExecution::HostedReadByte)
+            return Some(CompilerBuiltinExecution::HostedReadByte);
         }
         CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
             // Only arithmetic is call-demanded. Selected comparisons settle
             // their emitted Terminal IEEE comparisons, never a boundary call.
             use effects::CompilerPrimitiveFloatBinaryOperation as Primitive;
-            use target_operations::IeeeFloatArithmeticOperation as Arithmetic;
             let operation = match operation {
                 Primitive::Add => Arithmetic::Add,
                 Primitive::Subtract => Arithmetic::Subtract,
@@ -188,21 +220,56 @@ fn compiler_builtin_execution(
                 | Primitive::Greater
                 | Primitive::GreaterOrEqual => return None,
             };
-            let format = match format {
-                numerics::literals::FloatFormat::F32 => {
-                    semantic_vocabulary::IeeeFloatFormat::Binary32
-                }
-                numerics::literals::FloatFormat::F64 => {
-                    semantic_vocabulary::IeeeFloatFormat::Binary64
-                }
-            };
-            Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
+            (operation, ieee_format(format))
         }
-        CompilerIntrinsicExecutionIdentity::BuiltinFunction(_)
-        | CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. }
-        | CompilerIntrinsicExecutionIdentity::NamedFloatNegation(_)
-        | CompilerIntrinsicExecutionIdentity::NamedFloatConversion { .. } => None,
-    }
+        CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
+            let operation = match function {
+                symbols::BuiltinFunction::Min => Arithmetic::Minimum,
+                symbols::BuiltinFunction::Max => Arithmetic::Maximum,
+                symbols::BuiltinFunction::Sqrt => Arithmetic::SquareRoot,
+                _ => return None,
+            };
+            (operation, result_format?)
+        }
+        CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
+            (Arithmetic::Negate, ieee_format(format))
+        }
+        CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        } => {
+            use effects::CompilerNumericType as Numeric;
+            // Conversions into a float format are total nearest-even Exact
+            // requirements. Float-to-integer conversions (every domain) and
+            // the integer carriers without a one-instruction conversion on
+            // both architectures stay unrealized.
+            if domain != numerics::arithmetic::ArithmeticDomain::Exact {
+                return None;
+            }
+            let format = match target {
+                Numeric::F32 => semantic_vocabulary::IeeeFloatFormat::Binary32,
+                Numeric::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
+                _ => return None,
+            };
+            let operation = match source {
+                Numeric::F32 | Numeric::F64 if source != target => Arithmetic::ConvertFormat,
+                Numeric::I32 => {
+                    Arithmetic::FromInteger(target_operations::IeeeFloatIntegerSource::I32)
+                }
+                Numeric::I64 => {
+                    Arithmetic::FromInteger(target_operations::IeeeFloatIntegerSource::I64)
+                }
+                Numeric::U32 => {
+                    Arithmetic::FromInteger(target_operations::IeeeFloatIntegerSource::U32)
+                }
+                _ => return None,
+            };
+            (operation, format)
+        }
+        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. } => return None,
+    };
+    Some(CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format })
 }
 
 #[cfg(test)]

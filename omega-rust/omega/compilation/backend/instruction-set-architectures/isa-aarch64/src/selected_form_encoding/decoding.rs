@@ -1098,8 +1098,8 @@ pub(crate) fn footprint(
         SelectedInstructionKind::AtomicAccess { form } => {
             return super::atomic::footprint(form, operands);
         }
-        SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
-            return super::ieee_float_arithmetic::footprint(operands);
+        SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => {
+            return super::ieee_float_arithmetic::footprint(form, operands);
         }
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         // Every Trapping realization leaves NZCV unspecified; the encoded

@@ -49,5 +49,5 @@ pub use selected_instructions::{
 };
 pub use selected_instructions::{
     AtomicForm, AtomicOperation, AtomicWidth, IeeeFloatArithmeticForm,
-    IeeeFloatArithmeticOperation, IeeeFloatFormat,
+    IeeeFloatArithmeticOperation, IeeeFloatFormat, IeeeFloatIntegerSource,
 };

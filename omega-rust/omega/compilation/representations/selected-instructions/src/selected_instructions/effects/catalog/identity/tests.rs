@@ -97,6 +97,7 @@ fn keys() -> SelectedConstraintKeys {
         bits_to_float32: Some(instruction(30)),
         bits_to_float64: Some(instruction(31)),
         ieee_float_arithmetic: Some(instruction(785)),
+        ieee_float_unary: Some(instruction(786)),
         add_i64: instruction(2),
         subtract_i64: instruction(4),
         multiply_i64: instruction(44),

@@ -1689,13 +1689,8 @@ pub(crate) fn footprint(
     if let Some(form) = trapping_form(kind) {
         return trapping_footprint(form, operands);
     }
-    if let SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } = kind {
-        return X86_64SelectedFormFootprint {
-            register_reads: operands[..2].to_vec(),
-            register_writes: operands[2..3].to_vec(),
-            writes_rflags: false,
-            encoded: super::ieee_float_arithmetic::effects(),
-        };
+    if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
+        return super::ieee_float_arithmetic::footprint(form, operands);
     }
     let (reads, writes, writes_rflags) = match kind {
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
