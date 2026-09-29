@@ -181,13 +181,11 @@ pub(super) fn call_pointer(
         || matches!(call.source, target_operations::NativeCallOrigin::Authored)
             && !matches!(row.ownership.as_slice(),
                 [optimization_unit::OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty())
-        || row.result.is_some_and(|result| {
-            !crate::selection::scalar_call_abi::scalar_shape(result.scalar_type)
-                .is_some_and(|shape| shape.class == calling_conventions::ValueClass::Integer)
-        })
     {
         return Err(replay.invalid());
     }
+    // Scalar-call replay checks the result's exact type and placement. Pointer
+    // replay checks only the borrowed argument and its ownership event.
     place_pointer(replay, row, place, byte_offset)
 }
 

@@ -1,5 +1,5 @@
 use super::super::{PsiOptimizationUnit, TargetOperationPlan, ValueId};
-use super::{AbstractOperation, AbstractOperationPlan, ScalarType, validate};
+use super::{AbstractOperation, AbstractOperationPlan, validate};
 use crate::legalization::scalar_graph_input::i32_type;
 use abstract_operations::{AbstractBoundaryResult, AbstractSuccessor};
 use abstract_operations_to_target_operations::{
@@ -7,7 +7,7 @@ use abstract_operations_to_target_operations::{
 };
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerValue, OperationId, PlaceId,
-    StructuralPlaceKind, StructuralTypeId,
+    ScalarType, StructuralPlaceKind, StructuralTypeId,
 };
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -394,6 +394,143 @@ fn borrowed_float_parameters_compose_with_scalar_results() {
                     .is_err(),
                     "{mutation}"
                 );
+                assert!(
+                    crate::legalize_target_operations(&changed, &plan, &unit).is_err(),
+                    "{mutation}"
+                );
+                assert!(
+                    crate::validate_legalized_operations(
+                        &changed,
+                        &plan,
+                        &unit,
+                        legal.plan().clone()
+                    )
+                    .is_err(),
+                    "{mutation}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn borrowed_parameters_compose_with_float_results_and_reject_changed_abi() {
+    use abstract_operations::{AbstractFunctionResult, AbstractParameter, AbstractResult};
+    use semantic_vocabulary::IeeeFloatFormat;
+
+    for native in [
+        ::target::NativeTarget::windows_x64(),
+        ::target::NativeTarget::linux_x64(),
+        ::target::NativeTarget::linux_arm64(),
+        ::target::NativeTarget::macos_arm64(),
+    ] {
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            let (mut plan, _, _) = literal_order_fixture(native, true);
+            let scalar_type = ScalarType::IeeeFloat(format);
+            let input = ValueId::new(1).unwrap();
+            let result = ValueId::new(2).unwrap();
+            let function = &mut plan.functions[0];
+            function.parameters = vec![AbstractParameter {
+                value: input,
+                scalar_type,
+            }];
+            function.result = AbstractFunctionResult::Scalar(AbstractResult {
+                value: result,
+                scalar_type,
+            });
+            function.operations = vec![AbstractOperation::Return {
+                psi_edge: EdgeId::new(1).unwrap(),
+                result,
+                value: input,
+                scalar_type,
+                cleanup_actions: Vec::new(),
+            }];
+            // Exercise both ends: reference argument transport is independent
+            // of the floating-point return register selected for this call.
+            let mut caller = function.clone();
+            caller.machine = semantic_vocabulary::MachineId::new(2).unwrap();
+            caller.entry = BlockId::new(2).unwrap();
+            caller.block_entries[0].block = caller.entry;
+            let call_result = ValueId::new(3).unwrap();
+            caller.operations = vec![
+                AbstractOperation::CallStructuralScalar {
+                    psi_operation: OperationId::new(1).unwrap(),
+                    result: AbstractResult {
+                        value: call_result,
+                        scalar_type,
+                    },
+                    callee: function.machine,
+                    arguments: vec![input],
+                    structural_arguments: vec![terminal_psi::StructuralArgument {
+                        place: caller.structural_parameters[0].place,
+                        access: StructuralAccess::SharedBorrow,
+                        path: Vec::new(),
+                    }],
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+                AbstractOperation::Return {
+                    psi_edge: EdgeId::new(2).unwrap(),
+                    result,
+                    value: call_result,
+                    scalar_type,
+                    cleanup_actions: Vec::new(),
+                },
+            ];
+            plan.entry = caller.machine;
+            plan.functions.push(caller);
+            let target = abstract_operations_to_target_operations::lower_to_target_operations(
+                &plan,
+                abstract_operations_to_target_operations::TargetLoweringRequest::new(native),
+            )
+            .unwrap();
+            abstract_operations_to_target_operations::validate_abstract_to_target_translation(
+                &plan, native, &target,
+            )
+            .unwrap();
+            let unit = optimization_unit::reconstruct_psi_optimization_unit_seed(
+                &plan,
+                FuelScheduleIdentity::new(1).unwrap(),
+            )
+            .unwrap();
+            optimization_unit_semantics::validate_psi_optimization_unit(&unit).unwrap();
+            let legal = crate::legalize_target_operations(&target, &plan, &unit).unwrap();
+            crate::validate_legalized_operations(&target, &plan, &unit, legal.plan().clone())
+                .unwrap();
+            let environment =
+                register_environment::baseline_target_register_environment(native).unwrap();
+            let constraints = crate::selection_constraints(&legal, &environment);
+            let selected = crate::select_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+            )
+            .unwrap();
+            crate::validate_selected_instructions(
+                &legal,
+                &constraints,
+                environment.physical(),
+                environment.constraints(),
+                selected.plan().clone(),
+            )
+            .unwrap();
+
+            for mutation in ["result value", "result type", "result placement"] {
+                let mut changed = target.clone();
+                let result = &mut changed.functions[0]
+                    .mixed_structural_scalar_abi
+                    .as_mut()
+                    .unwrap()
+                    .result;
+                match mutation {
+                    "result value" => result.value = input,
+                    "result type" => result.scalar_type = ScalarType::Boolean,
+                    "result placement" => result.placement.locations.clear(),
+                    _ => unreachable!(),
+                }
+                assert!(abstract_operations_to_target_operations::validate_abstract_to_target_translation(&plan, native, &changed).is_err(), "{mutation}");
                 assert!(
                     crate::legalize_target_operations(&changed, &plan, &unit).is_err(),
                     "{mutation}"

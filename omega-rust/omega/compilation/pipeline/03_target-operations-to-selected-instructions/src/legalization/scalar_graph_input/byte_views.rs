@@ -1,8 +1,7 @@
 //! Exact borrowed structural headers for observations, writes and calls.
 use super::{
     AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, CallPlan,
-    CallingPolicy, PsiOptimizationFunction, ScalarType, TargetFunction, ValueDefinitionSite,
-    scalar_shape,
+    CallingPolicy, PsiOptimizationFunction, TargetFunction, ValueDefinitionSite, scalar_shape,
 };
 use crate::LegalizationError;
 
@@ -31,10 +30,7 @@ pub(super) fn validate(
                 &target.graph.parameters,
             ),
             (AbstractFunctionResult::Scalar(result), Some(abi))
-                if matches!(
-                    result.scalar_type,
-                    ScalarType::Boolean | ScalarType::Integer(_)
-                ) && scalar_shape(result.scalar_type) == Some(abi.result.placement.shape)
+                if scalar_shape(result.scalar_type) == Some(abi.result.placement.shape)
                     && abi.result.value == result.value
                     && abi.result.scalar_type == result.scalar_type
                     && Some(&abi.result.placement) == abi.call_plan.result.as_ref() =>
