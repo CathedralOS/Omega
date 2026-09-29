@@ -744,6 +744,7 @@ pass/recast/runtime_shared_record_float_range_weakening_exit rejected 1473ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `state graph: state signature: parameter signature: attached data shape` (state 0)
 pass/references/runtime_shared_ref_param_guard_exit built 583ms exit:1
 pass/relevance/erased_case_payload_field_exit built 1408ms exit:70 @fb2178def922
+pass/relevance/erased_formal_before_borrowed_argument_exit built 1482ms exit:70 @7552efd7b9fc+wt
 pass/relevance/erased_parameter_named_transition_forward checked 195ms
 pass/relevance/erased_parameter_proof_only built 625ms
 pass/relevance/erased_receiver_proof_machine_call checked 177ms

@@ -245,7 +245,13 @@ pub(super) fn return_unit_affine_discards(
             let facts::PlaceRoot::Symbol(root) = event.root else {
                 return None;
             };
-            if admitted_local_symbols.contains(&root) {
+            // An erased formal has no runtime storage and no roster row, so
+            // its exit drop owes the return edge nothing.
+            let erased_formal = source_parameters.iter().any(|source| {
+                strips_erased_parameter(source) == Some(true)
+                    && root == parameter_root_symbol(machine, source)
+            });
+            if erased_formal || admitted_local_symbols.contains(&root) {
                 continue;
             }
             return None;
