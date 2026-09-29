@@ -224,6 +224,22 @@ fn arguments<'a>(
     else {
         return None;
     };
+    // A fused graph declares a retained receiver once (`build_machine_graph`).
+    // A tail may keep it only by spelling the source's own lexical `self` (or
+    // no receiver); a projected receiver would lend a different place.
+    if graph.states.len() > 1
+        && source
+            .structural_parameters
+            .iter()
+            .any(|parameter| parameter.is_self)
+        && !match program.statement_table.name_path_members(path.members) {
+            [_] => true,
+            [receiver, _] => receiver.as_str() == "self",
+            _ => false,
+        }
+    {
+        return None;
+    }
     let arguments = program.statement_table.expression_handles(*arguments);
     let target_index = if let Some(target_index) =
         crate::checks::termination::named_transition_target_state_index(

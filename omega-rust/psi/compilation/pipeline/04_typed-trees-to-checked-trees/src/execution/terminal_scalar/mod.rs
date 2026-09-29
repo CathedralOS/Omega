@@ -389,7 +389,22 @@ fn build_machine_graph(
     // only single-state graphs). So a multi-state machine with structural
     // formals, or a fused graph with any, declines here and the state graph
     // owns it.
+    //
+    // A tail fusion of single-state machines that each retain the same
+    // borrowed receiver forwards no formal: the receiver is one machine-scope
+    // place that edges carry no lane for, and `successors` admits only tails
+    // that lend the source's own lexical `self`. The Unit graph cannot carry
+    // these cross-machine tails, so this fusion keeps its scalar graph.
+    let shared_receiver_fusion = states.len() > 1
+        && pending
+            .iter()
+            .all(|(owner, _)| program.machine_states(owner).len() == 1)
+        && states.iter().all(|(state, _, _)| {
+            matches!(state.structural_parameters.as_slice(), [receiver] if receiver.is_self)
+                && state.structural_parameters == states[0].0.structural_parameters
+        });
     if states.len() > 1
+        && !shared_receiver_fusion
         && states
             .iter()
             .any(|(state, _, _)| !state.structural_parameters.is_empty())

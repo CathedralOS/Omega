@@ -1,6 +1,7 @@
 //! Borrowed receiver custody is independent of whether the body reads it.
 //! Single-state scalar graphs retain it; multi-state bodies use the Unit
 //! state graph, whose callers and edges preserve the declared receiver.
+//! Tail-fused single-state bodies share one retained receiver.
 use super::checked_program_result;
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
@@ -105,4 +106,94 @@ fn single_state_unread_mutable_receiver_keeps_its_declared_signature() {
         receiver.access,
         checked_trees::CheckedStructuralAccess::MutableBorrow
     );
+}
+
+const FUSED_RECEIVER_SOURCE: &str = r#"
+    data Main { bias: u64; }
+    machine Main::ping(&mut self, n: u64)
+    terminates by n;
+    -> u64
+    {
+        transition n == 0 {
+            true -> (self.bias)
+            _ -> self.pong(n - 1)
+        }
+    }
+    machine Main::pong(PONG_RECEIVER, n: u64)
+    terminates by n;
+    -> u64
+    {
+        transition n == 0 {
+            true -> (0)
+            _ -> self.ping(n - 1)
+        }
+    }
+"#;
+
+/// Tail-fused single-state machines keep one retained receiver: every member
+/// carries the same declared borrow, so the fused scalar graph (the only
+/// owner of cross-machine tails) survives receiver retention.
+#[test]
+fn tail_fused_members_share_one_retained_receiver() {
+    let source = FUSED_RECEIVER_SOURCE.replace("PONG_RECEIVER", "&mut self");
+    let checked = checked_program_result(&source)
+        .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+    for name in ["::ping", "::pong"] {
+        let graph = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine(&checked, name))
+            .unwrap_or_else(|| panic!("{name} keeps its fused scalar graph"));
+        assert_eq!(graph.states.len(), 2, "{name}");
+        for state in &graph.states {
+            let [receiver] = state.structural_parameters.as_slice() else {
+                panic!("{name}: each member retains exactly its receiver");
+            };
+            assert!(receiver.is_self);
+            assert_eq!(
+                receiver.access,
+                checked_trees::CheckedStructuralAccess::MutableBorrow
+            );
+        }
+    }
+}
+
+const TAIL_RECEIVER_SOURCE: &str = r#"
+    data Main { bias: u64; }
+    machine Main::ping(&mut self, n: u64) -> u64 {
+        transition n == 0 {
+            true -> (self.bias)
+            _ -> self.pong(n)
+        }
+    }
+    machine Main::pong(PONG_RECEIVER, n: u64) -> u64 {
+        transition { _ -> (n) }
+    }
+"#;
+
+/// A member whose receiver differs from the entry's cannot share the one
+/// machine-scope receiver, so the fusion declines instead of retargeting it.
+/// (A cycle cannot mix accesses: a shared body cannot lend `&mut self`.)
+#[test]
+fn tail_fused_members_with_different_receivers_decline() {
+    for (receiver, fused) in [("&mut self", true), ("&self", false)] {
+        let source = TAIL_RECEIVER_SOURCE.replace("PONG_RECEIVER", receiver);
+        let checked = checked_program_result(&source)
+            .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
+        let graph = checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(machine(&checked, "::ping"));
+        if fused {
+            let graph = graph.expect("an identical receiver keeps the fused tail graph");
+            assert_eq!(graph.states.len(), 2);
+        } else {
+            assert!(
+                graph.is_none(),
+                "a shared member cannot reuse the entry's exclusive receiver"
+            );
+        }
+    }
 }
