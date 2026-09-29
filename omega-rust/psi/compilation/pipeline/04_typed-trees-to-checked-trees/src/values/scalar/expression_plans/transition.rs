@@ -57,7 +57,7 @@ pub(super) fn plan(
                     .chain(
                         locals
                             .iter()
-                            .filter(|local| !local.is_mutable)
+                            .filter(|local| local.is_value_binding())
                             .map(|local| local.symbol),
                     ),
             ),
@@ -107,7 +107,7 @@ pub(super) fn plan(
                         .chain(
                             locals
                                 .iter()
-                                .filter(|local| !local.is_mutable)
+                                .filter(|local| local.is_value_binding())
                                 .map(|local| local.symbol),
                         ),
                 ),
@@ -263,7 +263,7 @@ pub(super) fn plan(
                         .chain(
                             locals
                                 .iter()
-                                .filter(|local| !local.is_mutable)
+                                .filter(|local| local.is_value_binding())
                                 .map(|local| local.symbol),
                         ),
                 ),

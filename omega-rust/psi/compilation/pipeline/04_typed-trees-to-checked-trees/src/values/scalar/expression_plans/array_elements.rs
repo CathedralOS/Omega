@@ -79,7 +79,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, statement: &StatementNode)
                         .chain(
                             locals
                                 .iter()
-                                .filter(|local| !local.is_mutable)
+                                .filter(|local| local.is_value_binding())
                                 .map(|local| local.symbol),
                         ),
                 ),

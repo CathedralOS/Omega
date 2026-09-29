@@ -32,7 +32,7 @@ mod array_elements;
 mod assignment;
 mod call_statement;
 mod expression_statement;
-mod local_data;
+pub(super) mod local_data;
 mod transition;
 
 #[derive(Debug, Clone)]
@@ -42,6 +42,20 @@ pub(crate) struct ScalarLocal {
     pub(crate) name: String,
     pub(crate) primitive_type: PrimitiveType,
     pub(crate) arithmetic_domain: ArithmeticDomain,
+    /// The captured place of a shared `&` local: the borrow target inside
+    /// its `&place`/`&place as &T` initializer. Reads through the local
+    /// re-evaluate that place at the use point rather than a value the
+    /// binding itself stores.
+    pub(crate) shared_loan_place: Option<ExpressionHandle>,
+}
+
+impl ScalarLocal {
+    /// Immutable value bindings own a `Local` position and a binding
+    /// ordinal; shared `&` loans carry a place and stay out of the
+    /// value-binding namespace.
+    pub(crate) fn is_value_binding(&self) -> bool {
+        !self.is_mutable && self.shared_loan_place.is_none()
+    }
 }
 
 /// One statement's place in the plan walk: the program facts every
@@ -218,7 +232,7 @@ fn retain_subslice_endpoints(
                     .chain(
                         locals
                             .iter()
-                            .filter(|local| !local.is_mutable)
+                            .filter(|local| local.is_value_binding())
                             .map(|local| local.symbol),
                     ),
             ),

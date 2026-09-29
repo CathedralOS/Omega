@@ -42,7 +42,7 @@ pub(crate) fn retain_call_arguments(
                 parameters.iter().map(|parameter| parameter.symbol).chain(
                     locals
                         .iter()
-                        .filter(|local| !local.is_mutable)
+                        .filter(|local| local.is_value_binding())
                         .map(|local| local.symbol),
                 ),
             ),

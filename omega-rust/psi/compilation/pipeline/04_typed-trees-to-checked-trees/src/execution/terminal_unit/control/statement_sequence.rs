@@ -276,14 +276,28 @@ fn returned_named_view(
     }
     let statements = program.statement_table.statements(state.statement_nodes);
     let statement_index = statements.len().checked_sub(1)?;
-    let StatementNode::Expression(expression) = statements.last()? else {
-        return None;
+    // A bare `transition { _ -> &place }` completes the state exactly like a
+    // trailing `(&place)` expression: its `Value` target is the authored
+    // return expression.
+    let expression = match statements.last()? {
+        StatementNode::Expression(expression) => *expression,
+        StatementNode::Transition(transition)
+            if transition.exit == typed_trees::statement::TransitionExit::Ordinary =>
+        {
+            let typed_trees::statement::TransitionTargetNode::Value(expression) =
+                program.statement_table.transition_target(transition.target)
+            else {
+                return None;
+            };
+            *expression
+        }
+        _ => return None,
     };
     let place = crate::flow::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
-        *expression,
+        expression,
     )?;
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;

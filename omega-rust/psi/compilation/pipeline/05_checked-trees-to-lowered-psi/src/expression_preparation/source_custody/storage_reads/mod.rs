@@ -819,6 +819,52 @@ fn collect_owned_field(
     }
 }
 
+/// A `let b: &T = &place` local names its captured place at read
+/// position, not its own carrier. Peel the (possibly recast)
+/// `Borrow{Shared}` initializer to the place expression the checker's
+/// scalar operands re-evaluate.
+fn shared_loan_target(
+    checked: &CheckedTrees,
+    state: &checked_trees::state::State,
+    scope: ReadScope,
+    name: &checked_trees::expression::TableNamePath,
+) -> Option<ExpressionHandle> {
+    if !name.symbol.is_valid()
+        || name.symbol != name.head_symbol
+        || checked
+            .expression_table
+            .name_path_members(name.members)
+            .len()
+            != 1
+    {
+        return None;
+    }
+    let local = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .take(scope.preceding_statements() as usize)
+        .filter_map(|statement| match statement {
+            StatementNode::LocalData(local) if local.symbol == name.symbol => Some(local),
+            _ => None,
+        })
+        .next()?;
+    let mut initializer = local.initial_value;
+    loop {
+        match checked.expression_table.expression(initializer) {
+            ExpressionNode::Borrow(borrow)
+                if borrow.access == language_core::ReferenceAccess::Shared =>
+            {
+                return Some(borrow.target);
+            }
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                initializer = cast.value;
+            }
+            _ => return None,
+        }
+    }
+}
+
 fn authored_storage_read(
     checked: &CheckedTrees,
     state: &checked_trees::state::State,
@@ -966,6 +1012,21 @@ fn collect_authored_storage_reads(
                 authored_storage_read(checked, state, scope, name)?
             {
                 reads.push((path.clone(), symbol, primitive, kind));
+            } else if let Some(target) = shared_loan_target(checked, state, scope, name) {
+                // A shared place-loan carrier rejoins the captured
+                // place's authored read rather than its own — replay
+                // the borrow target through this same collector.
+                collect_authored_storage_reads(
+                    checked,
+                    state,
+                    scope,
+                    target,
+                    path,
+                    active,
+                    reads,
+                    member_paths,
+                    unmatched_member_paths,
+                )?;
             }
         }
         ExpressionNode::Member(member) => {

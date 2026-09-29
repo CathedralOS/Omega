@@ -1,0 +1,29 @@
+// PENDING pin — use-through admitted loans: bounded runtime-index `&mut`
+// loan, `borrowed = 9` through it omits at 'structural field store: carrier
+// path' (state 0 stmt 2) under --check. The loan keeps the RuntimeIndex
+// segment; the store-side carrier-path resolver declines the loaned shape.
+// Same family — arch-self-mixed-stores CASE-FIELD-TYPE-STORE-SHAPES,
+// exp 17:58Z.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+    off: u32 [0..=47];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.off = 0;
+    let borrowed: &mut u8 = &mut self.buf[self.off];
+    borrowed = 9;
+    transition self.buf[self.off] == 9 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

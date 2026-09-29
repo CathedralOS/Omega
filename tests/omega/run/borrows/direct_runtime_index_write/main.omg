@@ -1,0 +1,25 @@
+// Probe: is a direct runtime-indexed write on a plain u8 fixed-array
+// field admitted at all? `[i32;4]` writes plan WriteOnlyPrimitiveStore;
+// if `[u8;N]` writes omit, the indexed-write wall predates loan aliases.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+    off: u64;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.off = 0;
+    self.buf[self.off] = 9;
+    transition self.buf[self.off] == 9 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(9);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

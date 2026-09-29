@@ -1,0 +1,31 @@
+// PENDING pin — use-through admitted loans: `borrowed.tag` member read
+// through a recast `as &Desc` shared loan. --check passes; the run tier
+// omits at 'record read has no structural namespace'
+// (scalar_computations/fields.rs): the recast referee record `Desc` never
+// reaches the machine's structural declaration roster, so the member
+// read's root identity matches nothing. Repair = minting the referee's
+// structural declaration, a wider arm than a read resolver.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Desc {
+    tag: u32;
+}
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+}
+
+machine Main::main(&mut self) reaches Console {
+    let borrowed: &Desc = &self.buf[0] as &Desc;
+    transition borrowed.tag == self.buf[0] as u32 { true -> done() _ -> bad() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

@@ -78,7 +78,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
                 expression: field.value,
                 symbols: binding_symbols.insert_many(
                     scalar_parameters.iter().map(|parameter| parameter.symbol)
-                        .chain(locals.iter().filter(|local| !local.is_mutable).map(|local| local.symbol)),
+                        .chain(locals.iter().filter(|local| local.is_value_binding()).map(|local| local.symbol)),
                 ),
             });
             expressions.push(CheckedLocatedScalarExpression {
@@ -143,7 +143,7 @@ pub(super) fn plan(planner: StatementPlanner<'_, '_>, expression: ExpressionHand
                     .chain(
                         locals
                             .iter()
-                            .filter(|local| !local.is_mutable)
+                            .filter(|local| local.is_value_binding())
                             .map(|local| local.symbol),
                     ),
             ),
