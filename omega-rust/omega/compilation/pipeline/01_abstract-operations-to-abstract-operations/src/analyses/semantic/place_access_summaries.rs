@@ -1097,6 +1097,25 @@ fn scan_operation(
         O::CallUnit {
             callee,
             structural_arguments,
+            dynamic_arguments,
+            ..
+        }
+        | O::CallStructuralScalar {
+            callee,
+            structural_arguments,
+            dynamic_arguments,
+            ..
+        } if !dynamic_arguments.is_empty() => {
+            pending.push_call(context, machines, *callee, structural_arguments);
+            for argument in dynamic_arguments {
+                pending.push_dynamic_source(context, machines, &argument.source);
+            }
+            // The forwarded descriptor lane itself is not summarized.
+            pending.unsummarized = true;
+        }
+        O::CallUnit {
+            callee,
+            structural_arguments,
             ..
         }
         | O::CallStructuralScalar {
@@ -1113,25 +1132,6 @@ fn scan_operation(
         }
         O::Call { callee, .. } => {
             pending.push_call(context, machines, *callee, &[]);
-        }
-        O::CallUnitWithDynamicArguments {
-            callee,
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        }
-        | O::CallStructuralScalarWithDynamicArguments {
-            callee,
-            structural_arguments,
-            dynamic_arguments,
-            ..
-        } => {
-            pending.push_call(context, machines, *callee, structural_arguments);
-            for argument in dynamic_arguments {
-                pending.push_dynamic_source(context, machines, &argument.source);
-            }
-            // The forwarded descriptor lane itself is not summarized.
-            pending.unsummarized = true;
         }
         O::CallDynamic { dispatch, .. } => {
             match dispatch {

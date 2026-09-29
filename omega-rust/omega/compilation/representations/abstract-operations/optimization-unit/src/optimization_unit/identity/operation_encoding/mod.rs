@@ -43,9 +43,7 @@ pub(super) fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractO
         O::DynamicDescriptorParameter { .. }
         | O::StoreDynamicDescriptor { .. }
         | O::CallUnit { .. }
-        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
-        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamic { .. }
         | O::CallStructural { .. }
         | O::BoundaryCall { .. }

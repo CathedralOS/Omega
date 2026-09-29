@@ -37,18 +37,15 @@ pub(crate) fn operation_service_contract_matches(
             .all(|service| caller.published_service_ceiling.contains(service))
     };
     match operation {
-        O::Call { callee, .. }
-        | O::CallUnit { callee, .. }
-        | O::CallStructuralScalar { callee, .. }
-        | O::CallStructural { callee, .. } => functions
+        O::Call { callee, .. } | O::CallStructural { callee, .. } => functions
             .get(callee)
             .is_some_and(|callee| reached_is_published(&callee.published_service_ceiling)),
-        O::CallStructuralScalarWithDynamicArguments {
+        O::CallStructuralScalar {
             callee,
             dynamic_arguments,
             ..
         }
-        | O::CallUnitWithDynamicArguments {
+        | O::CallUnit {
             callee,
             dynamic_arguments,
             ..
@@ -111,9 +108,12 @@ pub(crate) fn operation_structural_call_contract_matches(
         O::EstablishZeroedStructural { .. } => {
             zeroed_establishment_matches(caller, operation, types)
         }
+        // A byte-literal structural argument is admitted only on a call
+        // that forwards no descriptors.
         O::CallUnit {
             callee,
             structural_arguments,
+            dynamic_arguments,
             claim_transfers,
             ..
         } => functions.get(callee).is_some_and(|callee| {
@@ -124,28 +124,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 types,
                 domains,
                 StructuralProjectionPolicy::Unit,
-                true,
-            ) && validate_internal_claim_transfers(
-                caller,
-                callee,
-                structural_arguments,
-                claim_transfers,
-            )
-        }),
-        O::CallUnitWithDynamicArguments {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } => functions.get(callee).is_some_and(|callee| {
-            structural_arguments_match(
-                caller,
-                structural_arguments,
-                &callee.structural_parameters,
-                types,
-                domains,
-                StructuralProjectionPolicy::Unit,
-                false,
+                dynamic_arguments.is_empty(),
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,
@@ -156,6 +135,7 @@ pub(crate) fn operation_structural_call_contract_matches(
         O::CallStructuralScalar {
             callee,
             structural_arguments,
+            dynamic_arguments,
             claim_transfers,
             ..
         } => functions.get(callee).is_some_and(|callee| {
@@ -166,28 +146,7 @@ pub(crate) fn operation_structural_call_contract_matches(
                 types,
                 domains,
                 StructuralProjectionPolicy::Projected,
-                true,
-            ) && validate_internal_claim_transfers(
-                caller,
-                callee,
-                structural_arguments,
-                claim_transfers,
-            )
-        }),
-        O::CallStructuralScalarWithDynamicArguments {
-            callee,
-            structural_arguments,
-            claim_transfers,
-            ..
-        } => functions.get(callee).is_some_and(|callee| {
-            structural_arguments_match(
-                caller,
-                structural_arguments,
-                &callee.structural_parameters,
-                types,
-                domains,
-                StructuralProjectionPolicy::Projected,
-                false,
+                dynamic_arguments.is_empty(),
             ) && validate_internal_claim_transfers(
                 caller,
                 callee,

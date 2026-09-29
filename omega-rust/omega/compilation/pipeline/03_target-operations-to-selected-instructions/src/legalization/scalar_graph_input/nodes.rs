@@ -51,6 +51,14 @@ pub(in crate::legalization) fn admit(
         }
         return Ok((*psi_operation, result.map(|result| result.value)));
     }
+    // A Unit call that forwards descriptors has no scalar-graph lane.
+    if let AbstractOperation::CallUnit {
+        dynamic_arguments, ..
+    } = &node.operation
+        && !dynamic_arguments.is_empty()
+    {
+        return Err(NodeRejection::UnsupportedFamily);
+    }
     if let AbstractOperation::ByteSequenceSubslice { psi_operation, .. }
     | AbstractOperation::ElementViewSubslice { psi_operation, .. }
     | AbstractOperation::EstablishElementView { psi_operation, .. }
@@ -134,12 +142,17 @@ fn scalar_instruction(node: &OptimizationNode) -> Result<(OperationId, ValueId),
             result,
             ..
         } => Ok((*psi_operation, *result)),
+        // A scalar call that forwards descriptors has no scalar-graph lane.
         AbstractOperation::CallStructuralScalar {
             psi_operation,
             result,
+            dynamic_arguments,
             claim_transfers,
             ..
-        } if scalar_shape(result.scalar_type).is_some() && claim_transfers.is_empty() => {
+        } if dynamic_arguments.is_empty()
+            && scalar_shape(result.scalar_type).is_some()
+            && claim_transfers.is_empty() =>
+        {
             // Requirements and crash continuations are proof and
             // correspondence metadata: source projection retains their
             // rosters, and legalization/selection replay compares them

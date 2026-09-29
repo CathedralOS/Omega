@@ -30,8 +30,10 @@ pub(super) fn result(
                 psi_operation,
                 result,
                 callee,
+                dynamic_arguments,
                 ..
-            } if installed_boundary.is_none()
+            } if dynamic_arguments.is_empty()
+                && installed_boundary.is_none()
                 && *psi_operation == contract.operation
                 && *callee == contract.call.callee =>
             {

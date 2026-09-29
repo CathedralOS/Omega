@@ -9,13 +9,7 @@ pub(crate) fn expected_ownership(
         O::CallUnit {
             claim_transfers, ..
         }
-        | O::CallUnitWithDynamicArguments {
-            claim_transfers, ..
-        }
         | O::CallStructuralScalar {
-            claim_transfers, ..
-        }
-        | O::CallStructuralScalarWithDynamicArguments {
             claim_transfers, ..
         }
         | O::CallStructural {

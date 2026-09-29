@@ -204,6 +204,7 @@ fn record_call_unit(access: StructuralAccess, projected: bool) -> PsiOptimizatio
                 Vec::new()
             },
         }],
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),

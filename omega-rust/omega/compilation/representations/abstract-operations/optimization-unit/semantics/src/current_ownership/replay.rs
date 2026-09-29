@@ -154,15 +154,16 @@ pub(super) fn validate_current_ownership_cfg(
             };
             let structural_arguments = match &node.operation {
                 O::EstablishCase { .. } | O::EstablishRecord { .. } => record_arguments.as_slice(),
+                // A Unit call that forwards descriptors is not replayed here;
+                // the scalar-result call is replayed in both forms.
+                O::CallUnit {
+                    dynamic_arguments, ..
+                } if !dynamic_arguments.is_empty() => &[],
                 O::CallUnit {
                     structural_arguments,
                     ..
                 }
                 | O::CallStructuralScalar {
-                    structural_arguments,
-                    ..
-                }
-                | O::CallStructuralScalarWithDynamicArguments {
                     structural_arguments,
                     ..
                 }
@@ -223,9 +224,11 @@ pub(super) fn validate_current_ownership_cfg(
                         )?,
                     ]
                 }
+                O::CallUnit {
+                    dynamic_arguments, ..
+                } if !dynamic_arguments.is_empty() => Vec::new(),
                 O::CallUnit { callee, .. }
                 | O::CallStructuralScalar { callee, .. }
-                | O::CallStructuralScalarWithDynamicArguments { callee, .. }
                 | O::CallStructural { callee, .. } => functions[callee]
                     .structural_parameters
                     .iter()
@@ -292,12 +295,12 @@ pub(super) fn validate_current_ownership_cfg(
 
             let transferred = match &node.operation {
                 O::CallUnit {
+                    dynamic_arguments, ..
+                } if !dynamic_arguments.is_empty() => Vec::new(),
+                O::CallUnit {
                     claim_transfers, ..
                 }
                 | O::CallStructuralScalar {
-                    claim_transfers, ..
-                }
-                | O::CallStructuralScalarWithDynamicArguments {
                     claim_transfers, ..
                 }
                 | O::CallStructural {

@@ -55,6 +55,7 @@ pub(in crate::lowering) fn lower_structural_unit_call(
         callee,
         arguments: scalar_arguments,
         structural_arguments,
+        dynamic_arguments,
         claim_transfers,
         requirement_obligations,
         crash_continuations,
@@ -62,6 +63,9 @@ pub(in crate::lowering) fn lower_structural_unit_call(
     else {
         unreachable!("structural Unit-call lowering receives only Unit calls")
     };
+    if !dynamic_arguments.is_empty() {
+        unreachable!("a Unit call forwarding descriptors takes the descriptor-pair lowering")
+    }
     let callee_function = functions
         .get(callee)
         .copied()

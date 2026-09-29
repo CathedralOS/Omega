@@ -790,6 +790,13 @@ fn apply(
                 return None;
             }
         }
+        // A call that forwards descriptors moves no argument custody here.
+        AbstractOperation::CallUnit {
+            dynamic_arguments, ..
+        }
+        | AbstractOperation::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => {}
         AbstractOperation::CallUnit {
             structural_arguments,
             ..

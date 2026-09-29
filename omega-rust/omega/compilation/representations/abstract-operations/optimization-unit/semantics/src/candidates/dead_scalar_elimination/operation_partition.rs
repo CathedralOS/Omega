@@ -58,9 +58,7 @@ fn independently_validated_dead_scalar_operation_family(operation: &O) -> Option
         | O::EstablishZeroedStructural { .. }
         | O::EstablishRecord { .. }
         | O::CallUnit { .. }
-        | O::CallUnitWithDynamicArguments { .. }
         | O::CallStructuralScalar { .. }
-        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamic { .. }
         | O::CallStructural { .. }
         | O::BoundaryCall { .. }

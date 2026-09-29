@@ -117,15 +117,7 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
         O::PrimitiveLocalStore { destination, .. } => vec![*destination],
         O::WriteOnlyPrimitiveStore { destination, .. } => vec![destination.place],
         O::StructuralScalarFieldStore { destination, .. } => vec![destination.place()],
-        O::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructural {
+        O::CallStructural {
             structural_arguments,
             ..
         }
@@ -136,12 +128,12 @@ pub(crate) fn operation_place_inputs(operation: &O) -> Vec<PlaceId> {
             .iter()
             .map(|argument| argument.place)
             .collect(),
-        O::CallStructuralScalarWithDynamicArguments {
+        O::CallStructuralScalar {
             structural_arguments,
             dynamic_arguments,
             ..
         }
-        | O::CallUnitWithDynamicArguments {
+        | O::CallUnit {
             structural_arguments,
             dynamic_arguments,
             ..

@@ -196,6 +196,7 @@ fn forwarded_ieee_store_call_keeps_the_parameter_and_borrowed_pointer() {
                 path: Vec::new(),
                 access: StructuralAccess::WriteOnlyBorrow,
             }],
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),

@@ -141,6 +141,12 @@ enum AdmissionRoute {
 
 fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
     match operation {
+        AbstractOperation::CallStructuralScalar {
+            dynamic_arguments, ..
+        }
+        | AbstractOperation::CallUnit {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => AdmissionRoute::NamedRejection,
         AbstractOperation::BooleanConstant { .. }
         | AbstractOperation::BooleanEqual { .. }
         | AbstractOperation::BooleanNot { .. }
@@ -239,8 +245,6 @@ fn admission_route(operation: &AbstractOperation) -> AdmissionRoute {
                 | abstract_operations::AbstractDynamicDispatch::Stored(_),
             ..
         }
-        | AbstractOperation::CallStructuralScalarWithDynamicArguments { .. }
-        | AbstractOperation::CallUnitWithDynamicArguments { .. }
         | AbstractOperation::NearestIeeeFloatFusedMultiplyAdd { .. }
         | AbstractOperation::PortWrite { .. }
         | AbstractOperation::StoreDynamicDescriptor { .. } => AdmissionRoute::NamedRejection,

@@ -20,6 +20,7 @@ fn literal_plan(value: IeeeFloatValue, call: bool) -> AbstractOperationPlan {
                 path: Vec::new(),
                 access: StructuralAccess::WriteOnlyBorrow,
             }],
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),

@@ -411,8 +411,11 @@ pub(crate) fn operation_scalar_types_match(
                     .all(|(argument, parameter)| scalar(*argument) == Some(parameter.scalar_type))
         }),
         O::CallUnit {
-            callee, arguments, ..
-        } => functions.get(callee).is_some_and(|callee| {
+            callee,
+            arguments,
+            dynamic_arguments,
+            ..
+        } if dynamic_arguments.is_empty() => functions.get(callee).is_some_and(|callee| {
             matches!(
                 callee.result,
                 abstract_operations::AbstractFunctionResult::Unit
@@ -422,13 +425,17 @@ pub(crate) fn operation_scalar_types_match(
                     .zip(&callee.parameters)
                     .all(|(argument, parameter)| scalar(*argument) == Some(parameter.scalar_type))
         }),
-        O::CallUnitWithDynamicArguments {
+        // A call that forwards descriptors carries no scalar arguments, and
+        // its callee declares none.
+        O::CallUnit {
             psi_operation,
             callee,
+            arguments,
             dynamic_arguments,
             ..
         } => functions.get(callee).is_some_and(|callee| {
-            callee.parameters.is_empty()
+            arguments.is_empty()
+                && callee.parameters.is_empty()
                 && matches!(
                     callee.result,
                     abstract_operations::AbstractFunctionResult::Unit
@@ -439,8 +446,9 @@ pub(crate) fn operation_scalar_types_match(
             result,
             callee,
             arguments,
+            dynamic_arguments,
             ..
-        } => functions.get(callee).is_some_and(|callee| {
+        } if dynamic_arguments.is_empty() => functions.get(callee).is_some_and(|callee| {
             arguments.len() == callee.parameters.len()
                 && arguments
                     .iter()
@@ -452,14 +460,16 @@ pub(crate) fn operation_scalar_types_match(
                         if signature.scalar_type == result.scalar_type
                 )
         }),
-        O::CallStructuralScalarWithDynamicArguments {
+        O::CallStructuralScalar {
             psi_operation,
             result,
             callee,
+            arguments,
             dynamic_arguments,
             ..
         } => functions.get(callee).is_some_and(|callee| {
-            callee.parameters.is_empty()
+            arguments.is_empty()
+                && callee.parameters.is_empty()
                 && matches!(
                 callee.result,
                 abstract_operations::AbstractFunctionResult::Scalar(signature)

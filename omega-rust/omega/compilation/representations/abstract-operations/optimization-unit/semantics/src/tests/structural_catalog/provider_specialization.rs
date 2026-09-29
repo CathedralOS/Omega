@@ -217,6 +217,7 @@ fn provider_attachment_specialization_replays_exact_roots_calls_and_nonuse() {
         callee: machine,
         arguments: Vec::new(),
         structural_arguments: vec![provider_argument],
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),

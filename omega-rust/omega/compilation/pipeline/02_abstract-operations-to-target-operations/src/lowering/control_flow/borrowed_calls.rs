@@ -29,16 +29,18 @@ pub(super) fn lower(
 ) -> Result<(), LoweringError> {
     let (psi_operation, result, callee, values, arguments, claims, requirements, crashes) =
         match operation {
+            // A call that forwards descriptors has its own lowering.
             AbstractOperation::CallStructuralScalar {
                 psi_operation,
                 result,
                 callee,
                 arguments,
                 structural_arguments,
+                dynamic_arguments,
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-            } => (
+            } if dynamic_arguments.is_empty() => (
                 *psi_operation,
                 Some(*result),
                 *callee,
@@ -53,10 +55,11 @@ pub(super) fn lower(
                 callee,
                 arguments,
                 structural_arguments,
+                dynamic_arguments,
                 claim_transfers,
                 requirement_obligations,
                 crash_continuations,
-            } => (
+            } if dynamic_arguments.is_empty() => (
                 *psi_operation,
                 None,
                 *callee,

@@ -170,8 +170,6 @@ pub(crate) fn rewrite_block_parameter_operation(
         | O::EstablishByteSequenceConcatenation { .. }
         | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
-        | O::CallUnitWithDynamicArguments { .. }
-        | O::CallStructuralScalarWithDynamicArguments { .. }
         | O::CallDynamic { .. }
         | O::PortWrite { .. }
         | O::IntegerConstant { .. }

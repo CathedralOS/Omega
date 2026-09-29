@@ -109,6 +109,13 @@ pub(crate) fn realize(
                 O::CallUnit { .. } | O::CallStructuralScalar { .. } | O::CallStructural { .. }
             );
             let crash_custody = match &node.operation {
+                // No admission lane moves a call that forwards descriptors.
+                O::CallUnit {
+                    dynamic_arguments, ..
+                }
+                | O::CallStructuralScalar {
+                    dynamic_arguments, ..
+                } if !dynamic_arguments.is_empty() => None,
                 O::Call {
                     callee,
                     crash_continuations,

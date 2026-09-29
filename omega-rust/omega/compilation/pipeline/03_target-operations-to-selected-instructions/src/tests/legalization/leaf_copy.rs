@@ -719,6 +719,7 @@ fn copied_leaf_feeds_an_owned_call_through_selection_and_replay() {
                 path: Vec::new(),
                 access: StructuralAccess::Owned,
             }],
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),

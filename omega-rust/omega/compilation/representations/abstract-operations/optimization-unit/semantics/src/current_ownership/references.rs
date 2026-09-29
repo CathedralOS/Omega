@@ -85,15 +85,14 @@ pub(super) fn entry_references(
 /// rebound receiver which carries the same loan/custody rules.
 fn operation_structural_arguments(operation: &O) -> &[StructuralArgument] {
     match operation {
+        // A Unit call that forwards descriptors contributes no arguments
+        // here; the scalar-result call contributes them in both forms.
         O::CallUnit {
             structural_arguments,
+            dynamic_arguments,
             ..
-        }
-        | O::CallStructuralScalar {
-            structural_arguments,
-            ..
-        }
-        | O::CallStructuralScalarWithDynamicArguments {
+        } if dynamic_arguments.is_empty() => structural_arguments.as_slice(),
+        O::CallStructuralScalar {
             structural_arguments,
             ..
         }

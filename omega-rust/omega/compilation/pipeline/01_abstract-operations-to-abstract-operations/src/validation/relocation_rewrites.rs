@@ -112,11 +112,13 @@ pub(crate) fn scalar_case_result_contained(
                 // a relocatable case, so neither shape has a witness here.
                 O::CallUnit {
                     structural_arguments,
+                    dynamic_arguments,
                     claim_transfers,
                     ..
-                } if structural_arguments
-                    .iter()
-                    .any(|argument| argument.place == picked) =>
+                } if dynamic_arguments.is_empty()
+                    && structural_arguments
+                        .iter()
+                        .any(|argument| argument.place == picked) =>
                 {
                     member
                         && claim_transfers.is_empty()
@@ -617,6 +619,13 @@ pub(crate) fn substitute_invariant_call_roots(
 ) -> bool {
     let mut applied = BTreeSet::new();
     match operation {
+        // No admission lane moves a call that forwards descriptors.
+        O::CallUnit {
+            dynamic_arguments, ..
+        }
+        | O::CallStructuralScalar {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => {}
         O::CallUnit {
             structural_arguments,
             ..

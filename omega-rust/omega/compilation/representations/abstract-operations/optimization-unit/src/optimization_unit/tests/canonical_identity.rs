@@ -38,6 +38,7 @@ fn fixed_byte_range_call_identity_binds_both_endpoints() {
             access: terminal_psi::StructuralAccess::MutableBorrow,
             path: vec![terminal_psi::StructuralPathSegment::FixedByteRange { start: 0, end: 2 }],
         }],
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
@@ -358,6 +359,7 @@ fn unit_call_identity_binds_scalar_arguments() {
         callee: id(2, MachineId::new),
         arguments: vec![id(3, ValueId::new)],
         structural_arguments: Vec::new(),
+        dynamic_arguments: Vec::new(),
         claim_transfers: Vec::new(),
         requirement_obligations: Vec::new(),
         crash_continuations: Vec::new(),
@@ -733,9 +735,9 @@ fn forwarded_descriptor_arguments() -> Vec<abstract_operations::AbstractDynamicD
 }
 
 /// Pins the complete unit identity of the ordinary Unit and scalar-result
-/// calls, with and without forwarded descriptor arguments. Every roster is
-/// nonempty so the digest binds the tag, the result position, the argument
-/// rows and the tail order of each call row.
+/// calls, with and without forwarded descriptor arguments. Every roster the
+/// shape encodes is nonempty so the digest binds the tag, the result position,
+/// the argument rows and the tail order of each call row.
 #[test]
 fn descriptor_argument_call_identity_bytes_are_stable() {
     let baseline =
@@ -773,6 +775,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 callee: id(2, MachineId::new),
                 arguments: vec![id(3, ValueId::new)],
                 structural_arguments: structural_arguments(),
+                dynamic_arguments: Vec::new(),
                 claim_transfers: claim_transfers(),
                 requirement_obligations: obligations(),
                 crash_continuations: crashes(),
@@ -784,9 +787,10 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
         ),
         (
             "unit with descriptor arguments (tag 59)",
-            AbstractOperation::CallUnitWithDynamicArguments {
+            AbstractOperation::CallUnit {
                 psi_operation: id(1, OperationId::new),
                 callee: id(2, MachineId::new),
+                arguments: Vec::new(),
                 structural_arguments: structural_arguments(),
                 dynamic_arguments: forwarded_descriptor_arguments(),
                 claim_transfers: claim_transfers(),
@@ -806,6 +810,7 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
                 callee: id(2, MachineId::new),
                 arguments: vec![id(3, ValueId::new)],
                 structural_arguments: structural_arguments(),
+                dynamic_arguments: Vec::new(),
                 claim_transfers: claim_transfers(),
                 requirement_obligations: obligations(),
                 crash_continuations: crashes(),
@@ -817,10 +822,11 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
         ),
         (
             "scalar with descriptor arguments (tag 54)",
-            AbstractOperation::CallStructuralScalarWithDynamicArguments {
+            AbstractOperation::CallStructuralScalar {
                 psi_operation: id(1, OperationId::new),
                 result,
                 callee: id(2, MachineId::new),
+                arguments: Vec::new(),
                 structural_arguments: structural_arguments(),
                 dynamic_arguments: forwarded_descriptor_arguments(),
                 claim_transfers: claim_transfers(),
@@ -830,6 +836,43 @@ fn descriptor_argument_call_identity_bytes_are_stable() {
             [
                 58, 184, 220, 19, 173, 3, 122, 246, 207, 148, 35, 42, 137, 130, 187, 157, 106, 16,
                 193, 26, 2, 136, 76, 195, 216, 81, 245, 136, 31, 143, 231, 47,
+            ],
+        ),
+        // Stage 00 never produces scalar arguments beside descriptor
+        // arguments; the encoder still gives that shape distinct tags.
+        (
+            "unit with scalar and descriptor arguments (tag 94)",
+            AbstractOperation::CallUnit {
+                psi_operation: id(1, OperationId::new),
+                callee: id(2, MachineId::new),
+                arguments: vec![id(3, ValueId::new)],
+                structural_arguments: structural_arguments(),
+                dynamic_arguments: forwarded_descriptor_arguments(),
+                claim_transfers: claim_transfers(),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                58, 122, 84, 227, 100, 252, 197, 199, 198, 214, 115, 120, 140, 12, 106, 130, 169,
+                173, 175, 81, 145, 24, 221, 130, 165, 65, 249, 214, 111, 212, 119, 35,
+            ],
+        ),
+        (
+            "scalar with scalar and descriptor arguments (tag 95)",
+            AbstractOperation::CallStructuralScalar {
+                psi_operation: id(1, OperationId::new),
+                result,
+                callee: id(2, MachineId::new),
+                arguments: vec![id(3, ValueId::new)],
+                structural_arguments: structural_arguments(),
+                dynamic_arguments: forwarded_descriptor_arguments(),
+                claim_transfers: claim_transfers(),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                16, 18, 67, 231, 140, 114, 188, 127, 174, 89, 98, 179, 179, 37, 170, 232, 238, 155,
+                110, 252, 251, 249, 66, 74, 99, 228, 221, 180, 105, 55, 229, 155,
             ],
         ),
     ];

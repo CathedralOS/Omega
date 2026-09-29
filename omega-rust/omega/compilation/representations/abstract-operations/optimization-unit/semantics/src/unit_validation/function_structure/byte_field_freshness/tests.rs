@@ -159,6 +159,7 @@ fn indexed_byte_field_freshness_preserves_only_length_preserving_effects() {
                 access,
                 path: Vec::new(),
             }],
+            dynamic_arguments: Vec::new(),
             claim_transfers: Vec::new(),
             requirement_obligations: Vec::new(),
             crash_continuations: Vec::new(),

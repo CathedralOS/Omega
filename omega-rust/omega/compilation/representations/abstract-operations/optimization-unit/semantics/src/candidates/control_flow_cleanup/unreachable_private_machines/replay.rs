@@ -140,18 +140,15 @@ pub(crate) fn validator_machine_references(
         .flat_map(|block| block.nodes.iter().map(|node| &node.operation))
     {
         match operation {
-            O::CallUnit { callee, .. }
-            | O::CallStructuralScalar { callee, .. }
-            | O::CallStructural { callee, .. }
-            | O::Call { callee, .. } => {
+            O::CallStructural { callee, .. } | O::Call { callee, .. } => {
                 references.insert(*callee);
             }
-            O::CallStructuralScalarWithDynamicArguments {
+            O::CallStructuralScalar {
                 callee,
                 dynamic_arguments,
                 ..
             }
-            | O::CallUnitWithDynamicArguments {
+            | O::CallUnit {
                 callee,
                 dynamic_arguments,
                 ..

@@ -107,6 +107,14 @@ pub(in crate::function_fragments) fn arrivals(
                     _ => true,
                 }
         }
+        // Mirrors target lowering: a call that forwards descriptors needs
+        // its own realization.
+        AbstractOperation::CallStructuralScalar {
+            dynamic_arguments, ..
+        }
+        | AbstractOperation::CallUnit {
+            dynamic_arguments, ..
+        } if !dynamic_arguments.is_empty() => false,
         AbstractOperation::CallStructuralScalar { psi_operation, .. }
         | AbstractOperation::CallUnit { psi_operation, .. } => {
             selected

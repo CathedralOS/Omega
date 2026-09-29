@@ -30,42 +30,32 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             callee,
             arguments,
             structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            bytes.u8(3);
-            bytes.id(*psi_operation);
-            bytes.id(*callee);
-            encode_ids(bytes, arguments);
-            bytes.slice(structural_arguments, encode_structural_argument);
-            bytes.slice(claim_transfers, |bytes, transfer| {
-                bytes.id(transfer.claim);
-                bytes.u32(transfer.argument_index);
-            });
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-        O::CallUnitWithDynamicArguments {
-            psi_operation,
-            callee,
-            structural_arguments,
             dynamic_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
         } => {
-            bytes.u8(59);
+            let layout = OrdinaryCallLayout::of(arguments, dynamic_arguments);
+            bytes.u8(match layout {
+                OrdinaryCallLayout::Plain => 3,
+                OrdinaryCallLayout::Descriptors => 59,
+                OrdinaryCallLayout::ScalarsAndDescriptors => 94,
+            });
             bytes.id(*psi_operation);
             bytes.id(*callee);
-            bytes.slice(structural_arguments, encode_structural_argument);
-            bytes.slice(dynamic_arguments, encode_dynamic_descriptor_argument);
-            bytes.slice(claim_transfers, |bytes, transfer| {
-                bytes.id(transfer.claim);
-                bytes.u32(transfer.argument_index);
-            });
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
+            encode_ordinary_call_arguments(
+                bytes,
+                layout,
+                arguments,
+                structural_arguments,
+                dynamic_arguments,
+            );
+            encode_ordinary_call_tail(
+                bytes,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            );
         }
         O::CallStructuralScalar {
             psi_operation,
@@ -73,45 +63,33 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             callee,
             arguments,
             structural_arguments,
-            claim_transfers,
-            requirement_obligations,
-            crash_continuations,
-        } => {
-            bytes.u8(4);
-            bytes.id(*psi_operation);
-            encode_abstract_result(bytes, *result);
-            bytes.id(*callee);
-            encode_ids(bytes, arguments);
-            bytes.slice(structural_arguments, encode_structural_argument);
-            bytes.slice(claim_transfers, |bytes, transfer| {
-                bytes.id(transfer.claim);
-                bytes.u32(transfer.argument_index);
-            });
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
-        }
-        O::CallStructuralScalarWithDynamicArguments {
-            psi_operation,
-            result,
-            callee,
-            structural_arguments,
             dynamic_arguments,
             claim_transfers,
             requirement_obligations,
             crash_continuations,
         } => {
-            bytes.u8(54);
+            let layout = OrdinaryCallLayout::of(arguments, dynamic_arguments);
+            bytes.u8(match layout {
+                OrdinaryCallLayout::Plain => 4,
+                OrdinaryCallLayout::Descriptors => 54,
+                OrdinaryCallLayout::ScalarsAndDescriptors => 95,
+            });
             bytes.id(*psi_operation);
             encode_abstract_result(bytes, *result);
             bytes.id(*callee);
-            bytes.slice(structural_arguments, encode_structural_argument);
-            bytes.slice(dynamic_arguments, encode_dynamic_descriptor_argument);
-            bytes.slice(claim_transfers, |bytes, transfer| {
-                bytes.id(transfer.claim);
-                bytes.u32(transfer.argument_index);
-            });
-            encode_ids(bytes, requirement_obligations);
-            bytes.slice(crash_continuations, encode_crash_route_bucket);
+            encode_ordinary_call_arguments(
+                bytes,
+                layout,
+                arguments,
+                structural_arguments,
+                dynamic_arguments,
+            );
+            encode_ordinary_call_tail(
+                bytes,
+                claim_transfers,
+                requirement_obligations,
+                crash_continuations,
+            );
         }
         O::CallDynamic {
             psi_operation,
@@ -238,6 +216,63 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
         }
         _ => unreachable!("operation family routing admitted a non-call operation"),
     }
+}
+
+/// The argument layout of one ordinary Unit or scalar-result call. Each
+/// layout keeps the tag and field order of the variant it replaced, so folding
+/// descriptor arguments into the call moved no identity. A call forwarding
+/// descriptors had no scalar argument roster. Scalar arguments beside
+/// descriptor arguments had no variant: stage 00 never produces that shape and
+/// the optimization-unit contract rejects it, but it takes fresh tags with both
+/// rosters so that no two distinct rows share one encoding.
+#[derive(Clone, Copy)]
+enum OrdinaryCallLayout {
+    Plain,
+    Descriptors,
+    ScalarsAndDescriptors,
+}
+
+impl OrdinaryCallLayout {
+    fn of(
+        arguments: &[semantic_vocabulary::ValueId],
+        dynamic_arguments: &[abstract_operations::AbstractDynamicDescriptorArgument],
+    ) -> Self {
+        match (arguments.is_empty(), dynamic_arguments.is_empty()) {
+            (_, true) => Self::Plain,
+            (true, false) => Self::Descriptors,
+            (false, false) => Self::ScalarsAndDescriptors,
+        }
+    }
+}
+
+fn encode_ordinary_call_arguments(
+    bytes: &mut CanonicalBytes,
+    layout: OrdinaryCallLayout,
+    arguments: &[semantic_vocabulary::ValueId],
+    structural_arguments: &[terminal_psi::StructuralArgument],
+    dynamic_arguments: &[abstract_operations::AbstractDynamicDescriptorArgument],
+) {
+    if !matches!(layout, OrdinaryCallLayout::Descriptors) {
+        encode_ids(bytes, arguments);
+    }
+    bytes.slice(structural_arguments, encode_structural_argument);
+    if !matches!(layout, OrdinaryCallLayout::Plain) {
+        bytes.slice(dynamic_arguments, encode_dynamic_descriptor_argument);
+    }
+}
+
+fn encode_ordinary_call_tail(
+    bytes: &mut CanonicalBytes,
+    claim_transfers: &[terminal_psi::ClaimTransfer],
+    requirement_obligations: &[semantic_vocabulary::ObligationId],
+    crash_continuations: &[terminal_psi::CrashRouteBucket],
+) {
+    bytes.slice(claim_transfers, |bytes, transfer| {
+        bytes.id(transfer.claim);
+        bytes.u32(transfer.argument_index);
+    });
+    encode_ids(bytes, requirement_obligations);
+    bytes.slice(crash_continuations, encode_crash_route_bucket);
 }
 
 fn encode_rebound_dynamic_dispatch(

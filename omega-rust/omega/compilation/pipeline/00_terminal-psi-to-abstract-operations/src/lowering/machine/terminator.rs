@@ -216,10 +216,13 @@ pub(super) fn lower_terminator(
             let consumed_locals = operations
                 .iter()
                 .flat_map(|operation| match operation {
+                    // Only a Unit call that forwards no descriptors consumes
+                    // a trivial affine local here.
                     AbstractOperation::CallUnit {
                         structural_arguments,
+                        dynamic_arguments,
                         ..
-                    } => structural_arguments
+                    } if dynamic_arguments.is_empty() => structural_arguments
                         .iter()
                         .filter(|argument| {
                             argument.path.is_empty()
