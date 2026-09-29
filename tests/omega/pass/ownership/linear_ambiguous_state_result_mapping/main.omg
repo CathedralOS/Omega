@@ -18,7 +18,7 @@ machine Main::pack(swap: bool, left: Receipt, right: Receipt) -> Pair {
     }
 }
 
-machine Main::issue(&mut self) -> Pair {
+machine issue() -> Pair {
     let left: Receipt = Receipt { code: 1 };
     let right: Receipt = Receipt { code: 2 };
     // Each output arm maps the same claims to the same result fields up to
@@ -28,7 +28,7 @@ machine Main::issue(&mut self) -> Pair {
 }
 
 machine Main::main(&mut self) -> i32 {
-    let returned: Pair = self.issue();
+    let returned: Pair = issue();
     let left: Receipt = returned.left;
     let right: Receipt = returned.right;
     Receipt::ack(left);

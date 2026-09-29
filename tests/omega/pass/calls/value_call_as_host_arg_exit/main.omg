@@ -7,11 +7,11 @@ data Main {
     console: Binding<Console>;
 }
 
-machine Main::dbl(&self, x: i32 in Wrapping) -> i32 {
+machine dbl(x: i32 in Wrapping) -> i32 {
     let r: i32 in Wrapping = x * 2;
     transition { _ -> (r as i32) }
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.console.exit_process(self.dbl(35));
+    self.console.exit_process(dbl(35));
 }

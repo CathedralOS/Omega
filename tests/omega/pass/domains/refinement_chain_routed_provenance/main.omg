@@ -37,11 +37,11 @@ ensures
 data Main {
 }
 
-machine Main::consume(&self, token: Token in Issued::Fresh) {
+machine consume(token: Token in Issued::Fresh) {
 }
 
 machine Main::main(&mut self) {
     let token: Token in Issued = Token::issue(7);
     let fresh: Token in Issued = Token::refresh(token);
-    self.consume(fresh);
+    consume(fresh);
 }

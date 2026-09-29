@@ -14,7 +14,7 @@ data Main {
     text: &mut [u8];
 }
 
-machine Main::consume(&self, text: &[u8])
+machine consume(text: &[u8])
 requires
     text in Utf8
 {
@@ -23,5 +23,5 @@ requires
 machine Main::main(&mut self) {
     Text::validate_utf8(&mut self.text);
     // Consumed downstream as a carried fact, with no byte re-scan.
-    self.consume(self.text);
+    consume(self.text);
 }
