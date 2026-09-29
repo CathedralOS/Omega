@@ -549,14 +549,30 @@ fn proven_predicates_grant_domain(
             let by_guard = !by_context
                 && incoming
                     .iter()
-                    .filter(|guard| guard.holds_at(state_flow.state_symbol))
+                    .filter(|guard| guard.applies_at(state_flow.state_symbol))
                     .any(|guard| {
-                        super::intervals::guard_interval_for_label(
-                            program,
-                            guard.guard(),
-                            &subject_label,
-                        )
-                        .is_some_and(contains)
+                        let interval = if guard.is_negated() {
+                            super::prover::has_builtin_operators(
+                                program,
+                                &facts.operators,
+                                guard.guard(),
+                            )
+                            .then(|| {
+                                super::intervals::negated_guard_interval_for_label(
+                                    program,
+                                    guard.guard(),
+                                    &subject_label,
+                                )
+                            })
+                            .flatten()
+                        } else {
+                            super::intervals::guard_interval_for_label(
+                                program,
+                                guard.guard(),
+                                &subject_label,
+                            )
+                        };
+                        interval.is_some_and(contains)
                             || guard.direct_arguments().is_some_and(|arguments| {
                                 let renamed = instantiate_state_parameter_label(
                                     program,
@@ -564,12 +580,20 @@ fn proven_predicates_grant_domain(
                                     arguments,
                                     &subject_label,
                                 );
-                                super::intervals::guard_interval_for_label(
-                                    program,
-                                    guard.guard(),
-                                    &renamed,
-                                )
-                                .is_some_and(contains)
+                                let interval = if guard.is_negated() {
+                                    super::intervals::negated_guard_interval_for_label(
+                                        program,
+                                        guard.guard(),
+                                        &renamed,
+                                    )
+                                } else {
+                                    super::intervals::guard_interval_for_label(
+                                        program,
+                                        guard.guard(),
+                                        &renamed,
+                                    )
+                                };
+                                interval.is_some_and(contains)
                             })
                     });
             (by_context, by_guard)
@@ -588,15 +612,29 @@ fn proven_predicates_grant_domain(
             }) || {
                 let proven = incoming
                     .iter()
-                    .filter(|guard| guard.holds_at(state_flow.state_symbol))
+                    .filter(|guard| guard.applies_at(state_flow.state_symbol))
                     .any(|guard| {
-                        guard_conjunct_matches(program, guard.guard(), required)
-                            || guard.direct_arguments().is_some_and(|arguments| {
-                                let renamed = instantiate_state_parameter_label(
-                                    program, state, arguments, required,
-                                );
-                                guard_conjunct_matches(program, guard.guard(), &renamed)
-                            })
+                        if guard.is_negated() {
+                            super::prover::has_builtin_operators(
+                                program,
+                                &facts.operators,
+                                guard.guard(),
+                            ) && (negated_guard_conjunct_matches(program, guard.guard(), required)
+                                || guard.direct_arguments().is_some_and(|arguments| {
+                                    let renamed = instantiate_state_parameter_label(
+                                        program, state, arguments, required,
+                                    );
+                                    negated_guard_conjunct_matches(program, guard.guard(), &renamed)
+                                }))
+                        } else {
+                            guard_conjunct_matches(program, guard.guard(), required)
+                                || guard.direct_arguments().is_some_and(|arguments| {
+                                    let renamed = instantiate_state_parameter_label(
+                                        program, state, arguments, required,
+                                    );
+                                    guard_conjunct_matches(program, guard.guard(), &renamed)
+                                })
+                        }
                     });
                 premise_used_guard |= proven;
                 proven
@@ -954,18 +992,35 @@ fn incoming_guard_proves_requires(
     );
     let guard_matches = incoming
         .iter()
-        .filter(|guard| guard.holds_at(state_flow.state_symbol))
+        .filter(|guard| guard.applies_at(state_flow.state_symbol))
         .any(|guard| {
-            guard_conjunct_matches(program, guard.guard(), &required_label)
-                || guard.direct_arguments().is_some_and(|arguments| {
-                    let instantiated = instantiate_state_parameter_label(
-                        program,
-                        state,
-                        arguments,
-                        &required_label,
-                    );
-                    guard_conjunct_matches(program, guard.guard(), &instantiated)
-                })
+            if guard.is_negated() {
+                // The continuation edge carries `!guard`: comparisons and
+                // `||` disjunctions read as their complement, which only
+                // holds under builtin operator semantics.
+                super::prover::has_builtin_operators(program, &facts.operators, guard.guard())
+                    && (negated_guard_conjunct_matches(program, guard.guard(), &required_label)
+                        || guard.direct_arguments().is_some_and(|arguments| {
+                            let instantiated = instantiate_state_parameter_label(
+                                program,
+                                state,
+                                arguments,
+                                &required_label,
+                            );
+                            negated_guard_conjunct_matches(program, guard.guard(), &instantiated)
+                        }))
+            } else {
+                guard_conjunct_matches(program, guard.guard(), &required_label)
+                    || guard.direct_arguments().is_some_and(|arguments| {
+                        let instantiated = instantiate_state_parameter_label(
+                            program,
+                            state,
+                            arguments,
+                            &required_label,
+                        );
+                        guard_conjunct_matches(program, guard.guard(), &instantiated)
+                    })
+            }
         });
     if !guard_matches {
         return false;
@@ -1425,6 +1480,45 @@ pub(super) fn guard_conjunct_matches(
             guard_conjunct_matches(program, binary.left, required_label)
         }
         _ => false,
+    }
+}
+
+/// The negated-arm read of `guard_conjunct_matches`: whether `!guard` -- the
+/// evidence a continuation edge carries for a comparison or `||` guard that
+/// evaluated false -- spells `required_label`. `!(a || b)` keeps each refuted
+/// operand as its own conjunct of evidence; `!(a && b)` refutes an
+/// unspecified operand and contributes nothing. Comparisons match through the
+/// label their complement operator spells (`!(v >= n)` reads `v < n`). The
+/// caller owes the guard's builtin-operator gate separately.
+fn negated_guard_conjunct_matches(
+    program: &typed_trees::TypedTrees,
+    guard: typed_trees::expression::ExpressionHandle,
+    required_label: &str,
+) -> bool {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return false;
+    };
+    match binary.operator {
+        typed_trees::expression::BinaryOperator::Or => {
+            negated_guard_conjunct_matches(program, binary.left, required_label)
+                || negated_guard_conjunct_matches(program, binary.right, required_label)
+        }
+        typed_trees::expression::BinaryOperator::Equal
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) =>
+        {
+            negated_guard_conjunct_matches(program, binary.left, required_label)
+        }
+        _ => super::intervals::complement_comparison(binary.operator).is_some_and(|complement| {
+            format!(
+                "{} {} {}",
+                program.expression_table.display_name(binary.left),
+                complement.display_name(),
+                program.expression_table.display_name(binary.right)
+            ) == required_label
+        }),
     }
 }
 
