@@ -7,9 +7,9 @@ use crate::declarations::PackageKey;
 use crate::lock::{PackageLock, PackageLockTarget};
 use crate::resolution::graph::{PackageRootSourceRequest, ResolvedPackageSourceClosure};
 use crate::review::{
-    CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet,
-    LockedPolicyComparisonError, RestrictedBuildCheckpoint, compare_locked_package_policies,
-    compile_resolved_package_reviews_with_checkpoint,
+    CandidateCompilation, CandidateSourcePreparation, CompileResolvedPackageReviewsError,
+    CompilerIssuedPackageReviewSet, LockedPolicyComparisonError, RestrictedBuildCheckpoint,
+    compare_locked_package_policies, compile_resolved_package_reviews_reusing,
 };
 use package_source::SourceResolver;
 use std::fmt;
@@ -129,11 +129,16 @@ pub fn check_locked_sources<'lock>(
     // recovered compile, so a projected request the accepted rows do not
     // grant rejects before its own build effect executes rather than at a
     // post-pass join of retained findings.
-    let reviews = compile_resolved_package_reviews_with_checkpoint(
-        &source_closure.for_exact_target(target),
-        build_root,
+    let target_closure = source_closure.for_exact_target(target);
+    let reviews = compile_resolved_package_reviews_reusing(
+        CandidateCompilation {
+            target_closure: &target_closure,
+            build_root,
+            root_build_snapshot: None,
+            restricted_build_checkpoint: Some(&RestrictedBuildCheckpoint::derive(accepted)),
+        },
         SemanticBindingReview::Discover,
-        &RestrictedBuildCheckpoint::derive(accepted),
+        &mut CandidateSourcePreparation::for_closure(&source_closure),
     )
     .map_err(CheckLockedSourcesError::Compilation)?;
     let changed_policies = compare_locked_package_policies(accepted, &reviews)

@@ -3,8 +3,9 @@
 use super::prepare_project::PreparedProjectTarget;
 use super::{PrepareLocalProjectError, PreparedLocalProject};
 use crate::review::{
-    CandidateSourcePreparation, CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
-    compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,
+    CandidateCompilation, CandidateSourcePreparation, CompileResolvedPackageReviewsError,
+    RestrictedBuildCheckpoint, compile_candidate_for_check_reusing,
+    compile_resolved_package_candidate_for_check,
 };
 #[cfg(test)]
 use compiler::CompileOutputKind;
@@ -275,11 +276,13 @@ fn check_one_prepared_target(
             .map(RestrictedBuildCheckpoint::derive)
     };
     let (checked, _reviews) = compile_candidate_for_check_reusing(
-        &source_closure.for_exact_target(profile),
-        target_build_dir,
+        CandidateCompilation {
+            target_closure: &source_closure.for_exact_target(profile),
+            build_root: target_build_dir,
+            root_build_snapshot: build_snapshot,
+            restricted_build_checkpoint: checkpoint.as_ref(),
+        },
         entry_path,
-        build_snapshot,
-        checkpoint.as_ref(),
         preparation,
     )
     .map_err(CheckPreparedLocalProjectError::Review)?;

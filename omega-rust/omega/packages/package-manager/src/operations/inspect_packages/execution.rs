@@ -9,8 +9,8 @@ use crate::resolution::graph::{
 };
 use crate::review::SemanticBindingReview;
 use crate::review::{
-    CandidateSourcePreparation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
-    PackagePolicyChangeSet, compare_package_policy_changes,
+    CandidateCompilation, CandidateSourcePreparation, CompilerIssuedPackageReviewSet,
+    PackagePolicyChangeLimits, PackagePolicyChangeSet, compare_package_policy_changes,
     compile_resolved_package_reviews_reusing,
 };
 use package_source::git::resolution::GitExactRevisionAcquisition;
@@ -190,12 +190,15 @@ fn check(
     };
     let exact = closure.for_exact_target(target);
     let reviews = compile_resolved_package_reviews_reusing(
-        &exact,
-        &project_root
-            .join("build/package-manager")
-            .join(format!("audit-{}", target.target_name())),
+        CandidateCompilation {
+            target_closure: &exact,
+            build_root: &project_root
+                .join("build/package-manager")
+                .join(format!("audit-{}", target.target_name())),
+            root_build_snapshot: root_build_snapshot,
+            restricted_build_checkpoint: None,
+        },
         SemanticBindingReview::Discover,
-        root_build_snapshot,
         preparation,
     )
     .map_err(failure)?;
