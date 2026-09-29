@@ -707,7 +707,8 @@ fn isolated_callback_retains_unused_selections_without_emitting_their_bodies() {
         drop(checked);
         let optimized = run_psi_optimization(lowered, Default::default())
             .expect("ordinary callback optimization boundary");
-        let artifact = finalize_terminal_artifact(&optimized).expect("publish isolated callback");
+        let artifact =
+            finalize_terminal_artifact(&optimized, None).expect("publish isolated callback");
         let mut module = terminal_codec::decode_module(artifact.semantic_bytes())
             .expect("reload without checked selection custody");
         assert_eq!(

@@ -152,7 +152,11 @@ mod tests {
             prepare_program_entry_receipt(&checked, selection, [7; 32], &lowered).unwrap();
         let optimized =
             lowered_psi_to_lowered_psi::run_psi_optimization(lowered, Default::default()).unwrap();
-        let artifact = crate::finalize_terminal_artifact(&optimized).unwrap();
+        let artifact = crate::finalize_terminal_artifact(
+            &optimized,
+            checked.facts.proof.mathematical_signature.as_ref(),
+        )
+        .unwrap();
         rejoin_program_entry_receipt(&receipt, &artifact).unwrap();
         let mut different_identity = receipt.terminal_psi_identity();
         different_identity.program_fingerprint =
