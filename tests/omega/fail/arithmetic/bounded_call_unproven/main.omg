@@ -6,10 +6,10 @@ data Main {
 }
 
 machine Main::main(&mut self) {
-    self.wounded(self.health);
+    wounded(self.health);
 }
 
-machine Main::wounded(&mut self, value: i32)
+machine wounded(value: i32)
 requires
     value > 0
 {

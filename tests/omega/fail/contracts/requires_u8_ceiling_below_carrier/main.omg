@@ -14,11 +14,11 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    let s: u8 = self.opaque();
+    let s: u8 = opaque();
     let r: u8 = echo(s);
     self.console.exit_process(70);
 }
 
-machine Main::opaque(&mut self) -> u8 {
+machine opaque() -> u8 {
     transition { _ -> (4u8) }
 }
