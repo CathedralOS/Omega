@@ -292,8 +292,8 @@ fn compile_one_prepared_target<Observation>(
         preparation,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;
-    // Snapshot the ladder before realization: native realization overwrites
-    // the checked record's timing rows as it reuses them.
+    // Snapshot the ladder before realization as the fallback for report paths
+    // that produce no timing rows of their own.
     let stage_timings = candidate.checked_root().timings().phases().to_vec();
     let evidence = accept_ordinary_closure_evidence(
         &target_closure,
@@ -322,10 +322,15 @@ fn compile_one_prepared_target<Observation>(
         },
     )
     .map(|report| {
+        let timings = if report.timings().is_empty() {
+            stage_timings
+        } else {
+            report.timings().to_vec()
+        };
         (
             report
                 .with_trust_admission_settlement(trust_settlement)
-                .with_timings(stage_timings),
+                .with_timings(timings),
             observation,
         )
     })

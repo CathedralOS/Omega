@@ -41,7 +41,7 @@ pub(super) fn publish_checked_component(
     // compilation settled, not one recomputed beside it.
     let selected_provider_plans = checked.execution().selected_provider_plan_facts.clone();
     let component_progress = checked.execution().component_progress.as_ref().cloned();
-    let retained = compiler::retained_terminal_artifact_from_checked_package(
+    let (retained, _timings) = compiler::retained_terminal_artifact_from_checked_package(
         checked,
         profile,
         optimization_core::OptimizationRollback::default(),
