@@ -161,10 +161,11 @@ pub(super) fn validate_establish_structural_case(
     let Some(selected) = cases.iter().find(|case| case.id == *result_case) else {
         return malformed("structural case establishment requires an exact member");
     };
+    // Erased payload members take no roster position either.
     let roster = common
         .iter()
-        .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
         .chain(&selected.fields)
+        .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
         .collect::<Vec<_>>();
     if roster.len() != fields.len() {
         return malformed("structural case establishment requires every selected field");

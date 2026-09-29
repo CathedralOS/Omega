@@ -68,6 +68,8 @@ pub(super) fn validate(
     // Erased owner members authored beside the case are declared-level
     // content: they carry no runtime storage and answer no payload
     // declaration, so they leave the replayed roster untouched.
+    // Erased payload members are proof material with no runtime slot as
+    // well, so an authored one is consumed the same way.
     let payload_authored: Vec<_> = authored
         .iter()
         .filter(|initializer| {
@@ -75,6 +77,8 @@ pub(super) fn validate(
                 matches!(member, checked_trees::data::DataMember::Field(owner_field)
                     if owner_field.symbol == initializer.field_symbol
                         && owner_field.relevance.is_erased())
+            }) && !declared.iter().any(|declaration| {
+                declaration.symbol == initializer.field_symbol && declaration.relevance.is_erased()
             })
         })
         .collect();
@@ -99,7 +103,11 @@ pub(super) fn validate(
                 .any(|declaration| declaration.symbol == initializer.field_symbol)
         })
         .count();
-    if payload_count != declared.len() || retained.len() != payload_authored.len() {
+    let runtime_declared = declared
+        .iter()
+        .filter(|declaration| !declaration.relevance.is_erased())
+        .count();
+    if payload_count != runtime_declared || retained.len() != payload_authored.len() {
         return unsupported("case establishment changed its complete payload roster");
     }
     let mut selected = Vec::new();

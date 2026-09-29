@@ -95,9 +95,16 @@ impl emission::Emission<'_, '_, '_> {
             "case construction selected a foreign case",
         ))?;
         let declarations = self.checked.data_payload_fields(variant);
+        // Erased payload members hold no runtime slot either; checking consumed
+        // any authored one as proof material, so none reaches this roster.
         let shape_fields = common
             .iter()
-            .chain(&shape_case.fields)
+            .chain(
+                shape_case
+                    .fields
+                    .iter()
+                    .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. })),
+            )
             .cloned()
             .collect::<Vec<_>>();
         let source_count = self.values.len();

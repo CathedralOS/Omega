@@ -450,7 +450,7 @@ static OP_ESTABLISH_SCALAR_CASE: TrustedSurfaceEntry = entry(
 );
 static OP_ESTABLISH_STRUCTURAL_CASE: TrustedSurfaceEntry = entry(
     "operation:establish-structural-case",
-    "a validated structural-case establishment over a sum type, or over a mixed type whose runtime common fields are relevant scalars, binding those common fields in declaration order and then the selected case's payload",
+    "a validated structural-case establishment over a sum type, or over a mixed type whose runtime common fields are relevant scalars, binding those common fields in declaration order and then the selected case's runtime payload; erased proof members, common or payload, take no roster position",
     "the case-establishment facts and declared obligations",
     &[
         "fact:structural-case-establishment",

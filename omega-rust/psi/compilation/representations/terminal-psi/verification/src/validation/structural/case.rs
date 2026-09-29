@@ -7,12 +7,20 @@ use crate::validation::{
 };
 use terminal_psi::{RecordFieldValue, StructuralFieldDeclaration};
 
-/// Every payload member of the selected case must carry an authored runtime
+/// Whether a payload declaration is an erased proof member: it carries its
+/// declaration only, contributes no runtime field, and takes no roster
+/// position, exactly as an erased record member does (`record.rs`).
+fn erased_member(field: &StructuralFieldDeclaration) -> bool {
+    field.relevance.is_erased() && matches!(field.field_type, StructuralFieldType::Erased { .. })
+}
+
+/// Every runtime payload member of the selected case must carry an authored
 /// field: a relevant declaration, a scalar carrier, or a constructible owned
 /// structural subtree. Erased proof members never reach the establishment.
 fn constructible_case(module: &TerminalModule, fields: &[StructuralFieldDeclaration]) -> bool {
     fields.iter().all(|field| {
-        field.relevance == terminal_psi::BindingRelevance::Relevant
+        erased_member(field)
+            || field.relevance == terminal_psi::BindingRelevance::Relevant
             && match field.field_type {
                 StructuralFieldType::Structural(child) => {
                     crate::validation::record::constructible_type(module, child)
@@ -116,10 +124,16 @@ pub(crate) fn fields<'a>(
             declaration,
             common: true,
         })
-        .chain(selected.fields.iter().map(|declaration| CaseRosterField {
-            declaration,
-            common: false,
-        }))
+        .chain(
+            selected
+                .fields
+                .iter()
+                .filter(|field| !erased_member(field))
+                .map(|declaration| CaseRosterField {
+                    declaration,
+                    common: false,
+                }),
+        )
         .collect::<Vec<_>>();
     if roster.len() != fields.len() || !constructible_case(module, &selected.fields) {
         return Err(member_failure());

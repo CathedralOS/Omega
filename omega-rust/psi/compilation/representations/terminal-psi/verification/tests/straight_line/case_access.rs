@@ -1037,3 +1037,65 @@ fn mixed_case_establishment_refuses_a_structural_common_field() {
         "{error:?}"
     );
 }
+
+/// Add an erased `proof` member after the `Treasure` payload's `gold`. It
+/// carries its declaration only, so the roster still binds `consumed`, then
+/// `gold`, and takes no position for `proof`.
+fn with_erased_payload_member(mut module: TerminalModule) -> TerminalModule {
+    let StructuralTypeShape::Mixed { cases, .. } = &mut module.structural_types[0].shape else {
+        panic!("mixed fixture");
+    };
+    cases[1].fields.push(StructuralFieldDeclaration {
+        id: StructuralFieldId::new(2).expect("proof field"),
+        identity: "proof".to_owned(),
+        relevance: terminal_psi::BindingRelevance::Erased,
+        field_type: StructuralFieldType::Erased {
+            type_identity: "Evidence".to_owned(),
+        },
+    });
+    module
+}
+
+#[test]
+fn case_establishment_skips_an_erased_payload_member() {
+    let module = with_erased_payload_member(mixed_case_module(|flag, gold| {
+        vec![scalar_initializer(flag), scalar_initializer(gold)]
+    }));
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("an erased payload member takes no roster position");
+}
+
+#[test]
+fn case_establishment_refuses_a_binding_for_an_erased_payload_member() {
+    // Binding the erased member as if it were a runtime field overruns the
+    // runtime roster.
+    let module = with_erased_payload_member(mixed_case_module(|flag, gold| {
+        vec![
+            scalar_initializer(flag),
+            scalar_initializer(gold),
+            RecordFieldInitializer {
+                field: StructuralFieldId::new(2).expect("proof field"),
+                value: RecordFieldValue::Scalar {
+                    value: gold,
+                    range_obligation: None,
+                },
+            },
+        ]
+    }));
+    assert!(validate_module(&module).is_err());
+    // An erased relevance over a runtime field type is not a proof member and
+    // stays unconstructible.
+    let mut mismatched = with_erased_payload_member(mixed_case_module(|flag, gold| {
+        vec![scalar_initializer(flag), scalar_initializer(gold)]
+    }));
+    let StructuralTypeShape::Mixed { cases, .. } = &mut mismatched.structural_types[0].shape
+    else {
+        panic!("mixed fixture");
+    };
+    cases[1].fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Boolean);
+    assert!(validate_module(&mismatched).is_err());
+}

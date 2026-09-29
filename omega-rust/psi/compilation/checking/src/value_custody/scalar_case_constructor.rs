@@ -204,7 +204,14 @@ fn case_constructor_parts(
                     if owner_field.symbol == field.field_symbol
                         && owner_field.relevance.is_erased())
             });
-        if erased_owner_member {
+        // An erased payload member likewise holds no runtime slot: an authored
+        // operand is proof material the construction consumes, never a
+        // runtime field (proofs/contracts.md, explicit erased bindings).
+        let erased_payload_member = erased_member_owner
+            && declarations.iter().any(|declaration| {
+                declaration.symbol == field.field_symbol && declaration.relevance.is_erased()
+            });
+        if erased_owner_member || erased_payload_member {
             if !program.expression_table.expression_is_valid(field.value) {
                 return None;
             }
@@ -249,9 +256,10 @@ fn case_constructor_parts(
         };
         operands.push((field.field_symbol, field.value, declared, erased));
     }
-    // The payload declarations keep their authored-exactly-once shape: every
-    // declaration answered one operand. Erased owner members and named common
-    // fields never enter the count.
+    // The runtime payload declarations keep their authored-exactly-once shape:
+    // every one answered one operand. Erased owner and payload members and
+    // named common fields never enter the count; an omitted erased payload
+    // member is determined by its nullary constructor, which checking proved.
     let payload_operands = operands
         .iter()
         .filter(|(symbol, ..)| {
@@ -260,7 +268,11 @@ fn case_constructor_parts(
                 .any(|declaration| declaration.symbol == *symbol)
         })
         .count();
-    (payload_operands == declarations.len()).then_some((reference, selected, operands))
+    let runtime_payload = declarations
+        .iter()
+        .filter(|declaration| !(erased_member_owner && declaration.relevance.is_erased()))
+        .count();
+    (payload_operands == runtime_payload).then_some((reference, selected, operands))
 }
 
 pub fn scalar_case_constructor(
