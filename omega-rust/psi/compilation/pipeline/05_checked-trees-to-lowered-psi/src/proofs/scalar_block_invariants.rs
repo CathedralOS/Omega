@@ -12,6 +12,13 @@
 //! total compile-time work is named and accounted rather than emergent. Failed
 //! expansion can restore the initial proposals once; restoration reruns proof
 //! checking and cannot confer authority itself.
+//!
+//! Authored rows are mandatory, not proposals. The pass never judges, prunes
+//! or removes an authored row it did not extend; a rejected extension falls
+//! back to exactly the authored predicate. Finalization proves authored
+//! arrivals or rejects the module. Judging them here made one machine's
+//! authored contract, unprovable by this optional search alone, roll back
+//! every other machine's proved inference through the mandatory-roster check.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -33,6 +40,8 @@ mod joins;
 mod lockstep;
 use super::retained_evidence;
 
+#[cfg(test)]
+mod authored_row_tests;
 #[cfg(test)]
 mod tests;
 
@@ -78,22 +87,24 @@ pub(crate) fn retain_provable_bounded(
     Ok(declines)
 }
 
+/// The atomic members of a predicate, with nested conjunctions flattened.
+fn members(predicate: &Proposition) -> BTreeSet<&Proposition> {
+    let mut pending = vec![predicate];
+    let mut members = BTreeSet::new();
+    while let Some(member) = pending.pop() {
+        if let Proposition::Conjunction(children) = member {
+            pending.extend(children);
+        } else {
+            members.insert(member);
+        }
+    }
+    members
+}
+
 fn preserves_mandatory_roster(
     mandatory: &[terminal_psi::ScalarBlockInvariant],
     retained: &[terminal_psi::ScalarBlockInvariant],
 ) -> bool {
-    fn members(predicate: &Proposition) -> BTreeSet<&Proposition> {
-        let mut pending = vec![predicate];
-        let mut members = BTreeSet::new();
-        while let Some(member) = pending.pop() {
-            if let Proposition::Conjunction(children) = member {
-                pending.extend(children);
-            } else {
-                members.insert(member);
-            }
-        }
-        members
-    }
     mandatory.iter().all(|original| {
         retained.iter().any(|candidate| {
             original.machine == candidate.machine
@@ -121,12 +132,27 @@ pub(crate) const MAX_ROSTER_ROUNDS: usize =
 const MAX_CANDIDATE_WORK: usize =
     ProofSearchCapacity::ScalarInvariantCandidateWork.limit() as usize;
 
+/// The authored row at `header`, when the source supplied one.
+fn authored_row(
+    mandatory: &[terminal_psi::ScalarBlockInvariant],
+    machine: MachineId,
+    header: semantic_vocabulary::BlockId,
+) -> Option<&terminal_psi::ScalarBlockInvariant> {
+    mandatory
+        .iter()
+        .find(|row| row.machine == machine && row.header == header)
+}
+
 fn retain_provable_roster_bounded(
     lowered: &mut LoweredPsi,
     original: &ReconstructedTerminalObligationSet,
     mut rounds: usize,
     declines: &mut ProofSearchDeclines,
 ) -> Result<(), LoweringError> {
+    // The roster on entry is the source's: every row is an authored,
+    // mandatory arrival contract.
+    let source_roster = lowered.semantic_module.scalar_block_invariants.clone();
+    let mandatory = source_roster.as_slice();
     let module = &mut lowered.semantic_module;
     let mut remaining = MAX_CANDIDATE_WORK;
     let mut candidates = entry_ranges::candidates(module);
@@ -328,6 +354,20 @@ fn retain_provable_roster_bounded(
             else {
                 continue;
             };
+            // An authored row this pass did not extend is not a proposal. Its
+            // arrivals are mandatory obligations: finalization proves them or
+            // rejects the module. Judging them here could only remove a
+            // source clause the optional search cannot reproduce, and the
+            // mandatory-roster check below would then discard every other
+            // machine's proved inference with it.
+            if let Some(authored) = authored_row(mandatory, machine, header)
+                && module
+                    .scalar_block_invariants
+                    .iter()
+                    .any(|row| row == authored)
+            {
+                continue;
+            }
             let owner = module
                 .machines
                 .iter()
@@ -432,19 +472,30 @@ fn retain_provable_roster_bounded(
             }
             return Ok(());
         }
-        if prune_refuted_members(&mut module.scalar_block_invariants, &refuted, &mut rejected)
-            && rejected.is_empty()
-        {
+        let narrowed = prune_refuted_members(
+            &mut module.scalar_block_invariants,
+            &refuted,
+            mandatory,
+            &mut rejected,
+        );
+        let restored = restore_authored_rows(
+            &mut module.scalar_block_invariants,
+            mandatory,
+            &mut rejected,
+        );
+        if (narrowed || restored) && rejected.is_empty() {
             // The surviving members are new proposals: prove every arrival again.
             continue;
         }
         // Keep independently surviving headers: one rejected outer-loop guess
         // must not erase discovered inner-loop bounds. Reconstructing below
         // rechecks survivors without the removed hypotheses. Retry the original
-        // seed group only when the expanded group has no surviving header.
+        // seed group only when the expanded group has no surviving header;
+        // unextended authored rows are never judged and do not count.
         if module
             .scalar_block_invariants
             .iter()
+            .filter(|candidate| !mandatory.contains(candidate))
             .all(|candidate| rejected.contains(&(candidate.machine, candidate.header)))
             && restore_seeds(&mut module.scalar_block_invariants, &mut seeds)
         {
@@ -471,13 +522,17 @@ fn retain_provable_roster_bounded(
 /// Keep every independently surviving member, including carrier bounds. An
 /// authored contract may contain those bounds: dropping them as redundant
 /// makes mandatory-roster preservation roll back unrelated useful inference.
-/// This is proof pruning, not contract simplification.
+/// This is proof pruning, not contract simplification. For the same reason an
+/// authored member is never pruned, even when it fails alone; a header whose
+/// only failing members are authored stays rejected for
+/// `restore_authored_rows`.
 fn prune_refuted_members(
     roster: &mut [terminal_psi::ScalarBlockInvariant],
     refuted: &BTreeMap<
         (semantic_vocabulary::MachineId, semantic_vocabulary::BlockId),
         (usize, BTreeSet<usize>),
     >,
+    mandatory: &[terminal_psi::ScalarBlockInvariant],
     rejected: &mut BTreeSet<(semantic_vocabulary::MachineId, semantic_vocabulary::BlockId)>,
 ) -> bool {
     let mut pruned = false;
@@ -492,13 +547,16 @@ fn prune_refuted_members(
         if members.len() != *arity || failing.is_empty() {
             continue;
         }
+        let authored = authored_row(mandatory, candidate.machine, candidate.header)
+            .map(|row| self::members(&row.predicate))
+            .unwrap_or_default();
         let mut surviving = members
             .iter()
             .enumerate()
-            .filter(|(index, _)| !failing.contains(index))
+            .filter(|(index, member)| !failing.contains(index) || authored.contains(member))
             .map(|(_, member)| member.clone())
             .collect::<Vec<_>>();
-        if surviving.is_empty() {
+        if surviving.is_empty() || surviving.len() == members.len() {
             continue;
         }
         candidate.predicate = if surviving.len() == 1 {
@@ -510,6 +568,31 @@ fn prune_refuted_members(
         pruned = true;
     }
     pruned
+}
+
+/// A rejected header that extends an authored row falls back to exactly the
+/// authored predicate. Its inferred members are dropped together; its
+/// authored members are not this pass's to remove. The next round no longer
+/// judges the row, so the fallback cannot loop.
+fn restore_authored_rows(
+    roster: &mut [terminal_psi::ScalarBlockInvariant],
+    mandatory: &[terminal_psi::ScalarBlockInvariant],
+    rejected: &mut BTreeSet<(semantic_vocabulary::MachineId, semantic_vocabulary::BlockId)>,
+) -> bool {
+    let mut restored = false;
+    for candidate in roster {
+        let key = (candidate.machine, candidate.header);
+        if !rejected.contains(&key) {
+            continue;
+        }
+        let Some(authored) = authored_row(mandatory, candidate.machine, candidate.header) else {
+            continue;
+        };
+        *candidate = authored.clone();
+        rejected.remove(&key);
+        restored = true;
+    }
+    restored
 }
 
 /// Every actual edge into `header`, in canonical order: one arrival
