@@ -83,32 +83,18 @@ pub(super) fn reconcile(
             .filter(|plan| borrowed_self(plan).is_none())
             .filter(|plan| {
                 plan.operations.iter().any(|operation| {
-                    let (CheckedUnitEffectOperationPlan::CallUnit {
-                        coordinate,
-                        target_state,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::StructuralCall {
-                        coordinate,
-                        target_state,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::ScalarCall {
-                        coordinate,
-                        target_state,
-                        ..
-                    }) = operation
-                    else {
+                    // Receiver retention reconciles ordinary calls only.
+                    let Some(call) = operation.call().filter(|call| !call.is_boundary()) else {
                         return false;
                     };
-                    retained.contains(target_state)
+                    retained.contains(&call.target_state())
                         && receiver_place(
                             program,
                             facts,
                             plan.machine,
                             plan.state,
-                            *coordinate,
-                            *target_state,
+                            call.coordinate(),
+                            call.target_state(),
                         )
                         .is_some_and(|place| {
                             is_self_root(program, plan.machine, plan.state, &place)

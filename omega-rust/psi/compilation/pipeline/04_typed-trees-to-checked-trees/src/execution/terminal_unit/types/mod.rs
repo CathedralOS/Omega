@@ -73,100 +73,67 @@ pub(super) fn return_unit_affine_discards(
         .iter()
         .flat_map(|operation| operation.with_value_calls())
     {
-        match operation {
-            CheckedUnitEffectOperationPlan::CallUnit {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::ScalarCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                structural_arguments,
-                coordinate,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::StructuralCall {
-                structural_arguments,
-                coordinate,
-                ..
-            } => {
-                for argument in structural_arguments {
-                    if argument.access != CheckedStructuralAccess::Owned {
-                        continue;
-                    }
-                    if let Some(parameter_index) = argument.source_parameter_index() {
-                        if argument.path.is_empty() {
-                            transferred_parameters.insert(parameter_index);
-                        } else {
-                            moved_parameter_paths
-                                .entry(parameter_index)
-                                .or_default()
-                                .push((argument.path.clone(), argument.type_identity.clone()));
-                        }
-                        continue;
-                    }
+        if let Some(call) = operation.call() {
+            let coordinate = call.coordinate();
+            for argument in call.structural_arguments() {
+                if argument.access != CheckedStructuralAccess::Owned {
+                    continue;
+                }
+                if let Some(parameter_index) = argument.source_parameter_index() {
                     if argument.path.is_empty() {
-                        continue;
+                        transferred_parameters.insert(parameter_index);
+                    } else {
+                        moved_parameter_paths
+                            .entry(parameter_index)
+                            .or_default()
+                            .push((argument.path.clone(), argument.type_identity.clone()));
                     }
-                    // An owned projection sourced from a same-statement result
-                    // binding is an anonymous temporary whose custody the
-                    // consuming call's continuation already owns; any other
-                    // projected root cannot publish residual evidence here.
-                    let anonymous_temporary = argument
+                    continue;
+                }
+                if argument.path.is_empty() {
+                    continue;
+                }
+                // An owned projection sourced from a same-statement result
+                // binding is an anonymous temporary whose custody the
+                // consuming call's continuation already owns; any other
+                // projected root cannot publish residual evidence here.
+                let anonymous_temporary = argument
+                    .source_structural_result_binding_ordinal()
+                    .is_some_and(|binding_ordinal| {
+                        structural_result_statements
+                            .get(&binding_ordinal)
+                            .is_some_and(|established| *established == coordinate.statement_index)
+                    });
+                if !anonymous_temporary {
+                    // A named local construction moves its projected
+                    // subtree out; the complement check below decides
+                    // whether anything remains that this return edge
+                    // would owe. A named call result's projections belong
+                    // to the partial-result cleanup carrier instead.
+                    match argument
                         .source_structural_result_binding_ordinal()
-                        .is_some_and(|binding_ordinal| {
-                            structural_result_statements
-                                .get(&binding_ordinal)
-                                .is_some_and(|established| {
-                                    *established == coordinate.statement_index
-                                })
-                        });
-                    if !anonymous_temporary {
-                        // A named local construction moves its projected
-                        // subtree out; the complement check below decides
-                        // whether anything remains that this return edge
-                        // would owe. A named call result's projections belong
-                        // to the partial-result cleanup carrier instead.
-                        match argument
-                            .source_structural_result_binding_ordinal()
-                            .filter(|ordinal| constructed_result_types.contains_key(ordinal))
-                        {
-                            Some(binding_ordinal) => moved_result_paths
-                                .entry(binding_ordinal)
-                                .or_default()
-                                .push((argument.path.clone(), argument.type_identity.clone())),
-                            None => named_result_projection = true,
-                        }
+                        .filter(|ordinal| constructed_result_types.contains_key(ordinal))
+                    {
+                        Some(binding_ordinal) => moved_result_paths
+                            .entry(binding_ordinal)
+                            .or_default()
+                            .push((argument.path.clone(), argument.type_identity.clone())),
+                        None => named_result_projection = true,
                     }
                 }
             }
-            CheckedUnitEffectOperationPlan::EstablishReference { source, .. } => {
-                // A projected reference establishment moves its carrier's
-                // leaf into the result and consumes the carrier whole; the
-                // carrier owes no separate exit discard. The whole-ingress
-                // lane keeps an empty path and leaves the borrowed parameter
-                // on the ordinary roster.
-                if !source.path.is_empty()
-                    && let Some(parameter_index) = source.source_parameter_index()
-                {
-                    transferred_parameters.insert(parameter_index);
-                }
+        } else if let CheckedUnitEffectOperationPlan::EstablishReference { source, .. } = operation
+        {
+            // A projected reference establishment moves its carrier's
+            // leaf into the result and consumes the carrier whole; the
+            // carrier owes no separate exit discard. The whole-ingress
+            // lane keeps an empty path and leaves the borrowed parameter
+            // on the ordinary roster.
+            if !source.path.is_empty()
+                && let Some(parameter_index) = source.source_parameter_index()
+            {
+                transferred_parameters.insert(parameter_index);
             }
-            _ => {}
         }
     }
     if named_result_projection {

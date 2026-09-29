@@ -215,34 +215,7 @@ pub(super) fn account(
         // Unrestricted locals remain copies, not one-use ownership debt.
         let call_transfers = operations[producer_index + 1..]
             .iter()
-            .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralCall {
-                    structural_arguments,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::CallUnit {
-                    structural_arguments,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::ScalarCall {
-                    structural_arguments,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryCall {
-                    structural_arguments,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                    structural_arguments,
-                    ..
-                }
-                | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                    structural_arguments,
-                    ..
-                } => Some(structural_arguments),
-                _ => None,
-            })
-            .flatten()
+            .flat_map(CheckedUnitEffectOperationPlan::call_structural_arguments)
             .filter(|argument| {
                 call_owns_result(operation)
                     && argument.source_structural_result_binding_ordinal()
