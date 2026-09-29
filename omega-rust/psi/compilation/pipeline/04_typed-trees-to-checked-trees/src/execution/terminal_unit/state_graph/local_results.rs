@@ -50,9 +50,9 @@ fn validate(
                 .into_string()
         };
     if !local.symbol.is_valid()
-        || !program
-            .expression_table
-            .expression_is_valid(local.initial_value)
+        || (!program.expression_table.expression_is_valid(local.initial_value)
+            && !(local.is_mutable
+                && validation::zeroed_structural_parts(program, local.type_reference)))
         || program
             .state_local_declaration(state, local.symbol)
             .is_none()

@@ -51,12 +51,23 @@ pub(super) fn validate_operation_operands(
         _ => &[],
     };
     for argument in structural_arguments {
-        // A shared borrow reads the payload in place rather than substituting
-        // opaque metadata for it; the structural-argument resolution arm
-        // still requires the exact producing operation and an empty path.
+        // Borrowing uses initialized payload in place rather than substituting
+        // opaque metadata. Exact formal access, presentation and exclusive
+        // overlap remain structural-argument obligations for either call kind.
+        let result_loan = matches!(
+            argument.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        ) && machine.structural_places.iter().any(|place| {
+            place.id == argument.place
+                && matches!(
+                    place.kind,
+                    super::StructuralPlaceKind::OperationResult { .. }
+                )
+        });
         let payload_admitted = argument.path.is_empty()
             && super::scalar::array::plain_return_source(module, machine, argument.place)
             && (argument.access == StructuralAccess::Owned
+                || result_loan
                 || (!matches!(operation.kind, OperationKind::BoundaryCall { .. })
                     && argument.access == StructuralAccess::SharedBorrow));
         if super::scalar::array::owned_payload_source(module, machine, argument.place)

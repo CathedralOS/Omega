@@ -849,6 +849,14 @@ pub(crate) fn validate_transfer_shape(
                                 | StructuralTypeShape::Sum { .. }
                         )
                 });
+            let array_borrow = whole_array_result_borrow(
+                source.id,
+                structural_type,
+                argument,
+                target,
+                type_ids,
+                structural_types,
+            );
             // A live result binding lends one of its record's scalar leaves
             // through an exclusive borrow; the projected path resolves to the
             // same plain leaf shape the argument presents.
@@ -876,10 +884,12 @@ pub(crate) fn validate_transfer_shape(
                 && !scalar_leaf_borrow)
                 || argument.type_identity != target.type_identity
                 || (argument.path.is_empty()
-                    && structural_type != lookup_type_id(type_ids, &argument.type_identity)?)
+                    && structural_type != lookup_type_id(type_ids, &argument.type_identity)?
+                    && !array_borrow)
                 || (!record_borrow
                     && !reference_borrow
                     && !scalar_leaf_borrow
+                    && !array_borrow
                     && !matches!(
                         argument.access,
                         checked_trees::CheckedStructuralAccess::Owned
@@ -891,6 +901,7 @@ pub(crate) fn validate_transfer_shape(
                         || record_borrow
                         || reference_borrow
                         || scalar_leaf_borrow
+                        || array_borrow
                         || argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
                     {
                         Multiplicity::Unrestricted
@@ -1029,6 +1040,73 @@ pub(crate) fn emitted_claim_transfers(
     }
     emitted.sort();
     Ok(emitted)
+}
+
+/// Source replay has checked the local declaration and captured loan. Preserve
+/// its owned array home here while checking the borrowed formal's presentation.
+fn whole_array_result_borrow(
+    place: PlaceId,
+    structural_type: StructuralTypeId,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    target: &checked_trees::CheckedUnitStructuralParameterPlan,
+    type_ids: &[(String, StructuralTypeId)],
+    structural_types: &[StructuralTypeDeclaration],
+) -> bool {
+    if !argument.path.is_empty()
+        || target.is_self
+        || argument.access != target.access
+        || target.multiplicity != Multiplicity::Unrestricted
+        || !target.qualifications.is_empty()
+        || !target.projected_qualifications.is_empty()
+        || target.fused_service_erasure.is_some()
+    {
+        return false;
+    }
+    let access = match argument.access {
+        checked_trees::CheckedStructuralAccess::SharedBorrow => StructuralAccess::SharedBorrow,
+        checked_trees::CheckedStructuralAccess::MutableBorrow => StructuralAccess::MutableBorrow,
+        _ => return false,
+    };
+    let Some(StructuralTypeDeclaration {
+        shape: StructuralTypeShape::FixedArray { element, length },
+        ..
+    }) = structural_types
+        .iter()
+        .find(|row| row.id == structural_type)
+    else {
+        return false;
+    };
+    let Ok(presentation_type) = lookup_type_id(type_ids, &argument.type_identity) else {
+        return false;
+    };
+    if presentation_type == structural_type {
+        return true;
+    }
+    if structural_types.iter().any(|row| {
+        row.id == presentation_type
+            && matches!(row.shape, StructuralTypeShape::ElementView { element: target_element }
+                if *length > 0 && target_element == *element)
+    }) {
+        return true;
+    }
+    // The synthetic declaration describes the already-checked loan, not a new
+    // parameter or an authority grant. Reuse exact byte extent/access rules.
+    fixed_byte_array_view_transfer(
+        &StructuralParameterDeclaration {
+            place,
+            position: target.position,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+        },
+        argument,
+        target,
+        type_ids,
+        structural_types,
+    )
 }
 
 fn fixed_byte_array_view_transfer(

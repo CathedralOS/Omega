@@ -7,37 +7,23 @@
 // Expected exit: 9.
 
 use omega_language_std::console;
-use omega::language::core::binding;
 
-data Finder {
-    values: [i32; 5];
-}
-
-machine Finder::find_max(&self, s: &[i32], current: i32) -> i32 {
+machine find_max(s: &[i32], current: i32) -> i32 {
     transition s.len > 0 {
         true -> find_max(s[1..], max(current, s[0]))
         false -> (current)
     }
 }
 
-data Main {
-    console: Binding<Console>;
-    finder: Finder;
-    pause: [u8; 256];
-}
+machine main() reaches Console {
+    Console::write_line("slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
+    let values: [i32; 5] = [3, 7, 2, 9, 4];
 
-machine Main::main(&mut self) reaches Console {
-    self.console.write_line("slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
-    self.finder.values[0] = 3;
-    self.finder.values[1] = 7;
-    self.finder.values[2] = 2;
-    self.finder.values[3] = 9;
-    self.finder.values[4] = 4;
-
-    let s: &[i32] = self.finder.values.as_slice();
-    let m: i32 = self.finder.find_max(s, 0);
-    self.console.write_line("result: the slice maximum, 9 for this data (the exit code)");
-    self.console.write_line("[press Enter to close]");
-    _ = block self.console.read_line(&mut self.pause);
-    self.console.exit_process(m);
+    let s: &[i32] = values.as_slice();
+    let m: i32 = find_max(s, 0);
+    Console::write_line("result: the slice maximum, 9 for this data (the exit code)");
+    Console::write_line("[press Enter to close]");
+    let mut pause: [u8; 256];
+    _ = block Console::read_line(&mut pause);
+    Console::exit_process(m);
 }

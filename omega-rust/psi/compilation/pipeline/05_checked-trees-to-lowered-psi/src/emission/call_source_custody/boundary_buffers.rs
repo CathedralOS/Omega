@@ -7,7 +7,8 @@ use checked_trees::CheckedTrees;
 use checked_trees::expression::ExpressionNode;
 use checked_trees::types::{PrimitiveType, TypeReferenceNode};
 use checked_trees::{
-    CheckedStructuralAccess, CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
+    CheckedStructuralAccess, CheckedUnitCallCoordinate, CheckedUnitEffectOperationPlan,
+    CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
 };
 use symbols::SymbolHandle;
 
@@ -15,6 +16,7 @@ pub(super) fn validate(
     checked: &CheckedTrees,
     caller_state: SymbolHandle,
     caller_parameters: &[CheckedUnitStructuralParameterPlan],
+    coordinate: CheckedUnitCallCoordinate,
     call: &authored::AuthoredCall,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
@@ -134,7 +136,7 @@ pub(super) fn validate(
             checked,
             machine.symbol,
             state.symbol,
-            None,
+            Some(coordinate.statement_index as usize),
             backing,
         )?;
         if let Some(range) = range {
@@ -189,18 +191,69 @@ pub(super) fn validate(
                 checked_trees::CheckedUnitStructuralPathSegment::FixedByteRange { start, end },
             );
         }
-        let parameter = argument
-            .source_parameter_index()
-            .and_then(|parameter_index| caller_parameters.get(parameter_index as usize))
-            .ok_or(LoweringError::Unsupported(
-                "boundary byte loan lost its retained source parameter",
-            ))?;
-        let source_parameter = checked
-            .state_parameters(state)
-            .get(parameter.position as usize)
-            .ok_or(LoweringError::Unsupported(
-                "boundary byte loan lost its authored source parameter",
-            ))?;
+        match argument.source {
+            CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
+                let parameter = caller_parameters.get(parameter_index as usize).ok_or(
+                    LoweringError::Unsupported(
+                        "boundary byte loan lost its retained source parameter",
+                    ),
+                )?;
+                let source_parameter = checked
+                    .state_parameters(state)
+                    .get(parameter.position as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "boundary byte loan lost its authored source parameter",
+                    ))?;
+                if source_parameter.symbol != source.root
+                    || (source.path.is_empty()
+                        && byte_view_access(source_parameter) != Some(expected_access)
+                        && !is_fixed_byte_array(checked, source_parameter, shared))
+                {
+                    return unsupported("boundary byte loan differs from its source parameter");
+                }
+            }
+            CheckedUnitStructuralArgumentSourcePlan::StructuralResult { .. } => {
+                // Result-use custody independently joins the binding ordinal
+                // to this authored local. Here replay the local's storage and
+                // access, just as the parameter branch does for entry storage.
+                let mut locals = checked
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .take(coordinate.statement_index as usize)
+                    .filter_map(|statement| match statement {
+                        checked_trees::statement::StatementNode::LocalData(local)
+                            if local.symbol == source.root =>
+                        {
+                            Some(local)
+                        }
+                        _ => None,
+                    });
+                let local = locals.next().ok_or(LoweringError::Unsupported(
+                    "boundary byte loan has no earlier local backing",
+                ))?;
+                if locals.next().is_some()
+                    || (!shared && !local.is_mutable)
+                    || !matches!(
+                        checked.expression_table.expression(expression),
+                        ExpressionNode::Borrow(_)
+                    )
+                    || !backing_type.is_some_and(|reference| {
+                        matches!(
+                            checked.type_reference_table.type_reference(reference),
+                            TypeReferenceNode::FixedArray {
+                                element_type,
+                                length: checked_trees::types::FixedArrayLength::Literal(_),
+                            } if checked.primitive_type_reference(*element_type)
+                                == Some(PrimitiveType::U8)
+                        )
+                    })
+                {
+                    return unsupported("boundary byte loan changes its local backing or access");
+                }
+            }
+            _ => return unsupported("boundary byte loan has no retained backing storage"),
+        }
         if access != expected_access
             || argument.access
                 != if shared {
@@ -208,10 +261,6 @@ pub(super) fn validate(
                 } else {
                     CheckedStructuralAccess::MutableBorrow
                 }
-            || source_parameter.symbol != source.root
-            || (source.path.is_empty()
-                && byte_view_access(source_parameter) != Some(expected_access)
-                && !is_fixed_byte_array(checked, source_parameter, shared))
             || source.path != argument.path
         {
             return unsupported("boundary byte loan differs from its authored backing");

@@ -659,7 +659,6 @@ pub(crate) fn validate_usage(
     if producer.result != result {
         return unsupported("Unit structural result binding disagrees with its producer");
     }
-    let shared_view = shared_view_binding(checked, caller.state, result)?;
     let mut consumed = false;
     let mut disposed = false;
     let mut projected_paths = Vec::<&[checked_trees::CheckedUnitStructuralPathSegment]>::new();
@@ -1017,15 +1016,12 @@ pub(crate) fn validate_usage(
                 CheckedUnitEffectOperationPlan::CallUnit { .. }
                     | CheckedUnitEffectOperationPlan::ScalarCall { .. }
                     | CheckedUnitEffectOperationPlan::StructuralCall { .. }
-            ) || (shared_view
-                && argument.access == checked_trees::CheckedStructuralAccess::SharedBorrow
-                && matches!(
-                    operation,
-                    CheckedUnitEffectOperationPlan::BoundaryCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
-                        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
-                )))
-                && producer.coordinate.call_ordinal == 0
+            ) || matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::BoundaryCall { .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall { .. }
+                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall { .. }
+            )) && producer.coordinate.call_ordinal == 0
             {
                 if projected_paths.iter().any(|earlier| {
                     earlier.starts_with(&argument.path) || argument.path.starts_with(earlier)
@@ -1553,6 +1549,40 @@ pub(crate) fn validate_consumer(
         {
             return unsupported("Unit structural result argument has invalid claim-free custody");
         }
+        // Whole local arrays lend their backing without transferring ownership.
+        // The source/ordinal join above identifies the declaration; this check
+        // independently rejoins its loan and fixed-array/slice presentation.
+        if whole_local_array_loan(
+            checked,
+            caller,
+            *coordinate,
+            authored.source_target,
+            result,
+            argument,
+            signature
+                .parameters
+                .get(source_position as usize)
+                .ok_or(LoweringError::Unsupported(
+                    "local array loan has no authored formal",
+                ))?
+                .type_reference,
+        )? {
+            if argument.access != parameter.access
+                || parameter.type_identity != argument.type_identity
+                || parameter.multiplicity != Multiplicity::Unrestricted
+                || !parameter.qualifications.is_empty()
+                || parameter.fused_service_erasure.is_some()
+                || target_entry_claims
+                    .iter()
+                    .any(|claim| claim.parameter_index as usize == parameter_index)
+                || claim_transfers
+                    .iter()
+                    .any(|transfer| transfer.argument_index as usize == index)
+            {
+                return unsupported("local array loan changes the target custody");
+            }
+            continue;
+        }
         // A live result binding may lend one of its record's leaves through
         // an exclusive borrow: the binding is not consumed, the projected
         // field path is already rejoined against the authored operand above,
@@ -1636,6 +1666,134 @@ pub(crate) fn validate_consumer(
         }
     }
     Ok(())
+}
+
+/// Reconstruct a whole local array loan independently of its argument plan.
+fn whole_local_array_loan(
+    checked: &CheckedTrees,
+    caller: &CallerView<'_>,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+    target: symbols::SymbolHandle,
+    result: &CheckedUnitStructuralResultBindingPlan,
+    argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+    formal: checked_trees::types::TypeReferenceHandle,
+) -> Result<bool, LoweringError> {
+    use checked_trees::CheckedStructuralAccess;
+    if !argument.path.is_empty()
+        || !matches!(
+            argument.access,
+            CheckedStructuralAccess::SharedBorrow | CheckedStructuralAccess::MutableBorrow
+        )
+        || result.multiplicity != Multiplicity::Unrestricted
+    {
+        return Ok(false);
+    }
+    let (_, state) =
+        crate::expression_preparation::source_custody::authored_state(checked, caller.state)?;
+    let Some(StatementNode::LocalData(local)) = checked
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(result.statement_index as usize)
+    else {
+        return Ok(false);
+    };
+    let TypeReferenceNode::FixedArray { element_type, .. } = checked
+        .type_reference_table
+        .type_reference(local.type_reference)
+    else {
+        return Ok(false);
+    };
+    if !validation::is_closed_primitive_array_type(&checked.typed, local.type_reference) {
+        return Ok(false);
+    }
+    let TypeReferenceNode::Reference {
+        access, referee, ..
+    } = checked.type_reference_table.type_reference(formal)
+    else {
+        return unsupported("local array loan has no reference formal");
+    };
+    let expected_access = match access {
+        language_core::ReferenceAccess::Shared => CheckedStructuralAccess::SharedBorrow,
+        language_core::ReferenceAccess::Mutable => CheckedStructuralAccess::MutableBorrow,
+        _ => return unsupported("local array loan has unsupported formal access"),
+    };
+    let presentation_matches = match checked.type_reference_table.type_reference(*referee) {
+        TypeReferenceNode::Slice {
+            element_type: target_element,
+        } => {
+            checked.normalized_type_identity(*element_type)
+                == checked.normalized_type_identity(*target_element)
+        }
+        TypeReferenceNode::FixedArray { .. } => {
+            checked.normalized_type_identity(local.type_reference)
+                == checked.normalized_type_identity(*referee)
+        }
+        _ => false,
+    };
+    // Bounded byte views retain the reference shell in their carrier identity;
+    // slices and ordinary structural borrows identify the referent instead.
+    let presentation_type = if matches!(
+        checked.type_reference_table.type_reference(*referee),
+        TypeReferenceNode::FixedArray { .. }
+    ) && checked.primitive_type_reference(*element_type)
+        == Some(checked_trees::types::PrimitiveType::U8)
+    {
+        formal
+    } else {
+        *referee
+    };
+    if !presentation_matches
+        || argument.access != expected_access
+        || (expected_access == CheckedStructuralAccess::MutableBorrow && !local.is_mutable)
+        || checked.normalized_type_identity(presentation_type).as_str() != argument.type_identity
+        || checked
+            .normalized_type_identity(local.type_reference)
+            .as_str()
+            != result.type_identity
+    {
+        return unsupported("local array loan changes backing, presentation, or access");
+    }
+    let borrow = &checked.facts.borrow;
+    let state = borrow
+        .states
+        .iter()
+        .map(|(_, state)| state)
+        .find(|state| state.machine_symbol == caller.machine && state.state_symbol == caller.state)
+        .ok_or(LoweringError::Unsupported(
+            "local array loan has no borrow state",
+        ))?;
+    let mut calls = borrow
+        .calls
+        .span_or_empty(state.calls)
+        .iter()
+        .filter(|call| {
+            call.statement_index == coordinate.statement_index as usize
+                && call.call_ordinal == coordinate.call_ordinal as usize
+                && call.target_symbol == target
+        });
+    let call = calls.next().ok_or(LoweringError::Unsupported(
+        "local array loan has no captured call",
+    ))?;
+    if calls.next().is_some() {
+        return unsupported("local array loan has ambiguous captured calls");
+    }
+    let mut accesses = borrow
+        .argument_accesses
+        .span_or_empty(call.accesses)
+        .iter()
+        .filter(|access| {
+            access.root_symbol == local.symbol && borrow.access_segments(access).is_empty()
+        })
+        .peekable();
+    let expected_kind = if expected_access == CheckedStructuralAccess::SharedBorrow {
+        checked_trees::BorrowAccessKind::Read
+    } else {
+        checked_trees::BorrowAccessKind::Mutable
+    };
+    if accesses.peek().is_none() || accesses.any(|access| access.kind != expected_kind) {
+        return unsupported("local array loan differs from captured argument access");
+    }
+    Ok(true)
 }
 
 /// Check one structural argument against every producer the caller plans,

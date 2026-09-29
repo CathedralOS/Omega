@@ -721,17 +721,24 @@ fn validate_structural_arguments(
                     && result.projected_qualifications.is_empty()
                     && result.claims.is_empty()
             });
-            // Boundary value arguments carry the same whole owned array as
-            // ordinary calls. Shared observation of an owned payload remains
-            // an ordinary-call route; this does not lend boundary storage.
-            let admitted_access =
-                matches!(
-                    (argument.access, expected.access),
-                    (
-                        terminal_psi::StructuralAccess::Owned,
-                        terminal_psi::StructuralAccess::Owned
-                    )
-                ) || (matches!(presentation, StructuralArgumentPresentation::Ordinary)
+            // A completed plain result lends the same established backing at
+            // either call kind. Independent verification checks availability
+            // and exclusive overlap; canonicalization preserves the loan.
+            let result_loan = result.is_some()
+                && argument.access == expected.access
+                && matches!(
+                    argument.access,
+                    terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow
+                );
+            let admitted_access = matches!(
+                (argument.access, expected.access),
+                (
+                    terminal_psi::StructuralAccess::Owned,
+                    terminal_psi::StructuralAccess::Owned
+                )
+            ) || result_loan
+                || (matches!(presentation, StructuralArgumentPresentation::Ordinary)
                     && matches!(
                         (argument.access, expected.access),
                         (
@@ -757,6 +764,35 @@ fn validate_structural_arguments(
                 return malformed(
                     "primitive-array argument requires whole plain array call custody",
                 );
+            }
+            if result_loan {
+                let backing = StructuralParameterDeclaration {
+                    place: argument.place,
+                    position: expected.position,
+                    is_self: false,
+                    structural_type: actual_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: argument.access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                };
+                if terminal_semantics::fixed_byte_array_extent(
+                    module.structural_types.iter(),
+                    &backing,
+                    argument,
+                    expected,
+                )
+                .is_some()
+                    || terminal_semantics::fixed_element_array_extent(
+                        module.structural_types.iter(),
+                        &backing,
+                        argument,
+                        expected,
+                    )
+                    .is_some()
+                {
+                    continue;
+                }
             }
         }
         // The canonical form retains the real array type at both ordinary and

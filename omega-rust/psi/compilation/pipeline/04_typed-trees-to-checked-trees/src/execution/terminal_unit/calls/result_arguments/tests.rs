@@ -3,6 +3,168 @@
 use crate::tests::front_end::{checked_program, checked_program_result};
 use checked_trees::{CheckedStructuralAccess, CheckedUnitEffectOperationPlan};
 
+#[test]
+fn boundary_call_borrows_whole_local_buffer() {
+    let checked = checked_program(
+        r#"
+        pub boundary trait Input { machine fill(buffer: &mut [u8]); }
+        machine run() reaches Input {
+            let mut buffer: [u8; 16];
+            Input::fill(&mut buffer);
+        }
+    "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "local buffer boundary call: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    let argument = plan
+        .operations
+        .iter()
+        .find_map(|operation| match operation {
+            CheckedUnitEffectOperationPlan::BoundaryCall {
+                structural_arguments,
+                ..
+            } => structural_arguments.first(),
+            _ => None,
+        })
+        .expect("boundary buffer argument");
+    assert_eq!(argument.access, CheckedStructuralAccess::MutableBorrow);
+    assert!(argument.path.is_empty());
+    assert!(
+        argument
+            .source_structural_result_binding_ordinal()
+            .is_some()
+    );
+}
+
+#[test]
+fn local_buffer_loans_preserve_fixed_and_slice_presentations() {
+    for (formal, borrow, expected) in [
+        (
+            "&mut [u8; 4]",
+            "&mut",
+            CheckedStructuralAccess::MutableBorrow,
+        ),
+        ("&[u8]", "&", CheckedStructuralAccess::SharedBorrow),
+    ] {
+        let source = format!(
+            r#"
+            pub boundary trait Input {{ machine observe(buffer: {formal}); }}
+            machine run() reaches Input {{
+                let mut buffer: [u8; 4];
+                Input::observe({borrow} buffer);
+            }}
+        "#
+        );
+        let checked = checked_program(&source);
+        let machine = machine_named(&checked, "run");
+        let plan = checked
+            .facts
+            .flow
+            .terminal_unit_effects
+            .for_machine(machine)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{formal}: {:?}",
+                    checked
+                        .facts
+                        .flow
+                        .terminal_unit_effects
+                        .omission_for_machine(machine)
+                )
+            });
+        assert!(plan.operations.iter().any(|operation| matches!(operation,
+            CheckedUnitEffectOperationPlan::BoundaryCall { structural_arguments, .. }
+                if structural_arguments.len() == 1
+                    && structural_arguments[0].access == expected
+                    && structural_arguments[0].source_structural_result_binding_ordinal().is_some())));
+
+        // Neither matching element types nor an established local substitute
+        // for the exact access captured at the authored call.
+        let borrow_state = checked
+            .facts
+            .borrow
+            .states
+            .iter()
+            .map(|(_, state)| state)
+            .find(|state| state.machine_symbol == machine && state.state_symbol == plan.state)
+            .expect("caller borrow state");
+        let call = checked
+            .facts
+            .borrow
+            .calls
+            .span_or_empty(borrow_state.calls)
+            .first()
+            .expect("captured boundary call");
+        let access = call.accesses.start();
+        let mut facts = checked.facts.clone();
+        facts.borrow.argument_accesses.get_mut(access).root_symbol =
+            symbols::SymbolHandle::invalid();
+        let rebuilt = crate::execution::terminal_unit::build_checked_unit_effect_plans(
+            &checked.typed,
+            &facts,
+            crate::execution::terminal_unit::ScalarCalleePlans {
+                boundary_returns: &facts.flow.terminal_boundary_scalar_returns,
+                structural_returns: &facts.flow.terminal_structural_scalar_returns,
+            },
+        );
+        assert!(
+            rebuilt.for_machine(machine).is_none(),
+            "{formal} accepted a changed loan root"
+        );
+    }
+}
+
+#[test]
+fn state_local_zeroed_buffer_can_end_after_its_boundary_loan() {
+    let checked = checked_program(
+        r#"
+        pub boundary trait Input { machine fill(buffer: &mut [u8]); }
+        machine run() reaches Input {
+            transition { _ -> read() }
+            state read() {
+                let mut buffer: [u8; 16];
+                Input::fill(&mut buffer);
+            }
+        }
+    "#,
+    );
+    let machine = machine_named(&checked, "run");
+    let graph = checked
+        .facts
+        .flow
+        .terminal_unit_effects
+        .composed_for_machine(machine)
+        .unwrap_or_else(|| {
+            panic!(
+                "zeroed state-local buffer: {:?}",
+                checked
+                    .facts
+                    .flow
+                    .terminal_unit_effects
+                    .omission_for_machine(machine)
+            )
+        });
+    assert!(graph.states.iter().any(|state| state.operations.iter().any(|operation|
+        matches!(operation, CheckedUnitEffectOperationPlan::BoundaryCall { structural_arguments, .. }
+            if structural_arguments.len() == 1
+                && structural_arguments[0].access == CheckedStructuralAccess::MutableBorrow
+                && structural_arguments[0].source_structural_result_binding_ordinal().is_some()))));
+}
+
 fn source(mutable: bool) -> String {
     let binding = if mutable { "mut " } else { "" };
     let before = if mutable { "region.set_base(104);" } else { "" };

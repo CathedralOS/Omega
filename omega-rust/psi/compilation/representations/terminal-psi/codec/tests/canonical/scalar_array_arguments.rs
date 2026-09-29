@@ -202,7 +202,7 @@ fn boundary_owned_array_parameters_and_copies_roundtrip_and_verify() {
 }
 
 #[test]
-fn boundary_array_encoding_rejects_borrowed_presentation_and_changed_shape() {
+fn boundary_array_encoding_rejects_access_mismatch_and_changed_shape() {
     let valid = boundary_array_argument_module(2, true);
     encode_module(&valid).expect("unmutated copied boundary array encodes");
     for access in [
@@ -217,10 +217,8 @@ fn boundary_array_encoding_rejects_borrowed_presentation_and_changed_shape() {
         else {
             unreachable!()
         };
-        // Even matching borrowed actual/formal annotations cannot change the
-        // admitted boundary value into an observation of the caller's home.
+        // Borrowing cannot satisfy an owned-by-value formal.
         structural_arguments[0].access = access;
-        changed.boundary_machines[0].structural_parameters[0].access = access;
         assert!(matches!(
             encode_module(&changed),
             Err(CodecError::MalformedStructuralFoundation(
@@ -255,4 +253,52 @@ fn boundary_array_encoding_rejects_borrowed_presentation_and_changed_shape() {
             "primitive-array argument requires whole plain array call custody"
         ))
     ));
+}
+
+#[test]
+fn boundary_array_result_loans_roundtrip_with_exact_presentation() {
+    for access in [
+        StructuralAccess::SharedBorrow,
+        StructuralAccess::MutableBorrow,
+    ] {
+        for view in [false, true] {
+            let mut module = boundary_array_argument_module(2, true);
+            if view {
+                module.structural_types.push(StructuralTypeDeclaration {
+                    id: structural_type_id(3),
+                    identity: "bool_view".into(),
+                    shape: StructuralTypeShape::ElementView {
+                        element: structural_type_id(2),
+                    },
+                });
+                module.boundary_machines[0].structural_parameters[0].structural_type =
+                    structural_type_id(3);
+            }
+            module.boundary_machines[0].structural_parameters[0].access = access;
+            let OperationKind::BoundaryCall {
+                structural_arguments,
+                ..
+            } = &mut module.machines[0].blocks[0].operations[1].kind
+            else {
+                unreachable!()
+            };
+            structural_arguments[0].access = access;
+            let bytes = encode_module(&module)
+                .unwrap_or_else(|error| panic!("{access:?}, view={view}: {error:?}"));
+            let decoded = decode_module(&bytes).expect("array result loan decodes");
+            assert_eq!(decoded, module);
+            terminal_verifier::verify_module(
+                &decoded,
+                &terminal_verifier::ProofBundle::default(),
+                &proof_admission::AdmissionProfile::default(),
+            )
+            .expect("decoded backing and loan verify independently");
+            assert_eq!(encode_module(&decoded).unwrap(), bytes);
+
+            let mut wrong_type = module;
+            wrong_type.boundary_machines[0].structural_parameters[0].structural_type =
+                structural_type_id(2);
+            assert!(encode_module(&wrong_type).is_err());
+        }
+    }
 }
