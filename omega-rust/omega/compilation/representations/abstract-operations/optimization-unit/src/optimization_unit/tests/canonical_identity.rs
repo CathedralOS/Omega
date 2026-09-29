@@ -409,6 +409,247 @@ fn canonical_operation_identity_bytes_are_stable() {
     );
 }
 
+fn descriptor_selection(ordinal: u32) -> terminal_psi::TerminalDynamicConformanceSelection {
+    terminal_psi::TerminalDynamicConformanceSelection {
+        owner: id(1, MachineId::new),
+        ordinal,
+        source: terminal_psi::StructuralArgument {
+            place: id(11, PlaceId::new),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            path: Vec::new(),
+        },
+        conformance_application_report_fingerprint: 17,
+        conformance_application_commitment:
+            terminal_psi::ClosedConformanceApplicationCommitment::from_digest([9; 32]),
+    }
+}
+
+fn descriptor_application(
+    subject: &str,
+    result: terminal_psi::ClosedConformanceCallableResult,
+) -> terminal_psi::ClosedConformanceApplication {
+    terminal_psi::ClosedConformanceApplication {
+        owner: id(1, MachineId::new),
+        declaration_identity: format!("test::{subject}ImplementsScanner"),
+        telescope: Vec::new(),
+        subject_identity: Some(format!("test::{subject}")),
+        trait_identity: "test::Scanner".to_owned(),
+        trait_lifetime_arguments: Vec::new(),
+        trait_arguments: Vec::new(),
+        realization_callables: vec![terminal_psi::ClosedConformanceRealizationCallable {
+            source_callable_identity: format!("test::{subject}::scan::callable"),
+            machine: id(92, MachineId::new),
+            result,
+        }],
+        rows: vec![terminal_psi::ClosedConformanceRow {
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec!["named(integer-const(8))".to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: format!("test::{subject}::scan"),
+            realization_callable_identity: Some(format!("test::{subject}::scan::callable")),
+        }],
+        report_fingerprint: 17,
+        commitment: terminal_psi::ClosedConformanceApplicationCommitment::from_digest([9; 32]),
+    }
+}
+
+/// A rebound descriptor whose initializer and latest applications differ, so
+/// the optional initial-application arm is part of the pinned stream.
+fn rebound_descriptor_dispatch(
+    result: terminal_psi::ClosedConformanceCallableResult,
+) -> abstract_operations::AbstractReboundDynamicDispatch {
+    abstract_operations::AbstractReboundDynamicDispatch {
+        initial: descriptor_selection(0),
+        rebound: descriptor_selection(1),
+        descriptor: terminal_psi::TerminalReboundDynamicDescriptor {
+            owner: id(1, MachineId::new),
+            ordinal: 3,
+            initial_selection_ordinal: 0,
+            rebound_selection_ordinal: 1,
+        },
+        initial_application: descriptor_application("Initial", result),
+        application: descriptor_application("Latest", result),
+        dispatch: terminal_psi::TerminalIndirectDynamicDispatch {
+            owner: id(1, MachineId::new),
+            operation: id(1, OperationId::new),
+            descriptor_ordinal: 3,
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec!["named(integer-const(8))".to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: "test::Latest::scan".to_owned(),
+            realization_callable_identity: "test::Latest::scan::callable".to_owned(),
+            realization: id(92, MachineId::new),
+        },
+    }
+}
+
+fn stored_descriptor_dispatch() -> abstract_operations::AbstractStoredDynamicDispatch {
+    abstract_operations::AbstractStoredDynamicDispatch {
+        stored: abstract_operations::AbstractStoredDynamicDescriptor {
+            selection: descriptor_selection(2),
+            descriptor: terminal_psi::TerminalStoredDynamicDescriptor {
+                owner: id(1, MachineId::new),
+                ordinal: 4,
+                establishment_operation: id(6, OperationId::new),
+                selection_ordinal: 2,
+                aggregate_type_identity: "test::Holder".to_owned(),
+                field_identity: "test::Holder::scanner".to_owned(),
+            },
+            application: descriptor_application(
+                "Stored",
+                terminal_psi::ClosedConformanceCallableResult::I32,
+            ),
+        },
+        dispatch: terminal_psi::TerminalStoredDynamicDispatch {
+            owner: id(1, MachineId::new),
+            operation: id(1, OperationId::new),
+            descriptor_ordinal: 4,
+            declaring_trait_identity: "test::Scanner".to_owned(),
+            public_requirement_identity: "test::Scanner::scan()".to_owned(),
+            family_tuple: vec!["named(integer-const(8))".to_owned()],
+            requirement_identity: "test::Scanner::scan".to_owned(),
+            realization_identity: "test::Stored::scan".to_owned(),
+            realization_callable_identity: "test::Stored::scan::callable".to_owned(),
+            realization: id(92, MachineId::new),
+        },
+    }
+}
+
+fn parameter_descriptor_dispatch(
+    result: terminal_psi::ClosedConformanceCallableResult,
+) -> abstract_operations::AbstractParameterDynamicDispatch {
+    abstract_operations::AbstractParameterDynamicDispatch {
+        parameter: terminal_psi::TerminalDynamicDescriptorParameter {
+            owner: id(1, MachineId::new),
+            ordinal: 0,
+            source_position: 1,
+            trait_identity: "test::Scanner".to_owned(),
+            access: terminal_psi::StructuralAccess::SharedBorrow,
+            requirements: vec![terminal_psi::TerminalDynamicRequirement {
+                slot: 0,
+                declaring_trait_identity: "test::Scanner".to_owned(),
+                public_requirement_identity: "test::Scanner::scan()".to_owned(),
+                family_tuple: vec!["named(integer-const(8))".to_owned()],
+                result,
+            }],
+        },
+        dispatch: terminal_psi::TerminalParameterDynamicDispatch {
+            owner: id(1, MachineId::new),
+            operation: id(1, OperationId::new),
+            parameter_ordinal: 0,
+            requirement_slot: 0,
+        },
+    }
+}
+
+/// Pins the complete unit identity of one fixture per descriptor-call shape.
+/// Each fixture carries a nonempty requirement and crash roster so the pinned
+/// digest binds the legacy tag, result position, dispatch payload, and tail
+/// order of its call row.
+#[test]
+fn descriptor_call_identity_bytes_are_stable() {
+    let baseline =
+        reconstruct_psi_optimization_unit_seed(&plan(), FuelScheduleIdentity::new(1).unwrap())
+            .unwrap();
+    let result = abstract_operations::AbstractResult {
+        value: id(4, ValueId::new),
+        scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap()),
+    };
+    let obligations = || vec![id(8, ObligationId::new)];
+    let crashes = || {
+        vec![CrashRouteBucket {
+            cause: CrashCause::Trap,
+            alternatives: vec![CrashRouteGuard::Truth],
+        }]
+    };
+    let scalar = terminal_psi::ClosedConformanceCallableResult::I32;
+    let unit = terminal_psi::ClosedConformanceCallableResult::Unit;
+    let fixtures = [
+        (
+            "rebound scalar (tag 52)",
+            AbstractOperation::CallDynamicScalar {
+                psi_operation: id(1, OperationId::new),
+                result,
+                dynamic_dispatch: rebound_descriptor_dispatch(scalar),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                14, 117, 76, 204, 124, 203, 192, 23, 74, 101, 115, 206, 37, 82, 185, 170, 87, 107,
+                52, 210, 172, 139, 161, 0, 175, 123, 144, 79, 214, 160, 87, 227,
+            ],
+        ),
+        (
+            "parameter scalar (tag 53)",
+            AbstractOperation::CallDynamicParameterScalar {
+                psi_operation: id(1, OperationId::new),
+                result,
+                dynamic_dispatch: parameter_descriptor_dispatch(scalar),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                89, 89, 132, 117, 29, 123, 162, 194, 12, 183, 251, 18, 226, 99, 14, 225, 86, 63,
+                130, 1, 228, 71, 39, 54, 98, 165, 193, 149, 82, 187, 232, 42,
+            ],
+        ),
+        (
+            "rebound unit (tag 57)",
+            AbstractOperation::CallDynamicUnit {
+                psi_operation: id(1, OperationId::new),
+                dynamic_dispatch: rebound_descriptor_dispatch(unit),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                91, 152, 75, 108, 39, 67, 252, 10, 43, 61, 50, 39, 239, 187, 104, 200, 132, 3, 187,
+                116, 77, 26, 187, 204, 2, 157, 69, 240, 115, 79, 189, 241,
+            ],
+        ),
+        (
+            "parameter unit (tag 58)",
+            AbstractOperation::CallDynamicParameterUnit {
+                psi_operation: id(1, OperationId::new),
+                dynamic_dispatch: parameter_descriptor_dispatch(unit),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                185, 76, 125, 73, 73, 53, 148, 93, 121, 18, 50, 120, 126, 14, 161, 63, 59, 176, 83,
+                244, 141, 159, 224, 119, 1, 37, 175, 77, 66, 82, 51, 126,
+            ],
+        ),
+        (
+            "stored scalar (tag 61)",
+            AbstractOperation::CallStoredDynamicScalar {
+                psi_operation: id(1, OperationId::new),
+                result,
+                dynamic_dispatch: stored_descriptor_dispatch(),
+                requirement_obligations: obligations(),
+                crash_continuations: crashes(),
+            },
+            [
+                216, 60, 23, 130, 89, 231, 1, 172, 196, 218, 207, 217, 111, 0, 133, 57, 186, 28,
+                141, 90, 156, 131, 113, 115, 19, 233, 92, 211, 217, 59, 248, 69,
+            ],
+        ),
+    ];
+    for (shape, operation, expected) in fixtures {
+        let mut changed = baseline.clone();
+        changed.functions[0].blocks[0].nodes[0].operation = operation;
+        let identity = recompute_psi_optimization_unit_identity(&changed);
+        let canonical = crate::optimization_unit::identity::collect_unit_canonical_bytes(&changed);
+        assert_eq!(
+            OptimizationUnitIdentity::from_canonical_bytes(&canonical),
+            identity,
+            "{shape}"
+        );
+        assert_eq!(identity.bytes(), expected, "{shape}");
+    }
+}
+
 #[test]
 fn rebuild_is_deterministic_and_keeps_distinct_fuel_sites() {
     let schedule = FuelScheduleIdentity::new(1).expect("nonzero schedule");
