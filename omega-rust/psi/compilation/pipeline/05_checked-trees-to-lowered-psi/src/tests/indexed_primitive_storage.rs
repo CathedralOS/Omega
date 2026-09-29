@@ -322,11 +322,13 @@ fn a_runtime_element_store_keeps_sibling_field_facts() {
 /// primitive projection reached lowering with a byte field where the path
 /// expected a fixed array ("primitive projection requires a structural
 /// carrier field"), which stopped `cli__text__caesar_cipher`'s
-/// `self.out[0] == 75` guard.
+/// `self.out[0] == 75` guard. The field carries that sample's `valid_utf8`
+/// domain: a byte field's Terminal type carries its recognized predicates,
+/// and a predicate-free domain has no Terminal field type at all.
 #[test]
 fn a_literal_index_into_a_bounded_byte_field_is_a_byte_read() {
     let source = r#"
-        domain [u8; 5]::Tag;
+        domain [u8; 5]::Tag requires valid_utf8(self);
         data Main { out: [u8; 5] in Tag; hits: u64; }
         machine Main::main(&mut self) {
             transition self.out.len > 0 && self.out[0] == 75 {
