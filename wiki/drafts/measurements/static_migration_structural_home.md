@@ -87,3 +87,44 @@ this shape is unsupported, and it was not isolated further here.
 Nor is it the entry shape. `entry_roots.md`'s `NoneOrProvisionedZii` "admits
 an entry without a context or with one ordinary `context: &mut Context`
 parameter", so a parameterless `machine main()` is admitted by contract.
+
+## A hosted entry cannot take a context parameter, so entry state has nowhere to go
+
+This is the reason only entries with an EMPTY data have migrated, and it is a
+fourth blocker distinct from the three above.
+
+`entry_roots.md` describes `NoneOrProvisionedZii` as admitting "an entry
+without a context or with one ordinary `context: &mut Context` parameter".
+Taking the second option on a hosted entry is refused:
+
+```
+machine main(context: &mut Main) reaches Console { ... }
+  error: hosted `ProgramEntry` exposes no arrival parameters, but `main` declares `context`
+```
+
+So for a hosted `ProgramEntry` the entry must be parameterless. An entry that
+holds state therefore has only one place left to put it: ordinary locals.
+
+**And that is not a mechanical rewrite.** Measured over 35 canaries with one
+to four plain fields, a single body and no console binding: 3 refused the
+rewrite, and of the 32 that applied, **24 moved** — 15 regressed outright and
+9 moved their diagnostic. One stayed checked. All were reverted.
+
+A field and a local are not interchangeable to the checker. A field is
+ZII-established and owned by the data; a local is not. Ownership, loan and
+establishment facts differ, and those facts are exactly what many fixtures
+pin.
+
+### What this leaves
+
+| migration | mechanical? | landed |
+| --- | --- | --- |
+| empty `data Main` + entry receiver | yes | 98 canaries |
+| operation that never reads its receiver | yes | 25 canaries |
+| operation that does read it, named as a parameter | yes | 11 canaries and packages |
+| entry holding state | **no** | blocked above |
+
+Either the hosted entry shape gains the provisioned context parameter its own
+spec describes, or every stateful entry is a per-fixture rewrite whose subject
+must be read first. The first would unblock the bulk mechanically; nothing
+below it will.
