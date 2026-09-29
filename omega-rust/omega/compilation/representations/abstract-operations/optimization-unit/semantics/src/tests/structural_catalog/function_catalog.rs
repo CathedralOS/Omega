@@ -78,11 +78,21 @@ fn structural_signatures_replay_attachment_and_unique_self_legality() {
 
     let mut boundary_self = byte_literal_boundary_unit();
     let boundary_type = boundary_self.boundary_machines[0].structural_parameters[0].structural_type;
+    // Only machine declarations may carry a nominal attachment.
+    boundary_self.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Machine;
     boundary_self.boundary_machines[0].attachment = Some(boundary_type);
     boundary_self.boundary_machines[0].structural_parameters[0].is_self = true;
     refresh_identity(&mut boundary_self);
     validate_psi_optimization_unit(&boundary_self)
         .expect("boundary self uses the exact known attachment type");
+
+    let mut trait_with_attachment = boundary_self.clone();
+    trait_with_attachment.boundary_machines[0].kind = terminal_psi::BoundaryRequirementKind::Trait;
+    refresh_identity(&mut trait_with_attachment);
+    assert_eq!(
+        validate_psi_optimization_unit(&trait_with_attachment),
+        Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: None })
+    );
 
     boundary_self.boundary_machines[0].attachment = Some(id(4_798, StructuralTypeId::new));
     refresh_identity(&mut boundary_self);
