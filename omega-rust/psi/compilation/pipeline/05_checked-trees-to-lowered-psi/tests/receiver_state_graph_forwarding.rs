@@ -1,4 +1,4 @@
-//! A multi-state scalar machine that reads its borrowed `self` belongs to the
+//! A multi-state scalar machine that retains borrowed `self` belongs to the
 //! Unit state graph: only a single-state scalar graph retains a receiver. The
 //! receiver stays on the entry roster while non-entry structural formals
 //! forward across the edges that reach them. This is the
@@ -7,6 +7,102 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use terminal_production::{TerminalProductionCustody, TerminalProductionTimings};
 use terminal_psi::OperationKind;
+
+#[test]
+fn unread_multistate_receiver_retains_its_declared_call_signature() {
+    for receiver in ["&self", "&mut self"] {
+        let source = format!(
+            r#"
+            data Cell {{ value: i32; }}
+            data Main {{ cell: Cell; }}
+            machine Cell::get({receiver}) -> i32 {{
+                transition {{ _ -> done() }}
+                state done({receiver}) -> i32 {{ 70 }}
+            }}
+            machine Main::value(&mut self) -> i32 {{
+                let result: i32 = self.cell.get();
+                result
+            }}
+        "#
+        );
+        let checked = crate::front_end::checked_program(&source);
+        let lowered = checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("Main::value"),
+        )
+        .unwrap_or_else(|error| {
+            panic!("unread {receiver} must remain an explicit call operand: {error:?}")
+        });
+        let module = terminal_codec::decode_module(
+            &terminal_codec::encode_module(&lowered.semantic_module).unwrap(),
+        )
+        .unwrap();
+        let proof = terminal_codec::decode_proof_bundle(
+            &terminal_codec::encode_proof_section(&lowered.semantic_module, &lowered.proof_bundle)
+                .unwrap(),
+        )
+        .unwrap();
+        terminal_verifier::verify_module(
+            &module,
+            &proof,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("the retained receiver and its caller independently verify");
+        let callee = module
+            .machines
+            .iter()
+            .find(|machine| machine.id != module.entry)
+            .expect("the caller retains a separate callee");
+        let [parameter] = callee.structural_parameters.as_slice() else {
+            panic!("the unread callee retains its receiver");
+        };
+        assert!(parameter.is_self);
+        assert_eq!(
+            parameter.access,
+            if receiver == "&self" {
+                terminal_psi::StructuralAccess::SharedBorrow
+            } else {
+                terminal_psi::StructuralAccess::MutableBorrow
+            }
+        );
+        let mut forged = checked.clone();
+        let callee_symbol = forged
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "Cell::get")
+            .unwrap()
+            .symbol;
+        let plan = forged
+            .facts
+            .flow
+            .terminal_unit_effects
+            .composed_machines
+            .iter_mut()
+            .find(|plan| plan.machine == callee_symbol)
+            .unwrap();
+        plan.states[0].structural_parameters[0].access = if receiver == "&self" {
+            checked_trees::CheckedStructuralAccess::MutableBorrow
+        } else {
+            checked_trees::CheckedStructuralAccess::SharedBorrow
+        };
+        assert!(
+            checked_trees_to_lowered_psi::lower_machine(
+                &forged,
+                TerminalMachineSelection::Name("Main::value"),
+            )
+            .is_err(),
+            "unused receiver access must still match its declaration"
+        );
+
+        if receiver == "&mut self" {
+            let invalid = source.replace("Main::value(&mut self)", "Main::value(&self)");
+            assert!(
+                crate::front_end::checked_program_result(&invalid).is_err(),
+                "an unread mutable receiver still requires exclusive access"
+            );
+        }
+    }
+}
 
 const SOURCE: &str = r#"
     data Alignment [copy] { bytes: u64; }

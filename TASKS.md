@@ -2844,21 +2844,18 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   `calls/computation_arguments`; lowered scalar-callee selection; target
   `structural_call_arguments` and image `argument_custody`.
 
-  First repair unread **multi-state** scalar receivers: `Cell::get(&self) ->
-  i32 { transition { _ -> done() } state done(&self) { 70 } }` fails native
-  Terminal production with `computed borrow disagrees with its selected
-  callee signature`. Reading `self.value` instead executes correctly on
-  macOS ARM64. Graph erases the multi-state receiver and wins over Operations;
-  preserve declared custody without a dummy read. Single-state unread/observed
-  shared and mutable receivers already execute, as do dynamic indexed shared
-  receivers and explicit shared arguments; retain these and duplicate-overload
-  rejection as controls.
-
   Complete local-rooted indexed receivers, owned-root/construction-local
   admission and runtime-indexed write-only receivers. Reuse `Field`,
   `FixedIndex`, `RuntimeIndex { index, obligation }` and
   `terminal-semantics::static_path`; coordinate range spelling with
   CANONICALIZE-SCALAR-RANGE-CONTRACTS.
+
+  Keep declared receiver custody independent of field observations and state
+  count. After package preparation,
+  `omega run --both tests/omega/pass/calls/unread_multistate_receiver_exit/main.omg`
+  must return 70 in both paths without a dummy read. Retain shared/mutable,
+  indexed and explicit-reference calls, duplicate-overload rejection and
+  changed-access rejection as controls.
 
   Acceptance: execute caller-visible projected/forwarded writes, owned-field
   mutable/write-only subloans, legal synchronized shared observations and

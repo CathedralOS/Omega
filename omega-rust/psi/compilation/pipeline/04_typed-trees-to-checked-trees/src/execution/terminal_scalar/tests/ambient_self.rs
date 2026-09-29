@@ -1,8 +1,6 @@
-//! Only a machine of one authored state retains its borrowed `self` on a
-//! scalar graph; elsewhere the receiver stays ambient on the attachment
-//! carrier. A multi-state machine that reads through it belongs to the Unit
-//! state graph, whose callers rejoin the receiver; one that never reads it
-//! keeps a receiver-free graph its Unit callers reach as a pure scalar call.
+//! Borrowed receiver custody is independent of whether the body reads it.
+//! Single-state scalar graphs retain it; multi-state bodies use the Unit
+//! state graph, whose callers and edges preserve the declared receiver.
 use super::checked_program_result;
 use checked_trees::{CheckedTrees, CheckedUnitEffectOperationPlan};
 
@@ -15,10 +13,9 @@ fn machine(checked: &CheckedTrees, suffix: &str) -> symbols::SymbolHandle {
         .symbol
 }
 
-/// The receiver-free graph is the Unit caller's pure scalar target, so a
-/// multi-state callee a `run` state calls through `self` stays callable.
+/// The caller and callee must agree on the receiver even when no field is read.
 #[test]
-fn unread_receiver_keeps_a_receiver_free_graph_its_unit_callers_reach() {
+fn unread_multistate_receiver_keeps_its_unit_graph_and_callers() {
     let source = r#"
         data Main { width: u64; }
         machine Main::proc(&self, n: u64 [0..=1000]) -> u64 {
@@ -41,19 +38,28 @@ fn unread_receiver_keeps_a_receiver_free_graph_its_unit_callers_reach() {
     let checked = checked_program_result(source)
         .unwrap_or_else(|diagnostics| panic!("{source}: {diagnostics:#?}"));
     let proc = machine(&checked, "::proc");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_scalar_graphs
+            .for_machine(proc)
+            .is_none(),
+        "a receiver-free scalar plan cannot shadow the retained signature"
+    );
     let graph = checked
         .facts
         .flow
-        .terminal_scalar_graphs
-        .for_machine(proc)
-        .expect("an unread receiver keeps the scalar graph");
+        .terminal_unit_effects
+        .composed_for_machine(proc)
+        .expect("the Unit state graph retains the unread receiver");
     assert_eq!(graph.states.len(), 2);
     assert!(
-        graph
-            .states
+        graph.states.iter().all(|state| state
+            .structural_parameters
             .iter()
-            .all(|state| state.structural_parameters.is_empty()),
-        "the graph retains no receiver"
+            .any(|parameter| parameter.is_self)),
+        "every authored receiver remains in its state's signature"
     );
     // Candidate pruning drops a caller whose scalar target is unavailable,
     // so the published plan is the availability evidence: the call is a

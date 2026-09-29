@@ -180,7 +180,7 @@ fn arguments<'a>(
         // whole mixed one for an attached machine that retains its borrowed
         // receiver (or has none), and the ordinary free one otherwise.
         let (structural, scalar, _) = if machine.attached_data.is_some()
-            && (super::retains_borrowed_receiver(program, source_state, states.len())
+            && (super::retains_borrowed_receiver(program, source_state)
                 || !source_parameters.iter().any(|parameter| parameter.is_self))
         {
             super::super::terminal_unit::calls::ambient_self_scalar_graph_signature(

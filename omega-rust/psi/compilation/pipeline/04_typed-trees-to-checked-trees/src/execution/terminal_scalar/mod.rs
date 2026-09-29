@@ -397,12 +397,11 @@ fn build_machine_graph(
         *reason = "machine has no source-independent checked scalar control plan (multi-state structural formals)";
         return None;
     }
-    // A borrowed `self` is retained as the receiver operand only by a machine
-    // of one authored state (`checked_state_graph`); every other state keeps
-    // it ambient on the attachment carrier, so it may not read through it.
-    // A multi-state machine that does belongs to the Unit state graph, which
-    // retains the receiver on its entry roster where every Unit caller
-    // rejoins it (`receiver_calls`).
+    // Any receiver omitted from this representation must remain unobserved.
+    // Readable borrowed receivers were retained above, so multi-state bodies
+    // carrying them have already declined to the Unit state graph. In
+    // particular, an unread receiver is not an erased call argument merely
+    // because this planner found no field observations.
     for (&(_, state), (built, ..)) in pending.iter().zip(&states) {
         if built
             .structural_parameters
@@ -440,29 +439,25 @@ fn build_machine_graph(
     })
 }
 
-/// A single body retains its readable receiver with the declared access even
-/// when unused. Re-entry reconstructs this same signature; mutable access does
-/// not authorize erasing the receiver operand. Multi-state forwarding belongs
-/// to the Unit graph.
-fn retains_borrowed_receiver(
-    program: &TypedTrees,
-    state: &typed_trees::state::State,
-    owner_state_count: usize,
-) -> bool {
-    owner_state_count == 1
-        && program.state_parameters(state).iter().any(|parameter| {
-            parameter.is_self
-                && matches!(
-                    program
-                        .type_reference_table
-                        .type_reference(parameter.type_reference),
-                    typed_trees::types::TypeReferenceNode::Reference {
-                        access: language_semantics::ReferenceAccess::Shared
-                            | language_semantics::ReferenceAccess::Mutable,
-                        ..
-                    }
-                )
-        })
+/// Receiver custody comes from the declaration, not its use or state count.
+/// Retaining the readable receiver also makes the multi-state structural-roster
+/// check select the Unit graph, which already carries it across state edges.
+/// Publishing a receiver-free scalar graph instead would win callee selection
+/// with a signature that disagrees with the caller's checked borrow.
+fn retains_borrowed_receiver(program: &TypedTrees, state: &typed_trees::state::State) -> bool {
+    program.state_parameters(state).iter().any(|parameter| {
+        parameter.is_self
+            && matches!(
+                program
+                    .type_reference_table
+                    .type_reference(parameter.type_reference),
+                typed_trees::types::TypeReferenceNode::Reference {
+                    access: language_semantics::ReferenceAccess::Shared
+                        | language_semantics::ReferenceAccess::Mutable,
+                    ..
+                }
+            )
+    })
 }
 
 fn checked_state_graph(
@@ -487,11 +482,9 @@ fn checked_state_graph(
                 return None;
             }
             let parameters = program.state_parameters(state);
-            // A borrowed `self` stays ambient on the attachment carrier: the
-            // scalar graph keeps no structural or scalar slot for it, the same
-            // convention the completed Unit signature uses when it does not
-            // retain the receiver. An owned `self` still has no graph
-            // representation, so it refuses the plan.
+            // Borrowed receivers use the retained signature below. An owned
+            // `self` still has no scalar-graph representation and refuses the
+            // plan; attachment identity alone does not provide its custody.
             if parameters.iter().any(|parameter| {
                 super::terminal_unit::strips_erased_parameter(parameter).is_none()
                     || (parameter.is_self
@@ -525,10 +518,11 @@ fn checked_state_graph(
                         .primitive_type_reference(parameter.type_reference)
                         .is_none()
             });
-            // Only a machine of one authored state retains its borrowed
-            // receiver; see `build_machine_graph` for why.
+            // Preserve the signature before selecting a representation. A
+            // multi-state body with structural custody belongs to the Unit
+            // graph; see `build_machine_graph`.
             let receiver = parameters.iter().any(|parameter| parameter.is_self);
-            let retains_receiver = retains_borrowed_receiver(program, state, owner_state_count);
+            let retains_receiver = retains_borrowed_receiver(program, state);
             let (structural_parameters, scalar_parameters, mut shapes) = if mixed
                 && machine.attached_data.is_some()
                 && (retains_receiver || !receiver)
