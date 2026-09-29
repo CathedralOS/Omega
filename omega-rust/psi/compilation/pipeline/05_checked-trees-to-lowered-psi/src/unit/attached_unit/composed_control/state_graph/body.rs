@@ -1016,14 +1016,35 @@ fn is_loan_marker(checked: &CheckedTrees, statement: &StatementNode) -> bool {
             )
             .is_some()
         }
+        // A named referent may arrive under constraint shells (`&u32 in
+        // Wide`): stage 04's `shared_place_loan_referent` plans that loan as
+        // the same carrier, so the recount peels the shells before demanding
+        // the named shape. Slice and array referents keep their own view
+        // plans and are not markers.
         language_core::ReferenceAccess::Shared => {
-            validation::reference_result_custody::shared_borrowed_parts(
+            validation::reference_result_custody::shared_place_borrowed_parts(
                 checked,
                 local.type_reference,
             )
-            .is_some()
+            .is_some_and(|(referee, _)| named_under_constraints(checked, referee))
         }
         _ => false,
+    }
+}
+
+/// Whether `referee` names a declared type beneath any constraint shells.
+fn named_under_constraints(
+    checked: &CheckedTrees,
+    mut referee: checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    loop {
+        match checked.type_reference_table.type_reference(referee) {
+            checked_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                referee = *base_type;
+            }
+            checked_trees::types::TypeReferenceNode::Named { .. } => return true,
+            _ => return false,
+        }
     }
 }
 

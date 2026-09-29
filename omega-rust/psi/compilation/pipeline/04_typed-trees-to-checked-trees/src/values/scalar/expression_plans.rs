@@ -42,10 +42,10 @@ pub(crate) struct ScalarLocal {
     pub(crate) name: String,
     pub(crate) primitive_type: PrimitiveType,
     pub(crate) arithmetic_domain: ArithmeticDomain,
-    /// The captured place of a shared `&` local: the borrow target inside
-    /// its `&place`/`&place as &T` initializer. Reads through the local
-    /// re-evaluate that place at the use point rather than a value the
-    /// binding itself stores.
+    /// The captured place of a shared `&` local, or of an immutable `&mut`
+    /// place-loan local: the borrow target inside its `&place`/`&place as
+    /// &T` initializer. Reads through the local re-evaluate that place at
+    /// the use point rather than a value the binding itself stores.
     pub(crate) shared_loan_place: Option<ExpressionHandle>,
 }
 
