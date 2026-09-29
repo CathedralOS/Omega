@@ -384,3 +384,31 @@ changes what the edge transports even when the source text does not read it.
 
 Six files were landed after gating individually. The rest wait for the same
 step every other receiver does.
+
+## The structural-argument transport has partly landed
+
+Re-measured 2026-09-29 after `psi: admit dynamic-index record-element field
+writes through element views`. The blocker is no longer all-or-nothing.
+
+| argument | before | now |
+| --- | --- | --- |
+| `&self.dash.engine` — SHARED projection of the ENTRY's receiver | refused | **realizes** |
+| `&mut self.banner` — MUTABLE projection of the entry's receiver | refused | refused |
+| `&self.list` inside another OPERATION's body | refused | refused |
+| a local carrier by value to `Console::write_line` | refused | refused |
+| `&mut score`, a whole local record | refused | refused |
+
+`samples/cli/basics/nested_diagnostics` migrated on the strength of the first
+row and runs with its documented exit 85. It had been deferred for exactly
+this refusal.
+
+The remaining rows are what the transport still owes. The third is worth
+separating from the second: it is not about mutability. A shared projection
+handed on from inside an operation body still fails where the same spelling
+from the entry now succeeds.
+
+Six canaries matching that third shape were migrated and reverted. Their
+diffs are correct -- `machine ItemList::get_count(item_list: &ItemList)` with
+`ItemList::get_count(&self.list)` at the call -- and several are
+receiver-as-subject besides, `nested_call_tail_roots_exit` pinning "receiver-
+form tail on a member-path field" by name.
