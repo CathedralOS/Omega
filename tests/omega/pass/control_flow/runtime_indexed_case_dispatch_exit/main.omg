@@ -1,0 +1,40 @@
+// A case dispatch whose subject is a RUNTIME-selected element:
+// `transition self.items[self.w] { Color::Red -> .. }` over a payload-free
+// `[Color; 3]`. Symbol resolution hoists the subject into one shared
+// `let __hoist = &self.items[self.w];` so the arms stay one exhaustive
+// dispatch; the Unit plan erases that borrow and each arm observes the
+// element itself, one Terminal `StructuralCaseMembership` whose path selects
+// it with a `RuntimeIndex` segment. The verifier bounds the selector against
+// the array's declared extent at every arm, the observation keys no case
+// fact, and Omega loads the tag at the element's declared offset plus `w`
+// times the element stride.
+//
+// This is the case-array sibling of
+// `tests/omega/pass/collections/runtime_indexed_record_field_read_exit`.
+// The three elements hold three different cases and `w` selects the last,
+// so reading the wrong element or stride dispatches to another arm.
+// `items[2]` is `White` -> exit 2.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Color { case Red; case White; case Blue; }
+
+data Main {
+    console: Binding<Console>;
+    items: [Color; 3];
+    w: u64 [0..=2];
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.items[0] = Color::Blue;
+    self.items[2] = Color::White;
+    self.w = 2;
+    transition self.items[self.w] {
+        Color::Red -> red()
+        Color::White -> white()
+        _ -> other()
+    }
+    state red(&mut self) { self.console.exit_process(1); }
+    state white(&mut self) { self.console.exit_process(2); }
+    state other(&mut self) { self.console.exit_process(3); }
+}

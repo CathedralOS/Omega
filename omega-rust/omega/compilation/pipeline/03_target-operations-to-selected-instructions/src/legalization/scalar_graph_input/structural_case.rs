@@ -206,19 +206,39 @@ fn source_identity(
     Ok(parameter.structural_type)
 }
 
-/// Resolve the exact nominal case under the independently validated root access.
+/// Resolve the exact nominal case under the independently validated root
+/// access: its tag, the tag's static byte offset, and each runtime element the
+/// path selects through (`items[i]`), rebuilt from declarations as the
+/// element's selector, obligation, stride and extent.
+#[allow(clippy::type_complexity)]
 pub(in crate::legalization) fn membership_layout(
     function: &PsiOptimizationFunction,
     source: PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
     plan: &AbstractOperationPlan,
-) -> Result<(u32, u32), LegalizationError> {
+) -> Result<
+    (
+        u32,
+        u32,
+        Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
+    ),
+    LegalizationError,
+> {
     let identity = source_identity(function, source)?;
-    let (identity, byte_offset) = if path.is_empty() {
-        (identity, 0)
+    let (identity, byte_offset, elements) = if path.is_empty() {
+        (identity, 0, Vec::new())
+    } else if terminal_psi::is_static_structural_path(path) {
+        let (identity, byte_offset) =
+            crate::structural_inputs::structural_reference_input::project(
+                identity,
+                path,
+                &plan.structural_types,
+            )
+            .ok_or(LegalizationError::custody())?;
+        (identity, byte_offset, Vec::new())
     } else {
-        crate::structural_inputs::structural_reference_input::project(
+        crate::structural_inputs::structural_reference_input::runtime_projection(
             identity,
             path,
             &plan.structural_types,
@@ -245,7 +265,7 @@ pub(in crate::legalization) fn membership_layout(
         .iter()
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
-        .map(|tag| (tag, byte_offset))
+        .map(|tag| (tag, byte_offset, elements))
         .ok_or(LegalizationError::custody())
 }
 

@@ -60,12 +60,19 @@ pub(super) fn parameter_home_required(source: &LegalizedScalarFunction, place: P
 /// Reconstruct nominal tag identity from the retained readable root contract.
 /// This lookup establishes shape and layout, not occurrence liveness: optimized
 /// ownership/dominance replay and exact legalized-source replay remain required.
+/// A path through a runtime element (`items[i]`) also yields each element's
+/// selector, obligation, stride and extent, rebuilt from declarations.
+#[allow(clippy::type_complexity)]
 pub(super) fn membership_layout(
     source: &LegalizedScalarFunction,
     place: semantic_vocabulary::PlaceId,
     path: &[terminal_psi::StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
-) -> Option<(u32, u32)> {
+) -> Option<(
+    u32,
+    u32,
+    Vec<crate::structural_inputs::structural_reference_input::RuntimeElement>,
+)> {
     let signature = source.structural.as_ref()?;
     let parameter = signature
         .parameters
@@ -127,10 +134,18 @@ pub(super) fn membership_layout(
     };
     // Whole sums keep their existing payload-layout admission. Resolving a
     // nonempty path additionally requires the supported enclosing storage shape.
-    let (identity, byte_offset) = if path.is_empty() {
-        (identity, 0)
+    let (identity, byte_offset, elements) = if path.is_empty() {
+        (identity, 0, Vec::new())
+    } else if terminal_psi::is_static_structural_path(path) {
+        let (identity, byte_offset) =
+            crate::structural_inputs::structural_reference_input::project(
+                identity,
+                path,
+                &signature.structural_types,
+            )?;
+        (identity, byte_offset, Vec::new())
     } else {
-        crate::structural_inputs::structural_reference_input::project(
+        crate::structural_inputs::structural_reference_input::runtime_projection(
             identity,
             path,
             &signature.structural_types,
@@ -171,7 +186,7 @@ pub(super) fn membership_layout(
         .iter()
         .position(|candidate| candidate.id == case)
         .and_then(|ordinal| u32::try_from(ordinal).ok())
-        .map(|tag| (tag, byte_offset))
+        .map(|tag| (tag, byte_offset, elements))
 }
 
 pub(super) fn call_result<'a>(

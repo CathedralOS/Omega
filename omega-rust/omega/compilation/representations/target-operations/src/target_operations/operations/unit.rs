@@ -81,6 +81,10 @@ pub enum TargetUnitOperation {
         path: Vec<StructuralPathSegment>,
         indices: Vec<TargetStructuralRuntimeIndex>,
     },
+    /// Observe a sum's active case. `tag_byte_offset` is the path's static
+    /// part; `indices` resolves each `RuntimeIndex` segment, in path order, to
+    /// the operand the tag's address scales by its array stride
+    /// (`items[i] is Color::Red`), exactly as a primitive read does.
     StructuralCaseMembership {
         psi_operation: OperationId,
         result: AbstractResult,
@@ -89,6 +93,7 @@ pub enum TargetUnitOperation {
         tag_byte_offset: u32,
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
+        indices: Vec<TargetStructuralRuntimeIndex>,
     },
     /// One scalar field observation beneath a readable root. `source.path`
     /// is the runtime carrier. With `case`, it ends at a sum and `field` is a

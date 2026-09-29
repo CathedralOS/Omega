@@ -162,7 +162,8 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::ElementViewRead { index, length, .. } => {
                 [*index, *length].into_iter().for_each(visit)
             }
-            LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. } => {
+            LegalizedScalarInstructionKind::StructuralLeafCopy { indices, .. }
+            | LegalizedScalarInstructionKind::StructuralCaseMembership { indices, .. } => {
                 indices.iter().for_each(|index| visit(index.operand.value))
             }
             LegalizedScalarInstructionKind::Constant(_)
@@ -174,7 +175,6 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::HostedReadByte { .. }
             | LegalizedScalarInstructionKind::StructuralScalarFieldRead { .. }
             | LegalizedScalarInstructionKind::StructuralByteSequenceFieldLength { .. }
-            | LegalizedScalarInstructionKind::StructuralCaseMembership { .. }
             | LegalizedScalarInstructionKind::EstablishByteSequenceLiteral { .. }
             | LegalizedScalarInstructionKind::ByteSequenceLength { .. }
             | LegalizedScalarInstructionKind::EstablishElementView { .. }
@@ -371,12 +371,16 @@ pub enum LegalizedScalarInstructionKind {
         obligation: semantic_vocabulary::ObligationId,
         accepted_fact: optimization_core::AcceptedObligationFactIdentity,
     },
+    /// Observe a sum's active case at `tag_byte_offset` beyond the place
+    /// pointer after each runtime element in `indices` joins it, in path
+    /// order (`items[i] is Color::Red`).
     StructuralCaseMembership {
         source: semantic_vocabulary::PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         case: semantic_vocabulary::StructuralCaseId,
         case_tag: u32,
         tag_byte_offset: u32,
+        indices: Vec<LegalizedRuntimeIndexOperand>,
     },
     /// One byte copy of a readable root's subtree at a resolved offset into
     /// fresh activation storage. The copy extent is the subtree's own

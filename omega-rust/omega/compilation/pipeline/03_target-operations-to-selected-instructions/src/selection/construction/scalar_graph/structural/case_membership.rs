@@ -2,8 +2,7 @@
 use super::super::IntegerValue;
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-    VirtualRegisterId, memory,
+    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::construction::scalar_graph::structural::invalid;
@@ -20,14 +19,22 @@ pub(in crate::selection) fn observe(
         case,
         case_tag,
         tag_byte_offset,
+        indices,
     } = &row.kind
     else {
         return Err(invalid());
     };
     let result = row.result.ok_or_else(|| invalid())?;
+    let Some((expected_tag, expected_offset, elements)) =
+        crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
+    else {
+        return Err(invalid());
+    };
     if result.scalar_type != ScalarType::Boolean
-        || crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
-            != Some((*case_tag, *tag_byte_offset))
+        || (expected_tag, expected_offset) != (*case_tag, *tag_byte_offset)
+        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices, &elements,
+        )
     {
         return Err(invalid());
     }
@@ -46,13 +53,19 @@ pub(in crate::selection) fn observe(
         .find(|(stored, _)| *stored == place)
         .map(|(_, pointer)| *pointer)
     {
-        memory(
+        // A runtime element joins the place pointer before the tag load
+        // (`runtime_address`), and its footprint names the element's
+        // certificate; a static tag reads its exact place extent.
+        let pointer =
+            super::runtime_address::scale(builder, row, place, *tag_byte_offset, pointer, indices)?;
+        super::runtime_address::footprint(
             builder,
             row,
             place,
             *tag_byte_offset,
             4,
-            SelectedMemoryAccessRole::ReadPlace,
+            indices,
+            super::runtime_address::Written::None,
         )?;
         builder.emit(
             SelectedInstructionKind::Load32 {
@@ -66,7 +79,7 @@ pub(in crate::selection) fn observe(
         // Projected tags use addressable aggregate storage, including when the
         // entry ABI supplied value fragments. Only a whole sum can use its
         // first fragment directly; a projection must never fall back to it.
-        if !path.is_empty() || *tag_byte_offset != 0 {
+        if !path.is_empty() || *tag_byte_offset != 0 || !indices.is_empty() {
             return Err(invalid());
         }
         // Owned ABI fragments contain value bytes. Narrow the tag before

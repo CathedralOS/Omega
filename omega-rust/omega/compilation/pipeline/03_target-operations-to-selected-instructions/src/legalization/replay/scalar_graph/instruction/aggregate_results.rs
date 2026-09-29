@@ -26,6 +26,7 @@ pub(super) fn validate(
                 case,
                 case_tag,
                 tag_byte_offset,
+                indices,
             },
             AbstractOperation::StructuralCaseMembership {
                 source: expected,
@@ -38,14 +39,26 @@ pub(super) fn validate(
             && path == expected_path
             && case == expected_case
             && result.scalar_type == ScalarType::Boolean
-            && (*case_tag, *tag_byte_offset)
-                == scalar_graph_input::structural_case::membership_layout(
+            && {
+                let (expected_tag, expected_offset, elements) =
+                    scalar_graph_input::structural_case::membership_layout(
+                        optimized,
+                        *expected,
+                        expected_path,
+                        *expected_case,
+                        plan,
+                    )?;
+                let expected_indices = crate::legalization::runtime_indices::operands(
                     optimized,
-                    *expected,
-                    expected_path,
-                    *expected_case,
-                    plan,
-                )? => {}
+                    unit,
+                    node.operation
+                        .psi_operation()
+                        .ok_or(LegalizationError::custody())?,
+                    &elements,
+                )?;
+                (*case_tag, *tag_byte_offset) == (expected_tag, expected_offset)
+                    && *indices == expected_indices
+            } => {}
         (
             LegalizedScalarInstructionKind::StructuralLeafCopy {
                 result,

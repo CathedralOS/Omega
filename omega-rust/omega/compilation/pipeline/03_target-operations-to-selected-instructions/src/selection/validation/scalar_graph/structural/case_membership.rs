@@ -2,8 +2,7 @@
 use super::super::IntegerValue;
 use super::{
     LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-    VirtualRegisterId, memory,
+    ScalarType, SelectedInstructionKind, SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::validation::scalar_graph::Replay;
@@ -19,14 +18,22 @@ pub(in crate::selection) fn observe(
         case,
         case_tag,
         tag_byte_offset,
+        indices,
     } = &row.kind
     else {
         return Err(replay.invalid());
     };
     let result = row.result.ok_or_else(|| replay.invalid())?;
+    let Some((expected_tag, expected_offset, elements)) =
+        crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
+    else {
+        return Err(replay.invalid());
+    };
     if result.scalar_type != ScalarType::Boolean
-        || crate::selection::aggregate_result_input::membership_layout(source, *place, path, *case)
-            != Some((*case_tag, *tag_byte_offset))
+        || (expected_tag, expected_offset) != (*case_tag, *tag_byte_offset)
+        || !crate::structural_inputs::structural_reference_input::runtime_indices_match(
+            indices, &elements,
+        )
     {
         return Err(replay.invalid());
     }
@@ -45,13 +52,16 @@ pub(in crate::selection) fn observe(
         .find(|(stored, _)| *stored == place)
         .map(|(_, pointer)| *pointer)
     {
-        memory(
+        let pointer =
+            super::runtime_address::scale(replay, row, place, *tag_byte_offset, pointer, indices)?;
+        super::runtime_address::footprint(
             replay,
             row,
             place,
             *tag_byte_offset,
             4,
-            SelectedMemoryAccessRole::ReadPlace,
+            indices,
+            super::runtime_address::Written::None,
         )?;
         replay.check_instruction(
             SelectedInstructionKind::Load32 {
@@ -66,7 +76,7 @@ pub(in crate::selection) fn observe(
             &provenance,
         )?;
     } else {
-        if !path.is_empty() || *tag_byte_offset != 0 {
+        if !path.is_empty() || *tag_byte_offset != 0 || !indices.is_empty() {
             return Err(replay.invalid());
         }
         // Owned ABI fragments contain value bytes. Narrow the tag before
