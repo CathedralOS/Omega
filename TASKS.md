@@ -1763,17 +1763,25 @@ crash and native exit behavior. Use affected check/native corpus slices under
     structural field store destination parameter. Pure scalar-graph machines
     carry no boundary roster, so nested applications there reject
     (`expressions/match_float_subjects`).
-    Wrong code at `53fa9ef457`: in one state, `self.s = self.a + self.b; let
-    m: f64 = self.b * 2.0;` then `m == 8.0` is false natively. The local reads
-    the call-result slot: source custody now counts preceding call-result
-    field stores in `binding_ordinal`, while `scalar_computation_local_at` and
-    the scalar expression local namespace count only authored locals.
-    `float/{named_provider_negate_is_nan_exit,named_provider_fused_multiply_add_exit,
-    x86_fma_plan_association}` stop at `statement sequence: local data: scalar
-    local: pure initializer` on the same split. Separate source occurrence
-    custody from executable value positions through the Psi 04/05 consumers,
-    then rerun those customers. `named_provider_multiply_then_add_exit` reaches
-    its own `u64` to `i32` exit-code store rejection.
+    A local declared after a call-result field store (`self.s = self.a + self.b;
+    let m: f64 = self.b * 2.0;`) no longer reads the stored result: stage 05
+    resolves authored `Local` reads through declared locals only, while the
+    stored call result keeps its binding-ordinal slot
+    (`pass/float/local_after_float_call_store_exit` exits **70**). Source roles
+    still key a `let` by its authored local count, whereas the planner numbers
+    its `LocalInitializer` densely and counts the result of each call-result
+    field store it binds. It binds one for a selected operator application but
+    not for a checked-body `self.x = echo(..)`, so no syntactic count reproduces
+    it.
+    `float/{named_provider_negate_is_nan_exit,named_provider_fused_multiply_add_exit,named_provider_min_max_sqrt_exit}`
+    therefore stop at `statement sequence: local data: scalar local: pure
+    initializer` after such a store, and `0f12109248`'s stage 05 locate count
+    rejects a `let` after a checked-body call store (`scalar source custody
+    disagrees with its authored destination role`). Key every source role by its
+    authored local ordinal through the Psi 04/05 consumers, keep dense binding
+    ordinals for value positions only, then rerun those customers.
+    `named_provider_multiply_then_add_exit` reaches its own `u64` to `i32`
+    exit-code store rejection.
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
     through selected-plan settlement and physical-child replay. Reuse stage

@@ -87,9 +87,12 @@ impl OperationFrame<'_, '_> {
 
     /// A retained scalar call result is the next dense value, so it also
     /// enters a composed state's binding namespace at its checked ordinal,
-    /// exactly like an established scalar local. A discarded result keeps its
-    /// typed operation result without occupying a source position; a staged
-    /// result goes back to the route.
+    /// exactly like an established scalar local. Only a result that
+    /// initializes a declared immutable local also takes an authored slot;
+    /// one an assignment stores stays unnamed, or every later local's
+    /// authored read would resolve to it. A discarded result keeps its typed
+    /// operation result without occupying a source position; a staged result
+    /// goes back to the route.
     fn bind_scalar_result(
         &mut self,
         coordinate: checked_trees::CheckedUnitCallCoordinate,
@@ -106,12 +109,22 @@ impl OperationFrame<'_, '_> {
         )? {
             let position = self.values.len();
             self.values.push(value);
-            if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
-                bindings.append(
-                    checked_trees::CheckedScalarBindingDestination::Immutable,
-                    value.scalar_type,
-                    position,
+            let names_local =
+                crate::emission::call_source_custody::initializers::initializes_immutable_local(
+                    self.checked,
+                    self.state,
+                    coordinate,
                 )?;
+            if let Some(bindings) = self.evaluation.scalar_bindings.as_mut() {
+                if names_local {
+                    bindings.append(
+                        checked_trees::CheckedScalarBindingDestination::Immutable,
+                        value.scalar_type,
+                        position,
+                    )?;
+                } else {
+                    bindings.append_unnamed_result(position);
+                }
             }
         }
         Ok(None)

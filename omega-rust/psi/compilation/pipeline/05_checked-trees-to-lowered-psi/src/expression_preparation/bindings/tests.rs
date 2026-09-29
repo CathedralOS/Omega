@@ -637,3 +637,60 @@ fn borrowed_structural_operands_cannot_upgrade_emitted_source_access() {
         }
     }
 }
+
+/// A call result an assignment stores takes its binding-ordinal slot but no
+/// authored slot, so a later local's authored `Local` read still names that
+/// local. Resolving the read through binding ordinals would hand it the
+/// stored call result instead.
+#[test]
+fn unnamed_call_results_keep_authored_local_reads_on_their_locals() {
+    let integer = terminal_scalar_type(PrimitiveType::I32).unwrap();
+    let mut bindings = ScalarBindings::new(1);
+    // Dense value 1 is a call result stored into a field; value 2 is the
+    // next declared immutable local.
+    bindings.append_unnamed_result(1);
+    bindings
+        .append(CheckedScalarBindingDestination::Immutable, integer, 2)
+        .unwrap();
+    // Binding ordinals count both results after the formal.
+    assert_eq!(bindings.immutable_position(1).unwrap(), 1);
+    assert_eq!(bindings.immutable_position(2).unwrap(), 2);
+    // The declared local is the first authored slot after the formal.
+    let mut local = CheckedScalarExpression::Local {
+        position: 1,
+        primitive_type: PrimitiveType::I32,
+    };
+    bindings.scalar(&mut local).unwrap();
+    assert_eq!(
+        local,
+        CheckedScalarExpression::Local {
+            position: 2,
+            primitive_type: PrimitiveType::I32,
+        }
+    );
+    let mut boolean = CheckedBooleanExpression::Local { position: 1 };
+    bindings.boolean(&mut boolean).unwrap();
+    assert_eq!(boolean, CheckedBooleanExpression::Local { position: 2 });
+    // No second local was declared, so authored slot 2 does not exist.
+    assert!(
+        bindings
+            .scalar(&mut CheckedScalarExpression::Local {
+                position: 2,
+                primitive_type: PrimitiveType::I32,
+            })
+            .is_err()
+    );
+    // The formal keeps its own slot.
+    let mut formal = CheckedScalarExpression::Parameter {
+        position: 0,
+        primitive_type: PrimitiveType::I32,
+    };
+    bindings.scalar(&mut formal).unwrap();
+    assert_eq!(
+        formal,
+        CheckedScalarExpression::Parameter {
+            position: 0,
+            primitive_type: PrimitiveType::I32,
+        }
+    );
+}

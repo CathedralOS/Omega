@@ -19,7 +19,18 @@ pub(crate) use structural_fields::StructuralScalarFieldBinding;
 
 #[derive(Clone)]
 pub(crate) struct ScalarBindings {
+    /// The binding-ordinal namespace: the scalar formals, then every
+    /// established scalar result in statement order. A retained call result
+    /// that feeds an assignment occupies a slot here like an immutable local,
+    /// because checked result bindings number both shapes densely.
     immutable: Vec<Option<usize>>,
+    /// The authored namespace a checked `Parameter`/`Local` read names: the
+    /// scalar formals, then the immutable locals the source declares, in
+    /// order. A call result stored straight into a field has no source name,
+    /// so it never occupies a slot here; resolving authored reads through the
+    /// binding namespace instead would shift every later local onto the
+    /// preceding call's result.
+    authored: Vec<Option<usize>>,
     storage: Vec<(symbols::SymbolHandle, ScalarType, usize)>,
     primitive_storage: Vec<(symbols::SymbolHandle, PlaceId, ScalarType)>,
     /// Authored parameter positions stay separate from dense Terminal positions.
@@ -477,6 +488,7 @@ impl ScalarBindings {
     pub(crate) fn for_computation_operands(offset: usize, count: usize) -> Self {
         Self {
             immutable: (offset..offset + count).map(Some).collect(),
+            authored: (offset..offset + count).map(Some).collect(),
             storage: Vec::new(),
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
@@ -492,6 +504,7 @@ impl ScalarBindings {
     pub(crate) fn new(parameters: usize) -> Self {
         Self {
             immutable: (0..parameters).map(Some).collect(),
+            authored: (0..parameters).map(Some).collect(),
             storage: Vec::new(),
             primitive_storage: Vec::new(),
             structural_parameters: Vec::new(),
@@ -758,6 +771,7 @@ impl ScalarBindings {
         // Keep ordinal slots for subsequent immutable locals, but never let
         // a mutable formal be read through the immutable entry-value path.
         self.immutable[position] = None;
+        self.authored[position] = None;
         Ok(())
     }
 
@@ -769,7 +783,10 @@ impl ScalarBindings {
     ) -> Result<(), LoweringError> {
         use checked_trees::CheckedScalarBindingDestination;
         match destination {
-            CheckedScalarBindingDestination::Immutable => self.immutable.push(Some(position)),
+            CheckedScalarBindingDestination::Immutable => {
+                self.immutable.push(Some(position));
+                self.authored.push(Some(position));
+            }
             CheckedScalarBindingDestination::StorageInitialize { symbol } => {
                 if !symbol.is_valid() || self.storage.iter().any(|row| row.0 == symbol) {
                     return unsupported(
@@ -807,8 +824,27 @@ impl ScalarBindings {
             ))
     }
 
-    /// The dense value position of one checked immutable slot: the scalar
-    /// formals, then each immutable local in binding order.
+    /// Bind a retained scalar result that no source name reads: a call result
+    /// an assignment stores. It takes its binding-ordinal slot, but authored
+    /// `Local` reads keep counting only declared locals.
+    pub(crate) fn append_unnamed_result(&mut self, position: usize) {
+        self.immutable.push(Some(position));
+    }
+
+    /// The dense value position of one authored `Parameter`/`Local` slot:
+    /// the scalar formals, then each declared immutable local in order.
+    fn authored_position(&self, position: usize) -> Result<usize, LoweringError> {
+        self.authored
+            .get(position)
+            .copied()
+            .flatten()
+            .ok_or(LoweringError::Unsupported(
+                "scalar immutable operand is outside the established namespace",
+            ))
+    }
+
+    /// The dense value position of one binding-ordinal slot: the scalar
+    /// formals, then each established scalar result in binding order.
     pub(crate) fn immutable_position(&self, position: usize) -> Result<usize, LoweringError> {
         self.immutable
             .get(position)
@@ -826,7 +862,7 @@ impl ScalarBindings {
             }
             CheckedScalarExpression::Parameter { position, .. }
             | CheckedScalarExpression::Local { position, .. } => {
-                *position = self.immutable_position(*position)?
+                *position = self.authored_position(*position)?
             }
             CheckedScalarExpression::StorageRead {
                 symbol,
@@ -868,7 +904,7 @@ impl ScalarBindings {
         match expression {
             CheckedBooleanExpression::Parameter { position }
             | CheckedBooleanExpression::Local { position } => {
-                *position = self.immutable_position(*position)?
+                *position = self.authored_position(*position)?
             }
             CheckedBooleanExpression::StorageRead { symbol } => {
                 if self.primitive_storage.iter().any(|row| row.0 == *symbol) {

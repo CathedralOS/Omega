@@ -22,6 +22,26 @@ pub(crate) fn discards_result(
         && matches!(statement, StatementNode::Call(call) if call.discards_result))
 }
 
+/// Whether the statement-level call at `coordinate` initializes a declared
+/// immutable local, so its retained result is a source-named value. A result
+/// an assignment stores has no source name of its own.
+pub(crate) fn initializes_immutable_local(
+    checked: &CheckedTrees,
+    state: symbols::SymbolHandle,
+    coordinate: checked_trees::CheckedUnitCallCoordinate,
+) -> Result<bool, LoweringError> {
+    let (_, source) =
+        crate::expression_preparation::source_custody::authored_state(checked, state)?;
+    let statement = checked
+        .statement_table
+        .statements(source.statement_nodes)
+        .get(coordinate.statement_index as usize)
+        .ok_or(LoweringError::Unsupported(
+            "call result has no authored statement",
+        ))?;
+    Ok(matches!(statement, StatementNode::LocalData(local) if !local.is_mutable))
+}
+
 /// A discarded statement result has an operation-owned place, not a fabricated
 /// local. Reconstruct its plain-owned custody from the exact authored call
 /// signature; the continuation owner separately requires immediate disposal.
