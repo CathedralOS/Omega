@@ -217,6 +217,78 @@ fn evaluator_nan_payload_cannot_enter_published_constant_bytes() {
     );
 }
 
+#[test]
+fn payloadless_nan_intermediates_produce_determined_observations() {
+    let text = "pub data F32 {}
+        pub data F64 {}
+        pub boundary operator F32::square_root(value: f32) -> f32;
+        pub boundary operator F64::square_root(value: f64) -> f64;
+        pub boundary operator F32::is_nan(value: f32) -> bool;
+        pub boundary operator F64::is_nan(value: f64) -> bool;
+        machine classify(value: f32) -> bool { F32::is_nan(value) }
+        machine guarded(value: f32, ready: bool) -> bool requires ready { F32::is_nan(value) }
+        machine produce() -> f32 { F32::square_root(-1.0f32) }
+        pub const CLASSIFIED: bool = F32::is_nan(F32::square_root(-1.0f32));
+        pub const CLASSIFIED64: bool = F64::is_nan(F64::square_root(-1.0f64));
+        pub const THROUGH_CALL: bool = classify(produce());
+        pub const GUARDED: bool = guarded(produce(), true);
+        pub const UNORDERED: bool = (0.0f32 / 0.0f32) != 1.0f32;
+        pub const PROPAGATED: bool = F32::is_nan((0.0f32 / 0.0f32) + 1.0f32);";
+    let typed = evaluate_fully(&[("main.omg", text)], &[]);
+    let expected = CanonicalConstValue::boolean(true).encoding;
+    for name in [
+        "CLASSIFIED",
+        "CLASSIFIED64",
+        "THROUGH_CALL",
+        "GUARDED",
+        "UNORDERED",
+        "PROPAGATED",
+    ] {
+        assert_eq!(
+            typed_encoding(&typed, name).as_deref(),
+            Some(expected.as_str()),
+            "{name}"
+        );
+    }
+    let declaration = typed
+        .const_declarations()
+        .iter()
+        .find(|declaration| typed.symbols.name(declaration.symbol) == "CLASSIFIED")
+        .expect("classified constant");
+    let materialized = declaration.materialized_initializer;
+    let mut forged = typed.clone();
+    *forged.expression_table.expression_mut(materialized) = ExpressionNode::Boolean(false);
+    assert!(
+        super::super::replay::validate(&forged, None).is_err(),
+        "semantic NaN evaluation must still independently replay its Boolean result"
+    );
+    let rejected = evaluate(&text.replace("guarded(produce(), true)", "guarded(produce(), false)"))
+        .expect_err("a semantic NaN argument cannot waive an authored premise");
+    assert!(
+        rejected
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("failed checking")),
+        "{rejected:?}"
+    );
+    let rejected = evaluate(
+        "pub data F32 {}
+        pub boundary operator F32::square_root(value: f32) -> f32;
+        machine bits(value: f32) -> u32 {
+            let view: &u32 = &value as &u32;
+            let result: u32 = view;
+            result
+        }
+        pub const BITS: u32 = bits(F32::square_root(-1.0f32));",
+    )
+    .expect_err("returning an integer cannot authorize undetermined NaN bits");
+    assert!(
+        rejected
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("NaN")),
+        "{rejected:?}"
+    );
+}
+
 /// A retained call whose stamped target is repointed at a different overload
 /// smuggles a forged selection: the rederived roster must still match the
 /// authored declaration-selection receipt, so replay rejects the substitution

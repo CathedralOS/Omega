@@ -618,8 +618,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 );
             }
             ExpressionNode::Call(call) => {
-                // Named operator calls produce no ordinary call row, so
-                // `invoke` cannot supply their operand-time evidence. Each
+                // Named uses need their own operand-time evidence even when
+                // a boundary operator also has an ordinary call row. Each
                 // operand's custody is captured where it finishes
                 // evaluating — as a spelled use would — because a later
                 // operand's write destroys facts an earlier copied operand
@@ -666,9 +666,11 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     contexts,
                     constraints,
                 );
-                // A named call mints no borrow-call row for `invoke` to find;
-                // its mutable-operand invalidation and `ensures` publication
-                // run here, at the exact point the call completes. The same
+                // Named-use mutable-operand invalidation and `ensures`
+                // publication run here, at the exact point the call completes,
+                // including calls without an ordinary borrow-call row. A
+                // boundary operator's ordinary row does not replace these
+                // named-declaration effects. The same
                 // write set then joins the operand-write timeline `invoke`
                 // fills for ordinary calls: an enclosing operand captured
                 // before this call ran must not keep claiming — or republish a

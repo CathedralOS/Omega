@@ -152,13 +152,19 @@ pub(crate) struct Invocation<'program> {
     state: &'program State,
 }
 
+struct ArgumentSnapshot {
+    receiver: bool,
+    original: ExpressionHandle,
+    literal: Option<ExpressionNode>,
+}
+
 impl Invocation<'_> {
     fn require_concrete_failure_discharge(
         &self,
         expression: ExpressionHandle,
         callee: String,
         return_type: typed_trees::types::TypeReferenceHandle,
-        snapshots: Vec<ExpressionNode>,
+        snapshots: Vec<ArgumentSnapshot>,
     ) -> Result<(), String> {
         // A published guarded ceiling has no private whole-body summary, and an
         // authored `requires` premise has no meaning outside an invocation.
@@ -183,10 +189,18 @@ impl Invocation<'_> {
         else {
             return Err("constant invocation lost its selected call".into());
         };
-        let arguments = snapshots
-            .into_iter()
-            .map(|snapshot| probe.expression_table.insert(snapshot))
-            .collect::<Vec<_>>();
+        let mut arguments = Vec::new();
+        for snapshot in snapshots {
+            let expression = match snapshot.literal {
+                Some(literal) => probe.expression_table.insert(literal),
+                None => snapshot.original,
+            };
+            if snapshot.receiver {
+                call.receiver = expression;
+            } else {
+                arguments.push(expression);
+            }
+        }
         call.arguments = probe.expression_table.insert_expression_handles(arguments);
         let concrete = probe.expression_table.insert(ExpressionNode::Call(call));
         probe.expression_table.set_source_span(
@@ -524,6 +538,15 @@ impl ConstantCalls for Invocation<'_> {
         let destination = scalar_probe_destination(typed, target.return_type())
             .ok_or("constant result lost its exact carrier")?;
         let value = match result {
+            BuildTimeValue::UndeterminedNaN(format)
+                if matches!(
+                    (format, destination),
+                    (numerics::literals::FloatFormat::F32, PrimitiveType::F32)
+                        | (numerics::literals::FloatFormat::F64, PrimitiveType::F64)
+                ) =>
+            {
+                ScalarValue::UndeterminedNaN(format)
+            }
             BuildTimeValue::Bool(value) if destination == PrimitiveType::Bool => {
                 ScalarValue::Index(CanonicalConstValue::boolean(value))
             }
@@ -624,55 +647,56 @@ impl Invocation<'_> {
         };
         // Pair each evaluated operand expression with its declared carrier: a
         // `self` operator parameter is carried by the value receiver.
-        let operands: Vec<(ExpressionHandle, typed_trees::types::TypeReferenceHandle)> =
-            match target {
-                SelectedCall::Entry { entry, .. } => typed
+        let operands: Vec<(
+            bool,
+            ExpressionHandle,
+            typed_trees::types::TypeReferenceHandle,
+        )> = match target {
+            SelectedCall::Entry { entry, .. } => typed
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .copied()
+                .zip(
+                    typed
+                        .state_parameters(entry)
+                        .iter()
+                        .map(|parameter| parameter.type_reference),
+                )
+                .map(|(argument, carrier)| (false, argument, carrier))
+                .collect(),
+            SelectedCall::Operator(operator) => {
+                let mut operands = Vec::new();
+                let mut arguments = typed
                     .expression_table
                     .expression_handles(call.arguments)
                     .iter()
-                    .copied()
-                    .zip(
-                        typed
-                            .state_parameters(entry)
-                            .iter()
-                            .map(|parameter| parameter.type_reference),
-                    )
-                    .collect(),
-                SelectedCall::Operator(operator) => {
-                    let mut operands = Vec::new();
-                    let mut arguments = typed
-                        .expression_table
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .copied();
-                    for parameter in typed.operator_parameters(operator) {
-                        if parameter.is_self {
-                            if !call.receiver.is_valid() {
-                                return Err(
-                                    "constant operator call lost its receiver operand".into()
-                                );
-                            }
-                            operands.push((call.receiver, parameter.type_reference));
-                        } else {
-                            let argument = arguments.next().ok_or(
-                                "constant call argument count differs from its exact requirement",
-                            )?;
-                            operands.push((argument, parameter.type_reference));
+                    .copied();
+                for parameter in typed.operator_parameters(operator) {
+                    if parameter.is_self {
+                        if !call.receiver.is_valid() {
+                            return Err("constant operator call lost its receiver operand".into());
                         }
+                        operands.push((true, call.receiver, parameter.type_reference));
+                    } else {
+                        let argument = arguments.next().ok_or(
+                            "constant call argument count differs from its exact requirement",
+                        )?;
+                        operands.push((false, argument, parameter.type_reference));
                     }
-                    if arguments.next().is_some() {
-                        return Err(
-                            "constant call argument count differs from its exact requirement"
-                                .into(),
-                        );
-                    }
-                    operands
                 }
-            };
+                if arguments.next().is_some() {
+                    return Err(
+                        "constant call argument count differs from its exact requirement".into(),
+                    );
+                }
+                operands
+            }
+        };
         let mut arguments = Vec::new();
         let mut snapshots = Vec::new();
         let mut warnings = Vec::new();
-        for (argument, type_reference) in operands {
+        for (receiver, argument, type_reference) in operands {
             let destination = scalar_probe_destination(typed, type_reference)
                 .ok_or("constant call argument lost its exact carrier")?;
             let (value, argument_warnings) = value::evaluate_scalar(
@@ -684,9 +708,24 @@ impl Invocation<'_> {
                 Some(self),
             )?;
             if needs_concrete_discharge {
-                snapshots.push(scalar_snapshot(&value, destination)?);
+                // A payloadless NaN is an evaluable meaning, not a literal
+                // representation. Keep its selected computation in this
+                // disposable checking probe instead of manufacturing bits.
+                // Retaining the handle also retains authored selection custody;
+                // cloning just the root node would discard that metadata.
+                // The ordinary checker must still discharge every premise
+                // and failure route; successful evaluation is not evidence.
+                snapshots.push(ArgumentSnapshot {
+                    receiver,
+                    original: argument,
+                    literal: match &value {
+                        ScalarValue::UndeterminedNaN(_) => None,
+                        _ => Some(scalar_snapshot(&value, destination)?),
+                    },
+                });
             }
             arguments.push(match value {
+                ScalarValue::UndeterminedNaN(format) => BuildTimeValue::UndeterminedNaN(format),
                 ScalarValue::Float { format, bits } => BuildTimeValue::Float(match format {
                     numerics::literals::FloatFormat::F32 => f64::from(f32::from_bits(
                         u32::try_from(bits).map_err(|_| "invalid binary32 snapshot")?,
@@ -1010,6 +1049,9 @@ pub(super) struct LeafEvaluation {
 fn scalar_snapshot(value: &ScalarValue, carrier: PrimitiveType) -> Result<ExpressionNode, String> {
     use numerics::literals::{IntegerLanding, IntegerLiteral, IntegerRadix, LandedIntegerType};
     let value = match value {
+        ScalarValue::UndeterminedNaN(_) => {
+            return Err("concrete contract snapshot requires determined floating representation; NaN has no payload bits".into());
+        }
         ScalarValue::Index(value) => value,
         ScalarValue::Float { format, bits } => {
             let value = match (format, carrier) {

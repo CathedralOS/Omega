@@ -23,6 +23,8 @@ pub enum BuildTimeValue {
     Int(i64),
     Bool(bool),
     Float(f64),
+    /// Evaluation may transport this meaning, but cannot publish its bits.
+    UndeterminedNaN(numerics::literals::FloatFormat),
     /// Text/byte content (Omega text is bytes that are only Utf8 at domain
     /// boundaries).
     Text(Vec<u8>),
@@ -54,7 +56,12 @@ impl BuildTimeValue {
             Self::Array(elements) => elements.iter().try_fold(0u64, |count, value| {
                 count.checked_add(value.retained_cell_count()?)
             })?,
-            Self::Unit | Self::Int(_) | Self::Bool(_) | Self::Float(_) | Self::Text(_) => 0,
+            Self::Unit
+            | Self::Int(_)
+            | Self::Bool(_)
+            | Self::Float(_)
+            | Self::UndeterminedNaN(_)
+            | Self::Text(_) => 0,
         };
         children.checked_add(1)
     }
@@ -74,7 +81,11 @@ impl BuildTimeValue {
             Self::Array(elements) => elements.iter().try_fold(0u64, |count, value| {
                 count.checked_add(value.retained_text_byte_count()?)
             }),
-            Self::Unit | Self::Int(_) | Self::Bool(_) | Self::Float(_) => Some(0),
+            Self::Unit
+            | Self::Int(_)
+            | Self::Bool(_)
+            | Self::Float(_)
+            | Self::UndeterminedNaN(_) => Some(0),
         }
     }
 
@@ -90,6 +101,7 @@ impl BuildTimeValue {
             BuildTimeValue::Int(value) => Ok(Value::Int(value)),
             BuildTimeValue::Bool(value) => Ok(Value::Bool(value)),
             BuildTimeValue::Float(value) => Ok(Value::Float(value)),
+            BuildTimeValue::UndeterminedNaN(format) => Ok(Value::UndeterminedNaN(format)),
             BuildTimeValue::Text(bytes) => allocate_text(bytes),
             BuildTimeValue::Struct { type_name, fields } => {
                 let mut cells: BTreeMap<crate::value::ValueName, Cell> = BTreeMap::new();
@@ -137,6 +149,7 @@ impl BuildTimeValue {
             Value::Int(value) => BuildTimeValue::Int(*value),
             Value::Bool(value) => BuildTimeValue::Bool(*value),
             Value::Float(value) => BuildTimeValue::Float(*value),
+            Value::UndeterminedNaN(format) => BuildTimeValue::UndeterminedNaN(*format),
             Value::Str(bytes) => BuildTimeValue::Text(bytes.borrow().to_vec()),
             Value::Struct {
                 type_name, fields, ..

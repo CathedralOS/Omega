@@ -16,6 +16,73 @@ use crate::facts::crash_calls::{SummaryCrashBucket, normalize_summary_buckets};
 use crate::tests::front_end::{checked_program_result, typed_program};
 
 #[test]
+fn named_operator_summaries_retain_declared_and_nested_failure_routes() {
+    for (declaration, operand, expected) in [
+        (
+            "boundary operator Ns::observe(value: i32) -> bool;",
+            "value",
+            vec![],
+        ),
+        (
+            "boundary operator Ns::observe(value: i32) -> bool crashes Trap value == 0;",
+            "value",
+            vec![checked_trees::CrashCause::Trap],
+        ),
+        (
+            "boundary operator Ns::observe(value: i32) -> bool;",
+            "risky(value)",
+            vec![checked_trees::CrashCause::Trap],
+        ),
+    ] {
+        let source = format!(
+            "pub data Ns {{}} {declaration}
+            machine risky(value: i32) -> i32 crashes Trap value == 0 {{ value }}
+            machine helper(value: i32) -> bool {{ Ns::observe({operand}) }}
+            machine root(value: i32) -> bool crashes Trap {{ helper(value) }}"
+        );
+        let checked = checked_program_result(&source).expect("checked operator wrapper");
+        let helper = checked
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "helper")
+            .unwrap();
+        assert_eq!(
+            infer_checked_machine_crash_causes(&checked.typed, &checked.facts, helper.symbol,),
+            Some(expected),
+            "{source}"
+        );
+        let mut missing_selection = checked.facts.clone();
+        missing_selection.operators.named_uses = Default::default();
+        assert_eq!(
+            infer_checked_machine_crash_causes(&checked.typed, &missing_selection, helper.symbol,),
+            None,
+            "an unjoined named call cannot publish an empty summary"
+        );
+        if declaration.contains("crashes") {
+            let mut missing_crash_site = checked.facts.clone();
+            for plan in &mut missing_crash_site.contract_plans.machines {
+                if plan.machine == helper.symbol {
+                    plan.crash = plan
+                        .crash
+                        .clone()
+                        .with_checked_operators(Vec::new())
+                        .unwrap();
+                }
+            }
+            assert_eq!(
+                infer_checked_machine_crash_causes(
+                    &checked.typed,
+                    &missing_crash_site,
+                    helper.symbol,
+                ),
+                None,
+                "a declared crash route cannot disappear with its site"
+            );
+        }
+    }
+}
+
+#[test]
 fn scalar_builtin_computations_do_not_hide_a_private_call_summary() {
     let checked = checked_program_result(
         "machine capped(value: u16) -> i8 {

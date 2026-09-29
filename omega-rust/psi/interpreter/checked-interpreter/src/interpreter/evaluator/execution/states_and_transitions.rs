@@ -16,6 +16,7 @@ impl<'program> Evaluator<'program> {
             operator_facts: None,
             boundary_adapter_dispatch: &[],
             selected_build_time_operators: &[],
+            semantic_float_evaluation: false,
             stdout: Vec::new(),
             stderr: Vec::new(),
             build_log: Vec::new(),
@@ -110,6 +111,7 @@ impl<'program> Evaluator<'program> {
         debug_assert_eq!(self.cell_meter.peak(), 0);
         debug_assert_eq!(self.text_byte_meter.peak(), 0);
         self.step_budget = fuel_ceiling;
+        self.semantic_float_evaluation = true;
         self.usage.set_fuel_ceiling(fuel_ceiling);
         self.cell_meter = CellMeter::new(sponsor.clone());
         self.text_byte_meter = TextByteMeter::new(sponsor.clone());
@@ -1115,7 +1117,9 @@ impl<'program> Evaluator<'program> {
                         .arithmetic_domain_for_type_reference(parameter.type_reference);
                     scalar = Some((primitive, domain));
                     let scalar = match &*cell.borrow() {
-                        v @ (Value::Int(_) | Value::Float(_)) => Some(v.clone()),
+                        v @ (Value::Int(_) | Value::Float(_) | Value::UndeterminedNaN(_)) => {
+                            Some(v.clone())
+                        }
                         _ => None,
                     };
                     match scalar {
@@ -1147,7 +1151,11 @@ impl<'program> Evaluator<'program> {
 /// referent, so either keeps per-element derivation.
 fn default_copies_by_cells(value: &Value) -> bool {
     match value {
-        Value::Unit | Value::Int(_) | Value::Bool(_) | Value::Float(_) => true,
+        Value::Unit
+        | Value::Int(_)
+        | Value::Bool(_)
+        | Value::Float(_)
+        | Value::UndeterminedNaN(_) => true,
         Value::Str(_) | Value::Ref(_) => false,
         Value::Struct { fields, .. } => fields
             .values()

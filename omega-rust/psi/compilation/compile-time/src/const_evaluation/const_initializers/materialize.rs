@@ -64,6 +64,14 @@ pub(super) fn literal(
                 )
             {
                 match (primitive, value) {
+                    (
+                        PrimitiveType::F32 | PrimitiveType::F64,
+                        BuildTimeValue::UndeterminedNaN(_),
+                    ) => {
+                        return Err(
+                            "constant result is NaN without an exact raw-NaN realization".into(),
+                        );
+                    }
                     (PrimitiveType::Bool, BuildTimeValue::Bool(value)) => {
                         ExpressionNode::Boolean(*value)
                     }
@@ -302,6 +310,10 @@ pub(super) fn canonical_value(
                 )
             {
                 match (primitive, value) {
+                    (
+                        PrimitiveType::F32 | PrimitiveType::F64,
+                        BuildTimeValue::UndeterminedNaN(_),
+                    ) => Err("constant result is NaN without an exact raw-NaN realization".into()),
                     (PrimitiveType::Bool, BuildTimeValue::Bool(value)) => {
                         Ok(DecodedCanonicalConstValue::Boolean(*value))
                     }

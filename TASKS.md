@@ -4777,58 +4777,38 @@ not wait for Cathedral's instruction coverage. Interpreter paths below are under
   remain unsupported. **ADDRESS-EXPOSURE** owns inert address observation;
   **COMPONENT-SUBSTRATE** owns component closure and stable-slot replacement.
 
-- **FLOAT-IDENTITY-LITERAL-CARRIER.** Complete named floating constant calls
-  and payloadless-NaN evaluation under [constant materialization](wiki/spec/language/constants.md#materialization)
+- **FLOAT-IDENTITY-LITERAL-CARRIER.** Defer representation demand for named
+  semantic constants under [constant materialization](wiki/spec/language/constants.md#materialization)
   and [invocation admission](wiki/spec/language/evaluation.md#invocation-admission).
-  Reuse the existing arithmetic/comparison, public/imported identity and
-  ordinary-machine result paths; preserve one-time format landing.
+  A named NaN used only by further compile-time evaluation must not require
+  payload bits merely because it has a declaration. `const_initializers.rs`
+  still encodes each scalar declaration eagerly; separate semantic declaration
+  values from demanded representation and independently replay both judgments.
 
-  Connect `pub const ROOT: f32 = F32::square_root(4.0f32);` and classification,
-  conversion, directed-rounding and fused-operation customers to exact selected
-  execution and replay. Current gates span `symbols/targets/calls.rs`'s
-  Data-receiver lookup, which only tries attached machines;
-  `constant/initializer_dependencies.rs` and
-  `const_generic_expressions/call_custody.rs`, which require Machine/State
-  targets; and `const_initializers/invocations.rs::selected`, which requires
-  a closed ordinary entry. Reconcile initializer dependency discovery with
-  the existing typed/checked call selection rather than inventing a second
-  resolver. One family symbol is not an exact overload: keep
-  `ambiguous_named_operator_call_does_not_manufacture_early_identity` and the
-  authored occurrence/declaration join.
+  The direct named-call and intermediate-value route now works (candidate based
+  on `7b8934962b4`, macOS ARM64):
+  `python3 tools/corpus_gate.py --native --filter float/named_constant_materialization_exit`
+  builds and exits 70. The std-importing program evaluates f32/f64 roots and
+  classifies payloadless NaN directly and through an ordinary helper. Scalar
+  evaluation and the hermetic interpreter preserve NaN meaning; exact checked
+  named-operator occurrences compose into private crash summaries. The focused
+  tests retain false-premise, raw-bit-demand and forged-receipt rejection.
 
-  Reuse `closure_needs_operator_selection` and the checked interpreter's
-  `FloatSemantics` execution, including selected intrinsic rewrites. A catalog
-  identity or matching spelling alone does not admit a boundary provider;
-  preserve selected-body, argument, contract and package authority before
-  execution. `const_lengths/tests.rs` already checks named provider-body
-  evaluation/replay and rejects unselected fallback. Extend this machinery to
-  initializer calls without another float engine or name-dispatch table.
-  **FLOAT-PROVIDERS** owns bodyless contract discharge;
-  **PROVIDER-SELECTION-AFTER-TERMINAL** owns agreement of const selections
-  across realized targets.
+  The CLI command `omega run tests/omega/pass/float/named_constant_materialization_exit/main.omg`
+  on the candidate rebased onto `14d18c2aae` stops with exit 200 awaiting fresh
+  project package-review decisions. Those permissions have not been accepted;
+  the verified native corpus execution does not establish CLI package-admission
+  closure. Complete the project review with owner approval before that run.
 
-  Carry undetermined NaN meaning through admitted proof/compile-time uses
-  without demanding runtime bits. `const_generic_expressions/value.rs`,
-  `const_initializers/invocations.rs` and `materialize.rs` currently reject it
-  at their value boundaries. Materialization still requires canonicalization,
-  explicit bits or an exact selected realization; never publish the evaluator's
-  arbitrary payload or add literal syntax to evade that requirement.
-
-  Acceptance: source-authored f32/f64 customers evaluate and independently
-  replay, then publish determined bits matching runtime behavior. Preserve
-  signed zero, format, imported-alias and aggregate/call-result custody;
-  `noncall_float_replay.rs` and `tests/floating_aggregates.rs` reject altered
-  results, encodings, formats and erased computation, including coordinated
-  forged NaN receipts. Proof-only NaN use must succeed while undetermined
-  runtime representation and forged selection still reject. Existing
-  `float/build_runtime_semantics_twins_*` exercise array-length calls, not the
-  direct named initializer; retain parity without treating them as its acceptance.
-
-  Recheck the std-importing constant-call customer through current canonical
-  target-family selection. Its historical whole-closure refusal at
-  `ConsoleNativeProvider::read_line`/`read_byte` is a lead for
-  **FILTERED-CALLEE-CALL-SITES**, not a permanent no-std restriction. Use a
-  reduced fixture to isolate admission, then close the imported customer.
+  Next acceptance: a separate named `const NAN: f32` feeds classification or
+  proof without requesting its runtime representation; the determined Boolean
+  result runs, while requesting NAN's runtime bytes still rejects. Preserve
+  selected-body and package authority, imported identity, one-time format
+  landing, signed zero, aggregate custody and independent replay. Never publish
+  an arbitrary evaluator payload or invent NaN literal syntax. Keep the native
+  named-call witness and `noncall_float_replay.rs`/`floating_aggregates.rs`
+  rejection controls. **FLOAT-PROVIDERS** owns bodyless contract discharge;
+  **PROVIDER-SELECTION-AFTER-TERMINAL** owns cross-target selection agreement.
 
 - **X86-FMA-PROVIDER-TRANSPORT.** Connect selected x86 FMA plans to exact
   Terminal occurrences, then ordinary target lowering, instruction selection,

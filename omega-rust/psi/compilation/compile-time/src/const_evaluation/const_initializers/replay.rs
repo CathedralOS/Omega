@@ -427,7 +427,7 @@ fn validate_anonymous_float(
         let bits = float_literal_bits(typed, original, format)?;
         if float_literal_bits(typed, materialized, format)? != bits
             || declaration.canonical_value_encoding.as_deref()
-                != Some(ScalarValue::Float { format, bits }.encoding().as_str())
+                != Some(ScalarValue::Float { format, bits }.encoding()?.as_str())
         {
             return Err("floating constant literal bits or result encoding drifted".into());
         }
@@ -593,7 +593,7 @@ fn validate_anonymous_float(
         FloatFormat::F64 => literal.value_f64().to_bits(),
     };
     if materialized_bits != *bits
-        || declaration.canonical_value_encoding.as_deref() != Some(evaluated.encoding().as_str())
+        || declaration.canonical_value_encoding.as_deref() != Some(evaluated.encoding()?.as_str())
     {
         return Err(
             "floating constant computation, materialized bits, or result encoding drifted".into(),
@@ -705,7 +705,7 @@ fn validate_dependency_values(
                 if !matches!(
                     value,
                     crate::const_evaluation::const_generic_expressions::value::ScalarValue::Float { .. }
-                ) || value.encoding() != expected
+                ) || value.encoding()? != expected
                 {
                     return Err(
                         "floating constant dependency or its substituted use drifted".into(),
@@ -1121,7 +1121,7 @@ fn decode_scalar(
 ) -> Result<DecodedCanonicalConstValue, String> {
     CanonicalConstIdentity {
         type_name: String::new(),
-        encoding: value.encoding(),
+        encoding: value.encoding()?,
     }
     .decode_declaration_encoding()
     .ok_or_else(|| "constant declaration has an invalid scalar value".to_owned())

@@ -61,8 +61,8 @@ impl Evaluator<'_> {
                     // cannot erase the source's selected floating comparison.
                     let value = if selected_float
                         || matches!(destination, Some(PrimitiveType::F32 | PrimitiveType::F64))
-                        || matches!(subject, Value::Float(_))
-                        || matches!(pattern, Value::Float(_))
+                        || subject.is_float()
+                        || pattern.is_float()
                     {
                         self.eval_selected_match_equality(
                             expression,
@@ -132,13 +132,13 @@ impl Evaluator<'_> {
         if destination.is_some_and(|destination| destination != primitive) {
             return Err(missing());
         }
-        let (Value::Float(subject), Value::Float(pattern)) = (subject, pattern) else {
+        if !subject.is_float() || !pattern.is_float() {
             return Err(missing());
-        };
+        }
         self.eval_float_binary(
             BinaryOperator::Equal,
-            *subject,
-            *pattern,
+            subject,
+            pattern,
             Some((primitive, ArithmeticDomain::Exact)),
             None,
         )

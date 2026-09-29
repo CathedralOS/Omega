@@ -471,6 +471,11 @@ pub(super) fn validate_value(
     }
     if let Some(primitive) = typed.primitive_type_reference(type_reference) {
         return match (primitive, value) {
+            (PrimitiveType::F32 | PrimitiveType::F64, BuildTimeValue::UndeterminedNaN(_)) => {
+                Err(MaterializationDiagnostic(format!(
+                    "{path} is NaN without an exact raw-NaN realization"
+                )))
+            }
             (PrimitiveType::Bool, BuildTimeValue::Bool(_)) => Ok(()),
             (
                 PrimitiveType::I8
@@ -592,7 +597,7 @@ pub(super) fn value_kind(value: &BuildTimeValue) -> &'static str {
         BuildTimeValue::Unit => "Unit",
         BuildTimeValue::Int(_) => "integer",
         BuildTimeValue::Bool(_) => "Boolean",
-        BuildTimeValue::Float(_) => "float",
+        BuildTimeValue::Float(_) | BuildTimeValue::UndeterminedNaN(_) => "float",
         BuildTimeValue::Text(_) => "Text",
         BuildTimeValue::Struct { .. } => "record",
         BuildTimeValue::Case { .. } => "sum case",
@@ -640,6 +645,12 @@ pub(super) fn hash_value(hash: &mut u64, value: &BuildTimeValue) {
         BuildTimeValue::Float(value) => {
             hash_byte(hash, 3);
             hash_u64(hash, value.to_bits());
+        }
+        BuildTimeValue::UndeterminedNaN(format) => {
+            // A report fingerprint may describe semantic input, but cannot
+            // confer the representation that materialization still requires.
+            hash_byte(hash, 8);
+            hash_text(hash, format.name());
         }
         BuildTimeValue::Text(bytes) => {
             hash_byte(hash, 4);

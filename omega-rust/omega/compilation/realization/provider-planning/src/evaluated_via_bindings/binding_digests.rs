@@ -181,6 +181,12 @@ fn encode_value(hash: &mut Sha256, value: &BuildTimeValue) {
             hash.update([3]);
             hash.update(value.to_bits().to_le_bytes());
         }
+        BuildTimeValue::UndeterminedNaN(format) => {
+            // Commit the semantic input without inventing a runtime payload.
+            // The separate materialization judgment still requires bits.
+            hash.update([8]);
+            hash_field(hash, format.name().as_bytes());
+        }
         BuildTimeValue::Text(bytes) => {
             hash.update([4]);
             hash_field(hash, bytes);

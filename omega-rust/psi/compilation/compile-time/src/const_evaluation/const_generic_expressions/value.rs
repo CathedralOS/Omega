@@ -39,6 +39,13 @@
 //! arithmetic without cloning the program or prematurely landing inner arms.
 //! All-arm bounds that need additional proofs reject instead of enumerating
 //! independent branch combinations or executing skipped landed expressions.
+//!
+//! Floating intermediates need meaning, not necessarily representation bits.
+//! Calls and arithmetic retain a payloadless NaN until a comparison or other
+//! semantic consumer produces its result. Encoding a declaration is a separate
+//! materialization boundary: it rejects that NaN rather than publishing the
+//! evaluator's arbitrary payload. Format, operator selection and argument
+//! admission remain attached to every operation throughout evaluation.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{
@@ -125,26 +132,33 @@ enum Value {
     Anonymous(ExpressionHandle),
     Boolean(bool),
     Float(FloatFormat, u64),
+    UndeterminedNaN(FloatFormat),
     Landed(LandedIntegerType, IntegerValue, ArithmeticDomain),
 }
 
-/// Declaration values and generic indices have different eligibility. Floating
-/// bits can be materialized, but must never acquire a canonical index atom.
+/// Semantic intermediates, materialized declarations and generic indices have
+/// different eligibility. A payloadless NaN can be consumed without encoding;
+/// determined floating bits can be emitted but are never canonical index atoms.
 pub(crate) enum ScalarValue {
     Index(CanonicalConstValue),
-    Float { format: FloatFormat, bits: u64 },
+    Float {
+        format: FloatFormat,
+        bits: u64,
+    },
+    /// Semantic evaluation knows the class and format, but no payload bits.
+    UndeterminedNaN(FloatFormat),
 }
 
 impl ScalarValue {
     pub(crate) fn type_name(&self) -> &str {
         match self {
             Self::Index(value) => &value.type_name,
-            Self::Float { format, .. } => format.name(),
+            Self::Float { format, .. } | Self::UndeterminedNaN(format) => format.name(),
         }
     }
 
-    pub(crate) fn encoding(&self) -> String {
-        match self {
+    pub(crate) fn encoding(&self) -> Result<String, String> {
+        Ok(match self {
             Self::Index(value) => value.encoding.clone(),
             Self::Float {
                 format: FloatFormat::F32,
@@ -154,13 +168,16 @@ impl ScalarValue {
                 format: FloatFormat::F64,
                 bits,
             } => format!("float:f64:{bits:016x}"),
-        }
+            Self::UndeterminedNaN(_) => {
+                return Err("constant result is NaN without an exact raw-NaN realization".into());
+            }
+        })
     }
 
     pub(crate) fn into_index(self) -> Result<CanonicalConstValue, String> {
         match self {
             Self::Index(value) => Ok(value),
-            Self::Float { .. } => {
+            Self::Float { .. } | Self::UndeterminedNaN(_) => {
                 Err("floating declaration values are not canonical indices".into())
             }
         }
@@ -278,6 +295,9 @@ fn evaluate_scalar_in(
     if let Value::Float(format, bits) = value {
         return Ok((ScalarValue::Float { format, bits }, warnings));
     }
+    if let Value::UndeterminedNaN(format) = value {
+        return Ok((ScalarValue::UndeterminedNaN(format), warnings));
+    }
     if let Value::Boolean(value) = value {
         return Ok((
             ScalarValue::Index(CanonicalConstValue::boolean(value)),
@@ -388,6 +408,11 @@ fn evaluate_expression(
                                 if matches!(shape, Shape::Float(expected) if expected == format) =>
                             {
                                 Value::Float(format, bits)
+                            }
+                            ScalarValue::UndeterminedNaN(format)
+                                if matches!(shape, Shape::Float(expected) if expected == format) =>
+                            {
+                                Value::UndeterminedNaN(format)
                             }
                             _ => return Err("constant call result differs from its validated scalar carrier".into()),
                         });
@@ -718,23 +743,21 @@ fn evaluate_expression(
                             Value::Landed(carrier, right, policy),
                         )?
                     }
-                    (Value::Float(format, left), Value::Anonymous(right)) => {
+                    (
+                        left @ (Value::Float(format, _) | Value::UndeterminedNaN(format)),
+                        Value::Anonymous(right),
+                    ) => {
                         let right =
                             land_anonymous_float(program, context, right, format, &selected_arms)?;
-                        apply(
-                            operator,
-                            Value::Float(format, left),
-                            Value::Float(format, right),
-                        )?
+                        apply(operator, left, Value::Float(format, right))?
                     }
-                    (Value::Anonymous(left), Value::Float(format, right)) => {
+                    (
+                        Value::Anonymous(left),
+                        right @ (Value::Float(format, _) | Value::UndeterminedNaN(format)),
+                    ) => {
                         let left =
                             land_anonymous_float(program, context, left, format, &selected_arms)?;
-                        apply(
-                            operator,
-                            Value::Float(format, left),
-                            Value::Float(format, right),
-                        )?
+                        apply(operator, Value::Float(format, left), right)?
                     }
                     (left, right) => apply(operator, left, right)?,
                 };
@@ -1321,14 +1344,14 @@ fn land_anonymous_float(
 
 /// Landed operands decode to exact meanings and re-encode through the shared
 /// `FloatSemantics` provider so constant and runtime arithmetic keep one
-/// definition. A NaN result carries no authored payload bits, so it cannot
-/// materialize as declaration identity and must reject here.
+/// definition. A NaN result retains its meaning without inventing payload bits;
+/// only the later declaration encoding/materialization boundary rejects it.
 fn float_apply(
     operator: BinaryOperator,
     left_format: FloatFormat,
-    left: u64,
+    left: FloatMeaning,
     right_format: FloatFormat,
-    right: u64,
+    right: FloatMeaning,
 ) -> Result<Value, String> {
     if left_format != right_format {
         return Err("constant float operands have incompatible landed formats".into());
@@ -1337,8 +1360,6 @@ fn float_apply(
         FloatFormat::F32 => SemanticFloatFormat::BINARY32,
         FloatFormat::F64 => SemanticFloatFormat::BINARY64,
     };
-    let left = float_meaning(left_format, left);
-    let right = float_meaning(right_format, right);
     match operator {
         BinaryOperator::Equal => {
             return Ok(Value::Boolean(FloatSemantics::equal(&left, &right)));
@@ -1370,9 +1391,7 @@ fn float_apply(
         _ => return Err("unsupported builtin floating constant operator".into()),
     };
     if meaning.is_nan() {
-        return Err(
-            "floating constant operation produced NaN without explicit representation bits".into(),
-        );
+        return Ok(Value::UndeterminedNaN(left_format));
     }
     Ok(Value::Float(left_format, float_bits(left_format, &meaning)))
 }
@@ -1381,6 +1400,14 @@ fn float_meaning(format: FloatFormat, bits: u64) -> FloatMeaning {
     match format {
         FloatFormat::F32 => FloatMeaning::from_f32(f32::from_bits(bits as u32)),
         FloatFormat::F64 => FloatMeaning::from_f64(f64::from_bits(bits)),
+    }
+}
+
+fn floating_meaning(value: Value) -> Option<(FloatFormat, FloatMeaning)> {
+    match value {
+        Value::Float(format, bits) => Some((format, float_meaning(format, bits))),
+        Value::UndeterminedNaN(format) => Some((format, FloatMeaning::NaN)),
+        _ => None,
     }
 }
 
@@ -1411,7 +1438,9 @@ fn apply(operator: BinaryOperator, left: Value, right: Value) -> Result<Value, S
             _ => Err("unsupported builtin Boolean constant operator".into()),
         };
     }
-    if let (Value::Float(left_format, left), Value::Float(right_format, right)) = (left, right) {
+    if let (Some((left_format, left)), Some((right_format, right))) =
+        (floating_meaning(left), floating_meaning(right))
+    {
         return float_apply(operator, left_format, left, right_format, right);
     }
     let (
@@ -1688,7 +1717,7 @@ pub(crate) fn evaluate_integer_endpoint(
                 }),
             )
         }
-        Value::Boolean(_) | Value::Float(_, _) => {
+        Value::Boolean(_) | Value::Float(_, _) | Value::UndeterminedNaN(_) => {
             return Err("range endpoint position requires an exact builtin integer carrier".into());
         }
     };
@@ -1724,7 +1753,7 @@ pub(crate) fn evaluate_closed_const_argument(
     )?;
     match value {
         ScalarValue::Index(canonical) => Ok((canonical, warnings)),
-        ScalarValue::Float { .. } => {
+        ScalarValue::Float { .. } | ScalarValue::UndeterminedNaN(_) => {
             Err("const application needs an exact integer or Boolean carrier".into())
         }
     }

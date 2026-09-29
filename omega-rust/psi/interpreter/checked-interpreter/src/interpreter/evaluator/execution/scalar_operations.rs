@@ -2,7 +2,7 @@ use crate::interpreter::evaluator::{
     ArithmeticDomain, BinaryOperator, Cell, DataDefinition, DataMember, EvalResult, Evaluator,
     ExpressionHandle, FloatMeaning, FloatPolicyTrap, FloatSemantics, Frame, Halt, PrimitiveType,
     SemanticFloatFormat, SymbolHandle, UnaryOperator, Value, integer_bounds, primitive_bit_width,
-    primitive_is_unsigned64, project_landed_float, trap, unsupported, wrap_to_width,
+    primitive_is_unsigned64, trap, unsupported, wrap_to_width,
 };
 use symbols::BuiltinFunction;
 #[cfg(test)]
@@ -83,10 +83,11 @@ impl<'program> Evaluator<'program> {
             });
         let mut operands = Vec::with_capacity(3);
         for operand in arguments {
-            let Value::Float(value) = self.eval_expression(*operand, frame)? else {
+            let value = self.eval_expression(*operand, frame)?;
+            if !value.is_float() {
                 return unsupported("selected ternary float operand is not a float");
-            };
-            operands.push(project_landed_float(format, value));
+            }
+            operands.push(self.float_operand(&value, format)?);
         }
         let meaning = match intrinsic {
             "float#multiply_then_add_f32" | "float#multiply_then_add_f64" => {
@@ -145,7 +146,7 @@ impl<'program> Evaluator<'program> {
                 })?,
             Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
         };
-        Ok(Value::Float(meaning.to_interpreter_value(format)))
+        Ok(self.semantic_float_result(meaning, format))
     }
 
     /// Execute an unnameable one-step directed binary operation selected by an exact
@@ -170,10 +171,11 @@ impl<'program> Evaluator<'program> {
             });
         let mut operands = Vec::with_capacity(2);
         for operand in arguments {
-            let Value::Float(value) = self.eval_expression(*operand, frame)? else {
+            let value = self.eval_expression(*operand, frame)?;
+            if !value.is_float() {
                 return unsupported("selected directed-float operand is not a float");
-            };
-            operands.push(project_landed_float(format, value));
+            }
+            operands.push(self.float_operand(&value, format)?);
         }
         let operation = intrinsic
             .strip_prefix("float#")
@@ -243,7 +245,7 @@ impl<'program> Evaluator<'program> {
                 })?,
             Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
         };
-        Ok(Value::Float(meaning.to_interpreter_value(format)))
+        Ok(self.semantic_float_result(meaning, format))
     }
 
     /// Execute an unnameable one-step directed square root selected by an exact
@@ -256,10 +258,11 @@ impl<'program> Evaluator<'program> {
         frame: &mut Frame,
     ) -> EvalResult<Value> {
         let scalar_type = self.expression_scalar_type(arguments[0], frame);
-        let Value::Float(value) = self.eval_expression(arguments[0], frame)? else {
+        let value = self.eval_expression(arguments[0], frame)?;
+        if !value.is_float() {
             return unsupported("selected directed square-root operand is not a float");
-        };
-        let operand = project_landed_float(format, value);
+        }
+        let operand = self.float_operand(&value, format)?;
         let meaning = if intrinsic.contains("toward_zero") {
             FloatSemantics::square_root_toward_zero(format, &operand)
         } else if intrinsic.contains("toward_positive") {
@@ -285,7 +288,7 @@ impl<'program> Evaluator<'program> {
                 })?,
             Some(ArithmeticDomain::Exact | ArithmeticDomain::Wrapping) | None => meaning,
         };
-        Ok(Value::Float(meaning.to_interpreter_value(format)))
+        Ok(self.semantic_float_result(meaning, format))
     }
 
     /// Runtime integers use i64 storage even for u64. Decode each value with
@@ -384,14 +387,14 @@ impl<'program> Evaluator<'program> {
         }
 
         // Float arithmetic / comparison if either operand is float.
-        if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
-            let l = left
-                .as_float()
-                .ok_or_else(|| Halt::Trap("non-numeric float operand".to_owned()))?;
-            let r = right
-                .as_float()
-                .ok_or_else(|| Halt::Trap("non-numeric float operand".to_owned()))?;
-            return self.eval_float_binary(operator, l, r, scalar_type, named_float_operation);
+        if left.is_float() || right.is_float() {
+            return self.eval_float_binary(
+                operator,
+                &left,
+                &right,
+                scalar_type,
+                named_float_operation,
+            );
         }
 
         // Integer arithmetic / comparison. A payload-free CASE operand
@@ -652,8 +655,8 @@ impl<'program> Evaluator<'program> {
     pub(in crate::interpreter::evaluator) fn eval_float_binary(
         &self,
         operator: BinaryOperator,
-        l: f64,
-        r: f64,
+        left: &Value,
+        right: &Value,
         scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
         named_float_operation: Option<&str>,
     ) -> EvalResult<Value> {
@@ -667,9 +670,8 @@ impl<'program> Evaluator<'program> {
         } else {
             SemanticFloatFormat::BINARY64
         };
-        let decode = |value: f64| project_landed_float(format, value);
-        let left = decode(l);
-        let right = decode(r);
+        let left = self.float_operand(left, format)?;
+        let right = self.float_operand(right, format)?;
         // F7 policy adapters (float brief §8): SATURATING clamps MAGNITUDE
         // OVERFLOW only; division by zero, invalid results, and non-finite
         // propagation remain non-finite. TRAPPING is result-checked, so a
@@ -720,8 +722,7 @@ impl<'program> Evaluator<'program> {
                 }
                 _ => meaning,
             };
-            let landed = meaning.to_interpreter_value(format);
-            Ok(Value::Float(landed))
+            Ok(self.semantic_float_result(meaning, format))
         };
         Ok(match operator {
             Add => return arith(FloatSemantics::add(format, &left, &right), false),
@@ -753,12 +754,12 @@ impl<'program> Evaluator<'program> {
         unsigned: bool,
     ) -> EvalResult<Value> {
         let pick_max = builtin == BuiltinFunction::Max;
-        if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
-            let l = left
-                .as_float()
+        if left.is_float() || right.is_float() {
+            let left_meaning = left
+                .float_meaning()
                 .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
-            let r = right
-                .as_float()
+            let right_meaning = right
+                .float_meaning()
                 .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
             // Match the native SSE semantics exactly: `maxsd a, b` returns b
             // when the values are unordered (any NaN) or equal, and the larger
@@ -766,8 +767,6 @@ impl<'program> Evaluator<'program> {
             // false for NaN). `minsd` is the mirror. Rust's `f64::max`/`min`
             // differ (they return the non-NaN operand), which would diverge
             // from the backend on a NaN second operand.
-            let left_meaning = FloatMeaning::from_f64(l);
-            let right_meaning = FloatMeaning::from_f64(r);
             let pick_left = if pick_max {
                 FloatSemantics::greater(&left_meaning, &right_meaning)
             } else {
@@ -775,7 +774,11 @@ impl<'program> Evaluator<'program> {
             };
             // Preserve the selected runtime operand's honest NaN bits even
             // though the base FloatMeaning contract erases their payload.
-            return Ok(Value::Float(if pick_left { l } else { r }));
+            let selected = if pick_left { left } else { right };
+            return Ok(match selected {
+                Value::Int(value) => Value::Float(value as f64),
+                value => value,
+            });
         }
         let l = left
             .as_int()
@@ -865,12 +868,11 @@ impl<'program> Evaluator<'program> {
             }
             (Value::Bool(a), Value::Bool(b)) => a == b,
             _ => {
-                if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
-                    let (Some(left), Some(right)) = (left.as_float(), right.as_float()) else {
+                if left.is_float() || right.is_float() {
+                    let (Some(left), Some(right)) = (left.float_meaning(), right.float_meaning())
+                    else {
                         return unsupported("equality has a non-numeric floating-point operand");
                     };
-                    let left = FloatMeaning::from_f64(left);
-                    let right = FloatMeaning::from_f64(right);
                     FloatSemantics::equal(&left, &right)
                 } else {
                     let (Some(left), Some(right)) = (left.as_int(), right.as_int()) else {
