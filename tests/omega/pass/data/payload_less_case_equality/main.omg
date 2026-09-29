@@ -18,9 +18,8 @@ CommandEquatable: Command satisfies Equatable;
 
 data Main {
     cmd: Command;
-    hit: bool;
 }
 
 machine Main::main(&mut self) {
-    self.hit = self.cmd == Command::None;
+    let mut hit: bool = self.cmd == Command::None;
 }

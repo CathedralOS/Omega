@@ -1,5 +1,5 @@
 // R5 default-domain frame: the predecessor proves an exact valuation for
-// self.pair. A known sibling call writes only self.other, so the transported
+// self.pair. A known sibling call writes only other, so the transported
 // right == 20 witness survives and proves that left = 15 restores left <= right.
 data Pair
 where
@@ -11,7 +11,6 @@ where
 
 data Main {
     pair: Pair;
-    other: i32;
 }
 
 machine Main::main(&mut self) {
@@ -25,5 +24,5 @@ machine Main::main(&mut self) {
 }
 
 machine Main::touch_other(&mut self) {
-    self.other = 1;
+    let mut other: i32 = 1;
 }

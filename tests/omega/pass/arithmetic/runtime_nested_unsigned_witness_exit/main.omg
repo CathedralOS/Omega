@@ -15,7 +15,6 @@ data Main {
     console: Binding<Console>;
     a: u32;
     b: u32;
-    z: u32;
     // Wrapping landing + S2-retagged ADD below: the Exact prover does not
     // model %-result ranges, and div/mod themselves carry no overflow
     // obligation -- the retag confines the proof question to the add while
@@ -54,8 +53,8 @@ machine Main::main(&mut self) reaches Console {
         // The S2 retags make the ADD Wrapping (defined overflow, no proof
         // obligation); the nested div/mod inside the left retag remain the
         // direction's subject.
-        self.z = 5;
-        transition self.z < 10 { true -> write_go(self.z) _ -> bad5() }
+        let mut z: u32 = 5;
+        transition z < 10 { true -> write_go(z) _ -> bad5() }
     }
     state write_go(&mut self, zz: u32)
     requires

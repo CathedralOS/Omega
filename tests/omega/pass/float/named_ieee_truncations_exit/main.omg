@@ -24,7 +24,6 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    huge64: f64;
     negative_huge64: f64;
     fraction64: f64;
     enormous64: f64;
@@ -47,7 +46,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.huge64 = 3000000000.0;
+    let mut huge64: f64 = 3000000000.0;
     self.negative_huge64 = -3000000000.0;
     self.fraction64 = -1234.9;
     self.enormous64 = 10000000000000000000.0;
@@ -67,7 +66,7 @@ machine Main::main(&mut self) reaches Console {
     self.negative_million32 = -1000000.0f32;
     self.three_hundred64 = 300.0;
     self.seventy_thousand32 = 70000.0f32;
-    let value: i32 in Saturating = I32::from_f64(self.huge64);
+    let value: i32 in Saturating = I32::from_f64(huge64);
     transition value == 2147483647 {
         true -> i32_below()
         _ -> fail(71)

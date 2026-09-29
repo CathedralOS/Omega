@@ -24,7 +24,6 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    negative_seven: i32;
     exact_i32: i32;
     tie_i32: i32;
     tie_i64: i64;
@@ -44,7 +43,7 @@ data Main {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.negative_seven = -7;
+    let mut negative_seven: i32 = -7;
     self.exact_i32 = 16777217;
     self.tie_i32 = 16777219;
     self.tie_i64 = 9007199254740995;
@@ -61,7 +60,7 @@ machine Main::main(&mut self) reaches Console {
     self.negative_i16 = -30000;
     self.large_u8 = 250;
     self.large_u16 = 65000;
-    let converted: f64 = F64::from_i32(self.negative_seven);
+    let converted: f64 = F64::from_i32(negative_seven);
     transition converted == -7.0 {
         true -> exact_i32_64()
         _ -> fail(71)

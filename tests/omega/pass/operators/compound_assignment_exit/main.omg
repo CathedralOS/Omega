@@ -1,6 +1,6 @@
 // Compound assignment operators (`+=`, `-=`, `*=`, `/=`, `%=`), each desugaring
 // to `x = x OP y`. Chaining them in one state also exercises the static-value
-// invalidation fix: every later read of `self.v` must observe the prior write,
+// invalidation fix: every later read of `v` must observe the prior write,
 // not the stale entry-value constant fold.
 
 use omega_language_std::console;
@@ -8,18 +8,17 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    v: i32;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.v = 10;
-    self.v += 5; // 15
-    self.v -= 3; // 12
-    self.v *= 2; // 24
-    self.v /= 4; // 6
-    self.v %= 4; // 2
+    let mut v: i32 = 10;
+    v += 5; // 15
+    v -= 3; // 12
+    v *= 2; // 24
+    v /= 4; // 6
+    v %= 4; // 2
 
-    transition self.v == 2 {
+    transition v == 2 {
         true -> good()
         false -> bad()
     }

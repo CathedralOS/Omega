@@ -8,58 +8,40 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    one32: f32;
-    three32: f32;
-    lower32: f32;
-    upper32: f32;
-    negative_upper32: f32;
-    positive32: f32;
-    zero32: f32;
-    negative32: f32;
-    ordinary32: f32;
-    one64: f64;
-    three64: f64;
-    lower64: f64;
-    upper64: f64;
-    negative_upper64: f64;
-    positive64: f64;
-    zero64: f64;
-    negative64: f64;
-    ordinary64: f64;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.one32 = 1.0f32;
-    self.three32 = 3.0f32;
-    self.lower32 = 0.333333313465118408203125f32;
-    self.upper32 = 0.3333333432674407958984375f32;
-    self.negative_upper32 = 0.0f32 - self.upper32;
-    self.positive32 = F32::divide_toward_positive(self.one32, self.three32);
-    self.zero32 = F32::divide_toward_zero(self.one32, self.three32);
-    self.negative32 = F32::divide_toward_negative(
-        0.0f32 - self.one32,
-        self.three32
+    let mut one32: f32 = 1.0f32;
+    let mut three32: f32 = 3.0f32;
+    let mut lower32: f32 = 0.333333313465118408203125f32;
+    let mut upper32: f32 = 0.3333333432674407958984375f32;
+    let mut negative_upper32: f32 = 0.0f32 - upper32;
+    let mut positive32: f32 = F32::divide_toward_positive(one32, three32);
+    let mut zero32: f32 = F32::divide_toward_zero(one32, three32);
+    let mut negative32: f32 = F32::divide_toward_negative(
+        0.0f32 - one32,
+        three32
     );
-    self.ordinary32 = self.one32 / self.three32;
+    let mut ordinary32: f32 = one32 / three32;
 
-    self.one64 = 1.0;
-    self.three64 = 3.0;
-    self.lower64 = 0.333333333333333314829616256247390992939472198486328125;
-    self.upper64 = 0.33333333333333337034076748750521801471710205078125;
-    self.negative_upper64 = 0.0 - self.upper64;
-    self.positive64 = F64::divide_toward_positive(self.one64, self.three64);
-    self.zero64 = F64::divide_toward_zero(self.one64, self.three64);
-    self.negative64 = F64::divide_toward_negative(0.0 - self.one64, self.three64);
-    self.ordinary64 = self.one64 / self.three64;
+    let mut one64: f64 = 1.0;
+    let mut three64: f64 = 3.0;
+    let mut lower64: f64 = 0.333333333333333314829616256247390992939472198486328125;
+    let mut upper64: f64 = 0.33333333333333337034076748750521801471710205078125;
+    let mut negative_upper64: f64 = 0.0 - upper64;
+    let mut positive64: f64 = F64::divide_toward_positive(one64, three64);
+    let mut zero64: f64 = F64::divide_toward_zero(one64, three64);
+    let mut negative64: f64 = F64::divide_toward_negative(0.0 - one64, three64);
+    let mut ordinary64: f64 = one64 / three64;
 
-    transition self.positive32 == self.upper32
-        && self.zero32 == self.lower32
-        && self.negative32 == self.negative_upper32
-        && self.ordinary32 == self.upper32
-        && self.positive64 == self.upper64
-        && self.zero64 == self.lower64
-        && self.negative64 == self.negative_upper64
-        && self.ordinary64 == self.lower64 {
+    transition positive32 == upper32
+        && zero32 == lower32
+        && negative32 == negative_upper32
+        && ordinary32 == upper32
+        && positive64 == upper64
+        && zero64 == lower64
+        && negative64 == negative_upper64
+        && ordinary64 == lower64 {
         true -> good()
         _ -> bad()
     }

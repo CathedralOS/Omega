@@ -3,7 +3,6 @@
 // refuses the qualifier by name instead of letting the calling plan drop the
 // formal silently.
 data Main {
-    value: i32;
 }
 
 machine Main::main(&mut self) {
@@ -11,5 +10,5 @@ machine Main::main(&mut self) {
 }
 
 machine Main::record(&mut self, mut x [erased]: i32, y: i32) {
-    self.value = y;
+    let mut value: i32 = y;
 }

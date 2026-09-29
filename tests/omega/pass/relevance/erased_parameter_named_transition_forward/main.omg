@@ -6,7 +6,6 @@
 // alone. Checked-only: the erased state parameter still has no Terminal
 // contract term (PROOF-RELEVANCE-MIGRATION).
 data Main {
-    total: i32;
 }
 
 machine Main::main(&mut self) {
@@ -22,6 +21,6 @@ requires
     requires
         n < bound
     {
-        self.total = n;
+        let mut total: i32 = n;
     }
 }

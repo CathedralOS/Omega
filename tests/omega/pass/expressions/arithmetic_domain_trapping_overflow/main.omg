@@ -12,15 +12,13 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    a: u8 in Trapping;
-    b: u8 in Trapping;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.a = 200;
-    self.b = 100;
+    let mut a: u8 in Trapping = 200;
+    let mut b: u8 in Trapping = 100;
     // Operand-driven: a/b carry the Trapping domain, so the add traps on overflow.
-    let c: u8 in Trapping = self.a + self.b;   // 300 overflows u8 -> trap (ud2)
+    let c: u8 in Trapping = a + b;   // 300 overflows u8 -> trap (ud2)
     transition c == 44 {
         true -> good()
         _ -> bad()

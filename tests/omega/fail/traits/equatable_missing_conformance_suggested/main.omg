@@ -11,9 +11,8 @@ data Point {
 data Main {
     a: Point;
     b: Point;
-    hit: bool;
 }
 
 machine Main::main(&mut self) {
-    self.hit = self.a == self.b;
+    let mut hit: bool = self.a == self.b;
 }

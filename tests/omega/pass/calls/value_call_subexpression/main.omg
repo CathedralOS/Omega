@@ -9,7 +9,7 @@
 //   let f: bool = twelve() == 12;     checks
 //   let r: i32 = 0 - twelve();        checks
 //   let r: i32 = self.add(twelve(), twelve());        checks
-//   self.base = self.add(twelve(), 0);                    checks
+//   base = self.add(twelve(), 0);                    checks
 //   transition { _ -> good(twelve() + 0) }                checks
 //   _ = self.add(twelve(), 1);                            checks
 //
@@ -22,7 +22,6 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    base: i32;
 }
 
 machine twelve() -> i32 {
@@ -30,7 +29,7 @@ machine twelve() -> i32 {
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.base = 1;
+    let mut base: i32 = 1;
     transition { _ -> check() }
 
     state check(&mut self) {

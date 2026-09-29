@@ -3,13 +3,12 @@ use omega::language::core::binding;
 
 data Main {
     console: Binding<Console>;
-    choice: i32;
 }
 
 machine Main::main(&mut self) reaches Console {
-    self.choice = 2;
+    let mut choice: i32 = 2;
 
-    transition self.choice {
+    transition choice {
         1 -> one()
         2 -> two()
         _ -> other()
