@@ -3,7 +3,7 @@
 `data` declares fields, cases, or both. Fields belong to the value. A record has
 only fields; a sum has only cases; a mixed declaration has common fields plus
 one active case and its payload. Machines access values through their explicit
-parameters and receiver, not implicitly owned machine fields.
+parameters, not implicitly owned machine fields.
 
 ## Construction and case identity
 
