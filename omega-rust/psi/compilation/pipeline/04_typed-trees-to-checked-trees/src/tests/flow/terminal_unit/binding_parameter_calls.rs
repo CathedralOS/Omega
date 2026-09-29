@@ -19,6 +19,46 @@ fn binding_field_of_explicit_parameter_keeps_boundary_calls() {
     assert_boundary_calls_retained(SOURCE);
 }
 
+#[test]
+fn projected_record_call_selects_the_admitted_target_body() {
+    let checked = checked_with_service(
+        r#"
+pub boundary trait Host { machine write(value: u64); }
+pub data Reader { value: u64; }
+machine Reader::read_value(&self) -> u64 { self.value }
+windows_x86_64 machine Reader::read_value(&self) -> u64 { self.value }
+pub data Context { reader: Reader; host: Binding<Host>; }
+machine run(context: &mut Context) reaches Host {
+    let value: u64 = context.reader.read_value();
+    context.host.write(value);
+}
+"#,
+    );
+    let selected = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Reader::read_value" && machine.target.is_none())
+        .expect("the already-admitted body remains selected");
+    let selected_entry = checked.machine_states(selected)[0].symbol;
+    let caller = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "run")
+        .expect("caller");
+    let state = &checked.machine_states(caller)[0];
+    let checked_trees::statement::StatementNode::LocalData(local) =
+        &checked.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("value binding")
+    };
+    let checked_trees::expression::ExpressionNode::Call(call) =
+        checked.expression_table.expression(local.initial_value)
+    else {
+        panic!("projected call")
+    };
+    assert_eq!(call.target_symbol, selected_entry);
+}
+
 const SUM_SOURCE: &str = r#"
 pub data ReadingResult [copy] { case Empty; case Value(total: u64); }
 pub boundary trait Host {

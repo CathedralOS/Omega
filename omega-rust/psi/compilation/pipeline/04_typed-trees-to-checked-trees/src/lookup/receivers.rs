@@ -199,6 +199,10 @@ fn declared_receiver_target(
         .machines()
         .iter()
         .filter(|machine| machine.attached_data_symbol == nominal && nominal.is_valid())
+        // Unresolved calls name the family's selected declaration, not the
+        // sibling bodies retained for checking. Preserve an exact target
+        // already supplied by resolution rather than selecting it again.
+        .filter(|machine| target.is_valid() || machine.target.is_none())
         .flat_map(|machine| program.machine_states(machine))
         .filter(|state| state.name == *name)
         .map(|state| state.symbol);
