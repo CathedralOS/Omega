@@ -282,6 +282,39 @@ pub const X86_64_TRAPPING_CONVERT: RegisterConstraintKey = RegisterConstraintKey
     variant: 70,
 };
 
+/// Atomic load of every width: `MOVZX`/`MOV` into the observed result;
+/// acquire ordering is free under TSO. Never writes RFLAGS.
+pub const X86_64_ATOMIC_LOAD: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 71,
+};
+
+/// Atomic store of every width: `MOV` into the cell then `MFENCE`, so the
+/// value input is never destroyed and store-load ordering holds. Never
+/// writes RFLAGS.
+pub const X86_64_ATOMIC_STORE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 72,
+};
+
+/// Atomic update returning the observed prior value: `XCHG` for swap,
+/// `LOCK XADD` for fetch-add, `NEG` plus `LOCK XADD` for fetch-sub — the
+/// operand register and the observed result are one tied in/out register.
+/// `LOCK XADD` writes RFLAGS; `XCHG` and `NEG` are listed clobbers so the
+/// row is honest about the flags the sequence may define.
+pub const X86_64_ATOMIC_UPDATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 73,
+};
+
+/// Atomic compare-exchange: `LOCK CMPXCHG` reads the expected value from RAX
+/// and leaves the observed prior cell value in RAX; the replacement is an
+/// ordinary allocatable input. RFLAGS is clobbered.
+pub const X86_64_ATOMIC_COMPARE_EXCHANGE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 74,
+};
+
 /// Exact `result = left * right` three-address pseudo. Its realization must be
 /// alias-safe for every allocator result: `IMUL result, right` when the result
 /// aliases the left input, `IMUL result, left` when it aliases only the right
@@ -364,7 +397,7 @@ pub const X86_64_JUMP: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 83] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 87] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_CALL_I64_PAIR_TO_I64,
@@ -491,6 +524,10 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 83] = [
     X86_64_TRAPPING_FIXED_PAIR,
     X86_64_TRAPPING_SHIFT,
     X86_64_TRAPPING_CONVERT,
+    X86_64_ATOMIC_LOAD,
+    X86_64_ATOMIC_STORE,
+    X86_64_ATOMIC_UPDATE,
+    X86_64_ATOMIC_COMPARE_EXCHANGE,
     X86_64_LOAD64,
     X86_64_STORE64,
     X86_64_FRAME_ADDRESS,

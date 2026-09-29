@@ -39,9 +39,11 @@ fn family_and_operand_count(
     X86_64SelectedFormEncodingError,
 > {
     Ok(match kind {
-        SelectedInstructionKind::AtomicAccess { .. } => {
-            return Err(X86_64SelectedFormEncodingError::UnsupportedAtomicForm);
-        }
+        SelectedInstructionKind::AtomicAccess { form } => (
+            MachineAlternativeFamily::AtomicAccess(form),
+            usize::from(form.operand_count()),
+            0..=0,
+        ),
         // Float arithmetic owns its request, encoding and decoding.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { form } => (
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(form),

@@ -456,9 +456,9 @@ pub(crate) fn encode_unchecked(
 ) -> Result<Vec<u8>, X86_64SelectedFormEncodingError> {
     let mut bytes = Vec::new();
     match kind {
-        SelectedInstructionKind::AtomicAccess { .. } => {
-            return Err(X86_64SelectedFormEncodingError::UnsupportedAtomicForm);
-        }
+        SelectedInstructionKind::AtomicAccess { form } => bytes.extend(
+            crate::selected_form_encoding::atomic::encode(form, &registers)?,
+        ),
         // Float arithmetic is encoded only by its own module.
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
             return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);

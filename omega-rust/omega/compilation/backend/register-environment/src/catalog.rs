@@ -135,10 +135,10 @@ pub(super) fn selected_environment_keys(
 pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedConstraintKeys> {
     match (target.architecture, target.object_format) {
         (Architecture::X86_64, ObjectFormat::Elf) => Some(SelectedConstraintKeys {
-            atomic_load: None,
-            atomic_store: None,
-            atomic_update: None,
-            atomic_compare_exchange: None,
+            atomic_load: Some(isa_x86_64::X86_64_ATOMIC_LOAD),
+            atomic_store: Some(isa_x86_64::X86_64_ATOMIC_STORE),
+            atomic_update: Some(isa_x86_64::X86_64_ATOMIC_UPDATE),
+            atomic_compare_exchange: Some(isa_x86_64::X86_64_ATOMIC_COMPARE_EXCHANGE),
             crash: isa_x86_64::X86_64_CRASH,
             call_aggregate: isa_x86_64::x86_64_system_v_aggregate_call_keys()
                 .into_iter()
@@ -212,10 +212,10 @@ pub(super) fn selected_constraint_keys(target: NativeTarget) -> Option<SelectedC
             return_unit: X86_64_SYSTEM_V_RETURN_UNIT,
         }),
         (Architecture::X86_64, ObjectFormat::Coff) => Some(SelectedConstraintKeys {
-            atomic_load: None,
-            atomic_store: None,
-            atomic_update: None,
-            atomic_compare_exchange: None,
+            atomic_load: Some(isa_x86_64::X86_64_ATOMIC_LOAD),
+            atomic_store: Some(isa_x86_64::X86_64_ATOMIC_STORE),
+            atomic_update: Some(isa_x86_64::X86_64_ATOMIC_UPDATE),
+            atomic_compare_exchange: Some(isa_x86_64::X86_64_ATOMIC_COMPARE_EXCHANGE),
             crash: isa_x86_64::X86_64_CRASH,
             call_aggregate: isa_x86_64::x86_64_microsoft_aggregate_call_keys()
                 .into_iter()

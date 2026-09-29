@@ -189,6 +189,39 @@ pub(crate) enum DecodedInstruction {
     Negate {
         destination: u8,
     },
+    /// `movzx`/`mov` of the atomic cell into the observed output.
+    AtomicLoad {
+        destination: u8,
+        base: u8,
+        bits: u16,
+    },
+    /// `mov` of the incoming value into the atomic cell.
+    AtomicStore {
+        source: u8,
+        base: u8,
+        bits: u16,
+    },
+    /// `mfence`: the store-load fence completing the atomic store.
+    MemoryFence,
+    /// `xchg` between the tied in/out register and the atomic cell.
+    AtomicExchange {
+        register: u8,
+        base: u8,
+        bits: u16,
+    },
+    /// `lock xadd` between the tied in/out register and the atomic cell.
+    AtomicLockedAdd {
+        register: u8,
+        base: u8,
+        bits: u16,
+    },
+    /// `lock cmpxchg` of the replacement register against the atomic cell,
+    /// with the expected input and observed output fixed in RAX.
+    AtomicLockedCompareExchange {
+        register: u8,
+        base: u8,
+        bits: u16,
+    },
     Add {
         source: u8,
         destination: u8,
@@ -459,6 +492,9 @@ pub(crate) fn decode_one(
     if bytes.first() == Some(&0xc3) {
         return Ok((DecodedInstruction::Return, 1));
     }
+    if let Some(decoded) = decode_atomic(bytes) {
+        return Ok(decoded);
+    }
     let (&rex, rest) = bytes
         .split_first()
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
@@ -626,6 +662,171 @@ pub(crate) fn decode_one(
     ))
 }
 
+/// Decode the fixed-work atomic forms: an optional operand-size prefix, an
+/// optional LOCK prefix, an optional REX, then the opcode and the
+/// `[base + disp32]` cell. Every byte is checked against the emitted shape;
+/// a sequence that only shares a prefix stays `None` for the generic arms.
+fn decode_atomic(bytes: &[u8]) -> Option<(DecodedInstruction, usize)> {
+    let mut cursor = 0;
+    let operand_sized = bytes.first() == Some(&0x66);
+    if operand_sized {
+        cursor += 1;
+    }
+    let locked = bytes.get(cursor) == Some(&0xf0);
+    if locked {
+        cursor += 1;
+    }
+    let rex = match bytes.get(cursor) {
+        Some(&byte) if (0x40..=0x4f).contains(&byte) => {
+            cursor += 1;
+            byte
+        }
+        _ => 0x40,
+    };
+    let opcode = *bytes.get(cursor)?;
+    if opcode == 0x0f {
+        let second = *bytes.get(cursor + 1)?;
+        // `mfence` closes the atomic store sequence.
+        if second == 0xae {
+            return (bytes.get(cursor + 2) == Some(&0xf0))
+                .then_some((DecodedInstruction::MemoryFence, cursor + 3));
+        }
+        cursor += 2;
+        let modrm = *bytes.get(cursor)?;
+        cursor += 1;
+        if modrm >> 6 != 2 {
+            return None;
+        }
+        let register = ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3);
+        let base = (modrm & 7) | ((rex & 1) << 3);
+        if modrm & 7 == 4 {
+            let sib = *bytes.get(cursor)?;
+            cursor += 1;
+            if sib != 0x24 {
+                return None;
+            }
+        }
+        if !matches!(bytes.get(cursor..cursor + 4), Some(&[0, 0, 0, 0])) {
+            return None;
+        }
+        cursor += 4;
+        let wide = rex & 8 != 0;
+        let bits = |eight: bool| -> u16 {
+            if eight {
+                8
+            } else if operand_sized {
+                16
+            } else if wide {
+                64
+            } else {
+                32
+            }
+        };
+        let instruction = match second {
+            0xb6 if !locked => DecodedInstruction::AtomicLoad {
+                destination: register,
+                base,
+                bits: 8,
+            },
+            0xb7 if !locked => DecodedInstruction::AtomicLoad {
+                destination: register,
+                base,
+                bits: 16,
+            },
+            0xb0 if locked => DecodedInstruction::AtomicLockedCompareExchange {
+                register,
+                base,
+                bits: 8,
+            },
+            0xb1 if locked => DecodedInstruction::AtomicLockedCompareExchange {
+                register,
+                base,
+                bits: bits(false),
+            },
+            0xc0 if locked => DecodedInstruction::AtomicLockedAdd {
+                register,
+                base,
+                bits: 8,
+            },
+            0xc1 if locked => DecodedInstruction::AtomicLockedAdd {
+                register,
+                base,
+                bits: bits(false),
+            },
+            _ => return None,
+        };
+        return Some((instruction, cursor));
+    }
+    let modrm = *bytes.get(cursor + 1)?;
+    match opcode {
+        // `movzx`/`mov` into the observed output and `mov`/`xchg` against
+        // the cell share the `[base + disp32]` operand.
+        0x8b | 0x88 | 0x89 | 0x86 | 0x87 if modrm >> 6 == 2 => {
+            let register = ((modrm >> 3) & 7) | (((rex >> 2) & 1) << 3);
+            let base = (modrm & 7) | ((rex & 1) << 3);
+            let mut length = cursor + 2;
+            if modrm & 7 == 4 {
+                if bytes.get(length) != Some(&0x24) {
+                    return None;
+                }
+                length += 1;
+            }
+            if !matches!(bytes.get(length..length + 4), Some(&[0, 0, 0, 0])) {
+                return None;
+            }
+            length += 4;
+            let wide = rex & 8 != 0;
+            let bits = |eight: bool| -> u16 {
+                if eight {
+                    8
+                } else if operand_sized {
+                    16
+                } else if wide {
+                    64
+                } else {
+                    32
+                }
+            };
+            let instruction = match opcode {
+                0x8b => DecodedInstruction::AtomicLoad {
+                    destination: register,
+                    base,
+                    bits: if wide { 64 } else { 32 },
+                },
+                0x88 => DecodedInstruction::AtomicStore {
+                    source: register,
+                    base,
+                    bits: 8,
+                },
+                0x89 => DecodedInstruction::AtomicStore {
+                    source: register,
+                    base,
+                    bits: bits(false),
+                },
+                0x86 => DecodedInstruction::AtomicExchange {
+                    register,
+                    base,
+                    bits: 8,
+                },
+                _ => DecodedInstruction::AtomicExchange {
+                    register,
+                    base,
+                    bits: bits(false),
+                },
+            };
+            Some((instruction, length))
+        }
+        // `neg` in the fetch-sub prefix.
+        0xf6 | 0xf7 if modrm >> 6 == 3 && (modrm >> 3) & 7 == 3 => Some((
+            DecodedInstruction::Negate {
+                destination: (modrm & 7) | ((rex & 1) << 3),
+            },
+            cursor + 2,
+        )),
+        _ => None,
+    }
+}
+
 pub(crate) fn validate_decoded(
     kind: SelectedInstructionKind,
     alternative: MachineAlternativeKey,
@@ -633,7 +834,96 @@ pub(crate) fn validate_decoded(
     decoded: &[DecodedInstruction],
 ) -> Result<(), X86_64SelectedFormEncodingError> {
     let valid = match kind {
-        SelectedInstructionKind::AtomicAccess { .. } => false,
+        SelectedInstructionKind::AtomicAccess { form } => {
+            let base = registers[0];
+            let bits = match form.width {
+                selected_instructions::AtomicWidth::Bits8 => 8,
+                selected_instructions::AtomicWidth::Bits16 => 16,
+                selected_instructions::AtomicWidth::Bits32 => 32,
+                selected_instructions::AtomicWidth::Bits64 => 64,
+            };
+            match form.operation {
+                selected_instructions::AtomicOperation::Load => {
+                    decoded
+                        == [DecodedInstruction::AtomicLoad {
+                            destination: registers[1],
+                            base,
+                            bits,
+                        }]
+                }
+                selected_instructions::AtomicOperation::Store => {
+                    decoded
+                        == [
+                            DecodedInstruction::AtomicStore {
+                                source: registers[1],
+                                base,
+                                bits,
+                            },
+                            DecodedInstruction::MemoryFence,
+                        ]
+                }
+                selected_instructions::AtomicOperation::Swap => {
+                    decoded
+                        == [
+                            DecodedInstruction::Move {
+                                source: registers[1],
+                                destination: registers[2],
+                            },
+                            DecodedInstruction::AtomicExchange {
+                                register: registers[2],
+                                base,
+                                bits,
+                            },
+                        ]
+                }
+                selected_instructions::AtomicOperation::FetchAdd => {
+                    decoded
+                        == [
+                            DecodedInstruction::Move {
+                                source: registers[1],
+                                destination: registers[2],
+                            },
+                            DecodedInstruction::AtomicLockedAdd {
+                                register: registers[2],
+                                base,
+                                bits,
+                            },
+                        ]
+                }
+                selected_instructions::AtomicOperation::FetchSub => {
+                    decoded
+                        == [
+                            DecodedInstruction::Move {
+                                source: registers[1],
+                                destination: registers[2],
+                            },
+                            DecodedInstruction::Negate {
+                                destination: registers[2],
+                            },
+                            DecodedInstruction::AtomicLockedAdd {
+                                register: registers[2],
+                                base,
+                                bits,
+                            },
+                        ]
+                }
+                selected_instructions::AtomicOperation::CompareExchange => {
+                    decoded
+                        == [
+                            DecodedInstruction::AtomicLockedCompareExchange {
+                                register: registers[2],
+                                base,
+                                bits,
+                            },
+                            DecodedInstruction::Move {
+                                source: 0,
+                                destination: registers[3],
+                            },
+                        ]
+                }
+                _ => false,
+            }
+        }
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => false,
         SelectedInstructionKind::Crash => {
             registers.is_empty() && decoded == [DecodedInstruction::Crash]
@@ -1692,18 +1982,16 @@ pub(crate) fn footprint(
     if let SelectedInstructionKind::NearestIeeeFloatArithmetic { form } = kind {
         return super::ieee_float_arithmetic::footprint(form, operands);
     }
+    if let SelectedInstructionKind::AtomicAccess { form } = kind {
+        return super::atomic::footprint(form, operands);
+    }
     let (reads, writes, writes_rflags) = match kind {
         SelectedInstructionKind::NearestIeeeFloatArithmetic { .. } => {
             unreachable!("float arithmetic footprint returned above")
         }
-        SelectedInstructionKind::AtomicAccess { form } => (
-            operands[..usize::from(form.operation.input_count())].to_vec(),
-            form.observed_operand()
-                .map(|output| operands[usize::from(output)])
-                .into_iter()
-                .collect(),
-            false,
-        ),
+        SelectedInstructionKind::AtomicAccess { .. } => {
+            unreachable!("atomic footprint returned above")
+        }
         SelectedInstructionKind::Crash => (Vec::new(), Vec::new(), false),
         SelectedInstructionKind::MaterializeBooleanEqual
         | SelectedInstructionKind::MaterializeBooleanU64LessThan
@@ -1826,18 +2114,8 @@ pub(crate) fn footprint(
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
     let encoded = if kind == SelectedInstructionKind::Crash {
         super::crash::effects(&units("rip"))
-    } else if let SelectedInstructionKind::AtomicAccess { form } = kind {
-        MachineEncodedEffects {
-            memory: MachineEncodedMemoryEffect::AtomicPointerV1 {
-                pointer_operand: 0,
-                form,
-            },
-            trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            ..MachineEncodedEffects::fallthrough_v1(
-                (0..form.operation.input_count()).collect(),
-                form.observed_operand().into_iter().collect(),
-            )
-        }
+    } else if let SelectedInstructionKind::AtomicAccess { .. } = kind {
+        unreachable!("atomic footprint returned above");
     } else if matches!(
         kind,
         SelectedInstructionKind::ReturnScalar

@@ -257,10 +257,12 @@ fn selected_keys(
         X86_64SelectedAbi::Microsoft => X86_64_MICROSOFT_RETURN_UNIT,
     };
     Ok(SelectedConstraintKeys {
-        atomic_load: None,
-        atomic_store: None,
-        atomic_update: None,
-        atomic_compare_exchange: None,
+        // LOCK is architectural on every x86-64 target; no feature custody
+        // gates the family the way AArch64's LSE does.
+        atomic_load: Some(crate::X86_64_ATOMIC_LOAD),
+        atomic_store: Some(crate::X86_64_ATOMIC_STORE),
+        atomic_update: Some(crate::X86_64_ATOMIC_UPDATE),
+        atomic_compare_exchange: Some(crate::X86_64_ATOMIC_COMPARE_EXCHANGE),
         crash: crate::X86_64_CRASH,
         load_packed: Some(crate::X86_64_LOAD_PACKED),
         store_packed: Some(crate::X86_64_STORE_PACKED),
@@ -523,12 +525,18 @@ fn declaration(
         constraint: keys
             .for_semantic(semantic)
             .expect("required x86-64 machine semantic has a constraint"),
-        memory: MachineMemoryEffect::NoneV1,
+        memory: if matches!(semantic, MachineSemanticKind::AtomicAccess(_)) {
+            MachineMemoryEffect::AtomicPointerV1
+        } else {
+            MachineMemoryEffect::NoneV1
+        },
         // A Trapping form may stop the process at its inline UD2, which is
         // as observable as a hosted effect: it is ordered like one and is
-        // never dead.
+        // never dead. An atomic access dereferences a pointer the cell owns.
         trap: if matches!(semantic, MachineSemanticKind::TrappingInteger(_)) {
             MachineTrapBehavior::TrappingIntegerV1
+        } else if matches!(semantic, MachineSemanticKind::AtomicAccess(_)) {
+            MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
             MachineTrapBehavior::NeverV1
         },
@@ -543,7 +551,10 @@ fn declaration(
                 | MachineSemanticKind::ReturnUnit
         ) {
             MachineBarrier::ControlFlow
-        } else if matches!(semantic, MachineSemanticKind::TrappingInteger(_)) {
+        } else if matches!(
+            semantic,
+            MachineSemanticKind::TrappingInteger(_) | MachineSemanticKind::AtomicAccess(_)
+        ) {
             MachineBarrier::ExternalEffect
         } else {
             MachineBarrier::None
@@ -597,8 +608,8 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
             .id
     };
     let (reads, writes) = match semantic {
-        // No x86 atomic constraint is admitted yet. Keep hypothetical
-        // effects explicit; canonical catalog validation rejects this row.
+        // LOCK-prefixed atomic forms read their address plus operation
+        // inputs and write the observed-prior output alone.
         MachineSemanticKind::AtomicAccess(form) => (
             (0..form.operation.input_count()).collect(),
             form.observed_operand().into_iter().collect(),
@@ -832,6 +843,18 @@ fn encoded_effects(semantic: MachineSemanticKind, variant: u32) -> MachineEncode
                     },
                     MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
                     MachineEncodedControlEffect::ReturnFromActivationStackV1,
+                )
+            }
+            MachineSemanticKind::AtomicAccess(form) => {
+                let encoded = crate::selected_form_encoding::atomic::effects(form);
+                (
+                    encoded.implicit_unit_uses,
+                    encoded.implicit_unit_defs,
+                    encoded.implicit_unit_clobbers,
+                    encoded.memory,
+                    encoded.stack,
+                    encoded.trap,
+                    encoded.control,
                 )
             }
             _ => (

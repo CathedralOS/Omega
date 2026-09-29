@@ -9,6 +9,7 @@
 //! of each saturating operation and carrier and of each Trapping form that
 //! those three and the machine-effect catalog share.
 
+pub(crate) mod atomic;
 #[cfg(test)]
 mod boolean_materialization_tests;
 mod branch_forms;
