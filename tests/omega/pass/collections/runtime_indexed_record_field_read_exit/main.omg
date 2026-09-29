@@ -7,12 +7,14 @@
 //
 // The four elements hold distinct `hp` values and element 2 also holds a
 // `tag`, so reading the wrong element, the wrong field or the wrong stride
-// gives a different exit. `i` is 2 -> exit 70.
+// gives a different exit. Boolean observations select both a true and false
+// element through the same runtime-indexed read. All observations -> exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
 
 data Cell {
     tag: u8;
+    ready: bool;
     hp: i32;
 }
 
@@ -21,6 +23,8 @@ data Main {
     cells: [Cell; 4];
     i: u64 [0..=3];
     scratch: i32;
+    selected: bool;
+    other: bool;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -28,8 +32,18 @@ machine Main::main(&mut self) reaches Console {
     self.cells[1].hp = 11;
     self.cells[2].hp = 70;
     self.cells[2].tag = 9;
+    self.cells[2].ready = true;
     self.cells[3].hp = 13;
+    self.cells[3].ready = true;
     self.i = 2;
     self.scratch = self.cells[self.i].hp;
-    self.console.exit_process(self.scratch);
+    self.selected = self.cells[self.i].ready;
+    self.i = 1;
+    self.other = self.cells[self.i].ready;
+    transition self.selected && !self.other && self.scratch == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
 }

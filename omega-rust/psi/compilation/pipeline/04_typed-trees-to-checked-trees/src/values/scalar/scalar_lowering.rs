@@ -183,8 +183,11 @@ pub(crate) fn lower_return_expression(
     {
         return Some(value);
     }
-    if result_type == PrimitiveType::Bool {
-        return lower_boolean_expression(
+    // Boolean predicates retain their established form, but not every Boolean
+    // value is a predicate tree. Storage observations (including runtime
+    // element selection) use the common typed scalar read below.
+    if result_type == PrimitiveType::Bool
+        && let Some(expression) = lower_boolean_expression(
             program,
             operators,
             expression,
@@ -194,7 +197,8 @@ pub(crate) fn lower_return_expression(
             locals,
             exact_integer_casts,
         )
-        .map(|expression| CheckedScalarExpression::Boolean(Box::new(expression)));
+    {
+        return Some(CheckedScalarExpression::Boolean(Box::new(expression)));
     }
     let (expression, _) = lower_scalar_expression(
         program,
@@ -1289,7 +1293,9 @@ fn view_element_field_read(
     let (element_path, leaf) =
         structural_fields::element_field_path(program, selection.element_type, fields)?;
     let primitive_type = program.primitive_type_reference(leaf)?;
-    if !is_integer(primitive_type) || primitive_type == PrimitiveType::Addr {
+    if (!is_integer(primitive_type) && primitive_type != PrimitiveType::Bool)
+        || primitive_type == PrimitiveType::Addr
+    {
         return None;
     }
     Some((

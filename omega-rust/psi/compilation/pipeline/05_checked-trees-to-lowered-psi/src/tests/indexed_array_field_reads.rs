@@ -54,6 +54,66 @@ fn indexed_array_field_read_wrong_bound_rejects() {
     );
 }
 
+#[test]
+fn runtime_record_boolean_read_replays_its_field_and_index_bound() {
+    let source = "data Cell { tag: u8; ready: bool; }
+        data Buffer { cells: [Cell; 4]; }
+        machine Buffer::read(&self, index: u64) -> bool
+        requires index < 4 {
+            self.cells[index].ready
+        }";
+    let checked = crate::front_end::checked_program(source);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Buffer::read"))
+        .expect("Boolean fields use the shared runtime-indexed scalar read");
+    let bytes = terminal_codec::encode_module(&lowered.semantic_module).unwrap();
+    let decoded = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(decoded, lowered.semantic_module);
+    terminal_verifier::verify_module(
+        &decoded,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap();
+    assert!(
+        decoded
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .flat_map(|block| &block.operations)
+            .any(|operation| matches!(
+                &operation.kind,
+                terminal_psi::OperationKind::PrimitiveScalarRead { path, .. }
+                    if matches!(path.as_slice(), [
+                        terminal_psi::StructuralPathSegment::Field(_),
+                        terminal_psi::StructuralPathSegment::RuntimeIndex { .. },
+                        terminal_psi::StructuralPathSegment::Field(_)
+                    ])
+            ))
+    );
+    rejected(&source.replace("index < 4", "index < 5"), "Buffer::read");
+    let mut changed = decoded;
+    let path = changed
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .flat_map(|block| &mut block.operations)
+        .find_map(|operation| match &mut operation.kind {
+            terminal_psi::OperationKind::PrimitiveScalarRead { path, .. } => Some(path),
+            _ => None,
+        })
+        .unwrap();
+    *path.last_mut().unwrap() = terminal_psi::StructuralPathSegment::Field("tag".into());
+    assert!(
+        terminal_verifier::verify_module(
+            &changed,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "a byte field cannot supply the Boolean read"
+    );
+}
+
 // Terminal element reads take a u64 position. Any integer carrier may index
 // once its bounds are proven, so a signed or narrower index lands through an
 // exact cast whose obligation the dominating guard discharges.
