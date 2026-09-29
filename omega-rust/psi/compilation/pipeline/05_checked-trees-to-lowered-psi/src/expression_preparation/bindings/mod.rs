@@ -5,6 +5,7 @@ use super::{
     StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
     StructuralTypeId, terminal_scalar_type, unsupported,
 };
+use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
 use crate::expression_preparation::source_custody;
 
@@ -334,6 +335,97 @@ impl ScalarBindings {
             },
             case,
         )
+    }
+
+    /// A case observation of a runtime-selected element of a parameter's
+    /// fixed array (`self.items[self.w] is Color::Red`). The checked path
+    /// carries exactly one `RuntimeIndex`; its field selector is read first
+    /// and becomes the observation's index, and the static halves on either
+    /// side resolve against the parameter's declarations. A static path keeps
+    /// `parameter_case_observation`.
+    pub(crate) fn parameter_element_case_observation(
+        &self,
+        argument: &checked_trees::CheckedUnitStructuralArgumentPlan,
+        case: &str,
+    ) -> Result<LoweredBooleanReturnExpression, LoweringError> {
+        let checked_trees::CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } =
+            argument.source
+        else {
+            return unsupported("case observation requires an exact parameter source");
+        };
+        if argument.access != checked_trees::CheckedStructuralAccess::SharedBorrow {
+            return unsupported("case observation changed its parameter custody");
+        }
+        let (parameter_position, _) = self
+            .structural_parameters
+            .get(usize::try_from(parameter_index).map_err(|_| {
+                LoweringError::Unsupported("case observation parameter index exceeds the host type")
+            })?)
+            .ok_or(LoweringError::Unsupported(
+                "case observation lost its parameter source",
+            ))?;
+        let mut runtime = argument.path.iter().enumerate().filter(|(_, segment)| {
+            matches!(
+                segment,
+                checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(_)
+            )
+        });
+        let Some((
+            selector_position,
+            checked_trees::CheckedUnitStructuralPathSegment::RuntimeIndex(selector),
+        )) = runtime.next()
+        else {
+            return unsupported("runtime case observation has no runtime element");
+        };
+        if runtime.next().is_some() {
+            return unsupported("runtime case observation selects more than one element");
+        }
+        let static_path = |segments: &[checked_trees::CheckedUnitStructuralPathSegment]| {
+            segments
+                .iter()
+                .map(|segment| match segment {
+                    checked_trees::CheckedUnitStructuralPathSegment::Field(identity) => {
+                        Ok(checked_trees::CheckedStructuralPredicatePathSegment::Field(
+                            identity.clone(),
+                        ))
+                    }
+                    checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(index) => Ok(
+                        checked_trees::CheckedStructuralPredicatePathSegment::FixedIndex(*index),
+                    ),
+                    _ => unsupported("runtime case observation has a non-field projection"),
+                })
+                .collect::<Result<Vec<_>, _>>()
+        };
+        let (source, path, element_path, case) = structural_cases::resolve_runtime_element(
+            &self.structural_cases,
+            *parameter_position,
+            &static_path(&argument.path[..selector_position])?,
+            &static_path(&argument.path[selector_position + 1..])?,
+            case,
+        )?;
+        let checked_trees::CheckedRuntimeIndex::StructuralField(field) = selector else {
+            return unsupported("runtime case observation requires a field selector");
+        };
+        let (selector_source, selector_path, leaf, scalar_type) = structural_fields::resolve_typed(
+            &self.structural_fields,
+            field.parameter_position,
+            &field.path,
+        )?;
+        if !matches!(scalar_type, ScalarType::Integer(integer) if !integer.is_address()) {
+            return unsupported("runtime case observation selector is not an integer read");
+        }
+        Ok(LoweredBooleanReturnExpression::IndexedCaseMembership {
+            source,
+            path,
+            index: Box::new(LoweredDirectExpression::StructuralField {
+                source: selector_source,
+                path: selector_path,
+                field: leaf,
+                scalar_type,
+            }),
+            element_path,
+            case,
+        })
     }
 
     pub(crate) fn with_local_cases(mut self, cases: &[structural_cases::LocalCaseBinding]) -> Self {

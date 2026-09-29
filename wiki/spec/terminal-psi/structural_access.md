@@ -130,6 +130,21 @@ Receiving checks reconstruct the selected type and native tag offset from every
 retained path segment; another element, a same-spelled case in another nominal
 type, or an asserted byte offset cannot replace that evidence.
 
+The path may also select an array element at run time: `self.items[self.w] is
+Color::Red` is one `StructuralCaseMembership` whose path is `items`,
+`RuntimeIndex`. The observation then owns that element's bound, the obligation
+every runtime segment owns (`index < extent`, plus `0 <= index` for a signed
+selector), reconstructed against the array its prefix resolves to. It reads
+"some element", so it names no canonical sum and keys no case fact; a
+`Case` step or leaf copy that needs one must still find a membership of a
+canonical place. The Boolean result still selects exactly one dispatch arm.
+Symbol resolution hoists such a dispatch subject into one shared
+`let __hoist = &self.items[self.w];` so the arms stay one exhaustive
+dispatch; the Unit plan erases that borrow while nothing but the dispatch's
+transitions follows it, and each arm observes the element itself. Omega
+rebuilds the tag's address from declarations: the carrier's static offset
+plus each selector times its element stride.
+
 The operation neither consumes the owner nor projects its payload. Its result
 captures that occurrence's observation; it grants no reusable equality with
 mutable storage and no payload-access refinement after intervening mutation.

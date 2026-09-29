@@ -118,23 +118,78 @@ pub(crate) fn resolve(
     if matching.next().is_some() {
         return unsupported("case observation has ambiguous source bindings");
     }
-    let declaration = |structural_type| {
-        let mut declarations = binding
-            .declarations
-            .iter()
-            .filter(|declaration| declaration.id == structural_type);
-        let selected = declarations.next()?;
-        declarations.next().is_none().then_some(selected)
+    let (sum, path) = walk(binding, binding.structural_type, &subject.path)?;
+    Ok((binding.source, path, selected_case(binding, sum, identity)?))
+}
+
+/// Resolve a case observation through one runtime-selected element
+/// (`self.items[self.w] is Color::Red`): `prefix` walks from the bound
+/// parameter to a fixed array and `element_path` walks the selected element to
+/// the sum. Returns the source, the two lowered halves the caller places the
+/// `RuntimeIndex` segment between, and the selected case. The element's
+/// bound is not checked here: the observation owns that obligation and the
+/// verifier reconstructs it against the array's declared extent.
+pub(crate) fn resolve_runtime_element(
+    bindings: &[StructuralCaseBinding],
+    parameter_position: u32,
+    prefix: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    element_path: &[checked_trees::CheckedStructuralPredicatePathSegment],
+    identity: &str,
+) -> Result<
+    (
+        PlaceId,
+        Vec<terminal_psi::StructuralPathSegment>,
+        Vec<terminal_psi::StructuralPathSegment>,
+        semantic_vocabulary::StructuralCaseId,
+    ),
+    LoweringError,
+> {
+    let mut matching = bindings
+        .iter()
+        .filter(|binding| binding.source_position == parameter_position);
+    let binding = matching.next().ok_or(LoweringError::Unsupported(
+        "case observation has no exact readable source and case binding",
+    ))?;
+    if matching.next().is_some() {
+        return unsupported("case observation has ambiguous source bindings");
+    }
+    let (array, prefix) = walk(binding, binding.structural_type, prefix)?;
+    let StructuralTypeShape::FixedArray { element, .. } = &declaration(binding, array)?.shape
+    else {
+        return unsupported("runtime case observation does not select in a fixed array");
     };
-    let mut structural_type = binding.structural_type;
-    let mut path = Vec::with_capacity(subject.path.len());
-    for segment in &subject.path {
-        let shape = &declaration(structural_type)
-            .ok_or(LoweringError::Unsupported(
-                "case observation lost its exact carrier type",
-            ))?
-            .shape;
-        match (segment, shape) {
+    let (sum, element_path) = walk(binding, *element, element_path)?;
+    let case = selected_case(binding, sum, identity)?;
+    Ok((binding.source, prefix, element_path, case))
+}
+
+fn declaration(
+    binding: &StructuralCaseBinding,
+    structural_type: StructuralTypeId,
+) -> Result<&StructuralTypeDeclaration, LoweringError> {
+    let mut declarations = binding
+        .declarations
+        .iter()
+        .filter(|declaration| declaration.id == structural_type);
+    let selected = declarations.next().ok_or(LoweringError::Unsupported(
+        "case observation lost its exact carrier type",
+    ))?;
+    if declarations.next().is_some() {
+        return unsupported("case observation has ambiguous carrier declarations");
+    }
+    Ok(selected)
+}
+
+/// Walk relevant structural record fields and in-range literal indexes from
+/// `structural_type`, lowering each step.
+fn walk(
+    binding: &StructuralCaseBinding,
+    mut structural_type: StructuralTypeId,
+    steps: &[checked_trees::CheckedStructuralPredicatePathSegment],
+) -> Result<(StructuralTypeId, Vec<terminal_psi::StructuralPathSegment>), LoweringError> {
+    let mut path = Vec::with_capacity(steps.len());
+    for segment in steps {
+        match (segment, &declaration(binding, structural_type)?.shape) {
             (
                 checked_trees::CheckedStructuralPredicatePathSegment::Field(identity),
                 StructuralTypeShape::Record { fields },
@@ -170,12 +225,15 @@ pub(crate) fn resolve(
             }
         }
     }
-    let shape = &declaration(structural_type)
-        .ok_or(LoweringError::Unsupported(
-            "case observation lost its selected sum",
-        ))?
-        .shape;
-    let cases = match shape {
+    Ok((structural_type, path))
+}
+
+fn selected_case(
+    binding: &StructuralCaseBinding,
+    structural_type: StructuralTypeId,
+    identity: &str,
+) -> Result<semantic_vocabulary::StructuralCaseId, LoweringError> {
+    let cases = match &declaration(binding, structural_type)?.shape {
         StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => cases,
         _ => return unsupported("case observation requires an exact selected sum"),
     };
@@ -186,7 +244,7 @@ pub(crate) fn resolve(
     if selected.next().is_some() {
         return unsupported("case observation has ambiguous selected cases");
     }
-    Ok((binding.source, path, case.id))
+    Ok(case.id)
 }
 
 /// The declared cases of the whole-root sum `source` binds, in declaration

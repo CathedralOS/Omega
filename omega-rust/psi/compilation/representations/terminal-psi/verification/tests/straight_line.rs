@@ -19,6 +19,8 @@ mod contract_fields;
 mod false_edge_custody;
 #[path = "straight_line/guards_and_partitions.rs"]
 mod guards_and_partitions;
+#[path = "straight_line/indexed_case_membership.rs"]
+mod indexed_case_membership;
 #[path = "straight_line/indexed_element_field_read.rs"]
 mod indexed_element_field_read;
 #[path = "straight_line/indexed_primitive_store.rs"]

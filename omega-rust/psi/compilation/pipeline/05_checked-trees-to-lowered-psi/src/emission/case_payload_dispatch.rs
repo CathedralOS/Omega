@@ -363,6 +363,19 @@ fn substitute_boolean(
             left: Box::new(substitute_direct(*left, bound)),
             right: Box::new(substitute_direct(*right, bound)),
         },
+        Boolean::IndexedCaseMembership {
+            source,
+            path,
+            index,
+            element_path,
+            case,
+        } => Boolean::IndexedCaseMembership {
+            source,
+            path,
+            index: Box::new(substitute_direct(*index, bound)),
+            element_path,
+            case,
+        },
         expression @ (Boolean::StructuralCaseMembership { .. }
         | Boolean::PrimitiveRead { .. }
         | Boolean::Constant { .. }
@@ -533,6 +546,7 @@ fn case_reads<'e>(
             collect_direct_case_reads(left, reads);
             collect_direct_case_reads(right, reads);
         }
+        Boolean::IndexedCaseMembership { index, .. } => collect_direct_case_reads(index, reads),
         Boolean::StructuralCaseMembership { .. }
         | Boolean::Constant { .. }
         | Boolean::Parameter { .. }
