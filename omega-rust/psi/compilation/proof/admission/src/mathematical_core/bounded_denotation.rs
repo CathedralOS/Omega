@@ -4650,4 +4650,187 @@ mod tests {
         verify_mathematical_certificate(&mut denoted.arena, &denoted.certificate, &mut budget())
             .expect("the derived judgment re-decides in the kernel");
     }
+
+    /// `connective()` sorting derives a permuted conjunction with real
+    /// projections: `(b ∧ a) → (a ∧ b)` is `⟨snd e, fst e⟩`, not a
+    /// rule-instance axiom.
+    #[test]
+    fn a_permuted_conjunction_derives_through_its_projections() {
+        let premise = Proposition::Conjunction(vec![atom(2), atom(1)]);
+        let goal = Proposition::Conjunction(vec![atom(1), atom(2)]);
+        let denoted = predicate_denotation_elaboration(&premise, &goal)
+            .expect("the permuted conjunction derives");
+        let Term::Pair { first, second } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the permuted conjunction re-pairs its projections");
+        };
+        assert!(matches!(denoted.arena.get(first), Term::Snd { .. }));
+        assert!(matches!(denoted.arena.get(second), Term::Fst { .. }));
+    }
+
+    /// `connective()` deduplication and its single-child collapse: the
+    /// duplicated conjunction projects out the kept component, and the
+    /// reverse direction re-pairs the one premise.
+    #[test]
+    fn a_deduplicated_conjunction_projects_and_re_pairs() {
+        let premise = Proposition::Conjunction(vec![atom(1), atom(1)]);
+        predicate_denotation_elaboration(&premise, &atom(1))
+            .expect("the duplicated conjunction projects");
+
+        let goal = Proposition::Conjunction(vec![atom(1), atom(1)]);
+        predicate_denotation_elaboration(&atom(1), &goal)
+            .expect("the duplicated conclusion re-pairs the premise");
+    }
+
+    /// `connective()` flattening re-associates the nested `Σ`
+    /// denotation: `((a ∧ b) ∧ c) → (a ∧ (b ∧ c))` is a real projection
+    /// path, not an axiom.
+    #[test]
+    fn a_flattened_conjunction_re_associates_through_projections() {
+        let premise = Proposition::Conjunction(vec![
+            Proposition::Conjunction(vec![atom(1), atom(2)]),
+            atom(3),
+        ]);
+        let goal = Proposition::Conjunction(vec![atom(1), atom(2), atom(3)]);
+        let denoted = predicate_denotation_elaboration(&premise, &goal)
+            .expect("the flattened conjunction derives");
+        let Term::Pair { second, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the flattened conjunction re-pairs its components");
+        };
+        assert!(
+            matches!(denoted.arena.get(second), Term::Pair { .. }),
+            "the re-associated tail pairs the nested projections",
+        );
+    }
+
+    /// A `Truth` conjunct drops: `(a ∧ ⊤) → a` is `fst e`, and the
+    /// reverse pairs the premise with `refl` at `Id Two zero zero`.
+    #[test]
+    fn a_truth_conjunct_drops_through_the_projection() {
+        let premise = Proposition::Conjunction(vec![atom(1), Proposition::Truth]);
+        let denoted =
+            predicate_denotation_elaboration(&premise, &atom(1)).expect("the Truth conjunct drops");
+        assert!(
+            matches!(
+                denoted.arena.get(denoted.certificate.term),
+                Term::Fst { .. }
+            ),
+            "the evidence is the surviving component's projection",
+        );
+
+        let goal = Proposition::Conjunction(vec![atom(1), Proposition::Truth]);
+        let denoted = predicate_denotation_elaboration(&atom(1), &goal)
+            .expect("the Truth conjunct pairs with its closed inhabitant");
+        let Term::Pair { second, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the Truth-normalized goal pairs its components");
+        };
+        assert!(
+            matches!(denoted.arena.get(second), Term::Refl { .. }),
+            "the dropped Truth is refl at Id Two zero zero",
+        );
+    }
+
+    /// `connective()` sorting across the tagged-sum denotation: the
+    /// permuted disjunction eliminates `e` and re-tags each branch —
+    /// `caseTwo(M, λh.⟨one, h⟩, λh.⟨zero, h⟩, fst e) (snd e)` — rather
+    /// than a rule-instance axiom.
+    #[test]
+    fn a_permuted_disjunction_derives_through_retagging() {
+        let premise = Proposition::Disjunction(vec![atom(2), atom(1)]);
+        let goal = Proposition::Disjunction(vec![atom(1), atom(2)]);
+        let denoted = predicate_denotation_elaboration(&premise, &goal)
+            .expect("the permuted disjunction derives");
+        let Term::Apply { function, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the disjunction eliminates the premise pair");
+        };
+        let Term::CaseTwo {
+            zero_branch,
+            one_branch,
+            ..
+        } = denoted.arena.get(function)
+        else {
+            panic!("the eliminator case-splits the tag");
+        };
+        let Term::Lambda { body, .. } = denoted.arena.get(zero_branch) else {
+            panic!("the zero branch binds its payload");
+        };
+        let Term::Pair { first, .. } = denoted.arena.get(body) else {
+            panic!("the zero branch re-tags into the goal");
+        };
+        assert_eq!(
+            denoted.arena.get(first),
+            Term::TwoOne,
+            "the premise's first disjunct is the goal's rest",
+        );
+        let Term::Lambda { body, .. } = denoted.arena.get(one_branch) else {
+            panic!("the one branch binds its payload");
+        };
+        let Term::Pair { first, .. } = denoted.arena.get(body) else {
+            panic!("the one branch re-tags into the goal");
+        };
+        assert_eq!(
+            denoted.arena.get(first),
+            Term::TwoZero,
+            "the premise's rest disjunct is the goal's first",
+        );
+    }
+
+    /// A `Falsehood` disjunct drops: `(a ∨ ⊥) → a` case-splits the tag,
+    /// keeps the `a` payload, and refutes the `Id Two zero one` branch
+    /// through the `J` discriminant — and the reverse tags the premise
+    /// `zero` without ever inhabiting the dropped branch.
+    #[test]
+    fn a_falsehood_disjunct_drops_through_the_eliminator() {
+        let premise = Proposition::Disjunction(vec![atom(1), Proposition::Falsehood]);
+        let denoted = predicate_denotation_elaboration(&premise, &atom(1))
+            .expect("the Falsehood disjunct drops");
+        let Term::Apply { function, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the disjunction eliminates the premise pair");
+        };
+        let Term::CaseTwo { one_branch, .. } = denoted.arena.get(function) else {
+            panic!("the eliminator case-splits the tag");
+        };
+        let Term::Lambda { body, .. } = denoted.arena.get(one_branch) else {
+            panic!("the Falsehood branch binds its payload");
+        };
+        assert!(
+            matches!(
+                denoted.arena.get(body),
+                Term::IdElim { .. } | Term::EmptyElim { .. }
+            ),
+            "the Falsehood payload refutes into the goal",
+        );
+
+        let goal = Proposition::Disjunction(vec![atom(1), Proposition::Falsehood]);
+        let denoted = predicate_denotation_elaboration(&atom(1), &goal)
+            .expect("the surviving disjunct tags zero");
+        let Term::Pair { first, .. } = denoted.arena.get(denoted.certificate.term) else {
+            panic!("the disjunction introduction pairs a tag");
+        };
+        assert_eq!(denoted.arena.get(first), Term::TwoZero);
+    }
+
+    /// Normalization under an implication premise derives
+    /// contravariantly: `((b ∧ a) → c) → ((a ∧ b) → c)` coerces the
+    /// domain through the same projection crossing inside the `λ`'s
+    /// applied body — the nested connective never becomes an axiom.
+    #[test]
+    fn an_implication_domain_derives_contravariantly() {
+        let premise = Proposition::Implication {
+            premise: Box::new(Proposition::Conjunction(vec![atom(2), atom(1)])),
+            conclusion: Box::new(atom(3)),
+        };
+        let goal = Proposition::Implication {
+            premise: Box::new(Proposition::Conjunction(vec![atom(1), atom(2)])),
+            conclusion: Box::new(atom(3)),
+        };
+        let denoted = predicate_denotation_elaboration(&premise, &goal)
+            .expect("the implication's normalized domain derives");
+        assert!(
+            matches!(
+                denoted.arena.get(denoted.certificate.term),
+                Term::Lambda { .. }
+            ),
+            "the crossing stays inside the function body",
+        );
+    }
 }
