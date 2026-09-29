@@ -423,6 +423,28 @@ impl CheckedUnitEffectOperationPlan {
         }
     }
 
+    /// The authored assignment a store-family row writes: a primitive,
+    /// projected scalar, whole-sum, byte-sequence or indexed byte field store,
+    /// or a byte- or element-view write. One assignment may own several rows
+    /// of one family (each member of a record literal, each element of an
+    /// array literal). Repair stores into an open borrowed window and atomic
+    /// events keep their own statement custody and answer `None`, as does
+    /// every operation outside the store family.
+    pub fn store_statement_index(&self) -> Option<u32> {
+        match self {
+            Self::WriteOnlyPrimitiveStore {
+                statement_index, ..
+            } => Some(*statement_index),
+            Self::StructuralScalarFieldStore(store) => Some(store.statement_index),
+            Self::StructuralCaseFieldStore(store) => Some(store.statement_index),
+            Self::ByteSequenceStore(store) => Some(store.statement_index),
+            Self::StructuralByteSequenceFieldByteStore(store) => Some(store.statement_index),
+            Self::ByteSequenceWrite(write) => Some(write.statement_index),
+            Self::ElementViewWrite(write) => Some(write.statement_index),
+            _ => None,
+        }
+    }
+
     /// The authored structural arguments of an ordinary call — Unit, scalar,
     /// structural or boundary — in argument order; empty for every other
     /// operation. Selected-operator calls keep their own operand lanes.

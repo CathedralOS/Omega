@@ -36,6 +36,15 @@ pub(crate) fn validate(
         let statement_index = u32::try_from(statement_index).map_err(|_| {
             LoweringError::Unsupported("structural scalar store statement ordinal exceeds u32")
         })?;
+        // Every store-family row planned for this assignment. A record
+        // literal plans one row per member and an array literal one per
+        // element, so one family may own several rows; rows of two families
+        // conflict.
+        let statement_stores = plan
+            .operations
+            .iter()
+            .filter(|operation| operation.store_statement_index() == Some(statement_index))
+            .collect::<Vec<_>>();
         // An atomic carrier assignment is covered by its one atomic event and
         // by nothing else; the event's own source correspondence runs at its
         // emission (`atomic_sources`).
@@ -48,67 +57,27 @@ pub(crate) fn validate(
             })
             .count();
         if atomic_events != 0 {
-            let other_stores = plan.operations.iter().any(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                    write.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
-                    write.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                    statement_index: ordinal,
-                    ..
-                } => *ordinal == statement_index,
-                _ => false,
-            });
             if atomic_events != 1
-                || other_stores
+                || has_other_store(&statement_stores, |_| false)
                 || validation::atomic_assignment_carrier(checked, assignment).is_none()
             {
                 return unsupported("atomic carrier assignment has conflicting store custody");
             }
             continue;
         }
-        let writes = plan
-            .operations
+        let writes = statement_stores
             .iter()
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write)
-                    if write.statement_index == statement_index =>
-                {
-                    Some(write)
-                }
+                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => Some(write),
                 _ => None,
             })
             .collect::<Vec<_>>();
         if let [write] = writes.as_slice() {
-            if plan.operations.iter().any(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::ElementViewWrite(write) => {
-                    write.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                    statement_index: ordinal,
-                    ..
-                } => *ordinal == statement_index,
-                _ => false,
+            if has_other_store(&statement_stores, |operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::ByteSequenceWrite(_)
+                )
             }) {
                 return unsupported("byte-view assignment has conflicting store custody");
             }
@@ -123,37 +92,19 @@ pub(crate) fn validate(
         } else if !writes.is_empty() {
             return unsupported("byte-view assignment has duplicate store custody");
         }
-        let element_writes = plan
-            .operations
+        let element_writes = statement_stores
             .iter()
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::ElementViewWrite(write)
-                    if write.statement_index == statement_index =>
-                {
-                    Some(write)
-                }
+                CheckedUnitEffectOperationPlan::ElementViewWrite(write) => Some(write),
                 _ => None,
             })
             .collect::<Vec<_>>();
         if let [write] = element_writes.as_slice() {
-            if plan.operations.iter().any(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
-                    store.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::ByteSequenceWrite(write) => {
-                    write.statement_index == statement_index
-                }
-                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore {
-                    statement_index: ordinal,
-                    ..
-                } => *ordinal == statement_index,
-                _ => false,
+            if has_other_store(&statement_stores, |operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::ElementViewWrite(_)
+                )
             }) {
                 return unsupported("element-view assignment has conflicting store custody");
             }
@@ -168,36 +119,32 @@ pub(crate) fn validate(
         } else if !element_writes.is_empty() {
             return unsupported("element-view assignment has duplicate store custody");
         }
-        let indexed_stores = plan
-            .operations
+        let indexed_stores = statement_stores
             .iter()
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store)
-                    if store.statement_index == statement_index =>
-                {
+                CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store) => {
                     Some(store)
                 }
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let byte_stores = plan
-            .operations
+        let byte_stores = statement_stores
             .iter()
             .filter_map(|operation| match operation {
-                CheckedUnitEffectOperationPlan::ByteSequenceStore(store)
-                    if store.statement_index == statement_index =>
-                {
-                    Some(store)
-                }
+                CheckedUnitEffectOperationPlan::ByteSequenceStore(store) => Some(store),
                 _ => None,
             })
             .collect::<Vec<_>>();
         if let [store] = indexed_stores.as_slice() {
-            if !byte_stores.is_empty()
-                || stores
-                    .iter()
-                    .any(|scalar| scalar.statement_index == statement_index)
-            {
+            // An indexed byte store has never excluded primitive stores at its
+            // statement; only byte and scalar field stores conflict with it.
+            if has_other_store(&statement_stores, |operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_)
+                        | CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+                )
+            }) {
                 return unsupported("indexed assignment has conflicting store custody");
             }
             indexed_write::validate_assignment(
@@ -212,12 +159,12 @@ pub(crate) fn validate(
             return unsupported("indexed assignment has duplicate byte-store custody");
         }
         if let [store] = byte_stores.as_slice() {
-            if stores
-                .iter()
-                .any(|scalar| scalar.statement_index == statement_index)
-                || plan.operations.iter().any(|operation| matches!(operation,
-                    CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index))
-            {
+            if has_other_store(&statement_stores, |operation| {
+                matches!(
+                    operation,
+                    CheckedUnitEffectOperationPlan::ByteSequenceStore(_)
+                )
+            }) {
                 return unsupported("assignment has both byte and scalar store custody");
             }
             crate::emission::structural_byte_sequence_store::validate_assignment(
@@ -229,17 +176,16 @@ pub(crate) fn validate(
             )?;
             continue;
         }
-        let primitive_stores = plan.operations.iter().filter(|operation| {
-            matches!(operation, CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { statement_index: ordinal, .. } if *ordinal == statement_index)
-        }).count();
+        let is_primitive_store = |operation: &CheckedUnitEffectOperationPlan| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. }
+            )
+        };
         // Several primitive stores are one array literal's element roster,
         // rejoined below by `primitive_store::validate_element_rosters`.
-        if primitive_stores != 0 {
-            if !byte_stores.is_empty()
-                || stores
-                    .iter()
-                    .any(|store| store.statement_index == statement_index)
-            {
+        if statement_stores.iter().copied().any(is_primitive_store) {
+            if has_other_store(&statement_stores, is_primitive_store) {
                 return unsupported("primitive assignment has duplicate store custody");
             }
             continue;
@@ -260,17 +206,20 @@ pub(crate) fn validate(
         }
         // A whole-sum field store covers its authored assignment with ordinary
         // write custody; scalar-store validation does not apply to it.
-        if plan.operations.iter().any(|operation| {
-            matches!(operation,
-            CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(store)
-                if store.statement_index == statement_index)
+        if statement_stores.iter().any(|operation| {
+            matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+            )
         }) {
             continue;
         }
-        let matching = stores
+        let matching = statement_stores
             .iter()
-            .copied()
-            .filter(|store| store.statement_index == statement_index)
+            .filter_map(|operation| match operation {
+                CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store) => Some(store),
+                _ => None,
+            })
             .collect::<Vec<_>>();
         validate_assignment_stores(
             checked,
@@ -431,6 +380,22 @@ pub(crate) fn validate(
         return unsupported("structural scalar store return lost its authored statement boundary");
     }
     Ok(())
+}
+
+/// Whether a store-family row outside `own` claims the same assignment.
+/// Whole-sum field stores have never been part of this conflict matrix, so an
+/// assignment one shares with another family is not rejected here.
+fn has_other_store(
+    statement_stores: &[&CheckedUnitEffectOperationPlan],
+    own: impl Fn(&CheckedUnitEffectOperationPlan) -> bool,
+) -> bool {
+    statement_stores.iter().any(|operation| {
+        !own(operation)
+            && !matches!(
+                operation,
+                CheckedUnitEffectOperationPlan::StructuralCaseFieldStore(_)
+            )
+    })
 }
 
 /// Existing affine construction writes target a local, not a receiver field.

@@ -17,7 +17,7 @@ use super::{
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
     TypedTrees, checked_constructed_result_type, checked_structural_result_type, consume_results,
     consume_value_places, is_unit, retain_selected_sources, statement_call_target,
-    store_statement_index, structural_operands,
+    structural_operands,
 };
 
 /// The sequence state an assignment reads and extends.
@@ -92,7 +92,7 @@ pub(super) fn plan(
     // so drain every store rooted at this statement, in order.
     let mut consumed = false;
     while let Some(store) =
-        stores.next_if(|store| store_statement_index(store) == Some(statement_index))
+        stores.next_if(|store| store.store_statement_index() == Some(statement_index))
     {
         operations.push(store);
         consumed = true;
@@ -266,7 +266,7 @@ pub(super) fn plan(
     assignment_phase("statement sequence: assignment: pending store order");
     if match stores.peek() {
         None => false,
-        Some(pending) => match store_statement_index(pending) {
+        Some(pending) => match pending.store_statement_index() {
             None => true,
             Some(ordinal) => ordinal <= statement_index,
         },

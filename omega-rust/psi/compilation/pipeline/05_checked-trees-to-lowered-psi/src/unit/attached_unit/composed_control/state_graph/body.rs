@@ -234,6 +234,12 @@ pub(super) fn validate(
         let authored = statements.get(ordinal).ok_or(LoweringError::Unsupported(
             "Unit graph effect lost its authored statement",
         ))?;
+        // A store replays only at the assignment its plan names.
+        if matches!(authored, StatementNode::Assignment(_))
+            && let Some(reordered) = reordered_store(operation, ordinal)
+        {
+            return unsupported(reordered);
+        }
         match (operation, authored) {
             (
                 CheckedUnitEffectOperationPlan::EstablishStructuralValue {
@@ -500,9 +506,6 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::ByteSequenceWrite(write),
                 StatementNode::Assignment(assignment),
             ) => {
-                if write.statement_index as usize != ordinal {
-                    return unsupported("Unit graph reordered a byte-view write");
-                }
                 indexed_write::validate_assignment(
                     checked,
                     machine,
@@ -515,9 +518,6 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::ElementViewWrite(write),
                 StatementNode::Assignment(assignment),
             ) => {
-                if write.statement_index as usize != ordinal {
-                    return unsupported("Unit graph reordered an element-view write");
-                }
                 indexed_write::validate_assignment(
                     checked,
                     machine,
@@ -530,9 +530,6 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(store),
                 StatementNode::Assignment(assignment),
             ) => {
-                if store.statement_index as usize != ordinal {
-                    return unsupported("Unit graph reordered an indexed byte store");
-                }
                 indexed_write::validate_assignment(
                     checked,
                     machine,
@@ -545,9 +542,6 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::ByteSequenceStore(store),
                 StatementNode::Assignment(assignment),
             ) => {
-                if store.statement_index as usize != ordinal {
-                    return unsupported("Unit graph reordered a byte-field store");
-                }
                 crate::emission::structural_byte_sequence_store::validate_assignment(
                     checked,
                     machine,
@@ -573,9 +567,6 @@ pub(super) fn validate(
                 },
                 StatementNode::Assignment(_),
             ) => {
-                if *statement_index as usize != ordinal {
-                    return unsupported("Unit graph reordered a primitive store");
-                }
                 let checked_trees::CheckedPrimitiveStoreDestination::Parameter { parameter_index } =
                     destination
                 else {
@@ -602,9 +593,6 @@ pub(super) fn validate(
                 CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(store),
                 StatementNode::Assignment(assignment),
             ) => {
-                if store.statement_index as usize != ordinal {
-                    return unsupported("Unit graph reordered a field store");
-                }
                 // The statement's first store validates the whole roster the
                 // assignment planned: one field, or every member of a record
                 // literal; the rest were covered by that check.
@@ -889,6 +877,39 @@ pub(super) fn validate(
         }
     }
     Ok(end)
+}
+
+/// The rejection for a store the walk attributed to another statement than
+/// the one its plan names. A whole-sum field store has no replay arm here, so
+/// it keeps the general reordering rejection.
+fn reordered_store(
+    operation: &CheckedUnitEffectOperationPlan,
+    ordinal: usize,
+) -> Option<&'static str> {
+    if operation.store_statement_index()? as usize == ordinal {
+        return None;
+    }
+    Some(match operation {
+        CheckedUnitEffectOperationPlan::ByteSequenceWrite(_) => {
+            "Unit graph reordered a byte-view write"
+        }
+        CheckedUnitEffectOperationPlan::ElementViewWrite(_) => {
+            "Unit graph reordered an element-view write"
+        }
+        CheckedUnitEffectOperationPlan::StructuralByteSequenceFieldByteStore(_) => {
+            "Unit graph reordered an indexed byte store"
+        }
+        CheckedUnitEffectOperationPlan::ByteSequenceStore(_) => {
+            "Unit graph reordered a byte-field store"
+        }
+        CheckedUnitEffectOperationPlan::WriteOnlyPrimitiveStore { .. } => {
+            "Unit graph reordered a primitive store"
+        }
+        CheckedUnitEffectOperationPlan::StructuralScalarFieldStore(_) => {
+            "Unit graph reordered a field store"
+        }
+        _ => return None,
+    })
 }
 
 /// The binding a scalar-result state's final expression returns, if any.
