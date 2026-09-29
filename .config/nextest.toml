@@ -3,6 +3,10 @@ nextest-version = "0.9.140"
 [profile.default]
 fail-fast = false
 retries = 0
+# A test still running after 15 minutes has hung, not slowed: the slowest
+# passing tests take about 2.5 minutes in a loaded parallel run. Terminating
+# turns a hang into a named failure instead of stalling every full run.
+slow-timeout = { period = "60s", terminate-after = 15 }
 
 # These tests measure process resource limits. A Rust mutex cannot serialize
 # nextest's separate test processes: reserve the global pool for each case.
