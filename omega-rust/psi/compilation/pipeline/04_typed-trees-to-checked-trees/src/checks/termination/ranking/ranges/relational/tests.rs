@@ -44,8 +44,17 @@ terminates by remaining in 0..=slack;
             )
             .replace("walk(remaining - 1, spare)", "walk(remaining - 1, second)"),
     );
-    // A mutable local can be rebound before the edge and proves nothing.
-    reject(&source.replace("let spare:", "let mut spare:"));
+    // The saved-observation bar is "bound once, never written", not the
+    // binding's spelling: a mutable local nothing writes forwards the same
+    // storage.
+    prove(&source.replace("let spare:", "let mut spare:"));
+    // A mutable local rebound before the edge proves nothing, even when the
+    // replacement value stays inside the declared range.
+    reject(&source.replace(
+        "let spare: u64 [10..=20] = slack;",
+        "let mut spare: u64 [10..=20] = slack;
+    spare = 15;",
+    ));
     // A local bound to a different value is not the parameter's storage.
     reject(&source.replace("= slack;", "= 15;"));
     // Later shadowing resolves to the binding in effect at the edge.
