@@ -118,6 +118,43 @@ pub fn check_integer_affine_witness(
     if let Some(form) = check_correlated_multiply_witness(context, semantic_axioms, witness)? {
         return Ok(form);
     }
+    // A contract can retain the remainder expression itself instead of an
+    // intermediate SSA definition. Its literal divisor and exact dividend
+    // identify the same endpoint transform without an invented axiom. Signed
+    // division by -1 needs a separate MIN exclusion; type validation alone
+    // does not supply that formation evidence, so leave it to named chains.
+    if witness.definition_axioms.is_empty()
+        && witness.literal_axioms.is_empty()
+        && let ScalarTerm::ExactIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        } = &witness.target
+        && scalar_type.carrier() == IntegerCarrier::Fixed
+        && matches!(witness.root, ScalarTerm::Value { .. })
+        && left.as_ref() == &witness.root
+        && matches!(right.as_ref(), ScalarTerm::Integer { .. })
+        && let Some((divisor, _)) = signed_literal(right, *scalar_type, None)
+        && (scalar_type.sign() == IntegerSign::Unsigned || divisor != -1)
+    {
+        context
+            .validate(&Proposition::Equal(
+                witness.root.clone(),
+                witness.target.clone(),
+            ))
+            .map_err(IntegerAffineWitnessError::MalformedProposition)?;
+        if divisor == 0 {
+            return Err(IntegerAffineWitnessError::ZeroDivisionLiteral);
+        }
+        return Ok(CheckedIntegerAffineForm {
+            root: witness.root.clone(),
+            target: witness.target.clone(),
+            integer_type: *scalar_type,
+            coefficient: 1,
+            offset: 0,
+            endpoint_steps: vec![CheckedIntegerEndpointStep::Remainder(divisor)],
+        });
+    }
     if witness.definition_axioms.is_empty()
         && witness.literal_axioms.is_empty()
         && let ScalarTerm::ExactIntegerSubtract {
@@ -848,6 +885,27 @@ fn apply_definition(
                 Some(offset),
                 used_landing,
                 CheckedIntegerEndpointStep::Divide(literal),
+            )
+        }
+        // Unsigned wrapping remainder has the same nonzero-divisor image as
+        // exact remainder. Signed wrapping policy remains a separate case.
+        ScalarTerm::WrappingIntegerRemainder {
+            scalar_type,
+            left,
+            right,
+        } if *scalar_type == integer_type
+            && integer_type.sign() == IntegerSign::Unsigned
+            && left.as_ref() == current =>
+        {
+            let (literal, used_landing) = signed_literal(right, integer_type, landed)?;
+            if literal == 0 {
+                return Some(Err(IntegerAffineWitnessError::ZeroDivisionLiteral));
+            }
+            (
+                Some(coefficient),
+                Some(offset),
+                used_landing,
+                CheckedIntegerEndpointStep::Remainder(literal),
             )
         }
         _ => return None,

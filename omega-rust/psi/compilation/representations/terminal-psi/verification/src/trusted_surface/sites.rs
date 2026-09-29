@@ -35,6 +35,11 @@ pub struct TestOnlySource {
 
 pub static TEST_ONLY_SOURCES: &[TestOnlySource] = &[
     TestOnlySource {
+        path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_cast/expression_roots.rs",
+        parent: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_cast.rs",
+        module: "expression_roots",
+    },
+    TestOnlySource {
         path: "omega-rust/psi/compilation/proof/admission/src/certificate_search/integer_order/tests.rs",
         parent: "omega-rust/psi/compilation/proof/admission/src/certificate_search/integer_order.rs",
         module: "tests",
@@ -374,7 +379,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/bound_mapping.rs",
-        sha256: Some("d4fc0960c8da51d05ca4e8a67a4f7d00f5b9378cc4bd976adf5d81a4f9658a20"),
+        sha256: Some("d4a2dadb1f53e6518b73406f40e4ade01d3949d6d479ee4f2d9fe073b3fb67db"),
         inventory_machinery: false,
     },
     ImplementationSite {
@@ -384,12 +389,12 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/witness_checking.rs",
-        sha256: Some("af1dedc81604adac62c627994b71902e40ac29ff80c9d92b69f9743136477aee"),
+        sha256: Some("7eec08107490f943a62a4a27bdee1ced4e6f0226680f948b371862d85a5daf57"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_cast.rs",
-        sha256: Some("329963a52c6c88531efd15308fe5db674281190e4109aef95c0e9a349f474b4e"),
+        sha256: Some("044301057d5708b2e18f1a1f4337dbff3cb2e958df1a2b03332e40f5c89722c7"),
         inventory_machinery: false,
     },
     ImplementationSite {

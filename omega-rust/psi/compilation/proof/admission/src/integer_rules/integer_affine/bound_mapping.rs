@@ -19,11 +19,34 @@ pub fn check_integer_affine_bound_conversion(
     root_bound: &Proposition,
     conclusion: &Proposition,
 ) -> Result<(), IntegerAffineBoundConversionError> {
-    let expected = map_integer_affine_bound(form, root_bound)?;
-    if conclusion != &expected {
-        return Err(IntegerAffineBoundConversionError::ConclusionMismatch);
+    let expected = map_integer_affine_bound(form, root_bound);
+    if expected
+        .as_ref()
+        .is_ok_and(|expected| conclusion == expected)
+    {
+        return Ok(());
     }
-    Ok(())
+    // Older certificates retain the remainder's unconditional image even
+    // when the dividend has a tighter bound. Recheck that exact mapping;
+    // arbitrary weakened conclusions still need their own order evidence.
+    if map_integer_affine_bound_with_remainder_policy(
+        form,
+        root_bound,
+        RemainderUpperBound::TotalImage,
+    )
+    .as_ref()
+    .is_ok_and(|legacy| conclusion == legacy)
+    {
+        return Ok(());
+    }
+    expected?;
+    Err(IntegerAffineBoundConversionError::ConclusionMismatch)
+}
+
+#[derive(Clone, Copy)]
+enum RemainderUpperBound {
+    DividendIntersection,
+    TotalImage,
 }
 
 /// Compute the unique endpoint relation established by one checked ordered
@@ -31,6 +54,18 @@ pub fn check_integer_affine_bound_conversion(
 pub fn map_integer_affine_bound(
     form: &CheckedIntegerAffineForm,
     root_bound: &Proposition,
+) -> Result<Proposition, IntegerAffineBoundConversionError> {
+    map_integer_affine_bound_with_remainder_policy(
+        form,
+        root_bound,
+        RemainderUpperBound::DividendIntersection,
+    )
+}
+
+fn map_integer_affine_bound_with_remainder_policy(
+    form: &CheckedIntegerAffineForm,
+    root_bound: &Proposition,
+    remainder_upper_bound: RemainderUpperBound,
 ) -> Result<Proposition, IntegerAffineBoundConversionError> {
     if matches!(
         form.endpoint_steps.as_slice(),
@@ -106,7 +141,9 @@ pub fn map_integer_affine_bound(
             // Truncating remainder keeps the dividend's sign: a dividend
             // already bounded on one side pins the remainder to that side, so
             // `0 <= x` maps to `0 <= x % d` and `x <= 0` maps to `x % d <= 0`.
-            // The opposite side keeps the unconditional `|d| - 1` image.
+            // The opposite signed side keeps the unconditional `|d| - 1`
+            // image. Unsigned remainder also never exceeds its dividend,
+            // so its upper image intersects the incoming upper endpoint.
             CheckedIntegerEndpointStep::Remainder(value) => {
                 let magnitude = value
                     .checked_abs()
@@ -125,9 +162,19 @@ pub fn map_integer_affine_bound(
                     {
                         0
                     } else {
-                        magnitude
+                        let image_maximum = magnitude
                             .checked_sub(1)
-                            .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?
+                            .ok_or(IntegerAffineBoundConversionError::MappedBoundOverflow)?;
+                        if form.integer_type().sign() == IntegerSign::Unsigned
+                            && matches!(
+                                remainder_upper_bound,
+                                RemainderUpperBound::DividendIntersection
+                            )
+                        {
+                            mapped.min(image_maximum)
+                        } else {
+                            image_maximum
+                        }
                     },
                 )
             }

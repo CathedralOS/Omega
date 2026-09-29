@@ -118,6 +118,14 @@ signed exceptional division, mixed carriers, non-landed runtime counts,
 negative/out-of-width counts, stale/reordered definitions, and target drift reject.
 Checked arithmetic failure is rejection, not wrapped witness arithmetic.
 
+Unsigned wrapping remainder also admits the nonzero-divisor remainder step.
+Its upper endpoint intersects the proved dividend upper bound with `divisor - 1`;
+the unconditional remainder image remains a valid certificate conclusion.
+A direct exact remainder expression with an exact literal divisor can use the
+same endpoint rule without an invented value definition. Zero divisors reject;
+the direct signed form also rejects `-1`, since type validity alone does not
+establish the signed-minimum exclusion.
+
 For affine maps, positive coefficients preserve bound orientation and negative
 coefficients reverse it. A zero coefficient retains the cited orientation and
 maps to the constant offset. Mapped endpoints must inhabit the checked carrier.
@@ -150,6 +158,12 @@ A checked root-bound child maps the same mathematical endpoint into the final
 carrier, with every definition recorded in premise closure. A `Truth` child is
 allowed only for an exact endpoint of the independently checked carrier
 intersection. Wrong orientation, target, or mapped endpoint rejects.
+
+The root may be an admitted integer expression, not only a named SSA value.
+The first cast equation must retain that exact expression and validate all of
+its nested identities and types. No cast output may occur inside the root.
+This transports independently proved bounds; it does not authorize formation
+of a partial operation inside the expression.
 
 A strict or inclusive mathematical comparison may also retain a live opposite
 endpoint while the checked word replaces the root with its target. Strictness,

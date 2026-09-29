@@ -341,8 +341,8 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
         id: "rule:integer-affine-bound",
         family: LedgerFamily::CheckerRule,
         binding: dispatch(CoveredSurface::ProofRules),
-        premises: "a checked ordered affine witness from one proved root bound to its target through exact-add definitions and optional literal landings",
-        conclusion: "the mapped affine bound equals the conclusion; a Truth root admits only the witness's own truth bounds; cited definition and literal axioms are recorded as dependencies",
+        premises: "a checked ordered endpoint witness from one proved root bound through admitted arithmetic definitions and literal landings, or a supported direct arithmetic expression",
+        conclusion: "the mapped endpoint bound equals the conclusion; unsigned remainder can retain a tighter dividend upper bound or its unconditional image; a Truth root admits only checked truth bounds; cited definitions and literal landings remain dependencies",
         dependencies: &[
             "rule:traversal",
             "normalization:integer-affine-witness",

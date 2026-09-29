@@ -70,6 +70,131 @@ fn unrelated_mutation_does_not_hide_a_scalar_parameter_relation() {
 }
 
 #[test]
+fn stored_narrowing_result_supplies_the_byte_store_guarantee() {
+    let lowered = lowered(
+        r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        data Main { bytes: [u8; 3] in Utf8; byte: u8; }
+        machine narrow(value: u32) -> u8 {
+            (value as u8 in Wrapping) as u8
+        }
+        machine Main::run(&mut self) {
+            self.bytes = "XXX";
+            self.byte = narrow(48);
+            self.bytes[0] = self.byte;
+        }
+        "#,
+        "Main::run",
+    );
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the stored call result retains independently proved ASCII bounds");
+    let guarantee = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.contract.ensures)
+        .next()
+        .expect("the narrowing call publishes a proved relation")
+        .obligation;
+    let mut missing = lowered.proof_bundle.clone();
+    missing
+        .evidence
+        .retain(|proof| proof.obligation != guarantee);
+    assert!(
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &missing,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .is_err(),
+        "an inferred guarantee cannot certify itself"
+    );
+}
+
+#[test]
+fn variable_narrowing_result_preserves_the_proved_digit_bound() {
+    let lowered = lowered(
+        r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        data Main { bytes: [u8; 3] in Utf8; digit: u32 in Wrapping; byte: u8; }
+        machine narrow(value: u32) -> u8 {
+            (value as u8 in Wrapping) as u8
+        }
+        machine Main::run(&mut self, value: u32 in Wrapping) {
+            self.bytes = "XXX";
+            self.digit = value % 10;
+            self.byte = narrow((self.digit + 48) as u32);
+            self.bytes[0] = self.byte;
+        }
+        "#,
+        "Main::run",
+    );
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the actual digit bound survives the narrowing call");
+}
+
+#[test]
+fn non_ascii_narrowing_store_is_rejected_before_lowering() {
+    let diagnostics = crate::front_end::checked_program_result(
+        r#"
+        domain [u8; 3]::Utf8 requires valid_utf8(self);
+        data Main { bytes: [u8; 3] in Utf8; byte: u8; }
+        machine narrow(value: u32) -> u8 { (value as u8 in Wrapping) as u8 }
+        machine Main::run(&mut self) {
+            self.bytes = "XXX";
+            self.byte = narrow(200);
+            self.bytes[0] = self.byte;
+        }
+        "#,
+    )
+    .expect_err("the narrowing result cannot satisfy the UTF-8 field requirement");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("cannot prove default-domain field requirement")
+            && diagnostic.message.contains("Utf8")
+    }));
+}
+
+#[test]
+fn overwritten_or_unobserved_call_results_do_not_demand_guarantees() {
+    for store in [
+        "self.byte = 49; self.bytes[0] = self.byte;",
+        "self.other = 49; self.bytes[0] = self.other;",
+    ] {
+        let source = format!(
+            r#"
+            domain [u8; 3]::Utf8 requires valid_utf8(self);
+            data Main {{ bytes: [u8; 3] in Utf8; byte: u8; other: u8; }}
+            machine narrow(value: u32) -> u8 {{ (value as u8 in Wrapping) as u8 }}
+            machine Main::run(&mut self) {{
+                self.bytes = "XXX";
+                self.byte = narrow(48);
+                {store}
+            }}
+        "#
+        );
+        let lowered = lowered(&source, "Main::run");
+        assert!(
+            lowered
+                .semantic_module
+                .machines
+                .iter()
+                .all(|machine| machine.contract.ensures.is_empty()),
+            "a stale or sibling field equality must not select the call: {store}"
+        );
+    }
+}
+
+#[test]
 fn differing_returns_and_storage_observations_do_not_become_parameter_guarantees() {
     let branched = lowered(
         "machine root(n: i32 in Wrapping, flag: bool) -> i32 {
