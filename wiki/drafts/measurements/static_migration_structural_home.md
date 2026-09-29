@@ -128,3 +128,57 @@ Either the hosted entry shape gains the provisioned context parameter its own
 spec describes, or every stateful entry is a per-fixture rewrite whose subject
 must be read first. The first would unblock the bulk mechanically; nothing
 below it will.
+
+## Receiver-shaped contracts: a fifth category, and why the seam ends
+
+Some declarations are not merely written with a receiver; the receiver is part
+of the contract the fixture pins. Migrating them produces a correct-looking
+diff that rewrites the question:
+
+- **drop hooks** — `Resource::drop(&mut self)`; the cleanup contract selects on
+  that shape (`fail/drops/authored_cleanup_static_argument_rejected`,
+  `fail/drops/drop_ensures_unlocked_predicate`)
+- **callback slots** — `Spread::plan(&mut self, ..)` behind a private callback
+  layout (`fail/layouts/private_callback_slot_wrong_layout`)
+- **the entry receiver itself** — `fail/build/program_entry_receiver_not_zii`,
+  both `fail/build` program-entry binding fixtures,
+  `fail/calls/free_machine_named_transition_rejected`
+- **shared-receiver and dependent-window subjects** —
+  `fail/atomics/shared_receiver_plain_field_write`,
+  `fail/dependent/data_where_*_during_window_*`
+
+Measured: of 21 compile-only, binding-free fixtures whose attached operations
+have no call sites — the most favourable remaining shape — **every one that
+applied regressed**, first 7 of 7, then 2 of 2 after excluding the obvious
+contract shapes. The diffs are right; `Application::launch(application: &mut
+Application)` is exactly the contract's form. The fixtures still move, because
+what they assert is the receiver.
+
+These migrate when the receiver syntax is removed compiler-side, which the
+board lists as the step after customer migration. They are not per-fixture
+work that can be finished first.
+
+## The corpus, classified
+
+944 files still carry a receiver. Their composition, by the properties that
+decide migratability:
+
+| count | tier | leg | routed binding | receivers |
+| --- | --- | --- | --- | --- |
+| 344 | pass | runs | yes | multiple |
+| 94 | pass | compile | yes | multiple |
+| 86 | fail | compile | no | single |
+| 81 | pass | compile | no | multiple |
+| 70 | fail | compile | no | multiple |
+| 64 | fail | compile | yes | single |
+| 54 | fail | compile | yes | multiple |
+| 41 | pass | compile | yes | single |
+| 37 | pass | compile | no | single |
+| 31 | pass | runs | yes | single |
+
+The 375 that **run** need the run leg of a static console entry, which fails
+with `composed Unit control has unsupported graph custody`. The 253 carrying a
+**routed binding** need either that binding to live somewhere a static entry
+can reach, or the hosted entry to accept the context parameter its spec
+describes. The binding-free compile-only remainder is where the receiver is
+usually the subject.
