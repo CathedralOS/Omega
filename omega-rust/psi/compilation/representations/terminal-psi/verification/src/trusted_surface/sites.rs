@@ -379,17 +379,17 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/bound_mapping.rs",
-        sha256: Some("d209bbfe1c3a75f3a687242f56ee79aea39b68d243d94b9f485e860a76ac8578"),
+        sha256: Some("bf3e415467102ed894e3c06d0fba1caab016db15c79a447372fe771ed72a6cd4"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/truth_bounds.rs",
-        sha256: Some("e3d31496dffc65790ff7399950b28d90352a5878fe203953843c2c46b07bd8db"),
+        sha256: Some("3180abfba94222a6f031ad35e5aba561bb6b0a4c73ac4677fc02bcf6fcbb10f7"),
         inventory_machinery: false,
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/proof/admission/src/integer_rules/integer_affine/witness_checking.rs",
-        sha256: Some("44697c678f283b67046a58d42ba8e4d98527356621c4b9052a971acad1266a83"),
+        sha256: Some("b423c1e1a1a798b1ab416d8ef2c863ebee0b45aa503c6a8863302bff616cbab3"),
         inventory_machinery: false,
     },
     ImplementationSite {
