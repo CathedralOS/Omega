@@ -1,0 +1,41 @@
+// RUN CANARY (exit 70) + interpreter differential. Equal-width integer
+// re-views read the viewed place's two's-complement bits on the view carrier:
+// a negative i32 read through `&u32` is its modular image, an inline `&u8`
+// view of an i8 guard operand likewise, and a `u8` byte region at a
+// guard-bounded runtime offset re-viewed as `&i16` assembles its bytes
+// little-endian before the signed image. The viewed fields keep their
+// declared carriers; each byte of the region owes its own index proof.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    value: i32;
+    small: i8;
+    bytes: [u8; 6];
+    k: u32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    self.value = -2;
+    self.small = -56;
+    self.bytes[3] = 254;
+    self.bytes[4] = 255;
+    self.k = 3;
+    let bits: &u32 = &self.value as &u32;
+    transition bits == 4294967294 && (&self.small as &u8) == 200 && self.k <= 4 {
+        true -> region(self.k)
+        _ -> bad()
+    }
+
+    state region(&mut self, offset: u32) {
+        let pair: &i16 = &self.bytes[offset] as &i16;
+        transition pair == -2 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
