@@ -110,6 +110,59 @@ demo_target machine Helper::entry_point(&self) -> i32 {
 }";
 
 #[test]
+fn via_calls_and_nested_arguments_bind_to_the_declarations_authored_target() {
+    let program = resolve_sources(&[(
+        "bindings.omg",
+        "data Foreign {} data Provider {}
+         pub boundary requirement Foreign::value() -> u64;
+         base_target machine binding() -> u64 { 1 }
+         demo_target machine binding() -> u64 { 2 }
+         machine wrap(value: u64) -> u64 { value }
+         base_target machine Provider::leaf() -> u64
+             satisfies Foreign::value via wrap(binding());
+         demo_target machine Provider::leaf() -> u64
+             satisfies Foreign::value via wrap(binding());",
+    )]);
+    let leaves = program
+        .machines
+        .iter()
+        .filter(|machine| machine.name.as_str() == "Provider::leaf")
+        .collect::<Vec<_>>();
+    assert_eq!(leaves.len(), 2, "both target-authored leaves are checked");
+    for machine in leaves {
+        let conformance = &program.machine_trait_conformances(machine.satisfies)[0];
+        let expressions = &program.tables.bodies.expressions;
+        let symbol_resolved_trees::expression::ExpressionNode::Call(wrapper) =
+            expressions.expression(conformance.via_expression)
+        else {
+            panic!("via retains its wrapper call");
+        };
+        assert_eq!(
+            program.symbols.get(wrapper.target_symbol).parent,
+            machine_symbol(&program, "wrap"),
+            "an ordinary helper is not a member of the target family"
+        );
+        let argument = expressions.expression_handles(wrapper.arguments)[0];
+        let symbol_resolved_trees::expression::ExpressionNode::Call(binding) =
+            expressions.expression(argument)
+        else {
+            panic!("via retains its nested binding call");
+        };
+        let expected = program
+            .machines
+            .iter()
+            .find(|candidate| {
+                candidate.name.as_str() == "binding" && candidate.target == machine.target
+            })
+            .expect("each authored target has a binding producer");
+        assert_eq!(
+            program.symbols.get(binding.target_symbol).parent,
+            expected.symbol
+        );
+    }
+}
+
+#[test]
 fn canonical_body_uses_its_authored_target_not_the_callee_familys_canonical_target() {
     let text = "base_target machine helper() -> u64 { 1 }
         demo_target machine helper() -> u64 { 2 }
