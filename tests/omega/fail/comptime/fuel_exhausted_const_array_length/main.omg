@@ -35,6 +35,6 @@ machine table_size() -> u64 {
     }
 }
 
-machine Main::main(&mut self) {
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) {
+    main.console.exit_process(70);
 }

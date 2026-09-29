@@ -8,8 +8,8 @@
 data Main {
 }
 
-machine Main::main(&mut self) {
-    self.record(3, 10);
+machine Main::main(main: &mut Main) {
+    main.record(3, 10);
 }
 
 machine Main::record(n: i32, bound [erased]: i32)

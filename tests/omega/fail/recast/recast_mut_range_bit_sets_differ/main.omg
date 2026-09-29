@@ -6,6 +6,6 @@ data Main {
     value: i32 [0..=100];
 }
 
-machine Main::main(&mut self) {
-    let view: &mut u32 [1..=101] = &mut self.value as &mut u32;
+machine Main::main(main: &mut Main) {
+    let view: &mut u32 [1..=101] = &mut main.value as &mut u32;
 }

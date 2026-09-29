@@ -6,7 +6,7 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; r: i32; }
-machine Main::main(&mut self) {
-    self.r = 3000000123;
-    self.console.exit_process(self.r);
+machine Main::main(main: &mut Main) {
+    main.r = 3000000123;
+    main.console.exit_process(main.r);
 }

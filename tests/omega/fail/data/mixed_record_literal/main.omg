@@ -12,6 +12,6 @@ data Main {
     event: RoomEvent;
 }
 
-machine Main::main(&mut self) {
-    self.event = RoomEvent { consumed: true };
+machine Main::main(main: &mut Main) {
+    main.event = RoomEvent { consumed: true };
 }

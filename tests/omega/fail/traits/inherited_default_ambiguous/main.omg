@@ -25,6 +25,6 @@ data Counter {
 
 CounterResettable: Counter satisfies Resettable;
 
-machine Counter::set(&mut self, value: i32) {
-    self.value = value;
+machine Counter::set(counter: &mut Counter, value: i32) {
+    counter.value = value;
 }

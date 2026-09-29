@@ -13,7 +13,7 @@ use omega::language::core::binding;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let x: i32 in Wrapping = undeclared_var; // undeclared bare name -- must be rejected
-    self.console.exit_process(x);
+    main.console.exit_process(x);
 }

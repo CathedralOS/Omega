@@ -15,8 +15,8 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) {
-    transition self.cmd {
+machine Main::main(main: &mut Main) {
+    transition main.cmd {
         Command::None -> idle()
         Command::Quit -> leave()
     }

@@ -4,8 +4,8 @@ data Main {
     health: i32;
 }
 
-machine Main::main(&mut self) {
-    relax self.health {
-        self.health = 5;
+machine Main::main(main: &mut Main) {
+    relax main.health {
+        main.health = 5;
     }
 }

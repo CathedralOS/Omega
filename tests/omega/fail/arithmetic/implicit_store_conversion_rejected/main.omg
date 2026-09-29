@@ -6,9 +6,9 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; state: u32; output: i32; }
-machine Main::main(&mut self) {
-    self.state = 7;
-    self.output = self.state;
-    let o: i32 = self.output;
-    self.console.exit_process(o);
+machine Main::main(main: &mut Main) {
+    main.state = 7;
+    main.output = main.state;
+    let o: i32 = main.output;
+    main.console.exit_process(o);
 }

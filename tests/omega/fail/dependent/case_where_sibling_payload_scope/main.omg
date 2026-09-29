@@ -7,6 +7,6 @@ data Pair {
     case B(y: u64) where x >= 0;
 }
 data Main { pair: Pair; }
-machine Main::main(&mut self) {
-    self.pair = Pair::B { y: 1 };
+machine Main::main(main: &mut Main) {
+    main.pair = Pair::B { y: 1 };
 }

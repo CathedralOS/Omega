@@ -7,8 +7,8 @@ data Main {
     value: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     asm {
-        mov self.value, [self.value]
+        mov main.value, [main.value]
     }
 }

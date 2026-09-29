@@ -13,9 +13,9 @@ pub boundary requirement CheckedMath::offset_zero(value: i32) -> i32;
 
 data Main { console: Binding<Console>; }
 
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 reaches Console
 {
     let selected: i32 = CheckedMath::offset_zero(70);
-    self.console.exit_process(selected);
+    main.console.exit_process(selected);
 }

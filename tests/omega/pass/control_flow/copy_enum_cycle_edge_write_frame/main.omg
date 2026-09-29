@@ -44,9 +44,9 @@ data Main {
     cells: [u8; 4];
 }
 
-machine Main::main(&mut self) {
-    self.output.limit = 3;
-    classify(&mut self.output);
-    let index: u64 [0..=3] = self.output.limit;
-    self.cells[index] = 1;
+machine Main::main(main: &mut Main) {
+    main.output.limit = 3;
+    classify(&mut main.output);
+    let index: u64 [0..=3] = main.output.limit;
+    main.cells[index] = 1;
 }

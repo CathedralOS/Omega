@@ -6,8 +6,8 @@ data Main {
     entries: [i32; 4];
 }
 
-machine Main::main(&mut self) -> u64 {
-    let items: &mut [i32] = self.entries.as_mut_slice();
+machine Main::main(main: &mut Main) -> u64 {
+    let items: &mut [i32] = main.entries.as_mut_slice();
     let a: &mut [i32] = items[0..2];
     let b: &mut [i32] = items[1..3];
     a.len + b.len

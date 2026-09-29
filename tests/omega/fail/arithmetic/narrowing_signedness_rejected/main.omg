@@ -12,9 +12,9 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; u: u8; s: i8; }
-machine Main::main(&mut self) {
-    self.u = 200;
-    self.s = self.u;
-    let o: i32 = self.s as i32;
-    self.console.exit_process(o);
+machine Main::main(main: &mut Main) {
+    main.u = 200;
+    main.s = main.u;
+    let o: i32 = main.s as i32;
+    main.console.exit_process(o);
 }

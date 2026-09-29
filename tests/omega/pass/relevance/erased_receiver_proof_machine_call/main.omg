@@ -9,10 +9,10 @@ data P {
     case S(prev: P);
 }
 
-machine P::touch(self) {
+machine P::touch(p: &P) {
 }
 
 machine main() {
     let p [erased]: P = P::Z {};
-    p.touch();
+    P::touch(p);
 }

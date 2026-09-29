@@ -3,7 +3,7 @@
 
 data Main { counter: AtomicU32; }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let prior: u32 in Wrapping =
-        self.counter.compare_exchange(0, 1, Receive, GlobalOrder);
+        main.counter.compare_exchange(0, 1, Receive, GlobalOrder);
 }

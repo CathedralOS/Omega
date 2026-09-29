@@ -7,6 +7,6 @@ data Main {
     value: Choice;
 }
 
-machine Main::main(&mut self) {
-    self.value = zero_value<Choice>();
+machine Main::main(main: &mut Main) {
+    main.value = zero_value<Choice>();
 }

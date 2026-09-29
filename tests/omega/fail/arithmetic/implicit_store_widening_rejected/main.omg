@@ -17,9 +17,9 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; small: u8; wide: u16; }
-machine Main::main(&mut self) {
-    self.small = 7;
-    self.wide = self.small;
+machine Main::main(main: &mut Main) {
+    main.small = 7;
+    main.wide = main.small;
     let o: i32 = 70;
-    self.console.exit_process(o);
+    main.console.exit_process(o);
 }

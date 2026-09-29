@@ -11,8 +11,8 @@ data Interval {
     case Range(lo: u64, hi: u64) where lo <= hi;
 }
 data Main { interval: Interval; }
-machine Main::main(&mut self) {
-    transition self.interval {
+machine Main::main(main: &mut Main) {
+    transition main.interval {
         Interval::Range { lo, hi } -> take(lo, hi)
         Interval::Empty -> done()
     }

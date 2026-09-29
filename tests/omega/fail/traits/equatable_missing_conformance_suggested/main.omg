@@ -13,6 +13,6 @@ data Main {
     b: Point;
 }
 
-machine Main::main(&mut self) {
-    let mut hit: bool = self.a == self.b;
+machine Main::main(main: &mut Main) {
+    let mut hit: bool = main.a == main.b;
 }

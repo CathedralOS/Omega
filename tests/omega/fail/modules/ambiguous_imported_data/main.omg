@@ -5,6 +5,6 @@ data Main {
     p: Point;
 }
 
-machine Main::main(&mut self) {
-    self.p.x = 1;
+machine Main::main(main: &mut Main) {
+    main.p.x = 1;
 }

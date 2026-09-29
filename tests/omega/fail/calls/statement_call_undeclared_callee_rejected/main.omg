@@ -11,8 +11,8 @@ data Helper { seed: i32; }
 
 data Main { helper: Helper; }
 
-machine Main::main(&mut self) {
-    self.helper.no_such_leg();
+machine Main::main(main: &mut Main) {
+    main.helper.no_such_leg();
     transition true { _ -> done() }
     state done() { }
 }

@@ -8,8 +8,8 @@ data Window {
     case Empty;
 }
 data Main { window: Window; }
-machine Main::main(&mut self) {
-    self.window = Window::Within { lo: 3, hi: 10 };
-    self.window = Window::Within { hi: 4 };
-    self.window = Window::Empty;
+machine Main::main(main: &mut Main) {
+    main.window = Window::Within { lo: 3, hi: 10 };
+    main.window = Window::Within { hi: 4 };
+    main.window = Window::Empty;
 }

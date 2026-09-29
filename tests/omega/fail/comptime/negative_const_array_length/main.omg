@@ -16,6 +16,6 @@ machine shrunk_size() -> i32 {
     }
 }
 
-machine Main::main(&mut self) {
-    self.console.exit_process(0);
+machine Main::main(main: &mut Main) {
+    main.console.exit_process(0);
 }

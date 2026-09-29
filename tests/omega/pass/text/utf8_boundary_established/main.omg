@@ -20,8 +20,8 @@ requires
 {
 }
 
-machine Main::main(&mut self) {
-    Text::validate_utf8(&mut self.text);
+machine Main::main(main: &mut Main) {
+    Text::validate_utf8(&mut main.text);
     // Consumed downstream as a carried fact, with no byte re-scan.
-    consume(self.text);
+    consume(main.text);
 }
