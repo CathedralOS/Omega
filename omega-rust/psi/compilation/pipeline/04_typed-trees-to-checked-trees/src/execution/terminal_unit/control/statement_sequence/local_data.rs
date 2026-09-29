@@ -267,8 +267,19 @@ pub(super) fn plan(
     // The shared `&` loan arms before the structural-value root lookup: a
     // shared borrow registers a value root upstream (exclusive `&mut`
     // borrows do not), so a `&`-typed local would enter the block below and
-    // die at its root-identity gate before the loan arm could admit it.
-    if is_shared_place_loan(
+    // die at its root-identity gate before the loan arm could admit it. A
+    // whole record borrow whose root passes that gate (`let view: &Payload =
+    // &a;`) keeps its established `Reference` value instead: a call can
+    // forward that value as a structural local, while a loan carrier plans
+    // nothing a call operand could name.
+    if !established_record_borrow(
+        program,
+        facts,
+        machine.symbol,
+        state,
+        statement_index,
+        local,
+    ) && is_shared_place_loan(
         program,
         machine.symbol,
         state,
@@ -770,6 +781,35 @@ fn shared_place_loan_referent(
     }
     (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
         .then_some(())
+}
+
+/// A `&record` initializer whose structural-value root names exactly this
+/// local's initializer and declared type: the root block establishes it as
+/// a `Reference` value, as it does for a selection arm's borrow. A primitive
+/// referent stays a loan carrier, whose reads rejoin the loaned place; the
+/// state graph has no custody accounting for its `Reference` value.
+fn established_record_borrow(
+    program: &TypedTrees,
+    facts: &CheckFacts,
+    machine: SymbolHandle,
+    state: &typed_trees::state::State,
+    statement_index: u32,
+    local: &typed_trees::statement::TableLocalData,
+) -> bool {
+    super::super::super::reference_results::shared_place_borrowed_parts(
+        program,
+        local.type_reference,
+    )
+    .is_some_and(|(referee, _)| program.primitive_type_reference(referee).is_none())
+        && facts
+            .values
+            .structural_values
+            .root_for_expression(state.symbol, statement_index, local.initial_value)
+            .is_some_and(|root| {
+                root.machine == machine
+                    && root.expression == local.initial_value
+                    && root.type_reference == local.type_reference
+            })
 }
 
 /// A `let` binding an exclusive `&mut`-view result of a call that left no
