@@ -992,20 +992,18 @@ pub(crate) fn call_claim_transfers(
             continue;
         }
         if source_parameter_index.is_none() {
+            // A projection roots only at a result binding: an owned move of
+            // its subtree, or a shared, mutable or write-only loan of it.
+            // None of those loans carries a claim; owned moves are joined
+            // to their producer's claims below.
             if (argument.source_local_declaration_ordinal().is_none()
                 && argument
                     .source_structural_result_binding_ordinal()
                     .is_none())
                 || (!argument.path.is_empty()
-                    && !(argument
+                    && argument
                         .source_structural_result_binding_ordinal()
-                        .is_some()
-                        && matches!(
-                            argument.access,
-                            CheckedStructuralAccess::Owned
-                                | CheckedStructuralAccess::MutableBorrow
-                                | CheckedStructuralAccess::WriteOnlyBorrow
-                        )))
+                        .is_none())
                 || (argument.access != CheckedStructuralAccess::Owned
                     && !(argument
                         .source_structural_result_binding_ordinal()

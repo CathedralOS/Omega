@@ -29,6 +29,8 @@ mod indexed_primitive_store;
 mod integer_axioms_and_carriers;
 #[path = "straight_line/literal_byte_extent.rs"]
 mod literal_byte_extent;
+#[path = "straight_line/local_record_call_loans.rs"]
+mod local_record_call_loans;
 #[path = "straight_line/proof_and_guard_modules.rs"]
 mod proof_and_guard_modules;
 #[path = "straight_line/scalar_record.rs"]

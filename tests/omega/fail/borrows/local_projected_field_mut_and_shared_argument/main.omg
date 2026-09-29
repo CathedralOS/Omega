@@ -1,0 +1,14 @@
+// A projected field of a local is an ordinary loan of that subtree: lending
+// it `&mut` and `&` to the same call aliases a live exclusive loan.
+
+data Banner { width: i32 in Wrapping; }
+data Screen { banner: Banner; height: i32 in Wrapping; }
+
+machine Banner::copy(target: &mut Banner, source: &Banner) {
+    target.width = source.width;
+}
+
+machine main() {
+    let mut screen: Screen;
+    Banner::copy(&mut screen.banner, &screen.banner);
+}

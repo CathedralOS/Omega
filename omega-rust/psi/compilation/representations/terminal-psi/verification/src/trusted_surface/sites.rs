@@ -1369,7 +1369,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/structural/operations/unit_operation/unit_calls.rs",
-        sha256: Some("41e4e147aaf5a75c0a687cde2d9ebc7c1254581a40627242cf22adf1f05c95ee"),
+        sha256: Some("ec6977a35fa4e78ee7ca6a8e29635cd85f5fa74e6ba1f4aa6a1a19a0270ed034"),
         inventory_machinery: false,
     },
     ImplementationSite {

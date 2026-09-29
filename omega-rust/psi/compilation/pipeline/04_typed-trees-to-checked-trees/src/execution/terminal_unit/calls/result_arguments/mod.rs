@@ -136,15 +136,12 @@ pub(super) fn argument(
     let projected = !place.segments.is_empty();
     let unrestricted = result.multiplicity == Multiplicity::Unrestricted;
     let linear = result.multiplicity == Multiplicity::Linear;
-    // A projected exclusive borrow lends a subtree of a result binding that
-    // stays live after the call. The loan evidence comes from the borrow
-    // record below rather than from an owned-projection permission, so this
-    // lane is separate from `allow_projection`: no custody moves.
-    let exclusive_borrow = matches!(
-        access,
-        CheckedStructuralAccess::MutableBorrow | CheckedStructuralAccess::WriteOnlyBorrow
-    );
-    let projected_borrow = projected && exclusive_borrow;
+    // A projected borrow — shared, mutable or write-only — lends a subtree of
+    // a result binding that stays live after the call. The loan evidence
+    // comes from the borrow record below, rejoined per access kind, rather
+    // than from an owned-projection permission, so this lane is separate
+    // from `allow_projection`: no custody moves.
+    let projected_borrow = projected && access != CheckedStructuralAccess::Owned;
     let local_type = receiver_local_type(program, source_state, place, result);
     // A local array lends the same element view as an array parameter or
     // field. The local keeps its backing identity; the call presents only
@@ -159,20 +156,19 @@ pub(super) fn argument(
         });
     // A projected owned-record operand carries its subtree's captured leaves
     // into the call; the same resolved path both proves that custody and
-    // names the argument's projected edge below. A projected exclusive
-    // borrow resolves the same path to name the loaned subtree.
-    let projected_path =
-        if projected && (access == CheckedStructuralAccess::Owned || projected_borrow) {
-            projected_argument_path_with_identity(
-                program,
-                state,
-                call.statement_index,
-                place,
-                target_identity,
-            )
-        } else {
-            None
-        };
+    // names the argument's projected edge below. A projected borrow resolves
+    // the same path to name the loaned subtree.
+    let projected_path = if projected {
+        projected_argument_path_with_identity(
+            program,
+            state,
+            call.statement_index,
+            place,
+            target_identity,
+        )
+    } else {
+        None
+    };
     let owned_reference_record = access == CheckedStructuralAccess::Owned
         && validation::reference_result_custody::is_reference_record(
             program,
@@ -396,9 +392,6 @@ pub(super) fn argument(
         }
     }
     let path = if projected {
-        if access != CheckedStructuralAccess::Owned && !projected_borrow {
-            return None;
-        }
         if !projected_borrow && !(allow_projection || owned_reference_record) {
             return None;
         }
@@ -411,7 +404,16 @@ pub(super) fn argument(
         CheckedStructuralAccess::SharedBorrow => {
             let referee = shared_plain_affine_referent(program, parameter.type_reference)
                 .or_else(|| shared_closed_referent(program, parameter.type_reference))
-                .or(if array_view { local_type } else { None })?;
+                .or(if array_view { local_type } else { None })
+                .or_else(|| {
+                    // A named local lends its own storage, exactly as the
+                    // exclusive arm below does: the declared record's field
+                    // domains ride the loan, and the local's contents and
+                    // identity are rejoined against the binding below.
+                    matches!(place.root, facts::PlaceRoot::Symbol(_))
+                        .then(|| shared_numeric_affine_referent(program, parameter.type_reference))
+                        .flatten()
+                })?;
             let ExpressionNode::Borrow(borrow) = program.expression_table.expression(expression)
             else {
                 return None;
@@ -535,12 +537,25 @@ pub(super) fn argument(
                 // checked above. Borrow formation owns writability and access
                 // rules (including write-only authority); a binding's `mut`
                 // marker is not a substitute for that evidence.
+                //
+                // A loan leaves the value in the local's own storage and
+                // presents the declared type itself (both identities were
+                // matched above), so a field's numeric domain or range is
+                // carried by that declaration rather than copied: the callee
+                // is checked against the same field constraints. An owned
+                // move still needs the plain-contents fence, because moving
+                // a constrained value owes its own value correspondence.
+                let owned_contents = if access == CheckedStructuralAccess::Owned {
+                    validation::has_plain_owned_contents(program, local.type_reference)
+                } else {
+                    validation::has_plain_owned_contents_with_numeric_constraints(
+                        program,
+                        local.type_reference,
+                    )
+                };
                 if (access == CheckedStructuralAccess::Owned && local.is_mutable)
                     || local.symbol != symbol
-                    || (!unrestricted
-                        && !linear
-                        && !owned_reference_record
-                        && !validation::has_plain_owned_contents(program, local.type_reference))
+                    || (!unrestricted && !linear && !owned_reference_record && !owned_contents)
                     || program.type_multiplicity(local.type_reference) != result.multiplicity
                     || (unrestricted
                         && !(validation::is_closed_primitive_array_type(
@@ -821,6 +836,28 @@ fn shared_closed_referent(
     (program.type_multiplicity(*referee) == Multiplicity::Unrestricted
         && (validation::is_closed_primitive_array_type(program, *referee)
             || validation::has_plain_owned_contents_with_numeric_constraints(program, *referee)))
+    .then_some(*referee)
+}
+
+/// Shared references to an affine record whose leaves are plain owned values,
+/// numeric domains and ranges included. Only a named local's own storage uses
+/// this: the loan presents the declared type unchanged, so its field
+/// constraints need no separate transport. Nested references, cleanup-owned
+/// contents and linear referents stay out.
+fn shared_numeric_affine_referent(
+    program: &TypedTrees,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<typed_trees::types::TypeReferenceHandle> {
+    let typed_trees::types::TypeReferenceNode::Reference {
+        access: language_semantics::ReferenceAccess::Shared,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(reference)
+    else {
+        return None;
+    };
+    (program.type_multiplicity(*referee) == Multiplicity::Affine
+        && validation::has_plain_owned_contents_with_numeric_constraints(program, *referee))
     .then_some(*referee)
 }
 

@@ -73,17 +73,25 @@ build authority, and artifact verification remain separate obligations.
   `&mut [u8]` and `&[T]` views for Unit-, scalar- and structural-result calls,
   `.as_slice()` establishes a view over a local home, and a zeroed local record
   lends `&mut` whole (`pass/calls/local_fixed_byte_array_loan_exit`,
-  `pass/slices/local_array_element_view_exit`). `dutch_flag` (70),
-  `modular_exponentiation` (87), `value_call_in_expr` (70) and `slice_maximum`
-  (9) run with native/interpreter agreement. Direct scalar element reads from
-  local arrays retain the original home after a borrowed writer
-  (`pass/calls/local_array_direct_read_exit`, native exit 70 on macOS ARM64).
-  Remaining local-storage refusals sit in Psi stage 04: `call operation:
-  claim-free affine result` for an ordinary structural-result call taking any
-  local loan (`&mut score`, `&mut buffer`), and `structural arguments: caller
-  structural result` for a projected loan of a local (`&dash.engine`). Stage 02
-  element-view establishment resolves a local backing from its producer
-  operation because threading the live home map needs `control_flow/operations.rs`.
+  `pass/slices/local_array_element_view_exit`); a local record lends `&mut` or
+  `&` whole and `&mut` by fixed field path to Unit- and scalar-result calls,
+  numeric field domains included
+  (`pass/calls/local_{record_mutable,record_shared,projected_field,projected_field_scalar_result}_argument_exit`).
+  `dutch_flag` (70), `modular_exponentiation` (87), `value_call_in_expr` (70)
+  and `slice_maximum` (9) run with native/interpreter agreement. Direct scalar
+  element reads from local arrays retain the original home after a borrowed
+  writer (`pass/calls/local_array_direct_read_exit`, native exit 70 on macOS
+  ARM64). Remaining structural-argument refusals: a shared projection of a
+  local (`&dash.engine`) stops at Psi stage 04 `call operation: projected
+  operand support` until `ordinary_projected_call_is_supported`
+  (`calls/argument_paths.rs`) admits `SharedBorrow` in its result-binding arm;
+  the argument, claim-transfer, stage 05 and Terminal checks already admit it.
+  An ordinary structural-result call taking any local loan stops at `call
+  operation: claim-free affine result`. A static `generic_counters` plans its
+  local loans and stops inside the specialized callee at `scalar field store
+  sequence: write frame agreement`. Stage 02 element-view establishment
+  resolves a local backing from its producer operation because threading the
+  live home map needs `control_flow/operations.rs`.
   `parse_int` and `roman_numeral` construct a domain-qualified byte local from a
   shorter literal (`let text: [u8; 8] in Utf8 = "150";`). That is a bounded
   carrier whose live length is the literal's
