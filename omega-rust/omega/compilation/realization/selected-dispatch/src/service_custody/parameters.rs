@@ -1,8 +1,8 @@
 //! Exact custody for the first direct owned routed-Service parameter rung.
 
 use checked_trees::{
-    CheckedStructuralScalarParameterPlan, CheckedTrees, CheckedUnitEffectOperationPlan,
-    CheckedUnitStructuralParameterPlan,
+    CheckedStructuralScalarParameterPlan, CheckedTrees, CheckedUnitCallResult,
+    CheckedUnitEffectOperationPlan, CheckedUnitStructuralParameterPlan,
 };
 use diagnostics::Diagnostic;
 use provider_planning::CompositionMode;
@@ -328,28 +328,26 @@ fn validate_receipt(
     let operations = plan
         .operations
         .iter()
-        .filter_map(|operation| match operation {
-            CheckedUnitEffectOperationPlan::BoundaryCall {
-                coordinate,
-                target_state,
-                ..
-            }
-            | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                coordinate,
-                target_state,
-                ..
-            } if checked
+        .filter_map(|operation| {
+            // Boundary calls with a Unit or scalar result; boundary structural
+            // calls and ordinary calls are not collected here.
+            let call = operation.call().filter(|call| {
+                call.is_boundary() && !matches!(call.result(), CheckedUnitCallResult::Structural(_))
+            })?;
+            let target_state = call.target_state();
+            if !checked
                 .trait_machine_signatures(requirement_definition)
                 .iter()
-                .any(|signature| signature.symbol == *target_state) =>
+                .any(|signature| signature.symbol == target_state)
             {
-                Some((
-                    usize::try_from(coordinate.statement_index).ok()?,
-                    usize::try_from(coordinate.call_ordinal).ok()?,
-                    *target_state,
-                ))
+                return None;
             }
-            _ => None,
+            let coordinate = call.coordinate();
+            Some((
+                usize::try_from(coordinate.statement_index).ok()?,
+                usize::try_from(coordinate.call_ordinal).ok()?,
+                target_state,
+            ))
         })
         .collect::<Vec<_>>();
     if operations != calls {
