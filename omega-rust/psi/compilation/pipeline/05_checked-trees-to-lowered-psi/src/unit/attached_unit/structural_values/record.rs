@@ -190,23 +190,12 @@ impl emission::Emission<'_, '_, '_> {
                         ) {
                             return unsupported("nested record operand has a scalar destination");
                         }
-                        let kind = match scalar_type {
-                            ScalarType::Integer(integer) => OperationKind::IntegerConstant {
-                                value: match integer.sign() {
-                                    IntegerSign::Signed => IntegerValue::Signed(0),
-                                    IntegerSign::Unsigned => IntegerValue::Unsigned(0),
-                                },
-                            },
-                            ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
-                            ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {
-                                value: match format {
-                                    IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
-                                    IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
-                                },
-                            },
-                        };
-                        let zero =
-                            emit_scalar_leaf(kind, scalar_type, self.next_value, self.operations);
+                        let zero = emit_scalar_leaf(
+                            zero_constant(scalar_type),
+                            scalar_type,
+                            self.next_value,
+                            self.operations,
+                        );
                         scalar_positions.push((initialized.len(), self.values.len()));
                         self.values.push(ValueDeclaration {
                             qualifications: Default::default(),
@@ -363,6 +352,26 @@ pub(crate) fn emit_completed(
         kind: StructuralPlaceKind::OperationResult {
             producer: operation,
             structural_type,
+        },
+    }
+}
+
+/// The declared scalar type's zero as one constant operation: the value
+/// omitted scalar members and unnamed common fields establish.
+pub(super) fn zero_constant(scalar_type: ScalarType) -> OperationKind {
+    match scalar_type {
+        ScalarType::Integer(integer) => OperationKind::IntegerConstant {
+            value: match integer.sign() {
+                IntegerSign::Signed => IntegerValue::Signed(0),
+                IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+            },
+        },
+        ScalarType::Boolean => OperationKind::BooleanConstant { value: false },
+        ScalarType::IeeeFloat(format) => OperationKind::IeeeFloatConstant {
+            value: match format {
+                IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
+                IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
+            },
         },
     }
 }

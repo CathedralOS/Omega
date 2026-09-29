@@ -1176,7 +1176,8 @@ fn establish_structural_case(
     }
     let mut relocations = Vec::new();
     let mut moved = BTreeSet::new();
-    for (declaration, field) in declarations.iter().zip(fields) {
+    for (entry, field) in declarations.iter().zip(fields) {
+        let declaration = entry.declaration;
         let terminal_psi::RecordFieldValue::Structural(argument) = &field.value else {
             continue;
         };

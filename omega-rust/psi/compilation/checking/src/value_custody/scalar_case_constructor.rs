@@ -159,13 +159,25 @@ fn case_constructor_parts(
     } else {
         crate::has_plain_owned_contents_with_numeric_constraints(program, reference)
     };
+    // The structural route also stands a mixed shape whose runtime common
+    // fields are scalar primitives, the only common fields
+    // `data::validate_data_shape` admits. Case construction zero-initializes
+    // every common field the literal leaves unnamed, so a named one is an
+    // operand beside the payload and an unnamed one is the lowering's zero.
+    let common_scalar = |field: &typed_trees::data::DataField| {
+        erased_member_owner
+            && (field.relevance.is_erased()
+                || program
+                    .primitive_type_reference(field.type_reference)
+                    .is_some())
+    };
     if !owner.type_parameters.is_empty()
         || !contents
         || program
             .data_members(owner)
             .iter()
             .any(|member| match member {
-                DataMember::Field(field) => !(erased_member_owner && field.relevance.is_erased()),
+                DataMember::Field(field) => !common_scalar(field),
                 DataMember::Variant(_) => false,
             })
         || program.symbols.get(selected).parent != owner.symbol
@@ -198,9 +210,27 @@ fn case_constructor_parts(
             }
             continue;
         }
-        let declaration = declarations
+        // A runtime common field of a mixed owner is named at most once and
+        // stays out of the payload count; admission above limited it to the
+        // structural route and scalar carriers.
+        let common = program
+            .data_members(owner)
             .iter()
-            .find(|declaration| declaration.symbol == field.field_symbol)?;
+            .find_map(|member| match member {
+                DataMember::Field(owner_field) if owner_field.symbol == field.field_symbol => {
+                    Some(owner_field)
+                }
+                _ => None,
+            });
+        let declared = match common {
+            Some(common) => common.type_reference,
+            None => {
+                declarations
+                    .iter()
+                    .find(|declaration| declaration.symbol == field.field_symbol)?
+                    .type_reference
+            }
+        };
         if !field.field_symbol.is_valid()
             || operands
                 .iter()
@@ -209,17 +239,28 @@ fn case_constructor_parts(
         {
             return None;
         }
-        operands.push((
-            field.field_symbol,
-            field.value,
-            declaration.type_reference,
-            declaration.relevance.is_erased(),
-        ));
+        let erased = match common {
+            Some(common) => common.relevance.is_erased(),
+            None => declarations
+                .iter()
+                .any(|declaration| {
+                    declaration.symbol == field.field_symbol && declaration.relevance.is_erased()
+                }),
+        };
+        operands.push((field.field_symbol, field.value, declared, erased));
     }
     // The payload declarations keep their authored-exactly-once shape: every
-    // declaration answered one operand and erased owner members never enter
-    // the count.
-    (operands.len() == declarations.len()).then_some((reference, selected, operands))
+    // declaration answered one operand. Erased owner members and named common
+    // fields never enter the count.
+    let payload_operands = operands
+        .iter()
+        .filter(|(symbol, ..)| {
+            declarations
+                .iter()
+                .any(|declaration| declaration.symbol == *symbol)
+        })
+        .count();
+    (payload_operands == declarations.len()).then_some((reference, selected, operands))
 }
 
 pub fn scalar_case_constructor(

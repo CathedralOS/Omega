@@ -281,7 +281,12 @@ pub(crate) fn resolve_typed(
         let checked_trees::CheckedStructuralPredicatePathSegment::Field(identity) = segment else {
             unreachable!("fixed indices and cases return above");
         };
-        let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        // A mixed shape's common fields sit directly on the carrier beside the
+        // tag, addressed exactly like a record's; its payload fields need the
+        // `Case` step above.
+        let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+            &declaration.shape
+        else {
             return unsupported("runtime field observation requires a record carrier");
         };
         let mut selected = fields.iter().filter(|field| field.identity == *identity);

@@ -1429,15 +1429,30 @@ crash and native exit behavior. Use affected check/native corpus slices under
   without runtime slots; establish domains before observation. Arithmetic-policy
   payloads and direct scalar-domain stores remain controls, not this omission.
 
-  `checking/src/value_custody/scalar_case_constructor.rs` requires numeric-owned
-  contents, rejects common fields, requires the full authored payload roster,
-  and rejects erased operands in its structural constructor. Predicate domains
-  are outside that contents classifier. Stage 04
-  `values/scalar/computations/structural_values.rs` shares the classifier and
-  also gates record construction. Stage 05
-  `attached_unit/structural_values/structural_case.rs` requires a sum shape and
-  rejects erased initializers. Repair retained establishment through lowering;
-  merely removing an admission guard cannot supply the missing evidence.
+  Common-field construction establishes: the structural constructor admits
+  named scalar common fields, stage 05 binds runtime common fields then the
+  payload with explicit zeros for unnamed ones, and Terminal verification checks
+  that roster. Omega stage 02 `lowering/control_flow/records.rs::establish` and
+  stage 03's `EstablishCase` legalization and `selection/aggregate_result_input.rs::fields`
+  still take only sum rosters; `layout.common_fields` already places the common
+  fields. `traits/equatable_mixed_shape_equality_exit` checks; natively it first
+  stops at `InvalidBooleanStructuralField` because
+  `terminal-semantics::record_field::observed_field_declaration` resolves only
+  record and case-payload carriers, not a mixed carrier's common field. Its
+  consumers (verifier `validation/structural/scalar_fields.rs`, Omega stage 00
+  `structural_scalar_fields.rs`, stage 01 field-value specialization, the
+  optimization unit) follow. `data/runtime_mixed_shape_exit` also needs the
+  common-field store `self.event.bonus = 70`: stage 04
+  `structural_scalar_store/destination.rs::carrier` admits only a plain record
+  as the last owner. The interpreter's `EstablishStructuralCase` still requires
+  a sum and keys payload scalars by field id on the root, where mixed common
+  and payload ids collide. Erased payloads remain: the structural constructor
+  rejects authored erased operands and requires the full payload roster, stage
+  05 rejects erased initializers, verifier `constructible_case` requires
+  relevant payloads, and Omega stage 02 rejects erased declarations. Predicate
+  domains stay outside the constructor's contents classifier. Repair retained
+  establishment through lowering; merely removing an admission guard cannot
+  supply the missing evidence.
 
   The pending `structs/case_field_type_store_shapes` actually contains only the
   common-field case; materialize its comment-only domain/erased controls and

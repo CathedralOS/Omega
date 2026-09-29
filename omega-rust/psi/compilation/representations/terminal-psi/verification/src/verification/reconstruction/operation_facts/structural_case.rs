@@ -30,8 +30,10 @@ pub(super) fn append(
     axioms.retain(|proposition| {
         !crate::validation::proposition_observes_places(proposition, &[result.place])
     });
-    for (declaration, binding) in declarations.iter().zip(fields) {
-        if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) = declaration.field_type {
+    for (entry, binding) in declarations.iter().zip(fields) {
+        if let terminal_psi::StructuralFieldType::BoundedInteger(bounds) =
+            entry.declaration.field_type
+        {
             let terminal_psi::RecordFieldValue::Scalar {
                 value,
                 range_obligation,
@@ -71,11 +73,18 @@ pub(super) fn append(
         subject: StructuralCaseSubject::new(result.place, Vec::new()),
         case: *result_case,
     });
-    for (declaration, binding) in declarations.iter().zip(fields) {
-        let path = vec![
-            CanonicalStructuralPathSegment::Case(*result_case),
-            CanonicalStructuralPathSegment::Field(binding.field),
-        ];
+    for (entry, binding) in declarations.iter().zip(fields) {
+        let declaration = entry.declaration;
+        // A mixed shape's common field is read directly on the root; a
+        // payload field only beneath its selected case.
+        let path = if entry.common {
+            vec![CanonicalStructuralPathSegment::Field(binding.field)]
+        } else {
+            vec![
+                CanonicalStructuralPathSegment::Case(*result_case),
+                CanonicalStructuralPathSegment::Field(binding.field),
+            ]
+        };
         let terminal_psi::RecordFieldValue::Scalar { value, .. } = binding.value else {
             let terminal_psi::RecordFieldValue::Structural(argument) = &binding.value else {
                 unreachable!()
