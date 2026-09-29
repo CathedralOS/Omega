@@ -13,9 +13,9 @@ pub(crate) mod validation;
 
 pub(crate) use commitments::{build_observation_commitment, whole_review_commitment};
 pub use compilation::{
-    CandidateSourcePreparation, SemanticBindingReview,
+    CandidateCompilation, CandidateSourcePreparation, SemanticBindingReview,
     compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
-    compile_resolved_package_reviews_reusing, compile_resolved_package_reviews_with_checkpoint,
+    compile_resolved_package_reviews_reusing,
 };
 pub(crate) use compilation::{
     compile_candidate_for_check_reusing, compile_resolved_package_candidate_for_check,

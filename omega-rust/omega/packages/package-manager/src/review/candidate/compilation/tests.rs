@@ -2,10 +2,11 @@ mod restricted_build_grants;
 
 use super::super::PackageSourceVerificationPhase;
 use super::{
-    CandidateSourcePreparation, CompileResolvedPackageReviewsError, SemanticBindingReview,
-    TargetEntryDiscovery, candidate_semantic_binding_inputs, compile_candidate_for_check_reusing,
-    compile_pass, compile_resolved_package_candidate_for_production,
-    compile_resolved_package_reviews, compile_resolved_package_reviews_reusing,
+    CandidateCompilation, CandidateSourcePreparation, CompileResolvedPackageReviewsError,
+    SemanticBindingReview, TargetEntryDiscovery, candidate_semantic_binding_inputs,
+    compile_candidate_for_check_reusing, compile_pass,
+    compile_resolved_package_candidate_for_production, compile_resolved_package_reviews,
+    compile_resolved_package_reviews_reusing,
 };
 use crate::resolution::graph::GitResolutionOptions;
 use crate::resolution::graph::{
@@ -309,10 +310,13 @@ fn retained_source_review_matches_independent_and_no_binding_candidates() {
     )
     .expect("independent reference pass");
     let candidate = compile_resolved_package_reviews_reusing(
-        &exact,
-        &fixture.0.join("candidate"),
+        CandidateCompilation {
+            target_closure: &exact,
+            build_root: &fixture.0.join("candidate"),
+            root_build_snapshot: None,
+            restricted_build_checkpoint: None,
+        },
         SemanticBindingReview::Discover,
-        None,
         &mut preparation,
     )
     .expect("a repeated candidate reuses the same preparation");
@@ -457,12 +461,15 @@ fn shared_preparation_serves_cross_target_reviews_and_still_rejects_drift() {
         );
         reused.push(
             compile_resolved_package_reviews_reusing(
-                &exact,
-                &fixture
-                    .0
-                    .join(format!("reused-{}", exact.target_profile().target_name())),
+                CandidateCompilation {
+                    target_closure: &exact,
+                    build_root: &fixture
+                        .0
+                        .join(format!("reused-{}", exact.target_profile().target_name())),
+                    root_build_snapshot: None,
+                    restricted_build_checkpoint: None,
+                },
                 SemanticBindingReview::Discover,
-                None,
                 &mut preparation,
             )
             .expect("cross-target review reuses prepared sources"),
@@ -504,10 +511,13 @@ fn shared_preparation_serves_cross_target_reviews_and_still_rejects_drift() {
     fs::set_permissions(&main, permissions).unwrap();
     fs::write(&main, "pub const VALUE: u32 = 9;\n").unwrap();
     let result = compile_resolved_package_reviews_reusing(
-        &closure.for_exact_target(target::TargetProfile::WindowsX64),
-        &fixture.0.join("drifted"),
+        CandidateCompilation {
+            target_closure: &closure.for_exact_target(target::TargetProfile::WindowsX64),
+            build_root: &fixture.0.join("drifted"),
+            root_build_snapshot: None,
+            restricted_build_checkpoint: None,
+        },
         SemanticBindingReview::Discover,
-        None,
         &mut preparation,
     );
     assert!(matches!(
@@ -848,10 +858,13 @@ fn assert_root_exit_permissions(
     }
 
     let reviews = compile_resolved_package_reviews_reusing(
-        &exact,
-        &fixture.0.join("final"),
+        CandidateCompilation {
+            target_closure: &exact,
+            build_root: &fixture.0.join("final"),
+            root_build_snapshot: Some(&snapshot),
+            restricted_build_checkpoint: None,
+        },
         SemanticBindingReview::Discover,
-        Some(&snapshot),
         &mut preparation,
     )
     .expect("final pass consumes the proposed permissions");
@@ -1289,11 +1302,13 @@ fn std_importing_check_invocation_executes_each_distinct_program_once() {
         let settled_executed_before =
             compiler::RepeatedCheckRetention::executed_settled_check_count();
         let (checked, reviews) = compile_candidate_for_check_reusing(
-            &exact,
-            &root.join("check"),
+            CandidateCompilation {
+                target_closure: &exact,
+                build_root: &root.join("check"),
+                root_build_snapshot: None,
+                restricted_build_checkpoint: None,
+            },
             &entry,
-            None,
-            None,
             &mut preparation,
         )
         .expect("the consuming check route completes");
@@ -1343,11 +1358,13 @@ fn std_importing_check_invocation_executes_each_distinct_program_once() {
         // so custody paths may legitimately differ; the memo's service is
         // proven by the unchanged executed counters, not product equality.
         let (checked_again, reviews_again) = compile_candidate_for_check_reusing(
-            &exact,
-            &root.join("check-again"),
+            CandidateCompilation {
+                target_closure: &exact,
+                build_root: &root.join("check-again"),
+                root_build_snapshot: None,
+                restricted_build_checkpoint: None,
+            },
             &entry,
-            None,
-            None,
             &mut preparation,
         )
         .expect("a repeated identical check completes");
@@ -1657,10 +1674,13 @@ fn discovery_proposes_the_root_filesystem_cohort_permissions_per_declared_leaf()
     );
 
     let reviews = compile_resolved_package_reviews_reusing(
-        &exact,
-        &fixture.0.join("final"),
+        CandidateCompilation {
+            target_closure: &exact,
+            build_root: &fixture.0.join("final"),
+            root_build_snapshot: None,
+            restricted_build_checkpoint: None,
+        },
         SemanticBindingReview::Discover,
-        None,
         &mut preparation,
     )
     .expect("final pass consumes the proposed permissions");

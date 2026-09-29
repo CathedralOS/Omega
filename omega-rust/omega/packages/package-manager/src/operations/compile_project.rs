@@ -9,7 +9,7 @@ use crate::admission::{
     accept_ordinary_closure_evidence, realize_accepted_native_report,
 };
 use crate::review::{
-    CandidateSourcePreparation, CanonicalPackageReconstructionQuestionLimits,
+    CandidateCompilation, CandidateSourcePreparation, CanonicalPackageReconstructionQuestionLimits,
     CompileResolvedPackageReviewsError, RestrictedBuildCheckpoint,
     ReviewOnlyCapabilityConflictLimits, production_candidate_reusing,
 };
@@ -282,11 +282,13 @@ fn compile_one_prepared_target<Observation>(
         .as_ref()
         .map(RestrictedBuildCheckpoint::derive);
     let candidate = production_candidate_reusing(
-        &target_closure,
-        &target_build_dir,
+        CandidateCompilation {
+            target_closure: &target_closure,
+            build_root: &target_build_dir,
+            root_build_snapshot: build_snapshot,
+            restricted_build_checkpoint: checkpoint.as_ref(),
+        },
         SemanticBindingReview::Discover,
-        build_snapshot,
-        checkpoint.as_ref(),
         preparation,
     )
     .map_err(CompilePreparedLocalProjectNativeError::Review)?;

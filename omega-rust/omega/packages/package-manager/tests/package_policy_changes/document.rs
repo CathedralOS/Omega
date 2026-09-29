@@ -4,9 +4,9 @@ use super::{
     candidate, compare_package_policy_changes, fs, lock_from_reviews, package, resolve, source,
 };
 use package_manager::review::{
-    CandidateSourcePreparation, PackagePolicyChangeSet, PackagePolicyDecision,
-    PackagePolicyDecisionSubject as Subject, PackagePolicyReviewError as Error,
-    ReviewOnlyRootPolicyDisposition::*, SemanticBindingReview,
+    CandidateCompilation, CandidateSourcePreparation, PackagePolicyChangeSet,
+    PackagePolicyDecision, PackagePolicyDecisionSubject as Subject,
+    PackagePolicyReviewError as Error, ReviewOnlyRootPolicyDisposition::*, SemanticBindingReview,
     compile_resolved_package_reviews_reusing, recover_package_policy_review,
     render_package_policy_review, resolve_package_policy_decisions,
 };
@@ -583,12 +583,15 @@ fn benign_required_output_changes_preserve_lock_without_restricted_decisions() {
     let required_target = required_closure.for_exact_target(TARGET);
     let mut preparation = CandidateSourcePreparation::for_closure(required_target.source_closure());
     let required_reviews = compile_resolved_package_reviews_reusing(
-        &required_target,
-        &tree.path("document-required-output-build"),
+        CandidateCompilation {
+            target_closure: &required_target,
+            build_root: &tree.path("document-required-output-build"),
+            root_build_snapshot: Some(&build_evaluation::BuildSnapshotRequest::new([
+                b"plan.txt".to_vec()
+            ])),
+            restricted_build_checkpoint: None,
+        },
         SemanticBindingReview::Discover,
-        Some(&build_evaluation::BuildSnapshotRequest::new([
-            b"plan.txt".to_vec()
-        ])),
         &mut preparation,
     )
     .expect("the newly required file is sealed by the same benign build");

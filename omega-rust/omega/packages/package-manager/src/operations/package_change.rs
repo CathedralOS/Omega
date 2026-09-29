@@ -13,10 +13,10 @@ use crate::resolution::graph::{
     ResolvedPackageSourceClosure,
 };
 use crate::review::{
-    CandidateSourcePreparation, CompilerIssuedPackageReviewSet, PackagePolicyChangeLimits,
-    PackagePolicyChangeSet, PackagePolicyResolution, PackageSourceVerificationPhase,
-    compare_package_policy_changes, compile_resolved_package_reviews_reusing,
-    verify_transitive_source_custody,
+    CandidateCompilation, CandidateSourcePreparation, CompilerIssuedPackageReviewSet,
+    PackagePolicyChangeLimits, PackagePolicyChangeSet, PackagePolicyResolution,
+    PackageSourceVerificationPhase, compare_package_policy_changes,
+    compile_resolved_package_reviews_reusing, verify_transitive_source_custody,
 };
 use std::path::Path;
 use target::TargetProfile;
@@ -151,10 +151,13 @@ pub fn review_package_change_reusing(
     }
     let target_closure = source_closure.for_exact_target(target);
     let reviews = compile_resolved_package_reviews_reusing(
-        &target_closure,
-        build_root,
+        CandidateCompilation {
+            target_closure: &target_closure,
+            build_root: build_root,
+            root_build_snapshot: root_build_snapshot,
+            restricted_build_checkpoint: None,
+        },
         SemanticBindingReview::Discover,
-        root_build_snapshot,
         preparation,
     )
     .map_err(PackageChangeError::Compilation)?;

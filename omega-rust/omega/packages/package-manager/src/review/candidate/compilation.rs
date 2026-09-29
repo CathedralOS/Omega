@@ -113,6 +113,39 @@ pub enum SemanticBindingReview<'a> {
     Explicit(&'a [ConsumerScopedSemanticBindingReviewInput]),
 }
 
+/// One candidate compilation of an exact target closure: where it stages, the
+/// root activation's build snapshot, and the restricted-request consent the
+/// invoking operation holds. Observational review carries no checkpoint:
+/// inspection never issues grants, so projected requests survive to the
+/// decision document. A consuming operation (`check_project`,
+/// `check_locked_sources`, `compile_project`) supplies its accepted target's
+/// checkpoint, so each occurrence's projected request joins its granted
+/// meaning inside the pass, before that request's own build effect executes.
+/// A supplied snapshot selects only the root activation's inputs and required
+/// outputs in every review pass; dependencies keep their own inventories.
+#[derive(Clone, Copy)]
+pub struct CandidateCompilation<'request, 'closure> {
+    pub target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
+    pub build_root: &'request Path,
+    pub root_build_snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
+    pub restricted_build_checkpoint: Option<&'request RestrictedBuildCheckpoint>,
+}
+
+impl<'request, 'closure> CandidateCompilation<'request, 'closure> {
+    /// Observational compilation: no root snapshot and no granted consent.
+    pub fn new(
+        target_closure: &'request ExactTargetPackageSourceClosure<'closure>,
+        build_root: &'request Path,
+    ) -> Self {
+        Self {
+            target_closure,
+            build_root,
+            root_build_snapshot: None,
+            restricted_build_checkpoint: None,
+        }
+    }
+}
+
 /// Compile the exact dependency closure and return its compiler-issued reviews.
 /// No review escapes its disposable session. Binding discovery is not acceptance.
 pub fn compile_resolved_package_reviews(
@@ -121,61 +154,24 @@ pub fn compile_resolved_package_reviews(
     bindings: SemanticBindingReview<'_>,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     compile_resolved_package_reviews_reusing(
-        target_closure,
-        build_root,
+        CandidateCompilation::new(target_closure, build_root),
         bindings,
-        None,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )
 }
 
-/// The same closure review armed by the accepted target's restricted-request
-/// checkpoint. A consuming operation — locked-source checking — supplies the
-/// consent it holds, so each occurrence's projected restricted build request
-/// joins its retained meaning inside the pass, before that request's own
-/// build effect executes, instead of the operation joining findings after it.
-pub fn compile_resolved_package_reviews_with_checkpoint(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
-    bindings: SemanticBindingReview<'_>,
-    restricted_build_checkpoint: &RestrictedBuildCheckpoint,
-) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_candidate(
-        target_closure,
-        build_root,
-        bindings,
-        None,
-        None,
-        Some(restricted_build_checkpoint),
-        &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
-    )
-    .map(|compiled| compiled.reviews)
-}
-
-/// The same candidate review, retaining binding-independent source preparation
-/// in the caller's store. A command reviewing several targets of one resolved
-/// closure prepares each package once; changed sources and selections still
-/// reject through the ordinary custody and checkpoint checks.
-/// A supplied snapshot applies to the root in both review passes, exactly as
-/// in production. Inspection must not derive policy from a broader input view
-/// than the invocation it is reviewing; dependencies keep their own inventories.
+/// The same candidate review under an explicit [`CandidateCompilation`],
+/// retaining binding-independent source preparation in the caller's store. A
+/// command reviewing several targets of one resolved closure prepares each
+/// package once; changed sources and selections still reject through the
+/// ordinary custody and checkpoint checks. Inspection must not derive policy
+/// from a broader input view than the invocation it is reviewing.
 pub fn compile_resolved_package_reviews_reusing(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
+    candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
-    compile_candidate(
-        target_closure,
-        build_root,
-        bindings,
-        None,
-        root_build_snapshot,
-        None,
-        preparation,
-    )
-    .map(|compiled| compiled.reviews)
+    compile_candidate(candidate, bindings, None, preparation).map(|compiled| compiled.reviews)
 }
 
 /// Retain the application root from the same final pass that produced its reviews.
@@ -189,11 +185,11 @@ pub fn compile_resolved_package_candidate_for_production(
     root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
     production_candidate_reusing(
-        target_closure,
-        build_root,
+        CandidateCompilation {
+            root_build_snapshot,
+            ..CandidateCompilation::new(target_closure, build_root)
+        },
         bindings,
-        root_build_snapshot,
-        None,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure()),
     )
 }
@@ -204,13 +200,11 @@ pub fn compile_resolved_package_candidate_for_production(
 /// built once while custody admission, build execution, and checking still
 /// run per target context.
 pub(crate) fn production_candidate_reusing(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
+    candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<ReviewedPackageProductionCandidate, CompileResolvedPackageReviewsError> {
+    let target_closure = candidate.target_closure;
     let closure = target_closure.source_closure();
     let root = closure.graph().root().clone();
     if closure.root_role() != package_compilation::BuildDeclarationKind::Application {
@@ -225,15 +219,7 @@ pub(crate) fn production_candidate_reusing(
         .source_root(&root)
         .expect("validated source closure retains its root custody")
         .join("main.omg");
-    let compiled = compile_candidate(
-        target_closure,
-        build_root,
-        bindings,
-        Some(&root_path),
-        root_build_snapshot,
-        restricted_build_checkpoint,
-        preparation,
-    )?;
+    let compiled = compile_candidate(candidate, bindings, Some(&root_path), preparation)?;
     let checked_root = compiled.checked_root.ok_or_else(|| {
         CompileResolvedPackageReviewsError::IdentityMismatch {
             package: root.clone(),
@@ -265,11 +251,11 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
     CompileResolvedPackageReviewsError,
 > {
     compile_candidate_for_check_reusing(
-        target_closure,
-        build_root,
+        CandidateCompilation {
+            root_build_snapshot,
+            ..CandidateCompilation::new(target_closure, build_root)
+        },
         entry_path,
-        root_build_snapshot,
-        None,
         &mut CandidateSourcePreparation::for_closure(target_closure.source_closure())
             .collecting_timings(collect_timings),
     )
@@ -285,23 +271,17 @@ pub(crate) fn compile_resolved_package_candidate_for_check(
 /// boundary after it; the store's own `collecting_timings` choice governs the
 /// stage ladder.
 pub(crate) fn compile_candidate_for_check_reusing(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
+    candidate: CandidateCompilation<'_, '_>,
     entry_path: &Path,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<
     (compiler::CheckedCompilation, CompilerIssuedPackageReviewSet),
     CompileResolvedPackageReviewsError,
 > {
     let compiled = compile_candidate(
-        target_closure,
-        build_root,
+        candidate,
         SemanticBindingReview::Discover,
         Some(entry_path),
-        root_build_snapshot,
-        restricted_build_checkpoint,
         preparation,
     )?;
     let CompiledPackageReviews {
@@ -313,25 +293,29 @@ pub(crate) fn compile_candidate_for_check_reusing(
     checked_root
         .map(|checked| (*checked, reviews))
         .ok_or_else(|| CompileResolvedPackageReviewsError::IdentityMismatch {
-            package: target_closure.source_closure().graph().root().clone(),
+            package: candidate
+                .target_closure
+                .source_closure()
+                .graph()
+                .root()
+                .clone(),
         })
 }
 
-/// Audit-only candidate observation carries no restricted-request
-/// checkpoint (`None`): inspection never issues grants, and projected
-/// requests must survive to the decision document. The consuming operations
-/// (`operations::check_project`, `check_locked_sources`, `compile_project`)
-/// supply the accepted target's checkpoint so every occurrence's request
-/// waits on its granted meaning before its build effect executes.
+/// The one candidate route every review, production and check entry runs;
+/// see [`CandidateCompilation`] for what the request carries.
 fn compile_candidate(
-    target_closure: &ExactTargetPackageSourceClosure<'_>,
-    build_root: &Path,
+    candidate: CandidateCompilation<'_, '_>,
     bindings: SemanticBindingReview<'_>,
     retained_root_entry: Option<&Path>,
-    root_build_snapshot: Option<&build_evaluation::BuildSnapshotRequest>,
-    restricted_build_checkpoint: Option<&RestrictedBuildCheckpoint>,
     preparation: &mut CandidateSourcePreparation,
 ) -> Result<CompiledPackageReviews, CompileResolvedPackageReviewsError> {
+    let CandidateCompilation {
+        target_closure,
+        build_root,
+        root_build_snapshot,
+        restricted_build_checkpoint,
+    } = candidate;
     let _requested = timings::requested(preparation.collect_timings);
     let _stage = timings::stage("candidate_compilation");
     // The passes below check each package of the closure again, usually on
