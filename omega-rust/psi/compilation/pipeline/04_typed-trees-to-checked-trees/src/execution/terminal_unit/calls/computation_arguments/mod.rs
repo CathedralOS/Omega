@@ -343,7 +343,7 @@ fn exact_actual(
 /// A nominal argument borrows its existing parameter or local result
 /// home. Initializer spelling does not select custody; publication independently
 /// rejoins this symbol to its dominating structural establishment.
-fn borrowed_nominal_argument(
+pub(crate) fn borrowed_nominal_argument(
     program: &TypedTrees,
     borrow: &checked_trees::BorrowFacts,
     machine: SymbolHandle,
