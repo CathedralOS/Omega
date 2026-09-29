@@ -1,5 +1,6 @@
 use checked_trees_to_lowered_psi::TerminalMachineSelection;
 use proof_admission::{AdmissionProfile, EvidenceRoute, ProofNode, ProofRule};
+use semantic_vocabulary::{Proposition, ScalarTerm, ValueId};
 use terminal_codec::{decode_module, decode_proof_bundle, encode_module, encode_proof_section};
 use terminal_psi::OperationKind;
 
@@ -30,14 +31,16 @@ fn exact_outer_fork_join_crosses_source_codec_and_independent_verification() {
     )
     .expect("bounded affine-chain endpoint conjunction lowers");
 
-    let final_add = lowered
+    let (final_add, join) = lowered
         .semantic_module
         .machines
         .iter()
         .flat_map(|machine| &machine.blocks)
         .flat_map(|block| &block.operations)
         .filter_map(|operation| match operation.kind {
-            OperationKind::ExactIntegerAdd { obligation, .. } => Some(obligation),
+            OperationKind::ExactIntegerAdd {
+                obligation, right, ..
+            } => Some((obligation, right)),
             _ => None,
         })
         .next_back()
@@ -51,7 +54,7 @@ fn exact_outer_fork_join_crosses_source_codec_and_independent_verification() {
     let EvidenceRoute::CertificateDerived(certificate) = &evidence.route else {
         panic!("final exact add uses canonical certificate custody")
     };
-    assert_single_computed_join_conjunction(&certificate.proof);
+    assert_single_computed_join_conjunction(&certificate.proof, join);
 
     terminal_verifier::verify_module(
         &lowered.semantic_module,
@@ -75,7 +78,7 @@ fn exact_outer_fork_join_crosses_source_codec_and_independent_verification() {
     .expect("independent verification replays decoded conjunction custody");
 }
 
-fn assert_single_computed_join_conjunction(proof: &ProofNode) {
+fn assert_single_computed_join_conjunction(proof: &ProofNode, join: ValueId) {
     let mapped = match &proof.rule {
         ProofRule::IntegerLessOrEqualTransitivity {
             left_less_or_equal_middle,
@@ -101,11 +104,27 @@ fn assert_single_computed_join_conjunction(proof: &ProofNode) {
         } => left_less_or_equal_middle.as_ref(),
         _ => &endpoints[1],
     };
+    // Every input of `join` is a literal, so its value is closed: the prover
+    // certifies `join == 25` by transporting the checked definition chain and
+    // substitutes that equality into the endpoint, rather than bounding the
+    // add through one definition axiom.
+    assert!(
+        matches!(
+            &upper_endpoint.conclusion,
+            Proposition::LessOrEqual(ScalarTerm::Value { id, .. }, _) if *id == join
+        ),
+        "the upper endpoint bounds the computed join: {:?}",
+        upper_endpoint.conclusion
+    );
+    let ProofRule::IntegerOrderSubstitution { equality, .. } = &upper_endpoint.rule else {
+        panic!("the closed join bound substitutes its certified value")
+    };
     assert!(matches!(
-        upper_endpoint.rule,
-        ProofRule::IntegerExactAddDefinitionBound {
-            definition_axiom: 6,
-            ..
-        }
+        equality.rule,
+        ProofRule::ValueEqualityTransport { .. }
+    ));
+    assert!(matches!(
+        &equality.conclusion,
+        Proposition::Equal(ScalarTerm::Value { id, .. }, ScalarTerm::Integer { .. }) if *id == join
     ));
 }
