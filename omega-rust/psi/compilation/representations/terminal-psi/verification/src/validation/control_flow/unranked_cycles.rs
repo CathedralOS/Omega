@@ -2,8 +2,9 @@
 //! unrestricted record establishments, affine empty-record establishments,
 //! trivial affine local establishments, unrestricted plain leaf copies,
 //! field-replacement window pairs whose displaced value is disposed before
-//! re-entry, and entry claims pinned on owned machine parameters for the
-//! machine's whole cyclic lifetime.
+//! re-entry, affine structural call results with call-scoped loans that are
+//! disposed before re-entry, and entry claims pinned on owned machine
+//! parameters for the machine's whole cyclic lifetime.
 
 use super::{
     ModuleError, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
@@ -139,7 +140,7 @@ pub(super) fn ineligibility(
         .flatten()
         .collect::<BTreeSet<_>>();
     machine.blocks.iter().find_map(|block| {
-        let case_source = local_case_result(module, block);
+        let case_source = confined_case_source(module, block);
         let terminator_eligible =
             matches!(
                 block.terminator,
@@ -448,6 +449,63 @@ fn reseated_in_cycle(
         })
 }
 
+/// Whether some edge leaving a cyclic block moves `place` whole into an owned
+/// successor block parameter. The edge's two-phase binding consumes the
+/// source before it establishes the target, so the moved value is the
+/// successor parameter's custody from then on; that parameter's own disposal
+/// before re-entry is the fixed-point join's to prove, like any loop-carried
+/// block parameter's.
+fn moved_to_successor_in_cycle(
+    machine: &TerminalMachine,
+    cyclic_blocks: &BTreeSet<BlockId>,
+    place: PlaceId,
+) -> bool {
+    machine
+        .blocks
+        .iter()
+        .filter(|block| cyclic_blocks.contains(&block.id))
+        .flat_map(|block| successor_bindings(&block.terminator))
+        .any(|(target, arguments)| {
+            machine
+                .blocks
+                .iter()
+                .find(|candidate| candidate.id == target)
+                .is_some_and(|target| {
+                    arguments.iter().zip(&target.structural_parameters).any(
+                        |(argument, parameter)| {
+                            argument.place == place
+                                && argument.path.is_empty()
+                                && argument.access == StructuralAccess::Owned
+                                && parameter.access == StructuralAccess::Owned
+                        },
+                    )
+                })
+        })
+}
+
+/// The structural successor bindings of each edge that carries them.
+fn successor_bindings(terminator: &Terminator) -> Vec<(BlockId, &[StructuralArgument])> {
+    match terminator {
+        Terminator::Jump {
+            target,
+            structural_arguments,
+            ..
+        } => vec![(*target, structural_arguments.as_slice())],
+        Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } => vec![
+            (when_true.target, when_true.structural_arguments.as_slice()),
+            (
+                when_false.target,
+                when_false.structural_arguments.as_slice(),
+            ),
+        ],
+        _ => Vec::new(),
+    }
+}
+
 fn terminator_discards(terminator: &Terminator) -> Vec<PlaceId> {
     match terminator {
         Terminator::Jump {
@@ -568,6 +626,11 @@ fn cycle_operation_eligible(
                         && result.projected_qualifications.is_empty()
                         && result.qualification_establishments.is_empty()
                         && result_discarded_in_cycle(machine, cyclic_blocks, result.place))
+                    // A reference-free result whose arguments are all
+                    // call-scoped loans or copies may also run outside every
+                    // cycle, or move into an owned successor parameter or a
+                    // window hole before re-entry.
+                    || owned_call_result(module, machine, block, cyclic_blocks, operation, result)
             })
         }
         // Ordinary scalar calls retain their complete signature,
@@ -721,7 +784,14 @@ fn cycle_operation_eligible(
                                             parameter.place == argument.place
                                         }) || block_views::parameter(machine, argument.place)
                                             .is_some()))
-                                || owned_argument(module, machine, argument)))
+                                // `bounds.is_opened()` over a call result:
+                                // the same call-scoped result loan the unit
+                                // arm below admits.
+                                || borrows_operation_result(machine, argument)
+                                || owned_argument(module, machine, argument)
+                                || callee_parameters.get(index).is_some_and(|parameter| {
+                                    copied_payload_argument(module, machine, argument, parameter)
+                                })))
                             // Same loan shape as `CallUnit` below: a borrowed
                             // projection loans for the call only, so cyclic
                             // eligibility keys on the callee's positional
@@ -846,19 +916,7 @@ fn cycle_operation_eligible(
                                             },
                                         )
                                         .is_ok()))
-                                // Borrowing a place an earlier operation in
-                                // the same machine produced loans it for the
-                                // call only; the loan releases on return, so
-                                // loop-carried custody is identical on every
-                                // traversal.
-                                || (argument.access != StructuralAccess::Owned
-                                    && machine.structural_places.iter().any(|place| {
-                                        place.id == argument.place
-                                            && matches!(
-                                                place.kind,
-                                                StructuralPlaceKind::OperationResult { .. }
-                                            )
-                                    }))
+                                || borrows_operation_result(machine, argument)
                                 || owned_argument(module, machine, argument)))
                             // A borrowed projection loans one element for the
                             // call's duration only: the loan is created and
@@ -988,10 +1046,14 @@ fn cycle_operation_eligible(
     }
 }
 
-/// The owned sum never becomes loop-carried custody. The same block establishes
-/// and inspects it, and every selected edge disposes that exact whole root.
-/// Ordinary operation formation, dominance and frontier replay remain required.
-fn local_case_result(
+/// The owned sum never becomes loop-carried custody. The same block either
+/// establishes it or receives it as its own owned parameter, then inspects
+/// it, and every selected edge disposes that exact whole root. The parameter
+/// form is the dispatch hop `enum_step_kind(step)`: the predecessor moves a
+/// fresh call result into the parameter, and the case edges retire it before
+/// any successor runs. Ordinary operation formation, dominance and frontier
+/// replay remain required.
+fn confined_case_source(
     module: &TerminalModule,
     block: &terminal_psi::Block,
 ) -> Option<semantic_vocabulary::PlaceId> {
@@ -1005,7 +1067,7 @@ fn local_case_result(
     {
         return None;
     }
-    let result = block.operations.iter().find_map(|operation| {
+    let produced = block.operations.iter().find_map(|operation| {
         matches!(
             operation.kind,
             OperationKind::BoundaryCall { .. }
@@ -1016,18 +1078,32 @@ fn local_case_result(
         .then(|| operation.result.structural())
         .flatten()
         .filter(|result| result.place == *source)
-    })?;
-    if result.multiplicity != StructuralMultiplicity::Affine
-        || !result.qualifications.is_empty()
-        || !result.projected_qualifications.is_empty()
-        || !result.claims.is_empty()
-    {
-        return None;
-    }
+    });
+    let structural_type = match produced {
+        Some(result) => (result.multiplicity == StructuralMultiplicity::Affine
+            && result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty())
+        .then_some(result.structural_type)?,
+        None => {
+            block
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+                .filter(|parameter| {
+                    !parameter.is_self
+                        && parameter.access == StructuralAccess::Owned
+                        && parameter.multiplicity == StructuralMultiplicity::Affine
+                        && parameter.qualifications.is_empty()
+                        && parameter.projected_qualifications.is_empty()
+                })?
+                .structural_type
+        }
+    };
     let declaration = module
         .structural_types
         .iter()
-        .find(|declaration| declaration.id == result.structural_type)?;
+        .find(|declaration| declaration.id == structural_type)?;
     let StructuralTypeShape::Sum { cases } = &declaration.shape else {
         return None;
     };
@@ -1055,6 +1131,132 @@ fn plain_owned(parameter: &StructuralParameterDeclaration) -> bool {
         )
         && parameter.qualifications.is_empty()
         && parameter.projected_qualifications.is_empty()
+}
+
+/// A claim-free affine structural call result is an owned value, like the
+/// boundary case results the scalar-value arm admits: the place enters
+/// `owned_places` at the call, and the frontier replay then proves its custody
+/// on every arrival. The result insert refuses a place that is still owned,
+/// every arrival at a block must present that block's established entry
+/// frontier, and every exit must dispose the exact owned roster. What the
+/// replay cannot see is whether the operation is re-entered, so the disposal
+/// clause depends on where the call runs. Outside every cycle it runs once per
+/// activation and the exit rosters or a consumer dispose of it. Inside a cycle
+/// some in-cycle edge must dispose of it before the back edge: a discard
+/// roster, a whole move into an owned successor block parameter (the
+/// parameter then carries the obligation, as any loop-carried parameter
+/// does), or a window store that reseats a hole with it.
+///
+/// The call's borrowed arguments must close when the call returns. The
+/// frontier records a loan that outlives a call only as a live reference
+/// rooted in the argument, and only for a result type that contains a
+/// reference; with a reference-free result and no claim transfers in either
+/// direction, every `&` or `&mut` argument, whole or projected, is lent for
+/// the call alone and no loan can cross a back edge. Ordinary call
+/// validation still checks each loan's authority and overlap. An owned
+/// argument must be a plain owned parameter or a copied payload, so the call
+/// moves no other custody inside the cycle.
+fn owned_call_result(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: &terminal_psi::Block,
+    cyclic_blocks: &BTreeSet<BlockId>,
+    operation: &terminal_psi::Operation,
+    result: &terminal_psi::StructuralOperationResult,
+) -> bool {
+    let (OperationKind::CallStructural {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    }
+    | OperationKind::CallStructuralWithScalarArguments {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        ..
+    }) = &operation.kind
+    else {
+        return false;
+    };
+    let Some(callee) = module
+        .machines
+        .iter()
+        .find(|candidate| candidate.id == *callee)
+    else {
+        return false;
+    };
+    result.multiplicity == StructuralMultiplicity::Affine
+        && result.claims.is_empty()
+        && result.qualifications.is_empty()
+        && result.projected_qualifications.is_empty()
+        && result.qualification_establishments.is_empty()
+        && claim_transfers.is_empty()
+        && returned_claim_transfers.is_empty()
+        && !crate::validation::references::contains_reference(module, result.structural_type)
+        && structural_arguments.len() == callee.structural_parameters.len()
+        && structural_arguments
+            .iter()
+            .zip(&callee.structural_parameters)
+            .all(|(argument, parameter)| {
+                argument.access != StructuralAccess::Owned
+                    || owned_argument(module, machine, argument)
+                    || copied_payload_argument(module, machine, argument, parameter)
+            })
+        && (!cyclic_blocks.contains(&block.id)
+            || result_discarded_in_cycle(machine, cyclic_blocks, result.place)
+            || moved_to_successor_in_cycle(machine, cyclic_blocks, result.place)
+            || reseated_in_cycle(machine, cyclic_blocks, result.place))
+}
+
+/// Borrowing a place an earlier operation in the same machine produced lends
+/// it for the call only; the loan releases on return, so loop-carried custody
+/// is identical on every traversal. The frontier's owned-read check still
+/// requires the frame to own an affine result at the loan.
+fn borrows_operation_result(machine: &TerminalMachine, argument: &StructuralArgument) -> bool {
+    argument.access != StructuralAccess::Owned
+        && machine.structural_places.iter().any(|place| {
+            place.id == argument.place
+                && matches!(place.kind, StructuralPlaceKind::OperationResult { .. })
+        })
+}
+
+/// A whole owned argument bound to an unrestricted owned parameter copies an
+/// unrestricted plain payload, such as `MemoryAlignment::Alignment4`. The
+/// frontier never retains such a source, and it consumes nothing for an
+/// unrestricted parameter, so the call moves no custody on any traversal.
+/// These are the same plain-source shapes the frontier's result insert
+/// classifies as copy payloads; the source's availability is still proven by
+/// the ordinary dominance walk.
+fn copied_payload_argument(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &StructuralArgument,
+    parameter: &StructuralParameterDeclaration,
+) -> bool {
+    argument.access == StructuralAccess::Owned
+        && argument.path.is_empty()
+        && parameter.access == StructuralAccess::Owned
+        && parameter.multiplicity == StructuralMultiplicity::Unrestricted
+        && crate::validation::structural::result_contracts::source_signature(
+            machine,
+            argument.place,
+        )
+        .is_some_and(|source| source.multiplicity == StructuralMultiplicity::Unrestricted)
+        && (crate::validation::scalar::case::plain_return_source(module, machine, argument.place)
+            || crate::validation::structural::case::plain_return_source(
+                module,
+                machine,
+                argument.place,
+            )
+            || crate::validation::record::plain_return_source(module, machine, argument.place)
+            || crate::validation::scalar::array::plain_return_source(
+                module,
+                machine,
+                argument.place,
+            ))
 }
 
 fn owned_argument(

@@ -1132,21 +1132,22 @@ the complete product bar; focused successes below do not establish that baseline
   `Main::classify`'s conditional guard, without a cycle.
 
   - Replace remaining `unranked_cycles.rs` fences with checked arrival/custody
-    relations: broader qualified/partial ownership and structural results,
-    moving claims, content reshuffles/partitions, projected call arguments and
-    boundary completion receipts. Plain case/record results, pinned entry
-    claims, several effectful calls, unrestricted plain leaf copies and
-    field-replacement window pairs (copy payloads, or static-path affine pairs
-    outside the cycle or disposed inside it) already pass eligibility.
-    Eligibility supplies no proof; verify every arrival before removing a
-    fence. squalr-tests' linux_x86_64 production now stops at
-    `ControlCycleIneligible { block: BlockId(4), reason: BlockOperation {
-    block: BlockId(22), operation: OperationId(145) } }`: an in-cycle
-    `CallStructuralWithScalarArguments` over projected `&mut self.providers`
-    and `&mut self.region` whose affine result moves into the successor
-    block's owned parameter. 39 more structural calls outside the cycle (31
-    `CallStructuralScalar`, 8 `CallStructuralWithScalarArguments`) fail
-    eligibility behind it.
+    relations: broader qualified/partial ownership, reference-bearing or
+    claim-carrying structural call results, moving claims, content
+    reshuffles/partitions, projected owned call arguments and boundary
+    completion receipts. Plain case/record results, pinned entry claims,
+    several effectful calls, unrestricted plain leaf copies, field-replacement
+    window pairs, claim-free reference-free affine structural call results
+    with call-scoped loans (outside the cycle, or discarded, moved into an
+    owned successor parameter or reseated inside it) and case dispatch over a
+    block's own owned parameter already pass eligibility. Eligibility supplies
+    no proof; verify every arrival before removing a fence. squalr-tests'
+    linux_x86_64 production now passes its entry machine's cycle fence and
+    frontier replay and stops at `UnknownStructuralArgument { operation:
+    OperationId(803), argument_index: 0, place: PlaceId(868) }`: machine 41's
+    `BoundaryCall` lends `&mut` of block 495's parameter under
+    `ParametersOrBoundaryActuals`, and `structural_arguments/argument_checks.rs`
+    admits a mutable block-parameter loan only for ordinary calls.
   - Generalize independently proved invariant proposals beyond
     `proofs/scalar_block_invariants/lockstep.rs`'s divisor/counter recognizer;
     avoid one recognizer per customer or source-state duplication.

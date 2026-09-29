@@ -203,8 +203,16 @@ the result is never loop-carried custody. Full frontier equality and proof-loop
 cuts still apply, so no preceding iteration's result or case fact is reused.
 Scalar-case constructors can also establish the result on normal-return leaves.
 Fresh internal case results can be inspected/disposed under the same local
-custody rule. These additions preserve the existing full-graph checks and cuts;
-they establish no termination or loop-invariant authority.
+custody rule, and a case dispatch may select on its block's own owned affine
+parameter when every case edge discards it. A claim-free, unqualified,
+reference-free affine structural call result is an owned value whose borrowed
+arguments, whole or projected, close when the call returns: outside every
+cycle it runs once per activation, and inside a cycle an in-cycle edge must
+discard it or move it into an owned successor parameter, or a window store must
+reseat a hole with it. Structural-scalar calls may also lend a produced result
+and copy an unrestricted plain payload into an unrestricted owned parameter.
+These additions preserve the existing full-graph checks and cuts; they
+establish no termination or loop-invariant authority.
 Qualified or partial owned cyclic custody, loop-carried structural results,
 projected claims, and arbitrary operation families remain unsupported. Eligibility is not dominance,
 frontier, or proof authority; all subsequent checks still run.
