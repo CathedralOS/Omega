@@ -214,7 +214,6 @@ fn validate_parameter_binding_receiver(
     use checked_trees::CheckedUnitStructuralTypeShape;
     use checked_trees::expression::ExpressionNode;
     use checked_trees::statement::StatementNode;
-    use checked_trees::types::TypeReferenceNode;
     use checked_trees::{CheckedUnitStructuralFieldType, CheckedUnitStructuralPathSegment};
 
     let Some(owner) = checked.traits().iter().find(|definition| {
@@ -289,48 +288,30 @@ fn validate_parameter_binding_receiver(
             {
                 return unsupported("binding receiver changed its parameter or field identity");
             }
-            let mut reference = parameter.type_reference;
-            let mut path = Vec::new();
-            for (position, member) in members.iter().enumerate().skip(1) {
-                let owner = validation::unwrapped_type_reference(&checked.typed, reference).ok_or(
-                    LoweringError::Unsupported("binding receiver has no field owner"),
-                )?;
-                let TypeReferenceNode::Named { symbol, .. } =
-                    checked.type_reference_table.type_reference(owner)
-                else {
-                    return unsupported("binding receiver field owner is not nominal");
-                };
-                let owner = checked
-                    .data_definitions()
-                    .iter()
-                    .find(|owner| owner.symbol == *symbol)
-                    .ok_or(LoweringError::Unsupported(
-                        "binding receiver field owner is absent",
-                    ))?;
-                let endpoint = if position + 1 == members.len() {
-                    source.receiver_symbol
-                } else {
-                    symbols::SymbolHandle::invalid()
-                };
-                let field = validation::exact_data_member_field(
-                    &checked.typed,
-                    owner,
-                    endpoint,
-                    member.as_str(),
-                    None,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "binding receiver changed its declared field",
-                ))?;
-                if field.relevance.is_erased() {
-                    return unsupported("binding receiver selects an erased source field");
-                }
-                path.push(CheckedUnitStructuralPathSegment::Field(
-                    field.name.as_str().to_owned(),
-                ));
-                reference = field.type_reference;
+            let (root, path) = crate::unit::attached_unit::statement_receiver_path(
+                checked, machine, state, source,
+            )?;
+            // The shared path validator has checked the endpoint against its
+            // exact declared owner. Recover that field's type, not its spelling.
+            let mut fields = checked
+                .data_definitions()
+                .iter()
+                .flat_map(|definition| checked.data_members(definition))
+                .filter_map(|member| match member {
+                    checked_trees::data::DataMember::Field(field)
+                        if field.symbol == source.receiver_symbol =>
+                    {
+                        Some(field)
+                    }
+                    _ => None,
+                });
+            let field = fields.next().ok_or(LoweringError::Unsupported(
+                "binding receiver endpoint has no declared field",
+            ))?;
+            if fields.next().is_some() {
+                return unsupported("binding receiver endpoint has multiple declarations");
             }
-            (parameter.symbol, path, reference)
+            (root, path, field.type_reference)
         }
         _ => return Ok(()),
     };
