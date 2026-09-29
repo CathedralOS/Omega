@@ -9,6 +9,8 @@
 //!   `FADD`/`FSUB`/`FMUL`/`FDIV`, one `FMOV` out (16 bytes);
 //! - multiply-then-add: two payloads in, `FMUL`, the addend in, `FADD`,
 //!   result out (24 bytes). Separate instructions preserve both roundings;
+//! - fused multiply-add: three payloads in, scalar `FMADD`, result out
+//!   (20 bytes). The product is not rounded before the addition;
 //! - minimum, maximum: two `FMOV`s in, `FCMGT` into `v18` (`right > left`
 //!   for minimum, `left > right` for maximum), `BSL` selecting `v16` where
 //!   the mask is set and `v17` elsewhere, one `FMOV` out (20 bytes). `FCMGT`
@@ -50,9 +52,9 @@
 //! floating operation they leave them outside the modeled state, because
 //! sticky status is not part of Omega's floating-control invariant
 //! (`wiki/spec/build/foreign_bindings.md`, "Floating control state").
-//! Encodings follow Arm's A64 scalar floating-point data-processing (one and
-//! two source), conversion between floating-point and integer, Advanced SIMD
-//! scalar three-same `FCMGT`/`FCMEQ`, and Advanced SIMD three-same logical `BSL`.
+//! Encodings follow Arm's A64 scalar floating-point data-processing (one, two
+//! and three source), conversion between floating-point and integer, Advanced
+//! SIMD scalar three-same `FCMGT`/`FCMEQ`, and three-same logical `BSL`.
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
@@ -70,7 +72,7 @@ use selected_instructions::{
 mod conversions;
 
 /// The fixed scratch vector registers: the first and second operands, and
-/// the minimum/maximum selection mask.
+/// the minimum/maximum selection mask or fused multiply-add addend.
 const LEFT_SCRATCH: u8 = 16;
 const RIGHT_SCRATCH: u8 = 17;
 const MASK_SCRATCH: u8 = 18;
@@ -199,6 +201,14 @@ enum Word {
         right: u8,
         result: u8,
     },
+    /// Scalar `FMADD`: one rounding of the exact product plus addend.
+    FusedMultiplyAdd {
+        double: bool,
+        left: u8,
+        right: u8,
+        addend: u8,
+        result: u8,
+    },
     /// Floating-point data-processing (one source), `opcode` bits 20..15;
     /// `double` is the source type.
     OneSource {
@@ -295,6 +305,20 @@ fn encode_word(word: Word) -> u32 {
                 | width(double) << 22
                 | reg(right) << 16
                 | opcode << 12
+                | reg(left) << 5
+                | reg(result)
+        }
+        Word::FusedMultiplyAdd {
+            double,
+            left,
+            right,
+            addend,
+            result,
+        } => {
+            0x1f00_0000
+                | width(double) << 22
+                | reg(right) << 16
+                | reg(addend) << 10
                 | reg(left) << 5
                 | reg(result)
         }
@@ -429,6 +453,13 @@ fn decode_word(word: u32) -> Option<Word> {
             opcode: (word >> 12) & 15,
             left: field(5),
             right: field(16),
+            result: field(0),
+        },
+        _ if word & 0xff20_8000 == 0x1f00_0000 => Word::FusedMultiplyAdd {
+            double: float_type(22)?,
+            left: field(5),
+            right: field(16),
+            addend: field(10),
             result: field(0),
         },
         _ if word & 0xff20_7c00 == 0x1e20_4000 => Word::OneSource {
@@ -580,6 +611,19 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
                 source: result,
                 result,
             },
+        ],
+        IeeeFloatArithmeticOperation::FusedMultiplyAdd => vec![
+            move_in(registers[0], first, double),
+            move_in(registers[1], second, double),
+            move_in(registers[2], mask, double),
+            Word::FusedMultiplyAdd {
+                double,
+                left: first,
+                right: second,
+                addend: mask,
+                result: first,
+            },
+            move_out(first),
         ],
         IeeeFloatArithmeticOperation::MultiplyThenAdd => vec![
             move_in(registers[0], first, double),
@@ -901,6 +945,46 @@ mod tests {
             .iter()
             .map(|word| u32::from_le_bytes(*word))
             .collect()
+    }
+
+    #[test]
+    fn fused_multiply_add_preserves_three_sources_and_one_rounding_instruction() {
+        use IeeeFloatArithmeticOperation::{FusedMultiplyAdd, MultiplyThenAdd};
+        use IeeeFloatFormat::{Binary32, Binary64};
+        // fmov s16,w1; fmov s17,w2; fmov s18,w3;
+        // fmadd s16,s16,s17,s18; fmov w0,s16, and the double-width form.
+        for (format, expected) in [
+            (
+                Binary32,
+                [
+                    0x1e27_0030,
+                    0x1e27_0051,
+                    0x1e27_0072,
+                    0x1f11_4a10,
+                    0x1e26_0200,
+                ],
+            ),
+            (
+                Binary64,
+                [
+                    0x9e67_0030,
+                    0x9e67_0051,
+                    0x9e67_0072,
+                    0x1f51_4a10,
+                    0x9e66_0200,
+                ],
+            ),
+        ] {
+            let fused = form(FusedMultiplyAdd, format);
+            assert_eq!(words(fused, &[1, 2, 3, 0]), expected);
+            for registers in [[1, 2, 3, 1], [1, 2, 3, 2], [1, 2, 3, 3], [0, 0, 0, 0]] {
+                let bytes = encode(fused, &registers).unwrap();
+                validate(fused, &registers, &bytes).unwrap();
+                let unfused = encode(form(MultiplyThenAdd, format), &registers).unwrap();
+                assert!(validate(fused, &registers, &unfused).is_err());
+                assert!(validate(form(MultiplyThenAdd, format), &registers, &bytes).is_err());
+            }
+        }
     }
 
     #[test]

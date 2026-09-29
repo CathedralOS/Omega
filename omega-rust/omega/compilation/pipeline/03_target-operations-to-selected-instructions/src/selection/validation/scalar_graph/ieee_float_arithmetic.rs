@@ -31,6 +31,14 @@ pub(super) fn validate(
     };
     let scalar = arithmetic.result_type(*format);
     let operand = arithmetic.operand_type(*format);
+    if !(target_operations::NearestIeeeFloatArithmeticRealization {
+        operation: *arithmetic,
+        format: *format,
+    })
+    .supports_target(state.environment.target())
+    {
+        return Err(SelectedInstructionError::custody());
+    }
     if result.scalar_type != scalar || values.len() != form.operand_count() {
         return Err(SelectedInstructionError::custody());
     }

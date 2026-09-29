@@ -502,6 +502,7 @@ pass/float/named_provider_negate_is_nan_exit built 2014ms exit:70 @bbdbb0a83995+
 pass/float/runtime_float_integer_conversion_boundaries_exit built 1554ms exit:70 @0c6abc6d1e0c+wt
 pass/float/runtime_float_to_integer_policy_casts_exit built 2588ms exit:70 @1c13b12180bf+wt
 pass/float/runtime_named_float_to_integer_conversion_exit built 1366ms exit:70 @0c6abc6d1e0c+wt
+pass/float/runtime_named_fma_sequence_exit built 4765ms exit:70 @8b1dc72a53ca+wt
 pass/float/runtime_named_format_conversion_exit built 1813ms exit:70 @0d9777b52aee+wt
 pass/float/runtime_std_is_finite_exit built 1831ms exit:70 @de54b0ba9fed+wt
 pass/float/runtime_total_order_satisfiers_exit rejected 1643ms

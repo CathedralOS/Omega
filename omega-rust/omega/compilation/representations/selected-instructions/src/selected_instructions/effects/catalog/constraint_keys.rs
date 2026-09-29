@@ -259,10 +259,25 @@ impl SelectedConstraintKeys {
         })
     }
 
-    /// Canonical catalog coordinates: semantic order, then authored ABI arity.
-    pub fn declaration_keys(&self) -> Vec<(MachineSemanticKind, RegisterConstraintKey)> {
+    /// Canonical catalog coordinates supported by this target, in semantic
+    /// order and then authored ABI arity. Optional x86 FMA3 cannot enter the
+    /// baseline catalog through its shared three-operand register constraint.
+    pub fn declaration_keys(
+        &self,
+        target: target::NativeTarget,
+    ) -> Vec<(MachineSemanticKind, RegisterConstraintKey)> {
         MachineSemanticKind::ALL
             .into_iter()
+            .filter(|semantic| match semantic {
+                MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
+                    target_operations::NearestIeeeFloatArithmeticRealization {
+                        operation: form.operation,
+                        format: form.format,
+                    }
+                    .supports_target(target)
+                }
+                _ => true,
+            })
             .flat_map(|semantic| {
                 if semantic == MachineSemanticKind::ReturnScalar {
                     return std::iter::once(self.return_i64)

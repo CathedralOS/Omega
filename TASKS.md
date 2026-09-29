@@ -1765,9 +1765,17 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `pass/float/local_after_float_call_store_exit`,
     `pass/calls/local_after_call_result_store_exit` and
     `float/named_provider_min_max_sqrt_exit` exit **70** on macOS ARM64.
-    `float/named_provider_fused_multiply_add_exit` stops at native installation of
-    the `F32::fused_multiply_add` compiler intrinsic
-    (`has no native boundary realization`).
+    `float/named_provider_fused_multiply_add_exit` currently stops at its mutable
+    local's nested boundary initializer. `StorageInitializer` retains only pure
+    expressions; composed states do not establish primitive local storage through
+    the shared `OperationFrame`. **STATE-LOCAL-VALUE-FRONTIER** owns that missing
+    operation sequencing and independently replayed storage custody. Keep the
+    authored mutable local; changing it to an immutable binding does not close it.
+    The native FMA dependency is executable on macOS ARM64: `omega run
+    tests/omega/pass/float/runtime_named_fma_sequence_exit/main.omg` exits **70**,
+    distinguishing fused/unfused cancellation in both formats and reusing a
+    runtime result through an ordinary helper. x86 FMA still requires the
+    feature-custodied transport below.
   - Finish native specialization custody: retain the exact closed requirement,
     provider instance, static tuple and artifact-bound application occurrence
     through selected-plan settlement and physical-child replay. Reuse stage
@@ -1782,13 +1790,16 @@ crash and native exit behavior. Use affected check/native corpus slices under
     `native-artifact/src/physical/derivation/evidence.rs`. The new
     `boundary_internal_call_evidence` test covers a nongeneric requirement's
     internal physical child, not this whole generic matrix.
-  - Install the remaining named directed arithmetic and distinct FMA executions
+  - Install the remaining named directed arithmetic executions
     as Omega builtins, preserving each exact selected meaning. Reuse stage 00
     `compiler_builtins.rs`, which admits each ordinary execution as one
     `NearestIeeeFloatArithmetic` operation against the local target catalog
     and the exact boundary signature of that operation, stage 02
     `control_flow/ieee_float_arithmetic.rs` realizes the call inline, and each
     ISA encodes one form through scratch FP registers with its own decoder.
+    Nearest FMA is a distinct three-operand operation (ordinal 44) on AArch64;
+    it is excluded from x86's baseline admission, selection, machine catalog
+    and encoder until **X86-FMA-PROVIDER-TRANSPORT** retains its feature evidence.
     Selected-form tag 230 carries the stable operation/format ordinal payload;
     append new identities without renumbering existing ones. Preserve the
     `runtime_named_float_to_integer_conversion_exit` and conversion-boundary/trap

@@ -56,7 +56,7 @@ pub fn x86_64_machine_effect_catalog(
         register_constraints: constraints.identity(),
         selected_keys: selected_keys.clone(),
         declarations: selected_keys
-            .declaration_keys()
+            .declaration_keys(target)
             .into_iter()
             .map(|(semantic, constraint)| {
                 if semantic == MachineSemanticKind::Crash {
@@ -72,11 +72,12 @@ pub fn x86_64_machine_effect_catalog(
                     ));
                 }
                 if let MachineSemanticKind::NearestIeeeFloatArithmetic(form) = semantic {
-                    return Ok(
-                        crate::selected_form_encoding::ieee_float_arithmetic::declaration(
-                            form, constraint,
-                        ),
-                    );
+                    return crate::selected_form_encoding::ieee_float_arithmetic::declaration(
+                        form, constraint,
+                    )
+                    .map_err(|_| {
+                        X86_64MachineEffectCatalogValidationError::TargetSemanticMismatch
+                    });
                 }
                 if semantic == MachineSemanticKind::HostedExitProcessI32 {
                     return crate::selected_form_encoding::hosted_exit_process::declaration(

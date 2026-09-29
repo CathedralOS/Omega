@@ -97,7 +97,7 @@ fn every_selected_rule_binds_the_declared_catalog_provenance() {
         // The declaration roster is exactly the selected keys' canonical
         // semantic-major expansion: one declaration per (semantic, key) pair,
         // in declared order, each bound to a real constraint row.
-        let expected = selected.declaration_keys();
+        let expected = selected.declaration_keys(case.target);
         let actual = catalog
             .catalog()
             .declarations
@@ -155,6 +155,43 @@ fn every_selected_rule_binds_the_declared_catalog_provenance() {
     }
     assert_eq!(identities.len(), targets.len());
     assert_eq!(targets.len(), scalar_abi_cases().len() - 1);
+}
+
+#[test]
+fn baseline_float_catalog_admits_fused_multiply_add_only_on_aarch64() {
+    use selected_instructions::{
+        IeeeFloatArithmeticForm, IeeeFloatArithmeticOperation as Operation, IeeeFloatFormat,
+    };
+    for case in scalar_abi_cases() {
+        let environment = baseline_target_register_environment(case.target).unwrap();
+        let catalog = produced_effects(case, environment.constraints());
+        for format in [IeeeFloatFormat::Binary32, IeeeFloatFormat::Binary64] {
+            let fused = MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+                operation: Operation::FusedMultiplyAdd,
+                format,
+            });
+            assert_eq!(
+                catalog.declarations.iter().any(|row| row.semantic == fused),
+                case.target.architecture == Architecture::Aarch64,
+            );
+            if case.target.architecture == Architecture::X86_64 {
+                let unfused =
+                    MachineSemanticKind::NearestIeeeFloatArithmetic(IeeeFloatArithmeticForm {
+                        operation: Operation::MultiplyThenAdd,
+                        format,
+                    });
+                let mut substituted = catalog.clone();
+                substituted
+                    .declarations
+                    .iter_mut()
+                    .find(|row| row.semantic == unfused)
+                    .unwrap()
+                    .semantic = fused;
+                substituted.declarations.sort_by_key(|row| row.semantic);
+                assert!(validate_effects(case, environment.constraints(), substituted).is_err());
+            }
+        }
+    }
 }
 
 /// The catalog head's provenance is independently enforced on every declared

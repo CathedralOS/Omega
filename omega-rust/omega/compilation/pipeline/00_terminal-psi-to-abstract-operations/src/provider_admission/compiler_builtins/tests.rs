@@ -73,7 +73,7 @@ fn float_format_proposals_keep_boolean_results_and_conversion_direction() {
 }
 
 #[test]
-fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
+fn every_form_realizes_only_on_its_supported_targets_for_its_exact_signature() {
     for target in [
         target::NativeTarget::linux_x64(),
         target::NativeTarget::linux_arm64(),
@@ -86,13 +86,19 @@ fn every_form_realizes_on_every_native_target_for_its_exact_signature() {
                 exact_signature(realization),
                 BoundaryMachineResult::Scalar(scalar),
             );
-            assert_eq!(
-                float_arithmetic_realization(realization, target, &exact),
-                Ok(realization)
-            );
+            if realization.operation == IeeeFloatArithmeticOperation::FusedMultiplyAdd
+                && target.architecture == target::Architecture::X86_64
+            {
+                assert!(float_arithmetic_realization(realization, target, &exact).is_err());
+            } else {
+                assert_eq!(
+                    float_arithmetic_realization(realization, target, &exact),
+                    Ok(realization)
+                );
+            }
         }
     }
-    assert_eq!(forms().count(), 66);
+    assert_eq!(forms().count(), 90);
 }
 
 #[test]
