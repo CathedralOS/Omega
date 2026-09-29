@@ -45,8 +45,8 @@ pub enum ExecutionOutcome {
 /// `ExitStatus::code` reports `None` when the host delivers no exit code —
 /// on Unix that means signal death — and collapsing it into a numeric
 /// fallback conflates signal termination with a real exit code. The
-/// observation keeps the distinction for presentation while exposing the
-/// single value the interpreter-agreement comparison needs.
+/// observation keeps the distinction for presentation and comparison. It is
+/// host presentation, not the exact semantic process-exit event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcessExitObservation {
     /// The process terminated through the host's exit-code channel.
@@ -77,6 +77,19 @@ impl ProcessExitObservation {
         }
     }
 
+    /// Compare only what the executing host exposes. Unix wait status retains
+    /// the low eight bits; Windows retains the full i32 bit pattern. Mapping
+    /// belongs here, not in the interpreter: its semantic status must remain
+    /// exact, and agreement here cannot establish full semantic trace equality.
+    fn matches_host_presentation(self, semantic_status: i32) -> bool {
+        let expected_status = if cfg!(unix) {
+            semantic_status & 255
+        } else {
+            semantic_status
+        };
+        self.code() == Some(expected_status)
+    }
+
     /// One-line presentation of the termination for run diagnostics.
     pub fn describe(self) -> String {
         match self {
@@ -87,7 +100,9 @@ impl ProcessExitObservation {
     }
 }
 
-/// Exit-code comparison only, not an equivalence proof or an output comparison.
+/// Host-presented exit comparison only, not an equivalence proof, a semantic
+/// trace comparison or an output comparison. Stored codes remain exact
+/// interpreter statuses even when the host presents fewer bits.
 #[derive(Debug)]
 pub enum InterpreterComparison {
     NotRequested,
@@ -215,7 +230,7 @@ fn compare_interpretation(
         Some(Err(diagnostics)) => InterpreterComparison::Failed(diagnostics),
         Some(Ok(outcome)) => match outcome.error {
             Some(reason) => InterpreterComparison::Declined(reason),
-            None if native_exit.code() == Some(outcome.exit_code) => {
+            None if native_exit.matches_host_presentation(outcome.exit_code) => {
                 InterpreterComparison::Agrees {
                     exit_code: outcome.exit_code,
                 }
@@ -230,6 +245,30 @@ fn compare_interpretation(
 #[cfg(test)]
 mod tests {
     use super::ProcessExitObservation;
+
+    #[test]
+    fn comparison_maps_host_status_without_equating_different_termination_channels() {
+        for semantic_status in [i32::MIN, -257, -44, -1, 0, 70, 255, 256, 300, i32::MAX] {
+            #[cfg(unix)]
+            let expected_status = semantic_status.rem_euclid(256);
+            #[cfg(not(unix))]
+            let expected_status = semantic_status;
+            assert!(
+                ProcessExitObservation::Exited(expected_status)
+                    .matches_host_presentation(semantic_status),
+                "semantic status {semantic_status}"
+            );
+            assert!(
+                !ProcessExitObservation::Exited(expected_status ^ 1)
+                    .matches_host_presentation(semantic_status),
+                "different observable status for {semantic_status}"
+            );
+            assert!(
+                !ProcessExitObservation::Signaled(11).matches_host_presentation(semantic_status)
+            );
+            assert!(!ProcessExitObservation::Terminated.matches_host_presentation(semantic_status));
+        }
+    }
 
     #[test]
     fn observation_describe_names_each_termination_channel() {

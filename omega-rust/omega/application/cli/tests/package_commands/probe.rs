@@ -75,6 +75,47 @@ fn native_probe_preserves_stdin_and_replays_it_for_interpreter_comparison() {
     assert_eq!(fixture.accepted_files(), before);
 }
 
+#[test]
+fn native_probe_compares_host_presentation_without_truncating_interpreter_status() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        eprintln!("skipping: process-exit comparison executes a host artifact");
+        return;
+    };
+    let fixture = Fixture::new();
+    let standard_library = std::fs::canonicalize(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library/std"),
+    )
+    .unwrap();
+    let build = include_str!(
+        "../../../../../../tests/omega/pass/host/process_exit_i32_status_mapped/build.omg"
+    )
+    .replace(
+        "\"../../../../../source/library/std\"",
+        &format!("{:?}", standard_library.to_str().unwrap()),
+    );
+    fixture.write("root/build.omg", &build);
+    fixture.write(
+        "root/main.omg",
+        include_str!(
+            "../../../../../../tests/omega/pass/host/process_exit_i32_status_mapped/main.omg"
+        ),
+    );
+    accept(&fixture, host.target_name());
+    let before = fixture.accepted_files();
+    let output = fixture.omega(&["run", "--both", "main.omg"]);
+    let physical_status = if cfg!(unix) { 212 } else { -44 };
+    assert_status(&output, physical_status);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains(&format!("native exit {physical_status}")),
+        "{stderr}"
+    );
+    assert!(stderr.contains("interp exit: -44"), "{stderr}");
+    assert!(!stderr.contains("DIVERGENCE"), "{stderr}");
+    assert!(!stderr.contains("DECLINED"), "{stderr}");
+    assert_eq!(fixture.accepted_files(), before);
+}
+
 /// The target `accept` settles so a targetless `run` finds its resolved
 /// profile already reviewed: the catalogued host profile on catalogued
 /// hosts. Every supported development host owns one; a host outside the
