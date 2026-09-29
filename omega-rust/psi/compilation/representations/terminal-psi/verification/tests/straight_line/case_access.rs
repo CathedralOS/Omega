@@ -860,3 +860,180 @@ fn supplied_case_refinement_does_not_grant_executable_tag_access() {
         }),
     );
 }
+
+/// A mixed `Event { consumed: bool; case Nothing; case Treasure(gold: i32) }`
+/// established from two constants. Common and payload field identities live in
+/// separate namespaces and both use id 1 here, so only the roster position
+/// (common fields first, then the selected payload) names each declaration.
+fn mixed_case_module(
+    roster: impl FnOnce(ValueId, ValueId) -> Vec<RecordFieldInitializer>,
+) -> TerminalModule {
+    let mut module = unit_module();
+    let structural_type = StructuralTypeId::new(1).expect("mixed type");
+    let place = PlaceId::new(1).expect("case place");
+    let field = StructuralFieldId::new(1).expect("field id");
+    let integer = semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Signed, 32)
+        .expect("i32");
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: structural_type,
+        identity: "Event".to_owned(),
+        shape: StructuralTypeShape::Mixed {
+            fields: vec![StructuralFieldDeclaration {
+                id: field,
+                identity: "consumed".to_owned(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            }],
+            cases: vec![
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(1).expect("first case"),
+                    identity: "Nothing".to_owned(),
+                    fields: Vec::new(),
+                },
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(2).expect("second case"),
+                    identity: "Treasure".to_owned(),
+                    fields: vec![StructuralFieldDeclaration {
+                        id: field,
+                        identity: "gold".to_owned(),
+                        relevance: terminal_psi::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(integer)),
+                    }],
+                },
+            ],
+        },
+    });
+    let flag = ValueId::new(1).expect("flag");
+    let gold = ValueId::new(2).expect("gold");
+    let machine = &mut module.machines[0];
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: place,
+        kind: StructuralPlaceKind::OperationResult {
+            producer: OperationId::new(3).expect("establishment"),
+            structural_type,
+        },
+    });
+    let scalar = |id: u64, value: ValueId, scalar_type, kind| Operation {
+        static_reach_binding: None,
+        suspension_crossing: None,
+        id: OperationId::new(id).expect("scalar operation"),
+        result: OperationResult::Scalar(ValueDeclaration {
+            id: value,
+            scalar_type,
+            qualifications: Default::default(),
+        }),
+        kind,
+    };
+    machine.blocks[0].operations = vec![
+        scalar(
+            1,
+            flag,
+            ScalarType::Boolean,
+            OperationKind::BooleanConstant { value: true },
+        ),
+        scalar(
+            2,
+            gold,
+            ScalarType::Integer(integer),
+            OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Signed(50),
+            },
+        ),
+        Operation {
+            static_reach_binding: None,
+            suspension_crossing: None,
+            id: OperationId::new(3).expect("establishment"),
+            result: OperationResult::Structural(StructuralOperationResult {
+                qualification_establishments: Vec::new(),
+                place,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                claims: Vec::new(),
+            }),
+            kind: OperationKind::EstablishStructuralCase {
+                result_case: StructuralCaseId::new(2).expect("second case"),
+                fields: roster(flag, gold),
+            },
+        },
+    ];
+    module
+}
+
+fn scalar_initializer(value: ValueId) -> RecordFieldInitializer {
+    RecordFieldInitializer {
+        field: StructuralFieldId::new(1).expect("field id"),
+        value: RecordFieldValue::Scalar {
+            value,
+            range_obligation: None,
+        },
+    }
+}
+
+#[test]
+fn mixed_case_establishment_binds_common_fields_then_the_payload() {
+    let module =
+        mixed_case_module(|flag, gold| vec![scalar_initializer(flag), scalar_initializer(gold)]);
+    verify_module(
+        &module,
+        &ProofBundle::default(),
+        &AdmissionProfile::default(),
+    )
+    .expect("a mixed case binds its common field, then its payload");
+}
+
+#[test]
+fn mixed_case_establishment_rejects_a_misplaced_or_incomplete_roster() {
+    let rosters: [fn(ValueId, ValueId) -> Vec<RecordFieldInitializer>; 4] = [
+        // The payload value in the common position and vice versa.
+        |flag, gold| vec![scalar_initializer(gold), scalar_initializer(flag)],
+        // The payload alone, as a closed sum would bind it.
+        |_, gold| vec![scalar_initializer(gold)],
+        // The common field alone.
+        |flag, _| vec![scalar_initializer(flag)],
+        // A second payload entry beyond the declared roster.
+        |flag, gold| {
+            vec![
+                scalar_initializer(flag),
+                scalar_initializer(gold),
+                scalar_initializer(gold),
+            ]
+        },
+    ];
+    for (index, roster) in rosters.into_iter().enumerate() {
+        let module = mixed_case_module(roster);
+        assert!(
+            validate_module(&module).is_err(),
+            "roster mutation {index} must not establish the mixed case"
+        );
+    }
+}
+
+#[test]
+fn mixed_case_establishment_refuses_a_structural_common_field() {
+    let mut module =
+        mixed_case_module(|flag, gold| vec![scalar_initializer(flag), scalar_initializer(gold)]);
+    let StructuralTypeShape::Mixed { fields, .. } = &mut module.structural_types[0].shape else {
+        panic!("mixed fixture");
+    };
+    let child = StructuralTypeId::new(2).expect("child record");
+    fields[0].field_type = StructuralFieldType::Structural(child);
+    module.structural_types.push(StructuralTypeDeclaration {
+        id: child,
+        identity: "Flags".to_owned(),
+        shape: StructuralTypeShape::Record {
+            fields: vec![StructuralFieldDeclaration {
+                id: StructuralFieldId::new(1).expect("flag field"),
+                identity: "set".to_owned(),
+                relevance: terminal_psi::BindingRelevance::Relevant,
+                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+            }],
+        },
+    });
+    let error = validate_module(&module).expect_err("a structural common field stays refused");
+    assert!(
+        matches!(error, ModuleError::StructuralCaseRequiresSum { .. }),
+        "{error:?}"
+    );
+}

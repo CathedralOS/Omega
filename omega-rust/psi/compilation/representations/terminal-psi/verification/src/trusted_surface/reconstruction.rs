@@ -364,7 +364,7 @@ static FACT_STRUCTURAL_CASE_ESTABLISHMENT: TrustedSurfaceEntry = TrustedSurfaceE
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "an EstablishStructuralCase operation over a validated structural case",
-    conclusion: "the case's membership and payload facts and its declared obligations",
+    conclusion: "the case's membership and payload facts, each mixed common field's value fact at its root-level field path, and its declared obligations",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",

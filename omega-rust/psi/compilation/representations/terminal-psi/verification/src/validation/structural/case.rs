@@ -23,14 +23,26 @@ fn constructible_case(module: &TerminalModule, fields: &[StructuralFieldDeclarat
     })
 }
 
+/// One declaration an establishment roster binds, with the namespace its
+/// field identity belongs to: a mixed shape's common field lives directly on
+/// the result root, a payload field beneath the selected case.
+#[derive(Clone, Copy)]
+pub(crate) struct CaseRosterField<'a> {
+    pub(crate) declaration: &'a StructuralFieldDeclaration,
+    pub(crate) common: bool,
+}
+
 /// Resolve the declaration roster a complete structural-case establishment
 /// binds, after validating the result contract, the selected case and every
-/// field correspondence. Returns the selected case's field declarations.
+/// field correspondence. A closed sum binds the selected case's payload. A
+/// mixed shape binds its runtime common fields in declaration order, then that
+/// payload: common and payload identities are separate namespaces, so the
+/// roster position, not the field identity alone, names the declaration.
 pub(crate) fn fields<'a>(
     module: &'a TerminalModule,
     machine: &TerminalMachine,
     operation: &terminal_psi::Operation,
-) -> Result<&'a [StructuralFieldDeclaration], ModuleError> {
+) -> Result<Vec<CaseRosterField<'a>>, ModuleError> {
     let failure = || ModuleError::StructuralCaseResultMismatch(operation.id);
     let OperationKind::EstablishStructuralCase {
         result_case,
@@ -63,17 +75,22 @@ pub(crate) fn fields<'a>(
         .iter()
         .find(|item| item.id == result.structural_type)
         .ok_or_else(failure)?;
-    let cases = match &declaration.shape {
-        StructuralTypeShape::Sum { cases } => cases,
+    let (common, cases) = match &declaration.shape {
+        StructuralTypeShape::Sum { cases } => (&[][..], cases),
         // Erased owner members keep the union's mixed declaration shape
-        // without a runtime field list: a case establishment writes the tag
-        // and the case's payload alone, the same as a closed sum.
+        // without a runtime field: they take no roster position, so a union
+        // whose common members are all erased writes the tag and the case's
+        // payload alone, the same as a closed sum. A runtime common field must
+        // be a relevant scalar carrier, the only common field source
+        // construction zero-initializes; a structural one stays refused.
         StructuralTypeShape::Mixed { fields, cases }
             if fields.iter().all(|field| {
                 matches!(field.field_type, StructuralFieldType::Erased { .. })
+                    || (field.relevance == terminal_psi::BindingRelevance::Relevant
+                        && field.field_type.scalar_type().is_some())
             }) =>
         {
-            cases
+            (fields.as_slice(), cases)
         }
         _ => {
             return Err(ModuleError::StructuralCaseRequiresSum {
@@ -92,10 +109,23 @@ pub(crate) fn fields<'a>(
         .iter()
         .find(|case| case.id == *result_case)
         .ok_or_else(member_failure)?;
-    if selected.fields.len() != fields.len() || !constructible_case(module, &selected.fields) {
+    let roster = common
+        .iter()
+        .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
+        .map(|declaration| CaseRosterField {
+            declaration,
+            common: true,
+        })
+        .chain(selected.fields.iter().map(|declaration| CaseRosterField {
+            declaration,
+            common: false,
+        }))
+        .collect::<Vec<_>>();
+    if roster.len() != fields.len() || !constructible_case(module, &selected.fields) {
         return Err(member_failure());
     }
-    for (declaration, binding) in selected.fields.iter().zip(fields) {
+    for (entry, binding) in roster.iter().zip(fields) {
+        let declaration = entry.declaration;
         if declaration.id != binding.field {
             return Err(member_failure());
         }
@@ -159,7 +189,7 @@ pub(crate) fn fields<'a>(
             _ => return Err(member_failure()),
         }
     }
-    Ok(&selected.fields)
+    Ok(roster)
 }
 
 /// Scalar payload operands are ordinary defined values whose runtime scalar
@@ -176,10 +206,10 @@ pub(in crate::validation) fn operands(
     let OperationKind::EstablishStructuralCase { fields, .. } = &operation.kind else {
         unreachable!()
     };
-    for (declaration, binding) in declarations.iter().zip(fields) {
+    for (entry, binding) in declarations.iter().zip(fields) {
         if let RecordFieldValue::Scalar { value, .. } = binding.value {
             crate::validation::operations::require_defined(value, value_types, defined)?;
-            if declaration.field_type.scalar_type() != value_types.get(&value).copied() {
+            if entry.declaration.field_type.scalar_type() != value_types.get(&value).copied() {
                 return Err(ModuleError::StructuralCaseResultMismatch(operation.id));
             }
         }

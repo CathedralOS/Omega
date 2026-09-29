@@ -8,6 +8,7 @@ use super::super::{
 };
 use super::emission;
 use crate::emission::operation_emission::buffer::OperationBuffer;
+use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 
 impl emission::Emission<'_, '_, '_> {
     pub(super) fn structural_case(
@@ -50,20 +51,32 @@ impl emission::Emission<'_, '_, '_> {
             .iter()
             .find(|item| item.id == self.structural_type)
             .ok_or(LoweringError::Unsupported("case structural type missing"))?;
-        let cases = match &shape.shape {
-            StructuralTypeShape::Sum { cases } => cases.clone(),
-            // Erased owner members keep the union's mixed declaration shape
-            // without a runtime field list: establishing a case writes the
-            // tag and the case's payload alone.
-            StructuralTypeShape::Mixed { fields, cases }
-                if fields.iter().all(|field| {
-                    matches!(field.field_type, StructuralFieldType::Erased { .. })
-                }) =>
-            {
-                cases.clone()
-            }
+        // A mixed shape's establishment roster is its runtime common fields in
+        // declaration order, then the selected case's payload. Erased common
+        // members carry no runtime field and take no roster position, so a
+        // union whose common members are all erased writes the tag and the
+        // payload alone, exactly as a closed sum does.
+        let (common, cases) = match &shape.shape {
+            StructuralTypeShape::Sum { cases } => (Vec::new(), cases.clone()),
+            StructuralTypeShape::Mixed { fields, cases } => (
+                fields
+                    .iter()
+                    .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. }))
+                    .cloned()
+                    .collect::<Vec<_>>(),
+                cases.clone(),
+            ),
             _ => return unsupported("case construction has a non-sum shape"),
         };
+        let common_declarations = self
+            .checked
+            .data_members(owner)
+            .iter()
+            .filter_map(|member| match member {
+                checked_trees::data::DataMember::Field(field) => Some(field),
+                checked_trees::data::DataMember::Variant(_) => None,
+            })
+            .collect::<Vec<_>>();
         let mut selected = None;
         for member in self.checked.data_members(owner) {
             let checked_trees::data::DataMember::Variant(variant) = member else {
@@ -82,19 +95,35 @@ impl emission::Emission<'_, '_, '_> {
             "case construction selected a foreign case",
         ))?;
         let declarations = self.checked.data_payload_fields(variant);
-        let shape_fields = shape_case.fields.clone();
+        let shape_fields = common
+            .iter()
+            .chain(&shape_case.fields)
+            .cloned()
+            .collect::<Vec<_>>();
         let source_count = self.values.len();
         let mut initialized = Vec::new();
         let mut scalar_positions = Vec::new();
         for (ordinal, field) in fields.iter().enumerate() {
-            let declaration = declarations
+            // Common and payload identities live in separate namespaces; the
+            // declaring member decides which half of the roster it indexes.
+            let (declaration, roster) = match declarations
                 .iter()
                 .find(|declaration| declaration.symbol == field.field)
-                .ok_or(LoweringError::Unsupported("case field declaration missing"))?;
+            {
+                Some(declaration) => (declaration, common.len()..shape_fields.len()),
+                None => (
+                    *common_declarations
+                        .iter()
+                        .find(|declaration| declaration.symbol == field.field)
+                        .ok_or(LoweringError::Unsupported("case field declaration missing"))?,
+                    0..common.len(),
+                ),
+            };
             let identity = declaration.path_identity();
-            let position = shape_fields
+            let position = shape_fields[roster.clone()]
                 .iter()
                 .position(|candidate| candidate.identity == identity)
+                .map(|offset| roster.start + offset)
                 .ok_or(LoweringError::Unsupported("case field identity missing"))?;
             let target = &shape_fields[position];
             // Erased members carry no runtime field, so a case literal cannot
@@ -199,6 +228,42 @@ impl emission::Emission<'_, '_, '_> {
             *value = self.values[position].id;
         }
         self.values.truncate(source_count);
+        // Case construction zero-initializes every common field the literal
+        // leaves unnamed. The zero is an ordinary constant after every
+        // authored operand, so no later evaluation can move it; a bounded
+        // common field still requests its range proof against that zero.
+        for (position, declaration) in common.iter().enumerate() {
+            if initialized.iter().any(|(initialized, _)| *initialized == position) {
+                continue;
+            }
+            let scalar_type = declaration.field_type.scalar_type().ok_or(
+                LoweringError::Unsupported("an unnamed common field has no scalar zero"),
+            )?;
+            let zero = emit_scalar_leaf(
+                super::record::zero_constant(scalar_type),
+                scalar_type,
+                self.next_value,
+                self.operations,
+            );
+            let range_obligation =
+                if matches!(declaration.field_type, StructuralFieldType::BoundedInteger(_)) {
+                    Some(obligation_id(allocate_dense(
+                        &mut self.calls.next_obligation_identity,
+                    )?))
+                } else {
+                    None
+                };
+            initialized.push((
+                position,
+                terminal_psi::RecordFieldInitializer {
+                    field: declaration.id,
+                    value: terminal_psi::RecordFieldValue::Scalar {
+                        value: zero,
+                        range_obligation,
+                    },
+                },
+            ));
+        }
         initialized.sort_by_key(|(position, _)| *position);
         let place = place_id(allocate_dense(self.next_place)?);
         self.temporary_places.push(emit_completed(

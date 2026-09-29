@@ -78,7 +78,28 @@ pub(super) fn validate(
             })
         })
         .collect();
-    if payload_authored.len() != declared.len() || retained.len() != payload_authored.len() {
+    // A mixed owner's runtime common fields may be named beside the payload;
+    // unnamed ones are the establishment's zeros, never replayed operands.
+    // Every payload declaration still answers exactly one initializer.
+    let common: Vec<_> = checked
+        .data_members(data)
+        .iter()
+        .filter_map(|member| match member {
+            checked_trees::data::DataMember::Field(field) if !field.relevance.is_erased() => {
+                Some(field)
+            }
+            _ => None,
+        })
+        .collect();
+    let payload_count = payload_authored
+        .iter()
+        .filter(|initializer| {
+            declared
+                .iter()
+                .any(|declaration| declaration.symbol == initializer.field_symbol)
+        })
+        .count();
+    if payload_count != declared.len() || retained.len() != payload_authored.len() {
         return unsupported("case establishment changed its complete payload roster");
     }
     let mut selected = Vec::new();
@@ -86,6 +107,12 @@ pub(super) fn validate(
         let declaration = declared
             .iter()
             .find(|item| item.symbol == field.field)
+            .or_else(|| {
+                common
+                    .iter()
+                    .copied()
+                    .find(|item| item.symbol == field.field)
+            })
             .ok_or(LoweringError::Unsupported("case field has another owner"))?;
         if selected.contains(&field.field)
             || field.field != initializer.field_symbol

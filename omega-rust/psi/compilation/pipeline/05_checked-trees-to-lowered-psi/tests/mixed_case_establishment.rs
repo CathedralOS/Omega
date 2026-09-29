@@ -1,0 +1,89 @@
+//! A mixed-shape case literal establishes its runtime common fields, then the
+//! selected payload, and zero-initializes every common field it leaves
+//! unnamed (`checking::value_custody::data::validate_data_shape`).
+use checked_trees_to_lowered_psi::{TerminalMachineSelection, lower_machine};
+use terminal_psi::{OperationKind, RecordFieldValue, StructuralTypeShape};
+
+const SOURCE: &str = r#"
+    data Event {
+        consumed: bool;
+        bonus: i32;
+        case Nothing;
+        case Treasure(gold: i32);
+    }
+    data Main { event: Event; }
+    machine Main::run(&mut self) {
+        self.event = Event::Treasure { gold: 50, consumed: true };
+    }
+"#;
+
+#[test]
+fn mixed_case_literal_zero_initializes_unnamed_common_fields() {
+    let checked = crate::front_end::checked_program(SOURCE);
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Main::run"))
+        .expect("a mixed case literal lowers");
+    let module = &lowered.semantic_module;
+    let operations = module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations)
+        .collect::<Vec<_>>();
+    let [establishment] = operations
+        .iter()
+        .filter(|operation| matches!(operation.kind, OperationKind::EstablishStructuralCase { .. }))
+        .collect::<Vec<_>>()[..]
+    else {
+        panic!("one mixed case establishment");
+    };
+    let OperationKind::EstablishStructuralCase { fields, .. } = &establishment.kind else {
+        unreachable!()
+    };
+    let result = establishment.result.structural().expect("structural result");
+    let StructuralTypeShape::Mixed { fields: common, cases } = &module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == result.structural_type)
+        .expect("mixed declaration")
+        .shape
+    else {
+        panic!("the literal establishes the mixed shape");
+    };
+    let treasure = cases
+        .iter()
+        .find(|case| case.identity.ends_with("Treasure"))
+        .expect("treasure case");
+    // Declaration order, not authored order: consumed, bonus, then gold.
+    let expected = common
+        .iter()
+        .chain(&treasure.fields)
+        .map(|field| field.id)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        fields.iter().map(|field| field.field).collect::<Vec<_>>(),
+        expected
+    );
+    let value_of = |position: usize| {
+        let RecordFieldValue::Scalar { value, .. } = fields[position].value else {
+            panic!("scalar roster entry");
+        };
+        operations
+            .iter()
+            .find(|operation| operation.result.scalar().is_some_and(|result| result.id == value))
+            .map(|operation| operation.kind.clone())
+            .expect("defined roster value")
+    };
+    assert_eq!(
+        value_of(1),
+        OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Signed(0),
+        },
+        "the unnamed `bonus` common field establishes as zero"
+    );
+    terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the mixed establishment independently verifies");
+}
