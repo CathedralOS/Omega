@@ -19,6 +19,94 @@ use crate::lower_machine;
 use terminal_psi::{OperationKind, OperationResult, StructuralPathSegment, TerminalModule};
 
 #[test]
+fn explicit_binding_context_preserves_boundary_source_custody() {
+    for projection in ["clock.host", "context.clock.host"] {
+        let parameter = if projection.starts_with("context") {
+            "context: &mut Context"
+        } else {
+            "clock: &mut Clock"
+        };
+        let checked = checked_binding_context(&format!(
+            "pub boundary trait Host {{ machine ticks() -> u64; machine mark(value: u64); }}
+             pub data Clock {{ host: Binding<Host>; }}
+             pub data Context {{ clock: Clock; }}
+             machine read({parameter}) reaches Host {{
+                 let ticks: u64 = {projection}.ticks();
+                 Host::mark(ticks);
+             }}"
+        ));
+        let lowered = lower_machine(&checked, TerminalMachineSelection::Name("read"))
+            .unwrap_or_else(|error| panic!("{projection}: {error:?}"));
+        terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &proof_admission::AdmissionProfile::default(),
+        )
+        .expect("explicit context preserves the boundary call");
+
+        let mut changed = checked.clone();
+        let plan = changed
+            .facts
+            .flow
+            .terminal_unit_effects
+            .machines
+            .iter_mut()
+            .find(|plan| !plan.structural_parameters.is_empty())
+            .expect("ordinary context parameter");
+        plan.structural_parameters.clear();
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("read")).is_err(),
+            "{projection}: missing context custody must reject"
+        );
+    }
+}
+
+fn checked_binding_context(source: &str) -> checked_trees::CheckedTrees {
+    use source::{SourceMap, SourceOrigin};
+    use std::path::PathBuf;
+
+    let binding = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../source/library/core/binding.omg"
+    ));
+    let mut sources = SourceMap::default();
+    let binding_source = sources
+        .add_with_metadata(
+            PathBuf::from("source/library/core/binding.omg"),
+            binding.to_owned(),
+            PathBuf::from("source/library/core"),
+            None,
+            SourceOrigin::Toolchain,
+        )
+        .source_id;
+    let program_source = sources
+        .add(PathBuf::from("tests/main.omg"), source.to_owned())
+        .source_id;
+    let mut typed = crate::front_end::typed_program_from_source_map(
+        sources,
+        &[(binding_source, binding), (program_source, source)],
+    );
+    let authorizations = typed
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .map(
+            |definition| typed_trees::typed_trees::FusedServiceErasureAuthorization {
+                requirement: definition.symbol,
+            },
+        )
+        .collect();
+    typed
+        .bind_fused_service_erasures(authorizations)
+        .expect("fixture binding authorization");
+    typed_trees_to_checked_trees::lower_typed_trees(
+        typed,
+        &typed_trees_to_checked_trees::CheckingRequest::settled(),
+    )
+    .expect("checked binding context")
+}
+
+#[test]
 fn boundary_local_buffer_preserves_backing_and_loan() {
     for (formal, borrow) in [
         ("&mut [u8]", "&mut"),
