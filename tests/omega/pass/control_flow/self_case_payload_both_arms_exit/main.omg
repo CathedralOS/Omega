@@ -12,8 +12,8 @@ data Sum {
     case Right(w: u64);
 }
 
-machine Sum::pick(&self) -> u64 {
-    transition self {
+machine Sum::pick(sum: &Sum) -> u64 {
+    transition sum {
         Sum::Left { v } -> (v)
         Sum::Right { w } -> (w)
     }
@@ -27,13 +27,13 @@ machine Main::main(&mut self) reaches Console {
     let left: Sum = Sum::Left { v: 41 };
     let right: Sum = Sum::Right { w: 29 };
 
-    transition left.pick() == 41 {
+    transition Sum::pick(&left) == 41 {
         true -> first(right)
         _ -> missed()
     }
 
     state first(&mut self, right: Sum) {
-        transition right.pick() == 29 {
+        transition Sum::pick(&right) == 29 {
             true -> matched()
             _ -> missed()
         }

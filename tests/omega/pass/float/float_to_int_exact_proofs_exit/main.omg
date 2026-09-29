@@ -27,4 +27,4 @@ machine Main::main(&mut self) reaches Console {
     state good(&mut self) { self.console.exit_process(78); }
     state bad(&mut self) { self.console.exit_process(71); }
 }
-machine Main::run(&mut self) { self.main(); }
+machine Main::run(main: &mut Main) { main.main(); }

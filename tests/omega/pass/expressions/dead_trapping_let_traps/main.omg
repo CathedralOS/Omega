@@ -21,4 +21,4 @@ machine Main::main(&mut self) reaches Console {
     let b: i32 in Trapping = a + a;
     self.console.exit_process(7);
 }
-machine Main::run(&mut self) { self.main(); }
+machine Main::run(main: &mut Main) { main.main(); }

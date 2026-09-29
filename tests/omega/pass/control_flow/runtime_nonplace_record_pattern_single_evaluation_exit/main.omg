@@ -8,14 +8,14 @@ use omega::language::core::binding;
 data Point [copy] { x: i32; y: i32; }
 data Main { console: Binding<Console>; calls: u32 in Wrapping; }
 
-machine Main::make(&mut self) -> Point {
-    self.calls = self.calls + 1;
+machine Main::make(main: &mut Main) -> Point {
+    main.calls = main.calls + 1;
     transition { _ -> Point { x: 30, y: 40 } }
 }
 
 machine Main::main(&mut self) reaches Console {
     self.calls = 0;
-    transition self.make() {
+    transition Main::make(&mut self) {
         Point { x, y } -> check(x, y)
         _ -> bad()
     }

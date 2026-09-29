@@ -9,7 +9,7 @@
 use omega_language_std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::classify(&mut self, path: &[u8]) -> i32 {
+machine Main::classify(main: &mut Main, path: &[u8]) -> i32 {
     transition path.len > 3 {
         true -> big()
         false -> small()
@@ -18,8 +18,8 @@ machine Main::classify(&mut self, path: &[u8]) -> i32 {
     state small() -> i32 { 1 }
 }
 machine Main::main(&mut self) reaches Console {
-    let a: i32 = self.classify("a/b/c");
-    let b: i32 = self.classify("ab");
+    let a: i32 = Main::classify(&mut self, "a/b/c");
+    let b: i32 = Main::classify(&mut self, "ab");
     transition a == 2 {
         true -> check_b(b)
         _ -> bad(71)

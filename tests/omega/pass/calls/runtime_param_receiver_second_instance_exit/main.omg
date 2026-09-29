@@ -5,30 +5,30 @@
 // chain walk binds `t := &mut self.second` at the descent (param
 // environment) and resolves the param-receiver hop to second's storage
 // -- the by-type walk read FIRST (silent-wrong 7-for-9 before the
-// fence, then fenced, now SERVED). t.get() = 9 -> exit 70.
+// fence, then fenced, now SERVED). Tally::get(&mut t) = 9 -> exit 70.
 use omega_language_std::console;
 use omega::language::core::binding;
 data Tally { count: i32 in Wrapping; }
-machine Tally::get(&mut self) -> i32 in Wrapping {
-    transition true { true -> done(self.count) }
+machine Tally::get(tally: &mut Tally) -> i32 in Wrapping {
+    transition true { true -> done(tally.count) }
     state done(value: i32 in Wrapping) -> i32 in Wrapping { value }
 }
 data Holder { first: Tally; second: Tally; }
 machine Holder::probe(t: &mut Tally) -> i32 in Wrapping {
-    let v: i32 in Wrapping = t.get();
+    let v: i32 in Wrapping = Tally::get(&mut t);
     transition true { true -> done(v) }
     state done(v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
-machine Holder::run(&mut self) -> i32 in Wrapping {
-    self.first.count = 7;
-    self.second.count = 9;
-    let v: i32 in Wrapping = Holder::probe(&mut self.second);
+machine Holder::run(holder: &mut Holder) -> i32 in Wrapping {
+    holder.first.count = 7;
+    holder.second.count = 9;
+    let v: i32 in Wrapping = Holder::probe(&mut holder.second);
     transition true { true -> done(v) }
     state done(v: i32 in Wrapping) -> i32 in Wrapping { v }
 }
 data Main { console: Binding<Console>; holder: Holder; flag: i32 in Wrapping; }
 machine Main::main(&mut self) reaches Console {
-    self.flag = self.holder.run();
+    self.flag = Holder::run(&mut self.holder);
     transition self.flag == 9 { true -> good() _ -> bad() }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }

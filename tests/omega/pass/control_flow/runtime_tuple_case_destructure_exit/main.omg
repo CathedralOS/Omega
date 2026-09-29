@@ -22,8 +22,8 @@ data Main {
     calls: u32 in Wrapping;
 }
 
-machine Main::make(&mut self, base: i32) -> Point {
-    self.calls = self.calls + 1;
+machine Main::make(main: &mut Main, base: i32) -> Point {
+    main.calls = main.calls + 1;
     transition { _ -> Point { x: base, y: 20 } }
 }
 
@@ -45,7 +45,7 @@ machine Main::main(&mut self) reaches Console {
         }
     }
     state records(&mut self) {
-        transition (self.make(10), self.make(20)) {
+        transition (Main::make(&mut self, 10), Main::make(&mut self, 20)) {
             (Point { x as ax, y as ay }, Point { x as bx, y as by }) -> check_points(ax, ay, bx, by)
             _ -> wrong()
         }
