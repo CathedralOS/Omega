@@ -671,7 +671,7 @@ static FACT_TRAPPING_NORMAL_RETURN: TrustedSurfaceEntry = TrustedSurfaceEntry {
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
     premises: "a validated Trapping primitive whose denotation is reconstructed from its operand and result carriers",
-    conclusion: "the continuation gains result = the primitive's exact term; the trap path has no continuation and gains nothing; no obligation is owed",
+    conclusion: "only the normal continuation gains result = the primitive's exact term, without an Exact safety obligation; crash coverage is separately checked before this equation is available",
     dependencies: &[
         "fact:semantic-axiom-roster",
         "formation:operation-validation",
@@ -687,10 +687,16 @@ static FACT_CRASH_SITE_RETENTION: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:crash-site-retention",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "the axiom set reconstructed before a crash terminator",
-    conclusion: "only facts whose observed storage keeps entry meaning survive; ranked machines discard the entire set; producer site guards are never imported",
+    premises: "the axiom set reconstructed before a crash terminator or a crash-capable operation",
+    conclusion: "only facts whose observed storage keeps entry meaning survive; cyclic operation questions retain entry-only facts; primitive failure predicates are independently reconstructed before their normal-return equations, and producer site guards or ceilings are never imported",
     dependencies: &["scope:crash-origin-filter"],
-    implementation: &[CRASH_FIELD_ORIGINS, CRASH_PATHS, TERMINATOR_FACTS],
+    implementation: &[
+        CRASH_FIELD_ORIGINS,
+        CRASH_PATHS,
+        TERMINATOR_FACTS,
+        RECONSTRUCTION,
+        "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/crash_obligations.rs",
+    ],
     soundness: TRUSTED,
 };
 

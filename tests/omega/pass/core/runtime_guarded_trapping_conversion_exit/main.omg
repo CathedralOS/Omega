@@ -1,0 +1,18 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine narrow(input: u16) -> u8
+crashes Trap input > 255u16 {
+    (input as u8 in Trapping) as u8
+}
+
+data Main { console: Binding<Console>; }
+machine Main::main(&mut self) reaches Console {
+    let result: u8 = narrow(255u16);
+    transition result == 255u8 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

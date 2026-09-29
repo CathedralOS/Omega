@@ -505,28 +505,33 @@ pub fn crash_obligation_discharged(
         CrashObligationQuestion::Continuation {
             coverage_goals,
             refutation_goal,
+            paths,
         } => {
-            if evidence.coverage.len() != coverage_goals.len()
+            if paths.is_empty()
+                || evidence.coverage.len() != coverage_goals.len()
                 || evidence.refutation.len() != usize::from(refutation_goal.is_some())
             {
                 return false;
             }
-            // Entry-requirement questions cite no reconstructed CFG facts.
-            let covered =
-                coverage_goals
-                    .iter()
-                    .zip(&evidence.coverage)
-                    .any(|(goal, certificates)| {
-                        certificates
-                            .iter()
-                            .any(|certificate| check(goal, &[], certificate))
-                    });
-            covered
-                || refutation_goal.as_ref().is_some_and(|goal| {
-                    evidence.refutation[0]
+            // Each independently reconstructed pre-call path must prove
+            // coverage or impossibility. Call results never enter these facts.
+            paths.iter().all(|axioms| {
+                let covered =
+                    coverage_goals
                         .iter()
-                        .any(|certificate| check(goal, &[], certificate))
-                })
+                        .zip(&evidence.coverage)
+                        .any(|(goal, certificates)| {
+                            certificates
+                                .iter()
+                                .any(|certificate| check(goal, axioms, certificate))
+                        });
+                covered
+                    || refutation_goal.as_ref().is_some_and(|goal| {
+                        evidence.refutation[0]
+                            .iter()
+                            .any(|certificate| check(goal, axioms, certificate))
+                    })
+            })
         }
     }
 }

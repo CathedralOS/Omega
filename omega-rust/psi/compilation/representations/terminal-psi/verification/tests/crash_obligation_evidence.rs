@@ -370,9 +370,8 @@ fn a_premise_index_binds_the_reconstructed_requirements() {
         ),
         "premise indices resolve against the reconstructed requirements, not producer claims"
     );
-    // The same holds for the reconstructed axiom roster: continuation
-    // questions cite no reconstructed control-flow facts, so no axiom index
-    // is in scope at all.
+    // This invocation has no preceding operations or selected edges, so
+    // its reconstructed pre-call axiom roster is empty.
     let mut bundle = crate::support::produced_crash_bundle(&module);
     for certificate in &mut bundle.crash_obligations[0].coverage[0] {
         certificate.proof.rule = ProofRule::SemanticAxiom { index: 0 };
@@ -382,7 +381,7 @@ fn a_premise_index_binds_the_reconstructed_requirements() {
             verify_module(&module, &bundle, &AdmissionProfile::default()),
             Err(VerificationError::RejectedCrashObligationEvidence { owner: rejected }) if rejected == owner
         ),
-        "a continuation question supplies no reconstructed axiom roster to cite"
+        "this invocation supplies no reconstructed axiom roster to cite"
     );
 }
 
@@ -488,6 +487,7 @@ fn a_continuation_row_is_covered_by_any_one_published_goal() {
         question: CrashObligationQuestion::Continuation {
             coverage_goals: vec![Proposition::Falsehood, Proposition::Truth],
             refutation_goal: None,
+            paths: vec![Vec::new()],
         },
     };
     // Each published bucket is an independent cover: proving one coverage
@@ -515,6 +515,7 @@ fn a_question_without_context_accepts_no_certificate() {
         question: CrashObligationQuestion::Continuation {
             coverage_goals: vec![Proposition::Truth],
             refutation_goal: None,
+            paths: vec![Vec::new()],
         },
     };
     let supplied = site_evidence(question.owner, vec![vec![truth_certificate()]], Vec::new());
@@ -522,4 +523,44 @@ fn a_question_without_context_accepts_no_certificate() {
         !crash_obligation_discharged(&question, &supplied),
         "a malformed entry context keeps the obligation undischarged by construction"
     );
+}
+
+#[test]
+fn continuation_evidence_must_cover_every_reconstructed_path() {
+    let mut question = ReconstructedCrashObligation {
+        owner: CrashObligationOwner::Continuation {
+            machine: MachineId::new(1).unwrap(),
+            operation: OperationId::new(2).unwrap(),
+            cause: CrashCause::Trap,
+        },
+        context: Some(PropositionContext::default()),
+        requirements: Vec::new(),
+        question: CrashObligationQuestion::Continuation {
+            coverage_goals: vec![Proposition::Falsehood],
+            refutation_goal: None,
+            paths: vec![vec![Proposition::Falsehood]],
+        },
+    };
+    let evidence = site_evidence(
+        question.owner,
+        vec![vec![CrashCertificate {
+            with_value_equalities: false,
+            proof: ProofNode {
+                conclusion: Proposition::Falsehood,
+                rule: ProofRule::SemanticAxiom { index: 0 },
+            },
+        }]],
+        Vec::new(),
+    );
+    assert!(crash_obligation_discharged(&question, &evidence));
+    let CrashObligationQuestion::Continuation { paths, .. } = &mut question.question else {
+        unreachable!("the test constructed a continuation");
+    };
+    paths.push(Vec::new());
+    assert!(!crash_obligation_discharged(&question, &evidence));
+    let CrashObligationQuestion::Continuation { paths, .. } = &mut question.question else {
+        unreachable!("the question remains a continuation");
+    };
+    paths.clear();
+    assert!(!crash_obligation_discharged(&question, &evidence));
 }

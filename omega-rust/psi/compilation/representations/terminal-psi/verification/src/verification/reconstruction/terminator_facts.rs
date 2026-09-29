@@ -288,9 +288,11 @@ pub(super) fn append_terminator(
                 });
             }
             crash_sites.push(ReconstructedCrashSiteFacts {
-                machine: machine.id,
-                block,
-                edge: *edge,
+                owner: terminal_psi::CrashObligationOwner::Site {
+                    machine: machine.id,
+                    block,
+                    edge: *edge,
+                },
                 semantic_axioms: axioms,
             });
         }

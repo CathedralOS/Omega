@@ -119,13 +119,13 @@ fn module_machine_index(module: &TerminalModule) -> BTreeMap<MachineId, &Termina
         .collect()
 }
 
-/// Private source-independent facts at an exact crash terminator. Asserted
-/// site guards are proof goals, never premises in this collection.
+/// Private source-independent facts before a crash terminator or operation.
+/// An operation coordinate also indexes pre-call facts for continuation
+/// questions; it grants no evidence by itself. Asserted guards and ceilings
+/// are goals, never premises in this collection.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ReconstructedCrashSiteFacts {
-    pub(crate) machine: MachineId,
-    pub(crate) block: BlockId,
-    pub(crate) edge: EdgeId,
+    pub(crate) owner: terminal_psi::CrashObligationOwner,
     pub(crate) semantic_axioms: Vec<Proposition>,
 }
 
@@ -136,17 +136,53 @@ pub(crate) fn reconstruct_validated_crash_site_facts(
     module: &TerminalModule,
 ) -> Result<Vec<ReconstructedCrashSiteFacts>, ModuleError> {
     let mut sites = Vec::new();
-    let mut crash_machines = module.machines.iter().filter(|machine| {
-        machine.blocks.iter().any(|block| {
-            matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty())
-        })
-    }).peekable();
-    if crash_machines.peek().is_none() {
-        return Ok(sites);
+    let mut crash_machines = Vec::new();
+    for machine in &module.machines {
+        let mut needed = false;
+        for block in &machine.blocks {
+            needed |= matches!(&block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty());
+            for operation in &block.operations {
+                if !needed {
+                    needed =
+                        crash_obligations::operation_needs_site_facts(module, machine, operation)?;
+                }
+            }
+        }
+        if needed {
+            crash_machines.push(machine);
+        }
     }
     let machines = module_machine_index(module);
     for machine in crash_machines {
-        if machine.ranked_scc.is_some() {
+        let has_guarded_terminator = machine.blocks.iter().any(|block| {
+            matches!(
+                &block.terminator, Terminator::Crash { site_guard, .. } if !site_guard.is_empty()
+            )
+        });
+        if machine.ranked_scc.is_none()
+            && !has_guarded_terminator
+            && !crate::control_graph::feedback_edges(machine).is_empty()
+        {
+            // Calls in unranked cycles previously used entry requirements
+            // only. Preserve that contract: visiting a loop once cannot
+            // establish its invariants, and adding operation questions must
+            // not force previously supported entry-only coverage to unroll.
+            // Asserted terminator guards retain their existing bounded walk.
+            let context = machine_context::MachineReconstructionContext::new(module, machine, true);
+            for block in &machine.blocks {
+                for operation in &block.operations {
+                    crash_obligations::append_operation_site(
+                        module,
+                        machine,
+                        block.id,
+                        operation,
+                        &context.value_types,
+                        &[],
+                        &mut sites,
+                    )?;
+                }
+            }
+        } else if machine.ranked_scc.is_some() {
             sites.extend(
                 reconstruct_machine_semantics_with_crash_facts(module, machine, &machines, true)?
                     .crash_sites,
@@ -535,6 +571,17 @@ fn reconstruct_machine_semantics_with_crash_facts(
                 &context.value_types,
                 &mut axioms,
             )?;
+            if crash_facts {
+                crash_obligations::append_operation_site(
+                    module,
+                    machine,
+                    current,
+                    operation,
+                    &context.value_types,
+                    &axioms,
+                    &mut crash_sites,
+                )?;
+            }
             operation_facts::append_operation(
                 module,
                 machine,

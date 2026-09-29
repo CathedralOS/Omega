@@ -3,12 +3,14 @@
 //!
 //! Verification reconstructs these questions from the module alone. A
 //! `Site` question carries every asserted `Crash` terminator guard and every
-//! independently reconstructed path axiom roster into that terminator; it is
+//! independently reconstructed path axiom roster into that terminator, or
+//! a primitive's published ceiling under its intrinsic failure predicate. It is
 //! discharged when each guard re-decides a supplied node under each path, or
 //! the path itself is certified infeasible. A `Continuation` question carries
 //! the union goals of same-cause published buckets and the complement goal
 //! of the uncovered roster; it is discharged when a supplied node re-decides
-//! under the caller's entry requirements.
+//! for every pre-call path under entry requirements and independently
+//! reconstructed facts, never the call's result or normal-return guarantees.
 //!
 //! No question text, premise roster, or context comes from the artifact.
 //! Producers compute the identical questions through
@@ -16,9 +18,7 @@
 //! proof bundle; the verifier's check is `proof_admission`'s recorded-lane
 //! certificate replay.
 
-use semantic_vocabulary::{
-    Proposition, PropositionContext, ScalarTerm, ScalarType, StructuralPlaceKind,
-};
+use semantic_vocabulary::{Proposition, PropositionContext, ScalarTerm, ScalarType};
 use terminal_psi::{
     CrashObligationOwner, CrashRouteBucket, CrashRouteGuard, OperationKind, TerminalMachine,
     TerminalModule, Terminator,
@@ -38,7 +38,7 @@ const MAXIMUM_COMPLEMENT_STEPS: usize = 4096;
 const MAXIMUM_COMPLEMENT_DEPTH: usize = 64;
 
 /// One verifier-reconstructed crash question. `context` is `None` only for a
-/// continuation whose caller entry context did not form; such a question is
+/// continuation whose caller value context did not form; such a question is
 /// retained so an undischarged obligation still rejects, and no certificate
 /// can answer it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -55,7 +55,7 @@ pub struct ReconstructedCrashObligation {
 /// the lane-tagged certificate rosters in `CrashObligationEvidence`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CrashObligationQuestion {
-    /// Asserted `site_guard` propositions in terminator order, and every
+    /// Asserted `site_guard` propositions or a primitive's ceiling, and every
     /// reconstructed path's semantic-axiom roster in reconstruction order.
     Site {
         guards: Vec<Proposition>,
@@ -68,6 +68,9 @@ pub enum CrashObligationQuestion {
     Continuation {
         coverage_goals: Vec<Proposition>,
         refutation_goal: Option<Proposition>,
+        /// Independently reconstructed facts before the invocation, never
+        /// its returned value or its normal-return guarantees.
+        paths: Vec<Vec<Proposition>>,
     },
 }
 
@@ -93,7 +96,12 @@ pub(crate) fn reconstruct_validated_crash_obligations(
                 let paths = sites
                     .iter()
                     .filter(|site| {
-                        site.machine == machine.id && site.block == block.id && site.edge == *edge
+                        site.owner
+                            == CrashObligationOwner::Site {
+                                machine: machine.id,
+                                block: block.id,
+                                edge: *edge,
+                            }
                     })
                     .map(|site| site.semantic_axioms.clone())
                     .collect();
@@ -119,16 +127,59 @@ pub(crate) fn reconstruct_validated_crash_obligations(
     for machine in &module.machines {
         for block in &machine.blocks {
             for operation in &block.operations {
+                if matches!(operation.kind, OperationKind::TrappingInteger { .. })
+                    && !crate::validation::trapping_integer::has_unconditional_trap_ceiling(machine)
+                {
+                    let owner = CrashObligationOwner::OperationSite {
+                        machine: machine.id,
+                        block: block.id,
+                        operation: operation.id,
+                    };
+                    let paths = sites
+                        .iter()
+                        .filter(|site| site.owner == owner)
+                        .map(|site| site.semantic_axioms.clone())
+                        .collect();
+                    let alternatives: Vec<_> = machine
+                        .contract
+                        .crash_routes
+                        .iter()
+                        .filter(|bucket| bucket.cause == terminal_psi::CrashCause::Trap)
+                        .flat_map(|bucket| &bucket.alternatives)
+                        .filter_map(|guard| match guard {
+                            CrashRouteGuard::Predicate(predicate) => {
+                                Some(predicate.proposition().clone())
+                            }
+                            CrashRouteGuard::Truth => None,
+                        })
+                        .collect();
+                    let coverage = match alternatives.as_slice() {
+                        [] => Proposition::Falsehood,
+                        [one] => one.clone(),
+                        _ => Proposition::Disjunction(alternatives),
+                    };
+                    obligations.push(ReconstructedCrashObligation {
+                        owner,
+                        context: Some(machine_value_context(module, machine)?),
+                        requirements: machine.contract.requires.clone(),
+                        question: CrashObligationQuestion::Site {
+                            guards: vec![coverage],
+                            paths,
+                        },
+                    });
+                }
                 let continuations = match operation_continuations(module, operation)? {
                     Some(continuations) => continuations,
                     None => continue,
                 };
                 reconstruct_continuation_obligations(
+                    module,
                     machine,
                     operation.id,
                     &continuations,
+                    &sites,
                     &mut obligations,
-                );
+                )?;
             }
         }
     }
@@ -139,14 +190,113 @@ pub(crate) fn reconstruct_validated_crash_obligations(
             .find(|machine| machine.id == contract.machine)
             .expect("validated operation crash contract owner exists");
         reconstruct_continuation_obligations(
+            module,
             caller,
             contract.operation,
             &contract.crash_continuations,
+            &sites,
             &mut obligations,
-        );
+        )?;
     }
     obligations.sort_by_key(|obligation| obligation.owner);
     Ok(obligations)
+}
+
+/// Capture the failure branch before adding the operation's normal-return
+/// equation. The ceiling is a goal, never an assumption. Ranked paths retain
+/// only entry requirements, as ordinary crash sites do, until iteration facts
+/// carry independently verified invariant custody.
+pub(super) fn operation_needs_site_facts(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &terminal_psi::Operation,
+) -> Result<bool, ModuleError> {
+    if matches!(operation.kind, OperationKind::TrappingInteger { .. }) {
+        return Ok(!crate::validation::trapping_integer::has_unconditional_trap_ceiling(machine));
+    }
+    let covered = |route: &CrashRouteBucket| {
+        machine.contract.crash_routes.iter().any(|published| {
+            published.cause == route.cause
+                && (published.alternatives.contains(&CrashRouteGuard::Truth)
+                    || route
+                        .alternatives
+                        .iter()
+                        .all(|guard| published.alternatives.contains(guard)))
+        })
+    };
+    Ok(operation_continuations(module, operation)?
+        .as_ref()
+        .is_some_and(|routes| routes.iter().any(|route| !covered(route)))
+        || module.operation_crash_contracts.iter().any(|contract| {
+            contract.machine == machine.id
+                && contract.operation == operation.id
+                && contract
+                    .crash_continuations
+                    .iter()
+                    .any(|route| !covered(route))
+        }))
+}
+
+pub(super) fn append_operation_site(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    block: semantic_vocabulary::BlockId,
+    operation: &terminal_psi::Operation,
+    value_types: &std::collections::BTreeMap<semantic_vocabulary::ValueId, ScalarType>,
+    axioms: &[Proposition],
+    sites: &mut Vec<super::ReconstructedCrashSiteFacts>,
+) -> Result<(), ModuleError> {
+    if !operation_needs_site_facts(module, machine, operation)? {
+        return Ok(());
+    }
+    let mut semantic_axioms = if machine.ranked_scc.is_some() {
+        Vec::new()
+    } else {
+        axioms
+            .iter()
+            .filter(|proposition| {
+                super::crash_field_origins::retains_entry_meaning(proposition, machine)
+            })
+            .cloned()
+            .collect()
+    };
+    if let OperationKind::TrappingInteger {
+        operation: trapping,
+    } = operation.kind
+    {
+        let failure = if let Some(predicate) =
+            crate::validation::trapping_integer::division_failure_condition(
+                operation,
+                trapping,
+                value_types,
+            )? {
+            predicate
+        } else {
+            let normal = crate::validation::trapping_integer::normal_return_condition(
+                operation,
+                trapping,
+                value_types,
+            )?;
+            let mut remaining = MAXIMUM_COMPLEMENT_STEPS;
+            opposite(&normal, &mut remaining, 0).ok_or(
+                ModuleError::TrappingIntegerCrashUncovered {
+                    machine: machine.id,
+                    block,
+                    operation: operation.id,
+                },
+            )?
+        };
+        semantic_axioms.push(failure);
+    }
+    sites.push(super::ReconstructedCrashSiteFacts {
+        owner: CrashObligationOwner::OperationSite {
+            machine: machine.id,
+            block,
+            operation: operation.id,
+        },
+        semantic_axioms,
+    });
+    Ok(())
 }
 
 /// The continuation roster one operation asks the caller to cover: the stored
@@ -236,11 +386,13 @@ fn operation_continuations(
 /// surviving uncovered bucket asks for coverage by a same-cause published
 /// goal or for refutation of its uncovered alternatives.
 fn reconstruct_continuation_obligations(
+    module: &TerminalModule,
     caller: &TerminalMachine,
     operation: semantic_vocabulary::OperationId,
     continuations: &[CrashRouteBucket],
+    sites: &[super::ReconstructedCrashSiteFacts],
     obligations: &mut Vec<ReconstructedCrashObligation>,
-) {
+) -> Result<(), ModuleError> {
     let published_routes = normalized_crash_routes(&caller.contract.crash_routes);
     let covered = |continuation: &CrashRouteBucket| {
         published_routes.iter().any(|published| {
@@ -253,7 +405,7 @@ fn reconstruct_continuation_obligations(
         })
     };
     if normalized_crash_routes(continuations).iter().all(&covered) {
-        return;
+        return Ok(());
     }
     // Invocation routes remain exact in the caller's actual-value namespace.
     // Only ceiling coverage may follow independently reconstructed CFG copies.
@@ -274,7 +426,16 @@ fn reconstruct_continuation_obligations(
                 })
             })
             .collect();
-        let context = entry_context(caller);
+        let context = Some(machine_value_context(module, caller)?);
+        let paths = sites
+            .iter()
+            .filter(|site| {
+                matches!(site.owner,
+            CrashObligationOwner::OperationSite { machine, operation: candidate, .. }
+                if machine == caller.id && candidate == operation)
+            })
+            .map(|site| site.semantic_axioms.clone())
+            .collect();
         let coverage_goals = published_routes
             .iter()
             .filter(|published| published.cause == continuation.cause)
@@ -301,9 +462,11 @@ fn reconstruct_continuation_obligations(
             question: CrashObligationQuestion::Continuation {
                 coverage_goals,
                 refutation_goal,
+                paths,
             },
         });
     }
+    Ok(())
 }
 
 /// The coverage question one published bucket asks: its single predicate, or
@@ -362,23 +525,6 @@ fn refutation_goal(context: &PropositionContext, routes: &[&CrashRouteGuard]) ->
     }
 }
 
-fn entry_context(caller: &TerminalMachine) -> Option<PropositionContext> {
-    // Body values, result pseudo-values and current storage do not belong to
-    // this context. Ordinary module validation separately verifies complete
-    // contract scope, including the declared structural parameter associations.
-    PropositionContext::from_value_types_and_places(
-        caller
-            .parameters
-            .iter()
-            .map(|parameter| (parameter.id, parameter.scalar_type)),
-        caller.structural_places.iter().filter_map(|place| {
-            matches!(place.kind, StructuralPlaceKind::Parameter { .. })
-                .then_some((place.id, place.kind))
-        }),
-    )
-    .ok()
-}
-
 // The crash predicate vocabulary has no general negation constructor. Form
 // the exact complement of supported scalar propositions; Boolean comparisons
 // retain their operands and use the proof owner's checked denotation rules.
@@ -390,6 +536,12 @@ fn opposite(proposition: &Proposition, remaining: &mut usize, depth: usize) -> O
         Proposition::Falsehood => Proposition::Truth,
         Proposition::LessThan(left, right) => Proposition::LessOrEqual(right.clone(), left.clone()),
         Proposition::LessOrEqual(left, right) => Proposition::LessThan(right.clone(), left.clone()),
+        Proposition::IntegerMathLessThan(left, right) => {
+            Proposition::IntegerMathLessOrEqual(right.clone(), left.clone())
+        }
+        Proposition::IntegerMathLessOrEqual(left, right) => {
+            Proposition::IntegerMathLessThan(right.clone(), left.clone())
+        }
         Proposition::Equal(left, right) => {
             let comparison = match left.scalar_type() {
                 ScalarType::Boolean => {

@@ -8,7 +8,7 @@
 //! Borrowed facts and predecessor coordinates keep search from cloning a proof
 //! tree at every branch. Only the selected path becomes a certificate.
 
-use crate::{ProofNode, ProofRule};
+use crate::{PrimitiveJudgment, ProofNode, ProofRule};
 use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType};
 
 use super::step;
@@ -19,6 +19,7 @@ struct OrderFact<'input> {
     semantic: bool,
     premise_index: usize,
     conjuncts: Vec<usize>,
+    closed: bool,
 }
 
 struct Reached<'input> {
@@ -46,6 +47,7 @@ pub(super) fn prove(
                     semantic,
                     premise_index,
                     conjuncts: Vec::new(),
+                    closed: false,
                 },
                 &mut facts,
                 remaining,
@@ -53,6 +55,19 @@ pub(super) fn prove(
             )?;
         }
     }
+    // Literal endpoints can connect otherwise separate premise edges. They
+    // are kernel-checked closed relations, never new semantic assumptions.
+    // Use the same search budget so dense literal sets cannot multiply work
+    // without bound. Only the selected chain becomes a proof tree.
+    let closed = closed_relations(goal, &facts, remaining, depth)?;
+    facts.extend(closed.iter().map(|relation| OrderFact {
+        root: relation,
+        relation,
+        semantic: false,
+        premise_index: 0,
+        conjuncts: Vec::new(),
+        closed: true,
+    }));
     let mut reached = vec![Reached {
         endpoint: start,
         strict: false,
@@ -93,6 +108,36 @@ pub(super) fn prove(
         cursor += 1;
     }
     None
+}
+
+fn closed_relations(
+    goal: &Proposition,
+    facts: &[OrderFact<'_>],
+    remaining: &mut usize,
+    depth: usize,
+) -> Option<Vec<Proposition>> {
+    let mut literals = Vec::new();
+    for proposition in std::iter::once(goal).chain(facts.iter().map(|fact| fact.relation)) {
+        let (left, right, _) = relation(proposition)?;
+        for endpoint in [left, right] {
+            step(remaining, depth)?;
+            if endpoint.integer_value().is_some() && !literals.contains(&endpoint) {
+                literals.push(endpoint);
+            }
+        }
+    }
+    let mut relations = Vec::new();
+    for left in &literals {
+        for right in &literals {
+            step(remaining, depth)?;
+            let (left_type, left_value) = left.integer_value()?;
+            let (right_type, right_value) = right.integer_value()?;
+            if left_type == right_type && left_value < right_value {
+                relations.push(Proposition::LessThan((*left).clone(), (*right).clone()));
+            }
+        }
+    }
+    Some(relations)
 }
 
 fn collect<'input>(
@@ -136,6 +181,12 @@ fn relation(proposition: &Proposition) -> Option<(&ScalarTerm, &ScalarTerm, bool
 
 fn citation(fact: &OrderFact<'_>, remaining: &mut usize, depth: usize) -> Option<ProofNode> {
     step(remaining, depth)?;
+    if fact.closed {
+        return Some(ProofNode {
+            conclusion: fact.relation.clone(),
+            rule: ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
+        });
+    }
     let mut proof = ProofNode {
         conclusion: fact.root.clone(),
         rule: if fact.semantic {

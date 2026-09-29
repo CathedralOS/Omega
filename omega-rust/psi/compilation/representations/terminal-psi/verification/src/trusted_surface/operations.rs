@@ -869,10 +869,11 @@ static OP_SATURATING_INTEGER_MULTIPLY: TrustedSurfaceEntry = entry(
 static OP_TRAPPING_INTEGER: TrustedSurfaceEntry = entry(
     "operation:trapping-integer",
     "a validated Trapping primitive: same-carrier fixed-integer operands for add, subtract, multiply, divide and remainder, a carrier value and fixed count for a shift, any fixed source for a conversion, and a fixed-integer result",
-    "no obligation; the continuation gains result = the exact primitive term; the operation is its own Trap crash site, admitted only under an unconditional same-cause published bucket",
+    "the normal continuation gains result = the exact primitive term; the operation is its own Trap site, covered unconditionally or by replayed certificates proving its published same-cause ceiling under pre-operation facts and the exact failure predicate: zero or signed overflow for division, the complement of canonical successful-domain predicates otherwise",
     &[
         "fact:trapping-normal-return",
         "formation:operation-validation",
+        "formation:crash-entry-requirements",
     ],
     &[VOCAB, TS_ROWS, OP_FACTS, VAL_OPS, VAL_TRAPPING],
 );

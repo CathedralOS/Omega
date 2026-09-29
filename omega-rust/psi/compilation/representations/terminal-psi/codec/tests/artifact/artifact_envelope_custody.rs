@@ -555,12 +555,16 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
             // first byte is not a signature tag — and a grown one starves a
             // later section read.
             Field::SemanticLengthCleared => {
-                envelope_error(Envelope::InvalidMathematicalSignatureTag(0))
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(
+                    envelope[spans.optimization.end - semantic_len],
+                ))
             }
             Field::ProofLengthCleared => {
                 // The stranded tail begins inside the proof payload — not a
                 // signature tail tag.
-                envelope_error(Envelope::InvalidMathematicalSignatureTag(200))
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(
+                    envelope[spans.optimization.end - proof_len],
+                ))
             }
             Field::OptimizationLengthCleared => {
                 envelope_error(Envelope::InvalidMathematicalSignatureTag(b'P'))
@@ -570,7 +574,11 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
             Field::SemanticLengthShortened
             | Field::ProofLengthShortened
             | Field::OptimizationLengthShortened => {
-                envelope_error(Envelope::InvalidMathematicalSignatureTag(60))
+                // This is a fingerprint byte, not a fixed format marker.
+                // Reconstruct its position without invoking the decoder.
+                envelope_error(Envelope::InvalidMathematicalSignatureTag(
+                    envelope[spans.optimization.end - 1],
+                ))
             }
             Field::TrailingByte => envelope_error(Envelope::InvalidMathematicalSignatureTag(0)),
             Field::SemanticLengthLengthened
@@ -727,7 +735,10 @@ fn canonical_terminal_artifact_envelope_rejects_every_one_field_substitution() {
                 // byte is read — the stranded tail begins inside the
                 // optimization payload, not at a signature tag.
                 Field::DebugTagDropped => {
-                    envelope_error(Envelope::InvalidMathematicalSignatureTag(177))
+                    let unclaimed_length = debug_spans.debug_len.as_ref().unwrap().len();
+                    envelope_error(Envelope::InvalidMathematicalSignatureTag(
+                        debug_envelope[debug_spans.optimization.end - unclaimed_length],
+                    ))
                 }
                 Field::DebugTagCorrupted => envelope_error(Envelope::InvalidDebugTag(2)),
                 Field::DebugLengthCleared => {

@@ -9,11 +9,9 @@
 //! guard, or site row is trusted, so a changed operand type, a missing
 //! ceiling, or a relocated site cannot pass.
 //!
-//! Coverage is the crash-terminator rule with an empty retained guard: a
-//! same-cause bucket covers the site only when it is unconditional. A guarded
-//! `Trap` ceiling needs the operation's incoming conjunction as evidence,
-//! which this representation does not retain yet, so such a machine rejects
-//! instead of being treated as covered.
+//! Formation requires a same-cause ceiling. An unconditional ceiling needs
+//! no proof; guarded coverage is a crash-certificate question reconstructed
+//! at the operation, before its normal-return result equation is available.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -141,6 +139,18 @@ pub(crate) fn normal_return_equation(
     operation: &Operation,
     value_types: &BTreeMap<ValueId, ScalarType>,
 ) -> Result<Proposition, ModuleError> {
+    let exact = normal_return_expression(operation, value_types)?;
+    let result = operation.result.expect_scalar();
+    Ok(Proposition::Equal(
+        ScalarTerm::value(result.id, result.scalar_type),
+        exact,
+    ))
+}
+
+fn normal_return_expression(
+    operation: &Operation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+) -> Result<ScalarTerm, ModuleError> {
     let denotation = trapping_integer_denotation(operation, value_types)?;
     let OperationKind::TrappingInteger {
         operation: trapping,
@@ -148,7 +158,6 @@ pub(crate) fn normal_return_equation(
     else {
         unreachable!("dispatched a Trapping primitive")
     };
-    let result = operation.result.expect_scalar();
     let term = |value: ValueId| ScalarTerm::value(value, value_types[&value]);
     let result_type = denotation.result_type;
     let exact = match trapping {
@@ -188,21 +197,18 @@ pub(crate) fn normal_return_equation(
         }
     }
     .map_err(ModuleError::MalformedProposition)?;
-    Ok(Proposition::Equal(
-        ScalarTerm::value(result.id, result.scalar_type),
-        exact,
-    ))
+    Ok(exact)
 }
 
-/// Every Trapping primitive's site must be covered by an unconditional
-/// same-cause bucket of its machine's published ceiling.
+/// Formation requires a same-cause bucket. Guarded coverage is checked by
+/// independent crash-certificate replay, not granted by structural validation.
 pub(super) fn validate_trapping_crash_sites(machine: &TerminalMachine) -> Result<(), ModuleError> {
     let covered = machine
         .contract
         .crash_routes
         .iter()
         .filter(|bucket| bucket.cause == TRAPPING_INTEGER_CAUSE)
-        .any(|bucket| bucket.alternatives == [CrashRouteGuard::Truth]);
+        .any(|bucket| !bucket.alternatives.is_empty());
     for block in &machine.blocks {
         for operation in &block.operations {
             if matches!(operation.kind, OperationKind::TrappingInteger { .. }) && !covered {
@@ -215,4 +221,103 @@ pub(super) fn validate_trapping_crash_sites(machine: &TerminalMachine) -> Result
         }
     }
     Ok(())
+}
+
+pub(crate) fn has_unconditional_trap_ceiling(machine: &TerminalMachine) -> bool {
+    machine.contract.crash_routes.iter().any(|bucket| {
+        bucket.cause == TRAPPING_INTEGER_CAUSE
+            && bucket.alternatives.contains(&CrashRouteGuard::Truth)
+    })
+}
+
+/// Trapping and Exact have the same successful domain. Reuse the canonical
+/// operation-local safety proposition; its complement is the intrinsic trap
+/// predicate. This does not assert that the operation returns normally.
+pub(crate) fn normal_return_condition(
+    operation: &Operation,
+    trapping: TrappingIntegerOperation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+) -> Result<Proposition, ModuleError> {
+    use terminal_semantics::CanonicalScalarGoal;
+    let denotation = trapping_integer_denotation(operation, value_types)?;
+    let term = |value: ValueId| ScalarTerm::value(value, value_types[&value]);
+    let goal = match trapping {
+        TrappingIntegerOperation::Convert { operand } => {
+            CanonicalScalarGoal::ExactCastRepresentable {
+                source_type: denotation.operand_type,
+                target_type: denotation.result_type,
+                operand: term(operand),
+            }
+        }
+        TrappingIntegerOperation::Add { .. }
+        | TrappingIntegerOperation::Subtract { .. }
+        | TrappingIntegerOperation::Multiply { .. } => {
+            CanonicalScalarGoal::ExactArithmeticRepresentable {
+                integer_type: denotation.result_type,
+                expression: normal_return_expression(operation, value_types)?,
+            }
+        }
+        TrappingIntegerOperation::Divide { left, right }
+        | TrappingIntegerOperation::Remainder { left, right } => {
+            CanonicalScalarGoal::ExactDivisionDefined {
+                integer_type: denotation.result_type,
+                left: term(left),
+                right: term(right),
+            }
+        }
+        TrappingIntegerOperation::ShiftLeft { value, count } => {
+            CanonicalScalarGoal::ExactShiftLeftRepresentable {
+                value_type: denotation.result_type,
+                count_type: denotation.operand_type,
+                value: term(value),
+                count: term(count),
+            }
+        }
+        TrappingIntegerOperation::ShiftRight { count, .. } => {
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type: denotation.result_type,
+                count_type: denotation.operand_type,
+                count: term(count),
+            }
+        }
+    };
+    goal.kernel_proposition()
+        .map_err(ModuleError::OperationSemanticSchema)
+}
+
+/// Division's exceptional operands have a direct equality meaning: zero,
+/// and signed MIN with -1 for both quotient and remainder. Retain that
+/// predicate rather than requiring a producer to derive equality from the
+/// interval encoding used by Exact's successful-domain goal.
+pub(crate) fn division_failure_condition(
+    operation: &Operation,
+    trapping: TrappingIntegerOperation,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+) -> Result<Option<Proposition>, ModuleError> {
+    use semantic_vocabulary::{IntegerSign, IntegerValue};
+    let (left, right) = match trapping {
+        TrappingIntegerOperation::Divide { left, right }
+        | TrappingIntegerOperation::Remainder { left, right } => (left, right),
+        _ => return Ok(None),
+    };
+    let integer = trapping_integer_denotation(operation, value_types)?.result_type;
+    let term = |value| ScalarTerm::value(value, ScalarType::Integer(integer));
+    let literal =
+        |value| ScalarTerm::integer(integer, value).map_err(ModuleError::MalformedProposition);
+    let zero = match integer.sign() {
+        IntegerSign::Signed => IntegerValue::Signed(0),
+        IntegerSign::Unsigned => IntegerValue::Unsigned(0),
+    };
+    let zero_divisor = Proposition::Equal(term(right), literal(zero)?);
+    Ok(Some(if integer.sign() == IntegerSign::Signed {
+        Proposition::Disjunction(vec![
+            zero_divisor,
+            Proposition::Conjunction(vec![
+                Proposition::Equal(term(left), literal(integer.minimum_value())?),
+                Proposition::Equal(term(right), literal(IntegerValue::Signed(-1))?),
+            ]),
+        ])
+    } else {
+        zero_divisor
+    }))
 }

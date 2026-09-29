@@ -252,6 +252,16 @@ pub(crate) fn encode_crash_obligation_evidence(
 
 fn encode_crash_obligation_owner(writer: &mut Writer, owner: CrashObligationOwner) {
     match owner {
+        CrashObligationOwner::OperationSite {
+            machine,
+            block,
+            operation,
+        } => {
+            writer.u8(3);
+            writer.id(machine);
+            writer.id(block);
+            writer.id(operation);
+        }
         CrashObligationOwner::Site {
             machine,
             block,
@@ -316,6 +326,11 @@ fn decode_crash_obligation_owner(
     reader: &mut Reader<'_>,
 ) -> Result<CrashObligationOwner, ProofCodecError> {
     Ok(match reader.u8()? {
+        3 => CrashObligationOwner::OperationSite {
+            machine: reader.id("MachineId")?,
+            block: reader.id("BlockId")?,
+            operation: reader.id("OperationId")?,
+        },
         1 => CrashObligationOwner::Site {
             machine: reader.id("MachineId")?,
             block: reader.id("BlockId")?,

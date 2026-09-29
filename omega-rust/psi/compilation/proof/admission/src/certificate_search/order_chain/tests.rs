@@ -34,6 +34,34 @@ fn context() -> PropositionContext {
 }
 
 #[test]
+fn literal_endpoints_bridge_order_chains_without_becoming_assumptions() {
+    let literal = |number| {
+        ScalarTerm::integer(integer(), semantic_vocabulary::IntegerValue::Signed(number)).unwrap()
+    };
+    let facts = [Proposition::LessThan(literal(255), value(1))];
+    for bound in [0, 254, 255] {
+        assert!(establishes(
+            &context(),
+            &Proposition::LessThan(literal(bound), value(1)),
+            &[],
+            &facts
+        ));
+    }
+    assert!(!establishes(
+        &context(),
+        &Proposition::LessThan(literal(256), value(1)),
+        &[],
+        &facts
+    ));
+    let facts = [
+        Proposition::LessOrEqual(value(1), literal(-2)),
+        Proposition::LessThan(literal(0), value(2)),
+    ];
+    assert!(establishes(&context(), &order(1, 2, true), &[], &facts));
+    assert!(!establishes(&context(), &order(2, 1, true), &[], &facts));
+}
+
+#[test]
 fn strict_and_nonstrict_chains_keep_both_premise_namespaces() {
     for first_strict in [false, true] {
         for second_strict in [false, true] {

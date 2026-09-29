@@ -344,3 +344,95 @@ fn a_changed_trapping_operand_carrier_rejects() {
         Err(terminal_verifier::ModuleError::TrappingIntegerOperandTypeMismatch { .. })
     ));
 }
+
+#[test]
+fn guarded_trapping_conversion_proves_the_intrinsic_failure_branch() {
+    for ceiling in ["input > 255u16", "input > 254u16"] {
+        let source = format!(
+            "machine value(input: u16) -> u8 crashes Trap {ceiling} {{ (input as u8 in Trapping) as u8 }}"
+        );
+        let lowered = lower(&source);
+        assert_eq!(
+            run(
+                &lowered.semantic_module,
+                &lowered.proof_bundle,
+                &[unsigned(16, 255)]
+            )
+            .unwrap(),
+            TerminalExecutionResult::Scalar(unsigned(8, 255))
+        );
+        assert_traps(&source, &[unsigned(16, 256)]);
+        assert!(
+            lowered
+                .proof_bundle
+                .crash_obligations
+                .iter()
+                .any(|row| matches!(
+                    row.owner,
+                    terminal_psi::CrashObligationOwner::OperationSite { .. }
+                ))
+        );
+        let mut missing = lowered.proof_bundle.clone();
+        missing.crash_obligations.clear();
+        assert!(
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &missing,
+                &AdmissionProfile::default()
+            )
+            .is_err()
+        );
+        let mut misplaced = lowered.proof_bundle.clone();
+        if let terminal_psi::CrashObligationOwner::OperationSite { operation, .. } =
+            &mut misplaced.crash_obligations[0].owner
+        {
+            *operation = OperationId::new(u64::MAX).unwrap();
+        }
+        assert!(
+            terminal_verifier::verify_module(
+                &lowered.semantic_module,
+                &misplaced,
+                &AdmissionProfile::default()
+            )
+            .is_err()
+        );
+        let bytes = terminal_codec::encode_proof_bundle(&lowered.proof_bundle).unwrap();
+        assert_eq!(&bytes[8..10], &35_u16.to_le_bytes());
+        assert_eq!(
+            terminal_codec::decode_proof_bundle(&bytes).unwrap(),
+            lowered.proof_bundle
+        );
+        let mut old_format = bytes;
+        old_format[8..10].copy_from_slice(&34_u16.to_le_bytes());
+        assert!(matches!(
+            terminal_codec::decode_proof_bundle(&old_format),
+            Err(terminal_codec::ProofCodecError::UnsupportedFormatMarker(34))
+        ));
+    }
+    let source = "machine value(input: u16) -> u8 crashes Trap input > 256u16 { (input as u8 in Trapping) as u8 }";
+    let checked = crate::front_end::checked_program(source);
+    assert!(matches!(
+        checked_trees_to_lowered_psi::lower_machine(
+            &checked,
+            TerminalMachineSelection::Name("value")
+        ),
+        Err(checked_trees_to_lowered_psi::LoweringError::UndischargedCrashObligations(_))
+    ));
+}
+
+#[test]
+fn guarded_primitive_crashes_keep_selected_paths_and_exact_operations() {
+    let conditional = "machine value(input: u16, selected: bool) -> u8 crashes Trap selected && input > 255u16 { match selected { true -> ((input as u8 in Trapping) as u8), false -> 0u8 } }";
+    assert_returns(
+        conditional,
+        &[unsigned(16, 256), TerminalScalarValue::Boolean(false)],
+        unsigned(8, 0),
+    );
+    assert_traps(
+        conditional,
+        &[unsigned(16, 256), TerminalScalarValue::Boolean(true)],
+    );
+    let division = "machine value(left: u8 in Trapping, right: u8 in Trapping) -> u8 crashes Trap right == 0u8 { (left / right) as u8 }";
+    assert_returns(division, &[unsigned(8, 6), unsigned(8, 2)], unsigned(8, 3));
+    assert_traps(division, &[unsigned(8, 6), unsigned(8, 0)]);
+}
