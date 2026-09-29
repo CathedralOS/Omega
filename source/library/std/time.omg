@@ -123,26 +123,26 @@ pub machine Duration::subsecond_microseconds(duration: &Duration) -> u32 {
 // ~584 years: seconds above 18_446_744_073 (u64::MAX / 1e9) overflow, and at
 // exactly that threshold only subseconds up to 709_551_615 still fit
 // (18_446_744_073 * 1e9 + 709_551_615 == u64::MAX).
-pub machine Duration::checked_as_nanoseconds(&self) -> TotalResult {
-    let seconds_small: bool = self.seconds < 18446744073;
-    let seconds_edge: bool = self.seconds == 18446744073;
-    let subsecond_fits: bool = self.subsecond_nanoseconds <= 709551615;
-    let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000000000)
-        + (widen_u32_to_u64(self.subsecond_nanoseconds) as u64 in Wrapping);
+pub machine Duration::checked_as_nanoseconds(duration: &Duration) -> TotalResult {
+    let seconds_small: bool = duration.seconds < 18446744073;
+    let seconds_edge: bool = duration.seconds == 18446744073;
+    let subsecond_fits: bool = duration.subsecond_nanoseconds <= 709551615;
+    let total: u64 in Wrapping = ((duration.seconds as u64 in Wrapping) * 1000000000)
+        + (widen_u32_to_u64(duration.subsecond_nanoseconds) as u64 in Wrapping);
     transition seconds_small {
         true -> total_ok(total as u64)
         false -> total_edge(seconds_edge, subsecond_fits, total as u64)
     }
-    state total_ok(&self, total: u64) -> TotalResult {
+    state total_ok(total: u64) -> TotalResult {
         TotalResult::Ok { total: total }
     }
-    state total_edge(&self, seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
+    state total_edge(seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
         transition seconds_edge && subsecond_fits {
             true -> total_ok(total)
             false -> total_overflow()
         }
     }
-    state total_overflow(&self) -> TotalResult {
+    state total_overflow() -> TotalResult {
         TotalResult::Overflow
     }
 }
@@ -150,27 +150,27 @@ pub machine Duration::checked_as_nanoseconds(&self) -> TotalResult {
 // The whole duration as a microsecond count (subseconds truncate to the
 // microsecond). Threshold 18_446_744_073_709 = u64::MAX / 1e6; at the edge
 // only microsecond parts up to 551_615 still fit.
-pub machine Duration::checked_as_microseconds(&self) -> TotalResult {
-    let seconds_small: bool = self.seconds < 18446744073709;
-    let seconds_edge: bool = self.seconds == 18446744073709;
-    let subsecond_part: u32 = self.subsecond_nanoseconds / 1000;
+pub machine Duration::checked_as_microseconds(duration: &Duration) -> TotalResult {
+    let seconds_small: bool = duration.seconds < 18446744073709;
+    let seconds_edge: bool = duration.seconds == 18446744073709;
+    let subsecond_part: u32 = duration.subsecond_nanoseconds / 1000;
     let subsecond_fits: bool = subsecond_part <= 551615;
-    let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000000)
+    let total: u64 in Wrapping = ((duration.seconds as u64 in Wrapping) * 1000000)
         + (widen_u32_to_u64(subsecond_part) as u64 in Wrapping);
     transition seconds_small {
         true -> total_ok(total as u64)
         false -> total_edge(seconds_edge, subsecond_fits, total as u64)
     }
-    state total_ok(&self, total: u64) -> TotalResult {
+    state total_ok(total: u64) -> TotalResult {
         TotalResult::Ok { total: total }
     }
-    state total_edge(&self, seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
+    state total_edge(seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
         transition seconds_edge && subsecond_fits {
             true -> total_ok(total)
             false -> total_overflow()
         }
     }
-    state total_overflow(&self) -> TotalResult {
+    state total_overflow() -> TotalResult {
         TotalResult::Overflow
     }
 }
