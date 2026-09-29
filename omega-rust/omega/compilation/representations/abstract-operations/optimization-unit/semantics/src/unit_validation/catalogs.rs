@@ -329,8 +329,12 @@ fn validate_structural_field_range_authority(
                     path,
                 )
                 .ok_or(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch)?;
+                // A mixed shape's common fields are stored directly, like
+                // record fields.
                 let Some(terminal_psi::StructuralTypeDeclaration {
-                    shape: StructuralTypeShape::Record { fields },
+                    shape:
+                        StructuralTypeShape::Record { fields }
+                        | StructuralTypeShape::Mixed { fields, .. },
                     ..
                 }) = types.get(&parent).copied()
                 else {

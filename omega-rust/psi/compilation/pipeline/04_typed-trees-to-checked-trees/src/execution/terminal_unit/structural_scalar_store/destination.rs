@@ -393,8 +393,34 @@ impl<'a> Destination<'a> {
         program: &'a TypedTrees,
         segments: &[facts::PlaceSegment],
     ) -> Option<Carrier<'a>> {
+        self.walk(program, segments, false)
+    }
+
+    /// The carrier of one scalar leaf store: [`Self::carrier`], except that
+    /// the walk may also end at a mixed shape whose common field the leaf
+    /// writes. A common field sits at the same offset in every case, so the
+    /// write needs no case knowledge and leaves the tag and payload intact.
+    /// Common fields are scalar primitives (checking's `validate_data_shape`),
+    /// so a mixed shape is only ever the last owner, never an intermediate hop.
+    pub(super) fn leaf_carrier(
+        &self,
+        program: &'a TypedTrees,
+        segments: &[facts::PlaceSegment],
+    ) -> Option<Carrier<'a>> {
+        self.walk(program, segments, true)
+    }
+
+    fn walk(
+        &self,
+        program: &'a TypedTrees,
+        segments: &[facts::PlaceSegment],
+        may_end_at_mixed: bool,
+    ) -> Option<Carrier<'a>> {
+        let final_owner = |owner: &typed_trees::data::DataDefinition| {
+            plain_record(owner, program) || (may_end_at_mixed && plain_mixed(owner, program))
+        };
         if let Some(owner) = self.root_owner
-            && !plain_record(owner, program)
+            && !(plain_record(owner, program) || (segments.is_empty() && final_owner(owner)))
         {
             return None;
         }
@@ -460,7 +486,7 @@ impl<'a> Destination<'a> {
                 crate::facts::field_domain::data_definition_for_field_type(program, carrier_type);
         }
         let owner = owner?;
-        plain_record(owner, program).then_some(Carrier { path, owner })
+        final_owner(owner).then_some(Carrier { path, owner })
     }
 
     /// The canonical mutation-summary spelling of this destination's place:
@@ -499,6 +525,20 @@ impl<'a> Destination<'a> {
 /// and a reference leaf has no primitive type. Runtime generic arity is still
 /// excluded by the type-parameter and owner-application tests below.
 pub(super) fn plain_record(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+    plain_checked_shape(data, program)
+        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
+            == DataShapeKind::Record
+}
+
+/// A mixed shape whose common fields a leaf store may write, under the same
+/// supply, generic and fact conditions as [`plain_record`].
+fn plain_mixed(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
+    plain_checked_shape(data, program)
+        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
+            == DataShapeKind::Mixed
+}
+
+fn plain_checked_shape(data: &typed_trees::data::DataDefinition, program: &TypedTrees) -> bool {
     data.supply_mode == language_semantics::DataSupplyMode::CheckedShape
         && program.data_type_parameters(data).is_empty()
         && retained_record_owner_application(data, program)
@@ -508,8 +548,6 @@ pub(super) fn plain_record(data: &typed_trees::data::DataDefinition, program: &T
         && (data.where_facts.is_empty()
             || validation::data_where_field_intervals(program, data).is_some())
         && !data.zero_gated
-        && typed_trees::data::DataDefinition::shape_kind_from_members(program.data_members(data))
-            == DataShapeKind::Record
 }
 
 fn retained_record_owner_application(

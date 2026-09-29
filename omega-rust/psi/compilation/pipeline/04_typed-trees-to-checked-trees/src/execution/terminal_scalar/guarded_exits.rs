@@ -174,13 +174,17 @@ fn tail(
             .data_definitions()
             .iter()
             .find(|data| data.symbol == owner)?;
-        let mut expected = Vec::new();
-        for member in program.data_members(data) {
-            let typed_trees::data::DataMember::Variant(variant) = member else {
-                return None;
-            };
-            expected.push(variant.symbol);
-        }
+        // Coverage ranges over the owner's cases only. A mixed shape's common
+        // fields are present in every case, so they select nothing and an
+        // exhaustive dispatch names each variant exactly once.
+        let expected = program
+            .data_members(data)
+            .iter()
+            .filter_map(|member| match member {
+                typed_trees::data::DataMember::Variant(variant) => Some(variant.symbol),
+                typed_trees::data::DataMember::Field(_) => None,
+            })
+            .collect::<Vec<_>>();
         if expected.len() != cases.len() || expected.iter().any(|case| !cases.contains(case)) {
             return None;
         }

@@ -1439,24 +1439,22 @@ crash and native exit behavior. Use affected check/native corpus slices under
   `traits/equatable_mixed_shape_equality_exit` exit 70 on macOS ARM64 and
   build for linux_x86_64. Erased payload members construct natively: they take
   no roster position anywhere and an omitted one is determined by its nullary
-  constructor, so `relevance/erased_case_payload_field_exit` exits 70. Next
-  stops, each on an unchanged program: an exhaustive dispatch that names every
-  case of a mixed value without `_` stops in Psi at `state graph: terminator:
-  guarded jump successors: roster` (three arms) or `unsupported tail: guarded
-  pair without exact false fallback` (two arms, where
-  `generics/runtime_mixed_generic_erased_sum_exit` also stops), while the same
-  dispatch over a plain sum runs. `terminal_scalar/guarded_exits.rs::tail`
-  proves coverage by requiring every data member to be a variant, so a mixed
-  shape's common fields fail it; skipping `DataMember::Field` members there
-  made both forms exit 70 in a local probe. `data/runtime_mixed_shape_exit`
-  stops first at the common-field store `self.event.bonus = 70` (`structural
-  field store: carrier path`): stage 04
-  `structural_scalar_store/destination.rs::carrier` admits only a plain record
-  as the last owner and needs to accept a mixed owner whose final field is a
-  common field; the Omega store helpers also keep record-only lookups. A probe
-  of the program without that store exits 70 with the coverage change. The
-  interpreter's `EstablishStructuralCase` still requires a sum and keys payload
-  scalars by field id on the root, where mixed common and payload ids collide.
+  constructor, so `relevance/erased_case_payload_field_exit` exits 70. Dispatch
+  coverage ranges over a mixed value's cases only
+  (`terminal_scalar/guarded_exits.rs::tail`), and a common field stores in place
+  without a `Case` step through stage 04's `leaf_carrier`, stage 05 emission,
+  Terminal verification, the codec, Omega stages 00, 02 and 03 and
+  optimization-unit validation, so `data/runtime_mixed_shape_exit` exits 70 on
+  macOS ARM64 and builds for linux_x86_64.
+  `generics/runtime_mixed_generic_erased_sum_exit` passes Psi and stops at
+  native receiver provisioning (`hosted receiver requires a checked ZII-valid
+  value with no executable nominal cleanup`): stage 07
+  `entry_receipt/receiver_eligibility.rs::zero_valid_fields` rejects every
+  nested erased field, while source checking judges one by its type; the unique
+  accessible nullary constructor rule of erased bindings determines its `proof
+  [erased]: Evidence`. The interpreter's `EstablishStructuralCase` still
+  requires a sum and keys payload scalars by field id on the root, where mixed
+  common and payload ids collide.
   A plain domain that means exactly an interval constructs as a bounded payload
   whose range obligation verification proves, so
   `ranges/sum_payload_range_arith_narrowed_exit` exits 70; any other predicate

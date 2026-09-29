@@ -29,6 +29,10 @@ fn parameter_for(
         .then_some(parameter)
 }
 
+/// A relevant scalar field stored directly in `structural_type`: a record
+/// field, or a mixed shape's common field. A common field occupies the same
+/// offset in every case, so writing it needs no case knowledge and leaves the
+/// tag and the active payload untouched; payload fields stay unreachable here.
 fn direct_relevant_scalar_field(
     module: &TerminalModule,
     structural_type: StructuralTypeId,
@@ -39,7 +43,9 @@ fn direct_relevant_scalar_field(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == structural_type)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &declaration.shape
+    else {
         return None;
     };
     fields.iter().find_map(|candidate| {
@@ -231,7 +237,10 @@ pub(crate) fn structural_scalar_field_store_range(
         .structural_types
         .iter()
         .find(|declaration| declaration.id == parent)?;
-    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+    // The same direct fields `direct_relevant_scalar_field` admits.
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &declaration.shape
+    else {
         return None;
     };
     let declaration = fields

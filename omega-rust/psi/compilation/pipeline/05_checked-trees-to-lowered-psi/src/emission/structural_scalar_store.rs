@@ -353,7 +353,11 @@ pub(crate) fn lower_structural_field_steps<'a>(
                 "structural scalar store nested carrier type is absent",
             ))?;
     }
-    let StructuralTypeShape::Record { fields } = &field_owner.shape else {
+    // A mixed shape's common fields sit at one offset in every case, so the
+    // leaf writes one without a `Case` step, as a read observes it.
+    let (StructuralTypeShape::Record { fields } | StructuralTypeShape::Mixed { fields, .. }) =
+        &field_owner.shape
+    else {
         return unsupported("structural scalar store field owner is not a record");
     };
     let matching = fields

@@ -332,7 +332,7 @@ fn plan_assignment(
     let facts::PlaceSegment::Field { symbol } = leaf else {
         return None;
     };
-    let carrier = destination.carrier(program, carriers)?;
+    let carrier = destination.leaf_carrier(program, carriers)?;
     trace.phase("structural field store: field owner record");
     let field = exact_relevant_field(program, carrier.owner, *symbol)?;
     trace.phase("structural field store: byte sequence carrier");

@@ -230,9 +230,9 @@ fn mixed_declarations_have_tag_prefixed_geometry_and_common_field_reads() {
     );
     assert_eq!(shape(root, &declarations), Some(ValueShape::integer(16, 4)));
     // Structural payloads and erased-relevance common fields shape the same
-    // way the target evaluator sees them. A common field reads at its offset
-    // beside the tag whatever case is active; stores into the mixed node stay
-    // closed.
+    // way the target evaluator sees them. A common field reads and stores at
+    // its offset beside the tag whatever case is active; nothing else in the
+    // mixed node is a store target.
     let mut with_structural = declarations.clone();
     let StructuralTypeShape::Mixed { cases, fields } = &mut with_structural[1].shape else {
         panic!("mixed");
@@ -254,9 +254,20 @@ fn mixed_declarations_have_tag_prefixed_geometry_and_common_field_reads() {
         "the common `flag` sits after the four-byte tag"
     );
     assert_eq!(field_read(root, &[], flag, scalar, &declarations), None);
-    for path in [vec![], into_mixed] {
-        assert_eq!(store(root, &path, flag, scalar, &declarations), None);
-    }
+    assert_eq!(
+        store(root, &into_mixed, flag, scalar, &declarations),
+        Some((4, 4, Vec::new())),
+        "a common-field store writes exactly the bytes its read observes"
+    );
+    assert_eq!(store(root, &[], flag, scalar, &declarations), None);
+    // Payload ids are a separate namespace: no common field 2 exists, and a
+    // mismatched scalar type selects nothing.
+    let absent = StructuralFieldId::new(2).unwrap();
+    assert_eq!(store(root, &into_mixed, absent, scalar, &declarations), None);
+    assert_eq!(
+        store(root, &into_mixed, flag, ScalarType::Boolean, &declarations),
+        None
+    );
     // An empty case set has no inhabitant to provision.
     let mut empty = declarations.clone();
     let StructuralTypeShape::Mixed { cases, .. } = &mut empty[1].shape else {
