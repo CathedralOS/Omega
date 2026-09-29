@@ -667,6 +667,7 @@ fn close_return_structural(
                 || super::super::record::plain_return_source(module, machine, *source)))
         && !(plain_owned_block_return
             && source_signature.multiplicity == StructuralMultiplicity::Unrestricted)
+        && !literal_return_source(machine, *source)
     {
         return Err(ModuleError::StructuralReturnSourceNotLive {
             machine: machine.id,
@@ -787,7 +788,8 @@ fn close_return_structural(
         && !super::super::structural::case::plain_return_source(module, machine, *source)
         && !super::super::structural::leaf_copy::copied_return_source(machine, *source)
         && !super::super::record::established_record_return_source(module, machine, *source)
-        && !super::super::record::plain_return_source(module, machine, *source))
+        && !super::super::record::plain_return_source(module, machine, *source)
+        && !literal_return_source(machine, *source))
         || returned_claims.windows(2).any(|pair| pair[0] >= pair[1])
     {
         return Err(ModuleError::NonCanonicalStructuralReturnClaims {
@@ -851,4 +853,23 @@ fn close_crash(
         return Err(ModuleError::CrashFrontierMismatch { block: block.id });
     }
     Ok(())
+}
+
+/// An `EstablishByteSequenceLiteral` destination is module-static storage:
+/// returning a borrowed view over it leaves nothing on loan.
+fn literal_return_source(
+    machine: &terminal_psi::TerminalMachine,
+    source: semantic_vocabulary::PlaceId,
+) -> bool {
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .any(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                    if destination == source
+            )
+        })
 }

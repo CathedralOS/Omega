@@ -321,6 +321,49 @@ pub(super) fn lower_terminator(
                     cleanup_actions,
                 });
             }
+            // A literal place is machine-static storage: returning it reads
+            // its established descriptor prefix, no custody home.
+            let mut literals = function
+                .operations
+                .iter()
+                .filter_map(|operation| match operation {
+                    AbstractOperation::EstablishByteSequenceLiteral {
+                        psi_operation,
+                        place: declaration,
+                        ..
+                    } if declaration.id == *source => Some((*psi_operation, declaration)),
+                    _ => None,
+                });
+            if let Some((operation, declaration)) = literals.next() {
+                if literals.next().is_some()
+                    || result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+                    || !result.qualifications.is_empty()
+                    || !result.projected_qualifications.is_empty()
+                    || !returned_claims.is_empty()
+                    || !trivial_affine_locals.is_empty()
+                {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                let declared_type = match declaration.kind {
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type,
+                        ..
+                    } => structural_type,
+                    _ => return Err(LoweringError::unsupported_control_flow(function.machine)),
+                };
+                if declared_type != result.structural_type {
+                    return Err(LoweringError::unsupported_control_flow(function.machine));
+                }
+                provenance.edges.push(*psi_edge);
+                return Ok(TargetControlTerminator::ReturnStructural {
+                    psi_edge: *psi_edge,
+                    source: target_operations::TargetStructuralReturnSource::Literal {
+                        operation,
+                        declaration: declaration.clone(),
+                    },
+                    cleanup_actions,
+                });
+            }
             let home = live
                 .structural_homes
                 .get(source)

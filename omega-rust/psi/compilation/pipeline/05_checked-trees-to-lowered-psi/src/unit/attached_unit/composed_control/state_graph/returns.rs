@@ -433,9 +433,24 @@ pub(super) fn validate_structural(
     else {
         return unsupported("structural return has no result signature");
     };
-    if signature.type_identity != result.type_identity
-        || signature.multiplicity != result.multiplicity
-    {
+    // A shared `& T` return keeps its authored reference surface on the
+    // terminator binding while the declared signature names the referee
+    // carrier — the same shell/carrier pair the binding role checks at the
+    // call's result use. Identities agree when the signature names the
+    // peeled referee and the binding names the authored shell.
+    let shared_referee = validation::reference_result_custody::shared_place_borrowed_parts(
+        &checked.typed,
+        source.return_type,
+    )
+    .map(|(referee, _)| checked.normalized_type_identity(referee).into_string());
+    let identities_agree = signature.type_identity == result.type_identity
+        || (Some(signature.type_identity.as_str()) == shared_referee.as_deref()
+            && result.type_identity
+                == checked
+                    .normalized_type_identity(source.return_type)
+                    .into_string());
+    let multiplicities_agree = signature.multiplicity == result.multiplicity;
+    if !identities_agree || !multiplicities_agree {
         return unsupported("structural return changed its declared result custody");
     }
     let statement = checked
@@ -592,6 +607,32 @@ pub(super) fn validate_structural(
                 || !matches!(checked.expression_table.expression(*expression), ExpressionNode::Name(path) if path.symbol == declaration.symbol && checked.expression_table.name_path_members(path.members).len() == 1)
             {
                 return unsupported("structural return exchanged its owned parameter");
+            }
+        }
+        CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral { ref bytes } => {
+            // The spelled literal is its own storage: it forwards no claims
+            // and its custody is whole-established by construction. The tail
+            // expression must be the authored string and the declared result
+            // a shared byte-slice view.
+            let ExpressionNode::String(spelled) = checked.expression_table.expression(*expression)
+            else {
+                return unsupported("structural return literal differs from its authored tail");
+            };
+            let referee = validation::reference_result_custody::shared_place_borrowed_parts(
+                &checked.typed,
+                source.return_type,
+            )
+            .map(|(referee, _)| referee);
+            let referee_is_bytes = referee.is_some_and(|referee| {
+                matches!(
+                    checked.type_reference_table.type_reference(referee),
+                    checked_trees::types::TypeReferenceNode::Slice { element_type }
+                        if checked.primitive_type_reference(*element_type)
+                            == Some(checked_trees::types::PrimitiveType::U8)
+                )
+            });
+            if spelled.as_ref() != bytes.as_slice() || !referee_is_bytes {
+                return unsupported("structural return literal disagrees with its declared view");
             }
         }
         _ => return unsupported("structural return requires whole established custody"),

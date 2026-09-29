@@ -581,18 +581,32 @@ pub fn reconstruct_structural_call_custody(
         .iter()
         .find(|state| state.symbol == *target_state)
         .ok_or("structural call has no exact callee state")?;
-    if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
-        || crate::machine_calls::reference_result_custody::result_multiplicity(
+    // A materialized `& T` carrier ends exactly once like the mutable shell
+    // does, so its custody multiplicity is affine even when the classifier's
+    // named-referee result shape misses non-named referees such as slices.
+    let expected_multiplicity =
+        if crate::machine_calls::reference_result_custody::shared_place_borrowed_parts(
             program,
             destination.return_type,
-        ) != result.multiplicity
+        )
+        .is_some()
+        {
+            Multiplicity::Affine
+        } else {
+            crate::machine_calls::reference_result_custody::result_multiplicity(
+                program,
+                destination.return_type,
+            )
+        };
+    if target.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || expected_multiplicity != result.multiplicity
     {
         return Err("structural call result differs from the callee contract");
     }
     let result_qualifications =
         if crate::machine_calls::reference_result_custody::parts(program, destination.return_type)
             .is_some()
-            || crate::machine_calls::reference_result_custody::shared_borrowed_parts(
+            || crate::machine_calls::reference_result_custody::shared_place_borrowed_parts(
                 program,
                 destination.return_type,
             )

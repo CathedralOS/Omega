@@ -225,6 +225,11 @@ pub(super) fn validate_source(
                     psi_operation,
                     result,
                     ..
+                }
+                | AbstractOperation::CallStructural {
+                    psi_operation,
+                    result,
+                    ..
                 } if psi_operation == producer
                     && result.place == source
                     && result.structural_type == *structural_type

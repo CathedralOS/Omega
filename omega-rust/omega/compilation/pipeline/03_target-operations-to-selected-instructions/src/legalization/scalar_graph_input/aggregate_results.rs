@@ -187,9 +187,8 @@ pub(super) fn cleanup(
                     && declaration.projected_qualifications.is_empty()
             }
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
-                false
-            }
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::Literal { .. } => false,
         })
     };
     actions.iter().all(|action| {
@@ -720,9 +719,11 @@ pub(super) fn result_home(
                 layout,
             )
         }
-        // A function parameter is an arrival, not an activation-local home.
+        // A function parameter is an arrival, not an activation-local home,
+        // and this resolver names no literal home origin.
         legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+        | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. }
+        | legalized_operations::LegalizedStructuralCaseSource::Literal { .. } => {
             return Err(LegalizationError::custody());
         }
     };

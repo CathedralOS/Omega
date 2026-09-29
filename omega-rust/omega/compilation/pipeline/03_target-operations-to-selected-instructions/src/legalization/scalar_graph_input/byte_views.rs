@@ -435,17 +435,39 @@ pub(super) fn element_type(
 }
 
 // Whole-unit validation checks the exact producer and dominance. This predicate
-// restricts the native route to parameters and derived immutable views.
+// restricts the native route to parameters and derived immutable views. A
+// borrowed byte view a call returns joins the same roster: the caller only
+// ever reads through its (pointer, length) descriptor.
 pub(super) fn contains_view(
     function: &PsiOptimizationFunction,
+    types: &[terminal_psi::StructuralTypeDeclaration],
     place: semantic_vocabulary::PlaceId,
 ) -> bool {
     super::literals::declaration_producer(function, place).is_some()
         || function.structural_parameters.iter().any(|parameter| parameter.place == place)
         || function.blocks.iter().any(|block| block.structural_parameters.iter().any(|parameter| parameter.place == place))
-        || function.blocks.iter().flat_map(|block| &block.nodes).any(|node|
+        || function.blocks.iter().flat_map(|block| &block.nodes).any(|node| {
             matches!(&node.operation, AbstractOperation::ByteSequenceSubslice { result, .. } | AbstractOperation::ElementViewSubslice { result, .. } if result.place == place)
-            || matches!(&node.operation, AbstractOperation::EstablishElementView { destination, .. } if *destination == place))
+            || matches!(&node.operation, AbstractOperation::EstablishElementView { destination, .. } if *destination == place)
+            || match &node.operation {
+                AbstractOperation::CallStructural { result, .. }
+                | AbstractOperation::BoundaryCall {
+                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
+                    ..
+                } => {
+                    result.place == place
+                        && result.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+                        && result.claims.is_empty()
+                        && result.qualifications.is_empty()
+                        && result.projected_qualifications.is_empty()
+                        && types.iter().any(|declaration| {
+                            declaration.id == result.structural_type
+                                && declaration.shape.is_borrowed_byte_view()
+                        })
+                }
+                _ => false,
+            }
+        })
 }
 
 pub(in crate::legalization) fn owned_concatenation(
@@ -470,7 +492,8 @@ pub(in crate::legalization) fn owned_concatenation(
 }
 pub(super) fn contains_readable_bytes(
     function: &PsiOptimizationFunction,
+    types: &[terminal_psi::StructuralTypeDeclaration],
     place: semantic_vocabulary::PlaceId,
 ) -> bool {
-    contains_view(function, place) || owned_concatenation(function, place).is_some()
+    contains_view(function, types, place) || owned_concatenation(function, place).is_some()
 }

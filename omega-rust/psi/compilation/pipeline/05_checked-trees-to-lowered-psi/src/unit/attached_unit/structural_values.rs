@@ -14,4 +14,4 @@ pub(crate) mod record;
 mod structural_case;
 
 pub(crate) use emission::emit;
-pub(super) use locals::bind_local;
+pub(super) use locals::{bind_local, bind_local_with_view};

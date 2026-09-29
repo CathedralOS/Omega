@@ -4,7 +4,7 @@ use super::definitions::DefinitionSites;
 use crate::validation::operations::{require_defined, validate_operation_operands};
 use crate::validation::{
     BTreeMap, BTreeSet, BlockId, BoundaryMachineDeclaration, ContractClauseKind, MachineId,
-    ModuleError, OperationKind, ScalarType, StructuralAccess, TerminalMachine,
+    ModuleError, OperationKind, ScalarType, StructuralAccess, StructuralPlaceKind, TerminalMachine,
     TerminalMachineResult, TerminalModule, Terminator, ValueId, contracts,
 };
 use semantic_vocabulary::PlaceId;
@@ -406,6 +406,10 @@ pub(super) fn validate_block(
                             .structural()
                             .is_some_and(|result| result.place == *source)
                     })
+                && !machine.structural_places.iter().any(|place| {
+                    place.id == *source
+                        && matches!(place.kind, StructuralPlaceKind::ByteSequenceLiteral { .. })
+                })
             {
                 return Err(ModuleError::StructuralReturnRequiresParameterSource {
                     machine: machine.id,

@@ -12,8 +12,10 @@ use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, SuccessorEdge, block_id,
 };
 use super::super::super::super::{
-    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan, Terminator, ValueDeclaration,
-    allocate_dense, edge_id, lookup_claim_id, terminal_scalar_type, unsupported,
+    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan, Operation, OperationKind,
+    OperationResult, StructuralPlaceDeclaration, StructuralPlaceKind, Terminator, ValueDeclaration,
+    allocate_dense, edge_id, lookup_claim_id, lookup_type_id, place_id, terminal_scalar_type,
+    unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -598,6 +600,11 @@ impl StateGraphEmission<'_, '_> {
                             lookup_claim_id(&self.claims.source_claims, claim.claim_identity)
                         })
                         .collect::<Result<Vec<_>, _>>()?,
+                    // A literal establishes its own immutable storage and
+                    // loans nothing back, so it forwards no claims.
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                        ..
+                    } => Vec::new(),
                     _ => return unsupported("structural return has no whole claim source"),
                 };
                 if self.content_entry_claims.iter().any(|entry| {
@@ -625,6 +632,64 @@ impl StateGraphEmission<'_, '_> {
                                 "structural graph return parameter missing",
                             ))?
                             .place
+                    }
+                    checked_trees::CheckedUnitStructuralArgumentSourcePlan::ByteSequenceLiteral {
+                        ref bytes,
+                    } => {
+                        // A literal return establishes its own immutable
+                        // storage in place, exactly as the ordinary route
+                        // declares it: the literal joins the private place
+                        // roster and the establishment runs in this block
+                        // before the terminator forwards it.
+                        let literal = place_id(allocate_dense(&mut self.catalogs.next_place)?);
+                        // The declared `&[u8]` return is a reference shell;
+                        // the literal stores the peeled slice carrier.
+                        let (_, authored) =
+                            crate::expression_preparation::source_custody::authored_state(
+                                self.checked,
+                                state.state,
+                            )?;
+                        let (referee, _) = validation::reference_result_custody::shared_place_borrowed_parts(
+                            &self.checked.typed,
+                            authored.return_type,
+                        )
+                        .ok_or(LoweringError::Unsupported(
+                            "literal structural return is not a shared view",
+                        ))?;
+                        let carrier = crate::unit::attached_unit::structural_carrier_type(
+                            self.checked,
+                            referee,
+                        )?;
+                        let structural_type = lookup_type_id(
+                            &self.catalogs.type_ids,
+                            self.checked.normalized_type_identity(carrier).as_str(),
+                        )?;
+                        let declaration_ordinal =
+                            crate::emission::next_byte_sequence_literal_ordinal(
+                                &self.catalogs.temporary_places,
+                            )?;
+                        self.catalogs
+                            .temporary_places
+                            .push(StructuralPlaceDeclaration {
+                                id: literal,
+                                kind: StructuralPlaceKind::ByteSequenceLiteral {
+                                    declaration_ordinal,
+                                    structural_type,
+                                },
+                            });
+                        let id = operations.allocate();
+                        operations.push(Operation {
+                            static_reach_binding: None,
+                            suspension_crossing: None,
+                            id,
+                            result: OperationResult::Unit,
+                            kind: OperationKind::EstablishByteSequenceLiteral {
+                                destination: literal,
+                                bytes: bytes.clone(),
+                                qualifications: Vec::new(),
+                            },
+                        });
+                        literal
                     }
                     _ => return unsupported("structural graph return needs a whole owned value"),
                 };

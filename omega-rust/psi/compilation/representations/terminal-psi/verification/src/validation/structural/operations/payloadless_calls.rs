@@ -95,11 +95,17 @@ pub(crate) fn exact_payloadless_case_return_exits(
     (!exits.is_empty()).then_some(exits)
 }
 
-pub(crate) fn is_exact_payloadless_structural_call(
+/// The shared call and callee shape every payloadless structural call must
+/// have: a bare `CallStructural` operation against a contract-free, parameter-
+/// free callee, with an Unrestricted structural result that mirrors the
+/// callee's declaration. The callee's own exits stay unexamined; each
+/// admission family (case returns, literal returns) supplies its own exit
+/// predicate.
+fn exact_payloadless_call_shape<'a>(
     module: &TerminalModule,
     operation: &terminal_psi::Operation,
-    machines: &BTreeMap<MachineId, &TerminalMachine>,
-) -> bool {
+    machines: &'a BTreeMap<MachineId, &'a TerminalMachine>,
+) -> Option<&'a TerminalMachine> {
     let OperationKind::CallStructural {
         callee,
         structural_arguments,
@@ -110,18 +116,12 @@ pub(crate) fn is_exact_payloadless_structural_call(
         selected_evidence: _,
     } = &operation.kind
     else {
-        return false;
+        return None;
     };
-    let Some(result) = operation.result.structural() else {
-        return false;
-    };
-    let Some(callee) = machines.get(callee).copied() else {
-        return false;
-    };
-    let Some(callee_result) = callee.result.structural() else {
-        return false;
-    };
-    callee.parameters.is_empty()
+    let result = operation.result.structural()?;
+    let callee = machines.get(callee).copied()?;
+    let callee_result = callee.result.structural()?;
+    (callee.parameters.is_empty()
         && callee.structural_parameters.is_empty()
         && callee.entry_claims.is_empty()
         && callee.content_entry_claims.is_empty()
@@ -154,8 +154,92 @@ pub(crate) fn is_exact_payloadless_structural_call(
                 .into_iter()
                 .chain(propositions::proposition_content_roots(&row.proposition))
                 .all(|root| root == callee_result.place)
-        })
-        && exact_payloadless_case_return_exits(callee).is_some()
+        }))
+    .then_some(callee)
+}
+
+pub(crate) fn is_exact_payloadless_structural_call(
+    module: &TerminalModule,
+    operation: &terminal_psi::Operation,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> bool {
+    exact_payloadless_call_shape(module, operation, machines)
+        .is_some_and(|callee| exact_payloadless_case_return_exits(callee).is_some())
+}
+
+/// A payloadless callee whose exits return byte-sequence literal views: every
+/// `ReturnStructural` block sources a literal-established place rather than a
+/// payloadless case. Literal destinations are module-static storage, so the
+/// returned Unrestricted view leaves nothing on loan, exactly like the case
+/// family.
+pub(crate) fn is_exact_payloadless_literal_call(
+    module: &TerminalModule,
+    operation: &terminal_psi::Operation,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> bool {
+    exact_payloadless_call_shape(module, operation, machines).is_some_and(literal_return_exits)
+}
+
+fn literal_return_exits(machine: &TerminalMachine) -> bool {
+    let Some(result) = machine.result.structural() else {
+        return false;
+    };
+    if !crate::validation::structural::result_contracts::has_empty_qualification_rosters(
+        &result.qualifications,
+        &result.projected_qualifications,
+    ) || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallDynamicScalar { .. }
+                        | OperationKind::CallDynamicParameterScalar { .. }
+                        | OperationKind::CallStructural { .. }
+                        | OperationKind::CallStructuralWithScalarArguments { .. }
+                        | OperationKind::BoundaryCall { .. }
+                )
+            })
+    {
+        return false;
+    }
+    let mut exits = 0usize;
+    for block in &machine.blocks {
+        let Terminator::ReturnStructural {
+            source,
+            returned_claims,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        if !returned_claims.is_empty() {
+            return false;
+        }
+        let Some(place) = machine
+            .structural_places
+            .iter()
+            .find(|place| place.id == *source)
+        else {
+            return false;
+        };
+        let StructuralPlaceKind::ByteSequenceLiteral {
+            structural_type, ..
+        } = place.kind
+        else {
+            return false;
+        };
+        if structural_type != result.structural_type {
+            return false;
+        }
+        exits += 1;
+    }
+    exits != 0
 }
 
 pub(crate) fn exact_payloadless_structural_call(

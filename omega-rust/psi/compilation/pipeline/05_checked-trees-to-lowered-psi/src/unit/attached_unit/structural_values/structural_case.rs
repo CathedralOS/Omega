@@ -97,16 +97,14 @@ impl emission::Emission<'_, '_, '_> {
         let declarations = self.checked.data_payload_fields(variant);
         // Erased payload members hold no runtime slot either; checking consumed
         // any authored one as proof material, so none reaches this roster.
-        let shape_fields = common
-            .iter()
-            .chain(
-                shape_case
-                    .fields
-                    .iter()
-                    .filter(|field| !matches!(field.field_type, StructuralFieldType::Erased { .. })),
-            )
-            .cloned()
-            .collect::<Vec<_>>();
+        let shape_fields =
+            common
+                .iter()
+                .chain(shape_case.fields.iter().filter(|field| {
+                    !matches!(field.field_type, StructuralFieldType::Erased { .. })
+                }))
+                .cloned()
+                .collect::<Vec<_>>();
         let source_count = self.values.len();
         let mut initialized = Vec::new();
         let mut scalar_positions = Vec::new();
@@ -240,26 +238,35 @@ impl emission::Emission<'_, '_, '_> {
         // authored operand, so no later evaluation can move it; a bounded
         // common field still requests its range proof against that zero.
         for (position, declaration) in common.iter().enumerate() {
-            if initialized.iter().any(|(initialized, _)| *initialized == position) {
+            if initialized
+                .iter()
+                .any(|(initialized, _)| *initialized == position)
+            {
                 continue;
             }
-            let scalar_type = declaration.field_type.scalar_type().ok_or(
-                LoweringError::Unsupported("an unnamed common field has no scalar zero"),
-            )?;
+            let scalar_type =
+                declaration
+                    .field_type
+                    .scalar_type()
+                    .ok_or(LoweringError::Unsupported(
+                        "an unnamed common field has no scalar zero",
+                    ))?;
             let zero = emit_scalar_leaf(
                 super::record::zero_constant(scalar_type),
                 scalar_type,
                 self.next_value,
                 self.operations,
             );
-            let range_obligation =
-                if matches!(declaration.field_type, StructuralFieldType::BoundedInteger(_)) {
-                    Some(obligation_id(allocate_dense(
-                        &mut self.calls.next_obligation_identity,
-                    )?))
-                } else {
-                    None
-                };
+            let range_obligation = if matches!(
+                declaration.field_type,
+                StructuralFieldType::BoundedInteger(_)
+            ) {
+                Some(obligation_id(allocate_dense(
+                    &mut self.calls.next_obligation_identity,
+                )?))
+            } else {
+                None
+            };
             initialized.push((
                 position,
                 terminal_psi::RecordFieldInitializer {

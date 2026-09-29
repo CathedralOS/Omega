@@ -40,6 +40,14 @@ pub(super) fn build(
     };
     let empty_return = crate::selection::scalar_call_abi::empty_aggregate_placement(placement);
     let slot = slot.filter(|_| !empty_return);
+    // A literal home is descriptor + payload: the return ABI's placement
+    // names the descriptor prefix only, so the slot may exceed it.
+    let literal_source = matches!(
+        returned.value,
+        legalized_operations::LegalizedScalarReturnValue::Structural {
+            source: legalized_operations::LegalizedStructuralCaseSource::Literal { .. },
+        }
+    );
     if slot.is_some_and(|slot| {
         builder
             .transport
@@ -47,8 +55,9 @@ pub(super) fn build(
             .iter()
             .filter(|home| {
                 home.id == slot
-                    && home.byte_size == placement.shape.byte_size
                     && home.alignment == placement.shape.alignment
+                    && (home.byte_size == placement.shape.byte_size
+                        || (literal_source && home.byte_size > placement.shape.byte_size))
             })
             .count()
             != 1

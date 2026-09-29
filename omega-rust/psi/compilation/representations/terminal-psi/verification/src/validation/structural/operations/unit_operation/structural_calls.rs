@@ -7,7 +7,9 @@ use crate::validation::structural::operations::claim_transfers::{
 };
 use crate::validation::structural::operations::contract_places::validate_unit_call_contract_places;
 use crate::validation::structural::operations::crash_continuations::validate_unit_call_crash_continuations;
-use crate::validation::structural::operations::payloadless_calls::is_exact_payloadless_structural_call;
+use crate::validation::structural::operations::payloadless_calls::{
+    is_exact_payloadless_literal_call, is_exact_payloadless_structural_call,
+};
 use crate::validation::structural::operations::structural_arguments::{
     StructuralArgumentSourcePolicy, structural_paths_may_overlap, validate_structural_arguments,
 };
@@ -177,7 +179,9 @@ pub(in crate::validation) fn validate_call_structural(
     let Some(result) = operation.result.structural() else {
         return Err(ModuleError::StructuralCallResultMismatch(operation.id));
     };
-    if is_exact_payloadless_structural_call(module, operation, machines) {
+    if is_exact_payloadless_structural_call(module, operation, machines)
+        || is_exact_payloadless_literal_call(module, operation, machines)
+    {
         let result_place = machine
             .structural_places
             .iter()

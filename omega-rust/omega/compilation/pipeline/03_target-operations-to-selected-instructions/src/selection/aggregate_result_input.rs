@@ -246,6 +246,18 @@ pub(super) fn call_result<'a>(
                 &source.structural.as_ref()?.structural_types,
             )?
         }
+        // A borrowed byte view returns its (pointer, length) descriptor in
+        // ordinary result registers; the result home the caller builds is the
+        // 16-byte descriptor storage the view consumers then read.
+        terminal_psi::StructuralTypeShape::ByteSequence(_) => {
+            if !declaration.shape.is_borrowed_byte_view() {
+                return None;
+            }
+            crate::structural_inputs::structural_reference_input::shape(
+                result.structural_type,
+                &source.structural.as_ref()?.structural_types,
+            )?
+        }
         _ => return None,
     };
     let placement = call.result_placement.as_ref()?;
@@ -507,6 +519,50 @@ pub(super) fn returned<'a>(
                 block_parameter_shape(source, parameter)?,
                 parameter.structural_type,
                 parameter.multiplicity,
+            )
+        }
+        legalized_operations::LegalizedStructuralCaseSource::Literal {
+            operation,
+            declaration,
+        } => {
+            let row = source
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.operation == *operation)?;
+            let LegalizedScalarInstructionKind::EstablishByteSequenceLiteral {
+                destination,
+                structural_type: literal_type,
+                ..
+            } = &row.kind
+            else {
+                return None;
+            };
+            if !matches!(literal_type.shape, StructuralTypeShape::ByteSequence(_)) {
+                return None;
+            }
+            if *destination != *declaration
+                || !matches!(
+                    declaration.kind,
+                    semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
+                        structural_type: identity,
+                        ..
+                    } if identity == literal_type.id
+                )
+            {
+                return None;
+            }
+            (
+                selected_instructions::LocalStorageSlotId::Structural {
+                    operation: *operation,
+                    place: declaration.id,
+                },
+                crate::structural_inputs::structural_reference_input::shape(
+                    literal_type.id,
+                    &source.structural.as_ref()?.structural_types,
+                )?,
+                literal_type.id,
+                terminal_psi::StructuralMultiplicity::Unrestricted,
             )
         }
         // A returned parameter uses `StructuralParameter`, never this owner;

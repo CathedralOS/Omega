@@ -88,6 +88,40 @@ impl Checker<'_> {
                         },
                     )
             }
+            TargetByteView::StructuralResult {
+                psi_operation,
+                place,
+                structural_type,
+            } => access == terminal_psi::StructuralAccess::SharedBorrow
+                && *place == source
+                && self
+                    .optimized
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.nodes)
+                    .any(|node| {
+                        let result = match &node.operation {
+                            AbstractOperation::CallStructural {
+                                psi_operation: operation,
+                                result,
+                                ..
+                            } if operation == psi_operation => result,
+                            AbstractOperation::BoundaryCall {
+                                psi_operation: operation,
+                                result:
+                                    abstract_operations::AbstractBoundaryResult::Structural(result),
+                                ..
+                            } if operation == psi_operation => result,
+                            _ => return false,
+                        };
+                        result.place == source
+                            && result.structural_type == *structural_type
+                            && result.multiplicity
+                                == terminal_psi::StructuralMultiplicity::Unrestricted
+                            && result.qualifications.is_empty()
+                            && result.projected_qualifications.is_empty()
+                            && result.claims.is_empty()
+                    }),
             TargetByteView::Subslice {
                 psi_operation,
                 place,

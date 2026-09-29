@@ -634,7 +634,12 @@ pub(super) fn validate_result_declaration(
                                     // may publish it whatever the leaf shape.
                                     || super::super::structural::leaf_copy::copied_return_source(
                                         machine, *source,
-                                    ))
+                                    )
+                                    // A spelled byte-sequence literal is
+                                    // immortal immutable storage: a borrowed
+                                    // view returned over it loans nothing and
+                                    // reads as owned.
+                                    || literal_return_source(machine, *source))
                         }
                         _ => true,
                     }))
@@ -729,4 +734,20 @@ pub(super) fn validate_structural_parameters(machine: &TerminalMachine) -> Resul
         }
     }
     Ok(())
+}
+
+/// An `EstablishByteSequenceLiteral` destination is module-static storage:
+/// returning a borrowed view over it leaves nothing on loan.
+fn literal_return_source(machine: &TerminalMachine, source: semantic_vocabulary::PlaceId) -> bool {
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .any(|operation| {
+            matches!(
+                operation.kind,
+                OperationKind::EstablishByteSequenceLiteral { destination, .. }
+                    if destination == source
+            )
+        })
 }

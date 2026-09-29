@@ -14,6 +14,32 @@ pub(crate) fn bind_local(
     place: PlaceId,
     locals: &mut Vec<(symbols::SymbolHandle, terminal_psi::StructuralArgument)>,
 ) -> Result<(), LoweringError> {
+    bind_local_with_view(
+        checked,
+        caller_state,
+        operation,
+        place,
+        None,
+        locals,
+        None,
+        &[],
+    )
+}
+
+/// The same publication, additionally registering an established view local
+/// when the produced place carries a view family.
+pub(crate) fn bind_local_with_view(
+    checked: &CheckedTrees,
+    caller_state: symbols::SymbolHandle,
+    operation: &CheckedUnitEffectOperationPlan,
+    place: PlaceId,
+    structural_type: Option<semantic_vocabulary::StructuralTypeId>,
+    locals: &mut Vec<(symbols::SymbolHandle, terminal_psi::StructuralArgument)>,
+    view_locals: Option<
+        &mut Vec<crate::expression_preparation::bindings::view_locals::ViewLocalBinding>,
+    >,
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<(), LoweringError> {
     let (result, expression) = match operation {
         CheckedUnitEffectOperationPlan::EstablishScalarArray {
             source: CheckedArrayConstructionSource::Statement,
@@ -21,6 +47,9 @@ pub(crate) fn bind_local(
             ..
         } => (result, None),
         CheckedUnitEffectOperationPlan::StructuralCall {
+            coordinate, result, ..
+        }
+        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
             coordinate, result, ..
         } => {
             let authored = crate::emission::call_source_custody::authored::locate_source(
@@ -54,8 +83,17 @@ pub(crate) fn bind_local(
         local.type_reference,
     )
     .is_some();
+    // A shared `& T` view local binds its referent carrier the same affine way
+    // the composed route does: the call result records the peeled carrier
+    // identity, so admission and the identity check both ride the referee.
+    let shared_view_referee = validation::reference_result_custody::shared_place_borrowed_parts(
+        &checked.typed,
+        local.type_reference,
+    )
+    .map(|(referee, _)| referee);
     if expression.is_some_and(|expression| expression != local.initial_value)
         || !(mutable_view
+            || shared_view_referee.is_some()
             || validation::is_closed_primitive_array_type(&checked.typed, local.type_reference)
             || (expression.is_some()
                 && matches!(
@@ -71,13 +109,14 @@ pub(crate) fn bind_local(
     {
         return Ok(());
     }
+    let declared = match shared_view_referee {
+        Some(referee) => crate::unit::attached_unit::structural_carrier_type(checked, referee)?,
+        None => local.type_reference,
+    };
     if (local.is_mutable && !super::plain_record(checked, local.type_reference))
         || !local.symbol.is_valid()
         || locals.iter().any(|(symbol, _)| *symbol == local.symbol)
-        || checked
-            .normalized_type_identity(local.type_reference)
-            .as_str()
-            != result.type_identity
+        || checked.normalized_type_identity(declared).as_str() != result.type_identity
     {
         return unsupported("structural local differs from its published initializer binding");
     }
@@ -87,11 +126,31 @@ pub(crate) fn bind_local(
             place,
             access: if mutable_view {
                 terminal_psi::StructuralAccess::MutableBorrow
+            } else if shared_view_referee.is_some() {
+                terminal_psi::StructuralAccess::SharedBorrow
             } else {
                 terminal_psi::StructuralAccess::Owned
             },
             path: Vec::new(),
         },
     ));
+    // A view-carried result joins the view-local roster exactly as the
+    // composed route registers it, so later `local.len` and element reads
+    // observe the published place.
+    if let (Some(structural_type), Some(view_locals)) = (structural_type, view_locals)
+        && let Some(carrier) = crate::expression_preparation::bindings::view_locals::ViewCarrier::of(
+            structural_type,
+            structural_types,
+        )
+    {
+        view_locals.push(
+            crate::expression_preparation::bindings::view_locals::ViewLocalBinding {
+                symbol: local.symbol,
+                place,
+                structural_type,
+                carrier,
+            },
+        );
+    }
     Ok(())
 }

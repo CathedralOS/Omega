@@ -36,4 +36,13 @@ pub enum TargetByteView {
         length: ValueId,
         obligation: ObligationId,
     },
+    /// A borrowed descriptor returned by a call in this activation. The
+    /// call's result home already holds the (pointer, length) pair; the view
+    /// names the producing operation so consumers load the descriptor fields
+    /// the way they read a parameter descriptor.
+    StructuralResult {
+        psi_operation: OperationId,
+        place: PlaceId,
+        structural_type: StructuralTypeId,
+    },
 }

@@ -149,9 +149,12 @@ pub(super) fn reconstruct(
                     },
                 )
             }
-            // `source_owner` never resolves a function parameter.
+            // `source_owner` never resolves a function parameter, and a
+            // literal establishment is not an argument source this transport
+            // addresses.
             legalized_operations::LegalizedStructuralCaseSource::Parameter { .. }
-            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. } => {
+            | legalized_operations::LegalizedStructuralCaseSource::BorrowedParameter { .. }
+            | legalized_operations::LegalizedStructuralCaseSource::Literal { .. } => {
                 return Err(LegalizationError::custody());
             }
         }

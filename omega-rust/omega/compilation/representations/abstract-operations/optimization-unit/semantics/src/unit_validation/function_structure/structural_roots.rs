@@ -651,6 +651,51 @@ pub(crate) fn validate_structural_root_operations(
                                 )
                             })
                             .or_else(|| {
+                                let Some(StructuralPlaceKind::ByteSequenceLiteral {
+                                    structural_type,
+                                    ..
+                                }) = place_kinds.get(source).copied()
+                                else {
+                                    return None;
+                                };
+                                // A literal place is machine-established
+                                // immutable storage: its establishment row is
+                                // the source contract, and the memberships it
+                                // mints shed at the contract edge like every
+                                // producer's own roster.
+                                function
+                                    .blocks
+                                    .iter()
+                                    .flat_map(|block| &block.nodes)
+                                    .find_map(|node| match &node.operation {
+                                        O::EstablishByteSequenceLiteral {
+                                            place,
+                                            qualifications,
+                                            ..
+                                        } if place.id == *source
+                                            && matches!(
+                                                place.kind,
+                                                StructuralPlaceKind::ByteSequenceLiteral {
+                                                    structural_type: declared,
+                                                    ..
+                                                } if declared == structural_type
+                                            ) =>
+                                        {
+                                            Some((
+                                                structural_type,
+                                                terminal_psi::StructuralMultiplicity::Unrestricted,
+                                                qualifications.as_slice(),
+                                                &[][..],
+                                                qualifications
+                                                    .iter()
+                                                    .copied()
+                                                    .collect::<BTreeSet<_>>(),
+                                            ))
+                                        }
+                                        _ => None,
+                                    })
+                            })
+                            .or_else(|| {
                                 let Some(StructuralPlaceKind::OperationResult {
                                     producer,
                                     structural_type,

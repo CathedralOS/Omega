@@ -124,6 +124,11 @@ fn declared_view_type(
             {
                 Some(result.structural_type)
             }
+            LegalizedScalarInstructionKind::Call(call) => call
+                .structural_result
+                .as_ref()
+                .filter(|result| result.place == place)
+                .map(|result| result.structural_type),
             _ => None,
         })
 }

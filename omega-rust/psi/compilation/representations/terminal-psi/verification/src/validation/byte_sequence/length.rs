@@ -1,7 +1,7 @@
 //! Exact whole immutable byte-view observation; control flow owns availability.
 
 use crate::validation::{
-    IntegerSign, IntegerType, ModuleError, PlaceId, ScalarType, StructuralAccess,
+    IntegerSign, IntegerType, ModuleError, OperationKind, PlaceId, ScalarType, StructuralAccess,
     StructuralMultiplicity, StructuralPlaceKind, StructuralTypeShape, TerminalMachine,
     TerminalModule,
 };
@@ -145,6 +145,7 @@ pub(in crate::validation) fn validate_source(
         StructuralPlaceKind::OperationResult { .. } => {
             crate::validation::byte_sequence::subslice::borrowed_result(machine, source)
                 .or_else(|| super::concatenation::owned_result(machine, source))
+                .or_else(|| borrowed_call_result(machine, source))
                 .ok_or_else(&invalid)?
                 .structural_type
         }
@@ -200,4 +201,49 @@ pub(in crate::validation) fn validate_replacement_source(
         return Err(invalid());
     }
     validate_source(module, machine, operation, source, invalid)
+}
+
+/// A call result can also publish a whole immutable byte view: when a callee
+/// returns an Unrestricted borrowed view, its operation-result place observes
+/// the same stable source a subslice or concatenation would. The roster and
+/// claim filters mirror `borrowed_result`; the producer is a call instead.
+fn borrowed_call_result<'a>(
+    machine: &'a TerminalMachine,
+    place: PlaceId,
+) -> Option<&'a terminal_psi::StructuralOperationResult> {
+    let declaration = machine
+        .structural_places
+        .iter()
+        .find(|row| row.id == place)?;
+    let StructuralPlaceKind::OperationResult {
+        producer,
+        structural_type,
+    } = declaration.kind
+    else {
+        return None;
+    };
+    machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find_map(|operation| {
+            if operation.id != producer
+                || !matches!(
+                    operation.kind,
+                    OperationKind::CallStructural { .. }
+                        | OperationKind::CallStructuralWithScalarArguments { .. }
+                        | OperationKind::BoundaryCall { .. }
+                )
+            {
+                return None;
+            }
+            operation.result.structural().filter(|result| {
+                result.place == place
+                    && result.structural_type == structural_type
+                    && result.multiplicity == StructuralMultiplicity::Unrestricted
+                    && result.qualifications.is_empty()
+                    && result.projected_qualifications.is_empty()
+                    && result.claims.is_empty()
+            })
+        })
 }
