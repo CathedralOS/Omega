@@ -238,7 +238,9 @@ fn atomic_selection_preserves_observed_result_and_rejects_changed_memory_custody
             environment.physical(),
             environment.constraints(),
         );
-        if native != NativeTarget::macos_arm64() {
+        // macos_arm64 and x86-64 publish atomic constraint keys; linux_arm64
+        // still publishes none, so its selection must refuse the event.
+        if native == NativeTarget::linux_arm64() {
             assert!(
                 selected.is_err(),
                 "target has no admitted atomic realization"
