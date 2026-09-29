@@ -2,7 +2,8 @@
 //! Records may retain supported field projections; scalar sums are observed
 //! whole at their established home, including ordinary returned case values.
 //! The implicit receiver precedes explicit actuals but has no row in their
-//! observation roster. Validate it separately, including overlap with that roster.
+//! observation roster. Validate it separately against actuals whose storage
+//! remains live during the invocation; scalar evaluation has already finished.
 //! A projected operand has two identities: the caller's storage root and the
 //! authored endpoint captured by the call. Reconstruct both from the source;
 //! an equal endpoint type does not permit substituting a sibling or another root.
@@ -21,6 +22,16 @@ use checked_trees::{
 };
 use language_core::ReferenceAccess;
 
+/// Receiver overlap uses the complete source-replayed roster partitioned by
+/// already admitted explicit formals. A scalar value carries no continuing loan.
+pub(super) enum ArgumentOccurrence<'a> {
+    Receiver {
+        parameters: &'a [StateParameter],
+        access_positions: &'a [usize],
+    },
+    Explicit(usize),
+}
+
 pub(super) fn validate(
     checked: &CheckedTrees,
     state: &State,
@@ -30,7 +41,7 @@ pub(super) fn validate(
     expression: ExpressionHandle,
     argument: &CheckedUnitStructuralArgumentPlan,
     call: &BorrowCallFact,
-    explicit_position: Option<usize>,
+    occurrence: ArgumentOccurrence<'_>,
 ) -> Result<(), LoweringError> {
     let TypeReferenceNode::Reference {
         access: target_access @ (ReferenceAccess::Shared | ReferenceAccess::Mutable),
@@ -273,6 +284,13 @@ pub(super) fn validate(
         return unsupported("record operand changed its declared referent type");
     }
     if target.is_self {
+        let ArgumentOccurrence::Receiver {
+            parameters,
+            access_positions,
+        } = occurrence
+        else {
+            return unsupported("record receiver lost its explicit argument partition");
+        };
         let TypeReferenceNode::Named {
             symbol: self_symbol,
             ..
@@ -285,7 +303,6 @@ pub(super) fn validate(
             || *symbol != target_owner.attached_data_symbol
             || !call.has_receiver
             || call.receiver_symbol != endpoint
-            || explicit_position.is_some()
         {
             return unsupported("record receiver disagrees with its resolved attachment");
         }
@@ -297,14 +314,45 @@ pub(super) fn validate(
             .ok_or(LoweringError::Unsupported(
                 "record receiver has stale explicit accesses",
             ))?;
-        if accesses.iter().any(|access| {
-            (access.root_symbol == root || access.root_symbol == endpoint)
-                && (expected_access == CheckedStructuralAccess::MutableBorrow
-                    || access.kind.is_exclusive())
-        }) {
-            return unsupported("record receiver overlaps an incompatible actual");
+        if parameters.len() != access_positions.len() {
+            return unsupported("record receiver lost its explicit argument partition");
+        }
+        for (position, parameter) in parameters.iter().enumerate() {
+            if !checked
+                .type_reference_table
+                .contains_type_reference(parameter.type_reference)
+            {
+                return unsupported("record receiver has a stale explicit formal");
+            }
+            // Scalar actuals are evaluated to values before invocation. Their
+            // reads and nested call loans were checked by source replay, but
+            // do not coexist with the receiver loan delivered to this call.
+            if checked
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+            {
+                continue;
+            }
+            let start = access_positions[position];
+            let end = access_positions
+                .get(position + 1)
+                .copied()
+                .unwrap_or(accesses.len());
+            let retained = accesses.get(start..end).ok_or(LoweringError::Unsupported(
+                "record receiver has an invalid explicit argument partition",
+            ))?;
+            if retained.iter().any(|access| {
+                (access.root_symbol == root || access.root_symbol == endpoint)
+                    && (expected_access == CheckedStructuralAccess::MutableBorrow
+                        || access.kind.is_exclusive())
+            }) {
+                return unsupported("record receiver overlaps an incompatible actual");
+            }
         }
     } else {
+        let ArgumentOccurrence::Explicit(position) = occurrence else {
+            return unsupported("record argument lost its observation position");
+        };
         if checked.normalized_type_identity(*referee) != checked.normalized_type_identity(reference)
         {
             return unsupported("record argument differs from its exact formal referent");
@@ -312,9 +360,7 @@ pub(super) fn validate(
         super::borrow_rows::validate_place_argument_at(
             checked,
             call,
-            explicit_position.ok_or(LoweringError::Unsupported(
-                "record argument lost its observation position",
-            ))?,
+            position,
             source.captured_place(),
             // Bare forwarding reads the reference carrier; an explicit
             // borrow records the requested referent access at this position.

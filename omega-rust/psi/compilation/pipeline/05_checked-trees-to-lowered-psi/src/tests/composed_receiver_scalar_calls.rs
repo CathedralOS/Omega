@@ -68,3 +68,123 @@ fn a_receiver_operand_that_drifts_from_its_authored_place_rejects() {
         "a receiver operand must name the authored receiver place"
     );
 }
+
+const MUTABLE_ARGUMENT_EVALUATION: &str = r#"
+    data Counter { hits: u64 in Wrapping; }
+    machine Counter::bump(&mut self, value: u64 in Wrapping) -> u64 in Wrapping {
+        self.hits = self.hits + 1;
+        value
+    }
+    machine Counter::nested(&mut self) {
+        transition { _ -> finish(self.bump(self.bump(7))) }
+        state finish(&mut self, value: u64 in Wrapping) { }
+    }
+    machine Counter::read_before_call(&mut self) {
+        transition { _ -> finish(self.bump(self.hits + 1)) }
+        state finish(&mut self, value: u64 in Wrapping) { }
+    }
+"#;
+
+#[test]
+fn mutable_receiver_call_accepts_completed_scalar_argument_evaluation() {
+    let checked = checked_source_with_core_service(MUTABLE_ARGUMENT_EVALUATION);
+    for machine in ["Counter::nested", "Counter::read_before_call"] {
+        lower_machine(&checked, TerminalMachineSelection::Name(machine))
+            .unwrap_or_else(|error| panic!("{machine}: {error:?}"));
+    }
+}
+
+#[test]
+fn completed_scalar_argument_observations_still_require_source_custody() {
+    let original = checked_source_with_core_service(MUTABLE_ARGUMENT_EVALUATION);
+    lower_machine(&original, TerminalMachineSelection::Name("Counter::nested"))
+        .expect("original nested invocation");
+    let accesses = original
+        .facts
+        .values
+        .scalar_computations
+        .nodes
+        .iter()
+        .find_map(|(_, node)| {
+            let checked_trees::CheckedScalarComputationKind::Call {
+                source_call,
+                arguments,
+                ..
+            } = node.kind
+            else {
+                return None;
+            };
+            let nested = original
+                .facts
+                .values
+                .scalar_computations
+                .operands
+                .span(arguments)?;
+            nested
+                .iter()
+                .any(|argument| {
+                    matches!(
+                        original
+                            .facts
+                            .values
+                            .scalar_computations
+                            .nodes
+                            .get(*argument)
+                            .kind,
+                        checked_trees::CheckedScalarComputationKind::Call { .. }
+                    )
+                })
+                .then(|| original.facts.flow.control.calls.get(source_call).accesses)
+        })
+        .expect("the outer scalar call observes its nested receiver");
+    for exclusive in [false, true] {
+        let mut changed = original.clone();
+        let row = &mut changed
+            .facts
+            .borrow
+            .argument_accesses
+            .span_mut_or_empty(accesses)[0];
+        if exclusive {
+            row.kind = checked_trees::BorrowAccessKind::Mutable;
+        } else {
+            row.root_symbol = symbols::SymbolHandle::invalid();
+        }
+        assert!(
+            lower_machine(&changed, TerminalMachineSelection::Name("Counter::nested")).is_err(),
+            "completed argument evaluation still requires exact observation evidence"
+        );
+    }
+}
+
+const MIXED_ARGUMENT_EVALUATION: &str = r#"
+    data Cell { value: u64 in Wrapping; }
+    data Counter { hits: u64 in Wrapping; cell: Cell; }
+    machine Counter::read(&mut self, value: u64 in Wrapping, zero: u64 in Wrapping, cell: &Cell)
+        -> u64 in Wrapping {
+        self.hits = self.hits + 1;
+        value + zero + cell.value
+    }
+    machine Counter::enter(&mut self, other: &Cell) {
+        transition { _ -> finish(self.read(self.hits + self.hits, 0, other)) }
+        state finish(&mut self, value: u64 in Wrapping) { }
+    }
+"#;
+
+#[test]
+fn receiver_overlap_distinguishes_scalar_observations_from_retained_references() {
+    let original = checked_source_with_core_service(MIXED_ARGUMENT_EVALUATION);
+    lower_machine(&original, TerminalMachineSelection::Name("Counter::enter"))
+        .expect("two scalar reads, a literal and an independent shared reference");
+    let overlapping = checked_source_with_core_service(&MIXED_ARGUMENT_EVALUATION.replace(
+        "self.hits + self.hits, 0, other",
+        "self.hits + self.hits, 0, &self.cell",
+    ));
+    assert!(
+        lower_machine(
+            &overlapping,
+            TerminalMachineSelection::Name("Counter::enter")
+        )
+        .is_err(),
+        "the explicit reference remains live beside the mutable receiver"
+    );
+}
