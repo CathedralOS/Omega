@@ -140,6 +140,30 @@ pub(crate) fn checked_structural_result_type(
     result_type: TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
 ) -> Option<CheckedUnitStructuralResultBindingPlan> {
+    structural_result_type(program, shapes, result_type, binders, false)
+}
+
+/// The result binding of a value a literal constructs in place. Beyond
+/// [`checked_structural_result_type`], its scalar members may carry a plain
+/// domain that means exactly an interval: the construction proves membership
+/// through each member's own range obligation. Call results and other
+/// producers keep the narrower classifier.
+pub(crate) fn checked_constructed_result_type(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    result_type: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+) -> Option<CheckedUnitStructuralResultBindingPlan> {
+    structural_result_type(program, shapes, result_type, binders, true)
+}
+
+fn structural_result_type(
+    program: &TypedTrees,
+    shapes: &mut ShapeCollector<'_>,
+    result_type: TypeReferenceHandle,
+    binders: &[(SymbolHandle, String)],
+    constructed: bool,
+) -> Option<CheckedUnitStructuralResultBindingPlan> {
     if validation::reference_result_custody::parts(program, result_type).is_some() {
         return Some(CheckedUnitStructuralResultBindingPlan {
             statement_index: 0,
@@ -197,6 +221,8 @@ pub(crate) fn checked_structural_result_type(
                 program,
                 result_type,
             ) || validation::has_cleanup_owned_contents(program, result_type)
+                || (constructed
+                    && validation::has_case_construction_contents(program, result_type))
                 || validation::is_closed_primitive_array_type(program, result_type)
                 || validation::reference_result_custody::is_reference_record(
                     program,

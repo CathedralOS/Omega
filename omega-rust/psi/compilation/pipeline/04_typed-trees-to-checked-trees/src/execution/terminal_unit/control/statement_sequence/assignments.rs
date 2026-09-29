@@ -15,8 +15,9 @@ use super::{
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan,
     LocalConstructionTrace, Multiplicity, ScalarCalleePlans, ShapeCollector, SymbolHandle,
-    TypedTrees, checked_structural_result_type, consume_results, consume_value_places, is_unit,
-    retain_selected_sources, statement_call_target, store_statement_index, structural_operands,
+    TypedTrees, checked_constructed_result_type, checked_structural_result_type, consume_results,
+    consume_value_places, is_unit, retain_selected_sources, statement_call_target,
+    store_statement_index, structural_operands,
 };
 
 /// The sequence state an assignment reads and extends.
@@ -169,7 +170,7 @@ pub(super) fn plan(
             consume_results(&mut *operations, call.operation())?;
         }
         let mut produced =
-            checked_structural_result_type(program, shapes, root.type_reference, binders)?;
+            checked_constructed_result_type(program, shapes, root.type_reference, binders)?;
         produced.statement_index = statement_index;
         produced.binding_ordinal = u32::try_from(*structural_count).ok()?;
         let replacement = windows.replace(
