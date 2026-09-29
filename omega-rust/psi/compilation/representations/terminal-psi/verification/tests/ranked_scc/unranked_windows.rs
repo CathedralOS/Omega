@@ -409,6 +409,140 @@ fn cyclic_affine_displaced_value_discarded_in_the_cycle_verifies() {
     assert_verifies(&module, "every loop edge disposes the displaced value");
 }
 
+/// The fresh and displaced values both carry affine custody. The store
+/// consumes the new case; the outgoing edges dispose the previous case.
+fn cyclic_affine_case_replacement() -> TerminalModule {
+    let mut module = cyclic_affine_pair();
+    let selected_case = id(1, semantic_vocabulary::StructuralCaseId::new);
+    module.structural_types[0].shape = StructuralTypeShape::Sum {
+        cases: vec![terminal_psi::StructuralCaseDeclaration {
+            id: selected_case,
+            identity: "Present".into(),
+            fields: vec![field(
+                flag(),
+                "flag",
+                StructuralFieldType::Scalar(ScalarType::Boolean),
+            )],
+        }],
+    };
+    let producer = &mut loop_block(&mut module).operations[1];
+    producer.result = cell_result(3, StructuralMultiplicity::Affine);
+    producer.kind = OperationKind::EstablishScalarCase {
+        result_case: selected_case,
+        fields: vec![terminal_psi::ScalarCaseField {
+            field: flag(),
+            value: id(121, ValueId::new),
+            range_obligation: None,
+        }],
+    };
+    discard_on_loop_edges(&mut module, 2);
+    module
+}
+
+#[test]
+fn cyclic_affine_case_construction_is_consumed_by_field_replacement() {
+    let module = cyclic_affine_case_replacement();
+    assert_verifies(&module, "construction and replacement share affine custody");
+}
+
+#[test]
+fn cyclic_affine_case_replacement_can_follow_a_block_transfer() {
+    let mut module = cyclic_affine_case_replacement();
+    let producer = loop_block(&mut module);
+    let operations = producer.operations.split_off(2);
+    let terminator = std::mem::replace(
+        &mut producer.terminator,
+        Terminator::Jump {
+            edge: id(30, EdgeId::new),
+            target: id(2, BlockId::new),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+            residual_affine_discards: Vec::new(),
+        },
+    );
+    module.machines[0].blocks.push(Block {
+        id: id(2, BlockId::new),
+        parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations,
+        terminator,
+    });
+    assert_verifies(
+        &module,
+        "the producer dominates a separately sequenced consumer",
+    );
+}
+
+#[test]
+fn cyclic_affine_case_replacement_rejects_unclosed_back_edge_custody() {
+    let mut module = cyclic_affine_case_replacement();
+    // A consumer exists in the cycle, but one branch skips it. Eligibility
+    // must not substitute that consumer's existence for the frontier join.
+    let store = loop_block(&mut module)
+        .operations
+        .pop()
+        .expect("repair store");
+    let mut terminator = loop_block(&mut module).terminator.clone();
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut terminator
+    else {
+        panic!("loop branches");
+    };
+    when_true.edge = id(20, EdgeId::new);
+    when_false.edge = id(21, EdgeId::new);
+    when_true.trivial_affine_discards.clear();
+    when_false.trivial_affine_discards.clear();
+    let Terminator::Conditional { when_false, .. } = &mut loop_block(&mut module).terminator else {
+        panic!("loop branches");
+    };
+    when_false.target = id(2, BlockId::new);
+    module.machines[0].blocks.push(Block {
+        id: id(2, BlockId::new),
+        parameters: Vec::new(),
+        erased_scalar_formals: Vec::new(),
+        erased_proof_formals: Vec::new(),
+        structural_parameters: Vec::new(),
+        operations: vec![store],
+        terminator,
+    });
+    assert_eq!(fence_operation(&module), None);
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::OwnedStructuralFrontierJoinMismatch(_))
+    ));
+}
+
+#[test]
+fn cyclic_affine_case_replacement_rejects_reusing_the_consumed_value() {
+    let mut module = cyclic_affine_case_replacement();
+    // Both windows close, but the second store tries to consume the same
+    // affine result again. This must fail at custody replay, not eligibility.
+    let displaced = extract(&mut module, 23, right(), 4, StructuralMultiplicity::Affine);
+    loop_block(&mut module)
+        .operations
+        .extend([displaced, repair(24, right(), 3)]);
+    let Terminator::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &mut loop_block(&mut module).terminator
+    else {
+        panic!("loop branches");
+    };
+    when_true.trivial_affine_discards.push(id(4, PlaceId::new));
+    when_false.trivial_affine_discards.push(id(4, PlaceId::new));
+    assert_eq!(fence_operation(&module), None);
+    assert!(validate_module(&module).is_err());
+}
+
 #[test]
 fn cyclic_affine_swap_reseats_each_displaced_value() {
     // Vacate both fields and reseat each hole with the other's displaced
