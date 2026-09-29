@@ -2038,5 +2038,9 @@ fail/wire/wire_compatibility_preservation_unmet rejected 60ms expected
 	wire compatibility demand `RelayChannel` is unsatisfied for local schema `LocalMessage` and peer schema `PeerMessage`: unknown preservation (compact_binary publishes strict unknown-member behavior)
 fail/wire/wire_policy_plan_disagrees rejected 21ms expected
 	wire grammar policy `CompactBinary::plan` disagrees with the schema walk for `Message`: the policy authored [LengthPrefixed { tag: 0 }, LengthPrefixed { tag: 1 }], the codec expects [Varint { tag: 0 }, Varint { tag: 1 }]
+run/borrows/local_mut_borrow checked 1368ms
+run/borrows/recast_mut_borrow checked 1367ms
+run/borrows/reference_local_binding_routes checked 1036ms
+run/borrows/runtime_index_bounded_borrow checked 1355ms
 run/contained_health_loop_command_branch checked 302ms
 run/nested_mut_alias_assignment_return checked 339ms

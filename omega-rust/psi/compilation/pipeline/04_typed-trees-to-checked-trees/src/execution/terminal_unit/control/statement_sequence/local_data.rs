@@ -415,6 +415,7 @@ pub(super) fn plan(
     local_phase("statement sequence: local data: exclusive place loan");
     if is_exclusive_place_loan(
         program,
+        machine.symbol,
         state,
         structural_parameters,
         statement_index,
@@ -546,14 +547,19 @@ pub(super) fn plan(
 ///
 /// The conditions are what make that rejoin exact, not a convenience. The
 /// place must root at a structural parameter this state already writes
-/// through, and its projection must bottom out in exactly the declared
-/// referent: a loan of a wider or narrower leaf is not this local's place.
-/// Only an exclusive `&mut` loan is admitted. A shared loan carries no write
-/// authority and its reads are not rejoined here; the referent may be a
-/// record as well as a primitive, because the projection check below pins the
-/// loaned storage either way.
+/// through, or at an earlier local of this state — the borrow ledger names
+/// the loaned storage in either spelling — and its projection must bottom
+/// out in exactly the declared referent: a loan of a wider or narrower leaf
+/// is not this local's place. A runtime index stays a `RuntimeIndex` segment
+/// for the terminal's bound re-proof, and a `&mut ... as &mut T` recast skips
+/// the referent equality entirely — the §5b judgment already proved the two
+/// shapes compatible. Only an exclusive `&mut` loan is admitted. A shared
+/// loan carries no write authority and its reads are not rejoined here; the
+/// referent may be a record as well as a primitive, because the projection
+/// check below pins the loaned storage either way.
 fn is_exclusive_place_loan(
     program: &TypedTrees,
+    machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
@@ -561,6 +567,7 @@ fn is_exclusive_place_loan(
 ) -> bool {
     exclusive_place_loan_referent(
         program,
+        machine,
         state,
         structural_parameters,
         statement_index,
@@ -571,23 +578,41 @@ fn is_exclusive_place_loan(
 
 fn exclusive_place_loan_referent(
     program: &TypedTrees,
+    machine: SymbolHandle,
     state: &typed_trees::state::State,
     structural_parameters: &[CheckedUnitStructuralParameterPlan],
     statement_index: u32,
     local: &typed_trees::statement::TableLocalData,
 ) -> Option<()> {
-    let ExpressionNode::Borrow(borrow) = program.expression_table.expression(local.initial_value)
-    else {
-        return None;
+    let (target, recast) = match program
+        .expression_table
+        .expression(local.initial_value)
+    {
+        ExpressionNode::Borrow(borrow)
+            if borrow.access == language_core::ReferenceAccess::Mutable =>
+        {
+            match program.expression_table.expression(borrow.target) {
+                // A §5b recast sits inside its borrow: `&mut p as &mut T`
+                // lowers to a mutable borrow of the cast that re-views p's
+                // bytes as T. The recast judgment already proved fact
+                // implication both ways, so the arm admits the operand
+                // place without demanding its element type equal the
+                // declared referent.
+                ExpressionNode::Cast(cast)
+                    if cast.form == language_core::cast_form::CastForm::RecastMutable =>
+                {
+                    (cast.value, true)
+                }
+                _ => (borrow.target, false),
+            }
+        }
+        _ => return None,
     };
     let (referee, access) = super::super::super::reference_results::mutable_borrowed_parts(
         program,
         local.type_reference,
     )?;
-    if borrow.access != language_core::ReferenceAccess::Mutable
-        || access != CheckedStructuralAccess::MutableBorrow
-        || local.is_mutable
-    {
+    if access != CheckedStructuralAccess::MutableBorrow || local.is_mutable {
         return None;
     }
     let statement = usize::try_from(statement_index).ok()?;
@@ -595,24 +620,40 @@ fn exclusive_place_loan_referent(
         program,
         state.symbol,
         statement,
-        borrow.target,
+        target,
     )?;
     let facts::PlaceRoot::Symbol(symbol) = place.root else {
         return None;
     };
-    let position = program
+    // The loaned storage must root at a structural parameter this state
+    // already writes through, or at an earlier local of this state — the
+    // same named-custody family in both spellings. A computed expression
+    // root has no rejoin the ledger can name.
+    let parameter_root = program
         .state_parameters(state)
         .iter()
-        .position(|parameter| parameter.symbol == symbol)?;
-    structural_parameters
-        .iter()
-        .position(|parameter| parameter.position as usize == position)?;
-    let (storage, _) = crate::execution::terminal_unit::calls::projected_argument_path(
+        .position(|parameter| parameter.symbol == symbol)
+        .is_some_and(|position| {
+            structural_parameters
+                .iter()
+                .any(|parameter| parameter.position as usize == position)
+        });
+    let local_root = program
+        .state_local_declaration(state, symbol)
+        .is_some_and(|(ordinal, _)| ordinal < statement);
+    if !parameter_root && !local_root {
+        return None;
+    }
+    let (storage, _) = crate::execution::terminal_unit::calls::projected_borrowed_path(
         program,
+        machine,
         state.symbol,
         statement,
         &place,
     )?;
+    if recast {
+        return Some(());
+    }
     (program.normalized_type_identity(storage) == program.normalized_type_identity(referee))
         .then_some(())
 }
