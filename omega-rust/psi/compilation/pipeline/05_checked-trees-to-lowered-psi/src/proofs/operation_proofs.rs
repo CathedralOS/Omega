@@ -45,6 +45,9 @@ fn finalize_operation_proofs_inner(
         crate::proofs::scalar_block_invariants::retain_provable_bounded(lowered, roster_rounds)?,
     );
     drop(_retain_scope);
+    crate::emission::operation_emission::element_unification::unify_hoisted_element_reads(
+        &mut lowered.semantic_module,
+    );
     crate::emission::operation_emission::place_declarations::reconcile_leaf_copy_place_declarations(
         &mut lowered.semantic_module,
     );
