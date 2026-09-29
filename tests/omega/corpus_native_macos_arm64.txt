@@ -86,8 +86,7 @@ pass/calls/nested_indexed_scalar_arguments_exit built 747ms exit:70 @ec06d9821c1
 pass/calls/nested_machine_continuation built 704ms
 pass/calls/nested_value_call_arg_compile built 1938ms @fb2178def922
 pass/calls/ordered_field_selector_calls_exit built 902ms exit:70 @e3012d6c0627+wt
-pass/calls/runtime_alias_write_through_guarded_transition_exit rejected 309ms @0e894def985b+wt
-	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at an unavailable callee (`Store::find`), which was itself omitted at local construction at `state graph: terminator: conditional successors: target state` (state 0, statement 2)
+pass/calls/runtime_alias_write_through_guarded_transition_exit built 568ms exit:70 @76bba5577e21+wt
 pass/calls/runtime_assignment_call_post_mutation_value_exit built 824ms exit:70
 pass/calls/runtime_case_record_return_exit built 1202ms exit:70
 pass/calls/runtime_constructor_computed_field_exit built 530ms exit:1
@@ -209,6 +208,7 @@ pass/control_flow/case_arm_payload_receiver_call rejected 470ms
 	native-artifact Terminal production failed: Lowering(Unsupported("scalar computation needs one checked expression and one source binding"))
 pass/control_flow/case_pattern_rename_waive_exit rejected 459ms
 	selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one; the machine's unit plan was omitted at local construction at `call operation: structural arguments: source symbol`
+pass/control_flow/conditional_unit_completion_exit built 554ms exit:70 @76bba5577e21+wt
 pass/control_flow/copy_enum_cycle_edge_write_frame checked 183ms
 pass/control_flow/explicit_state_value_frontier checked 196ms
 pass/control_flow/field_view_transfer_exit built 582ms exit:0

@@ -343,7 +343,15 @@ fn an_exclusive_view_lends_through_a_block_parameter_and_a_shared_root_rejects()
 
 #[test]
 fn projected_address_join_calls_replay_exact_geometry_and_access() {
-    let access = StructuralAccess::SharedBorrow;
+    check_projected_address_join(StructuralAccess::SharedBorrow);
+}
+
+#[test]
+fn mutable_record_block_parameters_reuse_borrowed_entry_geometry() {
+    check_projected_address_join(StructuralAccess::MutableBorrow);
+}
+
+fn check_projected_address_join(access: StructuralAccess) {
     let mut source = block_parameter_source(access);
     let root = source.functions[0].structural_parameters[0].structural_type;
     let element = StructuralTypeId::new(11).unwrap();
@@ -442,7 +450,13 @@ fn projected_address_join_calls_replay_exact_geometry_and_access() {
                 0 => argument.source_byte_offset = 0,
                 1 => argument.structural_type = root,
                 2 => argument.path.clear(),
-                _ => argument.access = StructuralAccess::MutableBorrow,
+                _ => {
+                    argument.access = if access == StructuralAccess::SharedBorrow {
+                        StructuralAccess::MutableBorrow
+                    } else {
+                        StructuralAccess::SharedBorrow
+                    };
+                }
             }
             assert!(
                 legalize_target_operations(&changed, &source, &unit).is_err(),

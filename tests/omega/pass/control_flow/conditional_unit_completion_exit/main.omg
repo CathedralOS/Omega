@@ -1,0 +1,34 @@
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Output { value: i32; }
+data Payload { value: i32; }
+
+machine select(stop: bool, output: &mut Output) {
+    output.value = 5;
+    let payload: Payload = Payload { value: 7 };
+    transition stop {
+        true -> {}
+        false -> write(output, payload)
+    }
+    state write(output: &mut Output, payload: Payload) {
+        output.value = payload.value;
+    }
+}
+
+data Main {
+    console: Binding<Console>;
+    stopped: Output;
+    continued: Output;
+}
+
+machine Main::main(&mut self) reaches Console {
+    select(true, &mut self.stopped);
+    select(false, &mut self.continued);
+    transition self.stopped.value == 5 && self.continued.value == 7 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
