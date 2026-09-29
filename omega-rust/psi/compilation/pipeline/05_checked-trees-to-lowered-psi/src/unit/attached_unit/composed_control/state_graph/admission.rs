@@ -911,8 +911,19 @@ pub(in crate::unit::attached_unit::composed_control) fn admit<'a>(
                 checked,
                 boundary.state,
             )?;
+            // A qualified top-level requirement such as `Float::add` names a
+            // semantic namespace, not a data attachment, and stage 04's
+            // `build_boundary_machine` retains no attachment identity for it.
+            // Only an attached name that resolves to a data definition is an
+            // authored nominal owner that the boundary must retain.
+            let owner_has_data_attachment = owner.attached_data.as_ref().is_some_and(|name| {
+                checked
+                    .data_definitions()
+                    .iter()
+                    .any(|data| data.name == *name)
+            });
             if owner.symbol != boundary.machine
-                || owner.attached_data.is_some() != boundary.attachment_type_identity.is_some()
+                || owner_has_data_attachment != boundary.attachment_type_identity.is_some()
             {
                 return unsupported("Unit graph boundary attachment lost its authored owner");
             }
