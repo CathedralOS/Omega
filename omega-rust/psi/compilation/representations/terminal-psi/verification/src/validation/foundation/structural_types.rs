@@ -100,10 +100,15 @@ pub(super) fn register_structural_types(
                         | StructuralTypeShape::Sum { .. }
                         | StructuralTypeShape::Mixed { .. }
                 );
+                // An exclusive borrow names the borrowed storage directly:
+                // scalars, records, sums, views and byte sequences are all
+                // storable referents. Only a nested reference is not — a
+                // `ref-mut` over a reference would carry a second custody
+                // tier the reference operations do not plan.
                 if !(*access == StructuralAccess::MutableBorrow
-                    && matches!(
+                    && !matches!(
                         types[referent].shape,
-                        StructuralTypeShape::PrimitiveScalar(_)
+                        StructuralTypeShape::Reference { .. }
                     ))
                     && !(*access == StructuralAccess::SharedBorrow && named_referent)
                 {
