@@ -53,15 +53,24 @@ fn byte_view_writes_without_a_length_premise_are_checker_fenced() {
 /// literal could satisfy, and a domain-free `[u8;3]` field is not a bounded
 /// byte-sequence carrier at all. This lane's plan vocabulary only names owned
 /// bounded carriers with provable literals — arbitrary source values stay
-/// outside it.
+/// outside it. A byte field's structural type carries its domain predicates,
+/// so the predicate-free domain already has no Terminal field type: its
+/// signature declines before any store is planned rather than erasing the
+/// qualification.
 #[test]
 fn byte_field_stores_decline_without_a_provable_byte_domain() {
-    for source in [
-        "domain [u8;3]::Writable;
-         data Record { out: [u8;3] in Writable; }
-         machine store(record: &mut Record) { record.out = \"abc\"; }",
-        "data Record { out: [u8;3]; }
-         machine store(record: &mut Record) { record.out = \"abc\"; }",
+    for (source, has_signature) in [
+        (
+            "domain [u8;3]::Writable;
+             data Record { out: [u8;3] in Writable; }
+             machine store(record: &mut Record) { record.out = \"abc\"; }",
+            false,
+        ),
+        (
+            "data Record { out: [u8;3]; }
+             machine store(record: &mut Record) { record.out = \"abc\"; }",
+            true,
+        ),
     ] {
         let checked = checked(source)
             .unwrap_or_else(|diagnostics| panic!("program must check: {diagnostics:?}"));
@@ -73,9 +82,16 @@ fn byte_field_stores_decline_without_a_provable_byte_domain() {
             .unwrap();
         let state = &program.machine_states(machine)[0];
         let mut shapes = ShapeCollector::new(program);
-        let (structural, scalar) =
-            super::super::super::free_structural_scalar_signature(program, &mut shapes, state, &[])
-                .expect("free machine signature");
+        let signature =
+            super::super::super::free_structural_scalar_signature(program, &mut shapes, state, &[]);
+        assert_eq!(
+            signature.is_some(),
+            has_signature,
+            "only a representable byte field keeps its signature: {source:?}"
+        );
+        let Some((structural, scalar)) = signature else {
+            continue;
+        };
         assert!(
             build_structural_scalar_field_store_sequence(
                 program,
