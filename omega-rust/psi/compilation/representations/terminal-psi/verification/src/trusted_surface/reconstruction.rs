@@ -401,14 +401,16 @@ static FACT_ELEMENT_EXTENT_LENGTH: TrustedSurfaceEntry = TrustedSurfaceEntry {
     id: "fact:element-extent-length",
     family: LedgerFamily::ReconstructedFactKind,
     binding: PROCEDURAL,
-    premises: "an element-view length observation whose exact validated producer is an establishment over a fixed array or a subslice with u64 endpoints",
+    premises: "an element-view length observation whose exact validated producer is an establishment over a fixed array or a subslice with u64 endpoints, either measuring the producer's own result or measuring a shared block-parameter view whose every arrival transfers that result, unchanged and without re-executing the producer, from a producer position that dominates the read",
     conclusion: "the length equation: the array's static element count, or `end - start` with the subslice's two bounds left as its own obligations",
     dependencies: &[
         "fact:structural-effect-observation",
         "formation:operation-validation",
+        "scope:dominance-order",
     ],
     implementation: &[
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs",
+        OP_FACTS_BYTE_EXTENT,
         OPERATION_FACTS,
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/length.rs",
         "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/subslice.rs",

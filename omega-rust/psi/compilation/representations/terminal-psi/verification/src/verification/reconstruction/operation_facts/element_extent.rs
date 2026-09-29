@@ -1,8 +1,10 @@
-//! Join an element-view length observation to its exact validated producer.
+//! Join an element-view length observation to its exact validated producer or
+//! to the descriptor every block arrival transfers.
 
 use semantic_vocabulary::{Proposition, StructuralPlaceKind};
 use terminal_psi::{
-    Operation, OperationKind, StructuralTypeShape, TerminalMachine, TerminalModule,
+    Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
+    TerminalModule,
 };
 use terminal_semantics::{
     StructuralEffectObservation, element_establishment_length_equation,
@@ -10,6 +12,9 @@ use terminal_semantics::{
 };
 
 use crate::ModuleError;
+use crate::control_graph::DominatorTree;
+
+use super::byte_extent::{descriptor_origins, operation_position};
 
 /// The structural type reached by a structural argument's path. Each `Field`
 /// step resolves inside a `Record`, each `Referent` step crosses a `Reference`
@@ -101,14 +106,19 @@ fn establishment_collection_length(
 /// Relate an `ElementViewLength` result to the extent its exact producer
 /// established. Module validation has checked the producer/result join, source
 /// type and dominance, so the equation is introduced only at the later read.
-/// Signature and block-parameter views carry runtime extents and supply no
-/// equation here.
+///
+/// A block-parameter view has no producer of its own. It is related to the
+/// nearest dominating producer whose exact result every arrival transfers; see
+/// [`arrival_producer`] for why dominance keeps that producer's operands current
+/// at this read. Signature views carry runtime extents and supply no equation.
 pub(super) fn length_equation(
     module: &TerminalModule,
     machine: &TerminalMachine,
+    current: &Operation,
     observation: &StructuralEffectObservation,
+    context: &super::super::machine_context::MachineReconstructionContext<'_>,
 ) -> Result<Option<Proposition>, ModuleError> {
-    let StructuralEffectObservation::ElementViewLengthRead { source, .. } = observation else {
+    let StructuralEffectObservation::ElementViewLengthRead { source, result } = observation else {
         return Ok(None);
     };
     let Some(place_kind) = machine
@@ -119,17 +129,52 @@ pub(super) fn length_equation(
     else {
         return Ok(None);
     };
-    let StructuralPlaceKind::OperationResult { producer, .. } = place_kind else {
-        return Ok(None);
+    let (operation, observation) = match place_kind {
+        StructuralPlaceKind::OperationResult { producer, .. } => {
+            let Some(operation) = machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find(|operation| operation.id == producer)
+            else {
+                return Ok(None);
+            };
+            (operation, observation.clone())
+        }
+        StructuralPlaceKind::BlockParameter { block, position } => {
+            let Some((operation, produced)) = arrival_producer(
+                module,
+                machine,
+                current,
+                *source,
+                block,
+                position,
+                context.dominators(),
+            ) else {
+                return Ok(None);
+            };
+            // Every arrival transfers the producer's exact descriptor, so this
+            // read measures the producer's own destination.
+            (
+                operation,
+                StructuralEffectObservation::ElementViewLengthRead {
+                    source: produced,
+                    result: *result,
+                },
+            )
+        }
+        _ => return Ok(None),
     };
-    let Some(operation) = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| operation.id == producer)
-    else {
-        return Ok(None);
-    };
+    producer_length_equation(module, machine, operation, &observation)
+}
+
+/// Apply one validated producer's extent denotation to a read of its result.
+fn producer_length_equation(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+    observation: &StructuralEffectObservation,
+) -> Result<Option<Proposition>, ModuleError> {
     let Some(producer_observation) = structural_effect_leaf_observation(operation)
         .map_err(ModuleError::OperationSemanticSchema)?
     else {
@@ -144,4 +189,105 @@ pub(super) fn length_equation(
     }
     element_subslice_length_equation(observation, &producer_observation)
         .map_err(ModuleError::OperationSemanticSchema)
+}
+
+/// The nearest producer whose exact result every arrival binds to the borrowed
+/// block parameter `source`, with the producer's own destination place.
+///
+/// The producer must execute before `current` on every path: earlier in its
+/// block, or in a dominating block. That restriction carries the soundness of
+/// applying its extent equation here. Its start and end operands dominate the
+/// producer and therefore the read, and no path from the producer's latest
+/// execution to the read re-executes an operand's definition: such a path,
+/// joined to the producer-free path from entry to that definition, would reach
+/// the read without the producer. The backward descriptor walk then proves
+/// every arrival carries that latest result. A path that meets the producer
+/// under another name, or redefines a tracked name, supplies no equation, so a
+/// different view on one incoming edge or a producer re-executed after the
+/// binding rejects. A mutably borrowed parameter additionally requires every
+/// name on the chain to be unchanged by any writer since the producer. Module
+/// validation currently admits element-view length reads only under shared
+/// custody, so that check guards a later mutable admission rather than any
+/// accepted module today.
+fn arrival_producer<'machine>(
+    module: &TerminalModule,
+    machine: &'machine TerminalMachine,
+    current: &Operation,
+    source: semantic_vocabulary::PlaceId,
+    block: semantic_vocabulary::BlockId,
+    position: u32,
+    dominators: &DominatorTree,
+) -> Option<(&'machine Operation, semantic_vocabulary::PlaceId)> {
+    let destination = machine
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == block)?
+        .structural_parameters
+        .get(position as usize)?;
+    if destination.place != source
+        || !matches!(
+            destination.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::SharedBorrow
+        )
+    {
+        return None;
+    }
+    let needs_freshness = destination.access == StructuralAccess::MutableBorrow;
+    let current_position = operation_position(machine, current.id)?;
+    let current_block = machine.blocks[current_position.0].id;
+    let mut candidates = Vec::new();
+    for (block_position, candidate_block) in machine.blocks.iter().enumerate() {
+        if !dominators.dominates(candidate_block.id, current_block) {
+            continue;
+        }
+        for (operation_position, producer) in candidate_block.operations.iter().enumerate() {
+            if block_position == current_position.0 && operation_position >= current_position.1 {
+                continue;
+            }
+            if !matches!(
+                producer.kind,
+                OperationKind::EstablishElementView { .. }
+                    | OperationKind::ElementViewSubslice { .. }
+            ) {
+                continue;
+            }
+            if let Some(result) = producer.result.structural() {
+                candidates.push((block_position, operation_position, producer, result.place));
+            }
+        }
+    }
+    // Dominating blocks form a chain. Prefer the nearest producer, retaining a
+    // stable identity order independently of the serialized block roster.
+    candidates.sort_by_key(|(block_position, operation_position, _, _)| {
+        let block = machine.blocks[*block_position].id;
+        (
+            std::cmp::Reverse(dominators.depth(block).unwrap_or(0)),
+            block,
+            std::cmp::Reverse(*operation_position),
+        )
+    });
+    candidates
+        .into_iter()
+        .find(|(block_position, operation_position, producer, produced)| {
+            descriptor_origins(
+                machine,
+                current_position,
+                source,
+                (*block_position, *operation_position),
+                *produced,
+            )
+            .is_some_and(|aliases| {
+                !needs_freshness
+                    || aliases.into_iter().all(|place| {
+                        crate::validation::view_length_is_current(
+                            module,
+                            machine,
+                            producer.id,
+                            current.id,
+                            place,
+                        )
+                    })
+            })
+        })
+        .map(|(_, _, producer, produced)| (producer, produced))
 }

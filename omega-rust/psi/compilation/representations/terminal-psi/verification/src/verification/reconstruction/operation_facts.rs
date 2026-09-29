@@ -540,7 +540,9 @@ pub(super) fn append_operation(
         {
             axioms.push(equation);
         }
-        if let Some(equation) = element_extent::length_equation(module, machine, &observation)? {
+        if let Some(equation) =
+            element_extent::length_equation(module, machine, operation, &observation, context)?
+        {
             axioms.push(equation);
         }
         return Ok(());
