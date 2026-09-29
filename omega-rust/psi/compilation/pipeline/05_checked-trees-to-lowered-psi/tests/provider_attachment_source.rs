@@ -42,6 +42,35 @@ fn lowered() -> lowered_psi::LoweredPsi {
     lower_source(SOURCE)
 }
 
+/// `Float::add` names a semantic namespace, not data: stage 04 retains no
+/// attachment for such a requirement, and the Unit graph must not demand one
+/// merely because the authored name is qualified.
+#[test]
+fn namespace_requirement_composes_without_an_invented_attachment() {
+    let checked = crate::front_end::checked_program(
+        "data Root {}
+         pub boundary machine + Float::add(left: f64, right: f64) -> f64;
+         machine Root::enter(input: f64) {
+             let doubled: f64 = input + input;
+             transition { _ -> done(doubled) }
+             state done(value: f64) {}
+         }",
+    );
+    let lowered = lower_machine(&checked, TerminalMachineSelection::Name("Root::enter"))
+        .expect("a namespace operator requirement lowers without a nominal owner");
+    let [boundary] = lowered.semantic_module.boundary_machines.as_slice() else {
+        panic!("one exact namespace operator requirement");
+    };
+    assert!(boundary.attachment.is_none(), "no invented attachment");
+    assert!(boundary.structural_parameters.is_empty(), "no invented self");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("the namespace requirement call independently verifies");
+}
+
 #[test]
 fn static_boundary_attachment_composes_without_receiver_custody() {
     for after_handoff in [false, true] {
