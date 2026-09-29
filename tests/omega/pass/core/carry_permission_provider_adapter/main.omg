@@ -35,10 +35,10 @@ data Harness {
     scheduler: Binding<Scheduler>;
 }
 
-machine Harness::forward(&self, raw: Token) -> Token suspends; reaches ClaimProvider + Scheduler {
-    let claim: Token = self.provider.grant(raw);
+machine Harness::forward(harness: & Harness, raw: Token) -> Token suspends; reaches ClaimProvider + Scheduler {
+    let claim: Token = harness.provider.grant(raw);
     let forwarded: Token = forward_claim(claim);
-    suspend self.scheduler.park();
+    suspend harness.scheduler.park();
     transition { _ -> forwarded }
 }
 
