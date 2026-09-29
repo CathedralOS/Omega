@@ -1,0 +1,20 @@
+// PENDING pin — REFERENCE-LOCAL-BINDING-ROUTES residual (2026-09-29 f4b3db3):
+// omits at 'statement sequence: local data: structural call binding'.
+// Bounded runtime-index `&mut` — index proof discharges, then same wall.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+    off: u32 [0..=47];
+}
+
+machine Main::main(&mut self) reaches Console {
+    let borrowed: &mut u8 = &mut self.buf[self.off];
+    transition { _ -> done() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}

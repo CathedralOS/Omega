@@ -1,0 +1,25 @@
+// PENDING pin — REFERENCE-LOCAL-BINDING-ROUTES sibling (measured 2026-09-29
+// on f4b3db3): an UNBOUNDED runtime index `&mut self.buf[self.off]` rejects
+// at 'cannot prove index `self.off` is within length 48' — an honest proof
+// gate, NOT the binding wall. Its bounded sibling
+// (runtime_index_bounded_borrow) discharges the index proof and then hits
+// the 'local data: structural call binding' wall like the rest of the
+// family. When this program is authored with a provably-bounded index it
+// belongs with that sibling; the unbounded spelling should keep rejecting.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Main {
+    console: Binding<Console>;
+    buf: [u8; 48];
+    off: u32;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let borrowed: &mut u8 = &mut self.buf[self.off];
+    transition { _ -> done() }
+
+    state done(&mut self) {
+        self.console.exit_process(0);
+    }
+}
