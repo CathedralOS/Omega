@@ -448,8 +448,9 @@ impl StateGraphEmission<'_, '_> {
                             } else if matches!(
                                 subject.access,
                                 checked_trees::CheckedStructuralAccess::SharedBorrow
+                                    | checked_trees::CheckedStructuralAccess::MutableBorrow
                             ) {
-                                // A shared projected loan joins the rooted
+                                // A projected loan joins the rooted
                                 // place and its projection path directly as
                                 // the continuation argument: the verifier
                                 // resolves the projected leaf against the

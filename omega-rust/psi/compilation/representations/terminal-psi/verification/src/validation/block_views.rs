@@ -153,8 +153,16 @@ pub(super) fn validate_successor(
     }
     let mut exclusive = BTreeSet::new();
     for (argument, expected) in arguments.iter().zip(&target.structural_parameters) {
+        // A machine parameter's place dominates every block, so it needs no
+        // `available` row — the same exemption the projected owned argument
+        // below records for its root.
         if expected.access == StructuralAccess::MutableBorrow
-            && (!available.contains(&argument.place) || !exclusive.insert(argument.place))
+            && ((!available.contains(&argument.place)
+                && !machine
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.place == argument.place))
+                || !exclusive.insert(argument.place))
         {
             return Err(ModuleError::InvalidStructuralSuccessorArgument {
                 edge,
@@ -188,6 +196,29 @@ pub(super) fn validate_successor(
                     && !argument.path.is_empty()
                     && !super::is_nonempty_exact_projection_path(&argument.path))
                 || shared_loan_root(module, machine, argument, available).and_then(|root| {
+                    super::foundation::resolve_structural_path(module, root, &argument.path)
+                }) != Some(expected.structural_type)
+            {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: argument.place,
+                });
+            }
+            continue;
+        }
+        if expected.access == StructuralAccess::MutableBorrow && !argument.path.is_empty() {
+            // An exclusive projected loan joins the rooted place and its
+            // projection path as the continuation argument: the subtree
+            // under the path stays exclusively bound to the parameter for
+            // the target block's duration. The root keeps its custody — a
+            // mutable loan moves nothing itself — and the path resolves
+            // exactly to the declared referent type.
+            if expected.multiplicity != StructuralMultiplicity::Unrestricted
+                || !expected.qualifications.is_empty()
+                || !expected.projected_qualifications.is_empty()
+                || argument.access != StructuralAccess::MutableBorrow
+                || !super::is_nonempty_exact_projection_path(&argument.path)
+                || mutable_loan_root(module, machine, argument, available).and_then(|root| {
                     super::foundation::resolve_structural_path(module, root, &argument.path)
                 }) != Some(expected.structural_type)
             {
@@ -314,6 +345,30 @@ pub(super) fn validate_successor(
             });
         }
     }
+    // A shared read loan may not coexist with an exclusive loan over an
+    // overlapping subtree of the same root on one edge: the exclusive
+    // writer would invalidate the reader's observed storage.
+    for (shared_index, shared) in target.structural_parameters.iter().enumerate() {
+        if shared.access != StructuralAccess::SharedBorrow {
+            continue;
+        }
+        for (mutable_index, mutable) in target.structural_parameters.iter().enumerate() {
+            if mutable.access != StructuralAccess::MutableBorrow
+                || arguments[shared_index].place != arguments[mutable_index].place
+            {
+                continue;
+            }
+            if terminal_semantics::structural_paths_may_overlap(
+                &arguments[shared_index].path,
+                &arguments[mutable_index].path,
+            ) {
+                return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                    edge,
+                    place: arguments[mutable_index].place,
+                });
+            }
+        }
+    }
     Ok(())
 }
 
@@ -419,6 +474,40 @@ fn shared_loan_root(
             .map(|result| result.structural_type);
     }
     None
+}
+
+/// The declared type at an exclusive successor loan's root. A signature or
+/// block parameter presents writable custody only through the access
+/// lattice — `Owned` or `MutableBorrow` storage can lend exclusively —
+/// while a locally owned record's producer supplies its exact type. Linear
+/// custody cannot lend at all. Non-signature roots must still dominate the
+/// edge through `available`; machine parameters are established at entry
+/// and dominate every block.
+fn mutable_loan_root(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    argument: &StructuralArgument,
+    available: &BTreeSet<PlaceId>,
+) -> Option<StructuralTypeId> {
+    if let Some(parameter) = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.place == argument.place)
+        .or_else(|| {
+            parameter(machine, argument.place).filter(|_| available.contains(&argument.place))
+        })
+    {
+        return (super::structural::operations::structural_access_can_supply(
+            parameter.access,
+            StructuralAccess::MutableBorrow,
+        ) && parameter.multiplicity != StructuralMultiplicity::Linear
+            && parameter.qualifications.is_empty()
+            && parameter.projected_qualifications.is_empty())
+        .then_some(parameter.structural_type);
+    }
+    mutable_records::owned_home(module, machine, argument.place)
+        .filter(|_| available.contains(&argument.place))
+        .map(|result| result.structural_type)
 }
 
 /// Mutable view and plain-record names transfer at an edge; ordinary calls only reborrow them.
@@ -548,14 +637,43 @@ pub(super) fn mutable_availability(
                     .iter()
                     .zip(&block.structural_parameters)
                     .filter(|(_, parameter)| universe.contains(&parameter.place))
-                    .map(|(argument, parameter)| (argument.place, parameter.place))
+                    .map(|(argument, parameter)| (argument, parameter.place))
                     .collect::<Vec<_>>();
-                for (source, _) in &transfers {
-                    incoming.remove(source);
+                for (argument, _) in &transfers {
+                    if argument.path.is_empty() {
+                        incoming.remove(&argument.place);
+                    }
                 }
-                for (source_place, destination) in transfers {
-                    if source_available.contains(&source_place) {
-                        incoming.insert(destination);
+                for (argument, destination) in &transfers {
+                    // A projected loan binds its subtree under the target
+                    // parameter's own name: the subtree custody was already
+                    // proven at the edge, so the destination joins the
+                    // mutable namespace even when the root's whole name is
+                    // an ambient machine parameter no arrival re-binds.
+                    if source_available.contains(&argument.place) || !argument.path.is_empty() {
+                        incoming.insert(*destination);
+                    }
+                }
+                // A mutable record parameter's name lives only while some
+                // edge still carries it onward: a loan no successor names
+                // ends its exclusivity at the boundary, so its storage
+                // rejoins the root for the target's own uses. Parameter
+                // places that arm continuations forward by name must stay.
+                if let Some(source_block) = machine.blocks.iter().find(|block| block.id == *source)
+                {
+                    for parameter in &source_block.structural_parameters {
+                        if mutable_records::parameter_type(module, parameter)
+                            && !transfers
+                                .iter()
+                                .any(|(argument, _)| argument.place == parameter.place)
+                            && !edges.iter().any(|(_, _, arguments)| {
+                                arguments
+                                    .iter()
+                                    .any(|argument| argument.place == parameter.place)
+                            })
+                        {
+                            incoming.remove(&parameter.place);
+                        }
                     }
                 }
                 common.retain(|place| incoming.contains(place));

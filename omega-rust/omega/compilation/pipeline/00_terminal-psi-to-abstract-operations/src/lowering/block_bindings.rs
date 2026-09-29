@@ -1,12 +1,12 @@
-//! Admit whole shared or exclusive byte views, shared address joins over plain
+//! Admit whole shared or exclusive byte views, address joins over plain
 //! referents, and plain owned structural arrivals.
 //!
 //! An address join (see `abstract_operations::control_flow::address_joins`)
 //! is the only borrowed arrival an edge may bind through a projected path:
-//! its carrier is the address of that static place, so `&a.left` and `&b.right`
-//! can meet in one parameter without copying either leaf. Descriptor views and
-//! owned arrivals still bind whole roots; their projected edges have no
-//! downstream carrier.
+//! its carrier is the address of that static place, so `&a.left` and
+//! `&mut a.left` can meet in one parameter without copying either leaf.
+//! Descriptor views and owned arrivals still bind whole roots; their
+//! projected edges have no downstream carrier.
 
 use terminal_psi::{TerminalModule, Terminator};
 
@@ -128,7 +128,11 @@ fn unsupported_argument(
     parameter: Option<&terminal_psi::StructuralParameterDeclaration>,
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> bool {
-    let projected_address = argument.access == terminal_psi::StructuralAccess::SharedBorrow
+    let projected_address = matches!(
+        argument.access,
+        terminal_psi::StructuralAccess::SharedBorrow
+            | terminal_psi::StructuralAccess::MutableBorrow
+    )
         && abstract_operations::control_flow::address_joins::is_static_projection(&argument.path)
         && parameter.is_some_and(|parameter| {
             abstract_operations::control_flow::address_joins::is_address_join_in(parameter, types)

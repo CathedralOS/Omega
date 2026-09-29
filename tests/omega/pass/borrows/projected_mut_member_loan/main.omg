@@ -14,9 +14,12 @@ machine Main::main(&mut self) reaches Console {
     self.inner.tag = 5;
     transition true { _ -> next(&mut self.inner) }
 
+    // A `&mut` projected loan binds the subtree under its root for the
+    // target block's duration: `loan` writes and reads the `self.inner`
+    // storage exclusively while the ambient receiver is bound too.
     state next(&mut self, loan: &mut Inner) {
         loan.tag = 9;
-        transition self.inner.tag == 9 { true -> done() _ -> bad() }
+        transition loan.tag == 9 { true -> done() _ -> bad() }
     }
 
     state done(&mut self) {
