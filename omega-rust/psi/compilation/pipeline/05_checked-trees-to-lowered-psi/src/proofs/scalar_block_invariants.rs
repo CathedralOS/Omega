@@ -15,7 +15,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use semantic_vocabulary::{MachineId, ObligationId, Proposition, ScalarTerm, ValueId};
+use semantic_vocabulary::{MachineId, ObligationId, Proposition, ValueId};
 use terminal_psi::{ScalarBlockInvariantArrival, Terminator};
 use terminal_verifier::{ReconstructedTerminalObligationOwner, ReconstructedTerminalObligationSet};
 
@@ -467,6 +467,11 @@ fn retain_provable_roster_bounded(
 /// surviving conjunction again, since a survivor may have leaned on a dropped
 /// member. A header whose every member fails, or whose failure is only joint,
 /// stays rejected. Returns whether any header was narrowed.
+///
+/// Keep every independently surviving member, including carrier bounds. An
+/// authored contract may contain those bounds: dropping them as redundant
+/// makes mandatory-roster preservation roll back unrelated useful inference.
+/// This is proof pruning, not contract simplification.
 fn prune_refuted_members(
     roster: &mut [terminal_psi::ScalarBlockInvariant],
     refuted: &BTreeMap<
@@ -490,7 +495,7 @@ fn prune_refuted_members(
         let mut surviving = members
             .iter()
             .enumerate()
-            .filter(|(index, member)| !failing.contains(index) && !carrier_bound(member))
+            .filter(|(index, _)| !failing.contains(index))
             .map(|(_, member)| member.clone())
             .collect::<Vec<_>>();
         if surviving.is_empty() {
@@ -505,28 +510,6 @@ fn prune_refuted_members(
         pruned = true;
     }
     pruned
-}
-
-/// A member restating its value's own carrier bound (`0 <= x` over `u64`)
-/// holds on every arrival and informs no question; a header whose other
-/// members all failed keeps nothing worth proving again.
-fn carrier_bound(member: &Proposition) -> bool {
-    let Proposition::LessOrEqual(left, right) = member else {
-        return false;
-    };
-    let bound = |literal: &ScalarTerm, maximum: bool| {
-        literal
-            .integer_value()
-            .is_some_and(|(integer_type, value)| {
-                value
-                    == if maximum {
-                        integer_type.maximum_value()
-                    } else {
-                        integer_type.minimum_value()
-                    }
-            })
-    };
-    bound(left, false) || bound(right, true)
 }
 
 /// Every actual edge into `header`, in canonical order: one arrival

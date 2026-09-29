@@ -18,6 +18,24 @@ const CONTRACTED_FIELD_LOOP: &str = "
     }";
 
 #[test]
+fn a_changing_storage_seed_does_not_discard_unrelated_loop_bounds() {
+    let source =
+        CONTRACTED_FIELD_LOOP.replace("self.bound = 2;", "self.bound = 2; self.result = 0;");
+    let checked = crate::front_end::checked_program(&source);
+    let lowered = crate::machine_lowering::lower_machine(
+        &checked,
+        TerminalMachineSelection::Name("Grid::run"),
+    )
+    .expect("discarding result=0 must retain the authored contract and constant bound");
+    terminal_verifier::verify_module(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .expect("every arrival still proves the retained invariant");
+}
+
+#[test]
 fn authored_arrival_contracts_compose_with_initialized_loop_storage() {
     let checked = crate::front_end::checked_program(CONTRACTED_FIELD_LOOP);
     let lowered = crate::machine_lowering::lower_machine(
