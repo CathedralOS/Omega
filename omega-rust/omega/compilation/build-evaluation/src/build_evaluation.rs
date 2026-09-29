@@ -1,6 +1,6 @@
 //! The complete admission-to-execution protocol for one Build activation.
 //!
-//! Declaration authority precedes filesystem preparation; projected restricted
+//! Semantic and package admission precede filesystem preparation; projected restricted
 //! requests join caller consent before execution. The result retains the source
 //! commitment and requested authority beside the evaluated configuration.
 
@@ -70,17 +70,13 @@ pub fn evaluate_build(
     // A package without an entry has nothing to admit or execute: its ordinary
     // declarations are checked by the final product pass, just once.
     let selected_machine = select_build_machine(typed, build_source_id)?;
-    if selected_machine.is_some() {
-        if let Some(packages) = package_inputs {
-            crate::admission::declaration_authority::admit_authored_declarations(
-                typed, packages, timings,
-            )?;
-        }
-    } else if artifact_only {
+    if selected_machine.is_none() && artifact_only {
         return Err(vec![Diagnostic::error(
             "an artifact-only application requires a build machine that completes at least one required output",
         )]);
-    } else if snapshot.is_some_and(|snapshot| !snapshot.required_outputs().is_empty()) {
+    } else if selected_machine.is_none()
+        && snapshot.is_some_and(|snapshot| !snapshot.required_outputs().is_empty())
+    {
         return Err(vec![Diagnostic::error(
             "a required-output request requires a build machine that completes those outputs",
         )]);
@@ -112,6 +108,11 @@ pub fn evaluate_build(
             base_source_consumption_commitment,
         });
     };
+    // Every activation checks its helpers before snapshot capture or effects.
+    // Package authority adds to that semantic floor; standalone source cannot
+    // bypass it. Admission below consumes this exact checked program.
+    let prepared =
+        crate::admission::checking::prepare_checked_build(typed, package_inputs, timings)?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
         package_inputs,
@@ -122,7 +123,7 @@ pub fn evaluate_build(
         snapshot,
     )?;
     let admitted = crate::admit_build_program(
-        typed,
+        prepared,
         selected_machine.symbol,
         &filesystem_scope,
         evaluation_sponsor.as_ref(),

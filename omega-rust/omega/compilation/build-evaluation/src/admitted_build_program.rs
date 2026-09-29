@@ -10,7 +10,6 @@ use package_compilation::BuildMachineFilesystemScope;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use package_compilation::build_execution::{SelectedBuildMachine, admit_build_machine};
 use symbols::SymbolHandle;
-use typed_trees::TypedTrees;
 
 /// Private activation-local checkpoint. Entry selection and authority bind to
 /// the prepared program; only the complete evaluation protocol can issue and
@@ -54,18 +53,17 @@ impl AdmittedBuildProgram {
 
 /// Prepare and admit the program's exact build-machine activation.
 ///
-/// Entry discovery and package declaration admission have already finished.
-/// This stage prepares that exact entry and admits its operational contract and
+/// Entry discovery, semantic checking and optional package authority have finished.
+/// This stage binds that exact checked entry and admits its operational contract and
 /// host grants without executing authored code. The returned carrier owns the
 /// only entry token accepted by its prepared program.
 pub(crate) fn admit_build_program(
-    typed: &TypedTrees,
+    prepared: PreparedBuildMachineProgram,
     machine_symbol: SymbolHandle,
     filesystem_scope: &BuildMachineFilesystemScope,
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     artifact_only: bool,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
-    let prepared = PreparedBuildMachineProgram::prepare(typed)?;
     let typed = prepared.typed();
     let operational_plan = validation::infer_operational_may(typed);
     let service_reach_plan = validation::infer_service_reaches(typed, &operational_plan);
