@@ -24,6 +24,7 @@ pub(crate) struct StructuralSourceContract<'a> {
     pub(crate) access: terminal_psi::StructuralAccess,
     qualifications: &'a [StructuralDomainId],
     projected_qualifications: &'a [terminal_psi::StructuralPathQualification],
+    operation_result: Option<&'a terminal_psi::StructuralOperationResult>,
 }
 
 impl StructuralSourceContract<'_> {
@@ -206,12 +207,7 @@ pub(crate) fn structural_arguments_match(
         // Scalar-result and dynamic calls lend the same window a Unit or
         // boundary call does: the borrowed subloan shape is identical and a
         // scalar or dispatched result carries no custody of the backing.
-        let fixed_array_presentation = matches!(
-            projection,
-            StructuralProjectionPolicy::Unit
-                | StructuralProjectionPolicy::Projected
-                | StructuralProjectionPolicy::Boundary
-        ) && caller.structural_parameters.iter().any(|actual| {
+        let presents_fixed_array = |actual: &terminal_psi::StructuralParameterDeclaration| {
             terminal_semantics::fixed_byte_array_window(
                 types.values().copied(),
                 actual,
@@ -226,10 +222,53 @@ pub(crate) fn structural_arguments_match(
                     parameter,
                 )
                 .is_some()
-        }) && !caller
-            .entry_claim_declarations
+        };
+        // Terminal also lends completed plain array results. Recover the
+        // producer's contract, not just machine parameters: a local array
+        // retains its owned backing while the call sees a temporary view.
+        // The borrowed declaration below is only the geometry presentation;
+        // actual access, availability and overlap are checked independently.
+        let array_result_loan = argument.path.is_empty()
+            && matches!(
+                argument.access,
+                terminal_psi::StructuralAccess::SharedBorrow
+                    | terminal_psi::StructuralAccess::MutableBorrow
+            )
+            && source.access == terminal_psi::StructuralAccess::Owned
+            && source.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted
+            && source.is_unqualified()
+            && source
+                .operation_result
+                .is_some_and(|result| result.claims.is_empty())
+            && terminal_semantics::scalar_array_leaf_shape(
+                types.values().copied(),
+                source.structural_type,
+            )
+            .is_some();
+        let fixed_array_presentation = matches!(
+            projection,
+            StructuralProjectionPolicy::Unit
+                | StructuralProjectionPolicy::Projected
+                | StructuralProjectionPolicy::Boundary
+        ) && (caller
+            .structural_parameters
             .iter()
-            .any(|claim| claim.input == argument.place)
+            .any(presents_fixed_array)
+            || (array_result_loan
+                && presents_fixed_array(&terminal_psi::StructuralParameterDeclaration {
+                    place: argument.place,
+                    position: parameter.position,
+                    is_self: false,
+                    structural_type: source.structural_type,
+                    multiplicity: source.multiplicity,
+                    access: argument.access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                })))
+            && !caller
+                .entry_claim_declarations
+                .iter()
+                .any(|claim| claim.input == argument.place)
             && !caller
                 .content_entry_claims
                 .iter()
@@ -514,6 +553,7 @@ pub(crate) fn structural_source_contract(
             access: parameter.access,
             qualifications: &parameter.qualifications,
             projected_qualifications: &parameter.projected_qualifications,
+            operation_result: None,
         })
         .or_else(|| structural_operation_result_contract(caller, place))
         .or_else(|| trivial_affine_local_contract(caller, place))
@@ -539,6 +579,7 @@ pub(crate) fn structural_source_contract(
                         access: terminal_psi::StructuralAccess::SharedBorrow,
                         qualifications: qualifications.as_slice(),
                         projected_qualifications: &[],
+                        operation_result: None,
                     })
                 })
         })
@@ -567,6 +608,7 @@ fn trivial_affine_local_contract(
                 access: terminal_psi::StructuralAccess::Owned,
                 qualifications: &[],
                 projected_qualifications: &[],
+                operation_result: None,
             }),
             _ => None,
         })
@@ -619,6 +661,7 @@ fn structural_operation_result_contract(
                 access,
                 qualifications: &result.qualifications,
                 projected_qualifications: &result.projected_qualifications,
+                operation_result: Some(result),
             })
         })
 }
