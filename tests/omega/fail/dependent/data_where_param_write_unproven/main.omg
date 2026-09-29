@@ -16,7 +16,7 @@ data Main { console: Binding<Console>; tally: Tally; }
 machine corrupt(target: &mut Tally) {
     target.count = 99;
 }
-machine Main::main(&mut self) {
-    corrupt(&mut self.tally);
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) {
+    corrupt(&mut main.tally);
+    main.console.exit_process(70);
 }

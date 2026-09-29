@@ -27,6 +27,6 @@ machine bad(seed: &i32) -> Envelope {
     }
 }
 
-machine Main::main(&mut self) {
-    let envelope: Envelope = bad(&self.seed);
+machine Main::main(main: &mut Main) {
+    let envelope: Envelope = bad(&main.seed);
 }

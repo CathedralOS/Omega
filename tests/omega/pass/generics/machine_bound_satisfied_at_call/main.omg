@@ -23,9 +23,9 @@ machine wrap<U [copy]>(y: &U) {
     copy_it(y);
 }
 
-machine Main::main(&mut self) {
-    copy_it(&self.l);
-    copy_it(&self.n);
-    wrap(&self.l);
-    copy_free(&self.l);
+machine Main::main(main: &mut Main) {
+    copy_it(&main.l);
+    copy_it(&main.n);
+    wrap(&main.l);
+    copy_free(&main.l);
 }

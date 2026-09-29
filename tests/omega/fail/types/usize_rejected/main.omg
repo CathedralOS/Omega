@@ -4,4 +4,4 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; n: usize; }
-machine Main::main(&mut self) { self.console.exit_process(70); }
+machine Main::main(main: &mut Main) { main.console.exit_process(70); }

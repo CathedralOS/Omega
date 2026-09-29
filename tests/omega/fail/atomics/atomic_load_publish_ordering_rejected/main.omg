@@ -3,6 +3,6 @@
 
 data Main { counter: AtomicU32; }
 
-machine Main::main(&mut self) {
-    let value: u32 = self.counter.load(Publish);
+machine Main::main(main: &mut Main) {
+    let value: u32 = main.counter.load(Publish);
 }

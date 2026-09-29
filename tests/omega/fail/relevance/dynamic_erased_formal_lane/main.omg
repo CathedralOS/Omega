@@ -20,7 +20,7 @@ data Main [copy] {
     item: Item;
 }
 
-machine Main::main(&self) {
-    let erased: &dyn Measure = &self.item as &dyn Item::Primary;
+machine Main::main(main: &Main) {
+    let erased: &dyn Measure = &main.item as &dyn Item::Primary;
     let result: bool = erased.measure(3);
 }

@@ -35,15 +35,15 @@ terminates by s -> Slice::Length;
     state done() -> i32 { (0) }
 }
 
-machine Main::main(&mut self) {
-    self.arr[0] = 5;
-    self.arr[1] = 10;
-    self.arr[2] = 15;
-    self.arr[3] = 20;
+machine Main::main(main: &mut Main) {
+    main.arr[0] = 5;
+    main.arr[1] = 10;
+    main.arr[2] = 15;
+    main.arr[3] = 20;
 
-    let s: &[i32 in Wrapping] = self.arr.as_slice();
+    let s: &[i32 in Wrapping] = main.arr.as_slice();
     let n: i32 = walk(s);
-    let m: i32 = walk(&self.arr);
+    let m: i32 = walk(&main.arr);
 
     transition n == 0 {
         true -> count(m)

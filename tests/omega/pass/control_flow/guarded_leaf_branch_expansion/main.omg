@@ -36,27 +36,27 @@ data Main {
     second: Cell;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.first.id = CellId::A1;
-    self.first.label = "A1";
-    self.second.id = CellId::A2;
-    self.second.label = "A2";
+machine Main::main(main: &mut Main) reaches Console {
+    main.first.id = CellId::A1;
+    main.first.label = "A1";
+    main.second.id = CellId::A2;
+    main.second.label = "A2";
     // `scan`'s `cell` parameter takes ownership of its argument, and these
     // calls sit inside a machine that reaches Console: a move out of `&mut
-    // self` storage must be repaired before any service-reaching call or exit
+    // main` storage must be repaired before any service-reaching call or exit
     // edge. Each cell therefore crosses to the call through a local while an
-    // equal value reseats its field, keeping `self` complete throughout.
-    let first_cell: Cell = self.first;
-    self.first = Cell { id: CellId::A1, label: "A1" };
-    let second_cell: Cell = self.second;
-    self.second = Cell { id: CellId::A2, label: "A2" };
-    transition { _ -> scan(first_cell, CellId::A2, &mut self.selected) }
-    transition { _ -> scan(second_cell, CellId::A2, &mut self.selected) }
-    self.line.text = self.selected.label;
-    self.console.write_line(self.line.text);
+    // equal value reseats its field, keeping `main` complete throughout.
+    let first_cell: Cell = main.first;
+    main.first = Cell { id: CellId::A1, label: "A1" };
+    let second_cell: Cell = main.second;
+    main.second = Cell { id: CellId::A2, label: "A2" };
+    transition { _ -> scan(first_cell, CellId::A2, &mut main.selected) }
+    transition { _ -> scan(second_cell, CellId::A2, &mut main.selected) }
+    main.line.text = main.selected.label;
+    main.console.write_line(main.line.text);
 
     transition {
-        _ -> self
+        _ -> main
     }
 
 

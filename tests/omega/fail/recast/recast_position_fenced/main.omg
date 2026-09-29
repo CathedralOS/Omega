@@ -5,8 +5,8 @@
 // `ensures`) produce no runtime borrow and stay fenced: this machine-level
 // `requires` holds a recast outside every executable statement root.
 data Main { bits: i32; }
-machine Main::main(&mut self)
+machine Main::main(main: &mut Main)
 requires (&self.bits as &u32) == 0u32
 {
-    self.bits = 0;
+    main.bits = 0;
 }

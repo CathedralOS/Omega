@@ -26,7 +26,7 @@ macos_arm64 machine hfa_binding() -> ForeignBinding<17, 15, 0> {
 macos_arm64 machine hfa_import(pair: Pair) -> i64 satisfies HfaImport::call via hfa_binding();
 
 data Main { foreign: Binding<HfaImport>; pair: Pair; result: i64; }
-machine Main::main(&mut self) reaches HfaImport {
-    self.pair = Pair { first: 1.0, second: 2.0 };
-    self.result = self.foreign.call(self.pair);
+machine Main::main(main: &mut Main) reaches HfaImport {
+    main.pair = Pair { first: 1.0, second: 2.0 };
+    main.result = main.foreign.call(main.pair);
 }

@@ -22,8 +22,8 @@ data Main {
     width: i32;
 }
 
-machine Main::main(&mut self) reaches Console {
-    self.message = "ALERT temp";
-    self.width = self.message.len;
-    self.console.exit_process(self.width);
+machine Main::main(main: &mut Main) reaches Console {
+    main.message = "ALERT temp";
+    main.width = main.message.len;
+    main.console.exit_process(main.width);
 }

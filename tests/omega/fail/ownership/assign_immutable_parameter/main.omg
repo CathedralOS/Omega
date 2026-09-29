@@ -2,9 +2,9 @@ data Main {
     value: i32;
 }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(main: &mut Main) -> i32 {
     transition {
-        _ -> overwrite(self.value)
+        _ -> overwrite(main.value)
     }
     
 

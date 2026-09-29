@@ -4,9 +4,9 @@ data Main {
     value: i32;
 }
 
-machine Main::main(&mut self) {
-    transition self.value > 0 {
-        true -> positive(self.value)
+machine Main::main(main: &mut Main) {
+    transition main.value > 0 {
+        true -> positive(main.value)
         false -> done()
     }
 

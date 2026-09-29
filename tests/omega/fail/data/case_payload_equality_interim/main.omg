@@ -12,6 +12,6 @@ data Main {
     cmd: Command;
 }
 
-machine Main::main(&mut self) {
-    let mut hit: bool = self.cmd == Command::Move { steps: 1 };
+machine Main::main(main: &mut Main) {
+    let mut hit: bool = main.cmd == Command::Move { steps: 1 };
 }

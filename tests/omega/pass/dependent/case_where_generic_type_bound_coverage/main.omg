@@ -6,9 +6,9 @@ data Value<T> {
     case Boolean(value: T) where T == bool;
 }
 data Main { v: Value<bool>; }
-machine Main::main(&mut self) {
-    self.v = Value::Boolean { value: true };
-    transition self.v {
+machine Main::main(main: &mut Main) {
+    main.v = Value::Boolean { value: true };
+    transition main.v {
         Value::Boolean { value } -> done()
     }
     state done() {}

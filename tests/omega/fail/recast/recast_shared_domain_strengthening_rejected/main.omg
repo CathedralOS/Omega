@@ -14,6 +14,6 @@ data Main {
     value: u32 in Wide;
 }
 
-machine Main::main(&mut self) {
-    let view: &u32 in Narrow = &self.value as &u32;
+machine Main::main(main: &mut Main) {
+    let view: &u32 in Narrow = &main.value as &u32;
 }

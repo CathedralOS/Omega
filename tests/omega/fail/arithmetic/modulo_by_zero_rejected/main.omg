@@ -3,4 +3,4 @@
 use omega::language::std::console;
 use omega::language::core::binding;
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) { let x: i32 = 5i32 % 0; self.console.exit_process(x); }
+machine Main::main(main: &mut Main) { let x: i32 = 5i32 % 0; main.console.exit_process(x); }

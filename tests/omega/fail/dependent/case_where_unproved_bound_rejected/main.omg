@@ -6,6 +6,6 @@ data Interval {
     case Range(lo: u64, hi: u64) where lo <= hi;
 }
 data Main { interval: Interval; lo: u64; hi: u64; }
-machine Main::main(&mut self) {
-    self.interval = Interval::Range { lo: self.lo, hi: self.hi };
+machine Main::main(main: &mut Main) {
+    main.interval = Interval::Range { lo: main.lo, hi: main.hi };
 }

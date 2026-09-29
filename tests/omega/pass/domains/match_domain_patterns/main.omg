@@ -25,8 +25,8 @@ data Main {
     player: Player;
 }
 
-machine Main::main(&mut self) {
-    transition self.player {
+machine Main::main(main: &mut Main) {
+    transition main.player {
         Player::Alive -> alive()
         Player::Dead -> dead()
         _ -> other()

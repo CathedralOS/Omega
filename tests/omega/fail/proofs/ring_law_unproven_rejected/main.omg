@@ -21,4 +21,4 @@ satisfies RingOps2::add_assoc
 {
 }
 data Main { console: Binding<Console>; }
-machine Main::main(&mut self) { self.console.exit_process(70); }
+machine Main::main(main: &mut Main) { main.console.exit_process(70); }

@@ -18,8 +18,8 @@ data Main {
     entity: Entity;
 }
 
-machine Main::main(&mut self) {
-    transition self.entity {
+machine Main::main(main: &mut Main) {
+    transition main.entity {
         Entity::None -> calm()
         Entity::Dangerous -> threat()
     }

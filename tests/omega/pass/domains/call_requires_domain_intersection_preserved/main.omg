@@ -40,9 +40,9 @@ requires
 {
 }
 
-machine Main::main(&mut self) {
-    mark_valid(&mut self.password);
-    mark_secure(&mut self.password);
-    touch_salt(&mut self.password);
-    self.accept(self.password);
+machine Main::main(main: &mut Main) {
+    mark_valid(&mut main.password);
+    mark_secure(&mut main.password);
+    touch_salt(&mut main.password);
+    main.accept(main.password);
 }

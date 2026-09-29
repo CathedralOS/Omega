@@ -5,6 +5,6 @@ data Main {
     value: u8;
 }
 
-machine Main::main(&mut self) {
-    asm { out self.port, self.value }
+machine Main::main(main: &mut Main) {
+    asm { out main.port, main.value }
 }

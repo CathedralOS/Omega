@@ -5,9 +5,9 @@ boundary requirement Receipt::ack(self);
 
 data Main { choose_first: bool; }
 
-machine Main::main(&mut self) -> i32 {
+machine Main::main(main: &mut Main) -> i32 {
     let receipt: Receipt = Receipt { code: 7 };
-    transition self.choose_first {
+    transition main.choose_first {
         true -> consume_first(receipt)
         _ -> consume_second(receipt)
     }

@@ -11,11 +11,11 @@ data Main {
     written: u64;
 }
 
-machine Main::main(&mut self) {
+machine Main::main(main: &mut Main) {
     let msg: second::Counter = second::Counter {
         counter: 7,
         timestamp: 9
     };
 
-    second::Counter::encode(&msg, &mut self.buffer, &mut self.written);
+    second::Counter::encode(&msg, &mut main.buffer, &mut main.written);
 }

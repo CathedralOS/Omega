@@ -15,9 +15,9 @@ machine consume(items: [u32; 2]) {
     let first: u32 = items[0];
 }
 
-machine Main::main(&mut self) {
-    self.items = [3, 4];
-    let view: &[u32] = self.items.as_slice();
-    consume(self.items);
+machine Main::main(main: &mut Main) {
+    main.items = [3, 4];
+    let view: &[u32] = main.items.as_slice();
+    consume(main.items);
     let first: u32 = view[0];
 }

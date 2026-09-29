@@ -15,6 +15,6 @@ data Main {
     service: Binding<Ping> in Foreign;
 }
 
-machine Main::main(&mut self) {
-    self.service.ping();
+machine Main::main(main: &mut Main) {
+    main.service.ping();
 }

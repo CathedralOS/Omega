@@ -11,6 +11,6 @@ data Main {
     values: [i32; 3];
 }
 
-machine Main::main(&mut self) {
-    let first: i32 = self.values[0];
+machine Main::main(main: &mut Main) {
+    let first: i32 = main.values[0];
 }

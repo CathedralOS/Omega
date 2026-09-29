@@ -8,6 +8,6 @@ boundary machine false_axiom() -> Nat
 ensures
     (Nat::Zero) == (Nat::Succ { prev: Nat::Zero });
 
-machine Main::main(&mut self) {
-    self.console.exit_process(70);
+machine Main::main(main: &mut Main) {
+    main.console.exit_process(70);
 }
