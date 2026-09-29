@@ -229,14 +229,40 @@ five points in that file (lines 73, 105, 129, 237, 352), and it carries a
 separate `attachment_type_identity` beside the receiver identity, so the
 attachment concept needs settling too.
 
-### Why site 1 was reverted rather than landed
+### Site 3 — the attachment identity is a checked fact, in Psi
 
-Alone it enables nothing and makes the diagnostic worse. Today an author who
-writes the context parameter gets a clear refusal naming the entry shape; with
-site 1 alone they get `rejoins 0 self receivers` from inside dispatch. A
-partial landing also leaves the compiler half-migrated with no customer able
-to use it.
+With both sites above implemented and compiling, establishment gets further
+and then fails with:
 
-This is the board's own compiler half -- "provision the exact ordinary mutable
-context parameter named by the entry shape ... remove attachment/`is_self` as
-authority inputs" -- and it wants both sites in one change.
+```
+selected ProgramEntry establishment rejoins 0 Terminal attachment identities; expected one
+```
+
+`selected-dispatch` reads `attachment_type_identity` off
+`checked.facts.flow.terminal_unit_effects`, for both `machines` and
+`composed_machines`. That identity is produced in
+`04_typed-trees-to-checked-trees/src/execution/terminal_unit/`, keyed on the
+machine's attachment, and threaded through `providers.rs` at three call sites.
+A free entry has no attachment, so the fact is absent and no amount of work in
+Omega can supply it.
+
+So the change spans three stages: provider planning and selected dispatch in
+Omega, and unit-effect fact production in Psi's checking pipeline, inside the
+`execution/terminal_unit/` cluster.
+
+### Why this was implemented and then reverted
+
+Sites 1 and 2 are written and compile, and each moves the failure one stage
+later -- `hosted ProgramEntry exposes no arrival parameters` becomes `rejoins
+0 self receivers` becomes `rejoins 0 Terminal attachment identities`. None of
+that helps a customer: no program compiles that did not before, and the
+diagnostic an author sees gets worse at every step, moving from a clear
+statement about the entry shape into dispatch and then into unit-effect facts.
+
+The work is genuinely the board's compiler half -- "provision the exact
+ordinary mutable context parameter named by the entry shape ... remove
+attachment/`is_self` as authority inputs" -- and it wants all three sites in
+one change, with the Psi fact first. Landing one or two of them leaves the
+compiler half-migrated with no customer able to use it and a worse error for
+anyone who tries.
+
