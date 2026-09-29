@@ -1,7 +1,7 @@
 //! Join an element-view length observation to its exact validated producer or
 //! to the descriptor every block arrival transfers.
 
-use semantic_vocabulary::{Proposition, ScalarTerm, StructuralPlaceKind};
+use semantic_vocabulary::{Proposition, StructuralPlaceKind};
 use terminal_psi::{
     Operation, OperationKind, StructuralAccess, StructuralTypeShape, TerminalMachine,
     TerminalModule,

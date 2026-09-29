@@ -1454,7 +1454,7 @@ pub static IMPLEMENTATION_SITES: &[ImplementationSite] = &[
     },
     ImplementationSite {
         path: "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/element_extent.rs",
-        sha256: Some("ccc78e4b2098bbc775a8f9d17c7a528867b9a5d41b6bde1af07e119ba33b5363"),
+        sha256: Some("843ab7bb4b28413183e5e3671d1e1080c820aadb4e65fb10bc4203202f5188fd"),
         inventory_machinery: false,
     },
     ImplementationSite {
