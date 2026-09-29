@@ -1038,6 +1038,9 @@ mod unranked_unit_calls;
 #[path = "ranked_scc/unranked_scalar_calls.rs"]
 mod unranked_scalar_calls;
 
+#[path = "ranked_scc/unranked_custody_free_values.rs"]
+mod unranked_custody_free_values;
+
 #[path = "ranked_scc/ranked_calls.rs"]
 mod ranked_calls;
 
