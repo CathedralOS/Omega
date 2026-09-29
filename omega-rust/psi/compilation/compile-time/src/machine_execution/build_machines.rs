@@ -101,6 +101,17 @@ impl PreparedBuildMachineEntry {
 }
 
 impl PreparedBuildMachineProgram {
+    /// Transfer the checker-transformed typed program into an immutable identity.
+    /// No specialization or rebinding follows admission. This retains the Build
+    /// interpreter's typed execution surface, not general checked-fact dispatch.
+    /// Host grants and the exact entry's operational contract remain caller duties.
+    pub fn from_checked(program: checked_trees::CheckedTrees) -> Self {
+        Self {
+            typed: program.typed,
+            identity: Arc::new(PreparedBuildMachineProgramIdentity { _private: 0 }),
+        }
+    }
+
     pub fn prepare(program: &TypedTrees) -> Result<Self, Vec<diagnostics::Diagnostic>> {
         let mut typed = program.clone();
         // Preparation may precede endpoint evaluation. Preserve those exact

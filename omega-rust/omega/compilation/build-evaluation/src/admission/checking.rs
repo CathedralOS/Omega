@@ -1,18 +1,32 @@
+//! Check the program that a Build activation will actually consume.
+//!
+//! Semantic admission is required with or without package inputs. Package
+//! authority is an additional obligation, not the switch that enables checking.
+//! Transfer the checker-transformed typed program: checking one clone and
+//! interpreting a separately specialized clone would not bind execution to
+//! the admitted bodies. The Build interpreter does not yet consume every
+//! checked execution fact; this checkpoint does not claim that wider closure.
+//!
+//! This still checks the whole provisional program. Removing that work requires
+//! a sound Build-closure projection and a separately frozen authored-selection
+//! frontier; selection visibility alone cannot discharge helper contracts.
+
+use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 
-pub(crate) fn admit_authored_declarations(
+pub(crate) fn prepare_checked_build(
     typed: &typed_trees::TypedTrees,
-    packages: &PackageCompilationInputs,
+    packages: Option<&PackageCompilationInputs>,
     timings: &mut artifacts::compile_timings::CompileTimings,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<PreparedBuildMachineProgram, Vec<Diagnostic>> {
     // Package build execution can carry filesystem and other boundary
     // authority. Check the frozen ordinary source graph first; the ordinary
     // final checked pass repeats this gate after any explicit generated-source
     // handoff.
-    // The other targets' sibling bodies are checked once, in the settled
-    // pass; this provisional pass admits declarations only.
-    // Its result deliberately cannot feed that settled check: the settled
+    // Other targets' sibling bodies remain for the settled product check;
+    // the Build activation uses its already-selected execution-profile body.
+    // Its result feeds Build execution, not the later settled check: the settled
     // program differs (the build may append generated source, target
     // selection swaps canonical bodies, provider settlement records erasure
     // authorizations, and const folds land the endpoints only the
@@ -30,10 +44,13 @@ pub(crate) fn admit_authored_declarations(
             let result = typed_trees_to_checked_trees::lower_typed_trees(
                 provisional,
                 &typed_trees_to_checked_trees::CheckingRequest::preliminary()
-                    .with_declaration_authority(Some(packages)),
+                    .with_declaration_authority(
+                        packages
+                            .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+                    ),
             );
             artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-            result.map(|_| ())
+            result.map(PreparedBuildMachineProgram::from_checked)
         },
     )
 }

@@ -238,20 +238,53 @@ fn build_spelling_outside_the_companion_does_not_create_an_activation() {
 fn selected_activation_executes_and_retains_its_evidence() {
     let fixture = PackageFixture::new(
         "data Build { freestanding: bool; }\n\
-         machine build(builder: &mut Build) { builder.freestanding = true; }",
+         machine allowed(value: bool) -> bool requires value { value }\n\
+         machine build(builder: &mut Build) { builder.freestanding = allowed(true); }",
     );
-    let mut timings = artifacts::compile_timings::CompileTimings::enabled();
-    let evaluated = evaluate_build(fixture.request(true), &mut timings).expect("actual Build");
-    assert!(evaluated.configuration.config.settings.freestanding);
-    assert!(evaluated.configuration.evaluation_usage.is_some());
-    assert!(evaluated.configuration.observation_summary.is_some());
-    assert!(
-        evaluated
-            .configuration
-            .selected_build_machine_symbol
-            .is_some()
+    for packages in [None, Some(&fixture.packages)] {
+        let mut request = fixture.request(true);
+        request.package_inputs = packages;
+        let mut timings = artifacts::compile_timings::CompileTimings::enabled();
+        let evaluated = evaluate_build(request, &mut timings).expect("actual Build");
+        assert!(evaluated.configuration.config.settings.freestanding);
+        assert!(evaluated.configuration.evaluation_usage.is_some());
+        assert!(evaluated.configuration.observation_summary.is_some());
+        assert!(
+            evaluated
+                .configuration
+                .selected_build_machine_symbol
+                .is_some()
+        );
+        assert_eq!(timings.phases().len(), 1, "one semantic admission");
+    }
+}
+
+#[test]
+fn standalone_build_checks_helper_contracts_before_execution() {
+    let fixture = PackageFixture::new(
+        "data Build { freestanding: bool; }
+         machine forbidden() -> bool requires false { true }
+         machine build(builder: &mut Build) {
+             builder.freestanding = true;
+             builder.freestanding = forbidden();
+         }",
     );
-    assert_eq!(timings.phases().len(), 1, "one preliminary admission");
+    let snapshot = package_compilation::BuildSnapshotRequest::new([]);
+    for capture in [None, Some(&snapshot)] {
+        let mut request = fixture.request(true);
+        request.package_inputs = None;
+        request.snapshot = capture;
+        let errors = match evaluate_build(request, &mut Default::default()) {
+            Ok(_) => panic!("standalone Build must not execute a call with a false premise"),
+            Err(errors) => errors,
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.message.contains("forbidden")),
+            "helper contract must reject before snapshot preparation: {errors:?}"
+        );
+    }
 }
 
 #[test]

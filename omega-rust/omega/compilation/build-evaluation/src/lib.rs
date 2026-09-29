@@ -1,10 +1,12 @@
 //! Build admission, execution, and checked result assembly.
 //!
-//! [`evaluate_build`] selects the source-owned entry before declaration admission,
+//! [`evaluate_build`] selects the source-owned entry before semantic admission,
 //! filesystem preparation, restricted-request consent, and execution. Its private admitted checkpoint
 //! binds the exact program and entry before effects. The returned [`EvaluatedBuild`]
 //! carries configuration, requested authority and source commitment together.
 //! Selection and evidence operations remain with their domain owners.
+//! Every activation checks its helpers, independently of optional package inputs,
+//! then consumes that checker-transformed program without respecialization.
 //! With no entry, default settings and source identity require no activation;
 //! final product checking remains responsible for the ordinary program.
 //!
