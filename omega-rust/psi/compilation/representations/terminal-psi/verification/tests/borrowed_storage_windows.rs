@@ -301,6 +301,141 @@ fn assert_rejects(module: &TerminalModule, expected: ModuleError) {
     );
 }
 
+fn block_window_module() -> TerminalModule {
+    let mut module = window_module();
+    let machine = &mut module.machines[0];
+    let mut body = machine.blocks[0].clone();
+    body.id = id(2, BlockId::new);
+    let mut parameter = machine.structural_parameters[0].clone();
+    parameter.place = id(5, PlaceId::new);
+    body.structural_parameters.push(parameter);
+    if let OperationKind::MoveStructuralField { source, .. } = &mut body.operations[0].kind {
+        *source = id(5, PlaceId::new);
+    }
+    if let OperationKind::StoreStructuralField { destination, .. } = &mut body.operations[1].kind {
+        *destination = id(5, PlaceId::new);
+    }
+    machine.structural_places.push(StructuralPlaceDeclaration {
+        id: id(5, PlaceId::new),
+        kind: StructuralPlaceKind::BlockParameter {
+            block: body.id,
+            position: 0,
+        },
+    });
+    machine.blocks[0].operations.clear();
+    machine.blocks[0].terminator = Terminator::Jump {
+        edge: id(2, EdgeId::new),
+        target: body.id,
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place: id(1, PlaceId::new),
+            path: Vec::new(),
+            access: StructuralAccess::MutableBorrow,
+        }],
+        trivial_affine_discards: Vec::new(),
+        residual_affine_discards: Vec::new(),
+    };
+    machine.blocks.push(body);
+    module
+}
+
+#[test]
+fn a_borrowed_block_parameter_can_open_and_restore_a_window() {
+    validate_module(&block_window_module()).expect("block binding preserves borrowed storage");
+}
+
+#[test]
+fn a_block_window_preserves_disjoint_access_through_its_borrowed_parameter() {
+    let mut module = block_window_module();
+    module.machines[0].blocks[1].operations.insert(
+        1,
+        boolean_read(
+            id(5, OperationId::new),
+            id(1, ValueId::new),
+            5,
+            vec![CanonicalStructuralPathSegment::Field(right())],
+            flag(),
+        ),
+    );
+    validate_module(&module).expect("aliasing does not make disjoint fields absent");
+}
+
+#[test]
+fn a_block_window_rejects_absent_storage_read_through_its_borrowed_parameter() {
+    let mut module = block_window_module();
+    module.machines[0].blocks[1].operations.insert(
+        1,
+        boolean_read(
+            id(5, OperationId::new),
+            id(1, ValueId::new),
+            5,
+            vec![CanonicalStructuralPathSegment::Field(left())],
+            flag(),
+        ),
+    );
+    assert_rejects(
+        &module,
+        ModuleError::BorrowedStorageFieldAbsent {
+            operation: id(5, OperationId::new),
+            place: id(5, PlaceId::new),
+        },
+    );
+}
+
+#[test]
+fn the_original_parameter_cannot_repair_after_transferring_its_borrow() {
+    let mut module = block_window_module();
+    module.machines[0].blocks[1].operations[1] = repair(2);
+    assert_rejects(
+        &module,
+        ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
+            operation: id(2, OperationId::new),
+            place: id(1, PlaceId::new),
+        },
+    );
+}
+
+#[test]
+fn a_shared_block_parameter_cannot_open_a_window() {
+    let mut module = block_window_module();
+    module.machines[0].blocks[1].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+    let Terminator::Jump {
+        structural_arguments,
+        ..
+    } = &mut module.machines[0].blocks[0].terminator
+    else {
+        unreachable!();
+    };
+    structural_arguments[0].access = StructuralAccess::SharedBorrow;
+    assert_rejects(
+        &module,
+        ModuleError::InvalidBorrowedStorageWindow {
+            operation: id(1, OperationId::new),
+            place: id(5, PlaceId::new),
+        },
+    );
+}
+
+#[test]
+fn a_restored_window_can_repeat_through_a_loop_carried_borrow() {
+    let mut module = block_window_module();
+    let mut backedge = module.machines[0].blocks[0].terminator.clone();
+    let Terminator::Jump {
+        edge,
+        structural_arguments,
+        ..
+    } = &mut backedge
+    else {
+        unreachable!();
+    };
+    *edge = id(3, EdgeId::new);
+    structural_arguments[0].place = id(5, PlaceId::new);
+    module.machines[0].blocks[1].terminator = backedge;
+    validate_module(&module).expect("restored loop-carried borrow has a concrete storage origin");
+}
+
 #[test]
 fn a_disjoint_sibling_stays_observable() {
     let mut module = window_module();

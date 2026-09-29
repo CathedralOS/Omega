@@ -295,7 +295,7 @@ static OP_STRUCTURAL_SCALAR_FIELD_STORE: TrustedSurfaceEntry = entry(
 );
 static OP_MOVE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:move-structural-field",
-    "a live borrowed machine-parameter root and canonical field path to a declared non-erased structural subtree with no open repair obligation over it",
+    "a live mutable-borrowed machine parameter, an eligible completed owned home, or a mutable-borrowed block carrier whose possible origins all have that authority; a canonical field path to a declared non-erased structural subtree with no overlapping restoration debt or observation",
     "the extraction observation; the subtree leaves its borrowed home as restoration debt until an exact-type repair store reseats it, and every proposition observing the vacated path is invalidated",
     &[
         "invalidation:structural-field-store",
@@ -313,7 +313,7 @@ static OP_MOVE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
 );
 static OP_STORE_STRUCTURAL_FIELD: TrustedSurfaceEntry = entry(
     "operation:store-structural-field",
-    "an open restoration-debt hole under a borrowed machine-parameter root and a consumed same-typed value reseating it",
+    "an open restoration-debt hole under the exact carrier that opened it and a consumed same-typed value reseating it; possible aliasing alone does not establish repair identity",
     "the repair observation closing the exact debt; propositions observing the reseated path are invalidated and no field equation survives the move boundary",
     &[
         "invalidation:structural-field-store",

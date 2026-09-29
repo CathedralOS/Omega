@@ -11,12 +11,13 @@
 //! sides to agree on every open window and replay evidence needs no
 //! producer-side assertion.
 //!
-//! Debt roots are machine parameters or owned home places this machine
-//! completed: `validate_move_static` refuses any other root, so a repair
-//! store can only close the window it names on the same root. A block
-//! parameter can still alias a windowed root through
-//! an earlier edge binding (`window_aliases`), so every comparison resolves a
-//! spelled place through that map before the canonical prefix test.
+//! Debt stays attached to the exact storage carrier that opened the window,
+//! including borrowed block parameters. A repair must name that same carrier:
+//! two block parameters with identical possible origins need not select the
+//! same storage at runtime. Possible aliases therefore establish interference,
+//! never permission to repair. Interference resolves both the observed region
+//! and the debt through `window_aliases` before comparing canonical prefixes.
+//! Block parameters inherit window authority only from eligible storage roots.
 //! Byte-sequence views are deliberately outside this scope: they are
 //! whole-place loans on a disjoint place namespace, and no view is ever a
 //! restoration target.
@@ -94,7 +95,12 @@ pub(super) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine)
     if borrowed_parameters.is_empty() {
         return WindowAliases::new();
     }
-    let mut aliases = WindowAliases::new();
+    // Seed borrowed parameters as unresolved, not as roots of their own.
+    // Otherwise a loop backedge permanently contributes a phantom origin.
+    let mut aliases: WindowAliases = borrowed_parameters
+        .iter()
+        .map(|place| (*place, BTreeSet::new()))
+        .collect();
     loop {
         let mut expanded = aliases.clone();
         for block in &machine.blocks {
@@ -102,7 +108,7 @@ pub(super) fn window_aliases(module: &TerminalModule, machine: &TerminalMachine)
                 if !borrowed_parameters.contains(&parameter.place) {
                     continue;
                 }
-                let mut sources = expanded.remove(&parameter.place).unwrap_or_default();
+                let mut sources = bound_sources(&expanded, parameter.place);
                 for predecessor in &machine.blocks {
                     match &predecessor.terminator {
                         Terminator::Jump {
@@ -350,6 +356,38 @@ fn regions_overlap(
     region.starts_with(hole) || hole.starts_with(region)
 }
 
+/// Possible origins are sufficient to reject interfering access, but not to
+/// establish that a replacement restores the particular carrier we vacated.
+fn regions_may_alias(
+    aliases: &WindowAliases,
+    left: PlaceId,
+    left_region: &[CanonicalStructuralPathSegment],
+    right: PlaceId,
+    right_region: &[CanonicalStructuralPathSegment],
+) -> bool {
+    let left_sources = expand_region(aliases, left, left_region.to_vec());
+    let right_sources = expand_region(aliases, right, right_region.to_vec());
+    left_sources.iter().any(|(left_root, left_path)| {
+        right_sources.iter().any(|(right_root, right_path)| {
+            left_root == right_root && regions_overlap(left_path, right_path)
+        })
+    })
+}
+
+fn overlapping_debt(
+    aliases: &WindowAliases,
+    frontier: &super::frontier::StructuralOwnershipFrontier,
+    place: PlaceId,
+    region: &[CanonicalStructuralPathSegment],
+) -> Option<PlaceId> {
+    frontier.restoration_debt.iter().find_map(|(root, holes)| {
+        holes
+            .keys()
+            .any(|hole| regions_may_alias(aliases, place, region, *root, hole))
+            .then_some(*root)
+    })
+}
+
 /// The frontier check every operation passes before its other custody
 /// effects: no spelled region may overlap a restoration hole open on the
 /// same resolved root. A region under the hole reaches absent storage; a
@@ -362,13 +400,8 @@ pub(super) fn check_operation(
     if frontier.restoration_debt.is_empty() {
         return Ok(());
     }
-    for (root, region) in touched_regions(walk.module, walk.machine, operation)
-        .iter()
-        .flat_map(|(place, region)| expand_region(walk.window_aliases, *place, region.clone()))
-    {
-        if let Some(holes) = frontier.restoration_debt.get(&root)
-            && holes.keys().any(|hole| regions_overlap(&region, hole))
-        {
+    for (place, region) in touched_regions(walk.module, walk.machine, operation) {
+        if let Some(root) = overlapping_debt(walk.window_aliases, frontier, place, &region) {
             return Err(ModuleError::BorrowedStorageFieldAbsent {
                 operation: operation.id,
                 place: root,
@@ -398,11 +431,7 @@ pub(super) fn apply_operation(
             // A second extraction overlapping an open hole — the same field
             // again or a nested subtree beneath it — reads storage that is
             // already absent.
-            if frontier.restoration_debt.get(&root).is_some_and(|holes| {
-                holes
-                    .keys()
-                    .any(|existing| regions_overlap(&hole, existing))
-            }) {
+            if overlapping_debt(walk.window_aliases, frontier, root, &hole).is_some() {
                 return Err(ModuleError::BorrowedStorageFieldAbsent {
                     operation: operation.id,
                     place: root,
@@ -411,19 +440,21 @@ pub(super) fn apply_operation(
             // A live reference carrier or claim inside the moving subtree
             // would leave the loan pointing at relocated storage.
             let observed = frontier.references.iter().any(|reference| {
-                reference.carrier == root
-                    && canonical_field_path(
-                        walk.module,
-                        walk.machine,
-                        reference.carrier,
-                        &reference.carrier_path,
-                    )
-                    .is_some_and(|slot| regions_overlap(&hole, &slot))
+                let slot = canonical_field_path(
+                    walk.module,
+                    walk.machine,
+                    reference.carrier,
+                    &reference.carrier_path,
+                )
+                .unwrap_or_default();
+                regions_may_alias(walk.window_aliases, root, &hole, reference.carrier, &slot)
             }) || frontier.claims.values().any(|claim| {
-                claim.input == Some(root)
-                    && canonical_field_path(walk.module, walk.machine, root, &claim.path)
-                        .unwrap_or_default()
-                        .starts_with(&hole)
+                claim.input.is_some_and(|input| {
+                    let region =
+                        canonical_field_path(walk.module, walk.machine, input, &claim.path)
+                            .unwrap_or_default();
+                    regions_may_alias(walk.window_aliases, root, &hole, input, &region)
+                })
             });
             if observed {
                 return Err(ModuleError::BorrowedStorageFieldAbsent {
@@ -462,7 +493,7 @@ pub(super) fn apply_operation(
                 .claims
                 .values()
                 .any(|claim| claim.input == Some(value.place))
-                || frontier.restoration_debt.contains_key(&value.place)
+                || overlapping_debt(walk.window_aliases, frontier, value.place, &[]).is_some()
             {
                 return Err(ModuleError::OwnedStructuralPlaceNotLiveAtOperation {
                     operation: operation.id,
@@ -582,10 +613,8 @@ fn declared_window_field_type(
 /// machine parameter (borrow authority, a transferable multiplicity, no
 /// qualifications or entry claims) or an owned home place this machine
 /// completed itself — an established record or structural leaf whose
-/// restoration debt is the same contract on owned storage. Block parameters
-/// are not roots — their aliased storage is reached through `window_aliases`
-/// instead.
-fn borrowed_window_root(
+/// restoration debt is the same contract on owned storage.
+fn direct_window_root(
     module: &TerminalModule,
     machine: &TerminalMachine,
     place: PlaceId,
@@ -609,6 +638,34 @@ fn borrowed_window_root(
         return Some(());
     }
     super::record::completed_source(module, machine, place).map(|_| ())
+}
+
+fn borrowed_window_root(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    place: PlaceId,
+) -> Option<()> {
+    if direct_window_root(module, machine, place).is_some() {
+        return Some(());
+    }
+    let parameter = super::block_views::parameter(machine, place)?;
+    if parameter.access != StructuralAccess::MutableBorrow
+        || !matches!(
+            parameter.multiplicity,
+            StructuralMultiplicity::Unrestricted | StructuralMultiplicity::Affine
+        )
+        || !parameter.qualifications.is_empty()
+        || !parameter.projected_qualifications.is_empty()
+    {
+        return None;
+    }
+    let aliases = window_aliases(module, machine);
+    let sources = aliases.get(&place)?;
+    (!sources.is_empty()
+        && sources
+            .iter()
+            .all(|(root, _)| direct_window_root(module, machine, *root).is_some()))
+    .then_some(())
 }
 
 /// Static shape of a `MoveStructuralField`: a structural result on a fresh
@@ -718,17 +775,11 @@ pub(super) fn check_edge_arguments(
     }
     for argument in arguments {
         let (place, region) = argument_region(module, machine, argument);
-        for (root, expanded) in expand_region(aliases, place, region) {
-            if frontier
-                .restoration_debt
-                .get(&root)
-                .is_some_and(|holes| holes.keys().any(|hole| regions_overlap(&expanded, hole)))
-            {
-                return Err(ModuleError::InvalidStructuralSuccessorArgument {
-                    edge,
-                    place: argument.place,
-                });
-            }
+        if overlapping_debt(aliases, frontier, place, &region).is_some() {
+            return Err(ModuleError::InvalidStructuralSuccessorArgument {
+                edge,
+                place: argument.place,
+            });
         }
     }
     Ok(())
@@ -745,13 +796,7 @@ pub(super) fn check_case_source(
     frontier: &super::frontier::StructuralOwnershipFrontier,
     aliases: &WindowAliases,
 ) -> Result<(), ModuleError> {
-    let observed = bound_sources(aliases, source).iter().any(|(root, prefix)| {
-        frontier
-            .restoration_debt
-            .get(root)
-            .is_some_and(|holes| holes.keys().any(|hole| regions_overlap(prefix, hole)))
-    });
-    if observed {
+    if overlapping_debt(aliases, frontier, source, &[]).is_some() {
         return Err(ModuleError::BorrowedStorageRestorationPending {
             machine: machine.id,
             block,
@@ -759,4 +804,51 @@ pub(super) fn check_case_source(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BTreeSet, CanonicalStructuralPathSegment, PlaceId, WindowAliases, regions_may_alias,
+    };
+    use semantic_vocabulary::StructuralFieldId;
+
+    #[test]
+    fn interference_resolves_both_carriers_and_preserves_projection_prefixes() {
+        let storage = PlaceId::new(1).unwrap();
+        let block_carrier = PlaceId::new(2).unwrap();
+        let other_carrier = PlaceId::new(3).unwrap();
+        let left = CanonicalStructuralPathSegment::Field(StructuralFieldId::new(1).unwrap());
+        let right = CanonicalStructuralPathSegment::Field(StructuralFieldId::new(2).unwrap());
+        let aliases = WindowAliases::from([
+            (
+                block_carrier,
+                BTreeSet::from([(storage, vec![left.clone()])]),
+            ),
+            (other_carrier, BTreeSet::from([(storage, Vec::new())])),
+        ]);
+        for observer in [storage, other_carrier] {
+            assert!(regions_may_alias(
+                &aliases,
+                observer,
+                std::slice::from_ref(&left),
+                block_carrier,
+                &[]
+            ));
+            assert!(regions_may_alias(
+                &aliases,
+                block_carrier,
+                &[],
+                observer,
+                std::slice::from_ref(&left)
+            ));
+            assert!(!regions_may_alias(
+                &aliases,
+                observer,
+                std::slice::from_ref(&right),
+                block_carrier,
+                &[]
+            ));
+        }
+    }
 }
