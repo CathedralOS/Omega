@@ -88,17 +88,17 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   `optimization-core` re-export is for Omega consumers, not a Psi dependency.
 
   The Terminal codec (ae970cc6c1), native-artifact semantic-wrapper
-  (ac20c488a9) and image-emission object/scalar-call/hosted/placement
-  (2e620b1271) families already run on the driver. Remaining: the image
-  crate's `executable_regions` and `footprint_certificate` tests (a staged
-  plan for their re-sealing legs and the
-  `initialized_data_envelope` exclusion is recorded on claim ticket
-  61fd07e264d6474098b7bf11edd01560), and provider-evidence's
-  `component_era_entry_ledger/custody.rs` (its replays produce diagnostic
-  strings, not an exact error type — pin a checkable judgment first).
-  Recheck surviving selected-dispatch source-edit matrices and any custody
-  families formerly owned by compiler tests before scheduling a migration:
-  deleted test targets do not establish equivalent coverage.
+  (ac20c488a9), image-emission object/scalar-call/hosted/placement
+  (2e620b1271), image-crate executable/data-region and footprint-certificate
+  (af926ae2) and provider-evidence component-era entry-ledger (cef536a369)
+  families all run on the driver — the ledger first pinned typed rejection
+  enums where its replays produced only diagnostic strings.
+  `initialized_data_envelope` stays hand-written because its public API
+  cannot recompute the inventory identity. Remaining: recheck surviving
+  selected-dispatch source-edit matrices and any custody families formerly
+  owned by compiler tests before scheduling a migration — deleted test
+  targets do not establish equivalent coverage — then run the audit the
+  acceptance names over inventories without matrix or driver consumers.
 
   The codec's float-meaning, proof-section, recursive-component and root-handoff
   matrices already use the shared driver, as do build-output, package review
@@ -142,9 +142,11 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     multi-recovery composition still goes through the same route and
     independent replay.
   - Slot reuse: emitted recovery uses eight-byte `LocalStorageSlotId::Spill`
-    homes. `rewrites/runtime_spill/slot.rs` reuses a slot only when last-writer
-    replay proves noninterleaving windows for its supported store/load forms.
-    Generalize interval-based reuse on this physical route. The separate
+    homes. `rewrites/runtime_spill/slot.rs` now reuses incumbent slots at
+    storage-window granularity (6516219849): a reaching-definition fixpoint
+    over pending stores unions observed definitions into windows, each window
+    picks a fitting incumbent, and values without one take private slots;
+    replay recomputes the assignment independently. The separate
     `assignment/stack_slot_coloring` and logical-spill boundaries have no
     sequenced runtime caller; do not mistake their validated plans for physical
     input or restore the removed logical-plan join. Retire superseded
@@ -197,9 +199,15 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   pressure across existing tied/edge-transfer domains, without inserting new
   split copies. Runtime recovery tries rematerialization and spilling; it
   does not implement arbitrary pressure-chosen splits. Recompute liveness,
-  ranges and legality after changing the selected graph. Extend the fixed-split
-  path's tied-register, early-clobber, multiple-incoming-connector and cyclic
-  restrictions while preserving exact register-unit aliases and target custody.
+  ranges and legality after changing the selected graph. Early-clobber
+  participants are admitted to fixed-split requirements (a0a624873e), and
+  the fixed-view copy source gate covers signed and unsigned 64-bit integers
+  (3f3832dd2d), so the signed-divide to shift-count shape that drove the
+  work now materializes; a scratch copy of it publishes a linux_x86_64 ELF
+  and `saturating_signed_divide_min_by_neg_one` itself runs exit 70 on macOS
+  ARM64. Extend the remaining tied-register, multiple-incoming-connector and
+  cyclic restrictions while preserving exact register-unit aliases and
+  target custody.
 
   Acceptance: a compiler-produced pressure customer demonstrates useful splits
   and copies before unnecessary storage. Split points and segment homes replay
@@ -320,8 +328,13 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     earlier, at the Terminal verifier's cyclic fence
     (`unranked_cycles.rs`), and `selected_evidence` carriers are unreachable
     from source inside loops (stage 04's `guarded_call_returns` builds only
-    whole-machine plans). New cyclic source operations must pass ordinary Psi
-    verification.
+    whole-machine plans). Whole-root Owned arguments produced by member
+    establishments (`EstablishRecord`, `EstablishCase`,
+    `EstablishScalarArray`, `CallStructural`) now copy into relocated calls
+    when the root is unrestricted, claim-free, qualification-free and
+    projection-free (0770fd8000); affine/linear, claimed, qualified and
+    projected roots still reject. New cyclic source operations must pass
+    ordinary Psi verification.
   - Structural predicates in crash-continuation rosters. All four call forms
     already re-derive supported rosters from verifier-owned callee contracts;
     structural-signature calls still require scalar-only predicates because
@@ -438,22 +451,18 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   rule by name in its build declaration, compiles, and runs to its authored
   exit result on a supported host.
 
-  Two relationships still exist only as descriptors and helper-tested
-  rewrites without execution:
-
-  - `condition_materialization` retires decided flag uses, preserves the
-    required unit traffic, and rewrites into a boolean result. `terminator_pair`
-    is done this way (a6268b2b4c): its nine decided-branch rules moved into
-    `rewrites/constant_branch/pair.rs` and now drive
-    `SelectedConstantBranchFoldV1`, with admission and replay cross-checking
-    the machine-effect catalog. Move `condition_materialization` into
-    `rewrites/constant_boolean` on the same route.
-  - `projected_access` carries pointer reads/writes and preserves architectural
-    faults while absorbing an address displacement. The evidence matrix
-    records that `SelectedAddressOffsetFoldV1` can never commit on
-    compiler-emitted plans today (its producer needs consumers such as
-    `Load8Indexed`, `ByteViewAddress`, `CopyBytes` and slot `Store64`); the
-    descriptor stays staged until that production exists.
+  `terminator_pair` (a6268b2b4c) and `condition_materialization`
+  (48c44018a6) are both done this way: their descriptors moved into
+  `rewrites/constant_branch` and `rewrites/constant_boolean` and drive
+  `SelectedConstantBranchFoldV1` and the executed constant-boolean fold,
+  with admission and replay cross-checking the machine-effect catalog.
+  `projected_access` is the last descriptor-only family: it carries pointer
+  reads/writes and preserves architectural faults while absorbing an
+  address displacement. The evidence matrix records that
+  `SelectedAddressOffsetFoldV1` can never commit on compiler-emitted plans
+  today (its producer needs consumers such as `Load8Indexed`,
+  `ByteViewAddress`, `CopyBytes` and slot `Store64`); the descriptor stays
+  staged until that production exists.
 
   Complete catalog discovery, application and publication for those dimensions
   before claiming them closed. Tied operands and further hosted-trap relationships
@@ -552,9 +561,11 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   `StructuralCaseMembership` cannot reach stage 01 from any current source
   form, fixed-index integer reads on unestablished parameters decline by
   contract, and bounded indexed reads stop at stage 05's authored-binding
-  check. Still missing: a `Case` path step for membership through a payload
-  copy, ordinary-path copies (need field-name-to-id mapping first), and
-  call-produced children (INTERPROCEDURAL-SUMMARIES).
+  check. Membership now crosses case-payload copies (2c086a6a): `PathStep`
+  mixes ordinary structural steps with canonical copy-crossing steps and
+  `Position` carries case payload-field rosters, in admission and replay.
+  Still missing: ordinary-path copies (need field-name-to-id mapping first)
+  and call-produced children (INTERPROCEDURAL-SUMMARIES).
 
   Borrowed restoration windows already reach abstract operations as
   `MoveStructuralField`/`StoreStructuralField`; uniform-binding proofs reject
@@ -668,8 +679,13 @@ physical route. Unsupported cases reject rather than restoring a fallback.
   version and profile, an expected-exit mismatch refuses the measurement, the
   package review settles the requested target's document, and host legs stay
   pending until a measured runtime retires them (Intel macOS uses its
-  canonical label). No /2 record is committed yet — the committed corpus is
-  still /1.
+  canonical label). The first /2 rows are committed at d630b0a1e5 on macOS
+  ARM64: `prime_counter` (exit 8), `cli_mvp` (exit 0),
+  `wrapping_square_sum`'s authored six-rule selection (exit 0), and
+  compile-only `standalone` and `structural_proofs`. Settlement now judges
+  `omega.lock`'s presence rather than the resume command's exit, which
+  reported "no pending package review" for dependency-free subjects after
+  the first update already published the lock.
 
   Remaining runtime legs: Linux ARM64, Windows x64, Intel macOS and an applicable
   UEFI subject on QEMU/hardware. Exercise Windows job-object peak-memory
