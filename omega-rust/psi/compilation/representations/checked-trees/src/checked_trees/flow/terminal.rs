@@ -11,7 +11,8 @@
 //! `affine_cleanup_plans.rs` carries affine cleanup and `unit_plans.rs` names
 //! the one Unit-bodied plan a machine carries across the cleanup and control
 //! rosters, `result_binding_plans.rs` carries result bindings,
-//! `unit_effect_plans.rs` carries effect operations and
+//! `unit_effect_plans.rs` carries effect operations, `unit_call_view.rs`
+//! borrows the fields their six call variants share,
 //! `boundary_machine_plans.rs` carries boundary machines and `atomic_plans.rs`
 //! carries normalized atomic events.
 
@@ -29,6 +30,7 @@ mod structural_return;
 mod structural_return_plans;
 mod structural_type_plans;
 mod terminal_selections;
+mod unit_call_view;
 mod unit_effect_plans;
 mod unit_plans;
 
@@ -115,6 +117,7 @@ pub use terminal_selections::{
     CheckedTerminalMachineSelections, CheckedTerminalSignatureEligibility,
     CheckedTerminalStateDebugPlan,
 };
+pub use unit_call_view::{CheckedUnitCallResult, CheckedUnitCallView};
 pub use unit_effect_plans::{
     CheckedStructuralValueCall, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEffectPlans, CheckedUnitPlanOmission, CheckedUnitPlanOmissionStage,

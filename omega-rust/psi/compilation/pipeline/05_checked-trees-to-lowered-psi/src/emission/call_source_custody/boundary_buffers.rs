@@ -20,29 +20,14 @@ pub(super) fn validate(
     call: &authored::AuthoredCall,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let arguments = match operation {
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => return Ok(()),
+    // Every call but an ordinary scalar call replays its byte loans here.
+    let Some(planned) = operation
+        .call()
+        .filter(|_| !matches!(operation, CheckedUnitEffectOperationPlan::ScalarCall { .. }))
+    else {
+        return Ok(());
     };
+    let arguments = planned.structural_arguments();
     let (machine, state) =
         crate::expression_preparation::source_custody::authored_state(checked, caller_state)?;
     let signature = authored::target_signature(checked, machine.symbol, call.source_target)?;

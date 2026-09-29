@@ -9,33 +9,10 @@ pub(super) fn validate(
     authored: &authored::AuthoredCall,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let arguments = match operation {
-        CheckedUnitEffectOperationPlan::CallUnit {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::ScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::StructuralCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            structural_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            structural_arguments,
-            ..
-        } => structural_arguments,
-        _ => return Ok(()),
+    let Some(planned) = operation.call() else {
+        return Ok(());
     };
+    let arguments = planned.structural_arguments();
     if !arguments
         .iter()
         .any(|argument| argument.byte_sequence_literal().is_some())

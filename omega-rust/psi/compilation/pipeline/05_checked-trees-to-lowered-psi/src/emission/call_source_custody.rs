@@ -90,31 +90,11 @@ pub(crate) fn validate_store_and_initializer_calls(
             statement_index,
             call_ordinal: 0,
         };
-        let mut owners =
-            plan.operations
-                .iter()
-                .enumerate()
-                .filter(|(_, operation)| match operation {
-                    CheckedUnitEffectOperationPlan::CallUnit {
-                        coordinate: actual, ..
-                    }
-                    | CheckedUnitEffectOperationPlan::BoundaryCall {
-                        coordinate: actual, ..
-                    }
-                    | CheckedUnitEffectOperationPlan::ScalarCall {
-                        coordinate: actual, ..
-                    }
-                    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-                        coordinate: actual,
-                        ..
-                    }
-                    | CheckedUnitEffectOperationPlan::StructuralCall {
-                        coordinate: actual, ..
-                    }
-                    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-                        coordinate: actual,
-                        ..
-                    } => *actual == coordinate,
+        let mut owners = plan.operations.iter().enumerate().filter(|(_, operation)| {
+            operation
+                .call()
+                .is_some_and(|call| call.coordinate() == coordinate)
+                || match operation {
                     CheckedUnitEffectOperationPlan::EstablishScalarLocal {
                         result,
                         value: checked_trees::CheckedCallScalarArgument::Computation(_),
@@ -143,7 +123,8 @@ pub(crate) fn validate_store_and_initializer_calls(
                             })
                     }
                     _ => false,
-                });
+                }
+        });
         let Some((operation_index, owner)) = owners.next() else {
             return unsupported("Unit body omits or duplicates an authored call");
         };
@@ -313,92 +294,16 @@ pub(crate) fn validate_operation(
             }
         }
     }
-    let (
-        coordinate,
-        target_machine,
-        target_state,
-        arguments,
-        erased_arguments,
-        boundary,
-        source_site,
-    ) = match operation {
-        CheckedUnitEffectOperationPlan::CallUnit {
-            coordinate,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            erased_scalar_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::ScalarCall {
-            coordinate,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            erased_scalar_arguments,
-            ..
-        } => (
-            coordinate,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            erased_scalar_arguments.as_slice(),
-            false,
-            None,
-        ),
-        CheckedUnitEffectOperationPlan::StructuralCall {
-            coordinate,
-            source_site,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            erased_scalar_arguments,
-            ..
-        } => (
-            coordinate,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            erased_scalar_arguments.as_slice(),
-            false,
-            Some(source_site),
-        ),
-        CheckedUnitEffectOperationPlan::BoundaryCall {
-            coordinate,
-            source_site,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-            coordinate,
-            source_site,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            ..
-        }
-        | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-            coordinate,
-            source_site,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            ..
-        } => (
-            coordinate,
-            target_machine,
-            target_state,
-            scalar_arguments,
-            &[][..],
-            true,
-            Some(source_site),
-        ),
-        // Selected operators retain their own exact provider application;
-        // they are not authored calls with positional argument facts.
-        _ => return Ok(()),
+    // Selected operators retain their own exact provider application;
+    // they are not authored calls with positional argument facts.
+    let Some(planned) = operation.call() else {
+        return Ok(());
     };
+    let coordinate = planned.coordinate();
+    let arguments = planned.scalar_arguments();
+    // A boundary call retains no erased lane.
+    let erased_arguments = planned.erased_scalar_arguments().unwrap_or_default();
+    let boundary = planned.is_boundary();
     if matches!(
         operation,
         CheckedUnitEffectOperationPlan::ScalarCall { .. }
@@ -412,18 +317,21 @@ pub(crate) fn validate_operation(
             )
         })
     {
-        initializers::validate(checked, caller_machine, caller_state, *coordinate)?;
+        initializers::validate(checked, caller_machine, caller_state, coordinate)?;
     }
     let call = authored::locate(
         checked,
         caller_machine,
         caller_state,
-        *coordinate,
-        *target_machine,
-        *target_state,
+        coordinate,
+        planned.target_machine(),
+        planned.target_state(),
     )?;
+    // Unit and scalar calls retain no site to compare.
     if call.boundary != boundary
-        || source_site.is_some_and(|site| *site != call.source_site)
+        || planned
+            .source_site()
+            .is_some_and(|site| site != call.source_site)
         || call.scalar_arguments.len() != arguments.len() + erased_arguments.len()
     {
         return unsupported("call operands disagree with their authored call site or signature");
@@ -433,7 +341,7 @@ pub(crate) fn validate_operation(
         checked,
         caller_state,
         caller_parameters,
-        *coordinate,
+        coordinate,
         &call,
         operation,
     )?;
@@ -569,33 +477,10 @@ fn validate_owned_parameter_arguments(
     call: &authored::AuthoredCall,
     operation: &CheckedUnitEffectOperationPlan,
 ) -> Result<(), LoweringError> {
-    let (CheckedUnitEffectOperationPlan::CallUnit {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::ScalarCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::StructuralCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryScalarCall {
-        structural_arguments,
-        ..
-    }
-    | CheckedUnitEffectOperationPlan::BoundaryStructuralCall {
-        structural_arguments,
-        ..
-    }) = operation
-    else {
+    let Some(planned) = operation.call() else {
         return Ok(());
     };
+    let structural_arguments = planned.structural_arguments();
     if !structural_arguments.iter().any(|argument| {
         argument.source_parameter_index().is_some()
             && argument.access == checked_trees::CheckedStructuralAccess::Owned
