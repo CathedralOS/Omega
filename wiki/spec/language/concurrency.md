@@ -29,7 +29,8 @@ by ordinary atomics and admitted placed accessors:
 
 [Placed access](../resources/placed_access.md#atomic-compare-exchange-outcomes)
 owns the exact outcome types, canonical cases, resident-custody rules, and
-operation-specific conformance. All receivers are shared. Fixed representation,
+operation-specific conformance. The explicit parameter providing access to the
+atomic storage is shared. Fixed representation,
 admitted width/alignment, total decode/encode, and round-trip laws remain
 operation requirements; arithmetic capability cannot manufacture hardware
 support. Exact-forwarding wrappers may derive conformance mechanically; other
@@ -130,7 +131,7 @@ Fairness and other positive progress depend on exact selected provider evidence,
 not service reach or absence of blocking.
 
 There is no ambient environment-premise syntax or graph-shaped reach row.
-Ownership/access, receiver polarity, handle multiplicity, claims, and synchronous
+Parameter ownership/access, handle multiplicity, claims, and synchronous
 `invokes` edges constrain admitted topology. When a concrete customer requires
 whole-composition proof, a sealed erased model must additionally retain activation
 creation, resource identities, wait/wake edges, priorities, placement, and
