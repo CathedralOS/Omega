@@ -1,0 +1,24 @@
+// `s <= 254` on a u8 is NOT vacuous (the carrier reaches 255) and stays
+// unproven without evidence.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine echo(scale: u8) -> u8
+requires scale <= 254u8
+{
+    transition { _ -> (scale) }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let s: u8 = self.opaque();
+    let r: u8 = echo(s);
+    self.console.exit_process(70);
+}
+
+machine Main::opaque(&mut self) -> u8 {
+    transition { _ -> (4u8) }
+}

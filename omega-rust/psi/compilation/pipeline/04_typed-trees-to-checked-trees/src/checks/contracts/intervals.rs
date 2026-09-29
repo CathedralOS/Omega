@@ -102,6 +102,27 @@ pub(super) fn negated_guard_interval_for_label(
     }
 }
 
+/// The closed interval a requires-style comparison DEMANDS of its subject --
+/// the goal side of the same endpoint table `comparison_bound` uses for
+/// evidence. The subject is the operand that is not a closed integer literal;
+/// a conjunct that puts subjects on both sides has no closed goal interval and
+/// declines, as does a comparison of two literals (the closed evaluator owns
+/// that fold).
+pub(super) fn required_comparison_interval(
+    program: &typed_trees::TypedTrees,
+    binary: &typed_trees::expression::TableBinaryExpression,
+) -> Option<(ExpressionHandle, BigInt, BigInt)> {
+    let left_literal = validation::closed_integer_range_bound(program, binary.left);
+    let right_literal = validation::closed_integer_range_bound(program, binary.right);
+    let (subject, subject_on_left, value) = match (left_literal, right_literal) {
+        (Some(value), None) => (binary.right, false, value),
+        (None, Some(value)) => (binary.left, true, value),
+        _ => return None,
+    };
+    let (low, high) = endpoints(binary.operator, subject_on_left, value);
+    Some((subject, low, high))
+}
+
 /// One comparison's contribution, when exactly one side is the subject and the
 /// other is a closed integer literal.
 fn comparison_bound(

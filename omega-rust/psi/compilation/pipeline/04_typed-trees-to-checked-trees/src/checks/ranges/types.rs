@@ -4,6 +4,7 @@
 //! both reject a valid index and borrow another record's range to admit an
 //! invalid one. Ordinary projections retain this checker's scoped root lookup.
 
+use numerics::bignum::BigInt;
 use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
@@ -35,7 +36,7 @@ pub(super) fn expression_is_unsigned_integer(
 /// separate from declared refinements: Wrapping does not enforce a declared
 /// interval, but its u8 result still cannot exceed 255. Signed nonnegativity
 /// remains a separate obligation at the access.
-pub(super) fn expression_integer_carrier_maximum(
+pub(in crate::checks) fn expression_integer_carrier_maximum(
     program: &typed_trees::TypedTrees,
     machine: &Machine,
     state: &State,
@@ -52,6 +53,30 @@ pub(super) fn expression_integer_carrier_maximum(
         PrimitiveType::I16 => u64::try_from(i16::MAX).ok(),
         PrimitiveType::I32 => u64::try_from(i32::MAX).ok(),
         PrimitiveType::I64 => u64::try_from(i64::MAX).ok(),
+        PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::F32 | PrimitiveType::F64 => None,
+    }
+}
+
+/// The carrier floor symmetric to `expression_integer_carrier_maximum`:
+/// unsigned carriers bottom at 0 and signed ones at their type minimum.
+/// BigInt so `i64::MIN` and every unsigned bound share one comparison type.
+/// Non-integer carriers contribute no floor.
+pub(in crate::checks) fn expression_integer_carrier_minimum(
+    program: &typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<BigInt> {
+    let reference =
+        validation::expression_result_type_reference(program, machine, state, expression)?;
+    match program.primitive_type_reference(reference)? {
+        PrimitiveType::U8 | PrimitiveType::U16 | PrimitiveType::U32 | PrimitiveType::U64 => {
+            Some(BigInt::from_u64(0))
+        }
+        PrimitiveType::I8 => Some(BigInt::from_i64(i64::from(i8::MIN))),
+        PrimitiveType::I16 => Some(BigInt::from_i64(i64::from(i16::MIN))),
+        PrimitiveType::I32 => Some(BigInt::from_i64(i64::from(i32::MIN))),
+        PrimitiveType::I64 => Some(BigInt::from_i64(i64::MIN)),
         PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::F32 | PrimitiveType::F64 => None,
     }
 }
@@ -243,7 +268,6 @@ fn enforced_range_of_type_reference(
     program: &typed_trees::TypedTrees,
     mut handle: TypeReferenceHandle,
 ) -> Option<(i64, i64)> {
-    use numerics::bignum::BigInt;
     let mut bounds: Option<(BigInt, BigInt)> = None;
     loop {
         match program.type_reference_table.type_reference(handle) {

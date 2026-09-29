@@ -1,0 +1,31 @@
+// A requires clause written `1 <= scale` while the caller's guard proves
+// `scale >= 1` -- the operand-flipped spelling of the one bound.
+use omega_language_std::console;
+use omega::language::core::binding;
+
+machine rounded(value: u64, scale: u64) -> u64
+requires 1 <= scale
+{
+    transition { _ -> (value / scale) }
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let s: u64 = self.opaque();
+    transition s >= 1 {
+        true -> run(s)
+        _ -> self.bad()
+    }
+    state run(&mut self, s: u64) {
+        let r: u64 = rounded(10, s);
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::opaque(&mut self) -> u64 {
+    transition { _ -> (4u64) }
+}
