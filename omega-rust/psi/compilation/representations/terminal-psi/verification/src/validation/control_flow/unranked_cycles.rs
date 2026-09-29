@@ -882,6 +882,14 @@ fn cycle_operation_eligible(
                                     argument.place,
                                 )
                                 .is_some()))
+                            // Like an internal call, a boundary may borrow a
+                            // produced home for this call only. Ordinary
+                            // argument checking retains type/access, producer
+                            // dominance and live-storage authority; result
+                            // disposal and completion receipts remain fenced
+                            // above, independently of the source's spelling.
+                            || (argument.path.is_empty()
+                                && borrows_operation_result(machine, argument))
                             || byte_field_boundary_loan(module, machine, argument, expected)
                     },
                 )
