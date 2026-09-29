@@ -294,7 +294,7 @@ pub(super) fn is_fixed_array_value(
 /// The element type of an owned or borrowed contiguous collection place.
 /// A fixed array declares its extent and a slice carries a stored one; both
 /// lend the same elements, so both can back a view.
-fn lent_collection_element(
+pub(super) fn lent_collection_element(
     program: &TypedTrees,
     mut type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {
@@ -421,7 +421,7 @@ fn projected_leaf_type(
 /// exactly the carrier `borrowed_place` can rebuild into a `SharedBorrow`
 /// source -- a computed root cannot be re-derived at replay, and a dynamic
 /// index or range segment has no statically checkable ordinal.
-fn canonical_place_is_borrowable(place: &crate::flow::CanonicalPlace) -> bool {
+pub(super) fn canonical_place_is_borrowable(place: &crate::flow::CanonicalPlace) -> bool {
     matches!(place.root, facts::PlaceRoot::Symbol(_))
         && place.segments.iter().all(|segment| {
             matches!(
@@ -793,7 +793,10 @@ impl Builder<'_, '_> {
             && let Some(argument) = self.owned_record_place(expression, expected)
         {
             CheckedStructuralValueKind::Place(argument)
-        } else if let Some(view) = self.borrowed_slice_view_place(expression, expected) {
+        } else if let Some(view) = self
+            .borrowed_slice_view_place(expression, expected)
+            .or_else(|| self.mutable_slice_view_place(expression, expected))
+        {
             // A view's authored producer is spelled as a call but establishes
             // no call result: it lends storage that already exists. Classify
             // it before the ordinary call-result branch, which would otherwise

@@ -72,7 +72,8 @@ pub(crate) fn aliases(
     // which may already name a descriptor or one of its later subslices.
     for operation in machine.blocks.iter().flat_map(|block| &block.operations) {
         let source = match &operation.kind {
-            OperationKind::EstablishElementView { source, .. } => source.place,
+            OperationKind::EstablishElementView { source, .. }
+            | OperationKind::EstablishMutableElementView { source, .. } => source.place,
             OperationKind::ElementViewSubslice { source, .. } => *source,
             _ => continue,
         };

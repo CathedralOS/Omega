@@ -652,6 +652,7 @@ pub(super) fn append_operation(
         | OperationKind::ByteSequenceWrite { .. }
         | OperationKind::ByteSequenceSubslice { .. }
         | OperationKind::EstablishElementView { .. }
+        | OperationKind::EstablishMutableElementView { .. }
         | OperationKind::ElementViewLength { .. }
         | OperationKind::ElementViewRead { .. }
         | OperationKind::ElementViewWrite { .. }

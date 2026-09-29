@@ -106,6 +106,11 @@ pub(super) fn validate_block(
             operation,
             &available_structural,
         )?;
+        crate::validation::element_view::mutable_establishment::validate_uses(
+            machine,
+            operation,
+            &available_structural,
+        )?;
         crate::validation::element_view::subslice::validate_uses(
             module,
             machine,

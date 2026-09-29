@@ -443,6 +443,17 @@ pub enum OperationKind {
         source: StructuralArgument,
         element: StructuralTypeId,
     },
+    /// Establish one mutably borrowed element view over the contiguous
+    /// elements of a structural collection place. The result carries the
+    /// collection's own stored extent under a mutable loan; no elements copy.
+    /// `source` names the collection root and projection under mutable-borrow
+    /// access, and `element` is the view's declared element type, which must
+    /// equal the collection's own element type at the path end.
+    EstablishMutableElementView {
+        destination: PlaceId,
+        source: StructuralArgument,
+        element: StructuralTypeId,
+    },
     /// Observe the exact element count of one whole borrowed element view.
     /// The result is unsigned 64-bit; the source place and its custody remain
     /// unchanged.
@@ -1024,6 +1035,7 @@ impl OperationKind {
             | Self::EstablishByteSequenceLiteral { .. }
             | Self::ByteSequenceLength { .. }
             | Self::EstablishElementView { .. }
+            | Self::EstablishMutableElementView { .. }
             | Self::ElementViewLength { .. }
             | Self::StructuralByteSequenceFieldLength { .. }
             | Self::EstablishTrivialAffineLocal { .. }

@@ -317,6 +317,37 @@ pub(super) fn decode_establish_element_view(
     })
 }
 
+/// A mutable element view carries the same wire shape as its shared sibling;
+/// the tag alone selects which loan the establishment grants.
+pub(super) fn encode_establish_mutable_element_view(
+    writer: &mut Writer,
+    destination: PlaceId,
+    source: StructuralArgument,
+    element: semantic_vocabulary::StructuralTypeId,
+) -> Result<(), CodecError> {
+    writer.u8(operation_tags::ESTABLISH_MUTABLE_ELEMENT_VIEW);
+    writer.id(destination);
+    writer.id(source.place);
+    super::super::structural_signature_wire::encode_structural_access(writer, source.access);
+    encode_structural_path(writer, "mutable element view source path", &source.path)?;
+    writer.id(element);
+    Ok(())
+}
+
+pub(super) fn decode_establish_mutable_element_view(
+    reader: &mut Reader<'_>,
+) -> Result<OperationKind, CodecError> {
+    Ok(OperationKind::EstablishMutableElementView {
+        destination: reader.id("PlaceId")?,
+        source: terminal_psi::StructuralArgument {
+            place: reader.id("PlaceId")?,
+            access: super::super::structural_signature_wire::decode_structural_access(reader)?,
+            path: decode_structural_path(reader)?,
+        },
+        element: reader.id("StructuralTypeId")?,
+    })
+}
+
 pub(super) fn encode_element_view_length(
     writer: &mut Writer,
     source: PlaceId,

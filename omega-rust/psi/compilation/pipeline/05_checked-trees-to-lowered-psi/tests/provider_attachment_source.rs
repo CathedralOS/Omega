@@ -62,7 +62,10 @@ fn namespace_requirement_composes_without_an_invented_attachment() {
         panic!("one exact namespace operator requirement");
     };
     assert!(boundary.attachment.is_none(), "no invented attachment");
-    assert!(boundary.structural_parameters.is_empty(), "no invented self");
+    assert!(
+        boundary.structural_parameters.is_empty(),
+        "no invented self"
+    );
     terminal_verifier::verify_module(
         &lowered.semantic_module,
         &lowered.proof_bundle,

@@ -38,6 +38,7 @@ mod call_arguments;
 mod cases;
 mod dispatch;
 mod integers;
+mod mutable_slice_view;
 mod normal_return;
 mod structural_fields;
 mod structural_values;

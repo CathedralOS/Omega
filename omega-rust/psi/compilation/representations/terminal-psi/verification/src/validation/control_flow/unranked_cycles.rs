@@ -244,6 +244,11 @@ fn operation_leaves_custody(
             destination,
             source,
             ..
+        }
+        | OperationKind::EstablishMutableElementView {
+            destination,
+            source,
+            ..
         } => clears(*destination) && clears(source.place),
         OperationKind::StructuralByteSequenceFieldByteStore { destination, .. }
         | OperationKind::WriteOnlyPrimitiveStore { destination, .. }
@@ -1022,6 +1027,12 @@ fn cycle_operation_eligible(
         OperationKind::EstablishElementView { .. } | OperationKind::ElementViewSubslice { .. } => {
             operation.result.structural().is_some_and(|result| {
                 crate::validation::element_view::subslice::borrowed_result(machine, result.place)
+                    == Some(result)
+            })
+        }
+        OperationKind::EstablishMutableElementView { .. } => {
+            operation.result.structural().is_some_and(|result| {
+                crate::validation::element_view::write::mutable_result(machine, result.place)
                     == Some(result)
             })
         }

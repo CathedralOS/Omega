@@ -2749,6 +2749,45 @@ pub(crate) fn borrowed_slice_view_element(
     }
 }
 
+/// The element of a mutable `&mut [T]` view. The carrier shape is the shared
+/// sibling's exactly — one reference shell over a non-byte slice — with the
+/// access side flipped: the loan is exclusive, so the view's writes and
+/// element borrows reach the lent storage rather than a snapshot.
+pub(crate) fn mutable_slice_view_element(
+    program: &TypedTrees,
+    mut type_reference: TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> Option<TypeReferenceHandle> {
+    let mut borrowed = false;
+    loop {
+        match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Named { symbol, .. } => {
+                let (_, replacement) = substitutions
+                    .iter()
+                    .rev()
+                    .find(|(parameter, _)| parameter == symbol)?;
+                if *replacement == type_reference {
+                    return None;
+                }
+                type_reference = *replacement;
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => type_reference = *base_type,
+            TypeReferenceNode::Reference {
+                access, referee, ..
+            } if !borrowed && *access == language_semantics::ReferenceAccess::Mutable => {
+                borrowed = true;
+                type_reference = *referee;
+            }
+            TypeReferenceNode::Slice { element_type } if borrowed => {
+                return (program.primitive_type_reference(*element_type)
+                    != Some(PrimitiveType::U8))
+                .then_some(*element_type);
+            }
+            _ => return None,
+        }
+    }
+}
+
 /// A `&[T]` declared result type, either view family. The byte element's
 /// `BorrowedView` carrier and the non-byte element's identity share the same
 /// reference-peeling shape; an owned-view `&mut` result stays with the

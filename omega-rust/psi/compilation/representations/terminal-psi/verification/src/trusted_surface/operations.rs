@@ -41,6 +41,7 @@ const VAL_ELEMENTS_ESTABLISH: &str = "omega-rust/psi/compilation/representations
 const VAL_ELEMENTS_LENGTH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/length.rs";
 const VAL_ELEMENTS_READ: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/read.rs";
 const VAL_ELEMENTS_WRITE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/write.rs";
+const VAL_ELEMENTS_MUTABLE_ESTABLISH: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/mutable_establishment.rs";
 const VAL_ELEMENTS_SUBSLICE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/validation/element_view/subslice.rs";
 const OP_FACTS_RECORD: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/record.rs";
 const OP_FACTS_SCALAR_CASE: &str = "omega-rust/psi/compilation/representations/terminal-psi/verification/src/verification/reconstruction/operation_facts/scalar_case.rs";
@@ -567,6 +568,20 @@ static OP_ESTABLISH_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
         OP_FACTS,
         VAL_OPS,
         VAL_ELEMENTS_ESTABLISH,
+    ],
+);
+static OP_ESTABLISH_MUTABLE_ELEMENT_VIEW: TrustedSurfaceEntry = entry(
+    "operation:establish-mutable-element-view",
+    "a validated mutable element-view establishment over a contiguous collection",
+    "the establishment observation; it invalidates nothing and publishes no scalar equation",
+    EFFECT_DEPS,
+    &[
+        VOCAB,
+        TS_ROWS,
+        TS_SE,
+        OP_FACTS,
+        VAL_OPS,
+        VAL_ELEMENTS_MUTABLE_ESTABLISH,
     ],
 );
 static OP_ELEMENT_VIEW_LENGTH: TrustedSurfaceEntry = entry(
@@ -1191,6 +1206,7 @@ pub static ENTRIES: &[TrustedSurfaceEntry] = &[
     OP_BYTE_SEQUENCE_READ,
     OP_BYTE_SEQUENCE_SUBSLICE,
     OP_ESTABLISH_ELEMENT_VIEW,
+    OP_ESTABLISH_MUTABLE_ELEMENT_VIEW,
     OP_ELEMENT_VIEW_LENGTH,
     OP_ELEMENT_VIEW_READ,
     OP_ELEMENT_VIEW_WRITE,
@@ -1290,6 +1306,7 @@ pub fn operation_schema_entry(tag: OperationSemanticTag) -> &'static TrustedSurf
         OperationSemanticTag::ByteSequenceRead => &OP_BYTE_SEQUENCE_READ,
         OperationSemanticTag::ByteSequenceSubslice => &OP_BYTE_SEQUENCE_SUBSLICE,
         OperationSemanticTag::EstablishElementView => &OP_ESTABLISH_ELEMENT_VIEW,
+        OperationSemanticTag::EstablishMutableElementView => &OP_ESTABLISH_MUTABLE_ELEMENT_VIEW,
         OperationSemanticTag::ElementViewLength => &OP_ELEMENT_VIEW_LENGTH,
         OperationSemanticTag::ElementViewRead => &OP_ELEMENT_VIEW_READ,
         OperationSemanticTag::ElementViewWrite => &OP_ELEMENT_VIEW_WRITE,

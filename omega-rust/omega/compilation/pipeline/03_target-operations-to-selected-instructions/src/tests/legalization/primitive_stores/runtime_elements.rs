@@ -911,9 +911,7 @@ fn a_runtime_element_case_membership_reads_the_declared_tag_through_every_replay
             .iter()
             .position(|access| {
                 access.origin
-                    == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation(
-                        READ,
-                    ))
+                    == selected_instructions::SelectedMemoryAccessOrigin::Operation(operation(READ))
             })
             .expect("the tag read's footprint");
         let access = &selected.plan().functions[0].memory_accesses[position];

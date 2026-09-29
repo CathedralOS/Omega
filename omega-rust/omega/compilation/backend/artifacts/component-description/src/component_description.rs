@@ -735,6 +735,7 @@ pub(crate) fn derive_component_inventory(
                     | OperationKind::ByteSequenceWrite { .. }
                     | OperationKind::ByteSequenceSubslice { .. }
                     | OperationKind::EstablishElementView { .. }
+                    | OperationKind::EstablishMutableElementView { .. }
                     | OperationKind::ElementViewLength { .. }
                     | OperationKind::ElementViewRead { .. }
                     | OperationKind::ElementViewWrite { .. }

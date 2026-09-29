@@ -221,6 +221,22 @@ pub(super) fn register_custody_operation(
         )?;
         return Ok(true);
     }
+    if let OperationKind::EstablishMutableElementView {
+        destination,
+        source,
+        element,
+    } = &operation.kind
+    {
+        super::super::element_view::mutable_establishment::validate_establishment(
+            module,
+            machine,
+            operation,
+            *destination,
+            source,
+            *element,
+        )?;
+        return Ok(true);
+    }
     if matches!(operation.kind, OperationKind::MoveStructuralField { .. }) {
         super::super::borrowed_windows::validate_move_static(module, machine, operation)?;
         return Ok(true);

@@ -321,6 +321,16 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         } => {
             storage_operations::encode_establish_element_view(writer, destination, source, element)?
         }
+        OperationKind::EstablishMutableElementView {
+            destination,
+            source,
+            element,
+        } => storage_operations::encode_establish_mutable_element_view(
+            writer,
+            destination,
+            source,
+            element,
+        )?,
         OperationKind::ElementViewLength { source } => {
             storage_operations::encode_element_view_length(writer, source)?
         }
@@ -724,6 +734,9 @@ fn decode_operation(reader: &mut Reader<'_>) -> Result<Operation, CodecError> {
         }
         operation_tags::ESTABLISH_ELEMENT_VIEW => {
             storage_operations::decode_establish_element_view(reader)?
+        }
+        operation_tags::ESTABLISH_MUTABLE_ELEMENT_VIEW => {
+            storage_operations::decode_establish_mutable_element_view(reader)?
         }
         operation_tags::ELEMENT_VIEW_LENGTH => {
             storage_operations::decode_element_view_length(reader)?
@@ -1951,6 +1964,58 @@ mod tests {
             assert_eq!(decoded.operations[0].result, OperationResult::Unit);
         }
         assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
+        let mut unknown = bytes.clone();
+        unknown[position] = 255;
+        assert_eq!(
+            decode_block(&mut Reader::new(&unknown)),
+            Err(CodecError::InvalidTag("OperationKind", 255))
+        );
+        for length in 0..bytes.len() {
+            assert!(decode_block(&mut Reader::new(&bytes[..length])).is_err());
+        }
+    }
+
+    #[test]
+    fn establish_mutable_element_view_wire_binds_source_element_and_result() {
+        let block = Block {
+            erased_scalar_formals: Vec::new(),
+            erased_proof_formals: Vec::new(),
+            structural_parameters: Vec::new(),
+            id: id::<BlockId>(1),
+            parameters: Vec::new(),
+            operations: vec![Operation {
+                static_reach_binding: None,
+                suspension_crossing: None,
+                id: id::<OperationId>(2),
+                result: OperationResult::Structural(StructuralOperationResult {
+                    qualification_establishments: Vec::new(),
+                    place: id::<PlaceId>(3),
+                    structural_type: id::<StructuralTypeId>(6),
+                    multiplicity: StructuralMultiplicity::Linear,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    claims: Vec::new(),
+                }),
+                kind: OperationKind::EstablishMutableElementView {
+                    destination: id::<PlaceId>(3),
+                    source: StructuralArgument {
+                        place: id::<PlaceId>(4),
+                        access: StructuralAccess::MutableBorrow,
+                        path: vec![StructuralPathSegment::Field("cells".into())],
+                    },
+                    element: id::<StructuralTypeId>(6),
+                },
+            }],
+            terminator: Terminator::ReturnUnit {
+                edge: id::<EdgeId>(9),
+                trivial_affine_discards: Vec::new(),
+            },
+        };
+        let mut writer = Writer::default();
+        encode_block(&mut writer, &block).expect("mutable element view encodes");
+        let bytes = writer.finish();
+        assert_eq!(decode_block(&mut Reader::new(&bytes)), Ok(block));
+        let position = bytes.iter().position(|byte| *byte == 98).unwrap();
         let mut unknown = bytes.clone();
         unknown[position] = 255;
         assert_eq!(
