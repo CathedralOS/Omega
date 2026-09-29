@@ -42,7 +42,7 @@ pub struct ProviderExecutionBinding {
 /// The first six operations read two operands of `format` and the rest read
 /// one. The operand of `ConvertFormat` has the other interchange format; the
 /// operand of `FromInteger` is its named integer carrier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IeeeFloatArithmeticOperation {
     Add,
     Subtract,
@@ -84,31 +84,57 @@ pub enum IeeeFloatToIntegerDomain {
 }
 
 /// Integer carriers with a native conversion to and from both interchange
-/// formats on both architectures. Narrower carriers need an extension or a
-/// clamp to their own range, and `u64` has no SSE2 conversion in either
-/// direction; their requirements stay without a native realization.
+/// formats on both architectures. `u64` has no SSE2 conversion in either
+/// direction; its requirements stay without a native realization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum IeeeFloatIntegerCarrier {
     I32,
     I64,
     U32,
+    I8,
+    I16,
+    U8,
+    U16,
 }
 
 impl IeeeFloatIntegerCarrier {
-    pub const ALL: [Self; 3] = [Self::I32, Self::I64, Self::U32];
+    /// In ordinal order; carriers are appended, never renumbered.
+    pub const ALL: [Self; 7] = [
+        Self::I32,
+        Self::I64,
+        Self::U32,
+        Self::I8,
+        Self::I16,
+        Self::U8,
+        Self::U16,
+    ];
+
+    pub const fn ordinal(self) -> u8 {
+        match self {
+            Self::I32 => 0,
+            Self::I64 => 1,
+            Self::U32 => 2,
+            Self::I8 => 3,
+            Self::I16 => 4,
+            Self::U8 => 5,
+            Self::U16 => 6,
+        }
+    }
 
     pub const fn is_signed(self) -> bool {
-        matches!(self, Self::I32 | Self::I64)
+        matches!(self, Self::I32 | Self::I64 | Self::I8 | Self::I16)
     }
 
     pub const fn bits(self) -> u16 {
         match self {
+            Self::I8 | Self::U8 => 8,
+            Self::I16 | Self::U16 => 16,
             Self::I32 | Self::U32 => 32,
             Self::I64 => 64,
         }
     }
 
-    /// The exact fixed-width carrier this source denotes.
+    /// The exact fixed-width carrier this denotes.
     pub fn integer_type(self) -> semantic_vocabulary::IntegerType {
         let sign = if self.is_signed() {
             semantic_vocabulary::IntegerSign::Signed
@@ -116,49 +142,58 @@ impl IeeeFloatIntegerCarrier {
             semantic_vocabulary::IntegerSign::Unsigned
         };
         semantic_vocabulary::IntegerType::new(sign, self.bits())
-            .expect("32- and 64-bit integer carriers are valid widths")
+            .expect("8- through 64-bit integer carriers are valid widths")
+    }
+}
+
+/// Operations order by their stable ordinal, which is also the order of
+/// [`IeeeFloatArithmeticOperation::ALL`]: machine-effect catalogs require
+/// their declarations in this order, and narrow carriers appended later than
+/// `TruncateToInteger` must not sort between older operations.
+impl PartialOrd for IeeeFloatArithmeticOperation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for IeeeFloatArithmeticOperation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.ordinal().cmp(&other.ordinal())
     }
 }
 
 impl IeeeFloatArithmeticOperation {
-    pub const ALL: [Self; 18] = [
-        Self::Add,
-        Self::Subtract,
-        Self::Multiply,
-        Self::Divide,
-        Self::Minimum,
-        Self::Maximum,
-        Self::Negate,
-        Self::SquareRoot,
-        Self::ConvertFormat,
-        Self::FromInteger(IeeeFloatIntegerCarrier::I32),
-        Self::FromInteger(IeeeFloatIntegerCarrier::I64),
-        Self::FromInteger(IeeeFloatIntegerCarrier::U32),
-        Self::truncate(
-            IeeeFloatIntegerCarrier::I32,
-            IeeeFloatToIntegerDomain::Exact,
-        ),
-        Self::truncate(
-            IeeeFloatIntegerCarrier::I32,
-            IeeeFloatToIntegerDomain::Saturating,
-        ),
-        Self::truncate(
-            IeeeFloatIntegerCarrier::I64,
-            IeeeFloatToIntegerDomain::Exact,
-        ),
-        Self::truncate(
-            IeeeFloatIntegerCarrier::I64,
-            IeeeFloatToIntegerDomain::Saturating,
-        ),
-        Self::truncate(
-            IeeeFloatIntegerCarrier::U32,
-            IeeeFloatToIntegerDomain::Exact,
-        ),
-        Self::truncate(
-            IeeeFloatIntegerCarrier::U32,
-            IeeeFloatToIntegerDomain::Saturating,
-        ),
-    ];
+    pub const ALL: [Self; 30] = {
+        let mut all = [Self::Add; 30];
+        let fixed = [
+            Self::Add,
+            Self::Subtract,
+            Self::Multiply,
+            Self::Divide,
+            Self::Minimum,
+            Self::Maximum,
+            Self::Negate,
+            Self::SquareRoot,
+            Self::ConvertFormat,
+        ];
+        let mut index = 0;
+        while index < fixed.len() {
+            all[index] = fixed[index];
+            index += 1;
+        }
+        let mut carrier = 0;
+        while carrier < IeeeFloatIntegerCarrier::ALL.len() {
+            let target = IeeeFloatIntegerCarrier::ALL[carrier];
+            let conversion = Self::FromInteger(target);
+            all[conversion.ordinal() as usize] = conversion;
+            let exact = Self::truncate(target, IeeeFloatToIntegerDomain::Exact);
+            all[exact.ordinal() as usize] = exact;
+            let saturating = Self::truncate(target, IeeeFloatToIntegerDomain::Saturating);
+            all[saturating.ordinal() as usize] = saturating;
+            carrier += 1;
+        }
+        all
+    };
 
     const fn truncate(target: IeeeFloatIntegerCarrier, domain: IeeeFloatToIntegerDomain) -> Self {
         Self::TruncateToInteger { target, domain }
@@ -178,20 +213,27 @@ impl IeeeFloatArithmeticOperation {
             Self::Negate => 6,
             Self::SquareRoot => 7,
             Self::ConvertFormat => 8,
-            Self::FromInteger(IeeeFloatIntegerCarrier::I32) => 9,
-            Self::FromInteger(IeeeFloatIntegerCarrier::I64) => 10,
-            Self::FromInteger(IeeeFloatIntegerCarrier::U32) => 11,
+            // The 32- and 64-bit carriers came first (9 through 17); the
+            // narrow carriers follow (18 through 29).
+            Self::FromInteger(carrier) => {
+                let carrier = carrier.ordinal();
+                if carrier < 3 {
+                    9 + carrier
+                } else {
+                    15 + carrier
+                }
+            }
             Self::TruncateToInteger { target, domain } => {
-                let target = match target {
-                    IeeeFloatIntegerCarrier::I32 => 0,
-                    IeeeFloatIntegerCarrier::I64 => 1,
-                    IeeeFloatIntegerCarrier::U32 => 2,
-                };
+                let target = target.ordinal();
                 let domain = match domain {
                     IeeeFloatToIntegerDomain::Exact => 0,
                     IeeeFloatToIntegerDomain::Saturating => 1,
                 };
-                12 + target * 2 + domain
+                if target < 3 {
+                    12 + target * 2 + domain
+                } else {
+                    22 + (target - 3) * 2 + domain
+                }
             }
         }
     }

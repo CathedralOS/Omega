@@ -1725,18 +1725,19 @@ crash and native exit behavior. Use affected check/native corpus slices under
     internal physical child, not this whole generic matrix.
   - Install the remaining named float executions as Omega builtins,
     preserving each exact selected meaning: Trapping float-to-integer
-    conversion, `i8`/`i16`/`u8`/`u16`/`u64` carriers in both directions,
+    conversion (its check needs a flag-writing branch the float constraint
+    rows do not declare), `u64` in both directions (no SSE2 conversion),
     directed arithmetic, multiply-then-add and distinct FMA. Primitive
     `Float::{add,subtract,multiply,divide}`,
-    `F32`/`F64::{negate,minimum,maximum,square_root}`,
-    `from_i32`/`from_i64`/`from_u32`, `F64::from_f32`/`F32::from_f64` and
-    unqualified or Saturating `I32`/`I64`/`U32::from_f32`/`from_f64` install:
+    `F32`/`F64::{negate,minimum,maximum,square_root}`, `from_{i8,i16,i32,i64,u8,u16,u32}`,
+    `F64::from_f32`/`F32::from_f64` and unqualified or Saturating
+    `{I8,I16,I32,I64,U8,U16,U32}::from_f32`/`from_f64` install:
     stage 00 `compiler_builtins.rs` admits each as one
     `NearestIeeeFloatArithmetic` operation against the local target catalog
     and the exact boundary signature of that operation, stage 02
     `control_flow/ieee_float_arithmetic.rs` realizes the call inline, and each
     ISA encodes one form through scratch FP registers with its own decoder.
-    The 36 forms share selected-form tag 230 followed by an ordinal payload
+    The 60 forms share selected-form tag 230 followed by an ordinal payload
     byte, so new operations need no new tag. `pass/float/{nearest_even_binary_arithmetic_exit,named_ieee_operations_exit,named_ieee_conversions_exit,named_ieee_truncations_exit}`
     execute with exit **70** on macOS ARM64 and build for linux_x86_64, and
     `samples/cli/arithmetic/fibonacci_golden` meets its exit **161** oracle.

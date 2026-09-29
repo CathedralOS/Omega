@@ -1,6 +1,7 @@
 // Runtime conversions into binary64 and binary32 through the selected named
 // float providers (exit 70): `F64`/`F32::from_i32`, `from_i64`, `from_u32`,
-// and `F64::from_f32` / `F32::from_f64`.
+// the narrow `from_i8`/`from_i16`/`from_u8`/`from_u16`, and
+// `F64::from_f32` / `F32::from_f64`.
 //
 // Each conversion is one flat local initializer over field reads, so it
 // executes at run time. Every conversion is total and rounds to nearest,
@@ -12,6 +13,8 @@
 //   -(2^53 + 4);
 //   u32 3000000000 stays positive (a signed reading would be negative), and
 //   u32::MAX rounds up to 2^32 in binary32;
+//   i8 -100, i16 -30000, u8 250 and u16 65000 convert exactly (the narrow
+//   operand is extended explicitly, never read from upper register bits);
 //   binary32 0.1 widens exactly, binary64 1 + 3*2^-25 narrows to 1 + 2^-23
 //   (truncation gives 1), binary64 1e300 overflows to binary32 infinity, and
 //   a NaN stays NaN in both directions.
@@ -34,6 +37,10 @@ data Main {
     near_one64: f64;
     huge64: f64;
     zero64: f64;
+    negative_i8: i8;
+    negative_i16: i16;
+    large_u8: u8;
+    large_u16: u16;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -50,6 +57,10 @@ machine Main::main(&mut self) reaches Console {
     self.near_one64 = 1.0000000894069671630859375;
     self.huge64 = 1e300;
     self.zero64 = 0.0;
+    self.negative_i8 = -100;
+    self.negative_i16 = -30000;
+    self.large_u8 = 250;
+    self.large_u16 = 65000;
     let converted: f64 = F64::from_i32(self.negative_seven);
     transition converted == -7.0 {
         true -> exact_i32_64()
@@ -158,8 +169,40 @@ machine Main::main(&mut self) reaches Console {
         let nan64: f64 = self.zero64 / self.zero64;
         let converted: f32 = F32::from_f64(nan64);
         transition converted != converted {
-            true -> pass()
+            true -> narrow_i8()
             _ -> fail(84)
+        }
+    }
+
+    state narrow_i8(&mut self) {
+        let converted: f64 = F64::from_i8(self.negative_i8);
+        transition converted == -100.0 {
+            true -> narrow_i16()
+            _ -> fail(85)
+        }
+    }
+
+    state narrow_i16(&mut self) {
+        let converted: f32 = F32::from_i16(self.negative_i16);
+        transition converted == -30000.0f32 {
+            true -> narrow_u8()
+            _ -> fail(86)
+        }
+    }
+
+    state narrow_u8(&mut self) {
+        let converted: f64 = F64::from_u8(self.large_u8);
+        transition converted == 250.0 {
+            true -> narrow_u16()
+            _ -> fail(87)
+        }
+    }
+
+    state narrow_u16(&mut self) {
+        let converted: f32 = F32::from_u16(self.large_u16);
+        transition converted == 65000.0f32 {
+            true -> pass()
+            _ -> fail(88)
         }
     }
 

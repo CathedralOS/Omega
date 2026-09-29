@@ -25,7 +25,7 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
         Add, ConvertFormat, Divide, FromInteger, Maximum, Minimum, Multiply, Negate, SquareRoot,
         Subtract, TruncateToInteger,
     };
-    use selected_instructions::IeeeFloatIntegerCarrier::{I32, I64, U32};
+    use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32};
     let left = operands[0];
     let right = operands.get(1).copied().unwrap_or_default();
     if let TruncateToInteger { target, .. } = form.operation {
@@ -36,8 +36,12 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
             IeeeFloatFormat::Binary64 => f64::from_bits(left),
         };
         return match target {
+            I8 => value as i8 as i64 as u64,
+            I16 => value as i16 as i64 as u64,
             I32 => value as i32 as i64 as u64,
             I64 => value as i64 as u64,
+            U8 => u64::from(value as u8),
+            U16 => u64::from(value as u16),
             U32 => u64::from(value as u32),
         };
     }
@@ -70,6 +74,10 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                     FromInteger(I32) => left as u32 as i32 as f32,
                     FromInteger(I64) => left as i64 as f32,
                     FromInteger(U32) => left as u32 as f32,
+                    FromInteger(I8) => f32::from(left as u8 as i8),
+                    FromInteger(I16) => f32::from(left as u16 as i16),
+                    FromInteger(U8) => f32::from(left as u8),
+                    FromInteger(U16) => f32::from(left as u16),
                     TruncateToInteger { .. } => unreachable!("integer results return above"),
                 }
                 .to_bits(),
@@ -102,6 +110,10 @@ pub(super) fn host(form: IeeeFloatArithmeticForm, operands: &[u64]) -> u64 {
                 FromInteger(I32) => f64::from(left as u32 as i32),
                 FromInteger(I64) => left as i64 as f64,
                 FromInteger(U32) => f64::from(left as u32),
+                FromInteger(I8) => f64::from(left as u8 as i8),
+                FromInteger(I16) => f64::from(left as u16 as i16),
+                FromInteger(U8) => f64::from(left as u8),
+                FromInteger(U16) => f64::from(left as u16),
                 TruncateToInteger { .. } => unreachable!("integer results return above"),
             }
             .to_bits()
@@ -118,7 +130,7 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
         Subtract, TruncateToInteger,
     };
     use IeeeFloatFormat::{Binary32, Binary64};
-    use selected_instructions::IeeeFloatIntegerCarrier::{I32, I64, U32};
+    use selected_instructions::IeeeFloatIntegerCarrier::{I8, I16, I32, I64, U8, U16, U32};
     use selected_instructions::IeeeFloatToIntegerDomain::{Exact, Saturating};
     if let TruncateToInteger { target, domain } = form.operation {
         // Exact cases truncate an in-range operand toward zero; Saturating
@@ -136,6 +148,22 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
             (Binary32, I32, Saturating) => [0x5015_02f9, 0, 0x7fff_ffff],
             (Binary32, I64, Saturating) => [0x5f50_2ab5, 0, 0x7fff_ffff_ffff_ffff],
             (Binary32, U32, Saturating) => [0xc0a0_0000, 0, 0],
+            (Binary64, I8, Exact) => [0x4059_3000_0000_0000, 0, 100],
+            (Binary64, I8, Saturating) => [0x408f_4000_0000_0000, 0, 127],
+            (Binary64, I16, Exact) => [0x4093_4a00_0000_0000, 0, 1234],
+            (Binary64, I16, Saturating) => [0x412e_8480_0000_0000, 0, 32_767],
+            (Binary64, U8, Exact) => [0x4069_1ccc_cccc_cccd, 0, 200],
+            (Binary64, U8, Saturating) => [0x4072_c000_0000_0000, 0, 255],
+            (Binary64, U16, Exact) => [0x40ed_4c10_0000_0000, 0, 60_000],
+            (Binary64, U16, Saturating) => [0x7ff8_0000_0000_0000, 0, 0],
+            (Binary32, I8, Exact) => [0x42c9_8000, 0, 100],
+            (Binary32, I8, Saturating) => [0x4e6e_6b28, 0, 127],
+            (Binary32, I16, Exact) => [0x449a_5000, 0, 1234],
+            (Binary32, I16, Saturating) => [0x7fc0_0000, 0, 0],
+            (Binary32, U8, Exact) => [0x4348_8000, 0, 200],
+            (Binary32, U8, Saturating) => [0xc040_0000, 0, 0],
+            (Binary32, U16, Exact) => [0x476a_6080, 0, 60_000],
+            (Binary32, U16, Saturating) => [0x4974_2400, 0, 65_535],
         };
     }
     match (form.format, form.operation) {
@@ -200,6 +228,15 @@ fn case(form: IeeeFloatArithmeticForm) -> [u64; 3] {
         (Binary32, FromInteger(I64)) => [9_007_199_254_740_993, 0, 0x5a00_0000],
         // u32::MAX rounds up to 2^32.
         (Binary32, FromInteger(U32)) => [0xffff_ffff, 0, 0x4f80_0000],
+        // Narrow sources convert exactly.
+        (Binary64, FromInteger(I8)) => [100, 0, 0x4059_0000_0000_0000],
+        (Binary64, FromInteger(I16)) => [30_000, 0, 0x40dd_4c00_0000_0000],
+        (Binary64, FromInteger(U8)) => [200, 0, 0x4069_0000_0000_0000],
+        (Binary64, FromInteger(U16)) => [60_000, 0, 0x40ed_4c00_0000_0000],
+        (Binary32, FromInteger(I8)) => [100, 0, 0x42c8_0000],
+        (Binary32, FromInteger(I16)) => [30_000, 0, 0x46ea_6000],
+        (Binary32, FromInteger(U8)) => [200, 0, 0x4348_0000],
+        (Binary32, FromInteger(U16)) => [60_000, 0, 0x476a_6000],
         (_, TruncateToInteger { .. }) => unreachable!("integer results return above"),
     }
 }
@@ -378,7 +415,22 @@ fn every_form_selects_one_constrained_instruction_and_replays_on_every_target() 
 
             // Replay rebuilds the form from the legal instruction: another
             // operation or format, or swapped operands, cannot stand in.
-            for other in IeeeFloatArithmeticForm::ALL {
+            // Replay compares the whole form, so the neighbours that differ
+            // in one field (the other format, the adjacent operations, which
+            // include the other domain of a truncation) and one form of the
+            // other arity cover every substitution class without replaying
+            // all 59 others on every target.
+            let ordinal = usize::from(form.ordinal());
+            let neighbours = [
+                ordinal ^ 1,
+                ordinal.wrapping_sub(2),
+                ordinal + 2,
+                if form.operand_count() == 2 { 12 } else { 0 },
+            ];
+            for other in neighbours
+                .into_iter()
+                .filter_map(|index| IeeeFloatArithmeticForm::ALL.get(index).copied())
+            {
                 if other != form {
                     let mut substituted = selected.clone();
                     substituted.blocks[0].instructions[*position].kind =

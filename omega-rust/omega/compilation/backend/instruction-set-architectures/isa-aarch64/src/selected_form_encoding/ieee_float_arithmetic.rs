@@ -45,13 +45,13 @@
 
 use super::{Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint};
 use register_model::{RegisterConstraintKey, RegisterUnitId, RegisterViewId};
-use selected_instructions::IeeeFloatArithmeticOperation;
 use selected_instructions::{
     IeeeFloatArithmeticForm, MachineAlternative, MachineAlternativeApplicability,
     MachineAlternativeFamily, MachineAlternativeKey, MachineBarrier, MachineCallEffect,
     MachineCleanupEffect, MachineEffectDeclaration, MachineEncodedEffects, MachineLatencyKnowledge,
     MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
 };
+use selected_instructions::{IeeeFloatArithmeticOperation, IeeeFloatIntegerCarrier};
 
 /// The fixed scratch vector registers: the first and second operands, and
 /// the minimum/maximum selection mask.
@@ -184,6 +184,21 @@ enum Word {
     /// `SXTW` (`SBFM Xd, Xn, #0, #31`): sign-extend a 32-bit result into the
     /// 64-bit carrier the scalar graph keeps for signed 32-bit values.
     SignExtend32 { source: u8, result: u8 },
+    /// `SXTB`/`SXTH`/`UXTB`/`UXTH` (`SBFM`/`UBFM Wd, Wn, #0, #7|#15`):
+    /// extend a narrow operand into the result register's low word.
+    ExtendNarrow {
+        signed: bool,
+        halfword: bool,
+        source: u8,
+        result: u8,
+    },
+    /// `MOVZ`/`MOVK Xd, #immediate, LSL #(16 * shift)`.
+    MoveWide {
+        keep: bool,
+        shift: u8,
+        immediate: u16,
+        general: u8,
+    },
     /// `FCMGT` (register, scalar): all ones where `left > right`.
     CompareGreater {
         double: bool,
@@ -258,6 +273,28 @@ fn encode_word(word: Word) -> u32 {
                 | reg(general)
         }
         Word::SignExtend32 { source, result } => 0x9340_7c00 | reg(source) << 5 | reg(result),
+        Word::ExtendNarrow {
+            signed,
+            halfword,
+            source,
+            result,
+        } => {
+            (if signed { 0x1300_0000 } else { 0x5300_0000 })
+                | (if halfword { 15 } else { 7 }) << 10
+                | reg(source) << 5
+                | reg(result)
+        }
+        Word::MoveWide {
+            keep,
+            shift,
+            immediate,
+            general,
+        } => {
+            (if keep { 0xf280_0000 } else { 0xd280_0000 })
+                | u32::from(shift) << 21
+                | u32::from(immediate) << 5
+                | reg(general)
+        }
         Word::CompareGreater {
             double,
             left,
@@ -323,6 +360,18 @@ fn decode_word(word: u32) -> Option<Word> {
         0x9340_7c00 => Word::SignExtend32 {
             source: field(5),
             result: field(0),
+        },
+        base @ (0x1300_1c00 | 0x1300_3c00 | 0x5300_1c00 | 0x5300_3c00) => Word::ExtendNarrow {
+            signed: base & 0x4000_0000 == 0,
+            halfword: base & 0x2000 != 0,
+            source: field(5),
+            result: field(0),
+        },
+        _ if word & 0xdf80_0000 == 0xd280_0000 => Word::MoveWide {
+            keep: bit(29),
+            shift: ((word >> 21) & 3) as u8,
+            immediate: ((word >> 5) & 0xffff) as u16,
+            general: field(0),
         },
         _ if word & 0xffa0_fc00 == 0x7ea0_e400 => Word::CompareGreater {
             double: bit(22),
@@ -422,6 +471,27 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
             },
             move_out(first),
         ],
+        IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } if target.bits() < 32 => {
+            narrow_truncation(double, target, registers[0], result)
+        }
+        IeeeFloatArithmeticOperation::FromInteger(source) if source.bits() < 32 => vec![
+            // Extend explicitly rather than rely on the register carrier's
+            // upper bits, then convert the exact 32-bit value.
+            Word::ExtendNarrow {
+                signed: source.is_signed(),
+                halfword: source.bits() == 16,
+                source: registers[0],
+                result,
+            },
+            Word::IntegerToFloat {
+                wide: false,
+                double,
+                unsigned: !source.is_signed(),
+                general: result,
+                vector: first,
+            },
+            move_out(first),
+        ],
         IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } => {
             // Exact and Saturating realize alike: the conversion saturates
             // and maps NaN to zero, which is the identity on every operand an
@@ -471,6 +541,99 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Word> {
             ]
         }
     }
+}
+
+/// The binary64 payloads of a narrow carrier's minimum and maximum.
+const fn narrow_bounds(target: IeeeFloatIntegerCarrier) -> (u64, u64) {
+    match target {
+        IeeeFloatIntegerCarrier::I8 => (0xc060_0000_0000_0000, 0x405f_c000_0000_0000),
+        IeeeFloatIntegerCarrier::I16 => (0xc0e0_0000_0000_0000, 0x40df_ffc0_0000_0000),
+        IeeeFloatIntegerCarrier::U8 => (0, 0x406f_e000_0000_0000),
+        IeeeFloatIntegerCarrier::U16 => (0, 0x40ef_ffe0_0000_0000),
+        _ => (0, 0),
+    }
+}
+
+/// `MOVZ` of the top halfword and `MOVK` of each other nonzero halfword.
+fn materialize(bits: u64, general: u8) -> Vec<Word> {
+    let mut words = vec![Word::MoveWide {
+        keep: false,
+        shift: 3,
+        immediate: (bits >> 48) as u16,
+        general,
+    }];
+    for shift in (0..3).rev() {
+        let immediate = (bits >> (16 * shift)) as u16;
+        if immediate != 0 {
+            words.push(Word::MoveWide {
+                keep: true,
+                shift,
+                immediate,
+                general,
+            });
+        }
+    }
+    words
+}
+
+/// Saturating toward-zero conversion to an 8- or 16-bit carrier. The operand
+/// widens to binary64 exactly, clamps to the carrier's range with `FMAX` and
+/// `FMIN` (which propagate a NaN), and converts with the 32-bit
+/// `FCVTZS`/`FCVTZU`, which maps that NaN to zero; a signed result is then
+/// sign-extended into its 64-bit carrier. Each bound is materialized in the
+/// result register, which the form defines anyway, and moved into `v17`.
+fn narrow_truncation(
+    double: bool,
+    target: IeeeFloatIntegerCarrier,
+    source: u8,
+    result: u8,
+) -> Vec<Word> {
+    let (first, second) = (LEFT_SCRATCH, RIGHT_SCRATCH);
+    let mut words = vec![Word::ToFloat {
+        double,
+        general: source,
+        vector: first,
+    }];
+    if !double {
+        // `FCVT d16, s16`: binary32 widens exactly.
+        words.push(Word::OneSource {
+            double: false,
+            opcode: 0b00_0101,
+            source: first,
+            result: first,
+        });
+    }
+    let (minimum, maximum) = narrow_bounds(target);
+    for (bound, opcode) in [(minimum, 0b0100), (maximum, 0b0101)] {
+        words.extend(materialize(bound, result));
+        words.push(Word::ToFloat {
+            double: true,
+            general: result,
+            vector: second,
+        });
+        // `FMAX` then `FMIN d16, d16, d17`.
+        words.push(Word::TwoSource {
+            double: true,
+            opcode,
+            left: first,
+            right: second,
+            result: first,
+        });
+    }
+    words.push(Word::FloatToInteger {
+        wide: false,
+        double: true,
+        unsigned: !target.is_signed(),
+        vector: first,
+        general: result,
+    });
+    if target.is_signed() {
+        words.push(Word::SignExtend32 {
+            source: result,
+            result,
+        });
+    }
+    words
 }
 
 fn validate_registers(
@@ -700,6 +863,62 @@ mod tests {
                 &[3, 4]
             ),
             [0x9e67_0070, 0x1e79_0204]
+        );
+    }
+
+    #[test]
+    fn narrow_carrier_encodings_match_the_architectural_words() {
+        use IeeeFloatArithmeticOperation::{FromInteger, TruncateToInteger};
+        use selected_instructions::IeeeFloatToIntegerDomain::Saturating;
+        // sxtb w4, w3; scvtf d16, w4; fmov x4, d16
+        assert_eq!(
+            words(
+                form(
+                    FromInteger(IeeeFloatIntegerCarrier::I8),
+                    IeeeFloatFormat::Binary64
+                ),
+                &[3, 4]
+            ),
+            [0x1300_1c64, 0x1e62_0090, 0x9e66_0204]
+        );
+        // uxth w4, w3; ucvtf s16, w4; fmov w4, s16
+        assert_eq!(
+            words(
+                form(
+                    FromInteger(IeeeFloatIntegerCarrier::U16),
+                    IeeeFloatFormat::Binary32
+                ),
+                &[3, 4]
+            ),
+            [0x5300_3c64, 0x1e23_0090, 0x1e26_0204]
+        );
+        // fmov d16, x3; movz x4, #0xc060, lsl #48; fmov d17, x4;
+        // fmax d16, d16, d17; movz x4, #0x405f, lsl #48;
+        // movk x4, #0xc000, lsl #32; fmov d17, x4; fmin d16, d16, d17;
+        // fcvtzs w4, d16; sxtw x4, w4
+        assert_eq!(
+            words(
+                form(
+                    TruncateToInteger {
+                        target: IeeeFloatIntegerCarrier::I8,
+                        domain: Saturating,
+                    },
+                    IeeeFloatFormat::Binary64,
+                ),
+                &[3, 4]
+            ),
+            [
+                0x9e67_0070,
+                0xd2f8_0c04,
+                0x9e67_0091,
+                0x1e71_4a10,
+                0xd2e8_0be4,
+                0xf2d8_0004,
+                0x9e67_0091,
+                0x1e71_5a10,
+                0x1e78_0204,
+                0x9340_7c84
+            ]
         );
     }
 

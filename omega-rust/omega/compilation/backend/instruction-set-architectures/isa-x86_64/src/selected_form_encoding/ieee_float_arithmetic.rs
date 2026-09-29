@@ -162,6 +162,12 @@ enum Instruction {
     AllOnes { xmm: u8 },
     /// `66 0F 73|72 /6 ib`: `PSLLQ`/`PSLLD xmm, count`.
     ShiftLeft { quad: bool, xmm: u8, count: u8 },
+    /// `66 0F 72 /4|/2 ib`: `PSRAD`/`PSRLD xmm, count`.
+    ShiftRight {
+        arithmetic: bool,
+        xmm: u8,
+        count: u8,
+    },
     /// `[66] 0F 57 /r`: `XORPD`/`XORPS`.
     Xor {
         double: bool,
@@ -238,6 +244,17 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: Instruction) {
             0x0f,
             if quad { 0x73 } else { 0x72 },
             modrm(6, xmm),
+            count,
+        ]),
+        Instruction::ShiftRight {
+            arithmetic,
+            xmm,
+            count,
+        } => bytes.extend([
+            0x66,
+            0x0f,
+            0x72,
+            modrm(if arithmetic { 4 } else { 2 }, xmm),
             count,
         ]),
         Instruction::Xor {
@@ -323,14 +340,20 @@ fn decode_instruction(bytes: &[u8]) -> Option<(Instruction, &[u8])> {
         }
         [0x66, 0x0f, opcode @ (0x72 | 0x73), modrm, count, rest @ ..] => {
             let (reg, rm) = register_pair(*modrm)?;
-            (reg == 6).then_some((
-                Instruction::ShiftLeft {
+            let instruction = match (*opcode, reg) {
+                (_, 6) => Instruction::ShiftLeft {
                     quad: *opcode == 0x73,
                     xmm: rm,
                     count: *count,
                 },
-                rest,
-            ))
+                (0x72, 4 | 2) => Instruction::ShiftRight {
+                    arithmetic: reg == 4,
+                    xmm: rm,
+                    count: *count,
+                },
+                _ => return None,
+            };
+            Some((instruction, rest))
         }
         [0x66, 0x0f, 0x57, modrm, rest @ ..] | [0x0f, 0x57, modrm, rest @ ..] => {
             let (destination, source) = register_pair(*modrm)?;
@@ -538,6 +561,31 @@ fn program(form: IeeeFloatArithmeticForm, registers: &[u8]) -> Vec<Instruction> 
         IeeeFloatArithmeticOperation::TruncateToInteger { target, .. } => {
             truncation(double, target, registers[0], result)
         }
+        IeeeFloatArithmeticOperation::FromInteger(source) if source.bits() < 32 => {
+            // Extend the low lane in place (`PSLLD` then `PSRAD`/`PSRLD`),
+            // then convert the exact 32-bit value with `CVTDQ2PD`; a
+            // binary32 result narrows that binary64 value exactly.
+            let shift = (32 - source.bits()) as u8;
+            let mut program = vec![
+                move_in(registers[0], LEFT_SCRATCH, false),
+                Instruction::ShiftLeft {
+                    quad: false,
+                    xmm: LEFT_SCRATCH,
+                    count: shift,
+                },
+                Instruction::ShiftRight {
+                    arithmetic: source.is_signed(),
+                    xmm: LEFT_SCRATCH,
+                    count: shift,
+                },
+                in_place(false, 0xe6),
+            ];
+            if !double {
+                program.push(in_place(true, 0x5a));
+            }
+            program.push(move_out);
+            program
+        }
         IeeeFloatArithmeticOperation::FromInteger(source) if !source.is_signed() => vec![
             Instruction::Move32 {
                 destination: result,
@@ -647,22 +695,33 @@ fn truncation(
             },
         ]
     };
-    if !target.is_signed() {
-        program.extend([
-            Instruction::Xor {
+    if !target.is_signed() || target.bits() < 32 {
+        // Clamp to the carrier's range, then truncate a value that fits.
+        let (minimum, maximum) = match target {
+            IeeeFloatIntegerCarrier::I8 => (Some(0xc060_0000_0000_0000), 0x405f_c000_0000_0000),
+            IeeeFloatIntegerCarrier::I16 => (Some(0xc0e0_0000_0000_0000), 0x40df_ffc0_0000_0000),
+            IeeeFloatIntegerCarrier::U8 => (None, 0x406f_e000_0000_0000),
+            IeeeFloatIntegerCarrier::U16 => (None, 0x40ef_ffe0_0000_0000),
+            _ => (None, U32_MAXIMUM),
+        };
+        match minimum {
+            // An unsigned minimum is `+0`, which needs no constant.
+            None => program.push(Instruction::Xor {
                 double: true,
                 destination: right,
                 source: right,
-            },
-            // `MAXSD xmm4, xmm5`: negative operands and `-0` become `+0`.
-            Instruction::Scalar {
-                double: true,
-                opcode: 0x5f,
-                destination: left,
-                source: right,
-            },
-        ]);
-        program.extend(bound(U32_MAXIMUM));
+            }),
+            Some(minimum) => program.extend(bound(minimum)),
+        }
+        // `MAXSD xmm4, xmm5`: operands below the minimum (and `-0` for an
+        // unsigned carrier) become the minimum.
+        program.push(Instruction::Scalar {
+            double: true,
+            opcode: 0x5f,
+            destination: left,
+            source: right,
+        });
+        program.extend(bound(maximum));
         program.extend([
             // `MINSD xmm4, xmm5`.
             Instruction::Scalar {
@@ -671,12 +730,19 @@ fn truncation(
                 destination: left,
                 source: right,
             },
+            // `u32` values need the 64-bit conversion; narrow ones fit 32.
             Instruction::FloatToInteger {
-                wide: true,
+                wide: target.bits() == 32,
                 general: result,
                 xmm: left,
             },
         ]);
+        if target.is_signed() {
+            program.push(Instruction::SignExtend32 {
+                destination: result,
+                source: result,
+            });
+        }
         return program;
     }
     let wide = target.bits() == 64;
@@ -996,6 +1062,32 @@ mod tests {
             )
         );
         assert!(unsigned.ends_with(&[0xf2, 0x0f, 0x5d, 0xe5, 0xf2, 0x4c, 0x0f, 0x2c, 0xcc]));
+    }
+
+    #[test]
+    fn narrow_carrier_encodings_match_the_architectural_bytes() {
+        use IeeeFloatArithmeticOperation::FromInteger;
+        // movd xmm4, ecx; pslld xmm4, 24; psrad xmm4, 24;
+        // cvtdq2pd xmm4, xmm4; movq rax, xmm4
+        assert_eq!(
+            bytes_of(
+                FromInteger(IeeeFloatIntegerCarrier::I8),
+                IeeeFloatFormat::Binary64,
+                &["rcx", "rax"]
+            ),
+            [
+                0x66, 0x0f, 0x6e, 0xe1, 0x66, 0x0f, 0x72, 0xf4, 0x18, 0x66, 0x0f, 0x72, 0xe4, 0x18,
+                0xf3, 0x0f, 0xe6, 0xe4, 0x66, 0x48, 0x0f, 0x7e, 0xe0,
+            ]
+        );
+        // psrld xmm4, 16 and the exact cvtsd2ss xmm4, xmm4 for binary32.
+        let unsigned = bytes_of(
+            FromInteger(IeeeFloatIntegerCarrier::U16),
+            IeeeFloatFormat::Binary32,
+            &["rcx", "rax"],
+        );
+        assert_eq!(unsigned[9..14], [0x66, 0x0f, 0x72, 0xd4, 0x10]);
+        assert_eq!(unsigned[18..22], [0xf2, 0x0f, 0x5a, 0xe4]);
     }
 
     #[test]

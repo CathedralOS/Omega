@@ -1,8 +1,8 @@
 // Runtime float-to-integer conversions through the selected named float
-// providers (exit 70): `I32`/`I64`/`U32::from_f64` and `from_f32` in the
-// Saturating domain. Unqualified (Exact) conversions share this realization;
-// their `requires` proof does not yet admit a runtime field operand, so this
-// fixture exercises the Saturating overloads.
+// providers (exit 70): `I8`/`I16`/`I32`/`I64`/`U8`/`U16`/`U32::from_f64` and
+// `from_f32` in the Saturating domain. Unqualified (Exact) conversions share
+// this realization; their `requires` proof does not yet admit a runtime
+// field operand, so this fixture exercises the Saturating overloads.
 //
 // Each conversion is one flat local initializer over field reads, so it
 // executes at run time. Every conversion rounds toward zero. Saturating
@@ -14,7 +14,10 @@
 //   u32: 5e9 -> 4294967295, -5.5 -> 0, 3000000000.75 -> 3000000000,
 //        NaN -> 0;
 //   binary32 operands: 1e10 -> i32 2147483647, -7.875 -> i32 -7,
-//        -1e19 -> i64 minimum, 4e9 -> u32 4000000000, NaN -> u32 0.
+//        -1e19 -> i64 minimum, 4e9 -> u32 4000000000, NaN -> u32 0;
+//   narrow carriers: 1000 -> i8 127, -1000 -> i8 -128, -1e6 -> i16
+//        -32768, -1234.9 -> i16 -1234, 300 -> u8 255, NaN -> u8 0,
+//        -5.5 -> u16 0, 70000 -> u16 65535.
 use omega::language::core::float_operations;
 use omega_language_std::console;
 use omega::language::core::binding;
@@ -36,6 +39,11 @@ data Main {
     negative_enormous32: f32;
     unsigned32: f32;
     zero32: f32;
+    thousand64: f64;
+    negative_thousand64: f64;
+    negative_million32: f32;
+    three_hundred64: f64;
+    seventy_thousand32: f32;
 }
 
 machine Main::main(&mut self) reaches Console {
@@ -54,6 +62,11 @@ machine Main::main(&mut self) reaches Console {
     self.negative_enormous32 = -10000000000000000000.0f32;
     self.unsigned32 = 4000000000.0f32;
     self.zero32 = 0.0f32;
+    self.thousand64 = 1000.0;
+    self.negative_thousand64 = -1000.0;
+    self.negative_million32 = -1000000.0f32;
+    self.three_hundred64 = 300.0;
+    self.seventy_thousand32 = 70000.0f32;
     let value: i32 in Saturating = I32::from_f64(self.huge64);
     transition value == 2147483647 {
         true -> i32_below()
@@ -178,8 +191,73 @@ machine Main::main(&mut self) reaches Console {
         let nan32: f32 = self.zero32 / self.zero32;
         let value: u32 in Saturating = U32::from_f32(nan32);
         transition value == 0 {
-            true -> pass()
+            true -> i8_above()
             _ -> fail(86)
+        }
+    }
+
+    state i8_above(&mut self) {
+        let value: i8 in Saturating = I8::from_f64(self.thousand64);
+        transition value == 127 {
+            true -> i8_below()
+            _ -> fail(87)
+        }
+    }
+
+    state i8_below(&mut self) {
+        let value: i8 in Saturating = I8::from_f64(self.negative_thousand64);
+        transition value == -128 {
+            true -> i16_below()
+            _ -> fail(88)
+        }
+    }
+
+    state i16_below(&mut self) {
+        let value: i16 in Saturating = I16::from_f32(self.negative_million32);
+        transition value == -32768 {
+            true -> i16_toward_zero()
+            _ -> fail(89)
+        }
+    }
+
+    state i16_toward_zero(&mut self) {
+        let value: i16 in Saturating = I16::from_f64(self.fraction64);
+        transition value == -1234 {
+            true -> u8_above()
+            _ -> fail(90)
+        }
+    }
+
+    state u8_above(&mut self) {
+        let value: u8 in Saturating = U8::from_f64(self.three_hundred64);
+        transition value == 255 {
+            true -> u8_nan()
+            _ -> fail(91)
+        }
+    }
+
+    state u8_nan(&mut self) {
+        let nan32: f32 = self.zero32 / self.zero32;
+        let value: u8 in Saturating = U8::from_f32(nan32);
+        transition value == 0 {
+            true -> u16_negative()
+            _ -> fail(92)
+        }
+    }
+
+    state u16_negative(&mut self) {
+        let value: u16 in Saturating = U16::from_f64(self.negative_small64);
+        transition value == 0 {
+            true -> u16_above()
+            _ -> fail(93)
+        }
+    }
+
+    state u16_above(&mut self) {
+        let value: u16 in Saturating = U16::from_f32(self.seventy_thousand32);
+        transition value == 65535 {
+            true -> pass()
+            _ -> fail(94)
         }
     }
 
