@@ -3,7 +3,8 @@
 //! [`lower_machine`] selects one checked Terminal machine by
 //! [`TerminalMachineSelection`], dispatches it through
 //! [`crate::machine_lowering::machine_dispatch`] to the plan family that owns
-//! its shape, then sequences the work every selected module still needs: retained custody, float-meaning projections, evidence and proof
+//! its shape, then closes provider installation entries and sequences the work
+//! every selected module still needs: retained custody, float-meaning projections, evidence and proof
 //! recursion, proof-only quotient correspondence rows, operand proof
 //! completion or module validation, and the debug companion.
 //! A callback body is not a second entrance: it lowers through this same
