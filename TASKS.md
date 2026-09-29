@@ -2526,10 +2526,12 @@ completion syntax or other terminal service is a prerequisite.
   checked layout/validity, backing identity, lifetime, access and whole-place
   reads through ordinary expression sequencing and temporary loans.
 
-  With this change on base `2c636b809a2`, `python3 tools/corpus_gate.py --native
+  With this change on base `e416dc26b7e`, `python3 tools/corpus_gate.py --native
   --filter recast/` on macOS ARM64 builds and exits 70 for
-  `runtime_shared_domain_weakening_recast_exit` and
-  `runtime_mutable_equivalent_domain_recast_exit`. The remaining executable
+  `runtime_shared_domain_weakening_recast_exit`,
+  `runtime_mutable_equivalent_domain_recast_exit` and
+  `runtime_guarded_offset_recast_exit`; a runtime-offset byte-region read
+  replays byte by byte from its first `u8` element. The remaining executable
   customers stop at these missing capabilities:
 
   - Boolean and IEEE float cross-carrier views (`bool` as `u8`, `f32` as
@@ -2548,11 +2550,10 @@ completion syntax or other terminal service is a prerequisite.
     target place`): `structural_scalar_store/destination.rs::rejoin_loan_local`
     does not peel the recast, and the stored view-carrier value needs a retained
     store re-view into the source carrier that stage 05 replays.
-  - Runtime-offset byte-region scalar views
-    (`runtime_guarded_offset_recast_exit` at `guard expression`,
-    `runtime_offset_byte_recast_mutable_write_exit` at `structural field store:
-    target place`): `scalar_lowering::recast_view_operand` admits only
-    name/member sources, so no byte-assembled read or store exists.
+  - Runtime-offset byte-region stores
+    (`runtime_offset_byte_recast_mutable_write_exit` at `structural field store:
+    target place`) share the `&mut` recast store gap above; the store must
+    write each footprint byte with its own index obligation.
   - Record, record-array and slice views stop at `attached data shape`
     (`runtime_mutable_equivalent_record_recast_exit`,
     `runtime_shared_record_float_range_weakening_exit`), `structural field

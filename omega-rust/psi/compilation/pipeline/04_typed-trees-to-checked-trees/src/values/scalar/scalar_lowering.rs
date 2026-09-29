@@ -1011,9 +1011,10 @@ pub(crate) fn landed_for_primitive(primitive_type: PrimitiveType) -> Option<Land
 /// returning the whole-place source and the cast's stated target type.
 /// `&x as &T` parses as `Borrow { Cast }` -- the unary `&` wraps the postfix
 /// chain with the authored access -- while parentheses can leave the borrow
-/// around the cast's SOURCE (`&(x) as &T`). Sources are restricted to name
-/// and member places: an indexed source's element-unit read cannot carry the
-/// target width, and deeper view chains have no scalar place read to retag.
+/// around the cast's SOURCE (`&(x) as &T`). Sources are name, member and
+/// indexed places; `view_place_read` admits an indexed source only as a whole
+/// element or as the first byte of a `u8` region, and deeper view chains have
+/// no scalar place read to re-view.
 pub(crate) fn recast_view_operand(
     program: &TypedTrees,
     expression: ExpressionHandle,
@@ -1034,7 +1035,7 @@ pub(crate) fn recast_view_operand(
     }
     matches!(
         program.expression_table.expression(source),
-        ExpressionNode::Name(_) | ExpressionNode::Member(_)
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
     )
     .then_some((source, cast.target_type))
 }
@@ -1096,20 +1097,58 @@ fn place_read_site(read: &CheckedScalarExpression) -> Option<PlaceReadSite> {
 /// of meeting a field read whose carrier its declaration does not name. A
 /// Boolean view keeps the retagged Boolean leaf its guard positions consume;
 /// its native replay is still owed a Boolean re-view form.
+///
+/// A runtime-selected `u8` element is the first byte of a byte-region view
+/// (`&self.buf[offset] as &u32`): the recast judgment proved the whole
+/// footprint in bounds, and the retained view keeps that one authored element
+/// read so stage 05 can replay the region byte by byte, each byte owing its
+/// own index obligation. Any other width change is not a whole-place view and
+/// stays unlowered.
 fn view_place_read(
     read: CheckedScalarExpression,
     primitive_type: PrimitiveType,
 ) -> Option<CheckedScalarExpression> {
-    place_read_site(&read)?;
+    let byte_region = matches!(
+        &read,
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            inner_indexes,
+            element_path,
+            primitive_type: PrimitiveType::U8,
+            ..
+        } if inner_indexes.is_empty() && element_path.is_empty()
+    );
+    let indexed_element = matches!(
+        read,
+        CheckedScalarExpression::StructuralParameterIndexedRead { .. }
+    );
+    if !indexed_element {
+        place_read_site(&read)?;
+    }
     if primitive_type == PrimitiveType::Bool {
         return retag_place_read(&read, primitive_type);
     }
-    if read.primitive_type()? == primitive_type {
+    let source = read.primitive_type()?;
+    if source == primitive_type {
         return Some(read);
+    }
+    let region = byte_region && is_integer(primitive_type);
+    if !region && scalar_byte_width(source)? != scalar_byte_width(primitive_type)? {
+        return None;
     }
     Some(CheckedScalarExpression::RepresentationView {
         primitive_type,
         operand: Box::new(read),
+    })
+}
+
+/// The storage width of one primitive scalar carrier, in bytes.
+fn scalar_byte_width(primitive_type: PrimitiveType) -> Option<u32> {
+    Some(match primitive_type {
+        PrimitiveType::Bool | PrimitiveType::U8 | PrimitiveType::I8 => 1,
+        PrimitiveType::U16 | PrimitiveType::I16 => 2,
+        PrimitiveType::U32 | PrimitiveType::I32 | PrimitiveType::F32 => 4,
+        PrimitiveType::U64 | PrimitiveType::I64 | PrimitiveType::F64 => 8,
+        PrimitiveType::Addr => return None,
     })
 }
 
