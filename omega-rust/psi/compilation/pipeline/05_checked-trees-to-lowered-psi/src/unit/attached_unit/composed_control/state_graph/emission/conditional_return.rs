@@ -20,6 +20,7 @@ impl StateGraphEmission<'_, '_> {
         state_parameters: &[StructuralParameterDeclaration],
         arm_namespace: Vec<ValueDeclaration>,
         return_arm: &checked_trees::CheckedConditionalReturnArm,
+        subject_ordinal: u32,
         evaluation: &mut crate::unit::attached_unit::argument_evaluation::Evaluation,
         next_value: &mut u64,
         next_block: &mut u64,
@@ -132,6 +133,17 @@ impl StateGraphEmission<'_, '_> {
         operations.structural_values.truncate(retained_bindings);
         operations.byte_lengths.clear();
         operations.field_byte_lengths.clear();
+        // A case-tested dispatch consumes its subject on this arm's edge
+        // exactly as a named successor's edge does: the private return
+        // block's edge releases the subject's whole place rather than
+        // leaving it affine-owned into the return.
+        let subject_place = super::successor_edge::dispatched_subject_place(
+            state,
+            state_parameters,
+            evaluation,
+            operations,
+            subject_ordinal,
+        )?;
         Ok(SuccessorEdge {
             edge: edge_id(allocate_dense(next_edge)?),
             target,
@@ -139,7 +151,7 @@ impl StateGraphEmission<'_, '_> {
             erased_arguments: Vec::new(),
             erased_proof_arguments: Vec::new(),
             structural_arguments: Vec::new(),
-            trivial_affine_discards: Vec::new(),
+            trivial_affine_discards: subject_place.into_iter().collect(),
         })
     }
 }

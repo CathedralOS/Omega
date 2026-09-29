@@ -117,3 +117,109 @@ fn assert_branch_reaches_return(module: &terminal_psi::TerminalModule) {
 fn conditional_case_arm_returns_while_borrow_transfers() {
     assert_branch_reaches_return(&verified_module("Kernel::select"));
 }
+
+const DISPATCH: &str = r#"
+    data Cmd { tag: u64; }
+    data Msg { case A(cmd: Cmd); case B; }
+    data Answer { n: u64; }
+    machine param_subject(m: Msg) -> Answer {
+        transition m {
+            Msg::A { cmd } -> hop(cmd)
+            Msg::B -> (Answer { n: 0 })
+        }
+        state hop(cmd: Cmd) -> Answer { (Answer { n: cmd.tag }) }
+    }
+    machine local_subject(tag: u64) -> Answer {
+        let m: Msg = Msg::A { cmd: Cmd { tag: tag } };
+        transition m {
+            Msg::A { cmd } -> hop(cmd)
+            Msg::B -> (Answer { n: 0 })
+        }
+        state hop(cmd: Cmd) -> Answer { (Answer { n: cmd.tag }) }
+    }
+"#;
+
+fn verified_dispatch(machine: &str) -> terminal_psi::TerminalModule {
+    let checked = crate::front_end::checked_program(DISPATCH);
+    let artifact = terminal_production::TerminalProductionRequest::new(
+        &checked,
+        terminal_production::TerminalMachineSelection::Name(machine),
+    )
+    .produce(TerminalProductionCustody::artifact_only(
+        &mut TerminalProductionTimings::default(),
+    ))
+    .unwrap_or_else(|error| panic!("{machine} produces a terminal artifact: {error:?}"))
+    .into_artifact();
+    let module = terminal_codec::decode_module(artifact.semantic_bytes()).unwrap();
+    terminal_verifier::verify_module(
+        &module,
+        &terminal_codec::decode_proof_bundle(artifact.proof_bytes()).unwrap(),
+        &proof_admission::AdmissionProfile::default(),
+    )
+    .unwrap_or_else(|error| panic!("{machine} verifies: {error:?}"));
+    module
+}
+
+/// The case dispatch consumes its subject once: along each arm's path —
+/// the outer edge plus the staged forwarding jumps ahead of it — the
+/// subject's place is released exactly once, on the edge where control
+/// leaves the dispatch's custody.
+fn assert_dispatch_arms_share_subject_disposal(module: &terminal_psi::TerminalModule) {
+    let machines = module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .filter_map(|block| match &block.terminator {
+                    Terminator::Conditional {
+                        when_true,
+                        when_false,
+                        ..
+                    } => Some((&machine.blocks, when_true, when_false)),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    for (blocks, when_true, when_false) in &machines {
+        let released = |edge: &terminal_psi::SuccessorEdge| {
+            let mut released = edge.trivial_affine_discards.clone();
+            let mut target = edge.target;
+            while let Some(block) = blocks.iter().find(|block| block.id == target) {
+                match &block.terminator {
+                    Terminator::Jump {
+                        target: next,
+                        trivial_affine_discards,
+                        ..
+                    } => {
+                        released.extend(trivial_affine_discards.iter().copied());
+                        target = *next;
+                    }
+                    _ => break,
+                }
+            }
+            released
+        };
+        assert_eq!(
+            released(when_true),
+            released(when_false),
+            "each dispatch arm's path must release the same subject place"
+        );
+        assert!(
+            !released(when_true).is_empty(),
+            "the dispatch arms must release their subject"
+        );
+    }
+}
+
+#[test]
+fn value_arm_edge_disposes_parameter_subject() {
+    assert_dispatch_arms_share_subject_disposal(&verified_dispatch("param_subject"));
+}
+
+#[test]
+fn value_arm_edge_disposes_local_subject() {
+    assert_dispatch_arms_share_subject_disposal(&verified_dispatch("local_subject"));
+}

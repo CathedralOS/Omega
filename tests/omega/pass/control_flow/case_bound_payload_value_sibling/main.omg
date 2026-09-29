@@ -1,0 +1,60 @@
+// A case dispatch whose arms mix a named successor with a value successor
+// disposes of its subject on the `(expr)` arm's private return edge.
+//
+//   let m: Msg = ...;
+//   transition m {
+//       Msg::A { cmd } -> hop(cmd)
+//       Msg::B      -> (Answer::zero())   // expression arm
+//   }
+//
+// The dispatch consumes the subject once — every arm's edge releases it, so
+// the arm's edge into its private return block carries the subject's whole
+// place exactly as a named successor's edge does, and the return inside
+// that block does not dispose of it a second time. A local subject answers
+// through its producing binding (`StructuralResult`), a parameter subject
+// through the dispatch's recorded arm consumption.
+//
+// Sibling of `pass/control_flow/case_bound_payload_state_argument` (owned
+// parameter subject, all-named arms). Distinct from it: this dispatch mixes
+// a named successor with a value successor over a local scrutinee.
+
+use omega_language_std::console;
+use omega::language::core::binding;
+
+data Cmd {
+    tag: u64 [0..=255];
+}
+
+data Msg {
+    case A(cmd: Cmd);
+    case B;
+}
+
+data Answer {
+    n: u64 [0..=255];
+}
+
+machine Answer::zero() -> Answer {
+    (Answer { n: 0 })
+}
+
+data Main {
+    console: Binding<Console>;
+}
+
+machine Main::main(&mut self) reaches Console {
+    let a: Answer = self.dispatch(7);
+    self.console.exit_process(a.n as i32);
+}
+
+machine Main::dispatch(&mut self, tag: u64 [0..=255]) -> Answer {
+    let m: Msg = Msg::A { cmd: Cmd { tag: tag } };
+    transition m {
+        Msg::A { cmd } -> hop(cmd)
+        Msg::B -> (Answer::zero())
+    }
+
+    state hop(&mut self, cmd: Cmd) -> Answer {
+        (Answer { n: cmd.tag })
+    }
+}

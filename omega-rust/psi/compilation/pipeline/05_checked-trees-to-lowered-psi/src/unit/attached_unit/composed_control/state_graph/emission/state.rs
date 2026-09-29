@@ -12,8 +12,8 @@ use super::super::super::super::super::{
     CheckedComposedUnitControlTerminatorPlan, StructuralCaseSuccessorEdge, SuccessorEdge, block_id,
 };
 use super::super::super::super::{
-    Block, CheckedScalarExpression, CheckedUnitEffectOperationPlan, Terminator, ValueDeclaration,
-    allocate_dense, edge_id, lookup_claim_id, terminal_scalar_type, unsupported,
+    Block, CheckedUnitEffectOperationPlan, Terminator, ValueDeclaration, allocate_dense, edge_id,
+    lookup_claim_id, terminal_scalar_type, unsupported,
 };
 use super::super::super::LoweringError;
 use super::super::{
@@ -434,6 +434,7 @@ impl StateGraphEmission<'_, '_> {
                     &state_parameters,
                     arm_namespace,
                     return_arm,
+                    edges::return_arm_statement_ordinal(return_arm),
                     &mut evaluation,
                     &mut next_value,
                     &mut next_block,
@@ -459,6 +460,7 @@ impl StateGraphEmission<'_, '_> {
                             &state_parameters,
                             values.clone(),
                             return_arm,
+                            edges::return_arm_statement_ordinal(return_arm),
                             &mut evaluation,
                             &mut next_value,
                             &mut next_block,
@@ -496,6 +498,7 @@ impl StateGraphEmission<'_, '_> {
                                 &state_parameters,
                                 namespace,
                                 &plan.return_arm,
+                                plan.statement_ordinal,
                                 &mut evaluation,
                                 &mut next_value,
                                 &mut next_block,
@@ -524,6 +527,7 @@ impl StateGraphEmission<'_, '_> {
                     &state_parameters,
                     values.clone(),
                     return_arm,
+                    edges::return_arm_statement_ordinal(return_arm),
                     &mut evaluation,
                     &mut next_value,
                     &mut next_block,
@@ -538,7 +542,7 @@ impl StateGraphEmission<'_, '_> {
         // arm's edge and the dispatch's closing `_` edge dispose of it where
         // control leaves the state. A closed-sum dispatch disposes of it on its
         // own case edges instead.
-        let consumed_case_subjects = case_subject_consumptions(&state.terminator);
+        let consumed_case_subjects = edges::case_subject_consumptions(&state.terminator);
         let mut edge_blocks = Vec::new();
         let frame = super::successor_edge::SuccessorFrame {
             position,
@@ -1059,65 +1063,6 @@ pub(super) fn return_root_discards(
             .map(|index| state_parameters[index].place),
     );
     Ok(local_discards)
-}
-
-/// The owned parameter each edge of a case-test dispatch consumes, keyed by
-/// the edge's transition ordinal: a tested arm consumes its own subject, and
-/// the dispatch's closing `_` arm the subject of the arm before it.
-fn case_subject_consumptions(
-    terminator: &checked_trees::CheckedComposedUnitControlTerminatorPlan,
-) -> Vec<(u32, u32)> {
-    fn subject(guard: &checked_trees::CheckedCallScalarArgument) -> Option<u32> {
-        let CheckedScalarExpression::Boolean(guard) = guard.as_pure()? else {
-            return None;
-        };
-        let membership = match guard.as_ref() {
-            checked_trees::CheckedBooleanExpression::Equal { left, right } => {
-                match (left.as_ref(), right.as_ref()) {
-                    (checked_trees::CheckedBooleanExpression::Constant(true), tested)
-                    | (tested, checked_trees::CheckedBooleanExpression::Constant(true)) => tested,
-                    _ => return None,
-                }
-            }
-            tested => tested,
-        };
-        match membership {
-            checked_trees::CheckedBooleanExpression::StructuralCaseMembership {
-                subject, ..
-            } if subject.path.is_empty() => Some(subject.parameter_position),
-            _ => None,
-        }
-    }
-    match terminator {
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::Conditional {
-            guard,
-            when_true,
-            when_false,
-        } => subject(guard)
-            .map(|position| {
-                vec![
-                    (when_true.statement_ordinal, position),
-                    (when_false.statement_ordinal, position),
-                ]
-            })
-            .unwrap_or_default(),
-        checked_trees::CheckedComposedUnitControlTerminatorPlan::GuardedJumps {
-            arms,
-            fallback,
-        } => {
-            let mut consumed = arms
-                .iter()
-                .filter_map(|arm| {
-                    subject(arm.guard()).map(|position| (arm.statement_ordinal(), position))
-                })
-                .collect::<Vec<_>>();
-            if let Some(position) = arms.last().and_then(|arm| subject(arm.guard())) {
-                consumed.push((fallback.statement_ordinal(), position));
-            }
-            consumed
-        }
-        _ => Vec::new(),
-    }
 }
 
 /// Whether a successor evaluates any argument from an expression, which may
